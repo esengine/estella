@@ -1,0 +1,119 @@
+name: Mirror a release
+
+# A copy of a published release on Cloudflare R2, because GitHub's download speed
+# is the editor's download speed for anyone far from it — and a runtime template is
+# hundreds of megabytes.
+#
+# The mirror is a shortcut, never an authority: the editor checks every archive
+# against the size and digest the release's index states and falls back to GitHub
+# when a copy is missing, stale or wrong. That is what lets this run last, fail
+# without failing a release, and be pointed at a version published months ago.
+#
+# Two ways in, one implementation: the release workflow calls it for the tag it just
+# published, and a maintainer can run it by hand for any existing tag — which is how
+# a release from before the mirror existed gets one.
+#
+# Needs five secrets; without them every step skips and the release stays
+# GitHub-only: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
+# and R2_PUBLIC_BASE — the public URL the bucket is served on, which is what the
+# editor is pointed at (DEFAULT_RELEASE_MIRROR / ESTELLA_RELEASE_MIRROR).
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag to mirror.
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to mirror (e.g. v0.33.0).'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Mirror ${{ inputs.tag }} to Cloudflare R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check for a configured mirror
+        id: cfg
+        env:
+          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: echo "configured=${{ env.KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download every asset the release published
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p mirror
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir mirror --clobber
+          ls -la mirror
+
+      # `latest.json` is what the editor's update check reads: one small file at the
+      # root, so asking "is there a newer version?" costs one request and no API.
+      # Only the newest release may write it — mirroring an older tag by hand must
+      # not tell every editor to downgrade.
+      - name: Decide whether this tag is the latest
+        id: latest
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          newest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "newest release is $newest, mirroring $TAG"
+          echo "is_latest=$([ "$newest" = "$TAG" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # The same layout the origin uses — v<version>/ holding that release's assets —
+      # so the editor swaps a base and changes nothing else.
+      - name: Sync to R2
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ secrets.R2_BUCKET }}
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          TAG: ${{ inputs.tag }}
+          IS_LATEST: ${{ steps.latest.outputs.is_latest }}
+        run: |
+          version="${TAG#v}"
+          aws s3 sync mirror "s3://$BUCKET/v$version/" --endpoint-url "$ENDPOINT" --no-progress
+
+          # Written last, and only for the newest release: an editor that reads
+          # latest.json must never be pointed at a version whose assets are still
+          # uploading, nor at an older one somebody re-mirrored.
+          if [ "$IS_LATEST" = "true" ]; then
+            printf '{\n  "version": "%s",\n  "url": "%s/v%s/"\n}\n' \
+              "$version" "${PUBLIC_BASE%/}" "$version" > latest.json
+            cat latest.json
+            aws s3 cp latest.json "s3://$BUCKET/latest.json" \
+              --endpoint-url "$ENDPOINT" --cache-control "max-age=300"
+          else
+            echo "not the newest release — leaving latest.json alone"
+          fi
+
+      - name: Report
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#v}"
+          echo "### Mirrored \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- assets: ${PUBLIC_BASE%/}/v$version/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- latest.json written: ${{ steps.latest.outputs.is_latest }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Say why nothing happened
+        if: steps.cfg.outputs.configured != 'true'
+        run: echo "::notice::No R2 secrets configured — the release stays GitHub-only."
