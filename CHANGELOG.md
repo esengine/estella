@@ -14,6 +14,30 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The editor updates itself.** Until now an update notification could only hand
+  over a link: the build is unsigned, and silent auto-update needs a signature it
+  did not have. The check, the download and the install are now the editor's own —
+  progress reports into the toast that announced the update, and the button becomes
+  Restart when the download lands. The download comes from whichever source
+  answered the check, mirror before origin, so it is as fast as the check was.
+- **The macOS build ships a zip alongside the dmg.** Not a second thing to
+  download — it is what an in-place update installs from. Squirrel.Mac swaps in a
+  whole signed `.app`, which a dmg is not.
+- **Releases can be signed and notarized.** `release-desktop.yml` reads five
+  optional secrets (`MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`). Unset — on a fork, or before a
+  certificate exists — the build still produces installers, and the editor keeps
+  handing macOS users a link, because it checks its own signature before offering
+  to update in place rather than discovering the problem after a 200 MB download.
+- **The mirror publishes the updater's feed, and proves it.** `latest.yml` and
+  `latest-mac.yml` are copied beside the very files they name, under their real
+  names, so nothing has to be rewritten and no url is composed. Every file the
+  channel files name is then fetched over the public base, and the mirror job fails
+  on a miss — a feed naming a file nobody can fetch is an update that dies at the
+  download.
+
 ## [0.34.1] - 2026-07-27
 
 0.34.0 made a game packageable for Android. This one makes the package

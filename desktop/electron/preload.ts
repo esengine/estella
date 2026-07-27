@@ -11,7 +11,7 @@ import type {
   PlatformStatus, CreatePlatformResult, PlayableNetworkOption, ProjectPlatformKind,
 } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
-import type { LatestRelease } from './updateCheck';
+import type { AvailableUpdate, DownloadProgress } from './autoUpdate';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
@@ -57,12 +57,22 @@ const api = {
       });
     },
     /** Manual update check (Help menu); null = up to date / offline. */
-    checkUpdates: (): Promise<LatestRelease | null> => ipcRenderer.invoke('app:checkUpdates'),
+    checkUpdates: (): Promise<AvailableUpdate | null> => ipcRenderer.invoke('app:checkUpdates'),
     /** Startup update notification (main checks once after launch); returns an unsubscribe. */
-    onUpdateAvailable: (cb: (release: LatestRelease) => void): (() => void) => {
-      const h = (_e: unknown, release: LatestRelease) => cb(release);
+    onUpdateAvailable: (cb: (release: AvailableUpdate) => void): (() => void) => {
+      const h = (_e: unknown, release: AvailableUpdate) => cb(release);
       ipcRenderer.on('app:updateAvailable', h);
       return () => ipcRenderer.removeListener('app:updateAvailable', h);
+    },
+    /** Download the update the last check found. Only for `selfInstall` updates. */
+    downloadUpdate: (): Promise<void> => ipcRenderer.invoke('app:downloadUpdate'),
+    /** Quit and let the installer take over; false if no download has finished. */
+    installUpdate: (): Promise<boolean> => ipcRenderer.invoke('app:installUpdate'),
+    /** Bytes-so-far for the running download; returns an unsubscribe. */
+    onUpdateProgress: (cb: (p: DownloadProgress) => void): (() => void) => {
+      const h = (_e: unknown, p: DownloadProgress) => cb(p);
+      ipcRenderer.on('app:updateProgress', h);
+      return () => ipcRenderer.removeListener('app:updateProgress', h);
     },
     /** Open the local diagnostics log folder (main-process errors, crash dumps). */
     openLogs: (): Promise<void> => ipcRenderer.invoke('diagnostics:openLogs'),

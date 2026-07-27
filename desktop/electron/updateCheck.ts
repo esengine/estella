@@ -53,6 +53,27 @@ export interface LatestRelease {
   url: string;
 }
 
+/**
+ * The same question this file answers, in electron-updater's vocabulary: which
+ * sources to ask, fastest-first. Mirrors publish the channel files under `latest/`
+ * beside the files they name (mirror-release.yml), so a feed is a base and nothing
+ * more — see autoUpdate.ts for who consumes these.
+ *
+ * Differential download is off for mirrors: it asks for several byte ranges in one
+ * request, which object storage behind a CDN answers with the whole file, and
+ * electron-updater fails the block map rather than falling back.
+ */
+export function updateFeeds(env: NodeJS.ProcessEnv = process.env): Array<Record<string, unknown>> {
+  return [
+    ...releaseMirrors(env).map((base) => ({
+      provider: 'generic',
+      url: `${base}/latest`,
+      useMultipleRangeRequest: false,
+    })),
+    { provider: 'github', owner: 'esengine', repo: 'estella' },
+  ];
+}
+
 /** Parse "v1.2.3" / "1.2.3" / "v1.2.3-rc.1" → parts + prerelease flag. Null if not a version. */
 export function parseVersion(tag: string): { parts: [number, number, number]; pre: string | null } | null {
   const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(tag.trim());

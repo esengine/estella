@@ -33,6 +33,7 @@ import { Toasts } from '@/store/Toasts';
 import { confirm } from '@/components/confirm';
 import { requestPluginPanelAction } from '@/plugins/panelActions';
 import { t } from '@/i18n';
+import { notifyUpdate } from '@/update/updateToast';
 import type { ToolMode } from '@/types';
 
 const editor = () => useEditorStore.getState();
@@ -582,14 +583,8 @@ commands.register({
   label: t('menu.checkUpdates'),
   category: t('cat.help'),
   run: () => void window.estella?.app?.checkUpdates?.().then((release) => {
-    if (release) {
-      Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
-        label: t('ui.download'),
-        run: () => window.open(release.url),
-      });
-    } else {
-      Toasts.push(t('toast.upToDate'), 'success');
-    }
+    if (release) notifyUpdate(release);
+    else Toasts.push(t('toast.upToDate'), 'success');
   }),
 });
 commands.register({

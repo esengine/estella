@@ -25,9 +25,11 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
     </Steps>
 
     <Aside type="tip">
-      **Help → Check for Updates…** reads the same mirror (`dl.estella.games`) and
-      hands back a download from it, falling back to GitHub when the mirror has no
-      answer or a staler one — the origin stays the authority on what exists.
+      **Help → Check for Updates…** downloads the update inside the editor and
+      installs it on restart, from the same mirror (`dl.estella.games`) the
+      installer above comes from, falling back to GitHub when the mirror has no
+      answer or a staler one — the origin stays the authority on what exists. A
+      build that cannot install its own update hands you a link instead.
     </Aside>
 
     <Aside type="note">

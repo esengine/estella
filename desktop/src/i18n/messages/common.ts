@@ -18,6 +18,7 @@ export const commonMessages = defineMessages({
     'ui.save': { en: 'Save', zh: '保存' },
     'ui.untitled': { en: 'untitled', zh: '未命名' },
     'ui.download': { en: 'Download', zh: '下载' },
+    'ui.restart': { en: 'Restart', zh: '重启' },
     'ui.reloadNow': { en: 'Reload now', zh: '立即重新加载' },
     'ui.dismiss': { en: 'Dismiss', zh: '关闭' },
     'ui.zoomIn': { en: 'Zoom in', zh: '放大' },

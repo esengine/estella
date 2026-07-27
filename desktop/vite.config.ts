@@ -91,7 +91,16 @@ export default defineConfig({
         // sibling binaries at runtime (native exe / wasm via import.meta.url /
         // module __dirname), so bundling them breaks that — keep them external,
         // loaded from disk by the cook.
-        vite: { build: { rolldownOptions: { external: ['esbuild', 'ffmpeg-static', /[\\/]build-tools[\\/]basis[\\/]/] } } },
+        // electron-updater is external for a different reason: it resolves its own
+        // package.json and requires its providers by path, and it must stay the
+        // CommonJS package Node's interop knows how to load (see autoUpdate.ts).
+        vite: {
+          build: {
+            rolldownOptions: {
+              external: ['esbuild', 'ffmpeg-static', 'electron-updater', /[\\/]build-tools[\\/]basis[\\/]/],
+            },
+          },
+        },
       },
       preload: {
         input: 'electron/preload.ts',

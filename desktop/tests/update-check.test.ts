@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseVersion, isNewerVersion, checkForUpdate, downloadKeyFor } from '../electron/updateCheck';
+import { parseVersion, isNewerVersion, checkForUpdate, downloadKeyFor, updateFeeds } from '../electron/updateCheck';
+import { DEFAULT_RELEASE_MIRROR } from '../../build-tools/utils/nativeTemplate.js';
 
 describe('parseVersion', () => {
   it('parses plain and v-prefixed versions', () => {
@@ -147,5 +148,43 @@ describe('checkForUpdate — mirror', () => {
     });
     expect((await checkForUpdate('0.34.1', originOnly, env, 'win32', 'x64'))?.url)
       .toBe('https://github.com/x/releases/v0.35.0');
+  });
+});
+
+// — The updater's feed ——————————————————————————————————————————————————————————
+//
+// electron-updater downloads from whichever feed answered the check, so the order
+// here IS the download speed. `latest/` is where mirror-release.yml puts the channel
+// files, beside the files they name.
+
+describe('updateFeeds', () => {
+  it('asks the mirror before the origin', () => {
+    expect(updateFeeds({})).toEqual([
+      { provider: 'generic', url: `${DEFAULT_RELEASE_MIRROR}/latest`, useMultipleRangeRequest: false },
+      { provider: 'github', owner: 'esengine', repo: 'estella' },
+    ]);
+  });
+
+  it('follows the mirror override, in the order it is given', () => {
+    const feeds = updateFeeds({ ESTELLA_RELEASE_MIRROR: 'https://a.test, https://b.test/' });
+    expect(feeds.map((f) => f.url)).toEqual([
+      'https://a.test/latest',
+      'https://b.test/latest',
+      undefined, // GitHub is named by owner/repo, not a url
+    ]);
+  });
+
+  it('leaves the origin alone when the mirror is turned off', () => {
+    expect(updateFeeds({ ESTELLA_RELEASE_MIRROR: '' }))
+      .toEqual([{ provider: 'github', owner: 'esengine', repo: 'estella' }]);
+  });
+
+  it('never asks a mirror for several byte ranges at once', () => {
+    // Object storage behind a CDN answers a multi-range request with the whole
+    // file, and electron-updater fails the block map instead of falling back — so
+    // differential download is off wherever the response is a CDN's to shape.
+    for (const feed of updateFeeds({ ESTELLA_RELEASE_MIRROR: 'https://a.test' })) {
+      if (feed.provider === 'generic') expect(feed.useMultipleRangeRequest).toBe(false);
+    }
   });
 });

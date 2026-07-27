@@ -98,8 +98,20 @@ mac:
   # the host-arch esbuild native binary, so the x64 slice would ship a broken esbuild
   # (and electron-builder rejects the identical-across-arch binary). Intel-mac support
   # would need the darwin-x64 esbuild binary installed for a separate x64 dmg.
+  #
+  # The zip is not a second thing to download — it is what Squirrel.Mac installs
+  # from. An in-place update swaps in a whole signed .app, which a dmg is not, so a
+  # release carrying only the dmg leaves latest-mac.yml naming a file nobody shipped
+  # and every macOS auto-update fails at the last step.
+  #
+  # Everything else macOS signing needs is already the default: a hardened runtime,
+  # entitlements granting the JIT the engine's wasm runs on, and notarization
+  # whenever APPLE_ID and friends are in the environment (skipped with a warning
+  # when they are not, which is what a local `pnpm dist` wants).
   target:
     - target: dmg
+      arch: arm64
+    - target: zip
       arch: arm64
   category: public.app-category.developer-tools
 linux:

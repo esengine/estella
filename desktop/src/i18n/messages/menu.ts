@@ -33,5 +33,14 @@ export const menuMessages = defineMessages({
     'toast.extractedSchemas': { en: 'Extracted component schemas', zh: '组件 Schema 已提取' },
     'toast.extractFailed': { en: 'Extract failed', zh: '提取失败' },
     'toast.updateAvailable': { en: 'Estella {version} is available', zh: '新版本 Estella {version} 可用' },
+    'toast.updateDownloading': {
+      en: 'Downloading Estella {version}… {percent}%',
+      zh: '正在下载 Estella {version}… {percent}%',
+    },
+    'toast.updateReady': {
+      en: 'Estella {version} is ready — restart to install',
+      zh: 'Estella {version} 已下载完成，重启即可安装',
+    },
+    'toast.updateFailed': { en: 'Update download failed', zh: '更新下载失败' },
     'toast.upToDate': { en: 'Estella is up to date', zh: 'Estella 已是最新版本' },
 });

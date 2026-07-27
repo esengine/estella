@@ -10,6 +10,15 @@ on:
   # burning a tag.
   workflow_dispatch:
 
+# Signing the macOS build is optional, and everything degrades when it is absent:
+# five secrets — MAC_CSC_LINK (base64 of the Developer ID Application .p12),
+# MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+# Unset, electron-builder logs that it skipped signing and notarization and still
+# produces installers, and the editor keeps handing macOS users a download link
+# instead of updating in place (electron/autoUpdate.ts settles that by reading the
+# running bundle's own signature). Windows needs no certificate to auto-update; one
+# would buy a quiet SmartScreen, not the capability.
+
 # Read by default; the two jobs that touch the release raise it to contents:write.
 permissions:
   contents: read
@@ -255,6 +264,12 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # An app-specific password, NOT the Apple ID's own.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         # electron-builder's GitHub publisher dedups assets on re-upload, so the
         # whole command is idempotent — retry it to ride out GitHub API 5xx
         # blips (a 503 on GET /releases has failed an otherwise-finished build
@@ -282,6 +297,7 @@ jobs:
           path: |
             desktop/release/*.exe
             desktop/release/*.dmg
+            desktop/release/*.zip
           retention-days: 3
 
   # Publishing is the last step, and the one that has to be sure. A release missing

@@ -54,7 +54,7 @@ import {
   packPlugin, packageFileName, inspectPluginPackage, installPluginPackage, writePackage,
   PLUGIN_PACKAGE_EXT,
 } from './pluginPackage';
-import { checkForUpdate } from './updateCheck';
+import { findUpdate, downloadUpdate, installUpdate } from './autoUpdate';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
   listPlayableNetworks, loadPlayableProfile,
@@ -543,24 +543,13 @@ function createWindow() {
   // documents (scene or asset editors — the renderer pushes the aggregate via
   // app:dirty); `quitting` lets the chosen action close past this handler.
   win.on('close', (e) => {
-    // Screenshot / automation mode discards unsaved changes silently — a shot run
-    // dirties the scene (it creates/edits entities), and a blocking save prompt on
-    // app.quit() would hang the headless run waiting for a click.
     if (process.env.ESTELLA_SHOT || quitting || !editorDirty || !win) return;
     e.preventDefault();
-    const choice = dialog.showMessageBoxSync(win, {
-      type: 'warning',
-      buttons: ['Save All', "Don't Save", 'Cancel'],
-      defaultId: 0,
-      cancelId: 2,
-      message: 'Save changes before closing?',
-      detail: 'The scene or an open asset editor has unsaved changes that will be lost otherwise.',
+    void settleUnsavedChanges().then((proceed) => {
+      if (!proceed) return; // Cancel → keep the window open
+      quitting = true;
+      win?.destroy();
     });
-    if (choice === 2) return; // Cancel → keep the window open
-    if (choice === 1) { quitting = true; win.destroy(); return; } // Don't Save
-    // Save All → ask the renderer to save every dirty document, then close when it confirms.
-    ipcMain.once('app:quitConfirmed', () => { quitting = true; win?.destroy(); });
-    win.webContents.send('app:saveBeforeQuit');
   });
 }
 
@@ -571,10 +560,52 @@ let editorDirty = false;
 let quitting = false;
 ipcMain.on('app:dirty', (_e, dirty: boolean) => { editorDirty = !!dirty; });
 
+/**
+ * Settle unsaved work before something that ends this session. Resolves true when
+ * it may go ahead, false when the user chose Cancel.
+ *
+ * Shared by the window's close guard and the update installer, which BOTH end the
+ * session — and the installer is the one that cannot be allowed to skip it, since
+ * quitAndInstall launches the installer and only then quits. Prompting after that
+ * would let a Cancel leave the editor running while its own files are replaced.
+ *
+ * Screenshot / automation mode saves nothing and asks nothing: a shot run dirties
+ * the scene by creating entities, and a modal prompt on quit would hang it waiting
+ * for a click nobody is there to give.
+ */
+function settleUnsavedChanges(): Promise<boolean> {
+  if (process.env.ESTELLA_SHOT || !editorDirty || !win) return Promise.resolve(true);
+  const choice = dialog.showMessageBoxSync(win, {
+    type: 'warning',
+    buttons: ['Save All', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    message: 'Save changes before closing?',
+    detail: 'The scene or an open asset editor has unsaved changes that will be lost otherwise.',
+  });
+  if (choice === 2) return Promise.resolve(false);
+  if (choice === 1) return Promise.resolve(true);
+  // Save All → the renderer saves every dirty document and confirms when done.
+  return new Promise((resolve) => {
+    ipcMain.once('app:quitConfirmed', () => resolve(true));
+    win?.webContents.send('app:saveBeforeQuit');
+  });
+}
+
 // — Minimal IPC surface (expanded as the editor grows) —
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:platform', () => process.platform);
-ipcMain.handle('app:checkUpdates', () => checkForUpdate(app.getVersion()));
+ipcMain.handle('app:checkUpdates', () => findUpdate());
+ipcMain.handle('app:downloadUpdate', (e) =>
+  downloadUpdate((progress) => e.sender.send('app:updateProgress', progress)),
+);
+ipcMain.handle('app:installUpdate', async () => {
+  if (!(await settleUnsavedChanges())) return false;
+  // Past the prompt the session is over, so the close guard must not ask again —
+  // it would run against a window the installer is already replacing.
+  quitting = true;
+  return installUpdate();
+});
 ipcMain.handle('diagnostics:openLogs', () => shell.openPath(logsDir()));
 ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', status));
 
@@ -1263,7 +1294,7 @@ app.whenReady().then(async () => {
   // Skipped in automation/dev so screenshots and local runs stay deterministic.
   if (!VITE_DEV_SERVER_URL && !process.env.ESTELLA_SHOT) {
     setTimeout(() => {
-      void checkForUpdate(app.getVersion()).then((release) => {
+      void findUpdate().then((release) => {
         if (release && win && !win.isDestroyed()) {
           win.webContents.send('app:updateAvailable', release);
         }

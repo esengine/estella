@@ -36,6 +36,16 @@ class ToastsImpl {
     if (ttl > 0) setTimeout(() => this.dismiss(id), ttl);
     return id;
   }
+  /**
+   * Rewrite a live toast in place. For a task that reports as it runs — a download's
+   * percentage — where a toast per tick would be a column of stale numbers. No-op
+   * once the toast is gone, so a late report cannot resurrect it.
+   */
+  revise(id: number, patch: Partial<Omit<Toast, 'id'>>): void {
+    const cur = this.store.getState().list;
+    if (!cur.some((t) => t.id === id)) return;
+    this.store.setState({ list: cur.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+  }
   dismiss(id: number): void {
     const cur = this.store.getState().list;
     const next = cur.filter((t) => t.id !== id);

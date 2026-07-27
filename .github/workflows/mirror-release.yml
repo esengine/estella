@@ -146,6 +146,18 @@ jobs:
               '$d + {"mac-arm64": {url: $url, name: $name, size: $size}}')
           fi
 
+          # The updater's feed. electron-updater reads latest.yml / latest-mac.yml
+          # and then fetches the file each one NAMES, resolved against the same
+          # directory — so the channel files are copied beside the very files they
+          # name, under their real versioned basenames. Nothing is rewritten: the
+          # channel file the release published is the channel file served, sha512s
+          # and all, and a mirror that cannot restate a fact cannot get it wrong.
+          for f in mirror/latest*.yml mirror/*.exe mirror/*.dmg mirror/*.zip mirror/*.blockmap; do
+            aws s3 cp "s3://$BUCKET/v$version/$(basename "$f")" "s3://$BUCKET/latest/$(basename "$f")" \
+              --endpoint-url "$ENDPOINT" --no-progress \
+              --metadata-directive REPLACE --cache-control "max-age=300"
+          done
+
           # Written last, and only for the newest release: an editor that reads
           # latest.json must never be pointed at a version whose assets are still
           # uploading, nor at an older one somebody re-mirrored. `version` and
@@ -161,6 +173,46 @@ jobs:
           cat latest.json
           aws s3 cp latest.json "s3://$BUCKET/latest.json" \
             --endpoint-url "$ENDPOINT" --cache-control "max-age=300"
+
+      # A feed that names a file nobody can fetch is an update that dies at the
+      # download — the failure the versioned-directory url already taught this
+      # project, one layer down. So every file the channel files name is asked for
+      # over the public base, and a miss fails the job.
+      #
+      # The names come from the copies on disk, not from re-reading the published
+      # channel file: that one is overwritten every release behind a 300s cache, and
+      # a stale body would name the PREVIOUS release's files and fail for a reason
+      # that has nothing to do with what was just uploaded.
+      - name: Prove the updater feed resolves
+        if: steps.cfg.outputs.configured == 'true' && steps.latest.outputs.is_latest == 'true'
+        env:
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+        run: |
+          base="${PUBLIC_BASE%/}"
+          shopt -s nullglob
+          channels=(mirror/latest*.yml)
+          if [ ${#channels[@]} -eq 0 ]; then
+            echo "::error::the release published no channel file — nothing can auto-update"
+            exit 1
+          fi
+          reachable() {
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -I "$1") || code=000
+            [ "$code" = "200" ] || { echo "::error::$1 answers $code"; return 1; }
+          }
+          checked=0
+          for channel in "${channels[@]}"; do
+            reachable "$base/latest/$(basename "$channel")" || exit 1
+            names=$(sed -nE 's/^[[:space:]]*-?[[:space:]]*(url|path):[[:space:]]*"?([^"]+)"?[[:space:]]*$/\2/p' "$channel" | sort -u)
+            if [ -z "$names" ]; then
+              echo "::error::$(basename "$channel") names no file to download"
+              exit 1
+            fi
+            for name in $names; do
+              reachable "$base/latest/$name" || exit 1
+              checked=$((checked + 1))
+            done
+          done
+          echo "updater feed OK — ${#channels[@]} channel file(s), $checked payload url(s) reachable"
 
       # The website reads latest.json from a different origin than the bucket, so
       # without this its version and size labels are blocked — the download links

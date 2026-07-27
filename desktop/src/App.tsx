@@ -46,6 +46,7 @@ import { dockApi } from '@/layout/dockApi';
 import { forEachEditorWindow } from '@/layout/editorWindows';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
+import { notifyUpdate } from '@/update/updateToast';
 
 // Commands that fire even while a text field is focused — Save must work mid-edit;
 // everything else (typing, native Cmd+Z/backspace) stays with the field.
@@ -163,12 +164,7 @@ export function App() {
   useEffect(() => {
     const bridge = window.estella?.app;
     if (!bridge?.onUpdateAvailable) return;
-    return bridge.onUpdateAvailable((release) => {
-      Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
-        label: t('ui.download'),
-        run: () => window.open(release.url),
-      });
-    });
+    return bridge.onUpdateAvailable(notifyUpdate);
   }, []);
 
   const idle = (fn: () => void) =>
