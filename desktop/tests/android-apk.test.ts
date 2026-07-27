@@ -106,6 +106,95 @@ function verify(apk: string): {
     return JSON.parse(execFileSync('python3', [VERIFIER, apk], { encoding: 'utf8' }));
 }
 
+/**
+ * The attributes of every element, as the platform reads them: resource id, value
+ * type and value. Walks the chunk tree and the resource map, and never decodes a
+ * string — which is the point. A decoder that renders the manifest back as text
+ * shows `android:configChanges="orientation|..."` and looks right; the platform
+ * calls Integer.parseInt on it and refuses to install the package.
+ */
+function compiledAttributes(binary: Buffer): Array<Array<{ id: number; type: number; data: number }>> {
+    const CHUNK_RESOURCE_MAP = 0x0180;
+    const CHUNK_START_ELEMENT = 0x0102;
+
+    let ids: number[] = [];
+    const elements: Array<Array<{ id: number; type: number; data: number }>> = [];
+
+    // Chunks follow the 8-byte XML header, each with type/headerSize/size.
+    let at = 8;
+    while (at + 8 <= binary.length) {
+        const type = binary.readUInt16LE(at);
+        const headerSize = binary.readUInt16LE(at + 2);
+        const size = binary.readUInt32LE(at + 4);
+        if (size <= 0) break;
+
+        if (type === CHUNK_RESOURCE_MAP) {
+            ids = [];
+            for (let n = at + headerSize; n + 4 <= at + size; n += 4) ids.push(binary.readUInt32LE(n));
+        } else if (type === CHUNK_START_ELEMENT) {
+            const body = at + headerSize;
+            const attrStart = binary.readUInt16LE(body + 8);
+            const count = binary.readUInt16LE(body + 12);
+            const attrs = [];
+            for (let i = 0; i < count; i++) {
+                const a = body + attrStart + i * 20;
+                const nameIndex = binary.readUInt32LE(a + 4);
+                attrs.push({
+                    id: ids[nameIndex] ?? 0,
+                    type: binary.readUInt8(a + 15),
+                    data: binary.readUInt32LE(a + 16),
+                });
+            }
+            if (count > 0) elements.push(attrs);
+        }
+        at += size;
+    }
+    return elements;
+}
+
+describe('what the platform reads out of the compiled manifest', () => {
+    const ATTR = { screenOrientation: 0x0101001e, configChanges: 0x0101001f, exported: 0x01010010 };
+    const TYPE_INT_DEC = 0x10;
+
+    const manifest = () => compiledAttributes(compileManifest(
+        readFileSync(MANIFEST_TEMPLATE, 'utf8')
+            .replace(/@APP_ID@/g, 'com.example.demo').replace(/@APP_NAME@/g, 'My Game')
+            .replace(/@VERSION_NAME@/g, '1.2').replace(/@VERSION_CODE@/g, '7')
+            .replace(/@SCREEN_ORIENTATION@/g, 'sensorPortrait').replace(/@HAS_CODE@/g, 'true'),
+        appResources(Buffer.alloc(4)).references));
+
+    it('gives configChanges the bitmask its words mean, not the words', () => {
+        const attr = manifest().flat().find((a) => a.id === ATTR.configChanges);
+
+        // orientation|keyboardHidden|screenSize|screenLayout|density, per AOSP's
+        // attrs_manifest.xml. As a string this is INSTALL_PARSE_FAILED on a device.
+        expect(attr).toBeDefined();
+        expect(attr!.type).toBe(TYPE_INT_DEC);
+        expect(attr!.data).toBe(0x0080 | 0x0020 | 0x0400 | 0x0100 | 0x1000);
+    });
+
+    it('gives screenOrientation its enum number', () => {
+        const attr = manifest().flat().find((a) => a.id === ATTR.screenOrientation);
+        expect(attr).toBeDefined();
+        expect(attr!.type).toBe(TYPE_INT_DEC);
+        expect(attr!.data).toBe(7); // sensorPortrait
+    });
+
+    it('sorts each element’s attributes by resource id, which is how they are found', () => {
+        // The platform binary-searches this array. Out of order, an attribute is
+        // simply not there: an activity whose android:exported cannot be found is
+        // refused on Android 12+ for not declaring one.
+        for (const attrs of manifest()) {
+            // Only the id-bearing ones: `package` carries no resource id and the
+            // platform looks it up by name, so it is not part of the ordering the
+            // search depends on (it lands last, which a device accepts).
+            const ids = attrs.map((a) => a.id).filter((id) => id !== 0);
+            expect(ids).toEqual([...ids].sort((x, y) => x - y));
+        }
+        expect(manifest().flat().some((a) => a.id === ATTR.exported)).toBe(true);
+    });
+});
+
 describe('the manifest is compiled, not shelled out to aapt2', () => {
     it('uses the resource ids AOSP publishes — the platform resolves attributes by id', () => {
         if (!hasAndroguard) return;

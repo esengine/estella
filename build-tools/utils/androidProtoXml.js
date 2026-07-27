@@ -27,6 +27,8 @@ const PRIM_BOOLEAN = 8;
 
 // Resources.proto — Item.value
 const ITEM_REF = 1;
+import { symbolicAttrValue } from './androidAttrValues.js';
+
 const ITEM_STR = 2;
 const ITEM_PRIM = 7;
 
@@ -34,7 +36,13 @@ const ITEM_PRIM = 7;
 const REF_ID = 2;
 
 /** `Item` for an attribute value, typed the way the platform expects to read it. */
-function compiledItem(value, references) {
+function compiledItem(value, references, name) {
+    // Same rule as the binary encoder: a flag or enum attribute is an int, and the
+    // App Bundle carries the same manifest the APK does.
+    const symbolic = name === undefined ? null : symbolicAttrValue(name, value);
+    if (symbolic !== null) {
+        return bytesField(ITEM_PRIM, message(varintField(PRIM_INT_DECIMAL, symbolic)));
+    }
     const style = /^@android:style\/(.+)$/.exec(value);
     if (style) {
         const id = ANDROID_STYLE_IDS[style[1]];
@@ -67,7 +75,7 @@ function attribute(attr, references) {
     if (framework && id === undefined) {
         throw new Error(`No public resource id known for android:${attr.name} — add it to ANDROID_ATTR_IDS.`);
     }
-    const compiled = framework ? compiledItem(attr.value, references) : null;
+    const compiled = framework ? compiledItem(attr.value, references, attr.name) : null;
     return message(
         framework ? bytesField(1, ANDROID_NS) : null,
         bytesField(2, attr.name),

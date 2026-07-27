@@ -51,6 +51,8 @@ export const ANDROID_STYLE_IDS = {
 // Res_value data types.
 const TYPE_REFERENCE = 0x01;
 const TYPE_STRING = 0x03;
+import { symbolicAttrValue } from './androidAttrValues.js';
+
 const TYPE_INT_DEC = 0x10;
 const TYPE_INT_HEX = 0x11;
 const TYPE_INT_BOOLEAN = 0x12;
@@ -211,7 +213,14 @@ class StringPool {
  * are the APP's own resources, whose ids belong to whoever built the resource
  * table — so they are passed in rather than guessed.
  */
-function typedValue(value, pool, references) {
+function typedValue(value, pool, references, name) {
+    // Attributes whose words ARE numbers (configChanges, screenOrientation) resolve
+    // first: their text looks like a plain string, and shipping it as one is an APK
+    // the platform refuses to install.
+    const symbolic = name === undefined ? null : symbolicAttrValue(name, value);
+    if (symbolic !== null) {
+        return { type: TYPE_INT_DEC, data: symbolic >>> 0, raw: NO_ENTRY };
+    }
     const style = /^@android:style\/(.+)$/.exec(value);
     if (style) {
         const id = ANDROID_STYLE_IDS[style[1]];
@@ -299,13 +308,22 @@ export function encodeBinaryXml(root, references = {}) {
     // reached, which is why the map's slots had to be claimed first.
     const nodes = [];
     const emit = (node) => {
+        // Sorted by resource id, which is not a style: the platform reads an
+        // element's attributes with a BINARY SEARCH over this array, so an
+        // out-of-order attribute is one the platform cannot find. An
+        // android:exported it fails to find reads as absent — and an activity with
+        // an intent filter and no explicit `exported` is refused outright on
+        // Android 12+. Attributes with no resource id sort last; the manifest has
+        // none today, and a custom namespace is not looked up by id anyway.
         const attrs = node.attrs
             .filter((a) => a.name !== 'xmlns' && a.prefix !== 'xmlns')
             .map((a) => ({
+                id: a.prefix === 'android' ? ANDROID_ATTR_IDS[a.name] : Number.MAX_SAFE_INTEGER,
                 ns: a.prefix === 'android' ? nsUri : NO_ENTRY,
                 name: pool.add(a.name),
-                value: typedValue(a.value, pool, references),
-            }));
+                value: typedValue(a.value, pool, references, a.name),
+            }))
+            .sort((x, y) => x.id - y.id);
         const name = pool.add(node.name);
 
         const ext = Buffer.alloc(20 + attrs.length * 20);
