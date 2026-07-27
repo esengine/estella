@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { debugSigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { compileManifest, ANDROID_ATTR_IDS } from '../../build-tools/utils/androidBinaryXml.js';
+import { symbolicAttrValue } from '../../build-tools/utils/androidAttrValues.js';
 import { appResources, ICON_RESOURCE_ID, ICON_PATH } from '../../build-tools/utils/androidResources.js';
 import { zipLayout, readZip } from '../../build-tools/utils/zip.js';
 
@@ -196,8 +197,8 @@ describe('what the platform reads out of the compiled manifest', () => {
 });
 
 describe('the manifest is compiled, not shelled out to aapt2', () => {
-    it('uses the resource ids AOSP publishes — the platform resolves attributes by id', () => {
-        if (!hasAndroguard) return;
+    it('uses the resource ids AOSP publishes — the platform resolves attributes by id', (ctx) => {
+        if (!hasAndroguard) ctx.skip();
         const dump = execFileSync('python3', ['-c',
             'from androguard.core.resources.public import SYSTEM_RESOURCES;'
             + 'import json;print(json.dumps(SYSTEM_RESOURCES["attributes"]["forward"]))',
@@ -209,8 +210,8 @@ describe('the manifest is compiled, not shelled out to aapt2', () => {
         }
     });
 
-    it('round-trips through an independent decoder with every value intact', () => {
-        if (!hasAndroguard) return;
+    it('round-trips through an independent decoder with every value intact', (ctx) => {
+        if (!hasAndroguard) ctx.skip();
         const file = path.join(scratch, 'AndroidManifest.xml');
         writeFileSync(file, compileManifest(readFileSync(MANIFEST_TEMPLATE, 'utf8')
             .replace(/@APP_ID@/g, 'com.example.demo').replace(/@APP_NAME@/g, 'My Game')
@@ -227,7 +228,19 @@ describe('the manifest is compiled, not shelled out to aapt2', () => {
         expect(xml).toContain('package="com.example.demo"');
         expect(xml).toContain('android:versionCode="7"');
         expect(xml).toContain('android:label="My Game"');
-        expect(xml).toContain('android:screenOrientation="sensorPortrait"');
+        // A symbolic attribute survives as its NUMBER, and that is the fix rather
+        // than a wart: shipped as the word it looks like, the platform runs
+        // Integer.parseInt over it and refuses the whole package. Derived from the
+        // table the encoder resolves through, so the two cannot drift — asserting a
+        // bare 7 here would only restate a literal.
+        expect(xml).toContain(
+            `android:screenOrientation="${symbolicAttrValue('screenOrientation', 'sensorPortrait')}"`,
+        );
+        expect(xml).toContain(
+            `android:configChanges="${symbolicAttrValue(
+                'configChanges', 'orientation|keyboardHidden|screenSize|screenLayout|density',
+            )}"`,
+        );
         // A framework style survives as a REFERENCE to the id, not as its text.
         expect(xml).toContain('android:theme="@android:01030007"');
         expect(xml).toContain('android:name="android.app.NativeActivity"');
@@ -287,8 +300,8 @@ describe('assembling an APK', () => {
         expect(checked).toBe(3);
     });
 
-    it('carries a launcher icon the platform can resolve, through a table we wrote', () => {
-        if (!hasAndroguard) return;
+    it('carries a launcher icon the platform can resolve, through a table we wrote', (ctx) => {
+        if (!hasAndroguard) ctx.skip();
         const apk = build();
 
         const resolved = JSON.parse(execFileSync('python3', ['-c',
@@ -329,8 +342,8 @@ describe('assembling an APK', () => {
 });
 
 describe('the v2 signature, checked by an independent implementation', () => {
-    it('verifies: the digest covers the file and the certificate carries the signing key', () => {
-        if (!hasPython) return;
+    it('verifies: the digest covers the file and the certificate carries the signing key', (ctx) => {
+        if (!hasPython) ctx.skip();
         const result = verify(build());
 
         expect(result.signedV2).toBe(true);
@@ -347,8 +360,8 @@ describe('the v2 signature, checked by an independent implementation', () => {
         }
     });
 
-    it('fails once a single byte of the payload changes', () => {
-        if (!hasPython) return;
+    it('fails once a single byte of the payload changes', (ctx) => {
+        if (!hasPython) ctx.skip();
         const apk = readFileSync(build());
         // Somewhere inside the first entry's data, well before the signing block.
         const tampered = Buffer.from(apk);

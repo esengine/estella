@@ -32,8 +32,8 @@ beforeAll(() => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('makeZip', () => {
-  it('writes an archive a real unzip accepts, with the content intact', () => {
-    if (!hasUnzip) return;
+  it('writes an archive a real unzip accepts, with the content intact', (ctx) => {
+    if (!hasUnzip) ctx.skip();
     // Repetitive enough that deflate must actually be exercised (a stored-only
     // archive would pass a naive round-trip but not prove the deflate path).
     const html = `<!doctype html><html><body>${'<span>playable</span>'.repeat(500)}</body></html>`;
@@ -57,8 +57,8 @@ describe('makeZip', () => {
     expect(a.equals(b)).toBe(true);
   });
 
-  it('round-trips binary content and multiple entries', () => {
-    if (!hasUnzip) return;
+  it('round-trips binary content and multiple entries', (ctx) => {
+    if (!hasUnzip) ctx.skip();
     const bin = Buffer.from(Array.from({ length: 1024 }, (_, i) => i & 0xff));
     const zip = makeZip([
       { name: 'index.html', data: Buffer.from('<html></html>', 'utf8') },
@@ -73,14 +73,14 @@ describe('makeZip', () => {
 });
 
 describe('readZip / extractZip', () => {
-  it('reads an archive a real `zip` produced, deflated and stored alike', () => {
+  it('reads an archive a real `zip` produced, deflated and stored alike', (ctx) => {
     let hasZip = true;
     try {
       execFileSync('zip', ['-v'], { stdio: 'ignore' });
     } catch {
       hasZip = false;
     }
-    if (!hasZip) return;
+    if (!hasZip) ctx.skip();
 
     const src = path.join(dir, 'src');
     mkdirSync(path.join(src, 'nested'), { recursive: true });

@@ -123,8 +123,8 @@ const attr = (element: Element, name: string): Attribute | undefined =>
     element.attributes.find((a) => a.name === name);
 
 describe('assembling an App Bundle', () => {
-    it('lays the app out the way the format requires, and signs every entry', () => {
-        if (!hasPython) return;
+    it('lays the app out the way the format requires, and signs every entry', (ctx) => {
+        if (!hasPython) ctx.skip();
         const result = verify(build());
 
         expect(result.hasDex).toBe(true);
@@ -143,8 +143,8 @@ describe('assembling an App Bundle', () => {
         expect(result.signedEntries).toBe(result.entries - 3);
     });
 
-    it('describes the app in protobuf, typed the way the platform reads it', () => {
-        if (!hasPython) return;
+    it('describes the app in protobuf, typed the way the platform reads it', (ctx) => {
+        if (!hasPython) ctx.skip();
         const { manifest } = verify(build());
 
         expect(attr(manifest, 'package')?.value).toBe('com.example.demo');
@@ -195,8 +195,8 @@ describe('assembling an App Bundle', () => {
         expect(attr(find(manifest, 'activity')!, 'name')?.value).toBe(binary.activity);
     });
 
-    it('carries the icon and the resource table the reference resolves through', () => {
-        if (!hasPython) return;
+    it('carries the icon and the resource table the reference resolves through', (ctx) => {
+        if (!hasPython) ctx.skip();
         const entries = readZip(readFileSync(build())).map((e) => e.name);
 
         expect(entries).toContain('base/res/mipmap-xxxhdpi/ic_launcher.png');
@@ -217,8 +217,8 @@ describe('assembling an App Bundle', () => {
         expect(resFiles).toContain('res/mipmap-xxxhdpi/ic_launcher.png');
     });
 
-    it('fails verification once an entry changes under the signature', () => {
-        if (!hasPython) return;
+    it('fails verification once an entry changes under the signature', (ctx) => {
+        if (!hasPython) ctx.skip();
         // Repacked with one file swapped and the ORIGINAL signature kept — which is
         // exactly what tampering with a signed bundle looks like.
         const entries = readZip(readFileSync(build())).map((e) => (
