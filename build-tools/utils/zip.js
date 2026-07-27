@@ -126,21 +126,55 @@ export function makeZip(entries) {
  * sorted). Directories are implied by the names — a reader creates them — so no
  * directory entries are written.
  *
+ * `filter` is consulted for files AND directories; refusing a directory prunes the
+ * whole subtree rather than walking it and discarding the reads (a plugin's
+ * node_modules is the case that matters).
+ *
  * @param {string} dir
  * @param {string} [prefix] Path to prepend inside the archive.
+ * @param {(name: string, isDirectory: boolean) => boolean} [filter] Keep this entry.
  * @returns {Array<{name: string, data: Buffer}>}
  */
-export function zipTree(dir, prefix = '') {
+export function zipTree(dir, prefix = '', filter) {
     const out = [];
     const walk = (abs, rel) => {
         for (const e of readdirSync(abs, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
             const child = path.join(abs, e.name);
             const name = rel ? `${rel}/${e.name}` : e.name;
-            if (e.isDirectory()) walk(child, name);
+            const isDir = e.isDirectory();
+            if (filter && !filter(name, isDir)) continue;
+            if (isDir) walk(child, name);
             else if (e.isFile()) out.push({ name, data: readFileSync(child) });
         }
     };
     walk(dir, prefix);
+    return out;
+}
+
+/**
+ * What an archive claims to contain, from its central directory alone — no entry is
+ * inflated. Two uses that both need to happen BEFORE decompressing anything: showing
+ * someone what is in a file they were handed, and refusing an archive whose declared
+ * sizes are absurd (a small zip that expands to gigabytes is the oldest trick there
+ * is, and `readZip` would inflate it happily).
+ *
+ * @param {Buffer} buf
+ * @returns {Array<{name: string, size: number, compressedSize: number}>}
+ */
+export function listZip(buf) {
+    const { centralDirOffset, entryCount: count } = zipLayout(buf);
+    let p = centralDirOffset;
+    const out = [];
+    for (let i = 0; i < count; i++) {
+        if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('corrupt ZIP central directory');
+        const compressedSize = buf.readUInt32LE(p + 20);
+        const size = buf.readUInt32LE(p + 24);
+        const nameLen = buf.readUInt16LE(p + 28);
+        const extraLen = buf.readUInt16LE(p + 30);
+        const commentLen = buf.readUInt16LE(p + 32);
+        out.push({ name: buf.toString('utf8', p + 46, p + 46 + nameLen), size, compressedSize });
+        p += 46 + nameLen + extraLen + commentLen;
+    }
     return out;
 }
 

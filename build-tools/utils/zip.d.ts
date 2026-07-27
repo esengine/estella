@@ -21,8 +21,21 @@ export interface ZipLayout {
     entryCount: number;
 }
 
+/** One entry as the central directory describes it — nothing inflated. */
+export interface ZipListing {
+    name: string;
+    /** Uncompressed size, as the archive CLAIMS it. Verified only on extraction. */
+    size: number;
+    compressedSize: number;
+}
+
 export function makeZip(entries: readonly ZipEntry[]): Buffer;
 export function zipLayout(buf: Buffer): ZipLayout;
-export function zipTree(dir: string, prefix?: string): ZipEntry[];
+export function zipTree(
+    dir: string,
+    prefix?: string,
+    filter?: (name: string, isDirectory: boolean) => boolean,
+): ZipEntry[];
+export function listZip(buf: Buffer): ZipListing[];
 export function readZip(buf: Buffer): ZipEntry[];
 export function extractZip(buf: Buffer, destDir: string): string[];
