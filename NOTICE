@@ -34,6 +34,8 @@ license text is included in its directory under third_party/.
   Yoga                 third_party/yoga                  MIT
   pl_mpeg              third_party/pl_mpeg               MIT
   Spine Runtimes       third_party/spine-runtimes-*      Spine Runtimes License
+  DragonBones          third_party/dragonbones           MIT
+  RapidJSON            third_party/rapidjson             MIT
 
 The desktop editor additionally bundles an FFmpeg binary (via the ffmpeg-static
 npm package; FFmpeg is a trademark of Fabrice Bellard). It is licensed under the

@@ -28,6 +28,36 @@ if(ES_ENABLE_SPINE)
 endif()
 
 # =============================================================================
+# DragonBones - 2D Skeletal Animation (MIT)
+# =============================================================================
+# Vendored as plain sources rather than a submodule: upstream's .gitmodules pulls
+# cocos2d-x 2.x AND 3.x, which every `submodules: recursive` checkout would then
+# clone for a core that includes nothing from either. The format is frozen (the
+# authoring tool is no longer developed), so there is no upstream to track.
+#
+# rapidjson is its parser's dependency, NOT the engine's — the main module uses
+# nlohmann. They never meet: this links only into the DragonBones side module.
+
+if(ES_ENABLE_DRAGONBONES)
+    add_library(rapidjson INTERFACE)
+    target_include_directories(rapidjson INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/rapidjson)
+
+    file(GLOB_RECURSE DRAGONBONES_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/dragonbones/src/dragonBones/*.cpp"
+    )
+    add_library(dragonbones STATIC ${DRAGONBONES_SOURCES})
+    target_include_directories(dragonbones PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/dragonbones/src)
+    target_link_libraries(dragonbones PUBLIC rapidjson)
+    if(NOT MSVC)
+        # Upstream's own warnings, in code we do not edit so they can never be fixed.
+        target_compile_options(dragonbones PRIVATE -Wno-unused-parameter -Wno-shadow -Wno-switch -Wno-nonnull)
+    endif()
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(dragonbones PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    endif()
+endif()
+
+# =============================================================================
 # Box2D - 2D Physics Engine
 # =============================================================================
 

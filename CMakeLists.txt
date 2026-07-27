@@ -9,6 +9,9 @@ option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
 option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
+# OFF by default: only the DragonBones side module turns it on, and nothing in the
+# main engine links it (see third_party/CMakeLists.txt).
+option(ES_ENABLE_DRAGONBONES "Build the DragonBones runtime (side module only)" OFF)
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
 option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
 option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
