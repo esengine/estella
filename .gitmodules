@@ -17,6 +17,9 @@
 	path = third_party/spine-runtimes-3.8
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 3.8
+	# Vendored and read-only: an uninitialised nested example directory is not
+	# a change to this repo, and reporting it as one only invites a stray commit.
+	ignore = untracked
 [submodule "third_party/box2d"]
 	path = third_party/box2d
 	url = https://github.com/erincatto/box2d.git
@@ -24,10 +27,16 @@
 	path = third_party/spine-runtimes-4.1
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 4.1
+	# Vendored and read-only: an uninitialised nested example directory is not
+	# a change to this repo, and reporting it as one only invites a stray commit.
+	ignore = untracked
 [submodule "third_party/spine-runtimes-4.2"]
 	path = third_party/spine-runtimes-4.2
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 4.2
+	# Vendored and read-only: an uninitialised nested example directory is not
+	# a change to this repo, and reporting it as one only invites a stray commit.
+	ignore = untracked
 [submodule "tools/mcp-server"]
 	path = tools/mcp-server
 	url = https://github.com/esengine/estella-mcp-server.git
@@ -44,6 +53,12 @@
 	path = third_party/spine-runtimes-4.3
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	branch = 4.3
+	# Vendored and read-only: an uninitialised nested example directory is not
+	# a change to this repo, and reporting it as one only invites a stray commit.
+	ignore = untracked
 [submodule "third_party/spine-runtimes-2.1"]
 	path = third_party/spine-runtimes-2.1
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
+	# Vendored and read-only: an uninitialised nested example directory is not
+	# a change to this repo, and reporting it as one only invites a stray commit.
+	ignore = untracked
