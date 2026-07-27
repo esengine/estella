@@ -23,7 +23,7 @@ import { packageEntries } from './apk.js';
 import { message, bytesField } from './protobuf.js';
 import { compileProtoManifest } from './androidProtoXml.js';
 import { appResources } from './androidResources.js';
-import { DEFAULT_ICON } from './nativeTemplate.js';
+import { DEFAULT_ICON, templateAbis } from './nativeTemplate.js';
 import { jarSignatureFiles } from './jarSign.js';
 import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
 
@@ -47,7 +47,7 @@ function bundleConfig() {
  * @returns {Buffer} the signed bundle.
  */
 export function assembleAab(options) {
-    const { templateDir, contentDir, app, abi } = options;
+    const { templateDir, contentDir, app } = options;
     const dex = path.join(templateDir, 'classes.dex');
     const hasDex = existsSync(dex);
     const resources = appResources(options.icon ?? readFileSync(path.join(templateDir, DEFAULT_ICON)));
@@ -62,8 +62,10 @@ export function assembleAab(options) {
             HAS_CODE: hasDex ? 'true' : 'false',
         }), resources.references);
 
-    const libDir = path.join(templateDir, 'lib', abi);
-    if (!existsSync(libDir)) throw new Error(`The runtime template has no lib/${abi}.`);
+    // Every architecture: Play splits the bundle per device, which is what the
+    // format is for.
+    const abis = templateAbis(templateDir);
+    if (abis.length === 0) throw new Error('The runtime template carries no native libraries.');
     const templateAssets = path.join(templateDir, 'assets');
 
     const entries = [
@@ -72,7 +74,7 @@ export function assembleAab(options) {
         { name: 'base/resources.pb', data: resources.pb },
         ...resources.files.map((f) => ({ ...f, name: `base/${f.name}` })),
         ...(hasDex ? [{ name: 'base/dex/classes.dex', data: readFileSync(dex) }] : []),
-        ...packageEntries(libDir, `base/lib/${abi}`),
+        ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `base/lib/${abi}`)),
         ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'base/assets') : []),
         ...packageEntries(contentDir, 'base/assets'),
     ];

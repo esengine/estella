@@ -58,6 +58,14 @@ machine's store (`--no-template` opts out); `--template-out <dir>` also writes t
 distributable archive, and `--template-only` re-emits from an existing build
 without rebuilding.
 
+There is ONE template per platform, not one per architecture: a platform's
+template carries every architecture that platform needs — iOS already did, with
+the device and simulator slices inside one xcframework, and Android does with
+`lib/arm64-v8a` (every real device) and `lib/x86_64` (the emulator, which is how
+anyone without a phone tries the game). Each `cli native --abi <abi>` run adds its
+architecture and keeps the ones already there, so a package installs everywhere
+without anyone choosing.
+
 A release publishes those archives plus `native-templates.json`, written by
 `--template-index <dir>` over the set — one digest per template, which is what the
 editor checks a download against. The release workflow's `native-templates` job
@@ -136,8 +144,13 @@ minutes, cached in the checkout afterwards); the recipe lives in
 `build-tools/tasks/nativeDeps.js`, so CI runs exactly what you run:
 
 ```sh
-node build-tools/cli.js native
+node build-tools/cli.js native                     # arm64-v8a, every real device
+node build-tools/cli.js native --abi x86_64        # adds the emulator's
 ```
+
+Per-ABI build trees live under `build-native/<abi>/`, beside the `build-native/gen/`
+they share (the bindings, the SDK bundle and its bytecode are the same for every
+architecture).
 
 The build emits this machine's Android runtime template on the way out (the
 `.so` payload, the Java shim's `classes.dex`, the SDK bytecode and the manifest

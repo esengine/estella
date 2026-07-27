@@ -900,10 +900,7 @@ ipcMain.handle(
       // Android assembles the APK outright — the template carries everything the
       // package needs, and signing is ours to do.
       androidTemplate: opts?.platform === 'android'
-        ? (() => {
-          const template = resolveNativeTemplate('android', app.getVersion());
-          return template ? { dir: template.dir, abi: template.manifest.abi } : null;
-        })()
+        ? (resolveNativeTemplate('android', app.getVersion())?.dir ?? null)
         : null,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
@@ -1011,8 +1008,8 @@ ipcMain.handle('nativeTemplates:install', async () => {
   if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true };
   return installNativeTemplate(res.filePaths[0], app.getVersion());
 });
-ipcMain.handle('nativeTemplates:remove', (_e, platform: 'android' | 'ios', abi: string, version: string) =>
-  removeNativeTemplate(platform, abi, version),
+ipcMain.handle('nativeTemplates:remove', (_e, platform: 'android' | 'ios', version: string) =>
+  removeNativeTemplate(platform, version),
 );
 // Download + install this editor version's template. Progress is pushed rather
 // than polled: the renderer drew the button, so it owns the progress bar.

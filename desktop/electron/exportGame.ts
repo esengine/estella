@@ -428,9 +428,10 @@ export async function exportGame(opts: {
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
    *  itself in an Xcode project. Omitted (or null) exports content only. */
   iosSources?: IosProjectSources | null;
-  /** Android: the installed runtime template the APK is assembled from. Omitted
-   *  (or null) exports content only. */
-  androidTemplate?: { dir: string; abi: string } | null;
+  /** Android: the installed runtime template the package is assembled from —
+   *  which carries every architecture it will ship. Omitted (or null) exports
+   *  content only. */
+  androidTemplate?: string | null;
   /** Android: the identity to sign with. Omitted uses the development key, which
    *  installs on a device and is refused by every store. */
   androidKey?: SigningKey;
@@ -697,7 +698,7 @@ export async function exportGame(opts: {
       const template = opts.androidTemplate ?? null;
       if (template) {
         const key = opts.androidKey ?? debugSigningKey();
-        const assembly = { templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key, icon };
+        const assembly = { templateDir: template, contentDir: absOut, app: appConfig, key, icon };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
         await writeFile(apkFile, assembleApk(assembly));
         if (opts.androidAppBundle) {

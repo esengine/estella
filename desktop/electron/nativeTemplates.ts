@@ -21,7 +21,7 @@ import { once } from 'node:events';
 import { randomUUID, createHash } from 'node:crypto';
 import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
-    templateStoreDir, iosTemplateSources, DEFAULT_ABI, releaseAssetBase, parseTemplateIndex,
+    templateStoreDir, iosTemplateSources, releaseAssetBase, parseTemplateIndex,
     TEMPLATE_INDEX,
     type NativePlatform, type NativeTemplateManifest,
 } from '../../build-tools/utils/nativeTemplate.js';
@@ -60,7 +60,8 @@ export function iosSourcesFromTemplate(engineVersion: string): {
 export interface NativeTemplateEntry {
     id: string;
     platform: string;
-    abi: string;
+    /** Android: the architectures it carries. */
+    abis: string[];
     engineVersion: string;
     dir: string;
     /** Usable by THIS editor — an older release's template stays listed (removing
@@ -82,11 +83,11 @@ export function listNativeTemplates(engineVersion: string): NativeTemplateEntry[
             out.push({
                 id: manifest.id,
                 platform: manifest.platform,
-                abi: manifest.abi,
+                abis: manifest.abis ?? [],
                 engineVersion: manifest.engineVersion,
                 dir,
                 current: manifest.engineVersion === engineVersion
-                    && missingTemplateFiles(dir, manifest.platform, { abi: manifest.abi }).length === 0,
+                    && missingTemplateFiles(dir, manifest.platform).length === 0,
             });
         }
     }
@@ -122,12 +123,12 @@ export function installNativeTemplate(zipPath: string, engineVersion: string): I
         if (!manifest) {
             return { ok: false, error: 'not an Estella runtime template (no readable template.json)' };
         }
-        const missing = missingTemplateFiles(staging, manifest.platform, { abi: manifest.abi });
+        const missing = missingTemplateFiles(staging, manifest.platform);
         if (missing.length > 0) {
             return { ok: false, error: `incomplete template — missing ${missing.join(', ')}` };
         }
 
-        const dest = installedTemplateDir(manifest.engineVersion, manifest.platform, manifest.abi, store);
+        const dest = installedTemplateDir(manifest.engineVersion, manifest.platform, store);
         rmSync(dest, { recursive: true, force: true });
         mkdirSync(path.dirname(dest), { recursive: true });
         renameSync(staging, dest);
@@ -184,9 +185,8 @@ export async function downloadNativeTemplate(
         const entries = parseTemplateIndex(await indexRes.json(), engineVersion);
         if (!entries) return { ok: false, error: `the template index for v${engineVersion} is not readable` };
 
-        const abi = DEFAULT_ABI[platform];
-        const entry = entries.find((t) => t.platform === platform && t.abi === abi);
-        if (!entry) return { ok: false, error: `v${engineVersion} publishes no ${platform}-${abi} template` };
+        const entry = entries.find((t) => t.platform === platform);
+        if (!entry) return { ok: false, error: `v${engineVersion} publishes no ${platform} template` };
 
         const res = await fetchImpl(`${base}/${entry.file}`);
         if (!res.ok || !res.body) return { ok: false, error: `download failed (HTTP ${res.status})` };
@@ -221,8 +221,8 @@ export async function downloadNativeTemplate(
 
 /** Delete an installed template. Takes the id + version rather than a path, so a
  *  renderer can never ask the main process to remove an arbitrary directory. */
-export function removeNativeTemplate(platform: NativePlatform, abi: string, engineVersion: string): boolean {
-    const dir = installedTemplateDir(engineVersion, platform, abi || DEFAULT_ABI[platform]);
+export function removeNativeTemplate(platform: NativePlatform, engineVersion: string): boolean {
+    const dir = installedTemplateDir(engineVersion, platform);
     if (!readTemplateManifest(dir)) return false;
     rmSync(dir, { recursive: true, force: true });
     return true;

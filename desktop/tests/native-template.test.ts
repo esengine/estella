@@ -52,9 +52,8 @@ function templateEntries(version: string, omit?: string): { name: string; data: 
     data: Buffer.from(JSON.stringify({
       kind: 'estella-native-template',
       formatVersion: TEMPLATE_FORMAT,
-      id: 'ios-arm64',
+      id: 'ios',
       platform: 'ios',
-      abi: 'arm64',
       engineVersion: version,
       spineVersion: '4.2',
       deploymentTarget: '17.0',
@@ -77,7 +76,7 @@ describe('installing a runtime template', () => {
 
     expect(res.ok).toBe(true);
     expect(res.versionMismatch).toBe(false);
-    expect(res.dir).toBe(installedTemplateDir(VERSION, 'ios', 'arm64', store));
+    expect(res.dir).toBe(installedTemplateDir(VERSION, 'ios', store));
 
     const resolved = resolveNativeTemplate('ios', VERSION);
     expect(resolved?.manifest.engineVersion).toBe(VERSION);
@@ -96,7 +95,7 @@ describe('installing a runtime template', () => {
     expect(res.engineVersion).toBe('1.0.0');
     expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
     expect(listNativeTemplates(VERSION)).toEqual([
-      expect.objectContaining({ id: 'ios-arm64', engineVersion: '1.0.0', current: false }),
+      expect.objectContaining({ id: 'ios', engineVersion: '1.0.0', current: false }),
     ]);
   });
 
@@ -128,7 +127,7 @@ describe('installing a runtime template', () => {
 
   it('treats a half-deleted install as absent rather than usable', () => {
     installNativeTemplate(writeTemplateZip(VERSION), VERSION);
-    rmSync(path.join(installedTemplateDir(VERSION, 'ios', 'arm64', store), 'App', 'main.m'));
+    rmSync(path.join(installedTemplateDir(VERSION, 'ios', store), 'App', 'main.m'));
 
     expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
   });
@@ -136,9 +135,9 @@ describe('installing a runtime template', () => {
   it('removes an installed template', () => {
     installNativeTemplate(writeTemplateZip(VERSION), VERSION);
 
-    expect(removeNativeTemplate('ios', 'arm64', VERSION)).toBe(true);
+    expect(removeNativeTemplate('ios', VERSION)).toBe(true);
     expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
-    expect(removeNativeTemplate('ios', 'arm64', VERSION)).toBe(false);
+    expect(removeNativeTemplate('ios', VERSION)).toBe(false);
   });
 });
 
@@ -151,8 +150,8 @@ describe('downloading a template from a release', () => {
       formatVersion: TEMPLATE_FORMAT,
       engineVersion: VERSION,
       templates: overrides.templates ?? [{
-        id: 'ios-arm64', platform: 'ios', abi: 'arm64',
-        file: `estella-native-ios-arm64-${VERSION}.zip`,
+        id: 'ios', platform: 'ios',
+        file: `estella-native-ios-${VERSION}.zip`,
         bytes: overrides.bytes ?? zip.length,
         sha256: overrides.sha256 ?? createHash('sha256').update(zip).digest('hex'),
       }],
@@ -184,11 +183,11 @@ describe('downloading a template from a release', () => {
       fetchImpl, baseUrl: 'https://example.test/r', onProgress: (p) => progress.push(p.received),
     });
 
-    expect(res).toMatchObject({ ok: true, id: 'ios-arm64', versionMismatch: false });
+    expect(res).toMatchObject({ ok: true, id: 'ios', versionMismatch: false });
     expect(resolveNativeTemplate('ios', VERSION)).not.toBeNull();
     expect(served).toEqual([
       `https://example.test/r/${TEMPLATE_INDEX}`,
-      `https://example.test/r/estella-native-ios-arm64-${VERSION}.zip`,
+      `https://example.test/r/estella-native-ios-${VERSION}.zip`,
     ]);
     expect(progress).toEqual([100, zip.length]);
   });
@@ -217,7 +216,7 @@ describe('downloading a template from a release', () => {
 
     const res = await downloadNativeTemplate('android', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
 
-    expect(res.error).toContain('no android-arm64-v8a template');
+    expect(res.error).toContain('no android template');
   });
 
   it('treats an unreadable index as no index — a 404 page is not a template list', async () => {
@@ -233,14 +232,14 @@ describe('downloading a template from a release', () => {
   it('rejects an index published for another version', () => {
     expect(parseTemplateIndex({
       kind: 'estella-native-templates', formatVersion: TEMPLATE_FORMAT, engineVersion: '1.0.0',
-      templates: [{ id: 'ios-arm64', platform: 'ios', abi: 'arm64', file: 'x.zip', bytes: 1, sha256: 'a'.repeat(64) }],
+      templates: [{ id: 'ios', platform: 'ios', file: 'x.zip', bytes: 1, sha256: 'a'.repeat(64) }],
     }, VERSION)).toBeNull();
   });
 
   it('drops an entry whose filename could escape the download directory', () => {
     expect(parseTemplateIndex({
       kind: 'estella-native-templates', formatVersion: TEMPLATE_FORMAT, engineVersion: VERSION,
-      templates: [{ id: 'ios-arm64', platform: 'ios', abi: 'arm64', file: '../evil.zip', bytes: 1, sha256: 'a'.repeat(64) }],
+      templates: [{ id: 'ios', platform: 'ios', file: '../evil.zip', bytes: 1, sha256: 'a'.repeat(64) }],
     }, VERSION)).toBeNull();
   });
 });
@@ -253,7 +252,7 @@ describe('the iOS row reports what is missing', () => {
     const row = await iosRow();
 
     expect(row.ready).toBe(false);
-    expect(row.prereq).toEqual({ kind: 'template-missing', id: 'ios-arm64', version: VERSION });
+    expect(row.prereq).toEqual({ kind: 'template-missing', id: 'ios', version: VERSION });
   });
 
   it('moves on to the toolchain once a template is installed', async () => {
@@ -271,7 +270,7 @@ describe('the iOS row reports what is missing', () => {
 describe('the template layout is the one source of filenames', () => {
   it('assembles the iOS project from paths inside the installed template', () => {
     installNativeTemplate(writeTemplateZip(VERSION), VERSION);
-    const dir = installedTemplateDir(VERSION, 'ios', 'arm64', store);
+    const dir = installedTemplateDir(VERSION, 'ios', store);
 
     const sources = iosSourcesFromTemplate(VERSION)!;
 

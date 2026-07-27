@@ -19,8 +19,8 @@ import { runCommand } from '../utils/emscripten.js';
 import { buildTool, platformJar, ndkTool, ndkLibcxxShared, jdkTool } from '../utils/android.js';
 import { makeZip, zipTree } from '../utils/zip.js';
 import {
-    templateLayout, templateId, DEFAULT_ABI, writeTemplateManifest, missingTemplateFiles,
-    installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT,
+    templateLayout, templateId, ANDROID_ABIS, templateAbis, writeTemplateManifest,
+    missingTemplateFiles, installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT,
 } from '../utils/nativeTemplate.js';
 
 /** The Java shim's sources — the IME's own side of an editable field, which has to
@@ -100,11 +100,9 @@ export async function writeTemplateIndex(dir, options = {}) {
     const templates = archives.map((file) => {
         const bytes = readFileSync(path.join(dir, file));
         const id = file.slice('estella-native-'.length, -suffix.length);
-        const dash = id.indexOf('-');
         return {
             id,
-            platform: id.slice(0, dash),
-            abi: id.slice(dash + 1),
+            platform: id,
             file,
             bytes: bytes.length,
             sha256: createHash('sha256').update(bytes).digest('hex'),
@@ -127,8 +125,8 @@ export async function writeTemplateIndex(dir, options = {}) {
  *
  * @param {object} options
  * @param {'android'|'ios'} options.platform
- * @param {string}  [options.abi]
- * @param {string}  [options.dawnBuild]   Android: the Dawn build whose .so ships.
+ * @param {(abi: string) => string|null} [options.dawnLibrary] Android: where each
+ *        ABI's Dawn library is, if it was built.
  * @param {string}  [options.ndk]         Android: for llvm-strip and libc++_shared.
  * @param {string}  [options.sdk]         Android: for d8 (the Java shim).
  * @param {string}  [options.outDir]      Defaults to this machine's template store.
@@ -138,30 +136,45 @@ export async function writeTemplateIndex(dir, options = {}) {
 export async function emitNativeTemplate(options) {
     const root = options.root || config.paths.root;
     const platform = options.platform;
-    const abi = options.abi || DEFAULT_ABI[platform];
     const engineVersion = readEngineVersion(root);
-    const dir = options.outDir || installedTemplateDir(engineVersion, platform, abi);
+    const dir = options.outDir || installedTemplateDir(engineVersion, platform);
 
     const ctx = {
         root,
-        dawnBuild: options.dawnBuild,
-        libcxxShared: platform === 'android' && options.ndk
-            ? ndkLibcxxShared(options.ndk, ABI_TRIPLE[abi] || ABI_TRIPLE['arm64-v8a'])
-            : null,
+        dawnLibrary: options.dawnLibrary,
+        libcxxShared: (abi) => (platform === 'android' && options.ndk && ABI_TRIPLE[abi]
+            ? ndkLibcxxShared(options.ndk, ABI_TRIPLE[abi]) : null),
     };
 
-    // Rewritten wholesale: a template that inherited one file from the previous
-    // release is the exact failure the version stamp exists to prevent.
+    // What the previous emit left, so an ABI built on an earlier run survives one
+    // that only rebuilt another — and nothing else does. A template that inherited
+    // a file from the previous RELEASE is the failure the version stamp prevents;
+    // one that keeps an architecture from an hour ago is the point.
+    const kept = platform === 'android' && existsSync(dir)
+        ? templateAbis(dir).filter((abi) => !options.abis || !options.abis.includes(abi))
+        : [];
+    const carry = kept.map((abi) => ({ abi, files: templateLayout('android', { abis: [abi] })
+        .filter((e) => e.abi === abi)
+        .map((e) => ({ rel: e.rel, data: readFileSync(path.join(dir, e.rel)) })) }));
+
     await rm(dir, { recursive: true, force: true });
     await mkdir(dir, { recursive: true });
+    for (const { files } of carry) {
+        for (const file of files) {
+            await mkdir(path.dirname(path.join(dir, file.rel)), { recursive: true });
+            writeFileSync(path.join(dir, file.rel), file.data);
+        }
+    }
 
-    for (const entry of templateLayout(platform, { abi })) {
+    for (const entry of templateLayout(platform, { abis: options.abis })) {
         if (entry.produced) continue;
         const src = entry.from(ctx);
         const dest = path.join(dir, entry.rel);
         if (!src || !existsSync(src)) {
             if (entry.optional) {
-                logger.warn(`Template omits ${entry.rel} (not built): ${src ?? 'no source'}`);
+                if (!kept.includes(entry.abi)) {
+                    logger.warn(`Template omits ${entry.rel} (not built): ${src ?? 'no source'}`);
+                }
                 continue;
             }
             throw new Error(`Cannot emit the ${platform} template: ${entry.rel} is missing at ${src ?? '<unset>'}.`);
@@ -183,14 +196,15 @@ export async function emitNativeTemplate(options) {
 
     const manifest = writeTemplateManifest(dir, {
         platform,
-        abi,
         engineVersion,
         spineVersion: options.spineVersion || '4.2',
         ...(platform === 'ios' ? { deploymentTarget: options.deploymentTarget || '17.0' } : {}),
-        ...(platform === 'android' ? { androidPlatform: options.androidPlatform || 'android-33' } : {}),
+        ...(platform === 'android'
+            ? { androidPlatform: options.androidPlatform || 'android-33', abis: templateAbis(dir) }
+            : {}),
     });
 
-    const missing = missingTemplateFiles(dir, platform, { abi });
+    const missing = missingTemplateFiles(dir, platform);
     if (missing.length) throw new Error(`Emitted template is incomplete: ${missing.join(', ')}`);
 
     logger.success(`Runtime template: ${dir}`);
@@ -198,10 +212,11 @@ export async function emitNativeTemplate(options) {
     let zip = null;
     if (options.zipTo) {
         await mkdir(options.zipTo, { recursive: true });
-        zip = path.join(options.zipTo, templateZipName(platform, abi, engineVersion));
+        zip = path.join(options.zipTo, templateZipName(platform, engineVersion));
         writeFileSync(zip, makeZip(zipTree(dir)));
         logger.success(`Template archive: ${zip} (${(readFileSync(zip).length / 1048576).toFixed(1)} MB)`);
     }
-    logger.info(`The editor picks it up as ${templateId(platform, abi)} for v${engineVersion}.`);
+    logger.info(`The editor picks it up as ${templateId(platform)} for v${engineVersion}`
+        + `${manifest.abis ? ` (${manifest.abis.join(', ')})` : ''}.`);
     return { dir, manifest, zip };
 }

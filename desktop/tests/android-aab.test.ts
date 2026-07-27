@@ -85,6 +85,8 @@ beforeEach(() => {
     writeFileSync(path.join(templateDir, 'icon.png'), readFileSync(DEFAULT_ICON_SOURCE));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libestella_js_host.so'), Buffer.alloc(40_000, 7));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libwebgpu_dawn.so'), Buffer.alloc(30_000, 9));
+    mkdirSync(path.join(templateDir, 'lib', 'x86_64'), { recursive: true });
+    writeFileSync(path.join(templateDir, 'lib/x86_64/libestella_js_host.so'), Buffer.alloc(25_000, 5));
     writeFileSync(path.join(templateDir, 'classes.dex'), Buffer.from('dex\n035\0stand-in'));
     writeFileSync(path.join(templateDir, 'assets', 'esengine.native.qjsbc'), Buffer.alloc(512, 3));
 
@@ -99,9 +101,7 @@ afterEach(() => {
     rmSync(scratch, { recursive: true, force: true });
 });
 
-const assembly = () => ({
-    templateDir, contentDir, app: APP, abi: 'arm64-v8a', key: debugSigningKey(),
-});
+const assembly = () => ({ templateDir, contentDir, app: APP, key: debugSigningKey() });
 
 function build(): string {
     const file = path.join(contentDir, aabFileName(APP.id));
@@ -128,9 +128,12 @@ describe('assembling an App Bundle', () => {
         const result = verify(build());
 
         expect(result.hasDex).toBe(true);
+        // Every architecture: Play splits the bundle per device, which is the point
+        // of the format.
         expect(result.libs).toEqual([
             'base/lib/arm64-v8a/libestella_js_host.so',
             'base/lib/arm64-v8a/libwebgpu_dawn.so',
+            'base/lib/x86_64/libestella_js_host.so',
         ]);
         // The template's bytecode plus the export's own files.
         expect(result.assets).toBe(3);

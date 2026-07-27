@@ -229,8 +229,8 @@ const api = {
     /** Pick an archive and install it. Main owns the file dialog, so the renderer
      *  never handles a path it could have made up. */
     install: (): Promise<InstallResult & { canceled?: boolean }> => ipcRenderer.invoke('nativeTemplates:install'),
-    remove: (platform: 'android' | 'ios', abi: string, version: string): Promise<boolean> =>
-      ipcRenderer.invoke('nativeTemplates:remove', platform, abi, version),
+    remove: (platform: 'android' | 'ios', version: string): Promise<boolean> =>
+      ipcRenderer.invoke('nativeTemplates:remove', platform, version),
     /** Fetch this editor version's template from the release and install it. */
     download: (platform: 'android' | 'ios'): Promise<InstallResult> =>
       ipcRenderer.invoke('nativeTemplates:download', platform),

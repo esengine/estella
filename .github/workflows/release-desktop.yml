@@ -155,11 +155,16 @@ jobs:
           node build-tools/cli.js native --target ios --simulator --no-template
           node build-tools/cli.js native --target ios --template-out artifacts
 
-      - name: Build the Android template
+      # Both architectures into ONE template: arm64 is every real device, x86_64 is
+      # the emulator — which is how anyone without a phone tries the game at all.
+      # The emitter keeps the architecture the previous run built.
+      - name: Build the Android template (arm64 + x86_64)
         if: matrix.name == 'android'
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
-        run: node build-tools/cli.js native --template-out artifacts
+        run: |
+          node build-tools/cli.js native --abi arm64-v8a
+          node build-tools/cli.js native --abi x86_64 --template-out artifacts
 
       - name: Upload template artifact
         uses: actions/upload-artifact@v7

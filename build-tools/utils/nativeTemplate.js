@@ -38,14 +38,29 @@ export const BYTECODE_FILE = 'esengine.native.qjsbc';
  */
 export const DEFAULT_ICON = 'icon.png';
 
-/** A template's id: one per thing that must be compiled separately. */
-export function templateId(platform, abi) {
-    return `${platform}-${abi}`;
+/**
+ * A template's id: ONE per platform.
+ *
+ * Not per architecture. A platform's template carries every architecture that
+ * platform needs — iOS already did, with the device and simulator slices inside
+ * one xcframework — so naming an architecture in the id would make a second
+ * architecture a second artifact the editor never asks for. Architectures are
+ * data inside a template, not an axis of them.
+ */
+export function templateId(platform) {
+    return platform;
 }
 
-/** The default ABI a platform's template carries. iOS ships both slices inside
- *  one xcframework, so its id names the device architecture only. */
-export const DEFAULT_ABI = { android: 'arm64-v8a', ios: 'arm64' };
+/**
+ * The Android ABIs a template can carry, in the order a package lists them.
+ * `arm64-v8a` is every real device; `x86_64` is the emulator, which is how anyone
+ * without a phone tries the game at all.
+ *
+ * The FIRST is required — a template with no device ABI packages nothing — and the
+ * rest are optional, so a build machine that only did one still produces a usable
+ * template.
+ */
+export const ANDROID_ABIS = ['arm64-v8a', 'x86_64'];
 
 /**
  * What a template holds, per platform.
@@ -56,10 +71,10 @@ export const DEFAULT_ABI = { android: 'arm64-v8a', ios: 'arm64' };
  * shipping it unstripped also broke installing onto a clean device.
  *
  * @param {'android'|'ios'} platform
- * @param {{abi?: string}} [options]
+ * @param {{abis?: readonly string[]}} [options] Android ABIs to describe.
  */
 export function templateLayout(platform, options = {}) {
-    const abi = options.abi || DEFAULT_ABI[platform];
+    const abis = options.abis || ANDROID_ABIS;
     if (platform === 'ios') {
         return [
             {
@@ -80,16 +95,25 @@ export function templateLayout(platform, options = {}) {
         ];
     }
     if (platform === 'android') {
+        // Every ABI the build machine produced. Only the first is required: one
+        // architecture is a working template, two is one package that installs on a
+        // phone and in an emulator alike.
+        const libs = abis.flatMap((abi, n) => [
+            {
+                rel: `lib/${abi}/libestella_js_host.so`, strip: true, abi, optional: n > 0,
+                from: (ctx) => path.join(ctx.root, 'build-native', abi, 'libestella_js_host.so'),
+            },
+            {
+                rel: `lib/${abi}/libwebgpu_dawn.so`, strip: true, abi, optional: n > 0,
+                from: (ctx) => ctx.dawnLibrary?.(abi),
+            },
+            {
+                rel: `lib/${abi}/libc++_shared.so`, abi, optional: n > 0,
+                from: (ctx) => ctx.libcxxShared?.(abi),
+            },
+        ]);
         return [
-            {
-                rel: `lib/${abi}/libestella_js_host.so`, strip: true,
-                from: (ctx) => path.join(ctx.root, 'build-native', 'libestella_js_host.so'),
-            },
-            {
-                rel: `lib/${abi}/libwebgpu_dawn.so`, strip: true,
-                from: (ctx) => path.join(ctx.dawnBuild, 'src', 'dawn', 'native', 'libwebgpu_dawn.so'),
-            },
-            { rel: `lib/${abi}/libc++_shared.so`, from: (ctx) => ctx.libcxxShared },
+            ...libs,
             // Compiled by the emitter (javac + d8), not copied: the IME's own side
             // of an editable field has to be Java, and a template exists so that no
             // user needs a JDK to package.
@@ -113,6 +137,16 @@ export function templateLayout(platform, options = {}) {
 /** Template-relative paths that must be present for a template to be usable. */
 export function requiredTemplateFiles(platform, options) {
     return templateLayout(platform, options).filter((e) => !e.optional).map((e) => e.rel);
+}
+
+/**
+ * The Android ABIs a template actually holds — what a package can offer.
+ *
+ * Read off the files rather than the manifest: a template is usable if its files
+ * are there, and asking the directory is what makes that true by construction.
+ */
+export function templateAbis(dir) {
+    return ANDROID_ABIS.filter((abi) => existsSync(path.join(dir, 'lib', abi, 'libestella_js_host.so')));
 }
 
 /** What a template is missing, if anything — the one readiness test. */
@@ -165,13 +199,12 @@ export function writeTemplateManifest(dir, meta) {
 export function templateMatches(manifest, want) {
     return !!manifest
         && manifest.platform === want.platform
-        && manifest.engineVersion === want.engineVersion
-        && (!want.abi || manifest.abi === want.abi);
+        && manifest.engineVersion === want.engineVersion;
 }
 
 /** The distributed artifact's filename. */
-export function templateZipName(platform, abi, engineVersion) {
-    return `estella-native-${templateId(platform, abi)}-${engineVersion}.zip`;
+export function templateZipName(platform, engineVersion) {
+    return `estella-native-${templateId(platform)}-${engineVersion}.zip`;
 }
 
 // =============================================================================
@@ -201,7 +234,7 @@ export function parseTemplateIndex(doc, engineVersion) {
     if (engineVersion && doc.engineVersion !== engineVersion) return null;
     if (!Array.isArray(doc.templates)) return null;
     const entries = doc.templates.filter((t) => typeof t?.id === 'string'
-        && typeof t.platform === 'string' && typeof t.abi === 'string'
+        && typeof t.platform === 'string'
         && typeof t.file === 'string' && /^[\w.-]+$/.test(t.file)
         && typeof t.sha256 === 'string' && /^[0-9a-f]{64}$/.test(t.sha256)
         && Number.isInteger(t.bytes) && t.bytes > 0);
@@ -232,8 +265,8 @@ export function templateStoreDir() {
 
 /** Where one template installs to. Versioned, so upgrading the editor never
  *  silently reuses the previous release's binary. */
-export function installedTemplateDir(engineVersion, platform, abi, storeDir = templateStoreDir()) {
-    return path.join(storeDir, engineVersion, templateId(platform, abi));
+export function installedTemplateDir(engineVersion, platform, storeDir = templateStoreDir()) {
+    return path.join(storeDir, engineVersion, templateId(platform));
 }
 
 /**
@@ -242,11 +275,10 @@ export function installedTemplateDir(engineVersion, platform, abi, storeDir = te
  * @returns {{dir: string, manifest: object, missing: string[]}|null}
  */
 export function findTemplate(want, storeDir = templateStoreDir()) {
-    const abi = want.abi || DEFAULT_ABI[want.platform];
-    const dir = installedTemplateDir(want.engineVersion, want.platform, abi, storeDir);
+    const dir = installedTemplateDir(want.engineVersion, want.platform, storeDir);
     const manifest = readTemplateManifest(dir);
-    if (!templateMatches(manifest, { ...want, abi })) return null;
-    return { dir, manifest, missing: missingTemplateFiles(dir, want.platform, { abi }) };
+    if (!templateMatches(manifest, want)) return null;
+    return { dir, manifest, missing: missingTemplateFiles(dir, want.platform) };
 }
 
 // =============================================================================

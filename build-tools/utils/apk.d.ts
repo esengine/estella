@@ -21,7 +21,6 @@ export function assembleApk(options: {
     contentDir: string;
     app: ApkAppIdentity;
     key: SigningKey;
-    abi: string;
 }): Buffer;
 
 export function signApkV2(zip: Buffer, key: SigningKey): Buffer;

@@ -107,6 +107,14 @@ export function dawnLibrary(dawnBuild, target) {
     return path.join(dawnBuild, 'src', 'dawn', 'native', name);
 }
 
+/** Dawn's build directory for a target. Android's is per-ABI — an emulator build
+ *  and a device build are different binaries — with the default ABI keeping the
+ *  plain name a checkout may already have. */
+export function dawnBuildDir(dawn, target, abi) {
+    const suffix = target === 'android' && abi && abi !== 'arm64-v8a' ? `-${abi}` : '';
+    return path.join(dawn, DAWN_TARGETS[target].out + suffix);
+}
+
 /**
  * Build Dawn for @p target if it is not built already.
  *
@@ -116,7 +124,7 @@ export function dawnLibrary(dawnBuild, target) {
 export async function ensureDawnBuild(options) {
     const target = DAWN_TARGETS[options.target];
     if (!target) throw new Error(`Unknown Dawn target ${options.target}.`);
-    const buildDir = options.buildDir || path.join(options.dawn, target.out);
+    const buildDir = options.buildDir || dawnBuildDir(options.dawn, options.target, options.abi);
     if (existsSync(dawnLibrary(buildDir, options.target))) return buildDir;
 
     const cmake = options.cmake || 'cmake';

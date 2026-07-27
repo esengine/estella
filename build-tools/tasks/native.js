@@ -16,9 +16,9 @@ import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
-import { fetchNativeDeps, pinnedDep, ensureDawnBuild } from './nativeDeps.js';
+import { fetchNativeDeps, pinnedDep, ensureDawnBuild, dawnLibrary, DAWN_TARGETS } from './nativeDeps.js';
 import {
-    BYTECODE_FILE, DEFAULT_ABI, findTemplate, iosTemplateSources, templateStoreDir,
+    BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
@@ -282,14 +282,18 @@ async function buildAndroidHost(options) {
     const { cmake, ninja } = sdkCmake(sdk);
 
     const { dawnDir, dawnBuild } = await dawnPaths(options, 'android', { ndk, cmake, ninja });
-    const buildDir = path.join(rootDir, 'build-native');
+    // One build tree per ABI, beside the generated sources they share — a second
+    // architecture must not overwrite the first one's objects.
+    const buildDir = path.join(rootDir, 'build-native', abi);
     await mkdir(buildDir, { recursive: true });
 
     // JS host (opt-in): pass --quickjs <dir> (or ESTELLA_QUICKJS_DIR) to also build
     // the QuickJS host — a game script driving the engine through the generated
     // bindings + the real SDK ptrAccessors.
     const quickjs = quickjsDir(options);
-    const genDir = quickjs ? await prepareGenerated(rootDir, buildDir, quickjs) : null;
+    // The generated sources are the same for every ABI (bindings, the SDK bundle,
+    // its bytecode), so they live once beside the per-ABI trees.
+    const genDir = quickjs ? await prepareGenerated(rootDir, path.join(rootDir, 'build-native'), quickjs) : null;
 
     logger.step(`Configuring native host (${abi}, ${platform})...`);
     const configureArgs = [
@@ -317,14 +321,15 @@ async function buildAndroidHost(options) {
     logger.step('Building native host...');
     await runCommand(cmake, ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
 
-    logger.success(`Host: ${path.join('build-native', 'libestella_js_host.so')}`);
+    logger.success(`Host: ${path.join('build-native', abi, 'libestella_js_host.so')}`);
 
     // The binaries this machine just produced are the same for every game, so they
     // are packed for everyone else's — see build-tools/utils/nativeTemplate.js. Only
     // the JS host is one: the pure-C++ reference host is not what a game ships on.
     if (quickjs && options.template !== false) {
         await emitNativeTemplate({
-            platform: 'android', abi, root: rootDir, dawnBuild, ndk, sdk,
+            platform: 'android', abis: [abi], root: rootDir, ndk, sdk,
+            dawnLibrary: (want) => (want === abi ? dawnLibrary(dawnBuild, 'android') : null),
             androidPlatform: platform, jdk: options.jdk, zipTo: options.templateOut,
         });
     }
@@ -517,9 +522,9 @@ function packagedContent(options) {
 }
 
 /** The installed runtime template for @p platform, or a message naming how to get one. */
-function requireTemplate(platform, abi) {
+function requireTemplate(platform) {
     const engineVersion = readEngineVersion(config.paths.root);
-    const template = findTemplate({ platform, engineVersion, abi });
+    const template = findTemplate({ platform, engineVersion });
     if (!template || template.missing.length > 0) {
         throw new Error(`No ${platform} runtime template for v${engineVersion}. Build one with `
             + `\`cli native --target ${platform}\`, or install a release archive into `
@@ -533,8 +538,7 @@ function requireTemplate(platform, abi) {
  * with no Android SDK involved. The same call the editor's export makes.
  */
 async function packageAndroidApk(options) {
-    const abi = options.abi || DEFAULT_ABI.android;
-    const template = requireTemplate('android', abi);
+    const template = requireTemplate('android');
     const contentDir = packagedContent(options);
     const app = readAppConfig(contentDir, (m) => logger.warn(m));
 
@@ -543,7 +547,7 @@ async function packageAndroidApk(options) {
         : debugSigningKey();
     if (!options.key) logger.info('Signing with the development key (sideload only — not for a store).');
 
-    const assembly = { templateDir: template.dir, contentDir, app, abi, key };
+    const assembly = { templateDir: template.dir, contentDir, app, key };
     logger.step('Assembling the APK...');
     const apk = assembleApk(assembly);
     const out = path.join(contentDir, apkFileName(app.id));
@@ -591,9 +595,11 @@ async function emitFromExistingBuild(target, options) {
         });
     }
     const sdk = requireSdk();
+    const dawnBuild = options.dawnBuild || process.env.ESTELLA_DAWN_BUILD;
+    const abi = options.abi || 'arm64-v8a';
     return emitNativeTemplate({
-        platform: 'android', abi: options.abi, root: rootDir,
-        dawnBuild: options.dawnBuild || process.env.ESTELLA_DAWN_BUILD,
+        platform: 'android', abis: [abi], root: rootDir,
+        dawnLibrary: (want) => (want === abi && dawnBuild ? dawnLibrary(dawnBuild, 'android') : null),
         ndk: requireNdk(sdk), sdk, androidPlatform: options.platform, jdk: options.jdk,
         zipTo: options.templateOut,
     });

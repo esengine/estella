@@ -21,7 +21,7 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { makeZip, zipLayout } from './zip.js';
 import { compileManifest } from './androidBinaryXml.js';
 import { appResources } from './androidResources.js';
-import { DEFAULT_ICON } from './nativeTemplate.js';
+import { DEFAULT_ICON, templateAbis } from './nativeTemplate.js';
 import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
 
 /** The boundary a mapped `.so` must start on — a 16 KiB page, which every
@@ -138,12 +138,11 @@ export function packageEntries(dir, prefix) {
  * @param {{id: string, name: string, version: string, versionCode: number,
  *          orientation: 'landscape'|'portrait'}} options.app
  * @param {{privateKey: import('crypto').KeyObject, certificate: Buffer}} options.key
- * @param {string} options.abi
  * @param {Buffer}  [options.icon] The launcher icon; the template's default when absent.
  * @returns {Buffer} the signed package.
  */
 export function assembleApk(options) {
-    const { templateDir, contentDir, app, abi } = options;
+    const { templateDir, contentDir, app } = options;
     const dex = path.join(templateDir, 'classes.dex');
     const hasDex = existsSync(dex);
     const resources = appResources(options.icon ?? readFileSync(path.join(templateDir, DEFAULT_ICON)));
@@ -158,8 +157,10 @@ export function assembleApk(options) {
             HAS_CODE: hasDex ? 'true' : 'false',
         }), resources.references);
 
-    const libDir = path.join(templateDir, 'lib', abi);
-    if (!existsSync(libDir)) throw new Error(`The runtime template has no lib/${abi}.`);
+    // Every architecture the template carries, so one package installs on a phone
+    // and in an emulator alike — the device picks the one it can run.
+    const abis = templateAbis(templateDir);
+    if (abis.length === 0) throw new Error('The runtime template carries no native libraries.');
     const templateAssets = path.join(templateDir, 'assets');
 
     const entries = [
@@ -168,7 +169,8 @@ export function assembleApk(options) {
         { name: 'resources.arsc', data: resources.arsc, store: true, align: 4 },
         ...resources.files,
         ...(hasDex ? [{ name: 'classes.dex', data: readFileSync(dex) }] : []),
-        ...packageEntries(libDir, `lib/${abi}`).map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT })),
+        ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `lib/${abi}`)
+            .map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT }))),
         // The template's assets (the SDK bytecode) first, so a project cannot
         // shadow them by accident and quietly change what the host boots.
         ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'assets') : []),

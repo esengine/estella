@@ -16,6 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **One package installs on a phone AND in an emulator.** A runtime template is
+  now one artifact per PLATFORM rather than one per architecture — iOS already
+  worked that way, with both slices inside one xcframework — so the Android
+  template carries `arm64-v8a` and `x86_64` together and every package it
+  assembles offers both. Nothing to choose, and no second template the editor
+  would never ask for.
 - **iOS: the first launch after an install is as fast as the rest.** The runtime
   template now carries the SDK's precompiled bytecode on iOS as it already did on
   Android, and the export ships it as a bundle resource — so the host reads the

@@ -32,7 +32,7 @@ import {
 } from './playableAdProfile';
 import { BUILTIN_PLATFORMS, type PlatformPrereq } from '../src/project/platforms';
 import { resolveNativeTemplate } from './nativeTemplates';
-import { templateId, DEFAULT_ABI } from '../../build-tools/utils/nativeTemplate.js';
+import { templateId } from '../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
 
 /** Where a project keeps its own platform profiles. */
@@ -108,7 +108,7 @@ function builtinReadiness(
       // signed here, on any OS, with nothing from the Android SDK.
       return resolveNativeTemplate('android', engineVersion)
         ? { ready: true }
-        : { ready: false, prereq: { kind: 'template-missing', id: templateId('android', DEFAULT_ABI.android), version: engineVersion } };
+        : { ready: false, prereq: { kind: 'template-missing', id: templateId('android'), version: engineVersion } };
 
     case 'ios': {
       // The template comes first because it is the harder blocker: without it the
@@ -116,7 +116,7 @@ function builtinReadiness(
       // writes a complete project (the xcframework included) to carry to a Mac —
       // the artifact is portable even though Apple's toolchain is not.
       if (!resolveNativeTemplate('ios', engineVersion)) {
-        return { ready: false, prereq: { kind: 'template-missing', id: templateId('ios', DEFAULT_ABI.ios), version: engineVersion } };
+        return { ready: false, prereq: { kind: 'template-missing', id: templateId('ios'), version: engineVersion } };
       }
       if (process.platform !== 'darwin') return { ready: false, prereq: { kind: 'toolchain-missing', tool: 'macos' } };
       return existsSync('/Applications/Xcode.app')

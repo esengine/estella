@@ -72,6 +72,9 @@ beforeEach(() => {
     writeFileSync(path.join(templateDir, 'icon.png'), readFileSync(DEFAULT_ICON_SOURCE));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libestella_js_host.so'), Buffer.alloc(120_000, 7));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libwebgpu_dawn.so'), Buffer.alloc(90_000, 9));
+    // A second architecture, the way a template that was built twice carries one.
+    mkdirSync(path.join(templateDir, 'lib', 'x86_64'), { recursive: true });
+    writeFileSync(path.join(templateDir, 'lib/x86_64/libestella_js_host.so'), Buffer.alloc(110_000, 5));
     writeFileSync(path.join(templateDir, 'classes.dex'), Buffer.from('dex\n035\0stand-in'));
     writeFileSync(path.join(templateDir, 'assets', 'esengine.native.qjsbc'), Buffer.alloc(2048, 3));
 
@@ -87,10 +90,10 @@ afterEach(() => {
     rmSync(scratch, { recursive: true, force: true });
 });
 
-const assemblyOptions = () => ({ templateDir, contentDir, app: APP, abi: 'arm64-v8a', key: debugSigningKey() });
+const assemblyOptions = () => ({ templateDir, contentDir, app: APP, key: debugSigningKey() });
 
 function build(app = APP): string {
-    const apk = assembleApk({ templateDir, contentDir, app, abi: 'arm64-v8a', key: debugSigningKey() });
+    const apk = assembleApk({ templateDir, contentDir, app, key: debugSigningKey() });
     const file = path.join(contentDir, apkFileName(app.id));
     writeFileSync(file, apk);
     return file;
@@ -159,6 +162,9 @@ describe('assembling an APK', () => {
         expect(names).toContain('classes.dex');
         expect(names).toContain('lib/arm64-v8a/libestella_js_host.so');
         expect(names).toContain('lib/arm64-v8a/libwebgpu_dawn.so');
+        // Every architecture the template carries, so one package installs on a
+        // phone and in an emulator alike.
+        expect(names).toContain('lib/x86_64/libestella_js_host.so');
         expect(names).toContain('assets/esengine.native.qjsbc');
         // The export directory BECOMES assets/, so the cooked tree keeps the
         // project-relative paths the host's readAsset() asks for.
@@ -189,7 +195,7 @@ describe('assembling an APK', () => {
             }
             at = dataAt + compressedSize;
         }
-        expect(checked).toBe(2);
+        expect(checked).toBe(3);
     });
 
     it('carries a launcher icon the platform can resolve, through a table we wrote', () => {
