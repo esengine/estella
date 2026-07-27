@@ -9,9 +9,14 @@ name: Mirror a release
 # when a copy is missing, stale or wrong. That is what lets this run last, fail
 # without failing a release, and be pointed at a version published months ago.
 #
-# Two ways in, one implementation: the release workflow calls it for the tag it just
-# published, and a maintainer can run it by hand for any existing tag — which is how
-# a release from before the mirror existed gets one.
+# It runs when a release is PUBLISHED, not when a tag is pushed: this project's
+# pipeline uploads into a draft that a maintainer reviews, and a draft cannot be
+# downloaded by tag — the first run of this job found that out by failing with
+# "release not found". Publication is also the honest moment: what gets mirrored is
+# what people can already download.
+#
+# A maintainer can also run it by hand for any existing tag, which is how a release
+# from before the mirror existed gets one.
 #
 # Needs five secrets; without them every step skips and the release stays
 # GitHub-only: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
@@ -19,6 +24,8 @@ name: Mirror a release
 # editor is pointed at (DEFAULT_RELEASE_MIRROR / ESTELLA_RELEASE_MIRROR).
 
 on:
+  release:
+    types: [published]
   workflow_call:
     inputs:
       tag:
@@ -37,7 +44,7 @@ permissions:
 
 jobs:
   mirror:
-    name: Mirror ${{ inputs.tag }} to Cloudflare R2
+    name: Mirror ${{ inputs.tag || github.event.release.tag_name }} to Cloudflare R2
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -51,7 +58,7 @@ jobs:
         if: steps.cfg.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           mkdir -p mirror
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir mirror --clobber
@@ -66,7 +73,7 @@ jobs:
         if: steps.cfg.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           newest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           echo "newest release is $newest, mirroring $TAG"
@@ -83,7 +90,7 @@ jobs:
           ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           BUCKET: ${{ secrets.R2_BUCKET }}
           PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
           IS_LATEST: ${{ steps.latest.outputs.is_latest }}
         run: |
           version="${TAG#v}"
@@ -106,7 +113,7 @@ jobs:
         if: steps.cfg.outputs.configured == 'true'
         env:
           PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           version="${TAG#v}"
           echo "### Mirrored \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"

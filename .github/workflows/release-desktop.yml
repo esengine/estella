@@ -106,7 +106,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
+      # With submodules: the host links box2d, spine and glm from third_party, and
+      # a checkout without them fails at configure with a directory that has no
+      # CMakeLists.txt — which is exactly how this job failed the first time it ran.
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/setup
 
@@ -274,13 +279,6 @@ jobs:
             desktop/release/*.dmg
           retention-days: 3
 
-  # The copy on Cloudflare R2, so a download is not GitHub's speed for everyone far
-  # from it. One implementation, in its own workflow, because the same job has to be
-  # runnable by hand for a release published before the mirror existed.
-  mirror:
-    needs: [publish-templates, release]
-    if: github.event_name == 'push' && !cancelled() && needs.release.result == 'success'
-    uses: ./.github/workflows/mirror-release.yml
-    with:
-      tag: ${{ github.ref_name }}
-    secrets: inherit
+  # The mirror is NOT here: it follows `release: published`, because the assets it
+  # copies live in a draft until a maintainer publishes it, and a draft cannot be
+  # downloaded by tag. See mirror-release.yml.
