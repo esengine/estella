@@ -248,9 +248,9 @@ export const TEMPLATE_INDEX = 'native-templates.json';
  */
 export const RELEASE_MIRROR_ENV = 'ESTELLA_RELEASE_MIRROR';
 // The project's own mirror: an R2 bucket in APAC, which is where the reports of
-// slow downloads come from. r2.dev is Cloudflare's built-in public URL and is rate
-// limited — a custom domain replaces this string and nothing else.
-export const DEFAULT_RELEASE_MIRROR = 'https://pub-48562c2257e64700ab9afda0436719a8.r2.dev';
+// slow downloads come from, behind the project's domain rather than Cloudflare's
+// built-in r2.dev hostname — that one is rate limited and meant for development.
+export const DEFAULT_RELEASE_MIRROR = 'https://dl.estella.games';
 
 /** The release origin: where a version is published, and the last word on it. */
 export const RELEASE_ORIGIN = 'https://github.com/esengine/estella/releases/download';
