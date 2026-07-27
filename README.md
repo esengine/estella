@@ -53,7 +53,9 @@ Estella is a **2D game engine** with a TypeScript SDK driven by a high-performan
 
 ### Install
 
-Download the editor from the [releases page](https://github.com/esengine/estella/releases) and install it.
+Download the editor for Windows or macOS from [estellaengine.com](https://estellaengine.com/#download)
+— served from the project's mirror, always the newest release. Every build is also on the
+[releases page](https://github.com/esengine/estella/releases).
 
 ### Create a Project
 

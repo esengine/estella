@@ -13,6 +13,11 @@ export default defineConfig({
     starlight({
       title: 'Estella',
       description: 'A fast 2D game engine powered by WebAssembly and ECS.',
+      // The editor's mark and palette, so the guides, the landing page and the
+      // installed tool are visibly one product — see src/styles/estella.css.
+      logo: { src: './public/favicon.svg', alt: 'Estella' },
+      favicon: '/favicon.svg',
+      customCss: ['./src/styles/estella.css'],
       // English is the root locale (served at /docs); 简体中文 at /docs/zh-cn.
       defaultLocale: 'root',
       locales: {

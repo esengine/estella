@@ -104,15 +104,24 @@ function Merge-Output {
     }
     New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
+    # The same layout .github/workflows/docs.yml publishes: the landing page at
+    # the root, the guides under /docs, the C++ reference under /docs/api/html.
+    # A local build that arranges them differently is a preview of a site that
+    # does not exist.
+    if (Test-Path "$DocsRoot\landing") {
+        Copy-Item -Recurse "$DocsRoot\landing\*" $OutputDir
+    }
+
     # Copy Astro output
     if (Test-Path "$DocsRoot\astro\dist") {
-        Copy-Item -Recurse "$DocsRoot\astro\dist\*" $OutputDir
+        New-Item -ItemType Directory -Force -Path "$OutputDir\docs" | Out-Null
+        Copy-Item -Recurse "$DocsRoot\astro\dist\*" "$OutputDir\docs\"
     }
 
     # Copy Doxygen output
     if (Test-Path "$DocsRoot\api\html") {
-        New-Item -ItemType Directory -Force -Path "$OutputDir\api\html" | Out-Null
-        Copy-Item -Recurse "$DocsRoot\api\html\*" "$OutputDir\api\html\"
+        New-Item -ItemType Directory -Force -Path "$OutputDir\docs\api\html" | Out-Null
+        Copy-Item -Recurse "$DocsRoot\api\html\*" "$OutputDir\docs\api\html\"
     }
 
     Write-Host "Documentation merged to: docs/dist/" -ForegroundColor Green

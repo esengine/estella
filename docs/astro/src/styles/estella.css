@@ -1,0 +1,99 @@
+/* =============================================================================
+   Estella docs theme — the editor's "azure" line on Starlight.
+
+   The values are lifted from desktop/src/theme/tokens.css, not re-picked: the
+   docs, the landing page and the editor someone installs are one product, and a
+   different accent on each is how a site starts reading like three.
+
+   Starlight names its own tokens (--sl-color-*), so this file is a mapping, not
+   a second palette. It is also written the way Starlight writes its own: a
+   default block plus BOTH light branches (`[data-theme='light']` for the toggle
+   and the prefers-color-scheme query for "auto"). Overriding only `:root` looks
+   right in dark and produces a half-lit page in light — the surfaces go dark,
+   the asides stay pale, because Starlight's light block outranks a bare :root.
+
+   The webfonts live at the site root — .github/workflows/docs.yml copies
+   docs/landing/. (fonts included) into the deploy root, and the guides are
+   served from the same origin under /docs. Under `astro dev` alone they are
+   absent and the stack falls back to system UI, which is only ever a preview.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+
+/* Type is the same in both themes. */
+:root {
+  --sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+/* — Accent: the editor's azure, dark by default — */
+:root {
+  --sl-color-accent-low: #12293f;
+  --sl-color-accent: #2f88d6;
+  --sl-color-accent-high: #9fd2f7;
+}
+
+/* — Accent in light: the deeper end of the same ramp, so the brand survives
+     the toggle instead of reverting to Starlight's purple. — */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d8e9f8;
+  --sl-color-accent: #20689f;
+  --sl-color-accent-high: #10344f;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --sl-color-accent-low: #d8e9f8;
+    --sl-color-accent: #20689f;
+    --sl-color-accent-high: #10344f;
+  }
+}
+
+/* — Dark chrome only: the near-black groove the editor's shell recedes to.
+     Scoped to the dark theme in both of its forms; the light theme keeps
+     Starlight's own neutrals, which are already the right temperature. — */
+:root[data-theme='dark'] {
+  --sl-color-bg-nav: #0a0a0c;
+  --sl-color-bg-sidebar: #0a0a0c;
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.085);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sl-color-bg-nav: #0a0a0c;
+    --sl-color-bg-sidebar: #0a0a0c;
+    --sl-color-hairline-shade: rgba(255, 255, 255, 0.085);
+  }
+}
+
+/* The mark is a shape, not a word: let it sit at icon scale beside the title
+   rather than at the height Starlight gives a full logo lockup. */
+.site-title img {
+  width: 26px;
+  height: 26px;
+}

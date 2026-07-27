@@ -90,15 +90,24 @@ merge_output() {
     rm -rf "$OUTPUT_DIR"
     mkdir -p "$OUTPUT_DIR"
 
+    # The same layout .github/workflows/docs.yml publishes: the landing page at
+    # the root, the guides under /docs, the C++ reference under /docs/api/html.
+    # A local build that arranges them differently is a preview of a site that
+    # does not exist.
+    if [ -d "$DOCS_ROOT/landing" ]; then
+        cp -r "$DOCS_ROOT/landing/." "$OUTPUT_DIR/"
+    fi
+
     # Copy Astro output
     if [ -d "$DOCS_ROOT/astro/dist" ]; then
-        cp -r "$DOCS_ROOT/astro/dist/"* "$OUTPUT_DIR/"
+        mkdir -p "$OUTPUT_DIR/docs"
+        cp -r "$DOCS_ROOT/astro/dist/"* "$OUTPUT_DIR/docs/"
     fi
 
     # Copy Doxygen output
     if [ -d "$DOCS_ROOT/api/html" ]; then
-        mkdir -p "$OUTPUT_DIR/api/html"
-        cp -r "$DOCS_ROOT/api/html/"* "$OUTPUT_DIR/api/html/"
+        mkdir -p "$OUTPUT_DIR/docs/api/html"
+        cp -r "$DOCS_ROOT/api/html/"* "$OUTPUT_DIR/docs/api/html/"
     fi
 
     echo "Documentation merged to: docs/dist/"

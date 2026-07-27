@@ -55,10 +55,10 @@ jobs:
           mkdir -p docs/dist/docs/api
           cp -r docs/astro/dist/* docs/dist/docs/
           cp -r docs/api/html docs/dist/docs/api/
-          cp docs/landing/index.html docs/dist/index.html
-          cp docs/landing/editor-hero-c5bfd2f3.png docs/dist/editor-hero-c5bfd2f3.png
-          cp docs/landing/robots.txt docs/dist/robots.txt
-          cp docs/landing/og-image.png docs/dist/og-image.png
+          # The whole landing directory, not a list of its files: it carries the
+          # page's fonts and mark now, and a copy step that has to be edited when
+          # the page grows an asset is a broken page waiting to be deployed.
+          cp -r docs/landing/. docs/dist/
           echo 'estellaengine.com' > docs/dist/CNAME
           touch docs/dist/.nojekyll
 
