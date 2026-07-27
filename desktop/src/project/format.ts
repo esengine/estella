@@ -200,6 +200,16 @@ export interface ProjectPackaging {
    * always has one — but a shipped app should say its own.
    */
   appId?: string;
+  /**
+   * The app's launcher icon: a project-relative square PNG, ideally 1024×1024.
+   *
+   * ONE image for every installable target — Android takes it as the launcher
+   * mipmap, iOS as the asset catalog Xcode derives every size from. Nothing
+   * resizes it: both platforms scale, and a per-density set would be five files to
+   * keep in sync for a picture that is the same picture. Absent ⇒ Estella's own
+   * mark, so a packaged game never ships with the platform's placeholder.
+   */
+  icon?: string;
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {

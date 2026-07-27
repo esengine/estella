@@ -316,6 +316,21 @@ settingsRegistry.register({
   },
 });
 
+// One icon for every installable target: Android takes it as the launcher mipmap,
+// iOS as the asset catalog Xcode derives its sizes from. Nothing resizes it, so
+// one large square is all a project keeps.
+settingsRegistry.register({
+  id: 'project.packaging.icon',
+  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.application'),
+  label: t('set.project.packaging.icon'),
+  description: t('set.project.packaging.icon.desc'),
+  placeholder: 'assets/icon.png', default: '',
+  bind: {
+    get: () => ProjectStore.packagingSettings().icon ?? '',
+    set: (v) => void ProjectStore.setPackaging({ icon: v || undefined }),
+  },
+});
+
 settingsRegistry.register({
   id: 'project.packaging.android.versionCode',
   type: 'number', scope: 'project', section: 'packaging', group: t('set.group.application'),

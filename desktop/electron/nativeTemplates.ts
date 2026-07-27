@@ -50,7 +50,7 @@ export function resolveNativeTemplate(platform: NativePlatform, engineVersion: s
 
 /** The three files an iOS Xcode project is built around, or null without a template. */
 export function iosSourcesFromTemplate(engineVersion: string): {
-    xcframework: string; mainM: string; infoPlistIn: string;
+    xcframework: string; mainM: string; infoPlistIn: string; icon: string;
 } | null {
     const template = resolveNativeTemplate('ios', engineVersion);
     return template ? iosTemplateSources(template.dir) : null;

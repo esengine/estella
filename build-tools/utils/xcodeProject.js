@@ -53,6 +53,10 @@ const SYSTEM_FRAMEWORKS = [
 /** Xcode's file type for an export resource, by extension. `folder` ships a
  *  directory as-is, keeping the cooked tree's shape inside the bundle. */
 function fileType(name, isDir) {
+    // An asset catalog is a directory Xcode COMPILES (actool) rather than copies —
+    // which is the whole reason the app icon goes through one: since iOS 11 the
+    // store takes icons no other way.
+    if (name.endsWith('.xcassets')) return 'folder.assetcatalog';
     if (isDir) return 'folder';
     if (name.endsWith('.json')) return 'text.json';
     if (name.endsWith('.js')) return 'sourcecode.javascript';
@@ -126,6 +130,7 @@ export function renderPbxproj(o) {
         CURRENT_PROJECT_VERSION: String(o.versionCode),
         INFOPLIST_FILE: 'App/Info.plist',
         GENERATE_INFOPLIST_FILE: 'NO',
+        ASSETCATALOG_COMPILER_APPICON_NAME: 'AppIcon',
         CODE_SIGN_STYLE: 'Automatic',
         // The xcframework sits at the project root, next to the export's files.
         FRAMEWORK_SEARCH_PATHS: ['$(inherited)', '$(PROJECT_DIR)'],

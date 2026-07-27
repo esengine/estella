@@ -883,6 +883,7 @@ ipcMain.handle(
       appVersion: manifest.version,
       androidVersionCode: plat?.android?.versionCode,
       androidAppBundle: plat?.android?.appBundle,
+      appIcon: manifest.packaging?.icon,
       // One project-wide orientation for every target: the explicit packaging
       // setting, else derived from the design resolution's aspect.
       orientation: resolveOrientation(manifest),

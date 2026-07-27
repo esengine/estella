@@ -229,6 +229,11 @@ export const settingsMessages = defineMessages({
         en: 'Reverse-DNS id the installed app is known by — the Android manifest package, the iOS bundle id, the desktop installer id. Empty derives one from the project name; a published app should set its own, because a store keeps it forever.',
         zh: '已安装应用的反向域名 id——Android 的 manifest package、iOS 的 bundle id、桌面安装包的 id。留空则按项目名推导；正式发布的应用应当自己指定，因为应用商店会永久沿用它。',
     },
+    'set.project.packaging.icon': { en: 'App Icon', zh: '应用图标' },
+    'set.project.packaging.icon.desc': {
+        en: 'Project-relative square PNG, ideally 1024×1024 — the launcher icon on every installable target. Android takes it as the launcher mipmap and iOS as the asset catalog Xcode derives its sizes from, so one image is all you keep. Empty ships Estella\'s mark rather than the platform\'s placeholder.',
+        zh: '项目内的方形 PNG，建议 1024×1024——所有可安装目标的启动图标。Android 用作 launcher mipmap，iOS 用作 Xcode 据以派生各尺寸的 asset catalog，所以只需保留这一张。留空则使用 Estella 的标识，而不是平台的占位图。',
+    },
     'set.project.packaging.android.versionCode': { en: 'Android Version Code', zh: 'Android 版本号' },
     'set.project.packaging.android.versionCode.desc': {
         en: 'The integer Google Play orders builds by — it must increase with every upload. The version users see comes from the project version.',

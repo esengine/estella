@@ -16,6 +16,8 @@ export interface IosProjectSources {
     mainM: string;
     /** The Info.plist template the app's identity is substituted into. */
     infoPlistIn: string;
+    /** The template's default launcher icon, used when the project sets none. */
+    icon: string;
 }
 
 export interface IosAppIdentity {
@@ -31,4 +33,5 @@ export function emitIosXcodeProject(
     app: IosAppIdentity,
     sources: IosProjectSources,
     deploymentTarget?: string,
+    icon?: Buffer,
 ): Promise<string>;

@@ -434,6 +434,8 @@ export async function exportGame(opts: {
   /** Android: the identity to sign with. Omitted uses the development key, which
    *  installs on a device and is refused by every store. */
   androidKey?: SigningKey;
+  /** The app's launcher icon (project-relative). Omitted ⇒ the template's default. */
+  appIcon?: string;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -663,6 +665,16 @@ export async function exportGame(opts: {
     };
     await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
 
+    // One icon for both targets, read once. A path that no longer exists is a
+    // warning rather than a failed export: the package is still correct, it just
+    // carries the default mark.
+    let icon: Buffer | undefined;
+    if (opts.appIcon) {
+      const file = path.join(opts.root, opts.appIcon);
+      if (existsSync(file)) icon = await readFile(file);
+      else warnings.push(`The app icon ${opts.appIcon} does not exist — packaged with Estella's default.`);
+    }
+
     // Both mobile targets finish the job here, out of the installed runtime
     // template: assembling an app is copying files and writing two formats, so it
     // belongs in the export rather than behind a command the user has to find. An
@@ -671,7 +683,7 @@ export async function exportGame(opts: {
       progress({ phase: 'Writing Xcode project' });
       const sources = opts.iosSources ?? null;
       if (sources) {
-        const projectDir = await emitIosXcodeProject(absOut, appConfig, sources);
+        const projectDir = await emitIosXcodeProject(absOut, appConfig, sources, undefined, icon);
         xcodeProject = projectDir;
       } else {
         warnings.push('No iOS runtime template is installed for this editor version, so no Xcode '
@@ -685,7 +697,7 @@ export async function exportGame(opts: {
       const template = opts.androidTemplate ?? null;
       if (template) {
         const key = opts.androidKey ?? debugSigningKey();
-        const assembly = { templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key };
+        const assembly = { templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key, icon };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
         await writeFile(apkFile, assembleApk(assembly));
         if (opts.androidAppBundle) {

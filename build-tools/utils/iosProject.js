@@ -18,6 +18,24 @@ import { cp, mkdir, readdir, rm, readFile, writeFile } from 'fs/promises';
 import { renderPbxproj, renderScheme } from './xcodeProject.js';
 import { iosInterfaceOrientations } from './nativeApp.js';
 
+/** The asset catalog Xcode compiles the app icon out of. A single 1024×1024 image
+ *  is all a modern catalog needs — Xcode derives every size the system asks for,
+ *  so nothing here resizes anything. */
+const ICON_CATALOG = 'Assets.xcassets';
+
+async function writeIconCatalog(contentDir, iconPng) {
+    const iconSet = path.join(contentDir, ICON_CATALOG, 'AppIcon.appiconset');
+    await mkdir(iconSet, { recursive: true });
+    await writeFile(path.join(iconSet, 'icon.png'), iconPng);
+    await writeFile(path.join(iconSet, 'Contents.json'), `${JSON.stringify({
+        images: [{ filename: 'icon.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }],
+        info: { author: 'estella', version: 1 },
+    }, null, 2)}\n`);
+    await writeFile(path.join(contentDir, ICON_CATALOG, 'Contents.json'), `${JSON.stringify({
+        info: { author: 'estella', version: 1 },
+    }, null, 2)}\n`);
+}
+
 /** A target/product name Xcode and the shell can both carry unquoted. */
 function targetName(appName) {
     return appName.replace(/[^A-Za-z0-9]+/g, '') || 'EstellaGame';
@@ -31,12 +49,13 @@ function targetName(appName) {
  * @param {string} contentDir  The export (cooked content + the two configs).
  * @param {{id: string, name: string, version: string, versionCode: number,
  *          orientation: 'landscape'|'portrait'}} app  From `app.config.json`.
- * @param {{xcframework: string, mainM: string, infoPlistIn: string}} sources
+ * @param {{xcframework: string, mainM: string, infoPlistIn: string, icon?: string}} sources
  *        The prebuilt pieces, out of the installed runtime template.
  * @param {string} [deploymentTarget]
+ * @param {Buffer} [icon] The launcher icon; the template's default when absent.
  * @returns {Promise<string>} The `.xcodeproj` path, to reveal or open.
  */
-export async function emitIosXcodeProject(contentDir, app, sources, deploymentTarget = '17.0') {
+export async function emitIosXcodeProject(contentDir, app, sources, deploymentTarget = '17.0', icon) {
     const name = targetName(app.name);
     const frameworkName = 'Estella.xcframework';
     const projectDir = path.join(contentDir, `${name}.xcodeproj`);
@@ -48,10 +67,13 @@ export async function emitIosXcodeProject(contentDir, app, sources, deploymentTa
     await rm(projectDir, { recursive: true, force: true });
     await rm(appDir, { recursive: true, force: true });
     await rm(frameworkDest, { recursive: true, force: true });
+    await rm(path.join(contentDir, ICON_CATALOG), { recursive: true, force: true });
 
     await cp(sources.xcframework, frameworkDest, { recursive: true });
     await mkdir(appDir, { recursive: true });
     await cp(sources.mainM, path.join(appDir, 'main.m'));
+
+    await writeIconCatalog(contentDir, icon ?? await readFile(sources.icon));
 
     const template = await readFile(sources.infoPlistIn, 'utf8');
     const orientations = iosInterfaceOrientations(app.orientation)
