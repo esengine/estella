@@ -2,28 +2,35 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    spine-multi-version-build.test.ts
- * @brief   Integration tests for spine multi-version build pipeline
+ * @brief   The multi-version pipeline: one module per vendored Spine release, picked
+ *          by what the skeleton says it is.
+ *
+ * @details Driven off SPINE_VERSIONS / SIDE_MODULES rather than a list repeated here,
+ *          so vendoring a release is a change in one place and this stays true.
  */
 
 import { describe, test, expect } from 'vitest';
 import { SpineManager } from '../src/spine/SpineManager';
+import { SIDE_MODULES, SPINE_VERSIONS, spineModuleId } from '../src/sideModules/registry';
 
 describe('Spine multi-version build pipeline', () => {
-    test('version tag generation is consistent between emitter and runtime', () => {
-        const versions = ['3.8', '4.1', '4.2'] as const;
-        const expectedTags = { '3.8': '38', '4.1': '41', '4.2': '42' };
-
-        for (const v of versions) {
-            const tag = v.replace('.', '');
-            expect(tag).toBe(expectedTags[v]);
+    test('every version maps to the artifact its build target emits', () => {
+        for (const version of SPINE_VERSIONS) {
+            const descriptor = SIDE_MODULES[spineModuleId(version)];
+            expect(descriptor).toBeDefined();
+            // spine42.wasm for 4.2, spine38 for 3.8 — the emitter and the loader
+            // agree on the name because both derive it the same way.
+            expect(descriptor.file).toBe(`spine${version.replace('.', '')}`);
+            expect(descriptor.globalName).toBe('ESSpineModule');
         }
     });
 
-    test('every spine version ships as a standalone side module (no native 4.2)', () => {
-        // S3 removed the native runtime: 4.2 is a side module like 3.8/4.1.
-        const spineVersions = new Set(['3.8', '4.1', '4.2']);
-        const modules = [...spineVersions].map(v => `spine${v.replace('.', '')}`);
-        expect(modules.sort()).toEqual(['spine38', 'spine41', 'spine42']);
+    test('every spine version ships as a standalone side module (no native runtime)', () => {
+        // S3 removed the native runtime: 4.2 is a side module like the rest.
+        const modules = SPINE_VERSIONS.map(v => SIDE_MODULES[spineModuleId(v)].file);
+        expect(modules).toEqual([...new Set(modules)]);
+        expect(modules).toContain('spine42');
+        expect(modules).toContain('spine43');
     });
 
     test('empty spine project ships zero modules', () => {
@@ -32,29 +39,29 @@ describe('Spine multi-version build pipeline', () => {
     });
 
     test('SpineManager constructor accepts version factory map', () => {
-        const factories = new Map<'3.8' | '4.1' | '4.2', () => Promise<any>>();
-        factories.set('3.8', async () => ({}));
-        factories.set('4.1', async () => ({}));
+        const factories = new Map(
+            SPINE_VERSIONS.map(v => [v, async () => ({})] as const),
+        );
 
-        const manager = new SpineManager({} as any, factories);
+        const manager = new SpineManager({} as any, factories as any);
         expect(manager).toBeDefined();
         manager.shutdown();
     });
 
     test('SpineManager fails the load (no native fallback) when a version has no factory', async () => {
         // S3: 4.2 no longer routes to a native runtime — without a factory the
-        // load fails, exactly like 3.8/4.1. Spine is strictly pay-for-use.
+        // load fails, exactly like the others. Spine is strictly pay-for-use.
         const manager = new SpineManager({} as any, new Map());
 
-        const v42 = await manager.loadEntity(
-            1 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
+        const v43 = await manager.loadEntity(
+            1 as any, '{"spine":"4.3.75-beta","skeleton":{}}', '', new Map(), {} as any,
         );
-        const v41 = await manager.loadEntity(
-            2 as any, '{"spine":"4.1.20","skeleton":{}}', '', new Map(), {} as any,
+        const v42 = await manager.loadEntity(
+            2 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
         );
 
+        expect(v43).toBeNull();
         expect(v42).toBeNull();
-        expect(v41).toBeNull();
         expect(manager.getEntityVersion(1 as any)).toBeUndefined();
         manager.shutdown();
     });
@@ -77,18 +84,25 @@ describe('Spine multi-version build pipeline', () => {
         manager.shutdown();
     });
 
-    test('detectVersionJson covers all supported versions', () => {
+    test('detectVersionJson routes every supported version, and only those', () => {
         const cases: Array<[string, string | null]> = [
+            ['{"spine":"4.3.75-beta"}', '4.3'],
             ['{"spine":"4.2.10"}', '4.2'],
             ['{"spine":"4.1.20"}', '4.1'],
             ['{"spine":"3.8.99"}', '3.8'],
-            ['{"spine":"3.7.94"}', '3.8'],
-            ['{"spine":"5.0.0"}', null],
+            ['{"spine":"3.7.94"}', '3.8'],  // pre-3.8 data loads on the 3.8 runtime
+            ['{"spine":"5.0.0"}', null],    // no runtime vendored: fail, don't guess
             ['{"skeleton":{}}', null],
         ];
 
         for (const [json, expected] of cases) {
             expect(SpineManager.detectVersionJson(json)).toBe(expected);
+        }
+
+        // Whatever detection returns must be a version the loader can actually serve.
+        for (const [json, expected] of cases) {
+            if (expected === null) continue;
+            expect(SPINE_VERSIONS).toContain(SpineManager.detectVersionJson(json)!);
         }
     });
 });

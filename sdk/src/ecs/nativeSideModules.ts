@@ -31,18 +31,25 @@ import { createNativeHeap, type NativeHeap } from './nativeHeap';
  * entry points a consumer calls first, so the probe cannot pass while the surface
  * is half-registered.
  */
+// One entry per Spine version the SDK can ask for; which one this host actually
+// linked is a second question (see SPINE_VERSION_BINDING), because every vendored
+// runtime exports the same symbols and a binary carries exactly one. Derived from
+// SPINE_VERSIONS so a newly vendored release cannot be probed for and forgotten.
+const SPINE_PROBES = SPINE_VERSIONS.reduce<Partial<Record<SideModuleId, string>>>(
+    (probes, version) => {
+        probes[spineModuleId(version)] = 'es_spine_loadSkeleton';
+        return probes;
+    },
+    {},
+);
+
 export const NATIVE_SIDE_MODULE_PROBES: Partial<Record<SideModuleId, string>> = {
     physics: 'es_physics_init',
     videodec: 'es_video_open',
-    // One entry per Spine version the SDK can ask for; which one this host actually
-    // linked is a second question (see SPINE_VERSION_BINDING), because the three
-    // vendored runtimes export the same symbols and a binary carries exactly one.
-    'spine:4.2': 'es_spine_loadSkeleton',
-    'spine:4.1': 'es_spine_loadSkeleton',
-    'spine:3.8': 'es_spine_loadSkeleton',
+    ...SPINE_PROBES,
 };
 
-/** The host global that reports the linked Spine runtime (38 / 41 / 42). */
+/** The host global that reports the linked Spine runtime (38 / 41 / 42 / 43). */
 export const SPINE_VERSION_BINDING = 'es_spine_runtimeVersion';
 
 /** The id the host's own Spine runtime answers to, or null if it linked none. */

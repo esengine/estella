@@ -197,7 +197,7 @@ static prototype: SpinePlugin
 
 ## SpineVersion — type
 ```
-'3.8' | '4.1' | '4.2'
+'3.8' | '4.1' | '4.2' | '4.3'
 ```
 
 ## TransformMixData — interface

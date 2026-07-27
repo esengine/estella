@@ -99,6 +99,15 @@ export default {
                 'sdk/spine41.wasm': 'wasm/web/spine41.wasm',
             },
         },
+        spine43: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
+            targets: ['spine_module_43'],
+            outputs: {
+                'sdk/spine43.js': 'wasm/web/spine43.js',
+                'sdk/spine43.wasm': 'wasm/web/spine43.wasm',
+            },
+        },
         // WeChat-targeted side modules: the SAME standalone modules built under
         // ES_BUILD_WXGAME, which forces ENVIRONMENT=web + the wxgame-pre.js shim so
         // they evaluate inside the MiniGame runtime. Web-aligned filenames in a
@@ -134,10 +143,12 @@ export default {
         'spine-wechat': {
             buildDir: 'build-spine-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
-            targets: ['spine_module', 'spine_module_41', 'spine_module_38'],
+            targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38'],
             outputs: {
                 'sdk/spine42.js': 'wasm/wechat/spine42.js',
                 'sdk/spine42.wasm': 'wasm/wechat/spine42.wasm',
+                'sdk/spine43.js': 'wasm/wechat/spine43.js',
+                'sdk/spine43.wasm': 'wasm/wechat/spine43.wasm',
                 'sdk/spine41.js': 'wasm/wechat/spine41.js',
                 'sdk/spine41.wasm': 'wasm/wechat/spine41.wasm',
                 'sdk/spine38.js': 'wasm/wechat/spine38.js',

@@ -46,7 +46,26 @@ export function sceneUsesVideo(scene: SceneLike): boolean {
   return false;
 }
 
-export type SpineVersion = '3.8' | '4.1' | '4.2';
+export type SpineVersion = '3.8' | '4.1' | '4.2' | '4.3';
+
+/**
+ * Which runtime reads a skeleton's reported version, newest prefix first — the same
+ * table SpineManager keeps, because a cook that ships one module and a runtime that
+ * asks for another is the one mismatch nothing downstream can recover from.
+ */
+const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
+  ['4.3', '4.3'],
+  ['4.2', '4.2'],
+  ['4.1', '4.1'],
+  ['3.', '3.8'],
+];
+
+function runtimeFor(reported: string): SpineVersion | null {
+  for (const [prefix, version] of VERSION_PREFIXES) {
+    if (reported.startsWith(prefix)) return version;
+  }
+  return null;
+}
 
 /** id → artifact base name. Mirrors sdk/src/sideModules/registry.ts SIDE_MODULES. */
 export const SIDE_MODULE_FILE: Record<string, string> = {
@@ -56,6 +75,7 @@ export const SIDE_MODULE_FILE: Record<string, string> = {
   'spine:3.8': 'spine38',
   'spine:4.1': 'spine41',
   'spine:4.2': 'spine42',
+  'spine:4.3': 'spine43',
 };
 
 /** id → the `build-tools/cli.js build -t <target>` that produces its WeChat artifacts. */
@@ -66,6 +86,7 @@ export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   'spine:3.8': 'spine-wechat',
   'spine:4.1': 'spine-wechat',
   'spine:4.2': 'spine-wechat',
+  'spine:4.3': 'spine-wechat',
 };
 
 export function spineModuleId(version: SpineVersion): string {
@@ -76,11 +97,7 @@ export function spineModuleId(version: SpineVersion): string {
 
 export function detectSpineVersionJson(json: string): SpineVersion | null {
   const m = json.match(/"spine"\s*:\s*"(\d+\.\d+)/);
-  if (!m) return null;
-  if (m[1].startsWith('4.2')) return '4.2';
-  if (m[1].startsWith('4.1')) return '4.1';
-  if (m[1].startsWith('3.')) return '3.8';
-  return null;
+  return m ? runtimeFor(m[1]) : null;
 }
 
 export function detectSpineVersion(data: Uint8Array): SpineVersion | null {
@@ -105,9 +122,7 @@ function tryRead4xVersion(data: Uint8Array): SpineVersion | null {
   pos += bytesRead;
   if (len <= 1 || pos + len - 1 > data.length) return null;
   const ver = new TextDecoder().decode(data.subarray(pos, pos + len - 1));
-  if (ver.startsWith('4.2')) return '4.2';
-  if (ver.startsWith('4.1')) return '4.1';
-  return null;
+  return ver.startsWith('4.') ? runtimeFor(ver) : null;
 }
 
 function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
@@ -121,6 +136,5 @@ function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
   pos += vb;
   if (verLen <= 1 || pos + verLen - 1 > data.length) return null;
   const ver = new TextDecoder().decode(data.subarray(pos, pos + verLen - 1));
-  if (ver.startsWith('3.')) return '3.8';
-  return null;
+  return ver.startsWith('3.') ? runtimeFor(ver) : null;
 }

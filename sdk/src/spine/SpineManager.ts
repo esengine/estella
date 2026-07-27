@@ -10,7 +10,29 @@ import { SpineModuleController } from './SpineController';
 import { ModuleBackend } from './ModuleBackend';
 import { log } from '../logger';
 
-export type SpineVersion = '3.8' | '4.1' | '4.2';
+import type { SpineVersion } from '../sideModules/registry';
+
+export type { SpineVersion };
+
+/**
+ * Which runtime reads a given skeleton's version string, newest prefix first. A
+ * release Estella vendors no runtime for maps onto the one that reads its format:
+ * 3.7 and older data loads on the 3.8 runtime. Anything unmatched is a version we
+ * cannot honestly claim to play, so detection fails rather than guessing.
+ */
+const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
+    ['4.3', '4.3'],
+    ['4.2', '4.2'],
+    ['4.1', '4.1'],
+    ['3.', '3.8'],
+];
+
+function runtimeFor(reported: string): SpineVersion | null {
+    for (const [prefix, version] of VERSION_PREFIXES) {
+        if (reported.startsWith(prefix)) return version;
+    }
+    return null;
+}
 
 export class SpineManager {
     private coreModule_: NonNullable<EngineApi>;
@@ -36,11 +58,7 @@ export class SpineManager {
 
     static detectVersionJson(json: string): SpineVersion | null {
         const m = json.match(/"spine"\s*:\s*"(\d+\.\d+)/);
-        if (!m) return null;
-        if (m[1].startsWith('4.2')) return '4.2';
-        if (m[1].startsWith('4.1')) return '4.1';
-        if (m[1].startsWith('3.')) return '3.8';
-        return null;
+        return m ? runtimeFor(m[1]) : null;
     }
 
     async loadEntity(
@@ -324,6 +342,7 @@ function readVarint(data: Uint8Array, offset: number): { value: number; bytesRea
     return { value, bytesRead };
 }
 
+/** 4.x binaries open with an 8-byte hash, then a length-prefixed version string. */
 function tryRead4xVersion(data: Uint8Array): SpineVersion | null {
     if (data.length < 10) return null;
     let pos = 8;
@@ -331,11 +350,10 @@ function tryRead4xVersion(data: Uint8Array): SpineVersion | null {
     pos += bytesRead;
     if (len <= 1 || pos + len - 1 > data.length) return null;
     const ver = new TextDecoder().decode(data.subarray(pos, pos + len - 1));
-    if (ver.startsWith('4.2')) return '4.2';
-    if (ver.startsWith('4.1')) return '4.1';
-    return null;
+    return ver.startsWith('4.') ? runtimeFor(ver) : null;
 }
 
+/** 3.x length-prefixed the hash too, so the version string sits just after it. */
 function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
     if (data.length < 4) return null;
     let pos = 0;
@@ -347,6 +365,5 @@ function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
     pos += vb;
     if (verLen <= 1 || pos + verLen - 1 > data.length) return null;
     const ver = new TextDecoder().decode(data.subarray(pos, pos + verLen - 1));
-    if (ver.startsWith('3.')) return '3.8';
-    return null;
+    return ver.startsWith('3.') ? runtimeFor(ver) : null;
 }

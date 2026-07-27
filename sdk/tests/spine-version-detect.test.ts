@@ -33,6 +33,11 @@ function make3xSkel(hash: string, version: string): Uint8Array {
 }
 
 describe('SpineManager.detectVersion', () => {
+    it('detects 4.3 binary', () => {
+        const data = make4xSkel('4.3.75-beta');
+        expect(SpineManager.detectVersion(data)).toBe('4.3');
+    });
+
     it('detects 4.2 binary', () => {
         const data = make4xSkel('4.2.18');
         expect(SpineManager.detectVersion(data)).toBe('4.2');
@@ -59,6 +64,10 @@ describe('SpineManager.detectVersion', () => {
 });
 
 describe('SpineManager.detectVersionJson', () => {
+    it('detects 4.3 json', () => {
+        expect(SpineManager.detectVersionJson('{"spine": "4.3.75-beta"}')).toBe('4.3');
+    });
+
     it('detects 4.2 json', () => {
         expect(SpineManager.detectVersionJson('{"spine": "4.2.18"}')).toBe('4.2');
     });

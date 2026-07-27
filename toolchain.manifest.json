@@ -23,7 +23,8 @@
             "spine-runtimes-4.2": [
                 "spine-cpp/spine-cpp/src", "spine-cpp/spine-cpp/include",
                 "spine-c/spine-c/src", "spine-c/spine-c/include"
-            ]
+            ],
+            "spine-runtimes-4.3": ["spine-cpp/src", "spine-cpp/include"]
         }
     },
     "native": {

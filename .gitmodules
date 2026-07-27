@@ -40,3 +40,7 @@
 [submodule "third_party/glslang"]
 	path = third_party/glslang
 	url = https://github.com/KhronosGroup/glslang
+[submodule "third_party/spine-runtimes-4.3"]
+	path = third_party/spine-runtimes-4.3
+	url = https://github.com/EsotericSoftware/spine-runtimes.git
+	branch = 4.3
