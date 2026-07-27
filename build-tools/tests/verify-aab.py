@@ -193,16 +193,22 @@ def resource_files(table):
 
     Walked by field number, which is the half of this format that cannot be
     inferred from the bytes: ResourceTable.package(2) -> Package.type(3) ->
-    Type.entry(3) -> Entry.config_value(6) -> ConfigValue.value(3) ->
+    Type.entry(3) -> Entry.config_value(6) -> ConfigValue.value(2) ->
     Value.item(4) -> Item.file(5) -> FileReference.path(1). A file shipped in the
     bundle that no entry names here is exactly what bundletool rejects.
+
+    Every one of those numbers has a plausible wrong neighbour (config_value 5 is
+    overlayable_item, ConfigValue field 3 is RESERVED, Value field 1 is source), and
+    a walk that shares a mistake with the writer confirms nothing. They come from
+    aapt2's Resources.proto; bundletool, which reads the same schema, is the
+    authority the CI step defers to.
     """
     paths = []
     for package in decode_message(table).get(2, []):
         for type_ in decode_message(package).get(3, []):
             for entry in decode_message(type_).get(3, []):
                 for config_value in decode_message(entry).get(6, []):
-                    for value in decode_message(config_value).get(3, []):
+                    for value in decode_message(config_value).get(2, []):
                         for item in decode_message(value).get(4, []):
                             for reference in decode_message(item).get(5, []):
                                 for raw in decode_message(reference).get(1, []):
@@ -229,6 +235,7 @@ def verify(path):
             "manifest": manifest,
             "resourceFiles": (resource_files(zf.read("base/resources.pb"))
                               if "base/resources.pb" in names else []),
+            "resFiles": sorted(n[len("base/"):] for n in names if n.startswith("base/res/")),
             "hasDex": any(n.startswith("base/dex/") for n in names),
             "libs": sorted(n for n in names if n.startswith("base/lib/")),
             "assets": sum(1 for n in names if n.startswith("base/assets/")),

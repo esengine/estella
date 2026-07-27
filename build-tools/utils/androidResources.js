@@ -157,14 +157,15 @@ function binaryTable() {
  * correct, just not density-aware.
  */
 function protoTable() {
-    // Field numbers are Resources.proto's, and the two that carry the value are the
-    // ones with a plausible wrong answer next door: Value.item is 4 (1 is `source`)
-    // and Entry.config_value is 6 (5 is `overlayable_item`). Writing either neighbour
-    // still parses — into a table that names no file, which is how bundletool sees a
-    // bundle whose icon nothing references.
+    // Field numbers are Resources.proto's, and every one on the way down to the path
+    // has a plausible wrong answer next door: Entry.config_value is 6 (5 is
+    // `overlayable_item`), ConfigValue.value is 2 (3 is RESERVED), Value.item is 4
+    // (1 is `source`). Any of those still encodes and still parses — into a table
+    // that names no file, which is how bundletool sees a bundle whose icon nothing
+    // references. They are checked against the schema, not against our own reader.
     const fileReference = message(bytesField(1, ICON_PATH), varintField(2, 1));   // Type.PNG
     const value = message(bytesField(4, message(bytesField(5, fileReference))));
-    const configValue = message(bytesField(3, value));
+    const configValue = message(bytesField(2, value));
     const entry = message(
         bytesField(1, message(varintField(1, ENTRY_ID))),
         bytesField(2, 'ic_launcher'),

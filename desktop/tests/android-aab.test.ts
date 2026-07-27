@@ -112,7 +112,7 @@ function build(): string {
 function verify(aab: string): {
     entries: number; signedEntries: number; bundletoolVersion: string;
     uncompressedGlobs: string[]; manifest: Element; hasDex: boolean;
-    libs: string[]; assets: number; resourceFiles: string[];
+    libs: string[]; assets: number; resourceFiles: string[]; resFiles: string[];
 } {
     return JSON.parse(execFileSync('python3', [VERIFIER, aab], { encoding: 'utf8' }));
 }
@@ -202,18 +202,19 @@ describe('assembling an App Bundle', () => {
         expect(entries).toContain('base/res/mipmap-xxxhdpi/ic_launcher.png');
         expect(entries).toContain('base/resources.pb');
 
-        const { manifest, resourceFiles } = verify(build());
+        const { manifest, resourceFiles, resFiles } = verify(build());
         const application = find(manifest, 'application')!;
         expect(attr(application, 'icon')).toMatchObject({
             value: '@mipmap/ic_launcher',
             compiled: { ref: 0x7f010000 },
         });
 
-        // The other half of the reference: the table has to NAME the file, or
-        // bundletool rejects the bundle for shipping a resource nothing points at.
-        // Reaching it is a walk over field numbers a wrong guess still parses past,
-        // so it is asserted here rather than left to the JVM step below.
-        expect(resourceFiles).toContain('res/mipmap-xxxhdpi/ic_launcher.png');
+        // The other half of the reference, and bundletool's own rule: every file
+        // under res/ has to be named by the table. Asserted as that relation rather
+        // than as one expected path, so a resource added later without a table entry
+        // fails here too — the JVM step below is the authority, not the only check.
+        expect(resourceFiles.slice().sort()).toEqual(resFiles.slice().sort());
+        expect(resFiles).toContain('res/mipmap-xxxhdpi/ic_launcher.png');
     });
 
     it('fails verification once an entry changes under the signature', () => {
