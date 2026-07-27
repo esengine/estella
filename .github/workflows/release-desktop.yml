@@ -285,8 +285,19 @@ jobs:
           echo "::error::electron-builder publish failed after 3 attempts"
           exit 1
 
+      # Signed and notarized like the real thing, because a dry run that skips the
+      # half most likely to break is not a rehearsal. Signing is where a release
+      # fails for reasons no earlier job can see — an expired certificate, a
+      # revoked app-specific password, a .p12 exported without its private key —
+      # and finding that out on a tag means finding it out in front of everyone.
       - name: Package desktop app (dry run, no publish)
         if: github.event_name != 'push'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: pnpm --filter ./desktop exec electron-builder --publish never
 
       - name: Upload installer artifact (dry run)
