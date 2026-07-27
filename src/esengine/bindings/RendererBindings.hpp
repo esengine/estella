@@ -73,6 +73,7 @@ void mesh2d_setGeometry(
 void renderer_submitParticles(ecs::Registry& registry);
 #endif
 void renderer_updateTransforms(ecs::Registry& registry);
+void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr, u32 count);
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 #ifdef ES_ENABLE_PARTICLES
 void particle_update(ecs::Registry& registry, f32 dt);

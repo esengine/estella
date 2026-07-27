@@ -373,8 +373,10 @@ export class SceneModelImpl {
   // ── Sibling order (outliner drag-reorder; render order = `data.entities` order) ──
   // The outliner derives sibling order from each entity's position in
   // `data.entities` (buildSceneTree's parent index preserves it), so reordering is
-  // reordering this array. The World is order-agnostic (ECS), so these never reach
-  // the Reconciler.
+  // reordering this array. That order is also PAINTER order — the engine draws in
+  // the order it walks its pools, which a load establishes by spawning in this
+  // order — so `orderChanged` reaches the Reconciler like any other model change
+  // and is projected onto the live World (World.applyEntityOrder).
 
   /** The scene's entity ids in current (render) order. */
   entityOrder(): number[] {
@@ -389,20 +391,32 @@ export class SceneModelImpl {
     this.emit({ kind: 'orderChanged' });
   }
 
-  /** Move an entity immediately before/after a target in scene order (drag-reorder). */
+  /**
+   * Move an entity immediately before/after a target in scene order (drag-reorder).
+   *
+   * The whole SUBTREE travels with it, keeping its internal order: the outliner
+   * shows children nested under their parent, so dragging a parent's row has to
+   * carry them or scene order would stop matching what the outliner draws — and
+   * scene order is render order, so the children would keep drawing where the
+   * parent used to be.
+   */
   moveEntityAdjacent(sourceId: number, targetId: number, before: boolean): void {
     if (!this.data || sourceId === targetId) return;
+    const block = new Set(this.collectSubtree(sourceId));
+    if (block.size === 0 || block.has(targetId)) return; // nothing to move, or into itself
+
     const arr = this.data.entities;
-    const si = arr.findIndex((e) => e.id === sourceId);
-    if (si < 0) return;
-    const [moved] = arr.splice(si, 1);
-    let ti = arr.findIndex((e) => e.id === targetId);
-    if (ti < 0) {
-      arr.splice(si, 0, moved); // target vanished — put it back
-      return;
-    }
+    const moved = arr.filter((e) => block.has(e.id));
+    const rest = arr.filter((e) => !block.has(e.id));
+    let ti = rest.findIndex((e) => e.id === targetId);
+    if (ti < 0) return; // target vanished — leave the order untouched
     if (!before) ti += 1;
-    arr.splice(ti, 0, moved);
+
+    // Rewrite in place (no spread: a big scene would blow the argument limit).
+    arr.length = 0;
+    for (let i = 0; i < ti; i++) arr.push(rest[i]);
+    for (const e of moved) arr.push(e);
+    for (let i = ti; i < rest.length; i++) arr.push(rest[i]);
     this.emit({ kind: 'orderChanged' });
   }
 

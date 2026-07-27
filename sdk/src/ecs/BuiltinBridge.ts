@@ -13,6 +13,7 @@ import { handleWasmError } from '../wasmError';
 import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
+import { reorderSetByRank, type RankOf } from './entityOrder';
 import {
     type MemoryProvider, type ComponentHeap,
     WasmMemoryProvider, resolveWasmPtrFn,
@@ -529,6 +530,13 @@ export class BuiltinBridge {
             this.builtinEntitySets_.set(cppName, set);
         }
         return set;
+    }
+
+    /** Re-order every builtin entity set so queries iterate in rank order
+     *  (the JS half of {@link World.applyEntityOrder}; the engine's own pools are
+     *  permuted by the same call). */
+    reorderEntitySets(rankOf: RankOf): void {
+        for (const set of this.builtinEntitySets_.values()) reorderSetByRank(set, rankOf);
     }
 
     /** Removes the entity from every builtin set; returns the cppNames it was in. */

@@ -14,8 +14,21 @@ import { ScriptStorage } from './ecs/ScriptStorage';
 import { NameIndex } from './ecs/NameIndex';
 import { ChangeTracker } from './ecs/ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './ecs/QueryCache';
+import { rankByOrder, reorderMapByRank } from './ecs/entityOrder';
+import { nativeEngineApi } from './ecs/engineApi';
+import { withScratch } from './wasmScratch';
 import { log } from './logger';
 import { getDefaultContext, type EditorBridge } from './context';
+
+/** The slice of a core {@link World.applyEntityOrder} needs: the entry point plus
+ *  the heap it marshals the entity list through (wasm memory on the web, the
+ *  host's arena on a device — the writes are identical either way). */
+interface EntityOrderCore {
+    renderer_setEntityDrawOrder?(registry: CppRegistry, entitiesPtr: number, count: number): void;
+    _malloc?(bytes: number): number;
+    _free?(ptr: number): void;
+    HEAPU32?: Uint32Array;
+}
 
 function editorBridge(): EditorBridge | null {
     return getDefaultContext().editorBridge;
@@ -349,6 +362,63 @@ export class World {
 
     getAllEntities(): Entity[] {
         return Array.from(this.entities_.keys());
+    }
+
+    /**
+     * Reorder the world's storage so every iteration follows `entities`.
+     *
+     * Within a sorting layer the renderer draws in the order it walks the ECS —
+     * so an entity that iterates later lands on top. That order is storage order,
+     * which a scene gets for free by spawning in its authored order and which this
+     * re-establishes on a world that is already populated: the picture a reload
+     * would give, without respawning anything (entity ids, component values and
+     * every subsystem keyed on them survive untouched).
+     *
+     * Entities left out of `entities` keep their relative order after the listed
+     * ones. Both halves of the world move together — the engine's component pools
+     * and the JS-side storages the SDK's own queries walk — so an editor's outliner
+     * drag and a game's "bring this card to the front" mean one thing.
+     *
+     * @param entities the desired iteration order (first iterates first, draws first)
+     */
+    applyEntityOrder(entities: readonly Entity[]): void {
+        if (entities.length === 0) return;
+        if (this.isIterating()) {
+            log.warn('world', 'applyEntityOrder ignored during query iteration');
+            return;
+        }
+        const rankOf = rankByOrder(entities);
+
+        // The engine's pools first: it owns the draw path, and its call is the one
+        // that can fail (no core, or a core built before this entry point existed).
+        this.pushEntityOrderToCore_(entities);
+
+        reorderMapByRank(this.entities_, rankOf);
+        this.builtin_.reorderEntitySets(rankOf);
+        this.scripts_.reorderStorages(rankOf);
+        // Cached query results are entity ARRAYS — their order is now wrong, and no
+        // component version moved, so drop them wholesale.
+        this.queries_.invalidateAll();
+    }
+
+    /** Marshal the order to whichever core is connected (see applyEntityOrder). */
+    private pushEntityOrderToCore_(entities: readonly Entity[]): void {
+        const cppRegistry = this.builtin_.getCppRegistry();
+        if (!cppRegistry) return;
+        const core = (this.builtin_.getWasmModule() ?? nativeEngineApi()) as EntityOrderCore | null;
+        const push = core?.renderer_setEntityDrawOrder;
+        if (!core || !push || !core._malloc || !core._free || !core.HEAPU32) return;
+        try {
+            withScratch({ _malloc: core._malloc, _free: core._free }, (alloc) => {
+                const ptr = alloc(entities.length * 4);
+                // HEAPU32 is re-read here (not captured above): emscripten swaps the
+                // views out when the heap grows, and _malloc can grow it.
+                core.HEAPU32!.set(entities as ArrayLike<number>, ptr >> 2);
+                push.call(core, cppRegistry, ptr, entities.length);
+            });
+        } catch (e) {
+            handleWasmError(e, `applyEntityOrder(count=${entities.length})`);
+        }
     }
 
     setParent(child: Entity, parent: Entity): void {

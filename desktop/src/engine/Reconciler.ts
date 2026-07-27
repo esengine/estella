@@ -218,7 +218,29 @@ export class ReconcilerImpl {
         return this.projectName(ev.sourceId);
       case 'hiddenChanged':
         return this.projectHidden(ev.sourceId);
+      case 'orderChanged':
+        return this.projectOrder();
     }
+  }
+
+  /**
+   * Project scene order onto the World. Painter order within a sorting layer is
+   * the order the renderer walks the ECS, which a load establishes by spawning in
+   * `data.entities` order — so without this an outliner drag changed the saved
+   * scene (and Play, and the exported game) while the viewport kept drawing the
+   * old order until the next reload. Storage is permuted in place, so entity ids,
+   * component values, and everything keyed on them (spine runtimes, live particle
+   * state, tilemap chunks) survive the drag untouched.
+   */
+  private projectOrder(): void {
+    const world = EngineHost.mutableWorld();
+    if (!world) return;
+    const order: EntityId[] = [];
+    for (const sourceId of this.model.entityOrder()) {
+      const rt = this.model.runtimeFor(sourceId);
+      if (rt != null) order.push(rt);
+    }
+    if (order.length > 0) world.applyEntityOrder(order);
   }
 
   private spawnEntity(sourceId: number): void {

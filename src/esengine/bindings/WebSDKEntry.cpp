@@ -493,6 +493,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
 #endif
     emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
+    emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
 #ifdef ES_ENABLE_PARTICLES
     emscripten::function("particle_update", &esengine::particle_update);

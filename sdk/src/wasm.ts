@@ -300,6 +300,9 @@ export interface ESEngineModule {
     renderer_resize(width: number, height: number): void;
     renderer_beginFrame(elapsedSec: number): void;
     renderer_updateTransforms(registry: CppRegistry): void;
+    /** Permute component storage to the given entity order — see World.applyEntityOrder.
+     *  Optional: an older core still answers every other renderer entry point. */
+    renderer_setEntityDrawOrder?(registry: CppRegistry, entitiesPtr: number, count: number): void;
     renderer_begin(matrixPtr: number, targetHandle: number, clearFlags: number,
                    r: number, g: number, b: number, a: number,
                    clearX: number, clearY: number, clearW: number, clearH: number): void;

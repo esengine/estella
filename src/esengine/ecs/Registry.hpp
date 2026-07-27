@@ -477,6 +477,56 @@ public:
     }
 
     /**
+     * @brief Reorders every component pool to follow the given entity order
+     * @param order    Entities in the desired iteration order (first iterates first)
+     * @param count    How many entries @p order holds
+     *
+     * @details Component storage order IS iteration order, and iteration order is
+     *          the renderer's painter order within a sorting layer — so a scene's
+     *          authored entity order only reaches the draw list because a load
+     *          happens to spawn in that order. This applies an order to a registry
+     *          that is already populated: the same picture, without respawning
+     *          anything (entity ids, component values, and every subsystem keyed on
+     *          them survive untouched).
+     *
+     *          Entities absent from @p order keep their relative order after the
+     *          listed ones. Pools already in the requested order are left alone, so
+     *          a redundant call costs a scan and bumps no pool version.
+     */
+    void applyEntityOrder(const Entity* order, usize count) {
+        if (!order || count == 0) return;
+        applyEntityRank(buildEntityRank(order, count));
+    }
+
+    /**
+     * @brief Rank table (by Entity::index()) for an ordered entity list
+     * @details Split out of {@link applyEntityOrder} so a caller that ranks other
+     *          entity lists too — child lists, in applySceneEntityOrder — builds it
+     *          once. Unlisted entities read {@link SparseSetBase::UNRANKED}.
+     */
+    std::vector<u32> buildEntityRank(const Entity* order, usize count) const {
+        // entityValid_ spans every index ever activated (activateIndex grows it),
+        // so it is the safe bound for a rank table keyed by Entity::index().
+        std::vector<u32> rank(entityValid_.size(), SparseSetBase::UNRANKED);
+        if (!order) return rank;
+        u32 nextRank = 0;
+        for (usize i = 0; i < count; ++i) {
+            const u32 idx = order[i].index();
+            if (idx >= rank.size()) continue;                     // never allocated here
+            if (rank[idx] != SparseSetBase::UNRANKED) continue;   // duplicate: first wins
+            rank[idx] = nextRank++;
+        }
+        return rank;
+    }
+
+    /** @brief Reorders every component pool by a rank table from buildEntityRank. */
+    void applyEntityRank(const std::vector<u32>& rank) {
+        for (auto& pool : pools_) {
+            if (pool) pool->reorderBy(rank);
+        }
+    }
+
+    /**
      * @brief Executes a function for each entity with specified components
      * @tparam Components The required component types
      * @tparam Func The callback type

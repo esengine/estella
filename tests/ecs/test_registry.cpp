@@ -3,6 +3,7 @@
 
 #include <esengine/ESEngine.hpp>
 #include <esengine/ecs/TransformSystem.hpp>
+#include <vector>
 
 namespace test {
 
@@ -535,4 +536,103 @@ TEST_CASE("setParent is idempotent on duplicate reparent") {
     const auto& children = registry.get<esengine::ecs::Children>(parent).entities;
     CHECK_EQ(children.size(), 1u);
     CHECK_EQ(children[0], child);
+}
+
+// Storage order is iteration order is painter order: applyEntityOrder is how an
+// already-populated registry is told the scene's authored order (see
+// Registry::applyEntityOrder).
+TEST_CASE("applyEntityOrder permutes every pool to the given order") {
+    esengine::ecs::Registry registry;
+    esengine::Entity a = registry.create();
+    esengine::Entity b = registry.create();
+    esengine::Entity c = registry.create();
+    for (auto e : {a, b, c}) {
+        registry.emplace<test::Position>(e, static_cast<float>(e.index()), 0.0f);
+        registry.emplace<test::Health>(e, static_cast<int>(e.index()));
+    }
+
+    std::vector<esengine::Entity> order{c, a, b};
+    registry.applyEntityOrder(order.data(), order.size());
+
+    std::vector<esengine::Entity> seen;
+    registry.each<test::Position>([&](esengine::Entity e, test::Position&) { seen.push_back(e); });
+    CHECK_EQ(seen, order);
+
+    // Every pool follows the same order, and the values travel with their entity.
+    seen.clear();
+    registry.each<test::Health>([&](esengine::Entity e, test::Health&) { seen.push_back(e); });
+    CHECK_EQ(seen, order);
+    CHECK_EQ(registry.get<test::Position>(c).x, static_cast<float>(c.index()));
+    CHECK_EQ(registry.get<test::Health>(a).value, static_cast<int>(a.index()));
+}
+
+TEST_CASE("applyEntityOrder leaves unlisted entities after the listed ones, in order") {
+    esengine::ecs::Registry registry;
+    esengine::Entity a = registry.create();
+    esengine::Entity b = registry.create();
+    esengine::Entity c = registry.create();
+    esengine::Entity d = registry.create();
+    for (auto e : {a, b, c, d}) registry.emplace<test::Position>(e, 0.0f, 0.0f);
+
+    std::vector<esengine::Entity> order{d, b};
+    registry.applyEntityOrder(order.data(), order.size());
+
+    std::vector<esengine::Entity> seen;
+    registry.each<test::Position>([&](esengine::Entity e, test::Position&) { seen.push_back(e); });
+    CHECK_EQ(seen, std::vector<esengine::Entity>{d, b, a, c});
+}
+
+TEST_CASE("applyEntityOrder keeps lookups intact across a partial pool") {
+    esengine::ecs::Registry registry;
+    esengine::Entity a = registry.create();
+    esengine::Entity b = registry.create();
+    esengine::Entity c = registry.create();
+    registry.emplace<test::Position>(a, 1.0f, 0.0f);
+    registry.emplace<test::Position>(c, 3.0f, 0.0f);
+
+    std::vector<esengine::Entity> order{c, b, a};
+    registry.applyEntityOrder(order.data(), order.size());
+
+    CHECK(registry.has<test::Position>(a));
+    CHECK(!registry.has<test::Position>(b));
+    CHECK_EQ(registry.get<test::Position>(a).x, 1.0f);
+    CHECK_EQ(registry.get<test::Position>(c).x, 3.0f);
+
+    std::vector<esengine::Entity> seen;
+    registry.each<test::Position>([&](esengine::Entity e, test::Position&) { seen.push_back(e); });
+    CHECK_EQ(seen, std::vector<esengine::Entity>{c, a});
+}
+
+// UI draws in child-list order while world sprites draw in storage order, so one
+// authored order has to reach both (see applySceneEntityOrder).
+TEST_CASE("applySceneEntityOrder reorders child lists as well as storage") {
+    esengine::ecs::Registry registry;
+    esengine::Entity parent = registry.create();
+    esengine::Entity a = registry.create();
+    esengine::Entity b = registry.create();
+    esengine::Entity c = registry.create();
+    for (auto child : {a, b, c}) esengine::ecs::setParent(registry, child, parent);
+    CHECK_EQ(registry.get<esengine::ecs::Children>(parent).entities,
+             std::vector<esengine::Entity>{a, b, c});
+
+    std::vector<esengine::Entity> order{parent, c, a, b};
+    esengine::ecs::applySceneEntityOrder(registry, order.data(), order.size());
+
+    CHECK_EQ(registry.get<esengine::ecs::Children>(parent).entities,
+             std::vector<esengine::Entity>{c, a, b});
+}
+
+TEST_CASE("applySceneEntityOrder keeps unlisted children after the listed ones") {
+    esengine::ecs::Registry registry;
+    esengine::Entity parent = registry.create();
+    esengine::Entity a = registry.create();
+    esengine::Entity b = registry.create();
+    esengine::Entity c = registry.create();
+    for (auto child : {a, b, c}) esengine::ecs::setParent(registry, child, parent);
+
+    std::vector<esengine::Entity> order{c};
+    esengine::ecs::applySceneEntityOrder(registry, order.data(), order.size());
+
+    CHECK_EQ(registry.get<esengine::ecs::Children>(parent).entities,
+             std::vector<esengine::Entity>{c, a, b});
 }

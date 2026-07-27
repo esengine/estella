@@ -383,6 +383,22 @@ void renderer_updateTransforms(ecs::Registry& registry) {
     ensureTransformsUpdated(registry);
 }
 
+// Painter order within a sorting layer is the order the render plugins iterate
+// the ECS pools, which is storage order — so a scene draws in its authored entity
+// order only because loading it spawns in that order. This is the entry point that
+// re-establishes the order on an ALREADY populated registry (the editor moving a
+// row in the outliner, a game bringing a card to the front): the same picture a
+// reload would produce, without respawning anything.
+void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr, u32 count) {
+    if (entitiesPtr == 0 || count == 0) return;
+    const u32* raw = boundarySpan<u32>(entitiesPtr, count, "renderer_setEntityDrawOrder.entities");
+    if (!raw) return;
+    std::vector<Entity> order;
+    order.reserve(count);
+    for (u32 i = 0; i < count; ++i) order.push_back(Entity::fromRaw(raw[i]));
+    ecs::applySceneEntityOrder(registry, order.data(), order.size());
+}
+
 void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);

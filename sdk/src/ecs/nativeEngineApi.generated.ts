@@ -143,6 +143,7 @@ export interface NativeEngineApi {
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
     renderer_setColorSpace?(linear: number): void;
     renderer_setEntityClipRect?(entity: number, x: number, y: number, w: number, h: number): void;
+    renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setEntityStencilMask?(entity: number, refValue: number): void;
     renderer_setEntityStencilTest?(entity: number, refValue: number): void;
     renderer_setStage?(stage: number): void;
@@ -373,6 +374,7 @@ export function createNativeEngineApi(
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
     bind('renderer_setEntityClipRect', 'es_renderer_setEntityClipRect', false);
+    bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setEntityStencilMask', 'es_renderer_setEntityStencilMask', false);
     bind('renderer_setEntityStencilTest', 'es_renderer_setEntityStencilTest', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);

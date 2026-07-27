@@ -108,6 +108,22 @@ sprite.layer = 2;   // e.g. "Foreground" — drawn on top
   fine ordering *within* a layer, use the entity's `Transform` z position.
 </Aside>
 
+### Scene order breaks the tie
+
+Same layer, same z? Then **scene order** decides: the engine draws entities in the
+order the scene lists them, so the one further **down** the Outliner lands on top.
+Dragging a row in the Outliner therefore changes what covers what — and the viewport
+updates as you drop it, exactly as the running game will draw it. A dragged parent
+takes its children along, so a child always keeps its position relative to its parent.
+
+At runtime the same order is available without touching layers — useful for "bring
+this card to the front":
+
+```typescript
+// Draw `card` last (on top) among these three, leaving everything else alone.
+world.applyEntityOrder([other, another, card]);
+```
+
 ### Y-sort (top-down occlusion)
 
 For top-down games, check a layer under **Project Settings → Rendering → Y-sorted

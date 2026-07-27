@@ -53,7 +53,13 @@ export class QueryCache {
         this.componentVersions_.set(componentId, cur + 1);
     }
 
+    /**
+     * Drop every cached result. For changes no per-component version describes —
+     * a reorder (see World.applyEntityOrder) moves entities within results that are
+     * otherwise still correct, so nothing else would recompute them.
+     */
     invalidateAll(): void {
+        this.cache_.clear();
         this.structuralVersion_++;
     }
 

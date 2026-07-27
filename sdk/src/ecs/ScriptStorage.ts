@@ -9,6 +9,7 @@ import { Entity } from '../types';
 import { ComponentDef } from '../component';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from '../validation';
 import { log } from '../logger';
+import { reorderMapByRank, type RankOf } from './entityOrder';
 
 export interface InsertResult<T> {
     value: T;
@@ -105,6 +106,12 @@ export class ScriptStorage {
 
     getEntityComponentIds(entity: Entity): Set<symbol> | undefined {
         return this.entityComponents_.get(entity);
+    }
+
+    /** Re-order every component's storage so queries iterate in rank order — the
+     *  script half of {@link World.applyEntityOrder}. */
+    reorderStorages(rankOf: RankOf): void {
+        for (const storage of this.tsStorage_.values()) reorderMapByRank(storage, rankOf);
     }
 
     removeEntity(entity: Entity): symbol[] {

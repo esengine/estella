@@ -53,4 +53,23 @@ describe('SceneCommands.reorderEntity', () => {
     S.commands.reorderEntity(2, 2, true); // onto self → no-op
     expect(S.history.canUndo()).toBe(before);
   });
+
+  it('carries the whole subtree with a dragged parent', () => {
+    // 1 owns 2; dropping 1 after 3 must take 2 along, or 2 would keep drawing
+    // where 1 used to be (scene order is render order).
+    S.model.adopt({ version: '1.0', name: 'o', entities: [ent(1, null, [2]), ent(2, 1, []), ent(3, null, [])] } as unknown as SceneData, new Map());
+    S.commands.reorderEntity(1, 3, false);
+    expect(S.model.entityOrder()).toEqual([3, 1, 2]);
+    S.history.undo();
+    expect(S.model.entityOrder()).toEqual([1, 2, 3]);
+  });
+
+  it('keeps a moved subtree contiguous and internally ordered', () => {
+    S.model.adopt({
+      version: '1.0', name: 'o',
+      entities: [ent(1, null, [2, 3]), ent(2, 1, []), ent(3, 1, [4]), ent(4, 3, []), ent(5, null, [])],
+    } as unknown as SceneData, new Map());
+    S.commands.reorderEntity(1, 5, false);
+    expect(S.model.entityOrder()).toEqual([5, 1, 2, 3, 4]);
+  });
 });

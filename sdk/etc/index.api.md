@@ -1136,6 +1136,7 @@ has: (entity: Entity, component: BuiltinComponentDef<any>) => boolean
 hasCpp: boolean
 insert: <T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>) => { merged: T; isNew: boolean; }
 remove: (entity: Entity, component: BuiltinComponentDef<any>) => void
+reorderEntitySets: (rankOf: RankOf) => void
 resolvePtrFn: (cppName: string) => ((entity: Entity) => number) | null
 resolvePtrGetter: (cppName: string) => ((entity: Entity) => unknown) | null
 resolvePtrSetter: (cppName: string) => ((entity: Entity, data: unknown) => void) | null
@@ -2373,6 +2374,7 @@ renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
+renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
 renderer_setEntityStencilMask: (entity: number, refValue: number) => void
 renderer_setEntityStencilTest: (entity: number, refValue: number) => void
 renderer_setStage: (stage: number) => void
@@ -7998,6 +8000,7 @@ tabIndex: number | undefined
 ```
 advanceTick: () => void
 anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
+applyEntityOrder: (entities: readonly Entity[]) => void
 beginIteration: () => void
 builtin: BuiltinBridge
 changes_: ChangeTracker

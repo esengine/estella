@@ -95,6 +95,23 @@ public:
      *          parallel store and, notably, was not bumped on remove).
      */
     virtual u32 version() const = 0;
+
+    /**
+     * @brief Permutes storage so iteration follows @p rank
+     * @param rank Rank per ENTITY INDEX (Entity::index()); lower ranks iterate first
+     *
+     * @details Storage order is iteration order, and iteration order is the
+     *          renderer's within-layer painter order, so this is how a scene's
+     *          authored entity order reaches the draw list without respawning
+     *          anything. Entities with no rank (index past the end, or the
+     *          UNRANKED sentinel) keep their relative order after the ranked
+     *          ones — the sort is stable. A no-op reorder leaves storage (and
+     *          therefore every handed-out component pointer) untouched.
+     */
+    virtual void reorderBy(const std::vector<u32>& rank) = 0;
+
+    /** @brief Rank for an entity the caller did not order — sorts last, stably. */
+    static constexpr u32 UNRANKED = 0xFFFFFFFFu;
 };
 
 // =============================================================================
@@ -368,6 +385,49 @@ public:
 
     /** @copydoc SparseSetBase::version() */
     u32 version() const override { return version_; }
+
+    /** @copydoc SparseSetBase::reorderBy() */
+    void reorderBy(const std::vector<u32>& rank) override {
+        const usize n = dense_.size();
+        if (n <= 1) return;
+
+        const auto rankOf = [&](usize i) {
+            const u32 idx = dense_[i].index();
+            return idx < rank.size() ? rank[idx] : UNRANKED;
+        };
+
+        // perm[i] = which current slot belongs at position i. stable_sort keeps
+        // equal-ranked (and unranked) entities in their present order.
+        std::vector<usize> perm(n);
+        for (usize i = 0; i < n; ++i) perm[i] = i;
+        std::stable_sort(perm.begin(), perm.end(),
+                         [&](usize a, usize b) { return rankOf(a) < rankOf(b); });
+
+        bool moved = false;
+        for (usize i = 0; i < n; ++i) {
+            if (perm[i] != i) { moved = true; break; }
+        }
+        if (!moved) return;  // already in order — no version bump, no stale pointers
+
+        // Cycle-walk the permutation in place (same idiom as Registry::sort).
+        for (usize i = 0; i < n; ++i) {
+            if (perm[i] == i) continue;
+            usize j = i;
+            Entity tmpEntity = std::move(dense_[i]);
+            T tmpComponent = std::move(components_[i]);
+            while (perm[j] != i) {
+                const usize src = perm[j];
+                dense_[j] = std::move(dense_[src]);
+                components_[j] = std::move(components_[src]);
+                perm[j] = j;
+                j = src;
+            }
+            dense_[j] = std::move(tmpEntity);
+            components_[j] = std::move(tmpComponent);
+            perm[j] = j;
+        }
+        rebuildSparse();
+    }
 
     void rebuildSparse() {
         // Called after Registry::sort permutes dense_/components_ in place —

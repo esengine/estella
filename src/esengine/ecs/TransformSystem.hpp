@@ -221,6 +221,41 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
     }
 }
 
+/**
+ * @brief Applies a scene's authored entity order to the whole world
+ * @param order Entities in the desired order (first draws first, i.e. behind)
+ * @param count How many entries @p order holds
+ *
+ * @details Two things read "order" when deciding what covers what, and one
+ *          authored order has to reach both: component STORAGE order, which is
+ *          the painter order of everything the renderer collects by pool walk,
+ *          and each parent's CHILD LIST, which is the order the UI tree lays out
+ *          and draws in (see UIRenderOrderSystem). A scene file gets both for
+ *          free by spawning in order; this re-establishes them on a world that is
+ *          already populated, so an editor drag or a runtime "bring to front"
+ *          means the same thing a reload would.
+ *
+ *          Entities left out of @p order keep their relative order, after the
+ *          listed ones — including inside child lists, where reparenting's
+ *          swap-with-back removal can otherwise leave a stale order.
+ */
+inline void applySceneEntityOrder(Registry& registry, const Entity* order, usize count) {
+    if (!order || count == 0) return;
+    const std::vector<u32> rank = registry.buildEntityRank(order, count);
+    registry.applyEntityRank(rank);
+
+    const auto rankOf = [&rank](Entity e) {
+        const u32 idx = e.index();
+        return idx < rank.size() ? rank[idx] : SparseSetBase::UNRANKED;
+    };
+    registry.eachLive<Children>([&rankOf](Entity, Children& children) {
+        auto& list = children.entities;
+        if (list.size() <= 1) return;
+        std::stable_sort(list.begin(), list.end(),
+                         [&rankOf](Entity a, Entity b) { return rankOf(a) < rankOf(b); });
+    });
+}
+
 inline Entity getRoot(Registry& registry, Entity entity) {
     while (registry.has<Parent>(entity)) {
         Entity parent = registry.get<Parent>(entity).entity;

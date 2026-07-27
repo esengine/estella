@@ -46,3 +46,12 @@ export function setNativeEngineApi(api: EngineApi | null): void {
 export function engineApi(app: App): EngineApi | null {
     return (app.wasmModule as EngineApi | null) ?? native_;
 }
+
+/**
+ * The native host's engine API, for the few callers that sit BELOW an App — the
+ * World, which on a device has a registry but no wasm module to reach the engine
+ * through. Null on the web (where the module is the answer) and on a logic host.
+ */
+export function nativeEngineApi(): EngineApi | null {
+    return native_;
+}
