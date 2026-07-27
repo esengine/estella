@@ -50,7 +50,13 @@ struct IOSPlatform final : eshost::Platform {
     CAMetalLayer* layer = nil;
     // Whoever owns the responder the keyboard talks to (the view controller); set
     // once it has loaded, which is also what makes hasTextEditor() true.
-    __weak id<EstellaTextEditorHost> editorHost = nil;
+    //
+    // `__unsafe_unretained` rather than `__weak`: this file compiles under manual
+    // reference counting (where a zeroing weak reference does not exist), and the
+    // reference must not own the controller that owns the surface. The app has one
+    // root controller for the life of the process, so there is nothing for a
+    // zeroing reference to zero.
+    __unsafe_unretained id<EstellaTextEditorHost> editorHost = nil;
 
     bool hasTextEditor() const override { return editorHost != nil; }
 

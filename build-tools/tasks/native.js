@@ -9,7 +9,7 @@
 // --dawn / --dawn-build or ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD.
 
 import path from 'path';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, statSync } from 'fs';
 import { mkdir, rm, cp, readdir } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -20,7 +20,7 @@ import { fetchNativeDeps, pinnedDep, ensureDawnBuild } from './nativeDeps.js';
 import {
     BYTECODE_FILE, DEFAULT_ABI, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
-import { readAppConfig, fillTemplate } from '../utils/nativeApp.js';
+import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
 import { assembleApk, apkFileName } from '../utils/apk.js';
 import { assembleAab, aabFileName } from '../utils/aab.js';
@@ -356,11 +356,24 @@ const XCFRAMEWORK = path.join('build-native-ios', 'Estella.xcframework');
 
 // Rebuild the xcframework from whichever slices exist. A device-only framework is
 // valid — Xcode then simply has nothing to offer a simulator target.
-async function assembleXcframework(rootDir, env) {
+async function assembleXcframework(rootDir, env, genDir) {
     const libs = [];
+    // The two slices are built by separate commands, so one can be months older
+    // than the other and the framework would merge them without a word — and then
+    // a simulator run exercises an engine the device build has moved past. The SDK
+    // bundle is what dates a slice: it is regenerated every build, and it is the
+    // thing compiled INTO the library.
+    const bundle = genDir ? path.join(genDir, 'esengine_bundle.h') : null;
+    const bundleAt = bundle && existsSync(bundle) ? statSync(bundle).mtimeMs : 0;
     for (const slice of Object.values(IOS_SLICES)) {
         const lib = path.join(rootDir, slice.dir, 'libestella_ios.a');
-        if (existsSync(lib)) libs.push('-library', lib);
+        if (!existsSync(lib)) continue;
+        if (bundleAt && statSync(lib).mtimeMs < bundleAt) {
+            logger.warn(`The ${slice.label} slice predates this SDK bundle — it is going into the `
+                + `framework as it is. Rebuild it with \`cli native --target ios`
+                + `${slice.sysroot === 'iphonesimulator' ? ' --simulator' : ''}\`.`);
+        }
+        libs.push('-library', lib);
     }
     const out = path.join(rootDir, XCFRAMEWORK);
     await rm(out, { recursive: true, force: true });
@@ -472,7 +485,7 @@ async function buildIosHost(options) {
     await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir, env });
 
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
-    await assembleXcframework(rootDir, env);
+    await assembleXcframework(rootDir, env, genDir);
 
     // See buildAndroidHost: the compiled half is project-independent, so it is
     // packed as a template the editor (and everyone without Xcode's dependencies)
