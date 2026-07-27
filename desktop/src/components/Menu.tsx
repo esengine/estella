@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { Check, ChevronRight } from 'lucide-react';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { overlayGuard } from '@/components/overlayGuard';
+import { useDismissOnPageMove } from './useDismissOnPageMove';
 
 export type MenuItem =
   | { sep: true }
@@ -171,20 +172,7 @@ export function ContextMenu({
     ref.current?.querySelector<HTMLButtonElement>('.ctx-item:not(:disabled)')?.focus();
   }, []);
 
-  useEffect(() => {
-    const close = () => onClose();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    win.addEventListener('mousedown', close);
-    win.addEventListener('scroll', close, true);
-    win.addEventListener('keydown', onKey);
-    return () => {
-      win.removeEventListener('mousedown', close);
-      win.removeEventListener('scroll', close, true);
-      win.removeEventListener('keydown', onKey);
-    };
-  }, [onClose, win]);
+  useDismissOnPageMove(ref, onClose, win);
 
   return createPortal(
     <div

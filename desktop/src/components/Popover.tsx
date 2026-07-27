@@ -14,6 +14,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { overlayGuard } from '@/components/overlayGuard';
+import { useDismissOnPageMove } from './useDismissOnPageMove';
 
 export function Popover({
   anchor,
@@ -71,22 +72,7 @@ export function Popover({
     setPos({ left, top });
   }, [anchor, win]);
 
-  useEffect(() => {
-    const close = () => onClose();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    win.addEventListener('mousedown', close);
-    win.addEventListener('scroll', close, true);
-    win.addEventListener('resize', close);
-    win.addEventListener('keydown', onKey);
-    return () => {
-      win.removeEventListener('mousedown', close);
-      win.removeEventListener('scroll', close, true);
-      win.removeEventListener('resize', close);
-      win.removeEventListener('keydown', onKey);
-    };
-  }, [onClose, win]);
+  useDismissOnPageMove(ref, onClose, win);
 
   return createPortal(
     <div
