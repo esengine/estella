@@ -2796,8 +2796,10 @@ ResourceDef<FocusManagerState>
 ## FocusManagerState — class
 ```
 blur: () => Entity | null
-focus: (entity: Entity) => Entity | null
+focus: (entity: Entity, visible?: boolean) => Entity | null
+focusVisible: boolean
 focusedEntity: number | null
+isVisiblyFocused: (entity: Entity) => boolean
 static new (): FocusManagerState
 static prototype: FocusManagerState
 ```
@@ -7035,6 +7037,7 @@ textureId: number
 backdrop: Color
 control: Color
 controlActive: Color
+controlFocus: Color
 controlHover: Color
 onPrimary: Color
 primary: Color
