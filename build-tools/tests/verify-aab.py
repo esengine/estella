@@ -188,6 +188,28 @@ def _verify_pkcs7(block, signed_content):
         raise SystemExit("the JAR signature does not verify against the certificate")
 
 
+def resource_files(table):
+    """Every file path the resource table actually names.
+
+    Walked by field number, which is the half of this format that cannot be
+    inferred from the bytes: ResourceTable.package(2) -> Package.type(3) ->
+    Type.entry(3) -> Entry.config_value(6) -> ConfigValue.value(3) ->
+    Value.item(4) -> Item.file(5) -> FileReference.path(1). A file shipped in the
+    bundle that no entry names here is exactly what bundletool rejects.
+    """
+    paths = []
+    for package in decode_message(table).get(2, []):
+        for type_ in decode_message(package).get(3, []):
+            for entry in decode_message(type_).get(3, []):
+                for config_value in decode_message(entry).get(6, []):
+                    for value in decode_message(config_value).get(3, []):
+                        for item in decode_message(value).get(4, []):
+                            for reference in decode_message(item).get(5, []):
+                                for raw in decode_message(reference).get(1, []):
+                                    paths.append(raw.decode())
+    return paths
+
+
 def verify(path):
     with zipfile.ZipFile(path) as zf:
         names = zf.namelist()
@@ -205,6 +227,8 @@ def verify(path):
             "bundletoolVersion": decode_message(config[1][0])[2][0].decode(),
             "uncompressedGlobs": [g.decode() for g in decode_message(config[3][0])[1]],
             "manifest": manifest,
+            "resourceFiles": (resource_files(zf.read("base/resources.pb"))
+                              if "base/resources.pb" in names else []),
             "hasDex": any(n.startswith("base/dex/") for n in names),
             "libs": sorted(n for n in names if n.startswith("base/lib/")),
             "assets": sum(1 for n in names if n.startswith("base/assets/")),
