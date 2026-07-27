@@ -120,7 +120,7 @@ jobs:
               --metadata-directive REPLACE \
               --content-type application/octet-stream \
               --content-disposition "attachment; filename=\"$(basename "$src")\"" \
-              --cache-control "public, max-age=300"
+              --cache-control "max-age=300"
           }
 
           win=(mirror/*Setup*.exe)
