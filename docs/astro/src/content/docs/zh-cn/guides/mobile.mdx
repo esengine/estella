@@ -36,7 +36,11 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们被组装
 | 导出产物 | `dist-android/` | `dist-ios/` |
 | 组装方 | 编辑器(不需要 Android SDK) | 编辑器,然后 Xcode |
 | 组装所需系统 | 任意桌面系统 | **仅 macOS** |
-| 结果 | 一个已签名的 `.apk` | 一个可打开、签名并运行的 Xcode 工程 |
+| 结果 | 一个已签名的 `.apk`,**或**一个 Android Studio 工程 | 一个可打开、签名并运行的 Xcode 工程 |
+
+Android 两者都给,是因为它两者都做得到:编辑器既能直接装配出安装包,也能写出这个安装包
+本该由之构建的那个 Gradle 工程。游戏需要接自己的 SDK、加权限或加 Activity 时,在 Android
+分区的**输出**里选「Android Studio 工程」——这正是 iOS 一直以来的形状,那边由 Xcode 收尾。
 
 ## 前置条件
 
@@ -89,6 +93,12 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们被组装
   要发 **Google Play**,在 Android 分区勾上 *Google Play App Bundle(.aab)*:导出会在
   APK 旁边再写一份。Play 自 2021 年起对新应用强制要求 bundle 而非 APK——它是上传格式,
   无法直接装到设备上,所以你测试用的仍然是那个 APK。
+- **Android,且**输出**选了「Android Studio 工程」** —— 给的不是安装包,而是一个普通的
+  Gradle 工程:内容在 `app/src/main/assets`,引擎在 `app/src/main/jniLibs`,宿主的 Java
+  shim 以源码形式在 `app/src/main/java`,应用身份写在 `app/build.gradle.kts` 里。用
+  Android Studio 打开该文件夹直接 Run;要接 SDK 就像在任何 Android 应用里那样加进
+  `build.gradle.kts`。再次导出只会重写游戏内容,不动这个构建脚本——已经长出 SDK 的工程
+  不会因为重新打包游戏而被抹掉。
 - **iOS** —— 一个 Xcode 工程:`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的
   内容写出。打开它,在 *Signing & Capabilities* 下选好签名 Team,Run。
 

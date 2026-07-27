@@ -118,6 +118,14 @@ export function templateLayout(platform, options = {}) {
             // of an editable field has to be Java, and a template exists so that no
             // user needs a JDK to package.
             { rel: 'classes.dex', produced: true },
+            // The same Java, as source. The dex above is what the one-click package
+            // needs (no JDK on the user's machine); these are what an exported
+            // Android Studio project compiles, and what a game adding its own SDK
+            // extends. One template carries both because both are the same shim.
+            {
+                rel: 'java', kind: 'dir',
+                from: (ctx) => path.join(ctx.root, 'native', 'android', 'java'),
+            },
             // Absent is valid — the host falls back to compiling the bundle, at the
             // cost of a ~14 s black screen on first launch.
             {
@@ -145,6 +153,21 @@ export function requiredTemplateFiles(platform, options) {
  * Read off the files rather than the manifest: a template is usable if its files
  * are there, and asking the directory is what makes that true by construction.
  */
+/**
+ * The pieces an exported Android Studio project is assembled from, out of an
+ * installed template — the Android side of {@link iosTemplateSources}.
+ */
+export function androidTemplateSources(dir) {
+    return {
+        libs: path.join(dir, 'lib'),
+        java: path.join(dir, 'java'),
+        dex: path.join(dir, 'classes.dex'),
+        manifestIn: path.join(dir, 'AndroidManifest.xml.in'),
+        icon: path.join(dir, DEFAULT_ICON),
+        bytecode: path.join(dir, 'assets', BYTECODE_FILE),
+    };
+}
+
 export function templateAbis(dir) {
     return ANDROID_ABIS.filter((abi) => existsSync(path.join(dir, 'lib', abi, 'libestella_js_host.so')));
 }

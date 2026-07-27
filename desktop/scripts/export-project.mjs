@@ -23,6 +23,7 @@ import path from 'node:path';
 import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { installedTemplateDir } from '../../build-tools/utils/nativeTemplate.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.join(HERE, '..');
@@ -31,7 +32,8 @@ const REPO = path.join(DESKTOP, '..');
 function parseArgs(argv) {
     const [projectDir, ...rest] = argv;
     if (!projectDir) {
-        console.error('usage: node desktop/scripts/export-project.mjs <projectDir> [--platform android] [--out dir]');
+        console.error('usage: node desktop/scripts/export-project.mjs <projectDir> '
+            + '[--platform android] [--out dir] [--output package|project] [--template dir]');
         process.exit(2);
     }
     const opts = { projectDir: path.resolve(projectDir), platform: 'android' };
@@ -109,6 +111,16 @@ const scriptsEntry = opts.scripts ?? (existsSync(path.join(opts.projectDir, 'src
     ? 'src/main.ts' : undefined);
 
 const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, `dist-${platform}`));
+
+// The native half the editor resolves through the installed-template store. Named
+// explicitly with --template, else looked up the way the editor does, so a headless
+// export assembles the same package the dialog would rather than content alone.
+const engineVersion = JSON.parse(readFileSync(path.join(DESKTOP, 'package.json'), 'utf8')).version;
+const androidTemplate = platform === 'android'
+    ? (opts.template
+        ? path.resolve(opts.template)
+        : firstExisting([installedTemplateDir(engineVersion, 'android')]) ?? null)
+    : null;
 const { exportGame, cleanup } = await loadExportGame();
 let code = 1;
 try {
@@ -123,6 +135,8 @@ try {
         platform,
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
         orientation: project.orientation ?? 'landscape',
+        androidTemplate,
+        androidOutput: opts.output === 'project' ? 'project' : undefined,
     });
     console.log(JSON.stringify({ ...result, outDir }, null, 2));
     code = result.ok ? 0 : 1;

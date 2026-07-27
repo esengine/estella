@@ -38,6 +38,8 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
+import { emitAndroidGradleProject } from '../../build-tools/utils/gradleProject.js';
+import { androidTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
@@ -154,6 +156,9 @@ export interface ExportGameResult {
   included: number;
   warnings: string[];
   errors: string[];
+  /** Android: the generated Gradle project, for the editor to reveal. Absent
+   *  unless the export asked for a project (and a template was installed). */
+  androidProject?: string;
   /** iOS: the generated `.xcodeproj`, for the editor to open. Absent when no iOS
    *  runtime template is installed (the export still carries its content). */
   xcodeProject?: string;
@@ -432,6 +437,13 @@ export async function exportGame(opts: {
    *  which carries every architecture it will ship. Omitted (or null) exports
    *  content only. */
   androidTemplate?: string | null;
+  /**
+   * What an Android export produces. 'package' assembles the APK (and the App
+   * Bundle beside it when asked); 'project' writes an Android Studio project the
+   * game is built from instead — the same trade the iOS export has always made,
+   * and the only route for a game that has to add an SDK of its own.
+   */
+  androidOutput?: 'package' | 'project';
   /** Android: the identity to sign with. Omitted uses the development key, which
    *  installs on a device and is refused by every store. */
   androidKey?: SigningKey;
@@ -541,6 +553,7 @@ export async function exportGame(opts: {
   const errors: string[] = [];
   /** iOS: set once the project is written around the content (see below). */
   let xcodeProject: string | undefined;
+  let androidProject: string | undefined;
   let apkFile: string | undefined;
   let aabFile: string | undefined;
   await mkdir(payloadDir, { recursive: true });
@@ -694,9 +707,18 @@ export async function exportGame(opts: {
     }
 
     if (platform === 'android') {
-      progress({ phase: 'Assembling the APK' });
       const template = opts.androidTemplate ?? null;
-      if (template) {
+      const wantsProject = opts.androidOutput === 'project';
+      if (!template) {
+        warnings.push(`No Android runtime template is installed for this editor version, so no ${
+          wantsProject ? 'project was written' : 'APK was assembled'} — the content is here. `
+          + 'Install one from the Android row in Package Project, then export again.');
+      } else if (wantsProject) {
+        progress({ phase: 'Writing Android Studio project' });
+        androidProject = await emitAndroidGradleProject(
+          absOut, appConfig, androidTemplateSources(template), icon);
+      } else {
+        progress({ phase: 'Assembling the APK' });
         const key = opts.androidKey ?? debugSigningKey();
         const assembly = { templateDir: template, contentDir: absOut, app: appConfig, key, icon };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
@@ -706,10 +728,6 @@ export async function exportGame(opts: {
           aabFile = path.join(absOut, aabFileName(appConfig.id));
           await writeFile(aabFile, assembleAab(assembly));
         }
-      } else {
-        warnings.push('No Android runtime template is installed for this editor version, so no APK '
-          + 'was assembled — the content is here. Install one from the Android row in Package '
-          + 'Project, then export again.');
       }
     }
   }
@@ -719,6 +737,7 @@ export async function exportGame(opts: {
 
   return {
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
-    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
+    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
+    ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
   };
 }

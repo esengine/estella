@@ -171,6 +171,18 @@ export const projectMessages = defineMessages({
         en: 'Also write the upload format Google Play requires for new apps, beside the installable APK. A bundle cannot be installed on a device — Play builds the APKs from it.',
         zh: '在可安装的 APK 之外，另写一份 Google Play 对新应用强制要求的上传格式。bundle 无法直接装到设备上——Play 会用它生成各机型的 APK。',
     },
+    'build.androidOutput': { en: 'Package as', zh: '打包为' },
+    'build.androidOutputTip': {
+        en: 'A package installs on a device with nothing else installed. A project is an ordinary Android Studio project — the route for a game that has to add an SDK, a permission or an Activity of its own, and build and sign the package itself.',
+        zh: '「安装包」什么都不用装就能直接装到设备上。「工程」是一个普通的 Android Studio 工程——需要接自己的 SDK、加权限或加 Activity、自己构建和签名的游戏走这条路。',
+    },
+    'build.androidOutput.package': { en: 'Installable package (.apk)', zh: '安装包（.apk）' },
+    'build.androidOutput.project': { en: 'Android Studio project', zh: 'Android Studio 工程' },
+    'build.next.androidProject': {
+        en: 'The Android Studio project is written — open the folder in Android Studio and Run. Your SDKs go in app/build.gradle.kts; re-exporting rewrites the game and leaves that file alone.',
+        zh: 'Android Studio 工程已写好——用 Android Studio 打开该文件夹后直接运行。你的 SDK 加在 app/build.gradle.kts 里；重新导出只会覆盖游戏内容，不动这个文件。',
+    },
+    'build.openAndroidProject': { en: 'Open project folder', zh: '打开工程文件夹' },
     'build.next.ios': {
         en: 'The content is in {out}. Install the iOS runtime template to get an Xcode project written around it.',
         zh: '内容已写入 {out}。安装 iOS 运行时模板后，导出会围绕它写出 Xcode 工程。',

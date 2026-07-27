@@ -77,6 +77,21 @@ export const TEMPLATE_INDEX: string;
 export function releaseAssetBase(engineVersion: string): string;
 export function parseTemplateIndex(doc: unknown, engineVersion?: string): PublishedTemplate[] | null;
 export const DEFAULT_ICON: string;
+/** The pieces an exported Android Studio project is assembled from. */
+export function androidTemplateSources(dir: string): {
+    /** The engine's shared libraries, one directory per ABI. */
+    libs: string;
+    /** The host's Java shim, as source. */
+    java: string;
+    /** The same shim precompiled, for the package path that needs no JDK. */
+    dex: string;
+    manifestIn: string;
+    /** The default launcher icon, used when the project sets none. */
+    icon: string;
+    /** Precompiled SDK bytecode, when the template's build machine could produce it. */
+    bytecode: string;
+};
+
 export function iosTemplateSources(dir: string): {
     xcframework: string;
     mainM: string;

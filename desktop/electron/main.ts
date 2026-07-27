@@ -898,10 +898,12 @@ ipcMain.handle(
       // writing a project that cannot link.
       iosSources: opts?.platform === 'ios' ? iosSourcesFromTemplate(app.getVersion()) : null,
       // Android assembles the APK outright — the template carries everything the
-      // package needs, and signing is ours to do.
+      // package needs, and signing is ours to do — or writes a Gradle project from
+      // the same template when the game needs to build it itself.
       androidTemplate: opts?.platform === 'android'
         ? (resolveNativeTemplate('android', app.getVersion())?.dir ?? null)
         : null,
+      androidOutput: plat?.android?.output,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
   },

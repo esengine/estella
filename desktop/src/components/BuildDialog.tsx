@@ -55,6 +55,8 @@ interface Result {
   errors: string[];
   /** iOS: the .xcodeproj the export wrote around its content. */
   xcodeProject?: string;
+  /** Android: the Gradle project the export wrote around its content. */
+  androidProject?: string;
   /** Android: the signed APK the export assembled. */
   apkFile?: string;
   /** Android: the App Bundle, when the project asked for one. */
@@ -220,6 +222,8 @@ export function BuildDialog() {
   // The Play upload format, beside the installable APK. A per-build decision that
   // the project remembers, like the ad network above.
   const [appBundle, setAppBundle] = useState(saved.platforms?.android?.appBundle ?? false);
+  const [androidOutput, setAndroidOutput] = useState<'package' | 'project'>(
+    saved.platforms?.android?.output ?? 'package');
   const [adNetworks, setAdNetworks] = useState<PlayableNetworkOption[]>([]);
   const [advOpen, setAdvOpen] = useState(false);
   const [copiedFix, setCopiedFix] = useState(false);
@@ -478,7 +482,7 @@ export function BuildDialog() {
     // manifest, so a race here would package for the previous one.
     if (platform === 'playable') await ProjectStore.setPlatformPackaging('playable', { network: adNetwork });
     // Same reason: the export reads the bundle choice from the manifest.
-    if (platform === 'android') await ProjectStore.setPlatformPackaging('android', { appBundle });
+    if (platform === 'android') await ProjectStore.setPlatformPackaging('android', { appBundle, output: androidOutput });
     // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
     // texture/audio compression + Max Size); 'skip' → ship everything raw.
     const compress = assetCompression === 'auto';
@@ -734,10 +738,28 @@ export function BuildDialog() {
 
         <Group title={t('build.secBuild')}>
           {platform === 'android' && (
-            <label className="build__opt" title={t('build.appBundleTip')}>
-              <input type="checkbox" checked={appBundle} onChange={(e) => setAppBundle(e.target.checked)} />
-              {t('build.appBundle')}
-            </label>
+            <>
+              <div className="build__row">
+                <span className="build__label" title={t('build.androidOutputTip')}>{t('build.androidOutput')}</span>
+                <Select
+                  ariaLabel={t('build.androidOutput')}
+                  value={androidOutput}
+                  options={[
+                    { value: 'package', label: t('build.androidOutput.package') },
+                    { value: 'project', label: t('build.androidOutput.project') },
+                  ]}
+                  onChange={(v) => setAndroidOutput(v as 'package' | 'project')}
+                />
+              </div>
+              {/* An App Bundle is a second FORMAT of the package; a project builds
+                  whichever format its own Gradle build is asked for. */}
+              {androidOutput === 'package' && (
+                <label className="build__opt" title={t('build.appBundleTip')}>
+                  <input type="checkbox" checked={appBundle} onChange={(e) => setAppBundle(e.target.checked)} />
+                  {t('build.appBundle')}
+                </label>
+              )}
+            </>
           )}
           {platform === 'playable' && (
             <>
@@ -920,6 +942,8 @@ export function BuildDialog() {
                 <div className="build__next selectable">
                   {result.xcodeProject
                     ? t('build.next.iosProject')
+                    : result.androidProject
+                    ? t('build.next.androidProject')
                     : result.apkFile
                       ? (result.aabFile
                       ? t('build.next.apkAab', { apk: result.apkFile, aab: result.aabFile })
@@ -938,6 +962,11 @@ export function BuildDialog() {
                     {result.xcodeProject && (
                       <Button variant="primary" onClick={() => void window.estella.shell?.openPath?.(result.xcodeProject!)}>
                         <ExternalLink size={13} /> {t('build.openXcode')}
+                      </Button>
+                    )}
+                    {result.androidProject && (
+                      <Button variant="primary" onClick={() => void window.estella.shell?.openPath?.(result.androidProject!)}>
+                        <FolderOpen size={13} /> {t('build.openAndroidProject')}
                       </Button>
                     )}
                     {result.apkFile && (

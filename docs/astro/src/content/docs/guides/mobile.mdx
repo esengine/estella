@@ -41,7 +41,13 @@ package the way `dist-web/` is.
 | Export output | `dist-android/` | `dist-ios/` |
 | Assembled by | the editor (no Android SDK) | the editor, then Xcode |
 | Assembly host OS | any desktop OS | **macOS only** |
-| Result | a signed `.apk` | an Xcode project you open, sign and run |
+| Result | a signed `.apk`, **or** an Android Studio project | an Xcode project you open, sign and run |
+
+Android offers both because it can: the editor assembles a package outright, and it
+can also write the Gradle project that package would have been built from. Pick the
+project under **Output** in the Android section when the game needs to add an SDK, a
+permission or an Activity of its own — that is the same shape iOS has always had,
+where Xcode does the assembling.
 
 ## Prerequisites
 
@@ -106,6 +112,13 @@ folder holds the finished app:
   the export writes one beside the APK. Play has required a bundle rather than an
   APK for new apps since 2021 — it is the upload format, and cannot be installed on
   a device, which is why the APK is still what you test with.
+- **Android, with *Output* set to *Android Studio project*** — an ordinary Gradle
+  project instead of a package: your content under `app/src/main/assets`, the engine
+  under `app/src/main/jniLibs`, the host's Java shim as source, and an
+  `app/build.gradle.kts` carrying the app's identity. Open the folder in Android
+  Studio and Run; add your SDKs to `build.gradle.kts` as you would in any Android
+  app. Exporting again rewrites the game and leaves the build script alone, so a
+  project that has grown an SDK survives its game being rebuilt.
 - **iOS** — an Xcode project: the `.xcframework`, the app shell and a generated
   `.pbxproj`, written around your content. Open it, pick your signing team under
   *Signing & Capabilities*, and Run.

@@ -131,6 +131,16 @@ export interface AndroidPackaging {
   appId?: string;
   versionCode?: number;
   /**
+   * What the export produces: the installable package, or an Android Studio
+   * project the game is built from.
+   *
+   * A package is the shorter path and needs nothing installed; a project is the
+   * only one that can carry an SDK, a permission or an Activity of the game's own
+   * — the same choice the iOS export makes for you, made explicit here because
+   * Android can do both.
+   */
+  output?: 'package' | 'project';
+  /**
    * Also write the Google Play upload format (`.aab`) beside the `.apk`.
    *
    * Off by default because the two are for different moments: the APK is what
