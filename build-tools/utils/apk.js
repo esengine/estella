@@ -103,19 +103,22 @@ export function signApkV2(zip, key) {
     return Buffer.concat([contents, block, centralDir, signedEocd]);
 }
 
-/** Every file under `dir`, as `{ name, data }` entries named `<prefix>/<rel>`. */
-function treeEntries(dir, prefix) {
+/**
+ * Every file under `dir`, as `{ name, data }` entries named `<prefix>/<rel>`.
+ *
+ * Dotfiles stay out — build-machine litter (.DS_Store, .gitkeep) is not something
+ * to find out about from a shipped package — and so do packages: the finished .apk
+ * and .aab land in the export directory, and a re-export must not swallow the last
+ * one. Shared with the bundle assembler, which packs the same content.
+ */
+export function packageEntries(dir, prefix) {
     const out = [];
     const walk = (abs, rel) => {
         for (const e of readdirSync(abs, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
             const child = path.join(abs, e.name);
             const name = `${rel}/${e.name}`;
             if (e.isDirectory()) walk(child, name);
-            // Dotfiles are build-machine litter (.DS_Store, .gitkeep); a package is
-            // not the place to find out they shipped. Neither is a package: the
-            // finished APK lands in the export directory, and a re-export must not
-            // swallow the last one.
-            else if (e.isFile() && !e.name.startsWith('.') && !e.name.endsWith('.apk')) {
+            else if (e.isFile() && !e.name.startsWith('.') && !/\.(apk|aab)$/.test(e.name)) {
                 out.push({ name, data: readFileSync(child) });
             }
         }
@@ -158,11 +161,11 @@ export function assembleApk(options) {
     const entries = [
         { name: 'AndroidManifest.xml', data: manifest },
         ...(hasDex ? [{ name: 'classes.dex', data: readFileSync(dex) }] : []),
-        ...treeEntries(libDir, `lib/${abi}`).map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT })),
+        ...packageEntries(libDir, `lib/${abi}`).map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT })),
         // The template's assets (the SDK bytecode) first, so a project cannot
         // shadow them by accident and quietly change what the host boots.
-        ...(existsSync(templateAssets) ? treeEntries(templateAssets, 'assets') : []),
-        ...treeEntries(contentDir, 'assets'),
+        ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'assets') : []),
+        ...packageEntries(contentDir, 'assets'),
     ];
 
     const seen = new Set();

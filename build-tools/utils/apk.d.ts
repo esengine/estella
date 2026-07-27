@@ -25,4 +25,5 @@ export function assembleApk(options: {
 }): Buffer;
 
 export function signApkV2(zip: Buffer, key: SigningKey): Buffer;
+export function packageEntries(dir: string, prefix: string): Array<{ name: string; data: Buffer }>;
 export function apkFileName(appId: string): string;

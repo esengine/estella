@@ -11,6 +11,46 @@
 
 import { createHash } from 'crypto';
 
+/**
+ * Walk DER TLVs, yielding `{ tag, content, full }`.
+ *
+ * Reading is needed for exactly one thing: a JAR signature identifies the signer
+ * by the certificate's ISSUER and SERIAL, and those have to come out of whatever
+ * certificate the developer handed us — including one we did not write.
+ */
+export function derItems(buf) {
+    const out = [];
+    let at = 0;
+    while (at < buf.length) {
+        const start = at;
+        const tag = buf[at];
+        let length = buf[at + 1];
+        at += 2;
+        if (length & 0x80) {
+            const count = length & 0x7f;
+            length = 0;
+            for (let i = 0; i < count; i++) length = (length << 8) | buf[at + i];
+            at += count;
+        }
+        out.push({ tag, content: buf.subarray(at, at + length), full: buf.subarray(start, at + length) });
+        at += length;
+    }
+    return out;
+}
+
+/** The issuer name (DER) and serial number of an X.509 certificate — what a
+ *  SignerInfo names the signer by. */
+export function certificateIssuerAndSerial(certificate) {
+    const tbs = derItems(derItems(certificate)[0].content)[0].content;
+    const children = derItems(tbs);
+    const serial = children.find((c) => c.tag === 0x02);
+    // version[0], serial, signature, ISSUER, validity, subject, spki — so the
+    // issuer is the second SEQUENCE either way, with or without the version tag.
+    const issuer = children.filter((c) => c.tag === 0x30)[1];
+    if (!serial || !issuer) throw new Error('certificate has no issuer/serial (is it DER?)');
+    return { issuer: issuer.full, serial: serial.full };
+}
+
 /** A DER TLV: tag, definite length, contents. */
 export function der(tag, contents) {
     const body = Buffer.isBuffer(contents) ? contents : Buffer.concat(contents);
