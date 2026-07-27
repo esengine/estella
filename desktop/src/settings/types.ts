@@ -70,6 +70,18 @@ export interface StringSetting extends BaseSetting<string> {
   placeholder?: string;
 }
 
+/**
+ * An absolute path to something on THIS machine, picked from a dialog or typed.
+ * Empty means "unset", which every reader is expected to have an answer for —
+ * these name a convenience, not a requirement.
+ */
+export interface PathSetting extends BaseSetting<string> {
+  type: 'path';
+  placeholder?: string;
+  /** Title of the picker dialog. */
+  pickTitle?: string;
+}
+
 export interface ColorSetting extends BaseSetting<string> {
   type: 'color';
   /** Preset swatches (hex). */
@@ -126,6 +138,7 @@ export type Setting =
   | NumberSetting
   | EnumSetting
   | StringSetting
+  | PathSetting
   | ColorSetting
   | ColorPickerSetting
   | KeybindingSetting

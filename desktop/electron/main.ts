@@ -55,6 +55,7 @@ import {
   PLUGIN_PACKAGE_EXT,
 } from './pluginPackage';
 import { findUpdate, downloadUpdate, installUpdate } from './autoUpdate';
+import { pickProgram, launchProgram, type LaunchError } from './externalProgram';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
   listPlayableNetworks, loadPlayableProfile,
@@ -507,8 +508,8 @@ function createWindow() {
         },
       };
     }
-    // Everything else is an external link → OS browser, never in-app.
-    if (url.startsWith('http')) shell.openExternal(url);
+    // Everything else is an external link → outside the editor, never in-app.
+    if (url.startsWith('http')) void openUrl(url);
     return { action: 'deny' };
   });
 
@@ -786,6 +787,38 @@ ipcMain.handle('shell:showItem', (_e, relPath: string) => {
 });
 // Open an absolute path in the OS (e.g. a build output dir the user just chose).
 ipcMain.handle('shell:openPath', (_e, absPath: string) => shell.openPath(absPath));
+
+// External tools. One door for "open this project file outside the editor": the
+// path is project-relative and resolved here, like every other fs door, and an
+// EMPTY program means the OS default — so which program opens a file is data the
+// caller passes, not a second IPC it has to choose between.
+ipcMain.handle('external:pick', async (_e, title: string) => (win ? pickProgram(win, title) : null));
+
+// The browser the user named in Settings, mirrored from the renderer that owns
+// editor-scoped settings — the same shape as the dirty flag above, and for the
+// same reason: main opens urls while REACTING (a window.open it did not receive,
+// an export preview it finished), with nowhere to thread an argument through.
+let preferredBrowser = '';
+ipcMain.on('external:browser', (_e, exe: unknown) => {
+  preferredBrowser = typeof exe === 'string' ? exe : '';
+});
+
+/**
+ * Open a url outside the editor, in the chosen browser when there is one.
+ *
+ * A browser that will not start falls through to the system default rather than
+ * reporting: the user asked to follow a link, and the link is what matters — a
+ * stale preference should not be able to swallow it.
+ */
+async function openUrl(url: string): Promise<void> {
+  if (preferredBrowser && !(await launchProgram(preferredBrowser, url))) return;
+  await shell.openExternal(url);
+}
+ipcMain.handle('external:launch', async (_e, program: string, relPath: string): Promise<LaunchError | null> => {
+  const abs = resolveInRoot(requireRoot(), relPath);
+  if (!program) return (await shell.openPath(abs)) ? 'failed' : null;
+  return launchProgram(program, abs);
+});
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
 
 // Bundle the open project's startup script (manifest scripts.main, default
@@ -960,7 +993,7 @@ ipcMain.handle(
 // (blocked subresource loads, no wasm streaming) never apply. Returns the URL.
 ipcMain.handle('export:preview', async (_e, absDir: string) => {
   const url = await loopbackServer(absDir);
-  await shell.openExternal(url);
+  await openUrl(url);
   return url;
 });
 

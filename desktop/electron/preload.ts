@@ -12,6 +12,7 @@ import type {
 } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { AvailableUpdate, DownloadProgress } from './autoUpdate';
+import type { LaunchError } from './externalProgram';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
@@ -210,6 +211,13 @@ const api = {
     showItem: (relPath: string): Promise<void> => ipcRenderer.invoke('shell:showItem', relPath),
     /** Open an absolute path in the OS (e.g. the build output dir). */
     openPath: (absPath: string): Promise<string> => ipcRenderer.invoke('shell:openPath', absPath),
+    /** Show a picker for an external program; absolute path, or null if cancelled. */
+    pickProgram: (title: string): Promise<string | null> => ipcRenderer.invoke('external:pick', title),
+    /** Mirror the chosen browser to main, which opens urls without a call site. */
+    setBrowser: (program: string): void => ipcRenderer.send('external:browser', program),
+    /** Open a project-relative file with `program`; null on success, else why not. */
+    launchProgram: (program: string, relPath: string): Promise<LaunchError | null> =>
+      ipcRenderer.invoke('external:launch', program, relPath),
   },
   workspace: {
     save: (ws: WorkspaceState): Promise<void> => ipcRenderer.invoke('workspace:save', ws),

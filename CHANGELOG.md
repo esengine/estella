@@ -14,7 +14,26 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Double-clicking a script did nothing.** The open table only knew about editors
+  the editor ships, so every type without one — `.ts`, `.js`, `.esshader`, `.png` —
+  fell off the end of it in silence. Opening now always resolves to something: the
+  editor's own editor, then the program set for that kind of file, then whatever
+  the OS opens it with. The Content Browser's **Open** entry appeared for folders,
+  scenes and materials only, standing in for "is this openable at all?"; that
+  stopped being a real question, so it is offered for everything.
+
 ### Added
+
+- **Settings → External Tools.** Name the script editor, the image editor and the
+  browser once, and the editor hands files to them. A slot is registered rather
+  than hard-coded — an asset type declares which kind of program opens it, the way
+  it already declares its icon — so a plugin's type can say "open me the way
+  scripts are opened", or bring a slot of its own, and the settings page grows a
+  row without knowing it exists. Paths are per-user: an absolute path to an
+  executable is true of one machine, and in project settings it would be committed
+  and then be wrong for everyone else who opened the project.
 
 - **The editor updates itself.** Until now an update notification could only hand
   over a link: the build is unsigned, and silent auto-update needs a signature it

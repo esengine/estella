@@ -1009,9 +1009,11 @@ export function ContentBrowser() {
     const isMaterial = !entry.isDir && assetType(entry.name) === 'material';
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
-      ...(entry.isDir || isScene || isMaterial
-        ? [{ label: t('cb.menuOpen'), onClick: () => onOpen(path, entry.isDir, entry.name) }]
-        : []),
+      // Offered for everything, because opening now always resolves to something —
+      // an editor, the program set for that kind of file, or the OS default. The
+      // old folder/scene/material test stood in for "is this openable at all?",
+      // which stopped being a real question when the chain grew its last link.
+      { label: t('cb.menuOpen'), onClick: () => onOpen(path, entry.isDir, entry.name) },
       // The startup scene: what the editor opens, Play boots, and exports ship
       // first. One per project — the current one offers no redundant action,
       // and it can't be excluded from export (it IS the export's boot scene).

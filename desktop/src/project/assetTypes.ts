@@ -32,6 +32,12 @@ export interface AssetTypeDef {
   badge: string;
   icon: LucideIcon;
   tint: string;
+  /**
+   * External program slot that opens this type when the editor has no editor of
+   * its own for it (see project/externalPrograms.ts). Declared here for the same
+   * reason the icon is: it is a property of the type, not of the program.
+   */
+  externalProgram?: string;
 }
 
 // Desaturated tints (vs candy colors) so the content browser stays scannable by
@@ -39,8 +45,8 @@ export interface AssetTypeDef {
 export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   folder: { badge: '', icon: Folder, tint: 'var(--star)' },
   scene: { extensions: ['esscene'], badge: 'SCN', icon: Film, tint: '#c98a93' },
-  texture: { extensions: ['png', 'webp'], badge: 'TEX', icon: FileImage, tint: '#7fa6c4' },
-  sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4' },
+  texture: { extensions: ['png', 'webp'], badge: 'TEX', icon: FileImage, tint: '#7fa6c4', externalProgram: 'image' },
+  sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4', externalProgram: 'image' },
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
   audio: { extensions: ['ogg', 'mp3', 'wav', 'aac', 'flac', 'm4a', 'webm'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
   video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
@@ -51,8 +57,8 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   materialgraph: { extensions: ['esmatgraph'], badge: 'MGR', icon: Workflow, tint: '#c0917a' },
   // A `.esshader` is the fragment-shader source (with #pragma param declarations) a material
   // references; recognizable here so it never reads as a mystery "file" next to its material.
-  shader: { extensions: ['esshader'], badge: 'SHD', icon: Sparkles, tint: '#c9a26a' },
-  script: { extensions: ['ts', 'js'], badge: 'TS', icon: FileCode2, tint: '#93a3bf' },
+  shader: { extensions: ['esshader'], badge: 'SHD', icon: Sparkles, tint: '#c9a26a', externalProgram: 'script' },
+  script: { extensions: ['ts', 'js'], badge: 'TS', icon: FileCode2, tint: '#93a3bf', externalProgram: 'script' },
   // Two animation documents, two editors: .estimeline is the Sequencer's
   // multi-track timeline; .esanim is the sprite flipbook (Flipbook editor).
   animation: { extensions: ['estimeline'], badge: 'SEQ', icon: Clapperboard, tint: '#9bb39a' },

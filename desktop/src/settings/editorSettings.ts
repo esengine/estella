@@ -28,6 +28,9 @@ settingsRegistry.registerSection({ id: 'performance', label: t('set.section.perf
 settingsRegistry.registerSection({ id: 'shortcuts', label: t('set.section.shortcuts'), category: 'editor', order: 4 });
 settingsRegistry.registerSection({ id: 'console', label: t('set.section.console'), category: 'editor', order: 5 });
 settingsRegistry.registerSection({ id: 'renderer', label: t('set.section.renderer'), category: 'editor', order: 6 });
+// The rows under it are registered by externalPrograms.ts — one per program slot,
+// so a contributed slot appears here without this file knowing it exists.
+settingsRegistry.registerSection({ id: 'externalTools', label: t('set.section.externalTools'), category: 'editor', order: 7 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
 // The session renders in the locale resolved at boot from this same persisted

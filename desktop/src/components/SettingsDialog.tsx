@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, X, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw, FolderSearch } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
@@ -24,7 +24,7 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { ColorControl } from '@/components/ColorControl';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
 import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -143,6 +143,40 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
     >
       {capturing ? t('set.pressKeys') : formatKeybinding(chord) || t('set.unbound')}
     </button>
+  );
+}
+
+/**
+ * A machine-local path: type it, or browse for it. The clear button is not a
+ * reset — clearing means "use the system default", which for these is a real and
+ * often preferable answer, so it stays visible rather than hiding behind the
+ * row's changed-from-default arrow.
+ */
+function PathControl({ setting }: { setting: PathSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = useSettings((s) => s.getValue<string>(setting.id) ?? '');
+  const browse = async () => {
+    const picked = await window.estella?.shell?.pickProgram?.(setting.pickTitle ?? setting.label);
+    if (picked) setValue(setting.id, picked);
+  };
+  return (
+    <div className="set-path">
+      <input
+        className="set-str"
+        value={value}
+        placeholder={setting.placeholder ?? ''}
+        spellCheck={false}
+        onChange={(e) => setValue(setting.id, e.target.value)}
+      />
+      {value && (
+        <IconButton title={t('ui.clear')} ariaLabel={t('ui.clear')} onClick={() => setValue(setting.id, '')}>
+          <X size={13} />
+        </IconButton>
+      )}
+      <IconButton title={t('ui.browse')} ariaLabel={t('ui.browse')} onClick={() => void browse()}>
+        <FolderSearch size={13} />
+      </IconButton>
+    </div>
   );
 }
 
@@ -316,6 +350,8 @@ function Control({ setting }: { setting: Setting }) {
           onChange={(e) => setValue(setting.id, e.target.value)}
         />
       );
+    case 'path':
+      return <PathControl setting={setting} />;
     case 'stringList':
       return <StringListControl setting={setting} />;
     case 'matrix':
