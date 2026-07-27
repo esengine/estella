@@ -39,6 +39,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
+import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
@@ -159,6 +160,9 @@ export interface ExportGameResult {
   /** Android: the signed APK. Absent when no Android runtime template is
    *  installed (the export still carries its content). */
   apkFile?: string;
+  /** Android: the signed App Bundle, when the project asked for one. Play takes
+   *  this; it is not installable. */
+  aabFile?: string;
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
@@ -390,6 +394,8 @@ export async function exportGame(opts: {
   appVersion?: string;
   /** Android's build ordinal. Absent ⇒ 1. */
   androidVersionCode?: number;
+  /** Android: also write the Google Play upload format (.aab) beside the .apk. */
+  androidAppBundle?: boolean;
   /** A project-supplied mini-game export profile (`.esengine/platforms/<id>.mjs`),
    *  for a platform the editor does not ship. Present ⇒ the mini-game pipeline
    *  runs with it, whatever `platform` says. Loaded by the main process, which is
@@ -533,6 +539,7 @@ export async function exportGame(opts: {
   /** iOS: set once the project is written around the content (see below). */
   let xcodeProject: string | undefined;
   let apkFile: string | undefined;
+  let aabFile: string | undefined;
   await mkdir(payloadDir, { recursive: true });
   const common: BuildOptions = {
     bundle: true,
@@ -678,10 +685,14 @@ export async function exportGame(opts: {
       const template = opts.androidTemplate ?? null;
       if (template) {
         const key = opts.androidKey ?? debugSigningKey();
+        const assembly = { templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
-        await writeFile(apkFile, assembleApk({
-          templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key,
-        }));
+        await writeFile(apkFile, assembleApk(assembly));
+        if (opts.androidAppBundle) {
+          progress({ phase: 'Assembling the App Bundle' });
+          aabFile = path.join(absOut, aabFileName(appConfig.id));
+          await writeFile(aabFile, assembleAab(assembly));
+        }
       } else {
         warnings.push('No Android runtime template is installed for this editor version, so no APK '
           + 'was assembled — the content is here. Install one from the Android row in Package '
@@ -695,6 +706,6 @@ export async function exportGame(opts: {
 
   return {
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
-    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(apkFile ? { apkFile } : {}),
+    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
   };
 }

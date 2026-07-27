@@ -127,7 +127,19 @@ export interface DesktopPackaging { appId?: string; productName?: string; }
 /** Android's slice of the app identity. `appId` is the manifest package — the
  *  identity a store keeps forever; `versionCode` is the integer Play orders builds
  *  by, which has no counterpart on any other target. */
-export interface AndroidPackaging { appId?: string; versionCode?: number; }
+export interface AndroidPackaging {
+  appId?: string;
+  versionCode?: number;
+  /**
+   * Also write the Google Play upload format (`.aab`) beside the `.apk`.
+   *
+   * Off by default because the two are for different moments: the APK is what
+   * installs on a device you are holding, the bundle is what a store takes and
+   * cannot be installed at all. Producing both on every iteration would double the
+   * output for the one that is not being used.
+   */
+  appBundle?: boolean;
+}
 /** iOS's slice: the bundle identifier Xcode signs against. */
 export interface IosPackaging { appId?: string; }
 

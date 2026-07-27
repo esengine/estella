@@ -57,6 +57,8 @@ interface Result {
   xcodeProject?: string;
   /** Android: the signed APK the export assembled. */
   apkFile?: string;
+  /** Android: the App Bundle, when the project asked for one. */
+  aabFile?: string;
 }
 
 /** Nav groupings. Order here is the order they appear. */
@@ -215,6 +217,9 @@ export function BuildDialog() {
   // that is a per-build decision, not a property of the project. The list arrives from
   // the main process, since it includes the networks the PROJECT defines.
   const [adNetwork, setAdNetwork] = useState<string>(saved.platforms?.playable?.network ?? 'generic');
+  // The Play upload format, beside the installable APK. A per-build decision that
+  // the project remembers, like the ad network above.
+  const [appBundle, setAppBundle] = useState(saved.platforms?.android?.appBundle ?? false);
   const [adNetworks, setAdNetworks] = useState<PlayableNetworkOption[]>([]);
   const [advOpen, setAdvOpen] = useState(false);
   const [copiedFix, setCopiedFix] = useState(false);
@@ -472,6 +477,8 @@ export function BuildDialog() {
     // Awaited, not fired-and-forgotten: the export resolves the network from the
     // manifest, so a race here would package for the previous one.
     if (platform === 'playable') await ProjectStore.setPlatformPackaging('playable', { network: adNetwork });
+    // Same reason: the export reads the bundle choice from the manifest.
+    if (platform === 'android') await ProjectStore.setPlatformPackaging('android', { appBundle });
     // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
     // texture/audio compression + Max Size); 'skip' → ship everything raw.
     const compress = assetCompression === 'auto';
@@ -726,6 +733,12 @@ export function BuildDialog() {
           )}
 
         <Group title={t('build.secBuild')}>
+          {platform === 'android' && (
+            <label className="build__opt" title={t('build.appBundleTip')}>
+              <input type="checkbox" checked={appBundle} onChange={(e) => setAppBundle(e.target.checked)} />
+              {t('build.appBundle')}
+            </label>
+          )}
           {platform === 'playable' && (
             <>
               <div className="build__row">
@@ -908,7 +921,9 @@ export function BuildDialog() {
                   {result.xcodeProject
                     ? t('build.next.iosProject')
                     : result.apkFile
-                      ? t('build.next.apk', { apk: result.apkFile })
+                      ? (result.aabFile
+                      ? t('build.next.apkAab', { apk: result.apkFile, aab: result.aabFile })
+                      : t('build.next.apk', { apk: result.apkFile }))
                       : result.zipFile
                         ? t('build.next.playableZip')
                         : def.next(result.outDir)}

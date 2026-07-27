@@ -161,7 +161,16 @@ export const projectMessages = defineMessages({
         en: 'Signed APK: {apk} — install it with adb install -r, or copy it to the device.',
         zh: '已签名 APK：{apk} —— 用 adb install -r 安装，或直接拷到设备上。',
     },
+    'build.next.apkAab': {
+        en: 'Signed APK: {apk} (install it with adb install -r). App Bundle for Google Play: {aab} — upload it; a bundle cannot be installed directly.',
+        zh: '已签名 APK：{apk}（用 adb install -r 安装）。Google Play 上传用 App Bundle：{aab} —— 直接上传即可，bundle 本身无法安装。',
+    },
     'build.showApk': { en: 'Show APK', zh: '显示 APK' },
+    'build.appBundle': { en: 'Google Play App Bundle (.aab)', zh: 'Google Play App Bundle（.aab）' },
+    'build.appBundleTip': {
+        en: 'Also write the upload format Google Play requires for new apps, beside the installable APK. A bundle cannot be installed on a device — Play builds the APKs from it.',
+        zh: '在可安装的 APK 之外，另写一份 Google Play 对新应用强制要求的上传格式。bundle 无法直接装到设备上——Play 会用它生成各机型的 APK。',
+    },
     'build.next.ios': {
         en: 'The content is in {out}. Install the iOS runtime template to get an Xcode project written around it.',
         zh: '内容已写入 {out}。安装 iOS 运行时模板后，导出会围绕它写出 Xcode 工程。',

@@ -23,6 +23,7 @@ import {
 import { readAppConfig, fillTemplate } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
 import { assembleApk, apkFileName } from '../utils/apk.js';
+import { assembleAab, aabFileName } from '../utils/aab.js';
 import { debugSigningKey, signingKeyFromPem } from '../utils/androidKeystore.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
@@ -529,14 +530,24 @@ async function packageAndroidApk(options) {
         : debugSigningKey();
     if (!options.key) logger.info('Signing with the development key (sideload only — not for a store).');
 
+    const assembly = { templateDir: template.dir, contentDir, app, abi, key };
     logger.step('Assembling the APK...');
-    const apk = assembleApk({ templateDir: template.dir, contentDir, app, abi, key });
+    const apk = assembleApk(assembly);
     const out = path.join(contentDir, apkFileName(app.id));
     writeFileSync(out, apk);
 
     logger.success(`APK: ${out} (${(apk.length / 1048576).toFixed(1)} MB)`);
     logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}, signed by ${key.name}`);
     logger.info(`Install it with: adb install -r ${out}`);
+
+    if (options.aab) {
+        logger.step('Assembling the App Bundle...');
+        const bundle = assembleAab(assembly);
+        const aab = path.join(contentDir, aabFileName(app.id));
+        writeFileSync(aab, bundle);
+        logger.success(`App Bundle: ${aab} (${(bundle.length / 1048576).toFixed(1)} MB)`);
+        logger.info('Upload it to Google Play — a bundle is not installable; Play builds the APKs from it.');
+    }
 }
 
 /**

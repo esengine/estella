@@ -882,6 +882,7 @@ ipcMain.handle(
       appId: opts?.platform === 'ios' ? resolveAppId(manifest, 'ios') : resolveAppId(manifest, 'android'),
       appVersion: manifest.version,
       androidVersionCode: plat?.android?.versionCode,
+      androidAppBundle: plat?.android?.appBundle,
       // One project-wide orientation for every target: the explicit packaging
       // setting, else derived from the design resolution's aspect.
       orientation: resolveOrientation(manifest),

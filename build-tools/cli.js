@@ -170,6 +170,7 @@ program
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
     .option('--package', 'Assemble the app around --content from the installed runtime template: Android a signed APK, iOS an Xcode project', false)
+    .option('--aab', 'Android --package: also write the Google Play upload format (.aab)', false)
     .option('--key <pem>', 'Android --package: PEM private key to sign with (default: the development key)')
     .option('--cert <pem>', 'Android --package: PEM certificate for --key')
     .option('--passphrase <text>', 'Passphrase for an encrypted --key')
@@ -198,6 +199,7 @@ program
                 iosMin: options.iosMin,
                 simulator: options.simulator,
                 package: options.package,
+                aab: options.aab,
                 key: options.key,
                 cert: options.cert,
                 passphrase: options.passphrase,
