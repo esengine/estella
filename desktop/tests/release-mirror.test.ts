@@ -156,16 +156,26 @@ describe('downloading a template with a mirror configured', () => {
 describe('checking for an editor update with a mirror configured', () => {
   const env = { [RELEASE_MIRROR_ENV]: MIRROR };
 
-  it('asks the mirror first and points the download at it', async () => {
+  it('asks the mirror first and points the download at the installer it publishes', async () => {
     const asked: string[] = [];
     const fetchImpl = (async (url: string) => {
       asked.push(url);
-      return { ok: true, status: 200, json: async () => ({ version: '1.2.0' }) } as unknown as Response;
+      return {
+        ok: true, status: 200,
+        json: async () => ({
+          version: '1.2.0',
+          url: 'https://estellaengine.com/#download',
+          downloads: { win: { url: `${MIRROR}/latest/Estella-Editor-Setup.exe` } },
+        }),
+      } as unknown as Response;
     }) as unknown as typeof fetch;
 
-    const res = await checkForUpdate('1.1.0', fetchImpl, env);
+    const res = await checkForUpdate('1.1.0', fetchImpl, env, 'win32', 'x64');
 
-    expect(res).toEqual({ version: '1.2.0', url: `${MIRROR}/v1.2.0/` });
+    // This test used to assert `${MIRROR}/v1.2.0/` — a url composed here rather
+    // than published by the mirror, and a 404 on every static host, since object
+    // storage has no directory index. It pinned the bug as the contract.
+    expect(res).toEqual({ version: '1.2.0', url: `${MIRROR}/latest/Estella-Editor-Setup.exe` });
     expect(asked).toEqual([`${MIRROR}/latest.json`]);
   });
 

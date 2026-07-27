@@ -95,6 +95,9 @@ jobs:
           ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           BUCKET: ${{ secrets.R2_BUCKET }}
           PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          # The site's download section — a real page, unlike the bucket, which
+          # serves objects and has no index to land on.
+          SITE_DOWNLOAD: https://estellaengine.com/#download
           TAG: ${{ inputs.tag || github.event.release.tag_name }}
           IS_LATEST: ${{ steps.latest.outputs.is_latest }}
         run: |
@@ -147,8 +150,13 @@ jobs:
           # latest.json must never be pointed at a version whose assets are still
           # uploading, nor at an older one somebody re-mirrored. `version` and
           # `url` are the editor's update check; `downloads` is what the website
-          # labels its buttons with, and adding to it cannot break the editor.
-          jq -n --arg version "$version" --arg url "$base/v$version/" --argjson downloads "$downloads" \
+          # labels its buttons with, and what a current editor downloads from.
+          #
+          # `url` is the fallback for an editor that finds no installer for its own
+          # platform, so it has to be a PAGE. It used to be "$base/v$version/" —
+          # a bucket directory, which 404s: object storage has no directory index,
+          # so every update notification led to a Cloudflare error page.
+          jq -n --arg version "$version" --arg url "$SITE_DOWNLOAD" --argjson downloads "$downloads" \
             '{version: $version, url: $url, downloads: $downloads}' > latest.json
           cat latest.json
           aws s3 cp latest.json "s3://$BUCKET/latest.json" \

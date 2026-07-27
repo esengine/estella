@@ -21,12 +21,29 @@ const RELEASES_LATEST = 'https://api.github.com/repos/esengine/estella/releases/
 
 /**
  * What a mirror publishes at its root so an editor can ask "what is current?"
- * without the origin's API: the version, and where its download page or installer
- * is. Written by the release workflow's mirror step beside the version folders.
+ * without the origin's API. Written by the release workflow's mirror step beside
+ * the version folders.
  */
 interface MirrorLatest {
   version?: string;
+  /** Generic landing place — a page a human can download from. */
   url?: string;
+  /** Per-platform installers at stable, version-less aliases. Keyed as below. */
+  downloads?: Record<string, { url?: string; name?: string; size?: number }>;
+}
+
+/**
+ * The `downloads` key for a build, or null where no installer is published for it.
+ *
+ * The notification's button says "Download", so it should land on the installer for
+ * the machine reading it rather than on a page listing every platform — and the
+ * mirror already publishes exactly that, at an alias that survives releases.
+ */
+export function downloadKeyFor(platform: string, arch: string): string | null {
+  if (platform === 'win32') return 'win';
+  if (platform === 'darwin') return arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
+  if (platform === 'linux') return arch === 'arm64' ? 'linux-arm64' : 'linux';
+  return null;
 }
 
 export interface LatestRelease {
@@ -66,9 +83,11 @@ export async function checkForUpdate(
   currentVersion: string,
   fetchImpl: typeof fetch = fetch,
   env: NodeJS.ProcessEnv = process.env,
+  platform: string = process.platform,
+  arch: string = process.arch,
 ): Promise<LatestRelease | null> {
   for (const mirror of releaseMirrors(env)) {
-    const found = await checkMirror(mirror, currentVersion, fetchImpl);
+    const found = await checkMirror(mirror, currentVersion, fetchImpl, platform, arch);
     if (found) return found;
   }
   return checkOrigin(currentVersion, fetchImpl);
@@ -79,6 +98,8 @@ async function checkMirror(
   mirror: string,
   currentVersion: string,
   fetchImpl: typeof fetch,
+  platform: string,
+  arch: string,
 ): Promise<LatestRelease | null> {
   try {
     const res = await fetchImpl(`${mirror}/latest.json`, { headers: { accept: 'application/json' } });
@@ -88,9 +109,16 @@ async function checkMirror(
     const parsed = parseVersion(body.version);
     if (!parsed || !isNewerVersion(body.version, currentVersion)) return null;
     const version = parsed.parts.join('.') + (parsed.pre ? `-${parsed.pre}` : '');
-    // The mirror's own copy of that version's assets, so the download is as fast as
-    // the check was. A mirror that names no url still gets the user to the release.
-    return { version, url: body.url ?? `${mirror}/v${version}/` };
+
+    // This machine's installer if the mirror publishes one, else whatever page it
+    // named. NOTHING is composed from the version here: a bare `<mirror>/v<x>/` was
+    // composed once as a "sensible" fallback, and it 404s on every static host —
+    // object storage has no directory index. A url we did not get from the mirror
+    // is a url nobody has ever loaded, so when the mirror names none, this reports
+    // no answer and the origin (whose release page is real) gets asked instead.
+    const key = downloadKeyFor(platform, arch);
+    const url = (key ? body.downloads?.[key]?.url : undefined) ?? body.url;
+    return url ? { version, url } : null;
   } catch {
     return null;
   }

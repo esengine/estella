@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseVersion, isNewerVersion, checkForUpdate } from '../electron/updateCheck';
+import { parseVersion, isNewerVersion, checkForUpdate, downloadKeyFor } from '../electron/updateCheck';
 
 describe('parseVersion', () => {
   it('parses plain and v-prefixed versions', () => {
@@ -63,5 +63,89 @@ describe('checkForUpdate', () => {
   it('ignores drafts', async () => {
     const f = fetchReturning(200, { tag_name: 'v9.9.9', html_url: 'https://example.com', draft: true });
     expect(await checkForUpdate('0.17.0', f)).toBeNull();
+  });
+});
+
+// — The mirror path —————————————————————————————————————————————————————————————
+//
+// The notification's button says "Download", so where it lands is the whole point.
+// It used to land on `<mirror>/v<version>/`, composed here rather than published by
+// the mirror — a bucket directory, which 404s on any static host because object
+// storage has no directory index. Every update notification led to an error page.
+
+const MIRROR = 'https://m.test';
+const env = { ESTELLA_RELEASE_MIRROR: MIRROR } as NodeJS.ProcessEnv;
+
+/** Routes by URL, so one stub can answer both the mirror and the GitHub origin. */
+const fetchRouting = (routes: Record<string, unknown>): typeof fetch =>
+  (async (url: string) => {
+    const hit = Object.entries(routes).find(([prefix]) => String(url).startsWith(prefix));
+    if (!hit) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => hit[1] };
+  }) as unknown as typeof fetch;
+
+const LATEST = {
+  version: '0.35.0',
+  url: 'https://estellaengine.com/#download',
+  downloads: {
+    win: { url: 'https://m.test/latest/Estella-Editor-Setup.exe', name: 'Estella-Editor-Setup-0.35.0.exe', size: 1 },
+    'mac-arm64': { url: 'https://m.test/latest/Estella-Editor-arm64.dmg', name: 'Estella-Editor-0.35.0-arm64.dmg', size: 1 },
+  },
+};
+
+describe('downloadKeyFor', () => {
+  it('maps a build to the key the mirror publishes it under', () => {
+    expect(downloadKeyFor('win32', 'x64')).toBe('win');
+    expect(downloadKeyFor('darwin', 'arm64')).toBe('mac-arm64');
+    expect(downloadKeyFor('darwin', 'x64')).toBe('mac-x64');
+    expect(downloadKeyFor('linux', 'x64')).toBe('linux');
+    expect(downloadKeyFor('freebsd', 'x64')).toBeNull();
+  });
+});
+
+describe('checkForUpdate — mirror', () => {
+  const f = fetchRouting({ [MIRROR]: LATEST });
+
+  it('downloads THIS machine`s installer, not a page listing every platform', async () => {
+    expect(await checkForUpdate('0.34.1', f, env, 'win32', 'x64')).toEqual({
+      version: '0.35.0',
+      url: 'https://m.test/latest/Estella-Editor-Setup.exe',
+    });
+    expect((await checkForUpdate('0.34.1', f, env, 'darwin', 'arm64'))?.url)
+      .toBe('https://m.test/latest/Estella-Editor-arm64.dmg');
+  });
+
+  it('falls back to the published page when this platform has no installer', async () => {
+    // An Intel Mac, or Linux: the mirror ships neither, and a page a human can
+    // choose from is the honest answer — not a guess at a filename.
+    expect((await checkForUpdate('0.34.1', f, env, 'darwin', 'x64'))?.url)
+      .toBe('https://estellaengine.com/#download');
+    expect((await checkForUpdate('0.34.1', f, env, 'linux', 'x64'))?.url)
+      .toBe('https://estellaengine.com/#download');
+  });
+
+  it('never composes a url the mirror did not publish', async () => {
+    // The regression. A mirror naming neither an installer nor a page is "no
+    // answer" — the origin's release page is real, and a fabricated directory
+    // url is one nobody has ever loaded.
+    const bare = fetchRouting({
+      [MIRROR]: { version: '0.35.0' },
+      'https://api.github.com': { tag_name: 'v0.35.0', html_url: 'https://github.com/x/releases/v0.35.0' },
+    });
+    const found = await checkForUpdate('0.34.1', bare, env, 'win32', 'x64');
+    expect(found?.url).toBe('https://github.com/x/releases/v0.35.0');
+    expect(found?.url).not.toMatch(/\/v0\.35\.0\/$/);
+  });
+
+  it('still reports nothing when the mirror is not newer', async () => {
+    expect(await checkForUpdate('0.35.0', f, env, 'win32', 'x64')).toBeNull();
+  });
+
+  it('lets the origin answer when the mirror is unreachable', async () => {
+    const originOnly = fetchRouting({
+      'https://api.github.com': { tag_name: 'v0.35.0', html_url: 'https://github.com/x/releases/v0.35.0' },
+    });
+    expect((await checkForUpdate('0.34.1', originOnly, env, 'win32', 'x64'))?.url)
+      .toBe('https://github.com/x/releases/v0.35.0');
   });
 });
