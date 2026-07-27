@@ -127,6 +127,7 @@ whoever assembles the app, in **Project Settings → Packaging**:
 
 | Setting | What it becomes |
 |---|---|
+| **App Icon** | The launcher icon on both platforms — one project-relative square PNG (1024×1024 is ideal). Android takes it as the launcher mipmap, iOS as the asset catalog Xcode derives every size from, so nothing is resized and one image is all you keep. Left empty, the app ships Estella's mark rather than the platform's placeholder. |
 | **Application ID** | The Android manifest package and the iOS bundle id (reverse-DNS). Left empty it is derived from the project name; a published app should set its own. |
 | **Android Version Code** | The integer Google Play orders builds by — it must increase with every upload. The version users see comes from the project version. |
 | **Orientation** | *Project Settings → Display → Orientation*, one project-wide setting every target honors. Left unset it follows the design resolution's aspect. |

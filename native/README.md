@@ -209,6 +209,14 @@ all three formats are written directly (`build-tools/utils/{androidBinaryXml,zip
 * **Native libraries are stored, 16 KiB-aligned**, with `extractNativeLibs=false`:
   the OS maps them out of the package, which halves the install and is the posture
   Android 15's page size wants.
+* **The launcher icon** is one square PNG (Project Settings → Packaging), and the
+  reason `androidResources.js` exists: `android:icon` must be a resource
+  REFERENCE, so an app with its own icon needs a resource table. It is written
+  here in both encodings — `resources.arsc` and `resources.pb`, one package, one
+  `mipmap/ic_launcher` entry, ids we choose — rather than having the template
+  carry tables aapt2 built, which would put the SDK back on a build machine's path
+  and freeze the table's shape into the release. The template ships the default
+  icon a project without one gets.
 * **The App Bundle** (`--aab`, or the checkbox in the dialog) is the same content
   again: the manifest re-encoded as aapt2 protobuf (`androidProtoXml.js` — the same
   parsed tree and the same resource ids as the binary XML, so the two cannot

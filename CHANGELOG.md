@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A packaged game carries its own icon.** *Project Settings → Packaging → App
+  Icon* takes one square PNG (1024×1024 is ideal) and every installable target
+  uses it: Android as the launcher mipmap, iOS as the asset catalog Xcode derives
+  its sizes from. Nothing resizes it — both platforms scale, so one image is all a
+  project keeps. Android needs a resource table for this (`android:icon` must be a
+  reference, not a path), and that table is now written directly in both encodings
+  — `resources.arsc` for the APK, `resources.pb` for the bundle — rather than
+  bringing aapt2 back to build one. Projects that set no icon ship Estella's mark
+  instead of the platform's placeholder.
 - **Google Play: Package Project writes the App Bundle (`.aab`) too.** Play has
   required a bundle rather than an APK for new apps since 2021, so packaging for
   Android stopped at sideloading. Tick **Google Play App Bundle** in the Android
