@@ -15,6 +15,7 @@ import { downloadNativeTemplate } from '../electron/nativeTemplates';
 import { checkForUpdate } from '../electron/updateCheck';
 import {
   releaseAssetBase, releaseAssetBases, releaseMirrors, RELEASE_MIRROR_ENV,
+  DEFAULT_RELEASE_MIRROR,
   TEMPLATE_INDEX, TEMPLATE_FORMAT, writeTemplateManifest, installedTemplateDir,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
@@ -23,9 +24,19 @@ const VERSION = '9.9.9';
 const MIRROR = 'https://mirror.test/estella';
 
 describe('where a release is fetched from', () => {
-  it('is the origin alone when nothing is mirrored', () => {
-    expect(releaseMirrors({})).toEqual([]);
-    expect(releaseAssetBases(VERSION, {})).toEqual([releaseAssetBase(VERSION)]);
+  it('is the built-in mirror, then the origin', () => {
+    expect(releaseAssetBases(VERSION, {})).toEqual([
+      `${DEFAULT_RELEASE_MIRROR}/v${VERSION}`,
+      releaseAssetBase(VERSION),
+    ]);
+  });
+
+  it('is the origin alone when the mirror is turned off', () => {
+    // Explicitly empty, not unset: an offline or air-gapped install has to be able
+    // to say "no mirror" without the build having to be different.
+    expect(releaseMirrors({ [RELEASE_MIRROR_ENV]: '' })).toEqual([]);
+    expect(releaseAssetBases(VERSION, { [RELEASE_MIRROR_ENV]: '' }))
+      .toEqual([releaseAssetBase(VERSION)]);
   });
 
   it('puts each mirror before the origin, and lays a version out the same way', () => {
