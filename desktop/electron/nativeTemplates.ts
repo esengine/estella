@@ -21,7 +21,7 @@ import { once } from 'node:events';
 import { randomUUID, createHash } from 'node:crypto';
 import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
-    templateStoreDir, iosTemplateSources, releaseAssetBase, parseTemplateIndex,
+    templateStoreDir, iosTemplateSources, releaseAssetBases, parseTemplateIndex,
     TEMPLATE_INDEX,
     type NativePlatform, type NativeTemplateManifest,
 } from '../../build-tools/utils/nativeTemplate.js';
@@ -174,7 +174,28 @@ export async function downloadNativeTemplate(
     } = {},
 ): Promise<InstallResult> {
     const fetchImpl = options.fetchImpl ?? fetch;
-    const base = options.baseUrl ?? releaseAssetBase(engineVersion);
+    const bases = options.baseUrl ? [options.baseUrl] : releaseAssetBases(engineVersion);
+
+    // Mirrors first, the origin last. A mirror that is stale, truncated, wrong or
+    // simply down fails a check the archive has to pass anyway, and the next source
+    // is tried — so a fast copy is a shortcut and never a risk.
+    let lastError = `no source for v${engineVersion}`;
+    for (const base of bases) {
+        const attempt = await downloadFrom(base, platform, engineVersion, fetchImpl, options.onProgress);
+        if (attempt.ok) return attempt;
+        lastError = attempt.error ?? `download failed from ${base}`;
+        if (bases.length > 1) console.warn(`[templates] ${base}: ${lastError}`);
+    }
+    return { ok: false, error: lastError };
+}
+
+async function downloadFrom(
+    base: string,
+    platform: NativePlatform,
+    engineVersion: string,
+    fetchImpl: typeof fetch,
+    onProgress?: (progress: TemplateDownloadProgress) => void,
+): Promise<InstallResult> {
     const staging = path.join(templateStoreDir(), `.download-${randomUUID()}`);
 
     try {
@@ -199,7 +220,7 @@ export async function downloadNativeTemplate(
         for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
             digest.update(chunk);
             received += chunk.byteLength;
-            options.onProgress?.({ received, total: entry.bytes });
+            onProgress?.({ received, total: entry.bytes });
             if (!sink.write(chunk)) await once(sink, 'drain');
         }
         await new Promise<void>((resolve, reject) => sink.end((err?: Error) => (err ? reject(err) : resolve())));

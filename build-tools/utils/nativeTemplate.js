@@ -239,12 +239,46 @@ export function templateZipName(platform, engineVersion) {
 export const TEMPLATE_INDEX = 'native-templates.json';
 
 /**
+ * The mirror a release is copied to, and the environment variable that overrides
+ * it. Empty until one is configured — a build with no mirror simply has one source.
+ *
+ * A mirror is a convenience, never an authority: every archive is checked against
+ * the size and SHA-256 the index states, so the worst a wrong or stale mirror can
+ * do is fail and hand the download back to the origin.
+ */
+export const RELEASE_MIRROR_ENV = 'ESTELLA_RELEASE_MIRROR';
+export const DEFAULT_RELEASE_MIRROR = '';
+
+/** The release origin: where a version is published, and the last word on it. */
+export const RELEASE_ORIGIN = 'https://github.com/esengine/estella/releases/download';
+
+/** Mirrors to try before the origin, fastest-first. `,`-separated in the env. */
+export function releaseMirrors(env = process.env) {
+    const configured = env[RELEASE_MIRROR_ENV] ?? DEFAULT_RELEASE_MIRROR;
+    return configured.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
+}
+
+/**
  * Where a release's assets live. Composed rather than stored in the index, so the
  * same index works from a mirror, a local directory or a company file share — the
  * editor is told a base, not a set of absolute URLs.
  */
 export function releaseAssetBase(engineVersion) {
-    return `https://github.com/esengine/estella/releases/download/v${engineVersion}`;
+    return `${RELEASE_ORIGIN}/v${engineVersion}`;
+}
+
+/**
+ * Every base to try for one version, in order: the mirrors, then the origin.
+ *
+ * One list, so the download path cannot prefer a mirror the update check has never
+ * heard of. A mirror lays its versions out exactly as the origin does — `v<version>`
+ * holding that release's assets — so a base swap is the whole difference.
+ */
+export function releaseAssetBases(engineVersion, env = process.env) {
+    return [
+        ...releaseMirrors(env).map((base) => `${base}/v${engineVersion}`),
+        releaseAssetBase(engineVersion),
+    ];
 }
 
 /**

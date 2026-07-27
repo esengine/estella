@@ -74,7 +74,17 @@ export interface PublishedTemplate {
 }
 
 export const TEMPLATE_INDEX: string;
+export const RELEASE_MIRROR_ENV: string;
+export const DEFAULT_RELEASE_MIRROR: string;
+export const RELEASE_ORIGIN: string;
+
+/** Mirrors to try before the origin, fastest-first. */
+export function releaseMirrors(env?: NodeJS.ProcessEnv): string[];
+
 export function releaseAssetBase(engineVersion: string): string;
+
+/** Every base to try for one version: the mirrors, then the origin. */
+export function releaseAssetBases(engineVersion: string, env?: NodeJS.ProcessEnv): string[];
 export function parseTemplateIndex(doc: unknown, engineVersion?: string): PublishedTemplate[] | null;
 export const DEFAULT_ICON: string;
 /** The pieces an exported Android Studio project is assembled from. */

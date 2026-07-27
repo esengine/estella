@@ -8,9 +8,26 @@
  *          the running version to the latest published release and hand the
  *          renderer a link. Pure logic — `fetch` is injected so tests need no
  *          network and main needs no mock.
+ *
+ *          Asked of the mirror first, when one is configured: the same copy the
+ *          runtime templates come from, so an editor that downloads fast updates
+ *          fast. The origin answers when there is no mirror, or when its answer is
+ *          missing, malformed or older than what GitHub publishes.
  */
 
+import { releaseMirrors } from '../../build-tools/utils/nativeTemplate.js';
+
 const RELEASES_LATEST = 'https://api.github.com/repos/esengine/estella/releases/latest';
+
+/**
+ * What a mirror publishes at its root so an editor can ask "what is current?"
+ * without the origin's API: the version, and where its download page or installer
+ * is. Written by the release workflow's mirror step beside the version folders.
+ */
+interface MirrorLatest {
+  version?: string;
+  url?: string;
+}
 
 export interface LatestRelease {
   /** Normalized version, no leading `v` (e.g. "0.18.0"). */
@@ -48,6 +65,40 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 export async function checkForUpdate(
   currentVersion: string,
   fetchImpl: typeof fetch = fetch,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<LatestRelease | null> {
+  for (const mirror of releaseMirrors(env)) {
+    const found = await checkMirror(mirror, currentVersion, fetchImpl);
+    if (found) return found;
+  }
+  return checkOrigin(currentVersion, fetchImpl);
+}
+
+/** A mirror's `latest.json`. Anything unreadable is "no answer", not an error. */
+async function checkMirror(
+  mirror: string,
+  currentVersion: string,
+  fetchImpl: typeof fetch,
+): Promise<LatestRelease | null> {
+  try {
+    const res = await fetchImpl(`${mirror}/latest.json`, { headers: { accept: 'application/json' } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as MirrorLatest;
+    if (!body.version) return null;
+    const parsed = parseVersion(body.version);
+    if (!parsed || !isNewerVersion(body.version, currentVersion)) return null;
+    const version = parsed.parts.join('.') + (parsed.pre ? `-${parsed.pre}` : '');
+    // The mirror's own copy of that version's assets, so the download is as fast as
+    // the check was. A mirror that names no url still gets the user to the release.
+    return { version, url: body.url ?? `${mirror}/v${version}/` };
+  } catch {
+    return null;
+  }
+}
+
+async function checkOrigin(
+  currentVersion: string,
+  fetchImpl: typeof fetch,
 ): Promise<LatestRelease | null> {
   try {
     const res = await fetchImpl(RELEASES_LATEST, {

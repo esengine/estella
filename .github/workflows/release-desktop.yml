@@ -273,3 +273,67 @@ jobs:
             desktop/release/*.exe
             desktop/release/*.dmg
           retention-days: 3
+
+  # A copy of the release on Cloudflare R2, because GitHub's download speed is the
+  # editor's download speed for anyone far from it — and a runtime template is
+  # hundreds of megabytes.
+  #
+  # The mirror is a shortcut, never an authority: the editor checks every archive
+  # against the size and digest the index states and falls back to this release when
+  # a copy is missing, stale or wrong. That is why this job can run last, fail
+  # without failing the release, and be added to an account that did not exist when
+  # the version was cut.
+  #
+  # Needs five secrets; without them the job skips and the release is GitHub-only:
+  #   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and
+  #   R2_PUBLIC_BASE — the public URL the bucket is served on, which is what the
+  #   editor is pointed at (DEFAULT_RELEASE_MIRROR / ESTELLA_RELEASE_MIRROR).
+  mirror:
+    name: Mirror the release to Cloudflare R2
+    needs: [publish-templates, release]
+    if: github.event_name == 'push' && !cancelled() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Check for a configured mirror
+        id: cfg
+        env:
+          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: echo "configured=${{ env.KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download every asset the release published
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p mirror
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir mirror --clobber
+
+      # `latest.json` is what the editor's update check reads: one small file at the
+      # root, so asking "is there a newer version?" costs one request and no API.
+      - name: Write latest.json
+        if: steps.cfg.outputs.configured == 'true'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          printf '{\n  "version": "%s",\n  "url": "%s/v%s/"\n}\n' \
+            "$version" "${{ secrets.R2_PUBLIC_BASE }}" "$version" > latest.json
+          cat latest.json
+
+      # The same layout the origin uses — v<version>/ holding that release's assets —
+      # so the editor swaps a base and changes nothing else.
+      - name: Sync to R2
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          aws s3 sync mirror "s3://$BUCKET/v$version/" --endpoint-url "$ENDPOINT" --no-progress
+          # Written last: an editor that reads latest.json must never be pointed at a
+          # version whose assets are still uploading.
+          aws s3 cp latest.json "s3://$BUCKET/latest.json" \
+            --endpoint-url "$ENDPOINT" --cache-control "max-age=300"

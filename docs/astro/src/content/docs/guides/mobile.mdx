@@ -73,6 +73,17 @@ are not the same severity:
    Android needs nothing else: the APK is compiled, aligned and signed by the
    editor, on whatever OS it is running on.
 
+   :::tip[Where the download comes from]
+   Releases are mirrored, and the editor asks the mirror before the origin — a
+   template is hundreds of megabytes, and GitHub's speed is not the same
+   everywhere. The mirror is a shortcut and never an authority: every archive is
+   checked against the size and SHA-256 the release's index states, so a copy that
+   is missing, stale or wrong fails that check and the download falls back to
+   GitHub. Point the editor elsewhere — a company share, your own CDN, nothing at
+   all — with `ESTELLA_RELEASE_MIRROR` (comma-separated, tried in order); each one
+   lays a version out exactly as the release does, under `v<version>/`.
+   :::
+
 2. **Install the platform toolchain — iOS only.**
    - *Android* — none. There is no Android SDK, NDK or JDK in this path.
    - *iOS* — **macOS with Xcode**, and nothing else: no CMake, no Ninja, no
