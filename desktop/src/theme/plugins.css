@@ -37,6 +37,61 @@
 .plug-muted { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; margin: 0; }
 .plug-trust .btn-soft { align-self: flex-start; margin-top: 2px; }
 
+/* Contribution inventory — what this plugin actually added. Collapsed by default:
+   it is a debugging answer, not a description, so it stays out of the way until
+   asked for. The id is monospaced and selectable because copying it into the
+   command palette is the usual next step. */
+.plug-contrib { display: flex; flex-direction: column; gap: 4px; }
+.plug-contrib__toggle {
+  display: flex; align-items: center; gap: 4px; align-self: flex-start;
+  padding: 0; background: none; border: 0; cursor: pointer;
+  font-size: var(--fs-2xs); color: var(--text-dim);
+}
+.plug-contrib__toggle:hover { color: var(--text-hi); }
+.plug-contrib__empty { padding-left: 16px; }
+.plug-contrib__list { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 2px 0 2px 16px; list-style: none; }
+.plug-contrib__item { display: flex; align-items: baseline; gap: 7px; font-size: var(--fs-2xs); }
+.plug-contrib__kind { flex: none; min-width: 66px; color: var(--text-faint); }
+.plug-contrib__label { color: var(--text); }
+.plug-contrib__id { margin-left: auto; font-family: var(--mono); color: var(--text-faint); }
+
+/* Package preview. The file list is bounded and scrolls: a package with a hundred
+   entries must not push the install button off the dialog. */
+.plug-pkg__head { display: flex; align-items: center; gap: 7px; }
+.plug-pkg__name { font-size: var(--fs-sm); font-weight: 600; color: var(--text-hi); }
+.plug-pkg__files { display: flex; flex-direction: column; gap: 4px; }
+.plug-pkg__list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 168px; overflow-y: auto;
+  margin: 0; padding: 6px 8px; list-style: none;
+  background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+.plug-pkg__list li { display: flex; align-items: baseline; gap: 10px; font-size: var(--fs-2xs); }
+.plug-pkg__file { font-family: var(--mono); color: var(--text-dim); word-break: break-all; }
+.plug-pkg__size { margin-left: auto; flex: none; color: var(--text-faint); }
+
+/* New-plugin dialog. Label/field rows on one column so the hints sit directly
+   under the control they qualify, rather than in a second column that would push
+   the fields around as the text changes length. */
+.npl { display: flex; flex-direction: column; gap: 10px; }
+.npl__blurb { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.55; margin: 0; }
+.npl__row { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 8px; }
+.npl__label { font-size: var(--fs-xs); color: var(--text-dim); }
+.npl__row input[type='text'], .npl__row input:not([type]) {
+  width: 100%; padding: 4px 7px;
+  background: var(--srf-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  font-size: var(--fs-xs); font-family: var(--font-ui);
+}
+.npl__row input:focus { outline: none; border-color: var(--acc); }
+.npl__hint { display: flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; margin-left: 92px; }
+.npl__hint.is-error { color: #e0736a; }
+.npl__samples { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
+.npl__samples .npl__hint { margin-left: 0; }
+.npl__checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.npl__check { display: flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--text); cursor: pointer; }
+.npl__check input { accent-color: var(--acc); }
+
 /* A contributed panel's host element. The plugin owns everything inside; the frame
    only guarantees it fills the tab and scrolls, and that the theme tokens are in
    scope so a plugin styling against them matches the editor. */

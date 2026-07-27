@@ -51,6 +51,18 @@ export function resolveLocalized(value: LocalizedString | undefined, locale: str
 /** Ids must be filesystem- and namespace-safe, and readable in a command palette. */
 const ID_RE = /^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$/;
 
+/**
+ * Why this id is unusable, or null if it is fine. Exported because the scaffolder
+ * must reject a bad id BEFORE writing a folder — validating with the same function
+ * that later reads the manifest is what keeps "the editor let me create it" and
+ * "the editor accepts it" from ever disagreeing.
+ */
+export function pluginIdProblem(id: unknown): string | null {
+  if (typeof id !== 'string' || id.length === 0) return 'plugin needs an `id`';
+  if (!ID_RE.test(id)) return '`id` must be a dotted, lowercase name like "acme.level-tools"';
+  return null;
+}
+
 const isLocalized = (v: unknown): boolean =>
   typeof v === 'string'
     ? v.length > 0
@@ -64,9 +76,8 @@ export function validateManifest(raw: unknown): { manifest: PluginManifest } | {
   if (!raw || typeof raw !== 'object') return { error: 'plugin.json must contain a JSON object' };
   const m = raw as Record<string, unknown>;
 
-  if (typeof m.id !== 'string' || !ID_RE.test(m.id)) {
-    return { error: '`id` must be a dotted, lowercase name like "acme.level-tools"' };
-  }
+  const idBad = pluginIdProblem(m.id);
+  if (idBad) return { error: idBad };
   if (!isLocalized(m.name)) {
     return { error: '`name` must be a non-empty string, or an object with an `en` string' };
   }

@@ -31,6 +31,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirm } from '@/components/confirm';
+import { requestPluginPanelAction } from '@/plugins/panelActions';
 import { t } from '@/i18n';
 import type { ToolMode } from '@/types';
 
@@ -360,6 +361,26 @@ commands.register({
   // The Plugins panel isn't ensured in the layout (most sessions have none), so a
   // command is how it's reached — palette, Window menu, and rebindable like any other.
   run: () => dockApi.openPanel('plugins'),
+});
+commands.register({
+  id: 'plugins.new',
+  label: t('plug.new'),
+  category: t('cat.view'),
+  // Opens the panel first: the dialog belongs to it, and a request with nothing
+  // listening is dropped rather than queued.
+  run: () => {
+    dockApi.openPanel('plugins');
+    requestPluginPanelAction('new');
+  },
+});
+commands.register({
+  id: 'plugins.import',
+  label: t('plug.importTitle'),
+  category: t('cat.view'),
+  run: () => {
+    dockApi.openPanel('plugins');
+    requestPluginPanelAction('import');
+  },
 });
 commands.register({
   id: 'view.resetLayout',

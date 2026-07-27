@@ -44,7 +44,16 @@ import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
+  PROJECT_PLUGIN_DIR, USER_PLUGIN_DIR,
 } from './pluginHost';
+// Every OS file dialog goes through here, so a screenshot run can script what the
+// user would have picked instead of blocking on a modal it cannot reach.
+import { showOpenDialog, showSaveDialog } from './shotDialogs';
+import { scaffoldPlugin, type ScaffoldPluginOptions } from './pluginScaffold';
+import {
+  packPlugin, packageFileName, inspectPluginPackage, installPluginPackage, writePackage,
+  PLUGIN_PACKAGE_EXT,
+} from './pluginPackage';
 import { checkForUpdate } from './updateCheck';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
@@ -173,6 +182,11 @@ let win: BrowserWindow | null = null;
  * Screenshot / visual-regression capture (gated on ESTELLA_SHOT=out.png). Drives the
  * renderer's `?automation=1` hook to open ESTELLA_SHOT_PROJECT (+ optional
  * ESTELLA_SHOT_SCENE), lets the panels + WebGL viewport settle, writes a PNG, and quits.
+ *
+ * Flows that open a native FILE DIALOG are reachable too: ESTELLA_SHOT_PICK_FILE and
+ * ESTELLA_SHOT_SAVE_FILE script what the user would have chosen (see shotDialogs.ts).
+ * Unscripted, a dialog cancels rather than opening — a modal in a headless run is a
+ * hang, not a failure.
  */
 async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
   const exec = (code: string): Promise<unknown> =>
@@ -632,7 +646,7 @@ async function ensureTwinsForOpen(root: string): Promise<void> {
 
 ipcMain.handle('project:openDialog', async () => {
   if (!win) return null;
-  const res = await dialog.showOpenDialog(win, {
+  const res = await showOpenDialog(win, {
     title: 'Open Estella Project',
     properties: ['openDirectory'],
   });
@@ -651,7 +665,7 @@ ipcMain.handle('project:open', async (_e, root: string) => {
 // Import: OS file picker → copy the chosen files into `destDir` + write `.meta`.
 ipcMain.handle('project:importAssets', async (_e, destDir: string) => {
   if (!win) return null;
-  const res = await dialog.showOpenDialog(win, {
+  const res = await showOpenDialog(win, {
     title: 'Import Assets',
     properties: ['openFile', 'multiSelections'],
     filters: [
@@ -997,12 +1011,84 @@ ipcMain.handle('plugins:reveal', async (_e, id: string) => {
   if (dir) shell.openPath(dir);
 });
 
+/** The folder a scope means. Project scope needs an open project; user scope never does. */
+function pluginsRootFor(scope: 'project' | 'user'): string {
+  if (scope === 'user') return path.join(userData(), USER_PLUGIN_DIR);
+  return path.join(requireRoot(), PROJECT_PLUGIN_DIR);
+}
+
+// Scaffold a plugin — manifest, entry, tsconfig, and the typings sidecar the
+// tsconfig points at. The renderer supplies `editorVersion` and `apiTypes` rather
+// than main reading them: the renderer holds the constant that ENFORCES the
+// `engines.editor` check and the types.ts text the editor is itself typed by, so
+// what gets written can never disagree with what gets checked.
+ipcMain.handle('plugins:scaffold', async (_e, scope: 'project' | 'user', opts: ScaffoldPluginOptions) => {
+  try {
+    return await scaffoldPlugin(pluginsRootFor(scope), opts);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+// Pack a plugin into one `.esplugin` file. Main owns the save dialog; the default
+// name carries the id and version, so a folder of these stays readable.
+ipcMain.handle('plugins:export', async (_e, id: string) => {
+  if (!win) return { ok: false, error: 'no window' };
+  const found = await discoverPlugins(projectRoot, userData());
+  const entry = found.find((p) => p.id === id && p.kind === 'plugin');
+  if (!entry?.manifest) return { ok: false, error: `plugin "${id}" not found` };
+
+  const packed = await packPlugin(entry.dir);
+  if (!packed.ok || !packed.data) return { ok: false, error: packed.error };
+
+  const res = await showSaveDialog(win, {
+    title: 'Export plugin',
+    defaultPath: packageFileName(entry.manifest),
+    filters: [{ name: 'Estella plugin', extensions: [PLUGIN_PACKAGE_EXT] }],
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  try {
+    await writePackage(res.filePath, packed.data);
+    return { ok: true, file: res.filePath };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+// Two-step import, and the split is the design: the renderer shows what is inside
+// before anything is written, and only asks to install once the user has seen it.
+ipcMain.handle('plugins:pickPackage', async () => {
+  if (!win) return { ok: false, error: 'no window' };
+  const res = await showOpenDialog(win, {
+    title: 'Install plugin from file',
+    filters: [{ name: 'Estella plugin', extensions: [PLUGIN_PACKAGE_EXT, 'zip'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true };
+  const file = res.filePaths[0];
+  try {
+    return { ...inspectPluginPackage(await readFile(file)), file };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err), file };
+  }
+});
+
+// Install a package the user already previewed. It lands UNTRUSTED — installing is
+// not approving, and the trust gate is the user's decision to make afterwards.
+ipcMain.handle('plugins:install', async (_e, file: string, scope: 'project' | 'user') => {
+  try {
+    return await installPluginPackage(await readFile(file), pluginsRootFor(scope));
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
 // — Native runtime templates. The prebuilt engine a mobile target is assembled
 //   around: the editor never compiles one, it installs the release's artifact. —
 ipcMain.handle('nativeTemplates:list', () => listNativeTemplates(app.getVersion()));
 ipcMain.handle('nativeTemplates:install', async () => {
   if (!win) return { ok: false, error: 'no window' };
-  const res = await dialog.showOpenDialog(win, {
+  const res = await showOpenDialog(win, {
     title: 'Install a runtime template',
     filters: [{ name: 'Estella runtime template', extensions: ['zip'] }],
     properties: ['openFile'],
@@ -1028,7 +1114,7 @@ ipcMain.handle('project:createFromTemplate', (_e, templateDir: string, location:
 );
 ipcMain.handle('project:chooseDirectory', async () => {
   if (!win) return null;
-  const res = await dialog.showOpenDialog(win, {
+  const res = await showOpenDialog(win, {
     title: 'Choose a location for the new project',
     properties: ['openDirectory', 'createDirectory'],
   });
@@ -1040,7 +1126,7 @@ ipcMain.handle('project:chooseDirectory', async () => {
 ipcMain.handle('project:saveDialog', async (_e, defaultRel?: string) => {
   const root = requireRoot();
   if (!win) return null;
-  const res = await dialog.showSaveDialog(win, {
+  const res = await showSaveDialog(win, {
     title: 'Save Scene As',
     defaultPath: defaultRel ? path.join(root, defaultRel) : path.join(root, 'assets/scenes'),
     filters: [{ name: 'Estella Scene', extensions: ['esscene'] }],

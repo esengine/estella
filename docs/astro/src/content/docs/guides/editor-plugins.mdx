@@ -19,53 +19,86 @@ of anything.
 
 <Steps>
 
-1. Create the folder — the id is `<publisher>.<name>`:
+1. Open **Window ▸ Plugins** and choose **New plugin** (or search the command
+   palette for it).
 
-   <FileTree>
-   - .esengine/
-     - plugins/
-       - acme.level-tools/
-         - plugin.json
-         - src/
-           - editor.ts
-   </FileTree>
+2. Give it a name. The id is derived from it and can be edited — dotted and
+   lowercase, like `acme.level-tools`. Choose whether it installs into the
+   **project** (versioned with it, shared by the team) or into your **user**
+   folder (personal, available in every project).
 
-2. Write `plugin.json`:
-
-   ```json
-   {
-     "id": "acme.level-tools",
-     "name": { "en": "Level Tools", "zh-CN": "关卡工具" },
-     "version": "1.0.0",
-     "engines": { "editor": "^0.33" },
-     "main": { "editor": "src/editor.ts" }
-   }
-   ```
-
-3. Write `src/editor.ts`:
-
-   ```ts
-   import { definePlugin, type PluginContext } from '@estella/editor-api';
-
-   export default definePlugin({
-     activate(ctx: PluginContext) {
-       ctx.commands.register({
-         id: 'acme.level-tools.countEntities',
-         title: { en: 'Count Entities', 'zh-CN': '统计实体' },
-         menu: 'tools',
-         run: () => ctx.ui.toast(`${ctx.scene.getSceneTree().length} root entities`),
-       });
-     },
-   });
-   ```
-
-4. Open **Window ▸ Plugins**, find your plugin, and choose **Trust and load**.
+3. Tick the samples you want — command, panel, inspector section, viewport gizmo,
+   viewport tool — and choose **Create**.
 
 </Steps>
+
+The editor writes a plugin that already runs, and loads it:
+
+<FileTree>
+- .esengine/
+  - plugins/
+    - acme.level-tools/
+      - plugin.json
+      - tsconfig.json
+      - src/
+        - editor.ts
+</FileTree>
+
+```json title="plugin.json"
+{
+  "id": "acme.level-tools",
+  "name": "Level Tools",
+  "version": "0.1.0",
+  "engines": { "editor": "^0.34" },
+  "main": { "editor": "src/editor.ts" }
+}
+```
+
+```ts title="src/editor.ts"
+import { definePlugin, type PluginContext } from '@estella/editor-api';
+
+export default definePlugin({
+  activate(ctx: PluginContext) {
+    ctx.commands.register({
+      id: 'acme.level-tools.hello',
+      title: { en: 'Say hello', 'zh-CN': '打个招呼' },
+      menu: 'tools',
+      run: () => ctx.ui.toast(`${ctx.scene.getSelectionIds().length} selected`),
+    });
+  },
+});
+```
 
 Your command is now in the Tools menu and the command palette. Edit `editor.ts`
 and save: the editor recompiles and re-activates it, and any panel it contributed
 reopens on the new build.
+
+<Aside type="tip" title="Let the editor write engines.editor">
+`engines.editor` is the editor range a plugin claims to work with. Below 1.0 the
+**minor is the breaking-change axis** — `^0.34` does not match `0.35`. Creating a
+plugin pins it to the editor doing the creating, so copying an older range in from
+somewhere else is how a plugin arrives already marked *incompatible*.
+</Aside>
+
+## Seeing what a plugin contributed
+
+Every running plugin has a **Contributes** row in the Plugins panel. Expand it for
+everything it has registered right now — commands, panels, settings, tools, gizmos,
+inspector sections, asset types, entity templates, menu items — each with its id.
+
+"Why isn't my panel showing up?" is usually answered here: either it isn't in the
+list (`activate` never reached that line), or it is, under an id you didn't expect.
+
+## Sharing a plugin
+
+**Export** in the Plugins panel packs one plugin into a single `.esplugin` file —
+a ZIP, so renaming it to `.zip` opens it anywhere. `node_modules`, `dist`, and the
+generated typings are left out.
+
+The other side installs it with **Import**, which first lists what is inside — the
+manifest, the declared capabilities, every file — without unpacking or writing
+anything. Only after that does it land on disk, and **installing is not running**:
+it arrives needing trust, so loading it stays a separate decision.
 
 <Aside type="caution" title="Trust">
 A plugin runs with the same access the editor has — your project files and
@@ -82,8 +115,9 @@ folder claiming the same id, asks again.
 
 The editor writes `@estella/editor-api`'s typings into your project at
 `.esengine/plugins/.types/editor-api.d.ts` every time it opens the project, so they
-always match the editor you're running. Point your plugin's `tsconfig.json` at
-them:
+always match the editor you're running. Your plugin's `tsconfig.json` points at
+them — **New plugin writes this for you**; it is spelled out here for anyone
+authoring one by hand:
 
 ```json
 {

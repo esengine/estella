@@ -44,7 +44,7 @@ import { version as EDITOR_VERSION } from '../../package.json';
 import type { Owner } from '@/contrib/ContributionRegistry';
 import { resolveLocalized, satisfiesEditorRange, type PluginManifest } from './manifest';
 import { evaluatePlugin } from './loader';
-import { buildPluginContext, type BuiltContext } from './context';
+import { buildPluginContext, type BuiltContext, type PluginContribution } from './context';
 import type { EditorPlugin } from './types';
 
 /** Where a plugin sits in its lifecycle — what the Plugins panel shows. */
@@ -391,6 +391,19 @@ class PluginHostImpl {
     this.set(id, { errorCount: 0, warnings: [], detail: undefined });
     await this.activate(id, p.manifest);
     this.restorePanels(reopen);
+  }
+
+  /**
+   * What this plugin has registered, right now — the panel's answer to "my panel
+   * isn't showing up". Read live from the context rather than stored on the record:
+   * a plugin may register from a command or a timer well after activation, and a
+   * list that silently stopped tracking would mislead exactly when it's consulted.
+   *
+   * Empty for a plugin that isn't loaded (needs trust, failed, disabled) — which is
+   * itself the answer in those cases.
+   */
+  contributionsOf(id: string): PluginContribution[] {
+    return this.loaded.get(id)?.context.contributions() ?? [];
   }
 
   /** Unload everything (project close). Records are dropped with the project. */

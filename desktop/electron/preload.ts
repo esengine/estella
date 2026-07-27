@@ -13,6 +13,8 @@ import type {
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
+import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
+import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
 import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
@@ -221,6 +223,21 @@ const api = {
       ipcRenderer.invoke('plugins:setEnabled', id, enabled),
     /** Reveal the plugin's folder in Finder / Explorer. */
     reveal: (id: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', id),
+    /** Write a new plugin — manifest, entry, tsconfig, typings sidecar — into the
+     *  chosen scope's folder. The caller passes the editor version and the API
+     *  typings text, so what is generated matches the editor doing the generating. */
+    scaffold: (scope: 'project' | 'user', opts: ScaffoldPluginOptions): Promise<ScaffoldPluginResult> =>
+      ipcRenderer.invoke('plugins:scaffold', scope, opts),
+    /** Pack a plugin into one `.esplugin` file the user picks a location for. */
+    exportPackage: (id: string): Promise<{ ok: boolean; error?: string; canceled?: boolean; file?: string }> =>
+      ipcRenderer.invoke('plugins:export', id),
+    /** Pick an `.esplugin` and report what is INSIDE it — nothing is written yet.
+     *  The two-step exists so the user sees the contents before committing. */
+    pickPackage: (): Promise<PluginPackageInfo & { canceled?: boolean; file?: string }> =>
+      ipcRenderer.invoke('plugins:pickPackage'),
+    /** Install a previewed package. It lands untrusted; approving is separate. */
+    installPackage: (file: string, scope: 'project' | 'user'): Promise<InstallPluginResult> =>
+      ipcRenderer.invoke('plugins:install', file, scope),
   },
   // The prebuilt engine a mobile target is assembled around. The editor installs
   // one; it never compiles one (see electron/nativeTemplates.ts).

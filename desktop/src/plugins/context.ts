@@ -185,9 +185,37 @@ function editorEvents(track: (d: Disposable) => Disposable): EditorEvents {
   };
 }
 
+/** The contribution kinds a plugin can be listed as having made. */
+export type ContributionKind =
+  | 'command'
+  | 'panel'
+  | 'setting'
+  | 'tool'
+  | 'overlay'
+  | 'inspector'
+  | 'assetType'
+  | 'entityTemplate'
+  | 'contextMenu';
+
+/** One thing a plugin added, as the Plugins panel shows it. */
+export interface PluginContribution {
+  kind: ContributionKind;
+  /** The id it registered under — what appears in the command palette, the dock, … */
+  id: string;
+  /** Already localized, because the registries were handed a localized label too. */
+  label: string;
+}
+
 /** What PluginHost needs back to tear a plugin down. */
 export interface BuiltContext {
   ctx: PluginContext;
+  /**
+   * What this plugin has contributed, RIGHT NOW. Read live rather than snapshotted
+   * because a plugin may register from a command or a timer long after `activate`
+   * returned, and a list that quietly stopped tracking would be worse than none —
+   * this panel's whole job is answering "why isn't my panel showing up?".
+   */
+  contributions(): PluginContribution[];
   /** Retract everything this plugin registered, in reverse order. */
   dispose(): void;
 }
@@ -211,6 +239,24 @@ export function buildPluginContext(
     return d;
   };
   const adopt = (d: CoreDisposable): Disposable => track({ dispose: () => d.dispose() });
+
+  // Every register() below goes through `noted`, which is what makes the panel's
+  // "Contributes" list complete by construction: there is no way to register
+  // something here without listing it, because listing IS the tracking.
+  // Takes an already-made registration, exactly as `adopt` does — so a call site
+  // reads the same and cannot accidentally defer the registration itself.
+  const contributions: PluginContribution[] = [];
+  const noted = (kind: ContributionKind, cid: string, label: string, d: CoreDisposable): Disposable => {
+    const entry: PluginContribution = { kind, id: cid, label };
+    contributions.push(entry);
+    return track({
+      dispose: () => {
+        const i = contributions.indexOf(entry);
+        if (i >= 0) contributions.splice(i, 1);
+        d.dispose();
+      },
+    });
+  };
 
   const log = {
     info: (...args: unknown[]) => LogStore.push('info', `plugin:${id}`, args.map(String).join(' ')),
@@ -240,11 +286,14 @@ export function buildPluginContext(
         registerMenuItem({ id: `${c.menu}/${c.id}`, location: c.menu, group: c.menu === 'tools' ? 'tools' : 'plugins', command: c.id }, owner),
       );
     }
-    return track({ dispose: () => disposals.forEach((d) => d.dispose()) });
+    return noted('command', c.id, localize(c.title), { dispose: () => disposals.forEach((d) => d.dispose()) });
   };
 
   const registerPluginPanel = (p: PanelContribution): Disposable =>
-    adopt(
+    noted(
+      'panel',
+      p.id,
+      localize(p.title),
       registerPanel(
         {
           id: p.id,
@@ -274,11 +323,14 @@ export function buildPluginContext(
           : s.type === 'string'
             ? { ...base, type: 'string' as const, default: s.default, placeholder: s.placeholder }
             : { ...base, type: 'boolean' as const, default: s.default };
-    return adopt(settingsRegistry.register(descriptor, owner));
+    return noted('setting', s.id, localize(s.label), settingsRegistry.register(descriptor, owner));
   };
 
   const registerTool = (tool: ToolContribution): Disposable =>
-    adopt(
+    noted(
+      'tool',
+      tool.id,
+      localize(tool.title),
       toolRegistry.register(owner, {
         id: tool.id,
         title: localize(tool.title),
@@ -302,13 +354,23 @@ export function buildPluginContext(
   const registerOverlay = (overlay: OverlayContribution): Disposable =>
     // Not guarded here: the overlay renderer's rAF calls PluginHost.guardOverlay
     // itself, so a per-frame throw is attributed once, at the frame boundary.
-    adopt(overlayRegistry.register(owner, overlay));
+    // No label: an overlay has no title of its own, and repeating the id in the
+    // label column would just print it twice on the same row.
+    noted('overlay', overlay.id, '', overlayRegistry.register(owner, overlay));
 
   const registerInspector = (section: InspectorContribution): Disposable =>
-    adopt(inspectorRegistry.register(owner, { ...section, id: `${id}.${section.id}` }));
+    noted(
+      'inspector',
+      `${id}.${section.id}`,
+      localize(section.title),
+      inspectorRegistry.register(owner, { ...section, id: `${id}.${section.id}` }),
+    );
 
   const registerAssetType = (type: AssetTypeContribution): Disposable =>
-    adopt(
+    noted(
+      'assetType',
+      type.id,
+      type.extensions.map((e) => `.${e}`).join(' '),
       assetTypeRegistry.register(owner, {
         id: type.id,
         extensions: type.extensions,
@@ -326,7 +388,10 @@ export function buildPluginContext(
     );
 
   const registerTemplate = (template: EntityTemplateContribution): Disposable =>
-    adopt(
+    noted(
+      'entityTemplate',
+      template.id,
+      localize(template.label),
       entitySourceRegistry.register(owner, {
         id: template.id,
         label: localize(template.label),
@@ -340,7 +405,10 @@ export function buildPluginContext(
     );
 
   const registerContextMenuItem = (item: ContextMenuContribution): Disposable =>
-    adopt(
+    noted(
+      'contextMenu',
+      item.id,
+      localize(item.label),
       contextMenuRegistry.register(owner, {
         ...item,
         // A plain string is itself a LocalizedString, so resolving it here means
@@ -386,6 +454,7 @@ export function buildPluginContext(
 
   return {
     ctx,
+    contributions: () => [...contributions],
     dispose() {
       // The plugin's own subscriptions first (they may reference contributions),
       // then ours in reverse registration order.

@@ -16,52 +16,79 @@ import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. 建目录——id 形如 `<发布者>.<名字>`：
+1. 打开**窗口 ▸ 插件**，点**新建插件**（命令面板里搜"新建插件"也行）。
 
-   <FileTree>
-   - .esengine/
-     - plugins/
-       - acme.level-tools/
-         - plugin.json
-         - src/
-           - editor.ts
-   </FileTree>
+2. 填名称。id 会按名称自动生成，也可以自己改——点分小写，形如
+   `acme.level-tools`。选装到**项目**（随项目版本管理，团队共享）还是
+   **用户**（个人插件，每个项目里都可用）。
 
-2. 写 `plugin.json`：
-
-   ```json
-   {
-     "id": "acme.level-tools",
-     "name": { "en": "Level Tools", "zh-CN": "关卡工具" },
-     "version": "1.0.0",
-     "engines": { "editor": "^0.33" },
-     "main": { "editor": "src/editor.ts" }
-   }
-   ```
-
-3. 写 `src/editor.ts`：
-
-   ```ts
-   import { definePlugin, type PluginContext } from '@estella/editor-api';
-
-   export default definePlugin({
-     activate(ctx: PluginContext) {
-       ctx.commands.register({
-         id: 'acme.level-tools.countEntities',
-         title: { en: 'Count Entities', 'zh-CN': '统计实体' },
-         menu: 'tools',
-         run: () => ctx.ui.toast(`${ctx.scene.getSceneTree().length} 个根实体`),
-       });
-     },
-   });
-   ```
-
-4. 打开**窗口 ▸ 插件**，找到你的插件，点**信任并加载**。
+3. 勾选想要的起始样例（命令、面板、检视器分区、视口 gizmo、视口工具），点**创建**。
 
 </Steps>
 
+编辑器写出一个已经能跑的插件，并立刻加载它：
+
+<FileTree>
+- .esengine/
+  - plugins/
+    - acme.level-tools/
+      - plugin.json
+      - tsconfig.json
+      - src/
+        - editor.ts
+</FileTree>
+
+```json title="plugin.json"
+{
+  "id": "acme.level-tools",
+  "name": "Level Tools",
+  "version": "0.1.0",
+  "engines": { "editor": "^0.34" },
+  "main": { "editor": "src/editor.ts" }
+}
+```
+
+```ts title="src/editor.ts"
+import { definePlugin, type PluginContext } from '@estella/editor-api';
+
+export default definePlugin({
+  activate(ctx: PluginContext) {
+    ctx.commands.register({
+      id: 'acme.level-tools.hello',
+      title: { en: 'Say hello', 'zh-CN': '打个招呼' },
+      menu: 'tools',
+      run: () => ctx.ui.toast(`${ctx.scene.getSelectionIds().length} 个实体被选中`),
+    });
+  },
+});
+```
+
 你的命令现在出现在工具菜单和命令面板里。改一下 `editor.ts` 再保存：编辑器会
 重新编译并重新激活它，它贡献的面板也会以新构建重新打开。
+
+<Aside type="tip" title="engines.editor 由编辑器写，别照抄">
+`engines.editor` 是插件声称适配的编辑器版本区间。1.0 之前，**次版本号是破坏性
+变更的轴**——`^0.34` 不匹配 `0.35`。新建插件时编辑器按**当前自己的版本**写这一行，
+所以从别处抄一个旧区间过来，插件一装上就是"版本不兼容"。
+</Aside>
+
+## 看插件贡献了什么
+
+插件面板里每个运行中的插件都有一条**贡献**，展开就是它此刻注册的全部东西——
+命令、面板、设置项、工具、gizmo、检视器分区、资产类型、实体模板、菜单项——
+连同各自的 id。
+
+"我的面板怎么没出来"通常在这里就有答案：它要么不在列表里（`activate` 没跑到那一行），
+要么在列表里但 id 和你以为的不一样。
+
+## 分享插件
+
+插件面板上的**导出**把一个插件打包成单个 `.esplugin` 文件（就是 ZIP，改名成
+`.zip` 任何工具都能打开）。`node_modules`、`dist` 和生成的类型不会进包。
+
+对面用**导入**装：装之前会先列出包里的清单——manifest、声明的能力、每个文件——
+这一步不解压、不落盘。确认后才写入，且**装上不等于运行**：它会以"待信任"状态
+出现，加载与否仍然是你单独的一个决定。
 
 <Aside type="caution" title="信任">
 插件与编辑器拥有同等权限——你的项目文件，以及编辑器能触及的一切。所以在你批准
@@ -75,7 +102,8 @@ import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 
 编辑器每次打开项目时，都会把 `@estella/editor-api` 的类型写进
 `.esengine/plugins/.types/editor-api.d.ts`，因此它永远与你正在运行的编辑器一致。
-在插件的 `tsconfig.json` 里指过去：
+插件的 `tsconfig.json` 指过去——**新建插件时这份已经写好了**，这里列出来是给
+手写插件的人参考：
 
 ```json
 {
