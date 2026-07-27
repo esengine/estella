@@ -23,6 +23,14 @@ export interface ThemeColors {
     control: Color;
     controlHover: Color;
     controlActive: Color;
+    /**
+     * Keyboard focus. A ROLE of its own rather than a reuse of `controlHover`,
+     * because the two answer different questions — "the pointer is here" and "the
+     * keyboard is here" — and a user tabbing through a form has nothing but this to
+     * tell them where they are. Only ever shown for focus that arrived by keyboard
+     * (see FocusManagerState.focusVisible).
+     */
+    controlFocus: Color;
     /** Slider / progress track. */
     track: Color;
     /** Accent — slider fill, progress fill, selected option. */
@@ -40,7 +48,7 @@ export interface ThemeColors {
 /** Every color role, in display order — THE list a theme editor or a project
  *  format validator iterates (keyof ThemeColors, as a runtime value). */
 export const THEME_COLOR_ROLES: readonly (keyof ThemeColors)[] = [
-    'surface', 'surfaceElevated', 'control', 'controlHover', 'controlActive',
+    'surface', 'surfaceElevated', 'control', 'controlHover', 'controlActive', 'controlFocus',
     'track', 'primary', 'primaryHover', 'primaryActive', 'onPrimary', 'text', 'backdrop',
 ];
 
@@ -70,6 +78,9 @@ export const DARK_TOKENS: ThemeTokens = {
         control:        { r: 0.22, g: 0.22, b: 0.26, a: 1 },
         controlHover:   { r: 0.28, g: 0.28, b: 0.32, a: 1 },
         controlActive:  { r: 0.18, g: 0.18, b: 0.22, a: 1 },
+        // Cooler than hover rather than merely lighter, so the two stay apart for a
+        // reader who cannot rely on a small brightness step.
+        controlFocus:   { r: 0.30, g: 0.34, b: 0.44, a: 1 },
         track:          { r: 0.15, g: 0.15, b: 0.15, a: 1 },
         primary:        { r: 0.25, g: 0.56, b: 0.96, a: 1 },
         primaryHover:   { r: 0.30, g: 0.50, b: 0.90, a: 1 },
@@ -89,6 +100,7 @@ export const LIGHT_TOKENS: ThemeTokens = {
         control:        { r: 0.90, g: 0.90, b: 0.92, a: 1 },
         controlHover:   { r: 0.84, g: 0.84, b: 0.87, a: 1 },
         controlActive:  { r: 0.78, g: 0.78, b: 0.82, a: 1 },
+        controlFocus:   { r: 0.80, g: 0.85, b: 0.95, a: 1 },
         track:          { r: 0.86, g: 0.86, b: 0.88, a: 1 },
         primary:        { r: 0.20, g: 0.52, b: 0.92, a: 1 },
         primaryHover:   { r: 0.26, g: 0.58, b: 0.96, a: 1 },

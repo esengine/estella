@@ -68,7 +68,7 @@ export function themeButtonStates(): Record<string, ButtonStateVisual> {
         pressed: { color: c.controlActive },
         disabled: { color: { ...c.control, a: c.control.a * 0.5 } },
         // Keyboard focus reads as hover — there is no ring primitive (yet).
-        focused: { color: c.controlHover },
+        focused: { color: c.controlFocus },
     };
 }
 
@@ -113,7 +113,7 @@ export function createButton(opts: ButtonOptions): ButtonHandle {
         markThemed(world, entity, {
             states: {
                 normal: 'control', hover: 'controlHover', pressed: 'controlActive',
-                disabled: 'control', focused: 'controlHover',
+                disabled: 'control', focused: 'controlFocus',
             },
         });
     }

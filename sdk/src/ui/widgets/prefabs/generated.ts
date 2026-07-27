@@ -225,9 +225,9 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "a": 0.5
                     },
                     "focused": {
-                      "r": 0.28,
-                      "g": 0.28,
-                      "b": 0.32,
+                      "r": 0.3,
+                      "g": 0.34,
+                      "b": 0.44,
                       "a": 1
                     }
                   }
@@ -243,7 +243,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "hover": "controlHover",
                 "pressed": "controlActive",
                 "disabled": "control",
-                "focused": "controlHover"
+                "focused": "controlFocus"
               }
             }
           }
@@ -638,9 +638,9 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "a": 0.5
                     },
                     "focused": {
-                      "r": 0.28,
-                      "g": 0.28,
-                      "b": 0.32,
+                      "r": 0.3,
+                      "g": 0.34,
+                      "b": 0.44,
                       "a": 1
                     }
                   }
@@ -656,7 +656,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "hover": "controlHover",
                 "pressed": "controlActive",
                 "disabled": "control",
-                "focused": "controlHover"
+                "focused": "controlFocus"
               }
             }
           },

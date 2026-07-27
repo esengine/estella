@@ -130,3 +130,55 @@ describe('FocusPlugin pointer focus', () => {
     expect(isFocused(b)).toBe(true);
   });
 });
+
+// — :focus-visible ————————————————————————————————————————————————————————————
+//
+// Focus follows a pointer press so Enter/Space act on what you clicked. But a
+// clicked control that KEEPS a focus look reads as stuck — the pointer has moved
+// on and the button is still lit until you click something else. So focus tracks
+// how it arrived, and only keyboard focus is drawn.
+
+const visible = (): boolean => app.getResource(FocusManager).focusVisible;
+
+describe('focus visibility', () => {
+  it('is off for pointer focus, on for Tab', async () => {
+    const e = app.world.spawn();
+    app.world.insert(e, Focusable, { tabIndex: 0, isFocused: false });
+    app.world.insert(e, UIInteraction, { justPressed: true });
+    await app.tick(1 / 60);
+    expect(focused()).toBe(e);
+    expect(visible()).toBe(false); // focused, but not drawn
+
+    app.world.insert(e, UIInteraction, { justPressed: false });
+    await tab();
+    expect(visible()).toBe(true);
+  });
+
+  it('starts drawing when Tab lands on a control that was clicked', async () => {
+    // The re-focus path: same entity, different acquisition. Focus does not move,
+    // so an early return that skipped the update would leave it invisible forever.
+    const e = addFocusable(0);
+    app.world.insert(e, UIInteraction, { justPressed: true });
+    await app.tick(1 / 60);
+    expect(focused()).toBe(e);
+    expect(visible()).toBe(false);
+
+    app.world.insert(e, UIInteraction, { justPressed: false });
+    await tab(); // only one focusable → Tab wraps back to it
+    expect(focused()).toBe(e);
+    expect(visible()).toBe(true);
+  });
+
+  it('stops being visible once focus is dropped', async () => {
+    addFocusable(0);
+    await tab();
+    expect(visible()).toBe(true);
+
+    const input = app.getResource(Input) as InputState;
+    input.keysPressed.add('Escape');
+    await app.tick(1 / 60);
+    input.keysPressed.delete('Escape');
+    expect(focused()).toBeNull();
+    expect(visible()).toBe(false);
+  });
+});

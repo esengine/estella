@@ -23,7 +23,7 @@ import { Res, Time, type TimeData } from '../../resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
 import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from '../input/interactable';
-import { Focusable, type FocusableData } from '../input/focusable';
+import { Focusable, FocusManager, type FocusManagerState } from '../input/focusable';
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 import {
@@ -120,16 +120,21 @@ const DRIVER_OWNED_PAGES: ReadonlySet<string> = new Set([
 /**
  * Pure derivation: choose the interaction page a hit-test pass implies.
  * Extracted so unit tests can cover the branching without a World.
+ *
+ * `focusVisible` is `:focus-visible`, not "has focus": a pointer press moves focus
+ * too, and a control that keeps a focus look after being clicked reads as stuck —
+ * the pointer is long gone and the button is still lit until you click elsewhere.
+ * See {@link FocusManagerState.focusVisible}.
  */
 export function driverStateFor(
     enabled: boolean,
     interaction: UIInteractionData | null,
-    focused = false,
+    focusVisible = false,
 ): string {
     if (!enabled) return 'disabled';
     if (interaction?.pressed) return 'pressed';
     if (interaction?.hovered) return 'hover';
-    if (focused) return 'focused';
+    if (focusVisible) return 'focused';
     return 'normal';
 }
 
@@ -141,7 +146,7 @@ export function driverStateFor(
  * `current` holds a user-managed page outside {@link DRIVER_OWNED_PAGES}.
  */
 export function createInteractionControllerDriverSystem(world: World): SystemDef {
-    return defineSystem([], () => {
+    return defineSystem([Res(FocusManager)], (focus: FocusManagerState) => {
         for (const e of world.getEntitiesWithComponents([Interactable, UIController])) {
             const data = world.get(e, UIController) as UIControllerData;
             const ctrl = data.controllers.find(c => c.name === INTERACTION_CONTROLLER);
@@ -151,9 +156,10 @@ export function createInteractionControllerDriverSystem(world: World): SystemDef
                 ? (world.get(e, UIInteraction) as UIInteractionData)
                 : null;
             const interactable = world.get(e, Interactable) as InteractableData;
-            const focused = world.has(e, Focusable)
-                && (world.get(e, Focusable) as FocusableData).isFocused;
-            const next = driverStateFor(interactable.enabled, inter, focused);
+            // The manager, not Focusable.isFocused: only it knows HOW focus arrived,
+            // and a pointer-focused control must not wear the focus look.
+            const focusVisible = world.has(e, Focusable) && focus.isVisiblyFocused(e);
+            const next = driverStateFor(interactable.enabled, inter, focusVisible);
             if (next !== ctrl.current && ctrl.pages.includes(next)) {
                 ctrl.current = next;
                 world.insert(e, UIController, data);

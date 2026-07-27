@@ -81,7 +81,10 @@ export class FocusPlugin implements Plugin {
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
                     if (interaction.justPressed) {
                         pressedFocusable = true;
-                        setFocus(entity);
+                        // Focus, but NOT visibly: a pointer press moves focus so
+                        // Enter/Space act on what you clicked, while the control
+                        // keeps looking the way the pointer left it.
+                        setFocus(entity, false);
                     }
                 }
 
@@ -120,7 +123,9 @@ export class FocusPlugin implements Plugin {
                             : (currentIdx + 1) % sorted.length;
                     }
 
-                    setFocus(sorted[nextIdx]);
+                    // Tab is the case the highlight exists for — nothing else says
+                    // where you are.
+                    setFocus(sorted[nextIdx], true);
                 }
 
                 function getSortedFocusables(): Entity[] {
@@ -141,12 +146,17 @@ export class FocusPlugin implements Plugin {
                     return entries.map(e => e.entity);
                 }
 
-                function setFocus(entity: Entity): void {
+                function setFocus(entity: Entity, visible: boolean): void {
                     const prev = focusManager.focusedEntity;
-                    if (prev === entity) return;
+                    // Re-focusing what is already focused still updates HOW: tabbing
+                    // to a control you had clicked must start drawing the highlight.
+                    if (prev === entity) {
+                        focusManager.focusVisible = visible;
+                        return;
+                    }
 
                     blurEntity(prev);
-                    focusManager.focus(entity);
+                    focusManager.focus(entity, visible);
                     const f = world.get(entity, Focusable) as FocusableData;
                     f.isFocused = true;
                     world.insert(entity, Focusable, f);
