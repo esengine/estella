@@ -21,11 +21,14 @@ import { fileURLToPath } from 'node:url';
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { debugSigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { compileManifest, ANDROID_ATTR_IDS } from '../../build-tools/utils/androidBinaryXml.js';
-import { zipLayout } from '../../build-tools/utils/zip.js';
+import { appResources, ICON_RESOURCE_ID, ICON_PATH } from '../../build-tools/utils/androidResources.js';
+import { zipLayout, readZip } from '../../build-tools/utils/zip.js';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERIFIER = path.join(REPO, 'build-tools', 'tests', 'verify-apk.py');
 const MANIFEST_TEMPLATE = path.join(REPO, 'native', 'android', 'host', 'AndroidManifest.xml.in');
+/** The icon a template ships, used when the project sets none. */
+const DEFAULT_ICON_SOURCE = path.join(REPO, 'native', 'icon.png');
 
 const APP = {
     id: 'com.example.demo', name: 'My Game', version: '1.2', versionCode: 7,
@@ -66,6 +69,7 @@ beforeEach(() => {
     mkdirSync(path.join(templateDir, 'lib', 'arm64-v8a'), { recursive: true });
     mkdirSync(path.join(templateDir, 'assets'), { recursive: true });
     writeFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), readFileSync(MANIFEST_TEMPLATE));
+    writeFileSync(path.join(templateDir, 'icon.png'), readFileSync(DEFAULT_ICON_SOURCE));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libestella_js_host.so'), Buffer.alloc(120_000, 7));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libwebgpu_dawn.so'), Buffer.alloc(90_000, 9));
     writeFileSync(path.join(templateDir, 'classes.dex'), Buffer.from('dex\n035\0stand-in'));
@@ -82,6 +86,8 @@ afterEach(() => {
     delete process.env.ESTELLA_ANDROID_KEYS;
     rmSync(scratch, { recursive: true, force: true });
 });
+
+const assemblyOptions = () => ({ templateDir, contentDir, app: APP, abi: 'arm64-v8a', key: debugSigningKey() });
 
 function build(app = APP): string {
     const apk = assembleApk({ templateDir, contentDir, app, abi: 'arm64-v8a', key: debugSigningKey() });
@@ -117,7 +123,8 @@ describe('the manifest is compiled, not shelled out to aapt2', () => {
         writeFileSync(file, compileManifest(readFileSync(MANIFEST_TEMPLATE, 'utf8')
             .replace(/@APP_ID@/g, 'com.example.demo').replace(/@APP_NAME@/g, 'My Game')
             .replace(/@VERSION_NAME@/g, '1.2').replace(/@VERSION_CODE@/g, '7')
-            .replace(/@SCREEN_ORIENTATION@/g, 'sensorPortrait').replace(/@HAS_CODE@/g, 'true')));
+            .replace(/@SCREEN_ORIENTATION@/g, 'sensorPortrait').replace(/@HAS_CODE@/g, 'true'),
+        appResources(Buffer.alloc(4)).references));
 
         const xml = execFileSync('python3', ['-c',
             'import sys,os;os.environ["LOGURU_LEVEL"]="CRITICAL";'
@@ -183,6 +190,33 @@ describe('assembling an APK', () => {
             at = dataAt + compressedSize;
         }
         expect(checked).toBe(2);
+    });
+
+    it('carries a launcher icon the platform can resolve, through a table we wrote', () => {
+        if (!hasAndroguard) return;
+        const apk = build();
+
+        const resolved = JSON.parse(execFileSync('python3', ['-c',
+            'import sys,os,json;os.environ["LOGURU_LEVEL"]="CRITICAL";'
+            + 'from androguard.core.apk import APK;a=APK(sys.argv[1]);i=a.get_app_icon();'
+            + 'print(json.dumps({"attr":a.get_attribute_value("application","icon"),'
+            + '"file":i,"bytes":len(a.get_file(i)) if i else 0}))', apk,
+        ], { encoding: 'utf8' }));
+
+        // The reference resolves through OUR resources.arsc to OUR file — the whole
+        // chain, read back by something that has never seen this code.
+        expect(resolved.attr.toUpperCase()).toBe(`@${ICON_RESOURCE_ID.toString(16).toUpperCase()}`);
+        expect(resolved.file).toBe(ICON_PATH);
+        expect(resolved.bytes).toBe(readFileSync(DEFAULT_ICON_SOURCE).length);
+    });
+
+    it("packages the project's own icon when it has one", () => {
+        const mine = Buffer.concat([readFileSync(DEFAULT_ICON_SOURCE), Buffer.from('mine')]);
+        const file = path.join(contentDir, 'custom.apk');
+        writeFileSync(file, assembleApk({ ...assemblyOptions(), icon: mine }));
+
+        const packaged = readZip(readFileSync(file)).find((e) => e.name === ICON_PATH)!;
+        expect(packaged.data.equals(mine)).toBe(true);
     });
 
     it('is named after the app, so a second project does not replace the first', () => {

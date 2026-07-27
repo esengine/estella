@@ -29,6 +29,15 @@ export const TEMPLATE_MANIFEST = 'template.json';
  *  the APK's native-code declaration, so the package installs nowhere. */
 export const BYTECODE_FILE = 'esengine.native.qjsbc';
 
+/**
+ * The launcher icon an app gets when the project does not set one.
+ *
+ * In the template rather than in the editor because the CLI packages without an
+ * editor, and shipped at all because the alternative — the platform's default —
+ * is a green robot on a published game.
+ */
+export const DEFAULT_ICON = 'icon.png';
+
 /** A template's id: one per thing that must be compiled separately. */
 export function templateId(platform, abi) {
     return `${platform}-${abi}`;
@@ -59,6 +68,7 @@ export function templateLayout(platform, options = {}) {
             },
             { rel: 'App/main.m', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'main.m') },
             { rel: 'App/Info.plist.in', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'Info.plist.in') },
+            { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
     if (platform === 'android') {
@@ -86,6 +96,7 @@ export function templateLayout(platform, options = {}) {
                 rel: 'AndroidManifest.xml.in',
                 from: (ctx) => path.join(ctx.root, 'native', 'android', 'host', 'AndroidManifest.xml.in'),
             },
+            { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
     throw new Error(`Unknown native platform "${platform}" (expected android or ios).`);
@@ -243,5 +254,6 @@ export function iosTemplateSources(dir) {
         xcframework: path.join(dir, 'Estella.xcframework'),
         mainM: path.join(dir, 'App', 'main.m'),
         infoPlistIn: path.join(dir, 'App', 'Info.plist.in'),
+        icon: path.join(dir, DEFAULT_ICON),
     };
 }

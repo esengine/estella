@@ -34,12 +34,17 @@ const ITEM_PRIM = 7;
 const REF_ID = 2;
 
 /** `Item` for an attribute value, typed the way the platform expects to read it. */
-function compiledItem(value) {
+function compiledItem(value, references) {
     const style = /^@android:style\/(.+)$/.exec(value);
     if (style) {
         const id = ANDROID_STYLE_IDS[style[1]];
         if (id === undefined) throw new Error(`Unknown framework style @android:style/${style[1]}`);
         return bytesField(ITEM_REF, message(varintField(REF_ID, id)));
+    }
+    if (value.startsWith('@')) {
+        const id = references[value];
+        if (id === undefined) throw new Error(`No resource id for ${value} — the assembler declares what it packages.`);
+        return bytesField(ITEM_REF, message(varintField(REF_ID, id >>> 0)));
     }
     if (value === 'true' || value === 'false') {
         return bytesField(ITEM_PRIM, message(boolField(PRIM_BOOLEAN, value === 'true')));
@@ -56,13 +61,13 @@ function compiledItem(value) {
 }
 
 /** XmlAttribute { namespace_uri = 1, name = 2, value = 3, resource_id = 5, compiled_item = 6 } */
-function attribute(attr) {
+function attribute(attr, references) {
     const framework = attr.prefix === 'android';
     const id = framework ? ANDROID_ATTR_IDS[attr.name] : undefined;
     if (framework && id === undefined) {
         throw new Error(`No public resource id known for android:${attr.name} — add it to ANDROID_ATTR_IDS.`);
     }
-    const compiled = framework ? compiledItem(attr.value) : null;
+    const compiled = framework ? compiledItem(attr.value, references) : null;
     return message(
         framework ? bytesField(1, ANDROID_NS) : null,
         bytesField(2, attr.name),
@@ -73,23 +78,23 @@ function attribute(attr) {
 }
 
 /** XmlElement { namespace_declaration = 1, namespace_uri = 2, name = 3, attribute = 4, child = 5 } */
-function element(node, declareNamespace) {
+function element(node, declareNamespace, references) {
     return message(
         declareNamespace ? bytesField(1, message(bytesField(1, 'android'), bytesField(2, ANDROID_NS))) : null,
         bytesField(3, node.name),
         ...node.attrs
             .filter((a) => a.name !== 'xmlns' && a.prefix !== 'xmlns')
-            .map((a) => bytesField(4, attribute(a))),
-        ...node.children.map((child) => bytesField(5, node_(child, false))),
+            .map((a) => bytesField(4, attribute(a, references))),
+        ...node.children.map((child) => bytesField(5, node_(child, false, references))),
     );
 }
 
 /** XmlNode { element = 1 } */
-function node_(element_, declareNamespace) {
-    return message(bytesField(1, element(element_, declareNamespace)));
+function node_(element_, declareNamespace, references) {
+    return message(bytesField(1, element(element_, declareNamespace, references)));
 }
 
 /** Compile manifest SOURCE to the protobuf XML an App Bundle carries. */
-export function compileProtoManifest(xml) {
-    return node_(parseXml(xml), true);
+export function compileProtoManifest(xml, references = {}) {
+    return node_(parseXml(xml), true, references);
 }

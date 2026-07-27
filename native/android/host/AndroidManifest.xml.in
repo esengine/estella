@@ -15,7 +15,8 @@
           android:versionName="@VERSION_NAME@">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="33" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
-    <application android:label="@APP_NAME@" android:hasCode="@HAS_CODE@" android:extractNativeLibs="false">
+    <application android:label="@APP_NAME@" android:icon="@mipmap/ic_launcher"
+                 android:hasCode="@HAS_CODE@" android:extractNativeLibs="false">
         <!-- A game's window, stated before any code runs: no title, no status bar.
              The host asks for the rest (navigation bar, display cutout) once it
              has the UI thread — see onWindowFocusChanged in platform/android.cpp. -->

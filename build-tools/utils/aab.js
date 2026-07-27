@@ -22,6 +22,8 @@ import { makeZip } from './zip.js';
 import { packageEntries } from './apk.js';
 import { message, bytesField } from './protobuf.js';
 import { compileProtoManifest } from './androidProtoXml.js';
+import { appResources } from './androidResources.js';
+import { DEFAULT_ICON } from './nativeTemplate.js';
 import { jarSignatureFiles } from './jarSign.js';
 import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
 
@@ -48,6 +50,7 @@ export function assembleAab(options) {
     const { templateDir, contentDir, app, abi } = options;
     const dex = path.join(templateDir, 'classes.dex');
     const hasDex = existsSync(dex);
+    const resources = appResources(options.icon ?? readFileSync(path.join(templateDir, DEFAULT_ICON)));
 
     const manifest = compileProtoManifest(fillTemplate(
         readFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), 'utf8'), {
@@ -57,7 +60,7 @@ export function assembleAab(options) {
             VERSION_CODE: app.versionCode,
             SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
             HAS_CODE: hasDex ? 'true' : 'false',
-        }));
+        }), resources.references);
 
     const libDir = path.join(templateDir, 'lib', abi);
     if (!existsSync(libDir)) throw new Error(`The runtime template has no lib/${abi}.`);
@@ -66,9 +69,8 @@ export function assembleAab(options) {
     const entries = [
         { name: 'BundleConfig.pb', data: bundleConfig() },
         { name: 'base/manifest/AndroidManifest.xml', data: manifest },
-        // An empty ResourceTable: the app declares no resources of its own, and the
-        // one reference its manifest makes is to a framework id.
-        { name: 'base/resources.pb', data: Buffer.alloc(0) },
+        { name: 'base/resources.pb', data: resources.pb },
+        ...resources.files.map((f) => ({ ...f, name: `base/${f.name}` })),
         ...(hasDex ? [{ name: 'base/dex/classes.dex', data: readFileSync(dex) }] : []),
         ...packageEntries(libDir, `base/lib/${abi}`),
         ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'base/assets') : []),

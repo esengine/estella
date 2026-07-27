@@ -20,6 +20,8 @@ import { createHash, createPublicKey, sign as cryptoSign } from 'crypto';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { makeZip, zipLayout } from './zip.js';
 import { compileManifest } from './androidBinaryXml.js';
+import { appResources } from './androidResources.js';
+import { DEFAULT_ICON } from './nativeTemplate.js';
 import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
 
 /** The boundary a mapped `.so` must start on — a 16 KiB page, which every
@@ -137,12 +139,14 @@ export function packageEntries(dir, prefix) {
  *          orientation: 'landscape'|'portrait'}} options.app
  * @param {{privateKey: import('crypto').KeyObject, certificate: Buffer}} options.key
  * @param {string} options.abi
+ * @param {Buffer}  [options.icon] The launcher icon; the template's default when absent.
  * @returns {Buffer} the signed package.
  */
 export function assembleApk(options) {
     const { templateDir, contentDir, app, abi } = options;
     const dex = path.join(templateDir, 'classes.dex');
     const hasDex = existsSync(dex);
+    const resources = appResources(options.icon ?? readFileSync(path.join(templateDir, DEFAULT_ICON)));
 
     const manifest = compileManifest(fillTemplate(
         readFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), 'utf8'), {
@@ -152,7 +156,7 @@ export function assembleApk(options) {
             VERSION_CODE: app.versionCode,
             SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
             HAS_CODE: hasDex ? 'true' : 'false',
-        }));
+        }), resources.references);
 
     const libDir = path.join(templateDir, 'lib', abi);
     if (!existsSync(libDir)) throw new Error(`The runtime template has no lib/${abi}.`);
@@ -160,6 +164,9 @@ export function assembleApk(options) {
 
     const entries = [
         { name: 'AndroidManifest.xml', data: manifest },
+        // Stored and aligned like the libraries: the resource table is mmapped too.
+        { name: 'resources.arsc', data: resources.arsc, store: true, align: 4 },
+        ...resources.files,
         ...(hasDex ? [{ name: 'classes.dex', data: readFileSync(dex) }] : []),
         ...packageEntries(libDir, `lib/${abi}`).map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT })),
         // The template's assets (the SDK bytecode) first, so a project cannot

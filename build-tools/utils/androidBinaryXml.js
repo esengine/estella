@@ -203,14 +203,25 @@ class StringPool {
 // Values
 // =============================================================================
 
-/** How a manifest attribute's text is typed. Order matters: `@android:style/...`
- *  before anything, then the two integer spellings, then booleans, then string. */
-function typedValue(value, pool) {
+/**
+ * How a manifest attribute's text is typed. Order matters: references before
+ * anything, then the two integer spellings, then booleans, then string.
+ *
+ * `@android:style/...` is a framework id, known here. `@mipmap/...` and friends
+ * are the APP's own resources, whose ids belong to whoever built the resource
+ * table — so they are passed in rather than guessed.
+ */
+function typedValue(value, pool, references) {
     const style = /^@android:style\/(.+)$/.exec(value);
     if (style) {
         const id = ANDROID_STYLE_IDS[style[1]];
         if (id === undefined) throw new Error(`Unknown framework style @android:style/${style[1]}`);
         return { type: TYPE_REFERENCE, data: id, raw: NO_ENTRY };
+    }
+    if (value.startsWith('@')) {
+        const id = references[value];
+        if (id === undefined) throw new Error(`No resource id for ${value} — the assembler declares what it packages.`);
+        return { type: TYPE_REFERENCE, data: id >>> 0, raw: NO_ENTRY };
     }
     if (value === 'true' || value === 'false') {
         return { type: TYPE_INT_BOOLEAN, data: value === 'true' ? 0xffffffff : 0, raw: NO_ENTRY };
@@ -254,9 +265,11 @@ function nodeHeaderExtra(line) {
  * the two are one structure written as two.
  *
  * @param {object} root The element from {@link parseXml}.
+ * @param {Record<string, number>} [references] The app's own resource ids, by
+ *        `@type/name` — what an `android:icon` resolves through.
  * @returns {Buffer}
  */
-export function encodeBinaryXml(root) {
+export function encodeBinaryXml(root, references = {}) {
     const pool = new StringPool();
 
     // Pass 1: every framework attribute name, in first-use order.
@@ -291,7 +304,7 @@ export function encodeBinaryXml(root) {
             .map((a) => ({
                 ns: a.prefix === 'android' ? nsUri : NO_ENTRY,
                 name: pool.add(a.name),
-                value: typedValue(a.value, pool),
+                value: typedValue(a.value, pool, references),
             }));
         const name = pool.add(node.name);
 
@@ -343,6 +356,6 @@ export function encodeBinaryXml(root) {
 }
 
 /** Compile manifest SOURCE (the filled template) to the bytes an APK carries. */
-export function compileManifest(xml) {
-    return encodeBinaryXml(parseXml(xml));
+export function compileManifest(xml, references = {}) {
+    return encodeBinaryXml(parseXml(xml), references);
 }

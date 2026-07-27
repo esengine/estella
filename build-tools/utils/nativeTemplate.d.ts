@@ -64,8 +64,11 @@ export interface PublishedTemplate {
 export const TEMPLATE_INDEX: string;
 export function releaseAssetBase(engineVersion: string): string;
 export function parseTemplateIndex(doc: unknown, engineVersion?: string): PublishedTemplate[] | null;
+export const DEFAULT_ICON: string;
 export function iosTemplateSources(dir: string): {
     xcframework: string;
     mainM: string;
     infoPlistIn: string;
+    /** The default launcher icon, used when the project sets none. */
+    icon: string;
 };

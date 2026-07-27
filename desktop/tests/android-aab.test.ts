@@ -29,6 +29,8 @@ import { readZip, makeZip } from '../../build-tools/utils/zip.js';
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERIFIER = path.join(REPO, 'build-tools', 'tests', 'verify-aab.py');
 const MANIFEST_TEMPLATE = path.join(REPO, 'native', 'android', 'host', 'AndroidManifest.xml.in');
+/** The icon a template ships, used when the project sets none. */
+const DEFAULT_ICON_SOURCE = path.join(REPO, 'native', 'icon.png');
 
 const APP = {
     id: 'com.example.demo', name: 'My Game', version: '1.2', versionCode: 7,
@@ -80,6 +82,7 @@ beforeEach(() => {
     mkdirSync(path.join(templateDir, 'lib', 'arm64-v8a'), { recursive: true });
     mkdirSync(path.join(templateDir, 'assets'), { recursive: true });
     writeFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), readFileSync(MANIFEST_TEMPLATE));
+    writeFileSync(path.join(templateDir, 'icon.png'), readFileSync(DEFAULT_ICON_SOURCE));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libestella_js_host.so'), Buffer.alloc(40_000, 7));
     writeFileSync(path.join(templateDir, 'lib/arm64-v8a/libwebgpu_dawn.so'), Buffer.alloc(30_000, 9));
     writeFileSync(path.join(templateDir, 'classes.dex'), Buffer.from('dex\n035\0stand-in'));
@@ -187,6 +190,21 @@ describe('assembling an App Bundle', () => {
         expect(String(attr(manifest, 'versionCode')?.compiled?.primValue)).toBe(binary.versionCode);
         expect(attr(find(manifest, 'uses-sdk')!, 'minSdkVersion')?.value).toBe(binary.minSdk);
         expect(attr(find(manifest, 'activity')!, 'name')?.value).toBe(binary.activity);
+    });
+
+    it('carries the icon and the resource table the reference resolves through', () => {
+        if (!hasPython) return;
+        const entries = readZip(readFileSync(build())).map((e) => e.name);
+
+        expect(entries).toContain('base/res/mipmap-xxxhdpi/ic_launcher.png');
+        expect(entries).toContain('base/resources.pb');
+
+        const { manifest } = verify(build());
+        const application = find(manifest, 'application')!;
+        expect(attr(application, 'icon')).toMatchObject({
+            value: '@mipmap/ic_launcher',
+            compiled: { ref: 0x7f010000 },
+        });
     });
 
     it('fails verification once an entry changes under the signature', () => {
