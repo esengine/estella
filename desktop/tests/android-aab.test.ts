@@ -235,6 +235,14 @@ describe('assembling an App Bundle', () => {
 
         const out = execFileSync('java', ['-jar', bundletool, 'validate', `--bundle=${file}`], { encoding: 'utf8' });
 
-        expect(out).toContain('com.example.demo');
+        // A non-zero exit throws, so arriving here is the verdict. What is left to
+        // check is that the bundle bundletool accepted is the one meant: `validate`
+        // reports the modules and their files (not the identity — that is asserted
+        // from the decoded manifest above).
+        expect(out).toContain('Feature module: base');
+        expect(out).toContain('File: res/mipmap-xxxhdpi/ic_launcher.png');
+        expect(out).toContain('File: dex/classes.dex');
+        expect(out).toContain('File: lib/arm64-v8a/libestella_js_host.so');
+        expect(out).toContain('File: assets/game.config.json');
     });
 });
