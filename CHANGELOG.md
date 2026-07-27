@@ -14,6 +14,47 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-27
+
+0.34.0 made a game packageable for Android. This one makes the package
+installable — it was refused by the phone, twice, for reasons no check we had
+could see.
+
+### Fixed
+
+- **Android: the packaged APK would not install.** `android:configChanges` and
+  `android:screenOrientation` are names for numbers. Shipped as the strings they
+  look like, the platform runs `Integer.parseInt` over them and gives up on the
+  whole package (`INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION`, naming the flag
+  list it could not read). Both encoders now resolve those through one table of
+  AOSP's values, so the APK's manifest and the bundle's cannot disagree about
+  what a word means. It then still would not install: an activity with an intent
+  filter and no explicit `android:exported` is refused on Android 12+, and ours
+  declares one — which the platform could not find, because it reads attributes
+  by resource id with a search that assumes the array is sorted, and ours were in
+  document order. They are sorted now. The regression tests read the compiled
+  manifest the way the platform does, by resource id, rather than rendering it
+  back as text — a decoder that prints the manifest shows the flags spelled out
+  and looks correct, which is how this shipped.
+- **Scrolling a dropdown's own list closed it.** The action name in an Events row
+  is a suggestion list, and scrolling it dismissed it — so the only options
+  reachable were the ones that happened to fit. Same for any Select with more
+  options than its popover shows, and any long context menu. A popover is placed
+  from a rect captured when it opened, so it has to close when the page moves
+  under it; the listener that notices is on the window in the capture phase,
+  because a scroll inside a panel reaches it no other way. What that caught as
+  well was the list's *own* scrolling. It now ignores a scroll whose target is
+  inside the popover — the one kind that means the list is being used rather than
+  moved — and Menu shares the fix rather than getting its own.
+- **A release publishes only once it carries everything.** 0.33.0 went public with
+  no runtime templates, so every editor's Download button 404'd and nothing
+  noticed; the job that uploads them then failed again while 0.34.0 was cut,
+  because it runs the repo's own CLI without installing what that CLI imports. It
+  now uses the shared toolchain setup like every other job, and the pipeline ends
+  with a check that the draft carries both installers, both update manifests, the
+  template index and a template per platform — naming whatever is missing — before
+  flipping the release public.
+
 ## [0.34.0] - 2026-07-27
 
 Shipping, continued. 0.33 made Android and iOS packageable; this release makes
@@ -1768,7 +1809,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.34.1...HEAD
+[0.34.1]: https://github.com/esengine/estella/compare/v0.34.0...v0.34.1
 [0.34.0]: https://github.com/esengine/estella/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/esengine/estella/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/esengine/estella/compare/v0.31.0...v0.32.0
