@@ -80,6 +80,8 @@ export interface PathSetting extends BaseSetting<string> {
   placeholder?: string;
   /** Title of the picker dialog. */
   pickTitle?: string;
+  /** Offer the code editors found installed, so the row is a choice, not a blank. */
+  detect?: boolean;
 }
 
 export interface ColorSetting extends BaseSetting<string> {

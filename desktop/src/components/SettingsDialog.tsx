@@ -155,19 +155,44 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
 function PathControl({ setting }: { setting: PathSetting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = useSettings((s) => s.getValue<string>(setting.id) ?? '');
+  const [found, setFound] = useState<{ id: string; label: string; path: string }[]>([]);
+  // Detection is an fs walk in main; do it when the page is looked at, not at boot.
+  useEffect(() => {
+    if (!setting.detect) return;
+    void window.estella?.shell?.detectEditors?.().then((list) => setFound(list ?? []));
+  }, [setting.detect]);
+
   const browse = async () => {
     const picked = await window.estella?.shell?.pickProgram?.(setting.pickTitle ?? setting.label);
     if (picked) setValue(setting.id, picked);
   };
+
+  // '' is AUTO, not "nothing": it names what the editor would actually do, so the
+  // row answers "what happens if I leave this alone?" without the user guessing.
+  const auto = found[0]
+    ? t('set.externalTools.autoNamed', { program: found[0].label })
+    : t('set.externalTools.placeholder');
+  const options = [
+    { value: '', label: auto },
+    ...found.map((f) => ({ value: f.path, label: f.label })),
+    // A path the user browsed to is not in the catalog; keep it selectable so the
+    // dropdown never silently drops the very thing that is in effect.
+    ...(value && !found.some((f) => f.path === value) ? [{ value, label: basename(value) }] : []),
+  ];
+
   return (
     <div className="set-path">
-      <input
-        className="set-str"
-        value={value}
-        placeholder={setting.placeholder ?? ''}
-        spellCheck={false}
-        onChange={(e) => setValue(setting.id, e.target.value)}
-      />
+      {setting.detect ? (
+        <Select value={value} options={options} onChange={(v) => setValue(setting.id, v)} />
+      ) : (
+        <input
+          className="set-str"
+          value={value}
+          placeholder={setting.placeholder ?? ''}
+          spellCheck={false}
+          onChange={(e) => setValue(setting.id, e.target.value)}
+        />
+      )}
       {value && (
         <IconButton title={t('ui.clear')} ariaLabel={t('ui.clear')} onClick={() => setValue(setting.id, '')}>
           <X size={13} />
@@ -179,6 +204,8 @@ function PathControl({ setting }: { setting: PathSetting }) {
     </div>
   );
 }
+
+const basename = (p: string): string => p.split(/[\\/]/).pop() || p;
 
 function StringListControl({ setting }: { setting: StringListSetting }) {
   const setValue = useSettings((s) => s.setValue);

@@ -28,6 +28,8 @@ export interface ExternalProgram {
   id: string;
   label: string;
   description?: string;
+  /** Offer detected code editors for this slot (only source has a catalog). */
+  detect?: boolean;
   /** Push the value somewhere on change + on hydrate (see the browser slot). */
   effect?: (program: string) => void;
 }
@@ -52,6 +54,7 @@ class ExternalProgramRegistry {
         default: '',
         placeholder: t('set.externalTools.placeholder'),
         pickTitle: program.label,
+        detect: program.detect,
         effect: program.effect,
       },
       owner,
@@ -87,6 +90,7 @@ externalPrograms.register({
   id: 'script',
   label: t('set.externalTools.script'),
   description: t('set.externalTools.script.desc'),
+  detect: true,
 });
 externalPrograms.register({
   id: 'image',

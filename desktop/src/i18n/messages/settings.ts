@@ -44,11 +44,12 @@ export const settingsMessages = defineMessages({
     },
     'toast.programFailed': { en: 'Could not start {program}', zh: '无法启动 {program}' },
     'toast.openFailed': { en: 'No program is set up to open this file', zh: '没有可打开该文件的程序' },
-    'set.externalTools.placeholder': { en: 'Unset — use the system default', zh: '未填写时使用系统默认程序' },
+    'set.externalTools.placeholder': { en: 'Automatic — the system default', zh: '自动 — 使用系统默认程序' },
+    'set.externalTools.autoNamed': { en: 'Automatic ({program})', zh: '自动（{program}）' },
     'set.externalTools.script': { en: 'Script editor', zh: '默认脚本编辑器' },
     'set.externalTools.script.desc': {
-      en: 'Opens .ts, .js and .esshader files.',
-      zh: '用于打开 .ts、.js 和 .esshader 文件。',
+      en: 'Opens .ts, .js and .esshader files, with the project alongside so types resolve.',
+      zh: '用于打开 .ts、.js 和 .esshader 文件；会连同项目一起打开，类型才能解析。',
     },
     'set.externalTools.image': { en: 'Image editor', zh: '默认图片编辑器' },
     'set.externalTools.image.desc': {

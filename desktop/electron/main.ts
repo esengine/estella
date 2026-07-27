@@ -56,6 +56,7 @@ import {
 } from './pluginPackage';
 import { findUpdate, downloadUpdate, installUpdate } from './autoUpdate';
 import { pickProgram, launchProgram, type LaunchError } from './externalProgram';
+import { detectEditors } from './editorCatalog';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
   listPlayableNetworks, loadPlayableProfile,
@@ -811,13 +812,21 @@ ipcMain.on('external:browser', (_e, exe: unknown) => {
  * stale preference should not be able to swallow it.
  */
 async function openUrl(url: string): Promise<void> {
-  if (preferredBrowser && !(await launchProgram(preferredBrowser, url))) return;
+  if (preferredBrowser && !(await launchProgram(preferredBrowser, url, ''))) return;
   await shell.openExternal(url);
 }
-ipcMain.handle('external:launch', async (_e, program: string, relPath: string): Promise<LaunchError | null> => {
-  const abs = resolveInRoot(requireRoot(), relPath);
-  if (!program) return (await shell.openPath(abs)) ? 'failed' : null;
-  return launchProgram(program, abs);
+ipcMain.handle('external:detect', () => detectEditors());
+ipcMain.handle('external:launch', async (_e, slot: string, program: string, relPath: string): Promise<LaunchError | null> => {
+  const root = requireRoot();
+  const abs = resolveInRoot(root, relPath);
+  // Unset means AUTO, and auto is resolved here rather than in the settings UI:
+  // the common case is a user who never opened that page at all, and a fresh
+  // install that opens scripts in the editor they already have beats one that
+  // does nothing until configured. Only source has a catalog to detect from —
+  // for anything else the OS default is the honest answer.
+  const chosen = program || (slot === 'script' ? (await detectEditors())[0]?.path : '') || '';
+  if (!chosen) return (await shell.openPath(abs)) ? 'failed' : null;
+  return launchProgram(chosen, abs, root);
 });
 ipcMain.handle('workspace:save', (_e, ws: WorkspaceState) => saveWorkspace(requireRoot(), ws));
 

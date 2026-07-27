@@ -55,11 +55,12 @@ export function openAssetOfType(type: AssetType, path: string, name: string): bo
  * end of a table that only knew about editors this editor ships.
  */
 async function openOutside(type: AssetType, path: string): Promise<void> {
-  const slot = assetTypeDef(type).externalProgram;
-  // Empty = the OS default, which is the right answer for a kind with no slot and
-  // for a slot the user has deliberately left unset.
+  const slot = assetTypeDef(type).externalProgram ?? '';
+  // Empty program = "decide for me", which main answers with the editor it can
+  // detect for this slot, or the OS default. Deliberately NOT resolved here: the
+  // common case is a user who has never opened the settings page.
   const program = slot ? externalPrograms.pathFor(slot) : '';
-  const failure = await window.estella?.shell?.launchProgram?.(program, path);
+  const failure = await window.estella?.shell?.launchProgram?.(slot, program, path);
   if (!failure) return;
   if (!program) {
     Toasts.push(t('toast.openFailed'), 'error');

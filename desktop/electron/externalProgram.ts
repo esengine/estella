@@ -22,6 +22,7 @@ import { spawn } from 'node:child_process';
 import { access, constants } from 'node:fs/promises';
 import type { BrowserWindow } from 'electron';
 import { showOpenDialog } from './shotDialogs';
+import { argsFor } from './editorCatalog';
 
 /** Why a launch did not happen, or `null` when it did. */
 export type LaunchError = 'missing' | 'failed';
@@ -31,18 +32,27 @@ export type LaunchError = 'missing' | 'failed';
  * caller can turn into a message — a program the user configured months ago and
  * has since uninstalled is the common case, and it deserves better than a stack
  * trace in the console.
+ *
+ * `projectRoot` is passed ahead of the file to editors that understand a project
+ * (see editorCatalog.ts) — the difference between a `.ts` with completion and a
+ * `.ts` with red squiggles under correct code.
  */
-export async function launchProgram(program: string, filePath: string): Promise<LaunchError | null> {
+export async function launchProgram(
+  program: string,
+  filePath: string,
+  projectRoot: string,
+): Promise<LaunchError | null> {
   try {
     await access(program, constants.F_OK);
   } catch {
     return 'missing';
   }
 
+  const argv = argsFor(program, projectRoot, filePath);
   const [cmd, args] =
     process.platform === 'darwin' && program.endsWith('.app')
-      ? ['/usr/bin/open', ['-a', program, filePath]]
-      : [program, [filePath]];
+      ? ['/usr/bin/open', ['-a', program, ...argv]]
+      : [program, argv];
 
   try {
     const child = spawn(cmd, args, { detached: true, stdio: 'ignore', shell: false });

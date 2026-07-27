@@ -26,8 +26,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
-- **Settings → External Tools.** Name the script editor, the image editor and the
-  browser once, and the editor hands files to them. A slot is registered rather
+- **Settings → External Tools.** The script editor, the image editor and the
+  browser. The script row is not a blank field: the editors actually installed are
+  detected and offered, and leaving it alone means *automatic* — which names the
+  one it would pick, so the row answers "what happens if I do nothing?".
+  A code editor is handed the PROJECT and then the file, because a `.ts` opened by
+  itself has no tsconfig: the SDK types staged into the project resolve to nothing
+  and correct code gets red squiggles. Which arguments a program wants is derived
+  from what it IS — its executable's name — so a VS Code browsed to by hand, in a
+  directory nobody would guess, still opens the project. Anything the catalogue
+  does not recognise gets the file alone: a paint program handed a directory would
+  open the project folder as an image. A slot is registered rather
   than hard-coded — an asset type declares which kind of program opens it, the way
   it already declares its icon — so a plugin's type can say "open me the way
   scripts are opened", or bring a slot of its own, and the settings page grows a

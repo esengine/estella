@@ -13,6 +13,7 @@ import type {
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { AvailableUpdate, DownloadProgress } from './autoUpdate';
 import type { LaunchError } from './externalProgram';
+import type { DetectedEditor } from './editorCatalog';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
@@ -215,9 +216,11 @@ const api = {
     pickProgram: (title: string): Promise<string | null> => ipcRenderer.invoke('external:pick', title),
     /** Mirror the chosen browser to main, which opens urls without a call site. */
     setBrowser: (program: string): void => ipcRenderer.send('external:browser', program),
-    /** Open a project-relative file with `program`; null on success, else why not. */
-    launchProgram: (program: string, relPath: string): Promise<LaunchError | null> =>
-      ipcRenderer.invoke('external:launch', program, relPath),
+    /** Known code editors actually installed, in preference order. */
+    detectEditors: (): Promise<DetectedEditor[]> => ipcRenderer.invoke('external:detect'),
+    /** Open a project-relative file for `slot`; empty `program` = auto/OS default. */
+    launchProgram: (slot: string, program: string, relPath: string): Promise<LaunchError | null> =>
+      ipcRenderer.invoke('external:launch', slot, program, relPath),
   },
   workspace: {
     save: (ws: WorkspaceState): Promise<void> => ipcRenderer.invoke('workspace:save', ws),
