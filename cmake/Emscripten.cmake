@@ -308,6 +308,55 @@ function(es_apply_spine_module_settings TARGET_NAME)
     endif()
 endfunction()
 
+# Declares the wasm module for one vendored Spine release. The entry TU and the
+# exported ABI are shared across releases; what differs is the runtime's own sources
+# and the backend that speaks to them — and the tree's shape says which:
+#
+#   3.8 / 4.1 / 4.2   spine-c/spine-c/{src,include}   the pure-C runtime
+#   4.3+              spine-cpp/{src,include}         4.3 regenerated spine-c as a
+#                                                     wrapper over C++, so bind C++
+#
+# A runtime nobody checked out is skipped, not an error: a shallow clone still builds
+# the modules it has. A checked-out tree in a shape we don't know is an error, because
+# silently skipping it would ship a project's Spine version as "unsupported".
+function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
+    set(_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-${VERSION}")
+    set(_bindings "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings")
+
+    if(NOT EXISTS "${_root}")
+        return()
+    endif()
+
+    if(EXISTS "${_root}/spine-c/spine-c/include")
+        set(_backend "${_bindings}/SpineRuntimeC.cpp")
+        set(_include "${_root}/spine-c/spine-c/include")
+        file(GLOB_RECURSE _runtime "${_root}/spine-c/spine-c/src/spine/*.c")
+    elseif(EXISTS "${_root}/spine-cpp/include")
+        set(_backend "${_bindings}/SpineRuntimeCpp.cpp")
+        set(_include "${_root}/spine-cpp/include")
+        file(GLOB_RECURSE _runtime "${_root}/spine-cpp/src/spine/*.cpp")
+    else()
+        message(FATAL_ERROR
+            "Spine ${VERSION} is checked out at ${_root} but neither spine-c nor "
+            "spine-cpp is where this build expects it.")
+    endif()
+
+    string(REPLACE "." "" _tag ${VERSION})
+
+    add_executable(${TARGET_NAME}
+        "${_bindings}/SpineModuleEntry.cpp"
+        "${_backend}"
+        ${_runtime}
+    )
+    target_include_directories(${TARGET_NAME} PRIVATE "${_include}")
+    target_compile_definitions(${TARGET_NAME} PRIVATE ES_SPINE_VERSION=${_tag})
+    es_apply_spine_module_settings(${TARGET_NAME})
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        OUTPUT_NAME "${OUTPUT_NAME}"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+    )
+endfunction()
+
 # =============================================================================
 # Basis Universal KTX2 Transcoder Module (standalone WASM, no GL)
 # =============================================================================

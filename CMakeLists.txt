@@ -303,64 +303,15 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         )
     endif()
 
-    # Spine standalone WASM module (spine-c)
+    # One standalone WASM module per vendored Spine release: same exported ABI
+    # (SpineBindings.hpp), a different runtime backend behind it. Everything that
+    # varies is the vendored tree's own shape, so the modules are one function
+    # rather than one copied block each.
     if(ES_ENABLE_SPINE)
-        file(GLOB_RECURSE SPINE_MODULE_SPINE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.2/spine-c/spine-c/src/spine/*.c"
-        )
-        add_executable(spine_module
-            src/esengine/bindings/SpineModuleEntry.cpp
-            ${SPINE_MODULE_SPINE_SOURCES}
-        )
-        target_include_directories(spine_module PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.2/spine-c/spine-c/include
-        )
-        es_apply_spine_module_settings(spine_module)
-
-        set_target_properties(spine_module PROPERTIES
-            OUTPUT_NAME "spine42"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-    endif()
-
-    # Spine 4.1 standalone module (spine-c)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1")
-        file(GLOB_RECURSE SPINE41_MODULE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1/spine-c/spine-c/src/spine/*.c"
-        )
-        add_executable(spine_module_41
-            src/esengine/bindings/SpineModuleEntry.cpp
-            ${SPINE41_MODULE_SOURCES}
-        )
-        target_include_directories(spine_module_41 PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-4.1/spine-c/spine-c/include
-        )
-        target_compile_definitions(spine_module_41 PRIVATE ES_SPINE_41)
-        es_apply_spine_module_settings(spine_module_41)
-        set_target_properties(spine_module_41 PROPERTIES
-            OUTPUT_NAME "spine41"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-    endif()
-
-    # Spine 3.8 standalone module (spine-c)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8")
-        file(GLOB_RECURSE SPINE38_MODULE_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-c/spine-c/src/spine/*.c"
-        )
-        add_executable(spine_module_38
-            src/esengine/bindings/SpineModuleEntry.cpp
-            ${SPINE38_MODULE_SOURCES}
-        )
-        target_include_directories(spine_module_38 PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-3.8/spine-c/spine-c/include
-        )
-        target_compile_definitions(spine_module_38 PRIVATE ES_SPINE_38)
-        es_apply_spine_module_settings(spine_module_38)
-        set_target_properties(spine_module_38 PROPERTIES
-            OUTPUT_NAME "spine38"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
+        es_add_spine_module(spine_module    4.2 spine42)
+        es_add_spine_module(spine_module_43 4.3 spine43)
+        es_add_spine_module(spine_module_41 4.1 spine41)
+        es_add_spine_module(spine_module_38 3.8 spine38)
     endif()
 
     # Basis Universal KTX2 transcoder module (compressed textures — RC6)

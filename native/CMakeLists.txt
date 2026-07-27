@@ -71,30 +71,41 @@ set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_VALIDATE OFF CACHE BOOL "" FORCE)   # release: no heavy internal assertions
 add_subdirectory("${TP}/box2d" "${CMAKE_BINARY_DIR}/box2d" EXCLUDE_FROM_ALL)
 
-# The Spine runtime: spine-c plus the module's entry points, compiled into the host.
-# The three vendored runtimes (3.8 / 4.1 / 4.2) export the same symbol names, so a
-# binary carries exactly ONE — which is why the web ships a module per version and a
-# native app picks at build time. `spine_runtimeVersion()` reports the choice, and the
-# SDK's acquirer answers only that version's id.
-set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.2 / 4.1 / 3.8)")
-set(SPINE_DIR "${TP}/spine-runtimes-${ESTELLA_SPINE_VERSION}/spine-c/spine-c")
-if(NOT EXISTS "${SPINE_DIR}/include")
-    message(FATAL_ERROR "Spine runtime ${ESTELLA_SPINE_VERSION} not vendored at ${SPINE_DIR}. "
-        "Pass -DESTELLA_SPINE_VERSION=<4.2|4.1|3.8>.")
+# The Spine runtime: the vendored release plus the module's entry points, compiled
+# into the host. Every runtime backend exports the same symbol names, so a binary
+# carries exactly ONE — which is why the web ships a module per version and a native
+# app picks at build time. `spine_runtimeVersion()` reports the choice, and the SDK's
+# acquirer answers only that version's id.
+#
+# Which backend goes with which release is the tree's shape, exactly as the web build
+# reads it (es_add_spine_module in cmake/Emscripten.cmake): 3.8 - 4.2 vendor the pure-C
+# runtime, 4.3 replaced it with a generated wrapper so we bind spine-cpp instead.
+set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.3 / 4.2 / 4.1 / 3.8)")
+set(SPINE_ROOT "${TP}/spine-runtimes-${ESTELLA_SPINE_VERSION}")
+if(EXISTS "${SPINE_ROOT}/spine-c/spine-c/include")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeC.cpp")
+    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/spine-c/include")
+    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/spine-c/src/spine/*.c")
+elseif(EXISTS "${SPINE_ROOT}/spine-cpp/include")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeCpp.cpp")
+    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-cpp/include")
+    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-cpp/src/spine/*.cpp")
+else()
+    message(FATAL_ERROR "Spine runtime ${ESTELLA_SPINE_VERSION} not vendored at ${SPINE_ROOT}. "
+        "Pass -DESTELLA_SPINE_VERSION=<4.3|4.2|4.1|3.8>.")
 endif()
-file(GLOB SPINE_SOURCES "${SPINE_DIR}/src/spine/*.c")
-add_library(spine_c STATIC ${SPINE_SOURCES})
-target_include_directories(spine_c PUBLIC "${SPINE_DIR}/include")
-target_compile_options(spine_c PRIVATE -w)   # vendored C, not ours to lint
 
-add_library(estella_spine STATIC "${SRC}/esengine/bindings/SpineModuleEntry.cpp")
+add_library(spine_runtime STATIC ${SPINE_SOURCES})
+target_include_directories(spine_runtime PUBLIC "${SPINE_INCLUDE}")
+target_compile_options(spine_runtime PRIVATE -w)   # vendored, not ours to lint
+
+string(REPLACE "." "" SPINE_TAG ${ESTELLA_SPINE_VERSION})
+add_library(estella_spine STATIC
+    "${SRC}/esengine/bindings/SpineModuleEntry.cpp"
+    "${SPINE_BACKEND}")
 target_include_directories(estella_spine PUBLIC "${SRC}")
-target_link_libraries(estella_spine PUBLIC spine_c)
-if(ESTELLA_SPINE_VERSION STREQUAL "4.1")
-    target_compile_definitions(estella_spine PRIVATE ES_SPINE_41)
-elseif(ESTELLA_SPINE_VERSION STREQUAL "3.8")
-    target_compile_definitions(estella_spine PRIVATE ES_SPINE_38)
-endif()
+target_link_libraries(estella_spine PUBLIC spine_runtime)
+target_compile_definitions(estella_spine PRIVATE ES_SPINE_VERSION=${SPINE_TAG})
 
 # The engine's own MPEG-1 decoder (pl_mpeg), the same TU the web links as the
 # "videodec" side module. Header-only dependency, so nothing to fetch.
@@ -236,7 +247,7 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:estella_js_host> $<TARGET_FILE:esengine>
                     $<TARGET_FILE:estella_physics> $<TARGET_FILE:box2d>
                     $<TARGET_FILE:estella_video>
-                    $<TARGET_FILE:estella_spine> $<TARGET_FILE:spine_c>
+                    $<TARGET_FILE:estella_spine> $<TARGET_FILE:spine_runtime>
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
     else()
