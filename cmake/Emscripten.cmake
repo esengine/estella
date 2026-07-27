@@ -288,13 +288,18 @@ set(ES_EMSCRIPTEN_SPINE_MODULE_FLAGS
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToNewUTF8','HEAPF32','HEAPU8','HEAPU32']"
     -O3
     -flto
+    -Wl,--gc-sections
     -fno-exceptions
     -fno-rtti
 )
 
 function(es_apply_spine_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
+        # ARGN carries an optimisation level for the runtime behind this module; see
+        # es_add_spine_module for why one of them wants a different one. It lands after
+        # the shared flags, so it wins.
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS}
+            -flto -fno-exceptions -fno-rtti ${ARGN})
 
         set(_SPINE_LINK_FLAGS ${ES_EMSCRIPTEN_SPINE_MODULE_FLAGS})
         if(ES_BUILD_WXGAME)
@@ -331,10 +336,17 @@ function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
         set(_backend "${_bindings}/SpineRuntimeC.cpp")
         set(_include "${_root}/spine-c/spine-c/include")
         file(GLOB_RECURSE _runtime "${_root}/spine-c/spine-c/src/spine/*.c")
+        # -Os would take a third off this module, and ~15% off the frame it poses in.
+        # The C runtime's cost is its own posing loops, which is exactly what -O3 buys.
+        set(_opt -O3)
     elseif(EXISTS "${_root}/spine-cpp/include")
         set(_backend "${_bindings}/SpineRuntimeCpp.cpp")
         set(_include "${_root}/spine-cpp/include")
         file(GLOB_RECURSE _runtime "${_root}/spine-cpp/src/spine/*.cpp")
+        # The C++ runtime's size is template and RTTI bulk around the same hot loops,
+        # so -Os halves the module (615 KB -> 333 KB) with no measurable frame cost:
+        # 50 skeletons x 400 frames came out at 0.71 ms/frame against -O3's 0.76.
+        set(_opt -Os)
     else()
         message(FATAL_ERROR
             "Spine ${VERSION} is checked out at ${_root} but neither spine-c nor "
@@ -350,7 +362,7 @@ function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
     )
     target_include_directories(${TARGET_NAME} PRIVATE "${_include}")
     target_compile_definitions(${TARGET_NAME} PRIVATE ES_SPINE_VERSION=${_tag})
-    es_apply_spine_module_settings(${TARGET_NAME})
+    es_apply_spine_module_settings(${TARGET_NAME} ${_opt})
     set_target_properties(${TARGET_NAME} PROPERTIES
         OUTPUT_NAME "${OUTPUT_NAME}"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
