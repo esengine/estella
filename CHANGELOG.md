@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **iOS: the first launch after an install is as fast as the rest.** The runtime
+  template now carries the SDK's precompiled bytecode on iOS as it already did on
+  Android, and the export ships it as a bundle resource — so the host reads the
+  compile instead of parsing a ~700 KB bundle on first run. Measured in the
+  simulator: **4.5 s → 9 ms**. And when bytecode is declined for any reason, the
+  host now says which source it declined and why, rather than silently falling
+  back to a parse that only shows up as a slow launch.
 - **A packaged game carries its own icon.** *Project Settings → Packaging → App
   Icon* takes one square PNG (1024×1024 is ideal) and every installable target
   uses it: Android as the launcher mipmap, iOS as the asset catalog Xcode derives
@@ -87,6 +94,18 @@ published separately; it ships inside the editor.
   the Output Log, timed in the profiler, and a repeatedly-failing plugin is
   disabled rather than allowed to break a surface. See the
   [Editor Plugins](https://esengine.github.io/estella/guides/editor-plugins/) guide.
+
+### Fixed
+
+- **The iOS host did not compile.** A `__weak` reference had landed in
+  `platform/ios.mm`, which builds under manual reference counting — so every iOS
+  build had been failing since. Now `__unsafe_unretained`, which is what a
+  non-owning reference means in that file.
+- **`cli native --target ios` merged whatever slices it found.** Building the
+  device slice and then running in the simulator quietly linked a months-old
+  simulator slice, so the app under test was not the engine that had just been
+  built. The framework step now names a slice that predates the SDK bundle
+  compiled into it.
 
 ### Security
 

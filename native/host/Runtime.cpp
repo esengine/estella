@@ -208,14 +208,29 @@ uint64_t hashBytes(const char* p, size_t n) {
  */
 bool tryBytecode(HostState& h, const u8* blob, size_t size, uint64_t want,
                  const char* origin, JSValue& out) {
-    if (size <= sizeof(uint64_t)) return false;
+    // Every rejection says why. Falling back to a parse is CORRECT but costs
+    // seconds of black screen on first launch, so a build that shipped bytecode
+    // the host then declined has to be able to say so — silence here is how such a
+    // build passes for a working one.
+    if (size <= sizeof(uint64_t)) {
+        ESHOST_LOGI("SDK bundle: ignoring %s — %zu bytes is not a [hash][bytecode] blob", origin, size);
+        return false;
+    }
     uint64_t got = 0;
     std::memcpy(&got, blob, sizeof(got));
-    if (got != want) return false;   // built against a different bundle
+    if (got != want) {
+        ESHOST_LOGI("SDK bundle: ignoring %s — built against a different bundle "
+                    "(%016llx, want %016llx)", origin,
+                    (unsigned long long)got, (unsigned long long)want);
+        return false;
+    }
 
     JSValue fn = JS_ReadObject(h.js, blob + sizeof(got), size - sizeof(got), JS_READ_OBJ_BYTECODE);
     if (JS_IsException(fn)) {
         JSValue e = JS_GetException(h.js);
+        const char* msg = JS_ToCString(h.js, e);
+        ESHOST_LOGE("SDK bundle: %s did not load (%s) — falling back to a parse", origin, msg ? msg : "?");
+        if (msg) JS_FreeCString(h.js, msg);
         JS_FreeValue(h.js, e);
         return false;
     }

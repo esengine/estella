@@ -18,6 +18,8 @@ export interface IosProjectSources {
     infoPlistIn: string;
     /** The template's default launcher icon, used when the project sets none. */
     icon: string;
+    /** Precompiled SDK bytecode, if the template carries it. */
+    bytecode?: string;
 }
 
 export interface IosAppIdentity {

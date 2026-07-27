@@ -14,6 +14,7 @@
 // CLI and one written by the editor cannot differ.
 
 import path from 'path';
+import { existsSync } from 'fs';
 import { cp, mkdir, readdir, rm, readFile, writeFile } from 'fs/promises';
 import { renderPbxproj, renderScheme } from './xcodeProject.js';
 import { iosInterfaceOrientations } from './nativeApp.js';
@@ -74,6 +75,14 @@ export async function emitIosXcodeProject(contentDir, app, sources, deploymentTa
     await cp(sources.mainM, path.join(appDir, 'main.m'));
 
     await writeIconCatalog(contentDir, icon ?? await readFile(sources.icon));
+
+    // The SDK bytecode ships as a bundle resource, where the host's readAsset()
+    // finds it — so the first launch after an install is as fast as the rest,
+    // exactly as it is on Android. Absent when the template's build machine had no
+    // compiler for it; the host then parses and caches, as before.
+    if (sources.bytecode && existsSync(sources.bytecode)) {
+        await cp(sources.bytecode, path.join(contentDir, path.basename(sources.bytecode)));
+    }
 
     const template = await readFile(sources.infoPlistIn, 'utf8');
     const orientations = iosInterfaceOrientations(app.orientation)

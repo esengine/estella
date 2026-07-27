@@ -69,6 +69,14 @@ export function templateLayout(platform, options = {}) {
             { rel: 'App/main.m', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'main.m') },
             { rel: 'App/Info.plist.in', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'Info.plist.in') },
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
+            // The same first-launch fix the Android template carries: without it the
+            // host parses the ~700 KB SDK bundle on first run, which is seconds of
+            // black screen after an install. Absent is valid — the host compiles and
+            // caches instead.
+            {
+                rel: `assets/${BYTECODE_FILE}`, optional: true,
+                from: (ctx) => path.join(ctx.root, 'build-native-ios', 'gen', BYTECODE_FILE),
+            },
         ];
     }
     if (platform === 'android') {
@@ -255,5 +263,6 @@ export function iosTemplateSources(dir) {
         mainM: path.join(dir, 'App', 'main.m'),
         infoPlistIn: path.join(dir, 'App', 'Info.plist.in'),
         icon: path.join(dir, DEFAULT_ICON),
+        bytecode: path.join(dir, 'assets', BYTECODE_FILE),
     };
 }

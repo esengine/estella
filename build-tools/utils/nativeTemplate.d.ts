@@ -41,6 +41,16 @@ export const BYTECODE_FILE: string;
 export const DEFAULT_ABI: Readonly<Record<NativePlatform, string>>;
 
 export function templateId(platform: NativePlatform, abi: string): string;
+export interface TemplateEntry {
+    /** Path inside the template. */
+    rel: string;
+    kind?: 'dir';
+    optional?: boolean;
+    /** Produced by the emitter rather than copied (the Java shim's dex). */
+    produced?: boolean;
+}
+
+export function templateLayout(platform: NativePlatform, options?: { abi?: string }): TemplateEntry[];
 export function requiredTemplateFiles(platform: NativePlatform, options?: { abi?: string }): string[];
 export function missingTemplateFiles(dir: string, platform: NativePlatform, options?: { abi?: string }): string[];
 export function readTemplateManifest(dir: string): NativeTemplateManifest | null;
@@ -71,4 +81,7 @@ export function iosTemplateSources(dir: string): {
     infoPlistIn: string;
     /** The default launcher icon, used when the project sets none. */
     icon: string;
+    /** Precompiled SDK bytecode, when the template's build machine could produce
+     *  it — the difference between a fast first launch and a parse. */
+    bytecode: string;
 };

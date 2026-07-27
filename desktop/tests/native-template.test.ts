@@ -20,7 +20,7 @@ import {
 } from '../electron/nativeTemplates';
 import { listPlatforms } from '../electron/platformCatalog';
 import {
-  requiredTemplateFiles, installedTemplateDir, parseTemplateIndex,
+  requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
   TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
@@ -278,10 +278,14 @@ describe('the template layout is the one source of filenames', () => {
     expect(sources.xcframework).toBe(path.join(dir, 'Estella.xcframework'));
     expect(sources.mainM).toBe(path.join(dir, 'App', 'main.m'));
     expect(sources.infoPlistIn).toBe(path.join(dir, 'App', 'Info.plist.in'));
-    // And each is something the emitter is required to have written.
-    const required = requiredTemplateFiles('ios');
+    // And every one of them is a file the layout declares — including the
+    // bytecode, which is optional (a build machine without a host compiler ships a
+    // template without it, and the app compiles on first launch instead).
+    const declared = templateLayout('ios').map((e) => e.rel);
     for (const file of Object.values(sources)) {
-      expect(required).toContain(path.relative(dir, file).split(path.sep).join('/'));
+      expect(declared).toContain(path.relative(dir, file).split(path.sep).join('/'));
     }
+    expect(requiredTemplateFiles('ios')).not.toContain(
+      path.relative(dir, sources.bytecode).split(path.sep).join('/'));
   });
 });
