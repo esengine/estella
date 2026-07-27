@@ -191,6 +191,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The index is written by the repo's own tooling, which needs the repo's own
+      # dependencies — this job ran `cli.js` without them and got as far as
+      # "Cannot find package 'commander'".
+      - uses: ./.github/actions/setup
+
       - name: Download every template archive
         uses: actions/download-artifact@v8
         with:
