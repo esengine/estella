@@ -9,8 +9,11 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
   <TabItem label="Use the editor">
     <Steps>
 
-    1. Download the latest editor from the
-       [releases page](https://github.com/esengine/estella/releases).
+    1. Download the latest editor — from the
+       [mirror](https://dl.estella.games/latest.json) if GitHub is slow where you
+       are, or from the
+       [releases page](https://github.com/esengine/estella/releases), which is
+       where every release is published.
 
     2. Install and open it, then click **New project**.
 
@@ -20,6 +23,12 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
        Camera entity.
 
     </Steps>
+
+    <Aside type="tip">
+      **Help → Check for Updates…** reads the same mirror (`dl.estella.games`) and
+      hands back a download from it, falling back to GitHub when the mirror has no
+      answer or a staler one — the origin stays the authority on what exists.
+    </Aside>
 
     <Aside type="note">
       Installers are currently unsigned, so on first launch Windows SmartScreen

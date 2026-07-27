@@ -16,6 +16,37 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Spine, from a 2015 editor to the current one.** A project authored in Spine
+  **2.1** or **4.3** used to open as nothing: the runtime reads the version out of
+  the skeleton, and neither matched anything the engine vendored. Both now do, so
+  the supported set is **2.1 / 3.8 / 4.1 / 4.2 / 4.3** — each a WebAssembly backend
+  loaded only by a project that uses it. 4.3 could not simply be added: that
+  release deleted the hand-written C runtime and regenerated it as a wrapper over
+  the C++ one, so the module binds spine-cpp directly and renders through spine's
+  own `SkeletonRenderer`. 2.1 is the opposite end — colour as loose floats,
+  weighted meshes as their own attachment type, no clipping and no transform or
+  path constraints — and its runtime shipped **no binary reader**, so a `.skel`
+  from that era is refused by naming the export setting to change rather than
+  failing as a corrupt file. Export 2.1 skeletons as JSON.
+- **Android: export the project, not only the package.** *Package as* in the
+  Android section now offers an **Android Studio project** beside the installable
+  APK — the route for a game that has to add an SDK, a permission, a service or an
+  Activity of its own, which an APK is a dead end for. It is an ordinary Gradle
+  project: your content under `app/src/main/assets`, the engine's prebuilt
+  libraries under `jniLibs`, the host's Java shim as source, and identity in
+  `app/build.gradle.kts` where AGP reads it. Both outputs come from the same
+  runtime template, so the choice costs nothing. **Re-exporting rewrites the game
+  and leaves the build scripts alone** — a project that has grown an SDK survives
+  its game being rebuilt.
+- **Downloads come from a mirror, and prove themselves before being trusted.** The
+  editor asks a Cloudflare copy of each release before GitHub — measured at **3.0
+  MB/s against 2.0** from Shanghai — for both the runtime templates and the update
+  check. Preferring a mirror is safe because trusting one never was: every archive
+  is checked against the size and SHA-256 the release's index states, and a copy
+  that is missing, stale, truncated or substituted fails that check and hands the
+  download to the next source, ending at GitHub. `ESTELLA_RELEASE_MIRROR` points
+  the editor at a company share, an offline copy, or nothing at all.
+
 - **One package installs on a phone AND in an emulator.** A runtime template is
   now one artifact per PLATFORM rather than one per architecture — iOS already
   worked that way, with both slices inside one xcframework — so the Android
@@ -102,6 +133,12 @@ published separately; it ships inside the editor.
   [Editor Plugins](https://esengine.github.io/estella/guides/editor-plugins/) guide.
 
 ### Fixed
+
+- **Spine: a mesh weighted to more than three bones corrupted the heap.** The
+  vendored spine-c read a weighted mesh's vertices into a buffer sized for three
+  bones per vertex, and a fourth wrote past the end — so a binary skeleton whose
+  meshes bind more bones than that could take out whatever was next to it in
+  memory. Upstream's fix grows both buffers; the 4.2 runtime is updated to it.
 
 - **The iOS host did not compile.** A `__weak` reference had landed in
   `platform/ios.mm`, which builds under manual reference counting — so every iOS

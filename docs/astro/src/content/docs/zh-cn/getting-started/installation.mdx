@@ -9,7 +9,8 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
   <TabItem label="使用编辑器">
     <Steps>
 
-    1. 从[发布页](https://github.com/esengine/estella/releases)下载最新版编辑器。
+    1. 下载最新版编辑器：GitHub 慢的话走[镜像](https://dl.estella.games/latest.json)，
+       或者用[发布页](https://github.com/esengine/estella/releases)——所有版本都发布在那里。
 
     2. 安装并打开，点击 **New project**（新建项目）。
 
@@ -18,6 +19,11 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
        一个带有相机实体的默认场景。
 
     </Steps>
+
+    <Aside type="tip">
+      **帮助 → 检查更新…** 读的是同一个镜像（`dl.estella.games`），给出的下载链接也
+      指向它；镜像没答案或答案更旧时回落 GitHub —— 「有没有新版本」始终以源站为准。
+    </Aside>
 
     <Aside type="note">
       安装包目前尚未签名，因此首次启动时 Windows SmartScreen 或 macOS Gatekeeper
