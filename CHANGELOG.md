@@ -14,6 +14,21 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-27
+
+Shipping, continued. 0.33 made Android and iOS packageable; this release makes
+what comes out of them **yours to finish** — Android exports an Android Studio
+project beside the APK, so a game that has to add an SDK, a permission or an
+Activity is no longer stopped by an assembled package it cannot open. The runtime
+templates those targets need are published with the release for the first time,
+and downloaded from a **mirror** that is asked before GitHub and proves itself
+before being trusted.
+
+Spine grew in both directions at once: **2.1 through 4.3**, which meant binding a
+runtime that no longer exists as C and one that predates most of what the modern
+one assumes. And the editor became extensible — plugins contribute inspectors,
+overlays, tools, asset types and menus.
+
 ### Added
 
 - **Spine, from a 2015 editor to the current one.** A project authored in Spine
@@ -1753,7 +1768,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/esengine/estella/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/esengine/estella/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/esengine/estella/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/esengine/estella/compare/v0.30.0...v0.31.0
