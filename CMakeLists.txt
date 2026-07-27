@@ -318,6 +318,21 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         es_add_spine_module(spine_module_21 2.1 spine21)
     endif()
 
+    # DragonBones: one module, not one per version. Its authoring tool is no
+    # longer developed, so the format cannot move and there is nothing to track.
+    if(ES_ENABLE_DRAGONBONES)
+        add_library(dragonbones_adapter STATIC
+            src/esengine/bindings/DragonBonesAdapter.cpp
+        )
+        target_link_libraries(dragonbones_adapter PUBLIC dragonbones)
+        target_include_directories(dragonbones_adapter PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings
+        )
+        if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+            target_compile_options(dragonbones_adapter PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+        endif()
+    endif()
+
     # Basis Universal KTX2 transcoder module (compressed textures — RC6)
     if(ES_ENABLE_BASIS)
         add_executable(basis_module
