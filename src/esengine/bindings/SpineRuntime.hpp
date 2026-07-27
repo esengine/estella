@@ -33,6 +33,8 @@
 #include <memory>
 #include <string>
 
+#include "SkeletalModule.hpp"
+
 namespace es::spine {
 
 /** A loaded skeleton: its atlas, its data, and the mix table instances share. */
@@ -113,12 +115,9 @@ using EventSink = void (*)(const Event&);
  * `blendMode` is 0 normal, 1 additive, 2 multiply, 3 screen, and 4 / 5 for the
  * premultiplied twins of the first two, which is how the engine's renderer reads it.
  */
-struct TriangleSink {
-    virtual ~TriangleSink() = default;
-    virtual void emit(const float* positions, const float* uvs, int vertexCount,
-                      const uint16_t* indices, int indexCount,
-                      uint32_t texture, int blendMode, const float rgba[4]) = 0;
-};
+/// The shared one (SkeletalModule.hpp): batching is not a Spine idea, and the
+/// backends below name this type, so it stays spelled `es::spine::TriangleSink`.
+using TriangleSink = es::skeletal::TriangleSink;
 
 // --- resources -------------------------------------------------------------
 
