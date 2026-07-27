@@ -326,6 +326,19 @@ jobs:
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           echo "### Published $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
 
-  # The mirror is NOT here: it follows `release: published`, because the assets it
-  # copies live in a draft until the publish job above flips it, and a draft cannot
-  # be downloaded by tag. See mirror-release.yml.
+  # The mirror runs from here, after the publish above, because the assets it
+  # copies live in a draft until then and a draft cannot be downloaded by tag.
+  #
+  # It used to follow the `release: published` event instead, which worked for
+  # exactly as long as a human clicked Publish: an event raised by a job holding
+  # GITHUB_TOKEN starts no workflow, so the moment publishing became automatic
+  # the mirror stopped following releases and nothing said so. v0.34.1 published
+  # with no mirrored copy at all. Calling the workflow is not an event, so this
+  # cannot go quiet the same way; mirror-release.yml keeps its `release` trigger
+  # for a release published by hand, and its dispatch for re-mirroring old tags.
+  mirror:
+    needs: publish
+    uses: ./.github/workflows/mirror-release.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.ref_name }}
