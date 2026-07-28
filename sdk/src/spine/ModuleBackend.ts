@@ -6,7 +6,7 @@ import type { EngineApi } from '../ecs/engineApi';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { log } from '../logger';
-import { withScratch } from '../wasmScratch';
+import { submitEntityMeshes } from '../skeletal/submitMeshes';
 
 interface EntityInfo {
     skelHandle: number;
@@ -235,29 +235,15 @@ export class ModuleBackend {
      *  batches cross through its heap, which is wasm linear memory on the web and the
      *  host arena on a device. */
     extractAndSubmitMeshes(core: NonNullable<EngineApi>, registry: CppRegistry): void {
-        const submitFn = core.renderer_submitSpineBatchByEntity;
-        const heap = core.HEAPU8;
-        if (!submitFn || !heap || !core._malloc || !core._free) return;
-        const allocator = { _malloc: core._malloc, _free: core._free };
-
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
-            // One engine-side scratch arena per entity; each batch's spine-heap
-            // bytes are copied straight into it and submitted while the spine view
-            // is still live. No intermediate JS arrays, no per-frame cache (C7).
-            withScratch(allocator, alloc => {
-                this.controller_.forEachMeshBatch(info.instanceId,
-                    (vertBytes, idxBytes, vertexCount, indexCount, textureId, blendMode) => {
-                        const dstVert = alloc(vertBytes.byteLength);
-                        const dstIdx = alloc(idxBytes.byteLength);
-                        heap.set(vertBytes, dstVert);
-                        heap.set(idxBytes, dstIdx);
-                        submitFn.call(core, registry,
-                            dstVert, vertexCount, dstIdx, indexCount,
-                            textureId, blendMode, entity as number,
-                            info.skeletonScale, info.flipX, info.flipY, info.layer, 0);
-                    });
-            });
+            // Shared with every skeletal runtime (skeletal/submitMeshes): the core's
+            // entry point takes geometry and a transform, and knows nothing about
+            // what posed them. A false means the core cannot take geometry at all,
+            // so there is no point asking again for the next entity.
+            const accepted = submitEntityMeshes(core, registry, entity, info, cb =>
+                this.controller_.forEachMeshBatch(info.instanceId, cb));
+            if (!accepted) return;
         }
     }
 
