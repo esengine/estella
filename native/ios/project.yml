@@ -1,6 +1,6 @@
 # The iOS app shell: signing + packaging around libestella_ios.a, which
 # `node build-tools/cli.js native --target ios --dawn ... --quickjs ...` produces
-# in build-native-ios/ (host + engine + QuickJS + Dawn, merged).
+# in build/cmake/native-ios/ (host + engine + QuickJS + Dawn, merged).
 #
 #   brew install xcodegen && cd native/ios && xcodegen && open EstellaiOS.xcodeproj
 #
@@ -53,7 +53,7 @@ targets:
       # triples whose objects cannot link together, and Xcode picks the slice that
       # matches whatever the toolbar is pointed at. Build the simulator slice with
       # `cli native --target ios --simulator`.
-      - framework: ../../build-native-ios/Estella.xcframework
+      - framework: ../../build/cmake/native-ios/Estella.xcframework
         embed: false
       - sdk: UIKit.framework
       - sdk: Metal.framework

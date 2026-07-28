@@ -285,7 +285,7 @@ async function buildAndroidHost(options) {
     const { dawnDir, dawnBuild } = await dawnPaths(options, 'android', { ndk, cmake, ninja });
     // One build tree per ABI, beside the generated sources they share — a second
     // architecture must not overwrite the first one's objects.
-    const buildDir = path.join(rootDir, 'build-native', abi);
+    const buildDir = path.join(rootDir, 'build/cmake/native', abi);
     await mkdir(buildDir, { recursive: true });
 
     // JS host (opt-in): pass --quickjs <dir> (or ESTELLA_QUICKJS_DIR) to also build
@@ -294,7 +294,7 @@ async function buildAndroidHost(options) {
     const quickjs = quickjsDir(options);
     // The generated sources are the same for every ABI (bindings, the SDK bundle,
     // its bytecode), so they live once beside the per-ABI trees.
-    const genDir = quickjs ? await prepareGenerated(rootDir, path.join(rootDir, 'build-native'), quickjs) : null;
+    const genDir = quickjs ? await prepareGenerated(rootDir, path.join(rootDir, 'build/cmake/native'), quickjs) : null;
 
     logger.step(`Configuring native host (${abi}, ${platform})...`);
     const configureArgs = [
@@ -306,7 +306,7 @@ async function buildAndroidHost(options) {
         `-DANDROID_PLATFORM=${platform}`,
         '-DANDROID_STL=c++_shared',
         '-DCMAKE_BUILD_TYPE=Release',
-        // Emit build-native/compile_commands.json so editor IntelliSense (the
+        // Emit build/cmake/native/compile_commands.json so editor IntelliSense (the
         // "Native Host" c_cpp_properties config) resolves the NDK / Dawn / QuickJS
         // includes for native/host without hardcoding any machine paths.
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
@@ -322,7 +322,7 @@ async function buildAndroidHost(options) {
     logger.step('Building native host...');
     await runCommand(cmake, ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
 
-    logger.success(`Host: ${path.join('build-native', abi, 'libestella_js_host.so')}`);
+    logger.success(`Host: ${path.join('build/cmake/native', abi, 'libestella_js_host.so')}`);
 
     // The binaries this machine just produced are the same for every game, so they
     // are packed for everyone else's — see build-tools/utils/nativeTemplate.js. Only
@@ -355,10 +355,10 @@ async function iosDeveloperDir() {
 // objects can never link together. The app links an .xcframework instead, and
 // Xcode picks the slice matching whatever you selected in the toolbar.
 const IOS_SLICES = {
-    device: { dir: 'build-native-ios', sysroot: 'iphoneos', label: 'device' },
-    simulator: { dir: 'build-native-ios-sim', sysroot: 'iphonesimulator', label: 'simulator' },
+    device: { dir: 'build/cmake/native-ios', sysroot: 'iphoneos', label: 'device' },
+    simulator: { dir: 'build/cmake/native-ios-sim', sysroot: 'iphonesimulator', label: 'simulator' },
 };
-const XCFRAMEWORK = path.join('build-native-ios', 'Estella.xcframework');
+const XCFRAMEWORK = path.join('build/cmake/native-ios', 'Estella.xcframework');
 
 // Rebuild the xcframework from whichever slices exist. A device-only framework is
 // valid — Xcode then simply has nothing to offer a simulator target.

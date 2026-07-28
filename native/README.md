@@ -152,7 +152,7 @@ node build-tools/cli.js native                     # arm64-v8a, every real devic
 node build-tools/cli.js native --abi x86_64        # adds the emulator's
 ```
 
-Per-ABI build trees live under `build-native/<abi>/`, beside the `build-native/gen/`
+Per-ABI build trees live under `build/cmake/native/<abi>/`, beside the `build/cmake/native/gen/`
 they share (the bindings, the SDK bundle and its bytecode are the same for every
 architecture).
 
@@ -184,14 +184,14 @@ and its own slice:
 node build-tools/cli.js native --target ios --simulator
 ```
 
-Both slices land in `build-native-ios/Estella.xcframework`, which is what the app
+Both slices land in `build/cmake/native-ios/Estella.xcframework`, which is what the app
 links — Xcode picks the one matching the toolbar. arm64 only, so an Intel Mac's
 simulator would need a third Dawn. The framework and the app shell are then packed
 into the iOS runtime template, which is what an editor export reads.
 
 Then pick your Team under *Signing & Capabilities*, select your device and Run.
 The CMake build merges host + engine + QuickJS + Dawn into one archive
-(`build-native-ios/libestella_ios.a`), so the Xcode project is a signing and
+(`build/cmake/native-ios/libestella_ios.a`), so the Xcode project is a signing and
 packaging shell: `App/main.m` calls `EstellaRunApp()`, and the exported project
 ships as bundle resources — the same project-relative paths the APK serves from
 `assets/`.
@@ -297,7 +297,7 @@ SDK instance.
    the CMake build works while `xcodebuild` rejects every iOS destination
    ("iOS X.Y is not installed"). Install it under *Xcode → Settings → Components*.
    Without it you can still verify the link by hand:
-   `xcrun --sdk iphoneos clang -arch arm64 -mios-version-min=17.0 native/ios/App/main.m build-native-ios/libestella_ios.a -ObjC -lc++ -framework UIKit -framework Metal -framework QuartzCore -framework Foundation -framework IOSurface -framework CoreGraphics -o /tmp/EstellaiOS`
+   `xcrun --sdk iphoneos clang -arch arm64 -mios-version-min=17.0 native/ios/App/main.m build/cmake/native-ios/libestella_ios.a -ObjC -lc++ -framework UIKit -framework Metal -framework QuartzCore -framework Foundation -framework IOSurface -framework CoreGraphics -o /tmp/EstellaiOS`
 
 ## Status
 

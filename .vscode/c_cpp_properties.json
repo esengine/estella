@@ -84,7 +84,7 @@
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "clang-x64",
-            "compileCommands": "${workspaceFolder}/build-web/compile_commands.json"
+            "compileCommands": "${workspaceFolder}/build/cmake/web/compile_commands.json"
         },
         {
             "name": "Native Host (Android)",
@@ -99,7 +99,7 @@
                 "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
                 "${env:ESTELLA_QUICKJS_DIR}",
                 "${workspaceFolder}/build/quickjs_headers",
-                "${workspaceFolder}/build-native/gen",
+                "${workspaceFolder}/build/cmake/native/gen",
                 "${workspaceFolder}/build/native_intellisense",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/third_party/pl_mpeg",
@@ -116,7 +116,7 @@
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "linux-clang-arm64",
-            "compileCommands": "${workspaceFolder}/build-native/compile_commands.json",
+            "compileCommands": "${workspaceFolder}/build/cmake/native/compile_commands.json",
             "compilerPath": "/usr/bin/clang++"
         },
         {
@@ -132,7 +132,7 @@
                 "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
                 "${env:ESTELLA_QUICKJS_DIR}",
                 "${workspaceFolder}/build/quickjs_headers",
-                "${workspaceFolder}/build-native-ios/gen",
+                "${workspaceFolder}/build/cmake/native-ios/gen",
                 "${workspaceFolder}/build/native_intellisense",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/third_party/pl_mpeg",
@@ -149,7 +149,7 @@
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "macos-clang-arm64",
-            "compileCommands": "${workspaceFolder}/build-native-ios/compile_commands.json",
+            "compileCommands": "${workspaceFolder}/build/cmake/native-ios/compile_commands.json",
             "compilerPath": "/usr/bin/clang++"
         }
     ],

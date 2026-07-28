@@ -79,7 +79,7 @@ export function templateLayout(platform, options = {}) {
         return [
             {
                 rel: 'Estella.xcframework', kind: 'dir',
-                from: (ctx) => path.join(ctx.root, 'build-native-ios', 'Estella.xcframework'),
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native-ios', 'Estella.xcframework'),
             },
             { rel: 'App/main.m', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'main.m') },
             { rel: 'App/Info.plist.in', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'Info.plist.in') },
@@ -90,7 +90,7 @@ export function templateLayout(platform, options = {}) {
             // caches instead.
             {
                 rel: `assets/${BYTECODE_FILE}`, optional: true,
-                from: (ctx) => path.join(ctx.root, 'build-native-ios', 'gen', BYTECODE_FILE),
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native-ios', 'gen', BYTECODE_FILE),
             },
         ];
     }
@@ -101,7 +101,7 @@ export function templateLayout(platform, options = {}) {
         const libs = abis.flatMap((abi, n) => [
             {
                 rel: `lib/${abi}/libestella_js_host.so`, strip: true, abi, optional: n > 0,
-                from: (ctx) => path.join(ctx.root, 'build-native', abi, 'libestella_js_host.so'),
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, 'libestella_js_host.so'),
             },
             {
                 rel: `lib/${abi}/libwebgpu_dawn.so`, strip: true, abi, optional: n > 0,
@@ -130,7 +130,7 @@ export function templateLayout(platform, options = {}) {
             // cost of a ~14 s black screen on first launch.
             {
                 rel: `assets/${BYTECODE_FILE}`, optional: true,
-                from: (ctx) => path.join(ctx.root, 'build-native', 'gen', BYTECODE_FILE),
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', 'gen', BYTECODE_FILE),
             },
             {
                 rel: 'AndroidManifest.xml.in',

@@ -333,7 +333,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
 
     it('PhysicsWasmModule mirrors the physics module exports exactly', () => {
         const cpp = new Set(
-            PHYSICS_TUS.flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]),
+            PHYSICS_TUS.flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/physics', f)))]),
         );
         const ts = parseInterfaceMethods(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
         expectMirrored('physics', ts, cpp);
@@ -344,10 +344,10 @@ describe('WASM binding surface: side modules (C exports)', () => {
     // is an entry point the device silently does not answer — and one that exists
     // there but nowhere else is a wrapper that will not link.
     it('PhysicsBindings.hpp declares exactly what the module exports', () => {
-        const header = stripComments(read(resolve(CPP, 'bindings/PhysicsBindings.hpp')));
+        const header = stripComments(read(resolve(CPP, 'bindings/modules/physics/PhysicsBindings.hpp')));
         const declared = new Set([...header.matchAll(/\b(physics_\w+)\s*\(/g)].map((m) => m[1]!));
         const exported = new Set([...PHYSICS_TUS, 'PhysicsReadback.cpp']
-            .flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]));
+            .flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/physics', f)))]));
         const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
         const phantom = [...declared].filter((n) => !exported.has(n)).sort();
         expect(undeclared, `exported but not declared in PhysicsBindings.hpp (no native wrapper): ${undeclared.join(', ')}`)
@@ -364,7 +364,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
 
     it('SpineWasmModule + its cwrap table mirror the spine module exports exactly', () => {
         const cpp = new Set(
-            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')))]
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/spine/SpineModuleEntry.cpp')))]
                 .filter((n) => !SPINE_NATIVE_ONLY.has(n)),
         );
         const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
@@ -380,10 +380,10 @@ describe('WASM binding surface: side modules (C exports)', () => {
     // point the device does not answer, and one with no definition is a wrapper that
     // will not link.
     it('SpineBindings.hpp declares exactly what the module exports', () => {
-        const header = stripComments(read(resolve(CPP, 'bindings/SpineBindings.hpp')));
+        const header = stripComments(read(resolve(CPP, 'bindings/modules/spine/SpineBindings.hpp')));
         const declared = new Set([...header.matchAll(/\b(spine_\w+)\s*\(/g)].map((m) => m[1]!));
         const exported = new Set(
-            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')))]
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/spine/SpineModuleEntry.cpp')))]
                 .filter((n) => n.startsWith('spine_')),
         );
         const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
@@ -400,7 +400,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
     // faithful stand-in for the table: tsc rejects a member with no `w(…)` behind it
     // and a `w(…)` with no member, so the two cannot drift.
     it('DragonBonesWrappedAPI mirrors the module exports exactly', () => {
-        const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/DragonBonesModuleEntry.cpp')));
+        const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/dragonbones/DragonBonesModuleEntry.cpp')));
         const loaderTs = read(resolve(SDK, 'dragonbones/DragonBonesModuleLoader.ts'));
         const declared = new Set(
             [...parseInterfaceMethods(loaderTs, 'DragonBonesWrappedAPI')].map((n) => `_db_${n}`),
@@ -413,10 +413,10 @@ describe('WASM binding surface: side modules (C exports)', () => {
     // it, because the ABI lived only in the .cpp and the generator had nothing to
     // read. A declaration missing here is an entry point a device does not answer.
     it('DragonBonesBindings.hpp declares exactly what the module exports', () => {
-        const header = stripComments(read(resolve(CPP, 'bindings/DragonBonesBindings.hpp')));
+        const header = stripComments(read(resolve(CPP, 'bindings/modules/dragonbones/DragonBonesBindings.hpp')));
         const declared = new Set([...header.matchAll(/\b(db_\w+)\s*\(/g)].map((m) => m[1]!));
         const exported = new Set(
-            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/DragonBonesModuleEntry.cpp')))]
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/dragonbones/DragonBonesModuleEntry.cpp')))]
                 .filter((n) => n.startsWith('db_')),
         );
         const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
@@ -515,7 +515,7 @@ describe('WASM binding surface: signature arity handshake', () => {
         expect(parseInterfaceMethodSigs(wasmTs, 'ESEngineModule').get('draw_line')).toBe(9);
         expect(parseInterfaceMethodSigs(wasmTs, 'ESEngineModule').get('renderer_end')).toBe(0);
         expect(cppArities(pooledModuleCpp, 'draw_line')).toContain(9);
-        expect(parseKeepaliveSigs(read(resolve(CPP, 'bindings/PhysicsModuleEntry.cpp'))).get('physics_step')).toBe(1);
+        expect(parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/physics/PhysicsModuleEntry.cpp'))).get('physics_step')).toBe(1);
         expect(parseCwrapSigs(read(resolve(SDK, 'spine/SpineModuleLoader.ts'))).get('spine_setSkin')).toBe(2);
     });
 
@@ -572,7 +572,7 @@ describe('WASM binding surface: signature arity handshake', () => {
     it('physics: parameter counts match', () => {
         const cpp = new Map(
             ['PhysicsModuleEntry.cpp', 'PhysicsShapes.cpp', 'PhysicsJoints.cpp', 'PhysicsQueries.cpp']
-                .flatMap((f) => [...parseKeepaliveSigs(read(resolve(CPP, 'bindings', f)))]),
+                .flatMap((f) => [...parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/physics', f)))]),
         );
         const ts = parseInterfaceMethodSigs(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
         expectArities('physics', ts, cpp);
@@ -580,13 +580,13 @@ describe('WASM binding surface: signature arity handshake', () => {
 
     it('spine: raw members and the cwrap table both match', () => {
         const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
-        const cpp = parseKeepaliveSigs(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')));
+        const cpp = parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/spine/SpineModuleEntry.cpp')));
         expectArities('spine raw members', parseInterfaceMethodSigs(loaderTs, 'SpineWasmModule'), cpp);
         expectArities('spine cwrap table', parseCwrapSigs(loaderTs), cpp);
     });
 
     it('basis: parameter counts match', () => {
-        const src = stripComments(read(resolve(CPP, 'bindings/BasisModuleEntry.cpp')));
+        const src = stripComments(read(resolve(CPP, 'bindings/modules/basis/BasisModuleEntry.cpp')));
         const ts = parseInterfaceMethodSigs(read(resolve(SDK, 'asset/basisTranscoder.ts')), 'BasisWasmModule');
         const problems: string[] = [];
         for (const [name, tsArity] of ts) {

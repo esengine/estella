@@ -21,9 +21,9 @@ export default {
 
     wasm: {
         web: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             // WebGPU backend ships in the web SDK only — WeChat/playable have no
-            // WebGPU and skip the emdawnwebgpu glue. Variants sharing build-web
+            // WebGPU and skip the emdawnwebgpu glue. Variants sharing build/cmake/web
             // (spine*) must carry identical flags or configures would thrash.
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['esengine_sdk'],
@@ -33,7 +33,7 @@ export default {
             },
         },
         wechat: {
-            buildDir: 'build-wxgame',
+            buildDir: 'build/cmake/wxgame',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
             targets: ['esengine_wxgame'],
             outputs: {
@@ -42,7 +42,7 @@ export default {
             },
         },
         physics: {
-            buildDir: 'build-physics',
+            buildDir: 'build/cmake/physics',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON', '-DES_PHYSICS_ESM=ON'],
             // ESM variant (EXPORT_ES6=1, `export default`) — the ONE physics build
             // for every realm. The SideModuleHost loader resolves the factory the
@@ -55,7 +55,7 @@ export default {
             },
         },
         basis: {
-            buildDir: 'build-basis',
+            buildDir: 'build/cmake/basis',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
             targets: ['basis_module'],
             outputs: {
@@ -64,7 +64,7 @@ export default {
             },
         },
         spine: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module'],
             outputs: {
@@ -73,7 +73,7 @@ export default {
             },
         },
         videodec: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['video_module'],
             outputs: {
@@ -82,7 +82,7 @@ export default {
             },
         },
         spine38: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_38'],
             outputs: {
@@ -91,7 +91,7 @@ export default {
             },
         },
         spine41: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_41'],
             outputs: {
@@ -100,7 +100,7 @@ export default {
             },
         },
         dragonbones: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON', '-DES_ENABLE_DRAGONBONES=ON'],
             targets: ['dragonbones_module'],
             outputs: {
@@ -109,7 +109,7 @@ export default {
             },
         },
         spine21: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_21'],
             outputs: {
@@ -118,7 +118,7 @@ export default {
             },
         },
         spine43: {
-            buildDir: 'build-web',
+            buildDir: 'build/cmake/web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_43'],
             outputs: {
@@ -132,7 +132,7 @@ export default {
         // separate wechat dir (synced to desktop/public/wasm-wechat) → exportWeChat
         // require()s `./wasm/physics.js` / `./wasm/spine42.js` exactly as the host expects.
         'physics-wechat': {
-            buildDir: 'build-physics-wechat',
+            buildDir: 'build/cmake/physics-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
             targets: ['physics_module'],
             outputs: {
@@ -141,7 +141,7 @@ export default {
             },
         },
         'basis-wechat': {
-            buildDir: 'build-basis-wechat',
+            buildDir: 'build/cmake/basis-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
             targets: ['basis_module'],
             outputs: {
@@ -150,7 +150,7 @@ export default {
             },
         },
         'videodec-wechat': {
-            buildDir: 'build-videodec-wechat',
+            buildDir: 'build/cmake/videodec-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
             targets: ['video_module'],
             outputs: {
@@ -159,7 +159,7 @@ export default {
             },
         },
         'spine-wechat': {
-            buildDir: 'build-spine-wechat',
+            buildDir: 'build/cmake/spine-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
             targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38', 'spine_module_21'],
             outputs: {
@@ -176,7 +176,7 @@ export default {
             },
         },
         'dragonbones-wechat': {
-            buildDir: 'build-dragonbones-wechat',
+            buildDir: 'build/cmake/dragonbones-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_DRAGONBONES=ON'],
             targets: ['dragonbones_module'],
             outputs: {
