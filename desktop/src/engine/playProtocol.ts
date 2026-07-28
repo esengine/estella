@@ -11,7 +11,6 @@
  *          import of an editor module here would break the realm bundle. Type-only
  *          imports are erased before resolution and are safe.
  */
-import type { ParsedTextureImportSettings } from 'esengine';
 import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides, AddressableManifest } from 'esengine';
 
 /**
@@ -54,11 +53,6 @@ export interface PlayNetConfig {
 export interface PlayPayload {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
-  /** Per-texture import settings (filter/wrap/sRGB, 9-slice border) keyed by the
-   *  authored `@uuid:` ref, so the realm samples and slices its textures exactly
-   *  as the edit viewport does. They describe the ASSET, so they travel beside
-   *  the scene rather than inside it. */
-  textureImports?: Record<string, ParsedTextureImportSettings>;
   /** AddressableManifest (groups + bundle modes) so `Assets.loadGroup` — remote /
    *  lazy groups — works in Play exactly as in a shipped build. */
   manifest?: AddressableManifest;

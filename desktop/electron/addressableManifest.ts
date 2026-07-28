@@ -18,6 +18,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { deriveManifestRevision, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
+import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../sdk/src/asset/textureImportSettings';
 
 /** The flat v1.0 cook manifest this reads (see cookAssets `CookManifestEntry`). */
 interface FlatManifest {
@@ -25,6 +26,7 @@ interface FlatManifest {
     uuid: string; path: string; sourcePath?: string; type: string;
     contentHash?: string; size?: number; group?: string; groupMode?: string;
     compressedFormats?: string[];
+    importer?: Record<string, unknown>;
     atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
   }[];
 }
@@ -57,6 +59,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
   type Entry = {
     path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
     compressedFormats?: string[];
+    textureImport?: ParsedTextureImportSettings;
     metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
   };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
@@ -74,6 +77,13 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     // the addressable manifest — the flat one it came from is a build-time
     // intermediate that no longer ships.
     if (e.compressedFormats?.length) entry.compressedFormats = e.compressedFormats;
+    // Parsed here, not shipped raw: the runtime needs how the texture is sampled
+    // and sliced, never the cook's own knobs (maxSize, compression format). This
+    // is the ONLY channel a packaged build has for the `.meta` — without it a
+    // 9-sliced frame stretches in the shipped game while looking right in the
+    // editor.
+    const textureImport = textureImportSettingsFrom(e.importer);
+    if (textureImport) entry.textureImport = textureImport;
     // The logical source path rides as the asset's address: path-style refs
     // resolve through it. Only meaningful when staging renamed the file.
     if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;

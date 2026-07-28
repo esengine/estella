@@ -22,10 +22,9 @@ import { VideoPlayer } from './video/VideoAPI';
 import { initRuntime } from './runtimeLoader';
 import type { ThemeOverrides } from './ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
-import type { ParsedTextureImportSettings } from './asset/textureImportSettings';
 import { HttpBackend } from './asset/Backend';
 import { Catalog, type CatalogData } from './asset/Catalog';
-import type { AddressableManifest } from './asset/AddressableManifest';
+import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { AudioProjectConfig } from './audio/AudioProjectConfig';
@@ -55,13 +54,6 @@ export interface PlayRealmRuntimeConfig {
      * Omit when files are served at their logical paths (the editor realm).
      */
     assetPathMap?: Record<string, string>;
-    /**
-     * Per-texture import settings (filter/wrap/sRGB, 9-slice border) keyed by the
-     * authored ref. Supplied by the editor from its asset database so a played
-     * scene samples and slices its textures exactly as the edit viewport does —
-     * without the settings being copied into the scene, where they would go stale.
-     */
-    textureImports?: Record<string, ParsedTextureImportSettings>;
     /**
      * Logical path → build-path catalog for the same cooked case: loaders fetch
      * their INNER text refs (a material's shader) through Catalog.getBuildPath,
@@ -150,7 +142,7 @@ function createPlayRealmSource(
     manifest: Record<string, string>,
     assetBaseUrl?: string,
     pathMap?: Record<string, string>,
-    textureImports?: Record<string, ParsedTextureImportSettings>,
+    addressable?: AddressableManifest | null,
 ): RuntimeAssetSource {
     const backend = new HttpBackend({ baseUrl: '' });
     return {
@@ -161,10 +153,12 @@ function createPlayRealmSource(
         // manifest's resolved URLs — both keep the real extension, which is all
         // the .eslocale discovery filters on.
         listAssetPaths: () => (pathMap ? Object.keys(pathMap) : Object.values(manifest)),
-        // Keyed by the AUTHORED ref (`@uuid:…` or a project path) — the same
-        // spelling a component holds — because that is what the loader asks with,
-        // before resolveRef turns it into a realm URL.
-        ...(textureImports ? { textureImportSettings: (ref: string) => textureImports[ref] } : {}),
+        // Sampling and the 9-slice border come off the addressable manifest, the
+        // same field a cooked build reads — Play and ship cannot disagree about
+        // an asset when they are looking at one description of it.
+        ...(addressable
+            ? { textureImportSettings: ManifestModel.fromJson(addressable).textureImportLookup() }
+            : {}),
     };
 }
 
@@ -175,7 +169,7 @@ function createPlayRealmSource(
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
-    const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.textureImports);
+    const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
     const entryName = config.entrySceneName ?? '__play';
     await initRuntime({

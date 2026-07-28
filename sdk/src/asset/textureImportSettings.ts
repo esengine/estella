@@ -49,3 +49,35 @@ export function textureImportSettingsFrom(
         ? { filter, wrap, srgb, sliceBorder }
         : undefined;
 }
+
+/**
+ * Index settings by EVERY spelling a scene may name the asset with — its uuid
+ * bare and `@uuid:`-prefixed, its authored path with and without a leading
+ * slash, and the staged path a content-addressed cook renamed it to.
+ *
+ * One asset, several names, and which name a component carries is the project's
+ * choice: the meta-driven pipeline writes `@uuid:`, hand-authored and ported
+ * scenes hold paths. A lookup that indexes only one of them works on whichever
+ * projects happen to use that spelling and silently drops the settings for the
+ * rest — so the spelling fan-out is done ONCE, here, rather than guessed at by
+ * each realm's asset source.
+ */
+export function indexTextureImportSettings(
+    assets: Iterable<{
+        uuid?: string;
+        path?: string;
+        address?: string;
+        settings: ParsedTextureImportSettings | undefined;
+    }>,
+): (ref: string) => ParsedTextureImportSettings | undefined {
+    const byRef = new Map<string, ParsedTextureImportSettings>();
+    for (const { uuid, path, address, settings } of assets) {
+        if (!settings) continue;
+        for (const spelling of [uuid, uuid && `@uuid:${uuid}`, path, address]) {
+            if (!spelling) continue;
+            byRef.set(spelling, settings);
+            if (!spelling.startsWith('/')) byRef.set(`/${spelling}`, settings);
+        }
+    }
+    return byRef.size > 0 ? (ref) => byRef.get(ref) : () => undefined;
+}

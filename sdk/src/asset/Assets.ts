@@ -997,7 +997,18 @@ export class Assets {
             }
         };
 
-        pushHandleLoad(texturePaths, p => this.loadTexture(p), textureHandles, 'texture');
+        // Textures load through their AUTHORED ref, not the resolved path the
+        // handle map is keyed by: per-asset import settings (filter/wrap/sRGB and
+        // the 9-slice border) are looked up by the spelling a component carries,
+        // which is the resolver's documented contract. Resolution happens inside
+        // loadTexture anyway, so the bytes fetched are identical either way —
+        // feeding it the resolved path only strips the lookup of its key.
+        pushHandleLoad(
+            texturePaths,
+            p => this.loadTexture(discovered.rawFor.get(p) ?? p),
+            textureHandles,
+            'texture',
+        );
         pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
         pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
         // The runtime scene loader owns spine as a two-phase load+apply through the

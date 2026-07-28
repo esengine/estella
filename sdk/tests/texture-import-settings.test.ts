@@ -9,7 +9,7 @@
  * border is stamped onto the texture and would clear one set elsewhere.
  */
 import { describe, it, expect } from 'vitest';
-import { textureImportSettingsFrom } from '../src/asset/textureImportSettings';
+import { indexTextureImportSettings, textureImportSettingsFrom } from '../src/asset/textureImportSettings';
 
 describe('textureImportSettingsFrom', () => {
     it('maps filterMode/wrapMode to the loader filter/wrap shape', () => {
@@ -70,5 +70,40 @@ describe('textureImportSettingsFrom', () => {
                     sliceBorder: { left: 4, right: 0, top: 0, bottom: 0 },
                 });
         });
+    });
+});
+
+describe('indexTextureImportSettings', () => {
+    const sliced = textureImportSettingsFrom({ sliceBorder: { left: 24, right: 22, top: 25, bottom: 31 } });
+    const lookup = indexTextureImportSettings([
+        { uuid: 'abc-123', path: 'staged/9f3a.png', address: 'assets/ui/Button.png', settings: sliced },
+    ]);
+
+    // Which spelling a component carries is the PROJECT's choice: the meta-driven
+    // pipeline writes `@uuid:`, a ported or hand-authored scene holds a path. An
+    // index that answers only one of them loses the settings for every project
+    // that picked the other — the exact shape of "sliced in the editor, stretched
+    // in the build".
+    it('answers to every spelling of the same asset', () => {
+        for (const ref of [
+            'abc-123', '@uuid:abc-123',
+            'assets/ui/Button.png', '/assets/ui/Button.png',
+            'staged/9f3a.png', '/staged/9f3a.png',
+        ]) {
+            expect(lookup(ref), ref).toBe(sliced);
+        }
+    });
+
+    it('does not answer for an asset it was never given', () => {
+        expect(lookup('assets/ui/Other.png')).toBeUndefined();
+        expect(lookup('@uuid:no-such')).toBeUndefined();
+    });
+
+    it('skips assets whose importer says nothing the renderer acts on', () => {
+        const empty = indexTextureImportSettings([
+            { uuid: 'x', path: 'a.png', settings: undefined },
+        ]);
+        expect(empty('x')).toBeUndefined();
+        expect(empty('a.png')).toBeUndefined();
     });
 });

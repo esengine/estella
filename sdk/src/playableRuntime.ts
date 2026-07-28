@@ -17,7 +17,7 @@ import { initRuntime } from './runtimeLoader';
 import type { ThemeOverrides } from './ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from './asset/Backend';
-import type { AddressableManifest } from './asset/AddressableManifest';
+import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
@@ -113,6 +113,12 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.
         listAssetPaths: () => Object.keys(assets),
+        // A single-file playable inlines the bytes but still ships the manifest,
+        // so filter/wrap/sRGB and the 9-slice border reach it the same way they
+        // reach every other packaged realm.
+        textureImportSettings: config.manifest
+            ? ManifestModel.fromJson(config.manifest).textureImportLookup()
+            : undefined,
     };
 
     if (app.hasResource(Audio)) {

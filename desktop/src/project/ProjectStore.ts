@@ -1481,13 +1481,24 @@ class ProjectStoreImpl {
       if (['.esscene', '.esanim', '.estilemap', '.estileset', '.estimeline', '.json', '.eslocale'].includes(ext)) return 'json';
       return 'binary';
     };
-    type Asset = { path: string; type: string; size: number; labels: string[] };
+    type Asset = {
+      path: string; type: string; size: number; labels: string[];
+      textureImport?: ParsedTextureImportSettings;
+    };
     const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, Asset> }> = {};
     for (const [uuid, raw] of this.uuidToPath) {
       const path = raw.replace(/\\/g, '/');
       const { name, delivery } = resolveAssetGroup(path, this.assetGroupsConfig);
       const g = (groups[name] ??= { bundleMode: delivery, labels: [], assets: {} });
-      g.assets[uuid.toLowerCase()] = { path, type: typeOfExt(path), size: 0, labels: [] };
+      // How the texture is sampled and 9-sliced travels with the asset, exactly
+      // as it does in a cooked manifest — so Play reads it through the same
+      // channel a shipped build does, rather than a play-only side band that can
+      // drift from it.
+      const textureImport = textureImportSettingsFrom(this.uuidToImporter.get(uuid));
+      g.assets[uuid.toLowerCase()] = {
+        path, type: typeOfExt(path), size: 0, labels: [],
+        ...(textureImport ? { textureImport } : {}),
+      };
     }
     groups.main ??= { bundleMode: 'local', labels: [], assets: {} };
     return { version: '2.0', groups } as unknown as AddressableManifest;
@@ -1496,7 +1507,6 @@ class ProjectStoreImpl {
   playPayload(): {
     sceneData: SceneData;
     assetManifest: Record<string, string>;
-    textureImports: Record<string, ParsedTextureImportSettings>;
     manifest: AddressableManifest;
     entrySceneName?: string;
     extraScenes?: Array<{ name: string; path: string }>;
@@ -1515,15 +1525,6 @@ class ProjectStoreImpl {
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
     for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
-    // Import settings ride to the realm keyed by the authored `@uuid:` ref — the
-    // spelling a component holds — so a played scene samples and slices exactly
-    // as the edit viewport does. They stay OUT of the scene: they describe the
-    // asset, and a copy in the scene goes stale when the `.meta` changes.
-    const textureImports: Record<string, ParsedTextureImportSettings> = {};
-    for (const [uuid, importer] of this.uuidToImporter) {
-      const settings = textureImportSettingsFrom(importer);
-      if (settings) textureImports[UUID_PREFIX + uuid] = settings;
-    }
     // Play == ship: register every other project scene under its export name
     // (scenes-dir-relative path sans extension — the same rule exportGame's
     // discoverProjectScenes uses), so SceneManager.switchTo('levels/boss')
@@ -1571,7 +1572,7 @@ class ProjectStoreImpl {
     const uiTheme = this.uiTheme();
     const uiThemeOverrides = this.uiThemeOverrides();
     return {
-      sceneData, assetManifest, textureImports, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
+      sceneData, assetManifest, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
       ...(currentScene ? { entrySceneName: exportSceneName(currentScene) } : {}),
       ...(extraScenes.length > 0 ? { extraScenes } : {}),
       ...(audioConfig.buses ? { audioConfig } : {}),

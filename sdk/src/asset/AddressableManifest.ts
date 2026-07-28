@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AddressableAssetType } from '../assetTypes';
+import { indexTextureImportSettings, type ParsedTextureImportSettings } from './textureImportSettings';
 import { contentHashOf } from './contentHash';
 
 export type { AddressableAssetType };
@@ -21,6 +22,14 @@ export interface AddressableManifestAsset {
     contentHash?: string;
     /** GPU compressed formats this asset was encoded for (e.g. ['astc-4x4','etc2-rgba8']). */
     compressedFormats?: string[];
+    /**
+     * How the texture is sampled and sliced — the runtime half of the `.meta`
+     * importer block, parsed at cook time rather than shipped raw: a packaged
+     * realm needs filter/wrap/sRGB and the 9-slice border, never the cook's own
+     * settings (maxSize, compression format). Absent when the asset is not a
+     * texture or its importer says nothing the renderer acts on.
+     */
+    textureImport?: ParsedTextureImportSettings;
     metadata?: {
         atlas?: string;
         atlasPage?: number;
@@ -161,6 +170,22 @@ export class ManifestModel {
             }
         }
         return out;
+    }
+
+    /**
+     * Per-ref texture import settings for every asset that carries them — what a
+     * packaged realm answers `RuntimeAssetSource.textureImportSettings` with, so
+     * a shipped game samples and 9-slices exactly as the editor did.
+     */
+    textureImportLookup(): (ref: string) => ParsedTextureImportSettings | undefined {
+        return indexTextureImportSettings(
+            this.entries().map(({ key, asset }) => ({
+                uuid: key,
+                path: asset.path,
+                address: asset.address,
+                settings: asset.textureImport,
+            })),
+        );
     }
 
     /** The manifest's build content revision (see {@link deriveManifestRevision}),

@@ -45,6 +45,13 @@ export interface SceneAssetRefs {
      */
     rawByType: Map<string, Set<string>>;
     /**
+     * Resolved path → the RAW ref it came from (first spelling wins; several refs
+     * can name one asset). Lets a caller that must bucket by resolved path — the
+     * handle maps are keyed that way — still load through the authored ref, which
+     * is the spelling per-asset lookups (texture import settings) are keyed by.
+     */
+    rawFor: Map<string, string>;
+    /**
      * Skeleton/atlas pairs posed by SPINE. Split from {@link dragonBones} because
      * the two are loaded by different runtimes: a pair handed to the wrong one is
      * parsed by a parser that cannot read it, and fails as "unsupported version"
@@ -70,6 +77,7 @@ export function discoverSceneAssets(
 ): SceneAssetRefs {
     const byType = new Map<string, Set<string>>();
     const rawByType = new Map<string, Set<string>>();
+    const rawFor = new Map<string, string>();
     const spines: SkeletalAssetRef[] = [];
     const dragonBones: SkeletalAssetRef[] = [];
     // One set across both runtimes: the key is the pair, and the same pair cannot
@@ -100,6 +108,7 @@ export function discoverSceneAssets(
         if (path == null) return;
         bucket(byType, type, path);
         bucket(rawByType, type, raw);
+        if (!rawFor.has(path)) rawFor.set(path, raw);
     };
 
     for (const entityData of sceneData.entities) {
@@ -154,7 +163,7 @@ export function discoverSceneAssets(
         }
     }
 
-    return { byType, rawByType, spines, dragonBones, unresolved };
+    return { byType, rawByType, rawFor, spines, dragonBones, unresolved };
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {

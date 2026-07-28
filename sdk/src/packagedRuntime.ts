@@ -18,6 +18,7 @@ import { platformReadTextFile, platformLoadImagePixels } from './platform';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import { Catalog, atlasCatalogFields, type CatalogEntry } from './asset/Catalog';
 import { FileSystemBackend, type Backend } from './asset/Backend';
+import type { ParsedTextureImportSettings } from './asset/textureImportSettings';
 import { Audio } from './audio/Audio';
 import { VideoPlayer } from './video/VideoAPI';
 import type { App } from './app';
@@ -64,6 +65,8 @@ export interface PackagedAssetIndex {
     addressOf(ref: string): string | null;
     /** Every staged asset path — content-driven discovery (locale tables). */
     assetPaths(): string[];
+    /** How a texture is sampled and 9-sliced, for any ref spelling. */
+    textureImport(ref: string): ParsedTextureImportSettings | undefined;
 }
 
 /**
@@ -124,6 +127,10 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         // the staged file), else the staged path — either keeps the extension
         // .eslocale discovery filters on.
         assetPaths: () => model.allAssets().map((a) => a.address ?? a.path),
+        // Built once per index: a scene preload asks for every texture it uses,
+        // and rebuilding the spelling map per ref would walk the whole manifest
+        // each time.
+        textureImport: model.textureImportLookup(),
     };
 }
 
@@ -153,6 +160,7 @@ export function createPackagedAssetSource(
         resolveRef: index.resolvePath,
         resolveAddress: index.addressOf,
         listAssetPaths: index.assetPaths,
+        textureImportSettings: index.textureImport,
     };
 }
 

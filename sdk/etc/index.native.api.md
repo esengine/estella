@@ -84,6 +84,7 @@ labels: string[]
 metadata: { atlas?: string; atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number; }; atlasPageWidth?: number; atlasPageHeight?: number; } | undefined
 path: string
 size: number
+textureImport: ParsedTextureImportSettings | undefined
 type: AddressableAssetType
 ```
 
@@ -3849,6 +3850,7 @@ groupsByMode: (mode: BundleMode) => string[]
 remoteAssetPath: (ref: string) => string | null
 resolvePath: (ref: string, normalize?: (ref: string) => string) => string
 revision: () => string | null
+textureImportLookup: () => (ref: string) => ParsedTextureImportSettings | undefined
 static empty: () => ManifestModel
 static fromJson: (manifest: AddressableManifest) => ManifestModel
 static new (manifest: AddressableManifest): ManifestModel
@@ -4450,6 +4452,7 @@ catalog: Catalog | undefined
 manifest: AddressableManifest
 model: ManifestModel
 resolvePath: (ref: string) => string
+textureImport: (ref: string) => ParsedTextureImportSettings | undefined
 ```
 
 ## PackagedAssetSourceOptions — interface
@@ -5004,7 +5007,6 @@ physicsConfig: PhysicsPluginConfig | undefined
 physicsEnabled: boolean | undefined
 remoteRoot: string | undefined
 sceneData: SceneData
-textureImports: Record<string, ParsedTextureImportSettings> | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 wasmBaseUrl: string | undefined
