@@ -84,15 +84,15 @@ add_subdirectory("${TP}/box2d" "${CMAKE_BINARY_DIR}/box2d" EXCLUDE_FROM_ALL)
 set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.3 / 4.2 / 4.1 / 3.8 / 2.1)")
 set(SPINE_ROOT "${TP}/spine-runtimes-${ESTELLA_SPINE_VERSION}")
 if(EXISTS "${SPINE_ROOT}/spine-c/spine-c/include")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeC.cpp")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntimeC.cpp")
     set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/spine-c/include")
     file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/spine-c/src/spine/*.c")
 elseif(EXISTS "${SPINE_ROOT}/spine-cpp/include")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeCpp.cpp")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntimeCpp.cpp")
     set(SPINE_INCLUDE "${SPINE_ROOT}/spine-cpp/include")
     file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-cpp/src/spine/*.cpp")
 elseif(EXISTS "${SPINE_ROOT}/spine-c/include/spine")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntime21.cpp")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntime21.cpp")
     set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/include")
     file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/src/spine/*.c")
 else()
@@ -106,7 +106,7 @@ target_compile_options(spine_runtime PRIVATE -w)   # vendored, not ours to lint
 
 string(REPLACE "." "" SPINE_TAG ${ESTELLA_SPINE_VERSION})
 add_library(estella_spine STATIC
-    "${SRC}/esengine/bindings/SpineModuleEntry.cpp"
+    "${SRC}/esengine/bindings/modules/spine/SpineModuleEntry.cpp"
     "${SPINE_BACKEND}")
 target_include_directories(estella_spine PUBLIC "${SRC}")
 target_link_libraries(estella_spine PUBLIC spine_runtime)
@@ -121,24 +121,24 @@ target_include_directories(dragonbones_runtime PUBLIC "${TP}/dragonbones/src" "$
 target_compile_options(dragonbones_runtime PRIVATE -w)   # vendored, not ours to lint
 
 add_library(estella_dragonbones STATIC
-    "${SRC}/esengine/bindings/DragonBonesModuleEntry.cpp"
-    "${SRC}/esengine/bindings/DragonBonesAdapter.cpp")
+    "${SRC}/esengine/bindings/modules/dragonbones/DragonBonesModuleEntry.cpp"
+    "${SRC}/esengine/bindings/modules/dragonbones/DragonBonesAdapter.cpp")
 target_include_directories(estella_dragonbones PUBLIC "${SRC}")
 target_link_libraries(estella_dragonbones PUBLIC dragonbones_runtime)
 
 # The engine's own MPEG-1 decoder (pl_mpeg), the same TU the web links as the
 # "videodec" side module. Header-only dependency, so nothing to fetch.
-add_library(estella_video STATIC "${SRC}/esengine/bindings/VideoModuleEntry.cpp")
+add_library(estella_video STATIC "${SRC}/esengine/bindings/modules/video/VideoModuleEntry.cpp")
 target_include_directories(estella_video PUBLIC "${SRC}" "${TP}/pl_mpeg")
 
 set(ESTELLA_PHYSICS_SOURCES
-    "${SRC}/esengine/bindings/PhysicsModuleEntry.cpp"
-    "${SRC}/esengine/bindings/PhysicsContext.cpp"
-    "${SRC}/esengine/bindings/PhysicsShapes.cpp"
-    "${SRC}/esengine/bindings/PhysicsJoints.cpp"
-    "${SRC}/esengine/bindings/PhysicsQueries.cpp"
-    "${SRC}/esengine/bindings/PhysicsReadback.cpp"
-    "${SRC}/esengine/bindings/PhysicsTaskPool.cpp")
+    "${SRC}/esengine/bindings/modules/physics/PhysicsModuleEntry.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsContext.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsShapes.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsJoints.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsQueries.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsReadback.cpp"
+    "${SRC}/esengine/bindings/modules/physics/PhysicsTaskPool.cpp")
 add_library(estella_physics STATIC ${ESTELLA_PHYSICS_SOURCES})
 target_include_directories(estella_physics PUBLIC "${SRC}" "${TP}/box2d/include")
 target_link_libraries(estella_physics PUBLIC box2d)

@@ -34,7 +34,7 @@
 
 #include "dragonBones/DragonBonesHeaders.h"
 
-#include "SkeletalModule.hpp"
+#include "../spine/SkeletalModule.hpp"
 
 DRAGONBONES_NAMESPACE_BEGIN
 

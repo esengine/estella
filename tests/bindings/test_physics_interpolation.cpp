@@ -9,8 +9,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest.h>
 
-#include "esengine/bindings/PhysicsBindings.hpp"
-#include "esengine/bindings/PhysicsContext.hpp"
+#include "esengine/bindings/modules/physics/PhysicsBindings.hpp"
+#include "esengine/bindings/modules/physics/PhysicsContext.hpp"
 
 #include <cmath>
 #include <cstdint>

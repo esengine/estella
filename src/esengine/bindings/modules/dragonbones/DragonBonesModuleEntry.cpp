@@ -41,9 +41,9 @@
 #include <string>
 #include <vector>
 
-#include "DragonBonesAdapter.hpp"
-#include "DragonBonesBindings.hpp"
-#include "SkeletalModule.hpp"
+#include "./DragonBonesAdapter.hpp"
+#include "./DragonBonesBindings.hpp"
+#include "../spine/SkeletalModule.hpp"
 
 namespace {
 

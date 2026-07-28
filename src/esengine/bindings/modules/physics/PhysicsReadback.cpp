@@ -21,8 +21,8 @@
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.
  */
-#include "PhysicsContext.hpp"
-#include "PhysicsBindings.hpp"
+#include "./PhysicsContext.hpp"
+#include "./PhysicsBindings.hpp"
 
 namespace {
 size_t floatBytes(const std::vector<float>& buffer) {

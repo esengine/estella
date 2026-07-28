@@ -4,7 +4,7 @@
  * @file    DragonBonesAdapter.cpp
  * @brief   Geometry for the host types in DragonBonesAdapter.hpp.
  */
-#include "DragonBonesAdapter.hpp"
+#include "./DragonBonesAdapter.hpp"
 
 #include <cmath>
 #include <cstdlib>

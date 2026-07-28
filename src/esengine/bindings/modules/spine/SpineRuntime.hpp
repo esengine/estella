@@ -33,7 +33,7 @@
 #include <memory>
 #include <string>
 
-#include "SkeletalModule.hpp"
+#include "./SkeletalModule.hpp"
 
 namespace es::spine {
 

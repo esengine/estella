@@ -32,8 +32,8 @@
 #define EMSCRIPTEN_KEEPALIVE
 #endif
 
-#include "SpineBindings.hpp"
-#include "SpineRuntime.hpp"
+#include "./SpineBindings.hpp"
+#include "./SpineRuntime.hpp"
 
 #include <cstdio>
 #include <cstring>

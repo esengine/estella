@@ -244,12 +244,12 @@ add_test(NAME test_registry_safety COMMAND test_registry_safety)
 if(ES_ENABLE_BOX2D)
     add_executable(test_physics_interpolation
         bindings/test_physics_interpolation.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsModuleEntry.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsReadback.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsContext.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsShapes.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsJoints.cpp
-        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsQueries.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsModuleEntry.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsReadback.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsContext.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsShapes.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsJoints.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsQueries.cpp
     )
     target_link_libraries(test_physics_interpolation PRIVATE box2d)
     target_include_directories(test_physics_interpolation PRIVATE

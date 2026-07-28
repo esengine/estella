@@ -328,7 +328,7 @@ endfunction()
 # silently skipping it would ship a project's Spine version as "unsupported".
 function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
     set(_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spine-runtimes-${VERSION}")
-    set(_bindings "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings")
+    set(_bindings "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/modules/spine")
 
     if(NOT EXISTS "${_root}")
         return()

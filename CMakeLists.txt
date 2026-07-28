@@ -322,8 +322,8 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # longer developed, so the format cannot move and there is nothing to track.
     if(ES_ENABLE_DRAGONBONES)
         add_executable(dragonbones_module
-            src/esengine/bindings/DragonBonesModuleEntry.cpp
-            src/esengine/bindings/DragonBonesAdapter.cpp
+            src/esengine/bindings/modules/dragonbones/DragonBonesModuleEntry.cpp
+            src/esengine/bindings/modules/dragonbones/DragonBonesAdapter.cpp
         )
         target_link_libraries(dragonbones_module PRIVATE dragonbones)
         target_include_directories(dragonbones_module PRIVATE
@@ -339,7 +339,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # Basis Universal KTX2 transcoder module (compressed textures — RC6)
     if(ES_ENABLE_BASIS)
         add_executable(basis_module
-            src/esengine/bindings/BasisModuleEntry.cpp
+            src/esengine/bindings/modules/basis/BasisModuleEntry.cpp
             third_party/basis_universal/transcoder/basisu_transcoder.cpp
         )
         target_include_directories(basis_module PRIVATE
@@ -362,7 +362,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # path behind the wasm video backend (WeChat / headless).
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pl_mpeg")
         add_executable(video_module
-            src/esengine/bindings/VideoModuleEntry.cpp
+            src/esengine/bindings/modules/video/VideoModuleEntry.cpp
         )
         target_include_directories(video_module PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pl_mpeg
@@ -380,13 +380,13 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # "multiple rules generate sdk/physics.js".
     if(ES_ENABLE_BOX2D)
         set(ES_PHYSICS_SOURCES
-            src/esengine/bindings/PhysicsModuleEntry.cpp
-            src/esengine/bindings/PhysicsReadback.cpp
-            src/esengine/bindings/PhysicsContext.cpp
-            src/esengine/bindings/PhysicsShapes.cpp
-            src/esengine/bindings/PhysicsJoints.cpp
-            src/esengine/bindings/PhysicsQueries.cpp
-            src/esengine/bindings/PhysicsTaskPool.cpp
+            src/esengine/bindings/modules/physics/PhysicsModuleEntry.cpp
+            src/esengine/bindings/modules/physics/PhysicsReadback.cpp
+            src/esengine/bindings/modules/physics/PhysicsContext.cpp
+            src/esengine/bindings/modules/physics/PhysicsShapes.cpp
+            src/esengine/bindings/modules/physics/PhysicsJoints.cpp
+            src/esengine/bindings/modules/physics/PhysicsQueries.cpp
+            src/esengine/bindings/modules/physics/PhysicsTaskPool.cpp
         )
         if(ES_PHYSICS_ESM)
             # ESM variant (EXPORT_ES6=1) for the web editor's estella:// ESM host —
@@ -439,12 +439,12 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # Physics side module (SIDE_MODULE=2, pure .wasm, no JS glue)
     if(ES_ENABLE_BOX2D AND ES_BUILD_SIDE_MODULE)
         add_executable(physics_side_module
-            src/esengine/bindings/PhysicsModuleEntry.cpp
-            src/esengine/bindings/PhysicsContext.cpp
-            src/esengine/bindings/PhysicsShapes.cpp
-            src/esengine/bindings/PhysicsJoints.cpp
-            src/esengine/bindings/PhysicsQueries.cpp
-            src/esengine/bindings/PhysicsTaskPool.cpp
+            src/esengine/bindings/modules/physics/PhysicsModuleEntry.cpp
+            src/esengine/bindings/modules/physics/PhysicsContext.cpp
+            src/esengine/bindings/modules/physics/PhysicsShapes.cpp
+            src/esengine/bindings/modules/physics/PhysicsJoints.cpp
+            src/esengine/bindings/modules/physics/PhysicsQueries.cpp
+            src/esengine/bindings/modules/physics/PhysicsTaskPool.cpp
         )
         target_link_libraries(physics_side_module PRIVATE box2d)
         target_include_directories(physics_side_module PRIVATE

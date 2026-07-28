@@ -25,7 +25,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 
-#include "SpineRuntime.hpp"
+#include "./SpineRuntime.hpp"
 
 #include <spine/spine.h>
 #include <spine/SkeletonRenderer.h>
