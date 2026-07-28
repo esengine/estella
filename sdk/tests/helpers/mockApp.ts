@@ -14,7 +14,7 @@
  */
 import { App } from '../../src/app/app';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { setEditorMode, setPlayMode } from '../../src/util/env';
+import { setEditorMode, setPlayMode } from '../../src/ecs/env';
 import { createMockModule } from '../mocks/wasm';
 import type { ESEngineModule } from '../../src/wasm';
 

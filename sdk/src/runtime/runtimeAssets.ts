@@ -7,10 +7,10 @@
  *          builder runtime loader and the spine scene loader (and any editor that
  *          drives the same load path). Kept in its own module so neither the
  *          runtime loader nor the spine loader has to import the other.
-import { linearColorSpace } from '../util/env';
+import { linearColorSpace } from '../ecs/env';
  */
 import type { ESEngineModule } from '../wasm';
-import { linearColorSpace } from '../util/env';
+import { linearColorSpace } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { requireResourceManager } from '../wasm/resourceManager';

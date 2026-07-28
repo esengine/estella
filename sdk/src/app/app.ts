@@ -23,7 +23,7 @@ import type { SceneConfig } from '../scene/sceneManager';
 import { SceneManager } from '../scene/sceneManager';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { getDefaultContext } from '../ecs/context';
-import { setLinearColorSpace } from '../util/env';
+import { setLinearColorSpace } from '../ecs/env';
 import { seedEngineComponents } from '../ecs/component';
 import { cameraPlugin } from '../camera/CameraPlugin';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';

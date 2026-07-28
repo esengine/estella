@@ -22,7 +22,7 @@ import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Time } from '../ecs/resource';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { log } from '../util/logger';
 import type { Entity } from '../types';
 

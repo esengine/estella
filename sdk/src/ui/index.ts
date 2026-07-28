@@ -424,7 +424,7 @@ export {
     getEntityProperty,
     setEntityProperty,
     type ParsedPropertyPath,
-} from '../util/propertyPath';
+} from '../ecs/propertyPath';
 
 // Rich Text
 export {

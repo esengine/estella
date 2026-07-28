@@ -5,7 +5,7 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
 import { defineComponent, getComponent } from '../ecs/component';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';

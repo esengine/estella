@@ -4,7 +4,7 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
-import { fxPreviewOrPlayMode } from '../util/env';
+import { fxPreviewOrPlayMode } from '../ecs/env';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { TrailRenderer } from '../ecs/component';

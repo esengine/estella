@@ -17,7 +17,7 @@
 import type { App } from '../app/app';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res } from '../ecs/resource';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { ensureEntityEvents } from '../ecs/entityEvents';
 import { PhysicsEvents, type PhysicsEventsData } from './PhysicsTypes';
 import type { Entity } from '../types';

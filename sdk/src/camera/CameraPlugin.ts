@@ -9,7 +9,7 @@ import type { App, Plugin } from '../app/app';
 import type { SystemDef } from '../ecs/system';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { followUpdate } from './FollowTarget';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';

@@ -21,7 +21,7 @@ import {
     type AnyComponentDef,
     type ComponentData,
 } from '../../ecs/component';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
 import { advanceAlongPath } from './follow';

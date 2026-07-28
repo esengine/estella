@@ -5,7 +5,7 @@ import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { Input, type InputState } from '../../input/input';
 import { Transform, type TransformData } from '../../ecs/component';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import type { Entity, Vec2 } from '../../types';
 
 import { UIEvents, UIEventQueue } from '../core/events';

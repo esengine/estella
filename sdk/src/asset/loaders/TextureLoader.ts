@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
-import { linearColorSpace } from '../../util/env';
+import { linearColorSpace } from '../../ecs/env';
 import { platformCreateCanvas, platformCreateImage } from '../../platform/base';
 import type { PlatformCanvas, PlatformCanvas2DContext, PlatformImage } from '../../platform/types';
 import { decodeImageBitmap } from '../imageDecode';

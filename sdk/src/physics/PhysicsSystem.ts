@@ -16,7 +16,7 @@ import type { TransformData, ParentData, CanvasData } from '../ecs/component';
 import { Transform, Parent, Canvas } from '../ecs/component';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { Schedule, defineSystem } from '../ecs/system';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { Physics } from './Physics';
 import {

@@ -421,7 +421,7 @@ export {
     setFxEditPreview,
     isFxEditPreview,
     fxPreviewOrPlayMode,
-} from './util/env';
+} from './ecs/env';
 
 export type { RunCondition } from './app/app';
 

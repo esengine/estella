@@ -18,7 +18,7 @@ import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Assets } from '../../asset/AssetPlugin';
 import { resolveAssetKey } from '../../asset/resolveAssetKey';

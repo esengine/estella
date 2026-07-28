@@ -16,7 +16,7 @@ import type { VideoStreamHandle } from './PlatformVideoBackend';
 import { NullVideoBackend } from './NullVideoBackend';
 import { Audio } from '../audio/Audio';
 import { getPlatform } from '../platform/base';
-import { isEditor, isPlayMode } from '../util/env';
+import { isEditor, isPlayMode } from '../ecs/env';
 import { log } from '../util/logger';
 
 const UI_VISUAL_IMAGE = 2; // UIVisualType.Image — samples the texture

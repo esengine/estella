@@ -8,7 +8,7 @@ import { Input } from '../../input/input';
 import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import { Interactable } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';

@@ -32,7 +32,7 @@ import type { World } from './ecs/world';
 import { defineSystem, Schedule } from './ecs/system';
 import { Commands, type CommandsInstance } from './ecs/commands';
 import { Res, Time, type TimeData } from './ecs/resource';
-import { playModeOnly } from './util/env';
+import { playModeOnly } from './ecs/env';
 import { log } from './util/logger';
 import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './ecs/entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';

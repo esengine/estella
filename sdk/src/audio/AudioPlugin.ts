@@ -10,7 +10,7 @@ import { WorldTransform, type WorldTransformData } from '../ecs/component';
 import { platformCreateAudioBackend, platformOnMemoryWarning } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
-import { isEditor, isPlayMode } from '../util/env';
+import { isEditor, isPlayMode } from '../ecs/env';
 import { log } from '../util/logger';
 
 export interface AudioPluginConfig {

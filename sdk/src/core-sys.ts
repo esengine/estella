@@ -186,7 +186,7 @@ export {
     TimerHandle,
     TimerRes,
     timerPlugin,
-} from './util/timer';
+} from './ecs/timer';
 
 export { velocityPlugin, velocitySystem } from './velocity';
 

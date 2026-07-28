@@ -16,7 +16,7 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { Transform, type TransformData } from '../../ecs/component';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { Res } from '../../ecs/resource';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';

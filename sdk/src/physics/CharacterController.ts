@@ -26,7 +26,7 @@ import { defineComponent, Transform, type TransformData } from '../ecs/component
 import { Schedule, defineSystem, GetWorld } from '../ecs/system';
 import { Query, Mut } from '../ecs/query';
 import { Res, Time, type TimeData } from '../ecs/resource';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { Physics, type PhysicsAPI } from './Physics';
 import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
 import type {

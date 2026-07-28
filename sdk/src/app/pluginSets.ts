@@ -30,7 +30,7 @@ import { mesh2dPlugin } from '../render/mesh2d';
 import { tilemapPlugin } from '../tilemap';
 import { postProcessPlugin } from '../postprocess';
 import { timelinePlugin } from '../timeline';
-import { timerPlugin } from '../util/timer';
+import { timerPlugin } from '../ecs/timer';
 import { velocityPlugin } from '../velocity';
 import { lifecyclePlugin } from '../ecs/lifecycle';
 import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from '../ai';

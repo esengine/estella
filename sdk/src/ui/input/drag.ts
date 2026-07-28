@@ -19,7 +19,7 @@ import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import { getEntityDepth } from '../util/helpers';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { quaternionToAngle2D } from '../util/math';

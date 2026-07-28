@@ -16,7 +16,7 @@ import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
 import { UIDialog, isDialogOpen } from '../behavior/dialog';
 import { walkParentChain } from '../util/helpers';
-import { playModeOnly } from '../../util/env';
+import { playModeOnly } from '../../ecs/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../ecs/systemLabels';
 import type { CppRegistry } from '../../wasm';

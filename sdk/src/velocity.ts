@@ -8,7 +8,7 @@ import type { Plugin } from './app/app';
 import { defineSystem, Schedule, GetWorld } from './ecs/system';
 import { Query, Mut } from './ecs/query';
 import { Res, Time, type TimeData } from './ecs/resource';
-import { playModeOnly } from './util/env';
+import { playModeOnly } from './ecs/env';
 import { Transform, Velocity, getComponentRegistry } from './ecs/component';
 import type { TransformData, VelocityData } from './ecs/component';
 import type { Entity } from './types';

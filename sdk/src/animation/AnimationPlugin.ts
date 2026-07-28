@@ -19,7 +19,7 @@ import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
 import { AnimatorController, AnimatorControllerAPI } from './Animator';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
-import { playModeOnly } from '../util/env';
+import { playModeOnly } from '../ecs/env';
 import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
