@@ -208,6 +208,9 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     canvas,
     sceneData: msg.sceneData,
     assetManifest: msg.assetManifest,
+    // Per-texture import settings from the editor's asset database, so the realm
+    // samples and 9-slices its textures exactly as the edit viewport does.
+    textureImports: msg.textureImports,
     // Addressable manifest → Assets.loadGroup works in the realm (remote / lazy
     // groups) just like a shipped build. Remote assets resolve same-origin
     // estella:// via assetBaseUrl, so no remoteRoot is set here.

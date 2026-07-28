@@ -40,7 +40,6 @@ import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
 import { UUID_REF_PREFIX } from './AssetRegistry';
-import { textureImportSettingsFrom } from './textureImportSettings';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../logger';
 
@@ -1345,18 +1344,6 @@ export class Assets {
     setAssetRegistry(registry: AssetRegistry): void {
         this.assetRegistry_ = registry;
         this.assetRefResolver_ = (ref) => registry.resolveRef(ref);
-        // The registry carries each asset's importer block (the cook copies it
-        // into the ship manifest verbatim), so a shipped game has the same
-        // import settings the editor does — it just never read them. Default the
-        // texture resolver to it, so filter/wrap/sRGB and the 9-slice border
-        // survive the build. A host that installed its own resolver keeps it.
-        if (!this.textureImportResolver_) {
-            this.textureImportResolver_ = (ref) => {
-                const path = this.resolveLoadPath_(ref);
-                const entry = registry.getEntryByPath(path) ?? registry.getEntryByPath(ref);
-                return textureImportSettingsFrom(entry?.importer);
-            };
-        }
     }
 
     getAssetRegistry(): AssetRegistry | null {

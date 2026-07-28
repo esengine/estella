@@ -3,6 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, setTextureSliceBorder, textureImportSettingsFrom, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
 import { importerDefaults, applyImporterEdit } from './assetImporter';
+import type { ParsedTextureImportSettings } from 'esengine';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
@@ -1495,6 +1496,7 @@ class ProjectStoreImpl {
   playPayload(): {
     sceneData: SceneData;
     assetManifest: Record<string, string>;
+    textureImports: Record<string, ParsedTextureImportSettings>;
     manifest: AddressableManifest;
     entrySceneName?: string;
     extraScenes?: Array<{ name: string; path: string }>;
@@ -1513,6 +1515,15 @@ class ProjectStoreImpl {
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
     for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
+    // Import settings ride to the realm keyed by the authored `@uuid:` ref — the
+    // spelling a component holds — so a played scene samples and slices exactly
+    // as the edit viewport does. They stay OUT of the scene: they describe the
+    // asset, and a copy in the scene goes stale when the `.meta` changes.
+    const textureImports: Record<string, ParsedTextureImportSettings> = {};
+    for (const [uuid, importer] of this.uuidToImporter) {
+      const settings = textureImportSettingsFrom(importer);
+      if (settings) textureImports[UUID_PREFIX + uuid] = settings;
+    }
     // Play == ship: register every other project scene under its export name
     // (scenes-dir-relative path sans extension — the same rule exportGame's
     // discoverProjectScenes uses), so SceneManager.switchTo('levels/boss')
@@ -1560,7 +1571,7 @@ class ProjectStoreImpl {
     const uiTheme = this.uiTheme();
     const uiThemeOverrides = this.uiThemeOverrides();
     return {
-      sceneData, assetManifest, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
+      sceneData, assetManifest, textureImports, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
       ...(currentScene ? { entrySceneName: exportSceneName(currentScene) } : {}),
       ...(extraScenes.length > 0 ? { extraScenes } : {}),
       ...(audioConfig.buses ? { audioConfig } : {}),

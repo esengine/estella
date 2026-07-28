@@ -4845,6 +4845,7 @@ physicsConfig: PhysicsPluginConfig | undefined
 physicsEnabled: boolean | undefined
 remoteRoot: string | undefined
 sceneData: SceneData
+textureImports: Record<string, ParsedTextureImportSettings> | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 wasmBaseUrl: string | undefined
@@ -5594,6 +5595,7 @@ decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: 
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
+textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined) | undefined
 ```
 
 ## RuntimeBuildConfig — interface

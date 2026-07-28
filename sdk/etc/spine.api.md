@@ -59,6 +59,7 @@ decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: 
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
+textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined) | undefined
 ```
 
 ## Spine — const

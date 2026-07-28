@@ -12,6 +12,7 @@ import { linearColorSpace } from './env';
 import type { ESEngineModule } from './wasm';
 import { linearColorSpace } from './env';
 import type { Backend } from './asset/Backend';
+import type { ParsedTextureImportSettings } from './asset/textureImportSettings';
 import { requireResourceManager } from './resourceManager';
 import { withMalloc } from './wasmScratch';
 
@@ -49,6 +50,18 @@ export interface RuntimeAssetSource {
      * warns when a scene needs them).
      */
     listAssetPaths?(): string[];
+    /**
+     * Per-texture import settings (filter/wrap/sRGB and the 9-slice border) for a
+     * ref. These belong to the ASSET, not to any scene that uses it, which is why
+     * they arrive through the realm's source alongside `resolveRef` rather than
+     * being copied into every scene that references the texture — a copy in the
+     * scene goes stale the moment the `.meta` changes.
+     *
+     * Optional: a realm without it renders with loader defaults. Each realm has
+     * the data already — the editor from its asset database, a cooked build from
+     * the `importer` block the cook copies into the ship manifest.
+     */
+    textureImportSettings?(ref: string): ParsedTextureImportSettings | undefined;
 }
 
 export interface TextureParams {

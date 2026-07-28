@@ -110,8 +110,17 @@ function ensureRuntimeAssets(
         return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
     });
 
+    // Two suppliers, one resolver, in precedence order:
+    //   - the REALM's asset source describes the ASSET (the editor's database, a
+    //     cooked build's manifest) and is authoritative;
+    //   - the per-scene map below is the embedder's channel for a scene that
+    //     carries its own `textureImporterSettings`.
+    // Asset-level wins: a stale copy inside a scene must not override what the
+    // asset actually says today.
     const settings: Record<string, TextureImportSettings> = {};
-    assets.setTextureImportSettingsResolver((ref) => settings[ref]);
+    assets.setTextureImportSettingsResolver(
+        (ref) => source.textureImportSettings?.(ref) ?? settings[ref],
+    );
     runtimeImportSettings.set(assets, settings);
 
     app.insertResource(AssetsResource, assets);
