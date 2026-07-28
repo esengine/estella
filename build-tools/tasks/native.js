@@ -69,6 +69,7 @@ export const MODULE_BINDING_HEADERS = [
     'PhysicsBindings.hpp',
     'VideoBindings.hpp',
     'SpineBindings.hpp',
+    'DragonBonesBindings.hpp',
 ];
 
 export const NATIVE_BINDING_HEADERS = [...ENGINE_BINDING_HEADERS, ...MODULE_BINDING_HEADERS];
