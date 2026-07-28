@@ -33,6 +33,7 @@ export default defineConfig({
             '../../sdk/src/index.ts',
             '../../sdk/src/physics/index.ts',
             '../../sdk/src/spine/index.ts',
+            '../../sdk/src/dragonbones/index.ts',
           ],
           tsconfig: '../../sdk/tsconfig.json',
           output: 'api-ts',
@@ -89,6 +90,7 @@ export default defineConfig({
             { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
             { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
+            { label: 'DragonBones Animation', translations: { 'zh-CN': 'DragonBones 动画' }, slug: 'guides/dragonbones' },
           ],
         },
         {

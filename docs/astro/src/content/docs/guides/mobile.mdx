@@ -175,6 +175,7 @@ behaves exactly as it does in a browser.
 | Text, bitmap text, rich text | Same atlas + layout as the web; glyphs rasterized from the OS font |
 | Physics (Box2D) | Compiled in; solved across worker threads |
 | Spine | Compiled in — one runtime version per binary (`-DESTELLA_SPINE_VERSION`) |
+| DragonBones | Compiled in — one runtime, since the format is frozen |
 | Video | Compiled in (cooked at build, decoded on device) |
 | Audio | Native mixer ([miniaudio](https://miniaud.io/)) — CoreAudio / AAudio |
 | Text input | The platform's **soft keyboard** is the field's editing surface |
