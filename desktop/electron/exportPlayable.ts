@@ -27,7 +27,7 @@ import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from '../../build-tools/utils/zip.js';
 import {
-  sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
+  sceneUsesPhysics, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
 } from './sideModuleScan';
 
@@ -122,6 +122,7 @@ async function collectSideModules(
 ): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
   const ids = new Set<string>();
   if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  if (sceneData && sceneUsesDragonBones(sceneData as Parameters<typeof sceneUsesDragonBones>[0])) ids.add('dragonbones');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so we discriminate by extension (as the runtime does via
   // the asset-type registry's contentType) — `.skel` is a binary skeleton, `.json`

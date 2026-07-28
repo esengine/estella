@@ -26,6 +26,7 @@ export function esengineAlias(sdkDir: string, mainEntry = 'index.js'): Record<st
   return {
     esengine: path.join(sdkDir, mainEntry),
     'esengine/spine': path.join(sdkDir, 'spine', 'index.js'),
+    'esengine/dragonbones': path.join(sdkDir, 'dragonbones', 'index.js'),
     'esengine/physics': path.join(sdkDir, 'physics', 'index.js'),
     'esengine/wasm': path.join(sdkDir, 'wasm.js'),
     'esengine/factory': path.join(sdkDir, 'webAppFactory.js'),

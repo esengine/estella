@@ -35,6 +35,18 @@ export function sceneUsesPhysics(scene: SceneLike): boolean {
   return false;
 }
 
+/** True if any entity carries a DragonBonesAnimation. Unlike Spine there is no
+ *  version to detect: the format is frozen and one module reads all of it, so the
+ *  presence of the component IS the answer. */
+export function sceneUsesDragonBones(scene: SceneLike): boolean {
+  for (const entity of scene.entities ?? []) {
+    for (const comp of entity.components ?? []) {
+      if (comp.type === 'DragonBonesAnimation') return true;
+    }
+  }
+  return false;
+}
+
 /** True if any entity carries a Video component — the wasm video decoder is
  *  WeChat's only video path, so any Video means the module must ship. */
 export function sceneUsesVideo(scene: SceneLike): boolean {
@@ -73,6 +85,7 @@ export const SIDE_MODULE_FILE: Record<string, string> = {
   physics: 'physics',
   basis: 'basis',
   videodec: 'videodec',
+  dragonbones: 'dragonbones',
   'spine:2.1': 'spine21',
   'spine:3.8': 'spine38',
   'spine:4.1': 'spine41',
@@ -85,6 +98,7 @@ export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   physics: 'physics-wechat',
   basis: 'basis-wechat',
   videodec: 'videodec-wechat',
+  dragonbones: 'dragonbones-wechat',
   'spine:2.1': 'spine-wechat',
   'spine:3.8': 'spine-wechat',
   'spine:4.1': 'spine-wechat',

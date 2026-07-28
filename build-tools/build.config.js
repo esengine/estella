@@ -175,6 +175,15 @@ export default {
                 'sdk/spine21.wasm': 'wasm/wechat/spine21.wasm',
             },
         },
+        'dragonbones-wechat': {
+            buildDir: 'build-dragonbones-wechat',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_DRAGONBONES=ON'],
+            targets: ['dragonbones_module'],
+            outputs: {
+                'sdk/dragonbones.js': 'wasm/wechat/dragonbones.js',
+                'sdk/dragonbones.wasm': 'wasm/wechat/dragonbones.wasm',
+            },
+        },
     },
 
     sdk: {

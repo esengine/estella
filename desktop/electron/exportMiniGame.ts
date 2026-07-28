@@ -38,7 +38,7 @@ import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
-  sceneUsesPhysics, sceneUsesVideo, detectSpineVersion, detectSpineVersionJson,
+  sceneUsesPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE,
 } from './sideModuleScan';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
@@ -113,6 +113,7 @@ async function scanSideModules(
   const ids = new Set<string>();
   if (sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
   if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
+  if (sceneDatas.some((s) => s && sceneUsesDragonBones(s as Parameters<typeof sceneUsesDragonBones>[0]))) ids.add('dragonbones');
   // Any staged .esv also needs the decoder: script-driven playback
   // (VideoPlayer.play) references cooked videos no scene component names.
   if (cookEntries.some((e) => /\.esv(\.bin)?$/.test(e.path.toLowerCase()))) ids.add('videodec');
