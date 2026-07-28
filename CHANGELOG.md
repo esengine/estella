@@ -14,17 +14,47 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
-### Fixed
+## [0.35.0] - 2026-07-28
 
-- **Double-clicking a script did nothing.** The open table only knew about editors
-  the editor ships, so every type without one — `.ts`, `.js`, `.esshader`, `.png` —
-  fell off the end of it in silence. Opening now always resolves to something: the
-  editor's own editor, then the program set for that kind of file, then whatever
-  the OS opens it with. The Content Browser's **Open** entry appeared for folders,
-  scenes and materials only, standing in for "is this openable at all?"; that
-  stopped being a real question, so it is offered for everything.
+A second skeletal runtime. Estella has animated Spine skeletons since 0.19.0;
+DragonBones is the one most Chinese studios author in, and until now the only way
+to use it was to export something else. It runs everywhere the engine does — the
+editor viewport, Play, web, playable ads, mini-games, and compiled into the iOS
+and Android hosts.
+
+Also: the editor can now create a plugin rather than only load one, it updates
+itself instead of handing you a link, and a game that you leave stops rendering.
 
 ### Added
+
+- **DragonBones animation.** Drop a `_ske.json` (or `.dbbin`) and its `_tex.json`
+  into a project and they import as one asset type, the way Spine's `.skel` and
+  `.atlas` do. **Create → DragonBones** makes an entity; the Details panel picks
+  the armature and the animation from dropdowns filled by reading the file the
+  entity points at, so you choose from what is actually in it rather than typing a
+  name and finding out at runtime. The armature poses in the viewport as you edit —
+  changing the animation, the scale or the flip shows immediately, without pressing
+  Play.
+
+  Two things differ from Spine, and the editor says so rather than papering over
+  them. A DragonBones file is a *project* holding several armatures, so choosing
+  one is a real step; and blending happens when an animation starts, not from a mix
+  table set on the skeleton, so a crossfade is `fadeIn(name, seconds)` and the
+  component carries a **Fade In Time** used on the first play too.
+
+  Entities pointing at the same pair share one parsed skeleton and one atlas — ten
+  of a character parse the file once. A packaged game carries the runtime only if a
+  scene actually uses it: nothing is fetched, inlined or copied for a project
+  without an armature in it.
+
+  The new `dragonbones-demo` example is the whole feature in one scene.
+
+- **The editor creates plugins.** The plugin system could load and run one but
+  never help you make one — the guide's first step was "create the folder". There
+  is a scaffold now: the manifest, an entry, a tsconfig and the typings sidecar it
+  points at, with the id validated by the same function the loader uses, so the
+  dialog cannot accept a name that would later be rejected. What a loaded plugin
+  contributes is listed, and a plugin ships as a single file.
 
 - **Settings → External Tools.** The script editor, the image editor and the
   browser. The script row is not a blank field: the editors actually installed are
@@ -65,6 +95,55 @@ published separately; it ships inside the editor.
   channel files name is then fetched over the public base, and the mirror job fails
   on a miss — a feed naming a file nobody can fetch is an update that dies at the
   download.
+
+### Fixed
+
+- **A game you left kept rendering, and the phone got hot.** The Android host's
+  frame loop had no pacing of its own: it called the frame immediately, forever,
+  and trusted the swapchain's vsync present to be the thing that slowed it down.
+  When a present did not block — a surface being torn down returns instead — the
+  only brake was gone. A backgrounded demo was found 11.5 million frames in,
+  holding a quarter of a CPU core to draw about one frame a second. The display
+  drives the frame now, through the Choreographer, which is what iOS already does
+  with a CADisplayLink and the web does with `requestAnimationFrame`; and frames
+  stop when the game is not the thing you are looking at. Backgrounded, it now uses
+  no measurable CPU at all.
+- **Animations ran fast on a high-refresh phone.** The host stepped the game at a
+  fixed 1/60s while presenting at whatever the panel runs at, so a 120 Hz device
+  played everything at 2.02× — which reads as "the animations are too quick"
+  rather than as a clock bug, and is why it lasted. A frame now reports the time
+  that actually passed, clamped the same way the web loop clamps it, so a game
+  behaves the same after a stall wherever it runs. Fixes iOS and Android together.
+- **Double-clicking a script did nothing.** The open table only knew about editors
+  the editor ships, so every type without one — `.ts`, `.js`, `.esshader`, `.png` —
+  fell off the end of it in silence. Opening now always resolves to something: the
+  editor's own editor, then the program set for that kind of file, then whatever
+  the OS opens it with. The Content Browser's **Open** entry appeared for folders,
+  scenes and materials only, standing in for "is this openable at all?"; that
+  stopped being a real question, so it is offered for everything.
+- **Reordering in the Outliner did not change what you saw.** Scene order is paint
+  order within a sorting layer, and the viewport kept drawing the old one until the
+  scene was reopened — so a drag changed the saved file, Play and the exported game
+  while the thing in front of you disagreed. Measured on three overlapping sprites:
+  identical pixels after the drag, a different picture after reopening. Order is a
+  projected change like every other one now.
+- **A field driven by a controller ignored your edit.** Details showed the
+  component's own value, took the change, and the gear overwrote it from the
+  current page on the next frame — with nothing to say the field was driven,
+  because the marker only appeared while the Controllers strip had a controller
+  selected. Being driven is a fact about the scene, so all of it is read from the
+  binding now: the field shows what applies, says it is driven, and an edit reaches
+  the page it belongs to.
+- **A clicked button stayed lit.** Pressing focuses it (so Enter and Space act on
+  what you clicked), the driver ranked `focused` above `normal`, and the Button
+  prefab painted `focused` the same grey as `hover` — so a mouse-clicked button
+  wore the hover look until focus moved somewhere else. Reported by someone who
+  recoloured `normal` and never saw that colour again. Focus now has a colour of
+  its own.
+- **The update toast's Download button 404'd.** It opened a directory url that
+  object storage has never served — for anyone, on any release. It was composed in
+  two places and verified in none; both now use the link the release job already
+  publishes.
 
 ## [0.34.1] - 2026-07-27
 
@@ -1861,7 +1940,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.34.1...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/esengine/estella/compare/v0.34.1...v0.35.0
 [0.34.1]: https://github.com/esengine/estella/compare/v0.34.0...v0.34.1
 [0.34.0]: https://github.com/esengine/estella/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/esengine/estella/compare/v0.32.0...v0.33.0
