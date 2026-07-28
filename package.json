@@ -17,7 +17,7 @@
     "emsdk:setup": "node build-tools/toolchain/setup-emsdk.js",
     "asset-meta": "node tools/asset-meta.js",
     "migrate-asset-refs": "node tools/migrate-asset-refs.js",
-    "verify": "pnpm --filter ./sdk exec tsc --noEmit && node tools/api-surface.mjs --check",
+    "verify": "pnpm --filter ./sdk exec tsc --noEmit && node tools/api-surface.mjs --check && node tools/check-cycles.mjs",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
@@ -34,5 +34,8 @@
       "esbuild",
       "ffmpeg-static"
     ]
+  },
+  "devDependencies": {
+    "madge": "^8.0.0"
   }
 }
