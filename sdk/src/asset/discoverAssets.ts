@@ -30,6 +30,9 @@ export interface SpineAssetRef {
     atlas: string;
 }
 
+/** A skeleton/atlas pair, whichever runtime poses it. */
+export type SkeletalAssetRef = SpineAssetRef;
+
 export interface SceneAssetRefs {
     byType: Map<string, Set<string>>;
     /**
@@ -41,7 +44,15 @@ export interface SceneAssetRefs {
      * absolute URLs would otherwise register under keys no component uses.
      */
     rawByType: Map<string, Set<string>>;
-    spines: SpineAssetRef[];
+    /**
+     * Skeleton/atlas pairs posed by SPINE. Split from {@link dragonBones} because
+     * the two are loaded by different runtimes: a pair handed to the wrong one is
+     * parsed by a parser that cannot read it, and fails as "unsupported version"
+     * rather than as the routing mistake it is.
+     */
+    spines: SkeletalAssetRef[];
+    /** Skeleton/atlas pairs posed by DragonBones. */
+    dragonBones: SkeletalAssetRef[];
     /**
      * Refs seen during discovery that could not be resolved to a path
      * (e.g. unknown UUID). Callers surface this to the user so missing
@@ -59,8 +70,11 @@ export function discoverSceneAssets(
 ): SceneAssetRefs {
     const byType = new Map<string, Set<string>>();
     const rawByType = new Map<string, Set<string>>();
-    const spines: SpineAssetRef[] = [];
-    const spineKeys = new Set<string>();
+    const spines: SkeletalAssetRef[] = [];
+    const dragonBones: SkeletalAssetRef[] = [];
+    // One set across both runtimes: the key is the pair, and the same pair cannot
+    // belong to two runtimes.
+    const skeletalKeys = new Set<string>();
     const unresolved: string[] = [];
 
     const resolve = (raw: string): string | null => {
@@ -126,9 +140,13 @@ export function discoverSceneAssets(
                     const atlas = resolve(atlasRaw);
                     if (skel != null && atlas != null) {
                         const key = `${skel}:${atlas}`;
-                        if (!spineKeys.has(key)) {
-                            spineKeys.add(key);
-                            spines.push({ skeleton: skel, atlas });
+                        if (!skeletalKeys.has(key)) {
+                            skeletalKeys.add(key);
+                            // An unnamed runtime is Spine: the field predates the
+                            // second runtime, so that is what a component without
+                            // one has always meant.
+                            const bucket = comp.skeletalFields.runtime === 'dragonbones' ? dragonBones : spines;
+                            bucket.push({ skeleton: skel, atlas });
                         }
                     }
                 }
@@ -136,7 +154,7 @@ export function discoverSceneAssets(
         }
     }
 
-    return { byType, rawByType, spines, unresolved };
+    return { byType, rawByType, spines, dragonBones, unresolved };
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {

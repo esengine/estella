@@ -181,7 +181,11 @@ export async function applySpineEntities(opts: {
         if (!Array.isArray(sceneEntity.components)) continue;
         for (const comp of sceneEntity.components) {
             const spineDesc = getComponentSkeletalFieldDescriptor(comp.type);
-            if (!spineDesc || !comp.data) continue;
+            // A skeletal pair is not automatically Spine's — DragonBones carries the
+            // same two fields and is applied by its own loader. Without this the
+            // DragonBones pair reaches detectVersion, which reports "no version"
+            // and drops the entity silently rather than saying it was misrouted.
+            if (!spineDesc || spineDesc.runtime === 'dragonbones' || !comp.data) continue;
             const skelRef = comp.data[spineDesc.skeletonField] as string;
             const atlasRef = comp.data[spineDesc.atlasField] as string;
             if (!skelRef || !atlasRef) continue;
