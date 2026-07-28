@@ -318,7 +318,7 @@ export function EnumControl({
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: number; options: EnumOption[]; mixed?: boolean; onChange: (v: number) => void }) {
+}: ControlGesture & { value: string | number; options: EnumOption[]; mixed?: boolean; onChange: (v: string | number) => void }) {
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
   const [q, setQ] = useState('');
@@ -479,7 +479,11 @@ function FlagsControl({
 }: ControlGesture & { value: number; options: EnumOption[]; mixed?: boolean; onChange: (v: number) => void }) {
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
-  const bits = options.filter((o) => o.value !== 0);
+  // A flag IS a bit. These options come from a bitmask or a flag list, both of
+  // which are numeric by construction — a named option could never be OR'd.
+  const bits = options
+    .map((o) => ({ ...o, value: Number(o.value) }))
+    .filter((o) => o.value !== 0);
   const all = bits.reduce((m, o) => m | o.value, 0);
   const active = bits.filter((o) => (value & o.value) === o.value);
   const summary = mixed

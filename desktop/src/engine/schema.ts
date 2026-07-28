@@ -508,14 +508,22 @@ export function setBitmaskSource(name: string, provider: (() => EnumOption[]) | 
 // Editor-registered providers of dynamic enum options (e.g. project sorting
 // layers). A field with `enumSource` becomes a dropdown when its source yields
 // options, else a plain number — so free-int editing survives an empty set.
-const enumSources = new Map<string, () => EnumOption[]>();
+/**
+ * A provider is handed the component's own values, because some option sets are
+ * not global. Sorting layers are a project fact and ignore it; which armatures
+ * exist depends on which file THIS entity's `skeletonPath` points at, and two
+ * entities of one component type legitimately answer differently.
+ */
+export type EnumOptionProvider = (data: Readonly<Record<string, unknown>>) => EnumOption[];
+
+const enumSources = new Map<string, EnumOptionProvider>();
 /** Register (or clear) a named source of dynamic enum options. */
-export function setEnumSource(name: string, provider: (() => EnumOption[]) | null): void {
+export function setEnumSource(name: string, provider: EnumOptionProvider | null): void {
   if (provider) enumSources.set(name, provider);
   else enumSources.delete(name);
 }
-function enumSourceOptions(name: string): EnumOption[] {
-  return enumSources.get(name)?.() ?? [];
+function enumSourceOptions(name: string, data: Readonly<Record<string, unknown>>): EnumOption[] {
+  return enumSources.get(name)?.(data) ?? [];
 }
 /** The bit options for a bitmask field: its source's labels, else `Layer N`. */
 function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] {
@@ -534,6 +542,7 @@ function fieldFor(
   key: string,
   value: unknown,
   isColor: boolean,
+  data: Readonly<Record<string, unknown>> = {},
 ): InspectorField | null {
   const meta = fieldMetaFor(compType, key);
   const at = assetFieldType(compType, key) ?? spineSlotType(compType, key);
@@ -567,8 +576,13 @@ function fieldFor(
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: meta.flags.map((o) => ({ ...o })) };
   } else if (meta?.enum && meta.enum.length) {
     field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
-  } else if (meta?.enumSource && enumSourceOptions(meta.enumSource).length) {
-    field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: enumSourceOptions(meta.enumSource) };
+  } else if (meta?.enumSource && enumSourceOptions(meta.enumSource, data).length) {
+    const options = enumSourceOptions(meta.enumSource, data);
+    // A string-valued source names things; coercing through Number would turn
+    // every option into NaN and the field into a broken 0.
+    const stringly = typeof options[0].value === 'string';
+    const v = stringly ? (typeof value === 'string' ? value : '') : (Number(value) || 0);
+    field = { key, label: prettyLabel(key), type: 'enum', value: v, options };
   } else {
     field = inferField(key, value, isColor);
     if (field && field.type === 'number' && meta) {
@@ -674,12 +688,12 @@ export function inspectorFields(
     if (DERIVED_FIELDS.has(key)) continue;
     if (isConditionallyHidden(compType, key, eff)) continue;
     const value = key in data ? data[key] : defaults?.[key];
-    const f = fieldFor(compType, key, value, colorKeys.has(key));
+    const f = fieldFor(compType, key, value, colorKeys.has(key), eff);
     if (!f) continue;
     // Reset target: the prefab base for this key, else the registered default.
     const baseRaw = baseData && key in baseData ? baseData[key] : defaults?.[key];
     if (baseRaw !== undefined) {
-      const bf = fieldFor(compType, key, baseRaw, colorKeys.has(key));
+      const bf = fieldFor(compType, key, baseRaw, colorKeys.has(key), eff);
       if (bf) f.defaultValue = bf.value;
     }
     fields.push(f);

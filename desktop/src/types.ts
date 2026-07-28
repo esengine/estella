@@ -51,7 +51,13 @@ export type InspectorFieldType =
 /** A dropdown option for an `enum` field: the label shown, the int stored. */
 export interface EnumOption {
   label: string;
-  value: number;
+  /**
+   * Strings as well as numbers: a C++ enum's options are ordinals, but a name
+   * chosen from a referenced asset — which animation, which armature — IS the
+   * value, and mapping it through an index would break the moment the asset is
+   * re-exported with its animations in another order.
+   */
+  value: string | number;
 }
 
 /** One stop of a `gradient` field: a 0..1 position + an RGBA color (0..1 channels). */
