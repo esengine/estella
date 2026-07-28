@@ -513,17 +513,24 @@ export class EditorControlSurfaceImpl {
    * frame, and with no rAF loop the headless host's buffer persists.
    */
   /**
-   * Resize the render canvas (headless drivers): the engine follows on the
-   * next stepped frame — GL tracks the canvas drawing buffer implicitly,
-   * WebGPU reconfigures its swapchain through the same per-frame size source.
+   * Resize the render canvas's DRAWING BUFFER (headless drivers): the engine
+   * follows on the next stepped frame — GL tracks the canvas drawing buffer
+   * implicitly, WebGPU reconfigures its swapchain through the same per-frame
+   * size source. This is also the resolution `captureViewport` reads.
+   *
+   * Deliberately does NOT touch `canvas.style`: the canvas is laid out at
+   * `width/height: 100%` of its container, and pinning a pixel CSS size here
+   * permanently detaches it from that container — in the live editor the panel
+   * then keeps growing while the canvas does not, and the frame is drawn
+   * stretched into a stale box. A driver that wants the LIVE viewport to be a
+   * given size must size its PANEL (`setPanelSize`) and let layout drive the
+   * canvas; the drawing buffer follows via EngineHost's ResizeObserver.
    */
   resizeViewport(width: number, height: number): void {
     const canvas = EngineHost.canvas;
     if (!canvas) throw new Error('resizeViewport requires a render host (no canvas)');
     canvas.width = width;
     canvas.height = height;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
   }
 
   /**

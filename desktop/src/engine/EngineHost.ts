@@ -615,6 +615,17 @@ class EngineHostImpl {
         depth: true,
         stencil: true,
         premultipliedAlpha: false,
+        // The editor must be able to READ BACK what it drew — `captureViewport`
+        // (screenshots, visual verification, the MCP automation surface) does a
+        // `readPixels` on the default framebuffer from a task of its own. Without
+        // this the browser is free to discard the drawing buffer as soon as it
+        // has composited, so every readback that isn't in the same task as the
+        // draw comes back BLACK — which is exactly what happened in the live
+        // editor while the headless host (no rAF loop, nothing composites) kept
+        // working. This is the editor's own context, created here rather than by
+        // the engine, so the cost lands on the editor alone and no shipping
+        // build pays for it.
+        preserveDrawingBuffer: true,
       }) as WebGL2RenderingContext | null;
       if (!gl) throw new Error('WebGL2 is not available in this renderer.');
 

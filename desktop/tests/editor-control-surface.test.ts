@@ -25,6 +25,8 @@ const host = vi.hoisted(() => ({
   app: null as unknown as App,
   ticks: 0,
   runMode: null as null | [boolean, boolean],
+  // null by default (no render host); a test that needs one substitutes a stub.
+  canvas: null as null | { width: number; height: number; style: Record<string, string> },
 }));
 
 vi.mock('@/engine/EngineHost', () => ({
@@ -35,7 +37,7 @@ vi.mock('@/engine/EngineHost', () => ({
     },
     getResource: () => undefined,
     get canvas() {
-      return null; // no render host in the node harness → captureViewport must fail clearly
+      return host.canvas; // null by default → captureViewport must fail clearly
     },
     tick: async (dt: number) => {
       host.ticks++;
@@ -69,6 +71,7 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     host.app = app;
     host.ticks = 0;
     host.runMode = null;
+    host.canvas = null;
     S = EditorSession.create();
     S.model.adopt(emptyScene(), new Map());
   });
@@ -186,6 +189,23 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(S.surface.getSelection()).not.toBe(b);
     S.surface.select(null);
     expect(S.surface.getSelection()).toBeNull();
+  });
+
+  it('resizeViewport sets the drawing buffer and leaves CSS sizing to layout', () => {
+    // The canvas is laid out at width/height:100% of its panel. Writing a pixel
+    // CSS size here detaches it from that container for good: the panel keeps
+    // growing, the canvas does not, and every later frame is drawn stretched
+    // into a stale box. Only the drawing buffer is this door's business.
+    host.canvas = { width: 300, height: 150, style: { width: '100%', height: '100%' } };
+    S.surface.resizeViewport(1280, 720);
+    expect(host.canvas.width).toBe(1280);
+    expect(host.canvas.height).toBe(720);
+    expect(host.canvas.style.width).toBe('100%');
+    expect(host.canvas.style.height).toBe('100%');
+  });
+
+  it('resizeViewport fails clearly with no render host', () => {
+    expect(() => S.surface.resizeViewport(64, 64)).toThrow(/render host/);
   });
 
   it('subscribeSelection fires on change and stops after unsubscribe', () => {
