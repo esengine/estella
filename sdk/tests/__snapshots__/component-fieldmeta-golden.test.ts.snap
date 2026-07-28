@@ -127,6 +127,12 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "DragonBonesAnimation": {
+    "animation": {
+      "enumSource": "dragonbonesAnimations",
+    },
+    "armature": {
+      "enumSource": "dragonbonesArmatures",
+    },
     "fadeInTime": {
       "min": 0,
       "step": 0.05,

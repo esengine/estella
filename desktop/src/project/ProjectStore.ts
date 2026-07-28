@@ -18,6 +18,7 @@ import { Boxes } from 'lucide-react';
 import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
+import { installDragonBonesEnumSources } from '@/engine/dragonBonesNames';
 import { setProjectActions, type ProjectActionSchema } from '@/ai/actionCatalog';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
@@ -245,6 +246,9 @@ class ProjectStoreImpl {
     setBitmaskSource('collisionLayers', () => this.collisionLayerOptions());
     // Render `layer` fields become a dropdown once the project names sorting layers.
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
+    // Armature / animation dropdowns read the file each entity references, so
+    // their options are per-entity rather than per-project (see dragonBonesNames).
+    installDragonBonesEnumSources();
     // New Canvas entities seed their design resolution from the project setting.
     setCanvasDesignSeed(() => this.designResolution());
     // The device preview reads the project camera fit so its letterbox matches the
@@ -755,6 +759,11 @@ class ProjectStoreImpl {
   /** Resolve a serialized asset ref to a project-relative path for the engine
    *  loader: a uuid ref (`@uuid:` or bare) → path (null if unknown); a plain
    *  path passes through. */
+  /** Project-relative path for a `@uuid:` ref (or a plain path unchanged). */
+  refPath(ref: string): string | null {
+    return this.resolveRef(ref);
+  }
+
   private resolveRef(ref: string): string | null {
     const uuid = refUuid(ref);
     if (uuid === null) return ref;

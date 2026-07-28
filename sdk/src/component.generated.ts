@@ -224,6 +224,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['color'],
         animatableFields: [],
         fields: {
+            armature: { enumSource: "dragonbonesArmatures" },
+            animation: { enumSource: "dragonbonesAnimations" },
             timeScale: { min: 0 },
             fadeInTime: { min: 0, step: 0.05 },
             layer: { step: 1, enumSource: "sortingLayers" },

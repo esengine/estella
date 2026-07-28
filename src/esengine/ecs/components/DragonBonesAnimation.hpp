@@ -42,11 +42,11 @@ struct DragonBonesAnimation {
     std::string atlasPath;
 
     /** @brief Which armature in the file; empty takes the first */
-    ES_PROPERTY()
+    ES_PROPERTY(enum_source=dragonbonesArmatures)
     std::string armature;
 
     /** @brief Current animation name */
-    ES_PROPERTY()
+    ES_PROPERTY(enum_source=dragonbonesAnimations)
     std::string animation;
 
     /** @brief Animation playback speed multiplier */

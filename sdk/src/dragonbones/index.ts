@@ -10,3 +10,5 @@ export type {
 export { DragonBonesManager } from './DragonBonesManager';
 export type { DragonBonesEntityOptions } from './DragonBonesManager';
 export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './DragonBonesPlugin';
+export { parseDragonBonesNames } from './skeletonNames';
+export type { DragonBonesArmatureNames } from './skeletonNames';
