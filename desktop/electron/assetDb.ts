@@ -127,6 +127,11 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Pro
  */
 // 'animation' covers .estimeline (AnimFrames tracks reference textures) and
 // legacy .esanim metas written before the type split to 'animclip'.
+// A skeletal atlas names its page images, and nothing else in the project does —
+// no component references them. Scanned for deps whatever their own asset type is,
+// so the cook keeps the textures instead of shipping an atlas that 404s them.
+const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
+
 const JSON_REF_TYPES = new Set([
   'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
 ]);
@@ -221,7 +226,7 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
-    (e) => JSON_REF_TYPES.has(e.type) || getEditorType(e.path) === 'spine-atlas',
+    (e) => JSON_REF_TYPES.has(e.type) || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
   const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
@@ -229,6 +234,8 @@ async function computeDeps(
     // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
     // apart from the JSON path so the cook embeds those textures (else the atlas
     // ships but its .png is culled and the playable 404s it).
+    // Spine's atlas is a TEXT manifest and needs its own parser; DragonBones'
+    // is JSON, so the generic walk below already finds its `imagePath`.
     const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
     try {
       const refs = new Set<string>();

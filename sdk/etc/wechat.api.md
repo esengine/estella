@@ -603,6 +603,7 @@ contentType: AssetContentType
 editorType: EditorAssetType
 extensions: string[]
 hasTransitiveDeps: boolean
+suffixes: string[] | undefined
 wechatPackInclude: boolean
 ```
 
@@ -2433,6 +2434,7 @@ ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefin
 ## EditorAssetType — type
 ```
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
+    | 'dragonbones-atlas' | 'dragonbones-skeleton'
     | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown'

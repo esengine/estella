@@ -8,6 +8,7 @@ export type AddressableAssetType =
 
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
+    | 'dragonbones-atlas' | 'dragonbones-skeleton'
     | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown';
@@ -16,6 +17,13 @@ export type AssetBuildTransform = (content: string, context: unknown) => string;
 
 export interface AssetTypeEntry {
     extensions: string[];
+    /**
+     * Full lower-case name endings claiming this type, checked BEFORE extensions
+     * because they are the more specific claim. For a format whose files are told
+     * apart by convention rather than suffix — DragonBones ships `_ske.json`
+     * beside `_tex.json`, and `.json` alone cannot see the difference.
+     */
+    suffixes?: string[];
     contentType: AssetContentType;
     editorType: EditorAssetType;
     addressableType: AddressableAssetType | null;
@@ -45,6 +53,11 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['skel'], contentType: 'binary', editorType: 'spine-skeleton', addressableType: 'spine', wechatPackInclude: true, hasTransitiveDeps: true },
+    // DragonBones. The atlas has transitive deps — its `imagePath` names a PNG no
+    // component references, so without that flag the cook ships the atlas and culls
+    // the image it points at, and the export 404s a texture at runtime.
+    { extensions: ['dbbin'], suffixes: ['_ske.json'], contentType: 'binary', editorType: 'dragonbones-skeleton', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: false },
+    { extensions: [], suffixes: ['_tex.json'], contentType: 'text', editorType: 'dragonbones-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['json'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: false, hasTransitiveDeps: false },
     // Input map (defineInputMap / loadInputMapAsset) — data-driven key/gamepad bindings.
     { extensions: ['inputmap'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
@@ -124,6 +137,12 @@ function extractExtension(extensionOrPath: string): string {
 }
 
 export function getAssetTypeEntry(extensionOrPath: string): AssetTypeEntry | undefined {
+    // Suffix first: `foo_ske.json` is a DragonBones skeleton, and letting `.json`
+    // answer would classify it as whatever that extension maps to.
+    const lower = extensionOrPath.toLowerCase();
+    for (const entry of ASSET_TYPE_REGISTRY) {
+        if (entry.suffixes?.some((s) => lower.endsWith(s))) return entry;
+    }
     return extToEntry.get(extractExtension(extensionOrPath));
 }
 
