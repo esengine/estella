@@ -86,7 +86,7 @@ void renderer_submitSpineBatch(
         textureId, blendMode, transform, Entity::fromRaw(entity), layer, depth);
 }
 
-void renderer_submitSpineBatchByEntity(
+void renderer_submitSkeletalBatchByEntity(
     ecs::Registry& registry,
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
@@ -112,8 +112,8 @@ void renderer_submitSpineBatchByEntity(
                      * glm::scale(glm::mat4(1.0f), s);
 
     if (vertexCount < 0 || indexCount < 0) return;
-    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSpineBatchByEntity.vertices");
-    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSpineBatchByEntity.indices");
+    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSkeletalBatchByEntity.vertices");
+    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSkeletalBatchByEntity.indices");
     if (!vertices || !indices) return;
     g_renderFrame->submitSpineBatch(
         vertices, vertexCount, indices, indexCount,

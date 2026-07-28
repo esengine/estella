@@ -175,7 +175,7 @@ export interface ESEngineModule {
         transformPtr: number,
         entity: number, layer: number, depth: number
     ): void;
-    renderer_submitSpineBatchByEntity?(
+    renderer_submitSkeletalBatchByEntity?(
         registry: CppRegistry,
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,

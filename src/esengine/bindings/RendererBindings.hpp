@@ -48,7 +48,7 @@ void renderer_submitSpineBatch(
     uintptr_t transformPtr,
     u32 entity, i32 layer, f32 depth
 );
-void renderer_submitSpineBatchByEntity(
+void renderer_submitSkeletalBatchByEntity(
     ecs::Registry& registry,
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,

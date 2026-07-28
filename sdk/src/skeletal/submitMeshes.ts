@@ -4,15 +4,9 @@
  * @file    skeletal/submitMeshes.ts
  * @brief   Handing one entity's posed geometry to the engine core.
  *
- * @details The core's entry point is `renderer_submitSpineBatchByEntity`, and the
- *          name is the only thing about it that is Spine's: it takes vertices,
+ * @details One entry point serves every skeletal runtime: it takes vertices,
  *          indices, a texture, a blend mode, an entity, a scale, two flips and a
- *          layer, and nothing in that list knows what posed them. DragonBones
- *          submits through exactly the same call.
- *
- *          (The name is worth fixing, but it spans the wasm ABI, the native host
- *          and the WeChat build, so it is its own change rather than a rename
- *          smuggled into this one.)
+ *          layer, and nothing in that list knows what posed them.
  *
  *          The copy is the delicate part. A module's batch bytes live in ITS heap,
  *          and the core reads from the CORE's — so each batch is copied into an
@@ -34,7 +28,7 @@ export interface SkeletalSubmitProps {
 
 /** The slice of the engine core this needs. */
 export interface SkeletalSubmitCore {
-    renderer_submitSpineBatchByEntity?(
+    renderer_submitSkeletalBatchByEntity?(
         registry: unknown,
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
@@ -63,7 +57,7 @@ export function submitEntityMeshes(
     props: SkeletalSubmitProps,
     walk: MeshBatchWalker,
 ): boolean {
-    const submit = core.renderer_submitSpineBatchByEntity;
+    const submit = core.renderer_submitSkeletalBatchByEntity;
     const heap = core.HEAPU8;
     if (!submit || !heap || !core._malloc || !core._free) return false;
 

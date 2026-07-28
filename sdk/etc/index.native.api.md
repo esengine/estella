@@ -2393,9 +2393,9 @@ renderer_submitAll: (registry: CppRegistry, skipFlags: number, vpX: number, vpY:
 renderer_submitBitmapText: (registry: CppRegistry) => void
 renderer_submitParticles: ((registry: CppRegistry) => void) | undefined
 renderer_submitShapes: ((registry: CppRegistry) => void) | undefined
+renderer_submitSkeletalBatchByEntity: ((registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number) => void) | undefined
 renderer_submitSpine: ((registry: CppRegistry) => void) | undefined
 renderer_submitSpineBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number) => void) | undefined
-renderer_submitSpineBatchByEntity: ((registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number) => void) | undefined
 renderer_submitSprites: (registry: CppRegistry) => void
 renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number) => void) | undefined
 renderer_submitUIElements: (registry: CppRegistry) => void

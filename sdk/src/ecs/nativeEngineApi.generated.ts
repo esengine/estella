@@ -154,9 +154,9 @@ export interface NativeEngineApi {
     renderer_submitBitmapText?(registry: unknown): void;
     renderer_submitParticles?(registry: unknown): void;
     renderer_submitShapes?(registry: unknown): void;
+    renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number): void;
     renderer_submitSpine?(registry: unknown): void;
     renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
-    renderer_submitSpineBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number): void;
     renderer_submitSprites?(registry: unknown): void;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number): void;
     renderer_submitUIElements?(registry: unknown): void;
@@ -385,9 +385,9 @@ export function createNativeEngineApi(
     bind('renderer_submitBitmapText', 'es_renderer_submitBitmapText', true);
     bind('renderer_submitParticles', 'es_renderer_submitParticles', true);
     bind('renderer_submitShapes', 'es_renderer_submitShapes', true);
+    bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);
     bind('renderer_submitSpine', 'es_renderer_submitSpine', true);
     bind('renderer_submitSpineBatch', 'es_renderer_submitSpineBatch', false);
-    bind('renderer_submitSpineBatchByEntity', 'es_renderer_submitSpineBatchByEntity', true);
     bind('renderer_submitSprites', 'es_renderer_submitSprites', true);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_submitUIElements', 'es_renderer_submitUIElements', true);

@@ -373,7 +373,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     // Spine renders via the side modules — only the mesh-submit bindings the
     // SDK SpineManager calls remain. Native spine_* / spine_native_* are gone.
     emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
-    emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
+    emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
 #endif
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
