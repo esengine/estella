@@ -25,6 +25,9 @@ import { createSideModuleHost, type SideModuleHost, type SideModule } from '../s
 import { SPINE_VERSIONS, spineModuleId, type SideModuleId } from '../sideModules/registry';
 import { log } from '../logger';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
+// Not TextEncoder/TextDecoder: this file runs inside QuickJS on a device, which
+// has neither. See utf8.ts.
+import { encodeUtf8, decodeUtf8 } from '../utf8';
 
 /**
  * One global per subsystem that proves the host compiled it in. Picked from the
@@ -46,6 +49,9 @@ const SPINE_PROBES = SPINE_VERSIONS.reduce<Partial<Record<SideModuleId, string>>
 export const NATIVE_SIDE_MODULE_PROBES: Partial<Record<SideModuleId, string>> = {
     physics: 'es_physics_init',
     videodec: 'es_video_open',
+    // One entry, not one per version: the DragonBones format is frozen, so unlike
+    // Spine there is no "which runtime did this binary link" question to ask.
+    dragonbones: 'es_db_loadSkeleton',
     ...SPINE_PROBES,
 };
 
@@ -67,12 +73,12 @@ function readUtf8(heap: NativeHeap, ptr: number): string {
     if (!ptr) return '';
     let end = ptr;
     while (end < heap.HEAPU8.length && heap.HEAPU8[end] !== 0) end++;
-    return new TextDecoder().decode(heap.HEAPU8.subarray(ptr, end));
+    return decodeUtf8(heap.HEAPU8.subarray(ptr, end));
 }
 
 /** Copy `str` into the heap as NUL-terminated UTF-8; the caller frees it. */
 function writeUtf8(heap: NativeHeap, str: string): number {
-    const bytes = new TextEncoder().encode(str);
+    const bytes = encodeUtf8(str);
     const ptr = heap._malloc(bytes.length + 1);
     if (!ptr) return 0;
     heap.HEAPU8.set(bytes, ptr);

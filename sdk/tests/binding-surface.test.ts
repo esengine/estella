@@ -394,6 +394,39 @@ describe('WASM binding surface: side modules (C exports)', () => {
             .toEqual([]);
     });
 
+    // Read off the WRAPPED interface rather than the cwrap call sites, because this
+    // loader binds through `w('loadSkeleton', …)` and lets the helper add the `db_`
+    // — there is no `cwrap('db_loadSkeleton')` literal to find. The interface is a
+    // faithful stand-in for the table: tsc rejects a member with no `w(…)` behind it
+    // and a `w(…)` with no member, so the two cannot drift.
+    it('DragonBonesWrappedAPI mirrors the module exports exactly', () => {
+        const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/DragonBonesModuleEntry.cpp')));
+        const loaderTs = read(resolve(SDK, 'dragonbones/DragonBonesModuleLoader.ts'));
+        const declared = new Set(
+            [...parseInterfaceMethods(loaderTs, 'DragonBonesWrappedAPI')].map((n) => `_db_${n}`),
+        );
+        expectMirrored('dragonbones', declared, cpp);
+    });
+
+    // The native half, as for physics and spine. This one has already been the bug
+    // it guards: the module was linked into the Android host and unreachable from
+    // it, because the ABI lived only in the .cpp and the generator had nothing to
+    // read. A declaration missing here is an entry point a device does not answer.
+    it('DragonBonesBindings.hpp declares exactly what the module exports', () => {
+        const header = stripComments(read(resolve(CPP, 'bindings/DragonBonesBindings.hpp')));
+        const declared = new Set([...header.matchAll(/\b(db_\w+)\s*\(/g)].map((m) => m[1]!));
+        const exported = new Set(
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/DragonBonesModuleEntry.cpp')))]
+                .filter((n) => n.startsWith('db_')),
+        );
+        const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
+        const phantom = [...declared].filter((n) => !exported.has(n)).sort();
+        expect(undeclared, `exported but not declared in DragonBonesBindings.hpp: ${undeclared.join(', ')}`)
+            .toEqual([]);
+        expect(phantom, `declared in DragonBonesBindings.hpp but defined nowhere: ${phantom.join(', ')}`)
+            .toEqual([]);
+    });
+
     it('BasisWasmModule mirrors the basis EXPORTED_FUNCTIONS list exactly', () => {
         const cmake = read(resolve(CPP, '../../cmake/Emscripten.cmake'));
         const exported = parseExportedFunctions(cmake, 'es_basis');

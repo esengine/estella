@@ -14,10 +14,14 @@ import {
 } from '../src/ecs/nativeSideModules';
 import { HEAP_BINDINGS } from '../src/ecs/nativeHeap';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
+import { wrapDragonBonesModule } from '../src/dragonbones/DragonBonesModuleLoader';
+import type { DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModuleLoader';
 
 /** A host that compiled physics in: the heap plus a few es_physics_* globals. */
-function mockNativeHost(options: { physics?: boolean; heap?: boolean; spine?: number } = {}) {
-    const { physics = true, heap = true, spine } = options;
+function mockNativeHost(options: {
+    physics?: boolean; heap?: boolean; spine?: number; dragonbones?: boolean;
+} = {}) {
+    const { physics = true, heap = true, spine, dragonbones = false } = options;
     const buffer = new ArrayBuffer(4096);
     let next = 8;
     const calls: { name: string; args: unknown[] }[] = [];
@@ -48,6 +52,13 @@ function mockNativeHost(options: { physics?: boolean; heap?: boolean; spine?: nu
         // and writes them, so nothing here needs the heap.
         scope['es_spine_getAnimations'] = () => 'idle,walk,run';
     }
+    if (dragonbones) {
+        // One runtime, no version to declare: the format is frozen, so unlike Spine
+        // there is nothing for the host to disagree with the content about.
+        scope['es_db_loadSkeleton'] = (...args: unknown[]) => { calls.push({ name: 'loadSkeleton', args }); return 1; };
+        scope['es_db_createInstance'] = (...args: unknown[]) => { calls.push({ name: 'createInstance', args }); return 0; };
+        scope['es_db_getArmatures'] = () => '["Dragon"]';
+    }
     return { scope, buffer, calls };
 }
 
@@ -74,6 +85,24 @@ describe('createNativeSideModules', () => {
         const { scope } = mockNativeHost();
         expect(await createNativeSideModules(scope).acquire('basis')).toBeNull();
         expect(NATIVE_SIDE_MODULE_PROBES.basis).toBeUndefined();
+    });
+
+    // The DragonBones module was linked into the Android host and unreachable from
+    // it for exactly one missing probe entry, which is the shape of failure this
+    // pins: the acquirer answering null while the binary carries the runtime.
+    it('answers DragonBones when the host compiled it in', async () => {
+        const { scope } = mockNativeHost({ dragonbones: true });
+        const mod = await createNativeSideModules(scope).acquire('dragonbones');
+        expect(mod).not.toBeNull();
+        // Through the SAME cwrap the web loader uses, so the controller cannot tell
+        // a compiled-in runtime from a fetched one.
+        const wrapped = wrapDragonBonesModule(mod as unknown as DragonBonesWasmModule);
+        expect(wrapped.getArmatures(1)).toBe('["Dragon"]');
+    });
+
+    it('answers null for DragonBones when the host did not compile it in', async () => {
+        const { scope } = mockNativeHost();
+        expect(await createNativeSideModules(scope).acquire('dragonbones')).toBeNull();
     });
 
     it('caches, so two consumers share one view', async () => {
