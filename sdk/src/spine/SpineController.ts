@@ -10,6 +10,7 @@ import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../logger';
 import { withMalloc, withScratch } from '../wasmScratch';
+import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
@@ -227,52 +228,17 @@ export class SpineModuleController {
     // =========================================================================
 
     /**
-     * Iterate this instance's mesh batches, invoking `cb` for each with Uint8Array
-     * views directly into spine wasm scratch — valid only for the duration of the
-     * call. No per-batch Float32Array/Uint16Array allocation and no copy out; the
-     * consumer copies the bytes straight into its own wasm heap while the view is
-     * live. Replaces extractMeshBatches, which allocated and cached two typed
-     * arrays per batch per frame (C7).
+     * Iterate this instance's mesh batches. The views point into wasm scratch and
+     * are valid only for the duration of each call, so a consumer copies straight
+     * into its own heap and nothing allocates a typed array per batch per frame.
+     *
+     * The walk itself is shared with every other skeletal module (see
+     * skeletal/meshBatches) — the four readback entry points are packed the same
+     * way on the C++ side, so reading them differently per runtime would be two
+     * copies of one contract.
      */
-    forEachMeshBatch(
-        instanceId: number,
-        cb: (
-            vertBytes: Uint8Array, indexBytes: Uint8Array,
-            vertexCount: number, indexCount: number,
-            textureId: number, blendMode: number,
-        ) => void,
-    ): void {
-        const batchCount = this.api_.getMeshBatchCount(instanceId);
-        if (batchCount === 0) return;
-
-        withMalloc(this.raw_, 8, metaPtr => {
-            const texIdPtr = metaPtr;
-            const blendPtr = metaPtr + 4;
-
-            for (let i = 0; i < batchCount; i++) {
-                const vertexCount = this.api_.getMeshBatchVertexCount(instanceId, i);
-                const indexCount = this.api_.getMeshBatchIndexCount(instanceId, i);
-                if (vertexCount <= 0 || indexCount <= 0) continue;
-
-                const vertByteLen = vertexCount * 8 * 4;
-                const idxByteLen = indexCount * 2;
-                withScratch(this.raw_, alloc => {
-                    const vertPtr = alloc(vertByteLen);
-                    const idxPtr = alloc(idxByteLen);
-
-                    this.api_.getMeshBatchData(
-                        instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
-
-                    cb(
-                        new Uint8Array(this.raw_.HEAPU8.buffer, vertPtr, vertByteLen),
-                        new Uint8Array(this.raw_.HEAPU8.buffer, idxPtr, idxByteLen),
-                        vertexCount, indexCount,
-                        this.raw_.HEAPU32[texIdPtr >> 2],
-                        this.raw_.HEAPU32[blendPtr >> 2],
-                    );
-                });
-            }
-        });
+    forEachMeshBatch(instanceId: number, cb: MeshBatchVisitor): void {
+        forEachMeshBatch(this.raw_, this.api_, instanceId, cb);
     }
 
     // =========================================================================

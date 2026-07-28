@@ -143,7 +143,7 @@ collectEvents: (instanceId: number) => RawSpineEvent[]
 createInstance: (skeletonHandle: number) => number
 destroyInstance: (instanceId: number) => void
 enableEvents: (instanceId: number) => void
-forEachMeshBatch: (instanceId: number, cb: (vertBytes: Uint8Array, indexBytes: Uint8Array, vertexCount: number, indexCount: number, textureId: number, blendMode: number) => void) => void
+forEachMeshBatch: (instanceId: number, cb: MeshBatchVisitor) => void
 getAnimations: (instanceId: number) => string[]
 getAtlasPageCount: (handle: number) => number
 getAtlasPageTextureName: (handle: number, pageIndex: number) => string
