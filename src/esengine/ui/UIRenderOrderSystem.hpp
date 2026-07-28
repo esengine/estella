@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
-#include "Registry.hpp"
-#include "components/Hierarchy.hpp"
-#include "components/UINode.hpp"
-#include "components/Sprite.hpp"
-#include "components/UIVisual.hpp"
-#include "components/Canvas.hpp"
+#include "../ecs/Registry.hpp"
+#include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/UINode.hpp"
+#include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/UIVisual.hpp"
+#include "../ecs/components/Canvas.hpp"
 
 namespace esengine::ecs {
 

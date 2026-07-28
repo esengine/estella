@@ -155,7 +155,7 @@ list(APPEND ESENGINE_HEADERS
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
 set(GENERATED_EDITOR_API "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/EditorAPI.generated.cpp")
-set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm.generated.ts")
+set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm/wasm.generated.ts")
 
 list(APPEND ESENGINE_SOURCES
     src/esengine/platform/web/WebFileSystem.cpp

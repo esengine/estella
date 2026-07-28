@@ -9,7 +9,7 @@
 #include <string>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
-#include "../core/UITypes.hpp"
+#include "../ui/UITypes.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/Camera.hpp"

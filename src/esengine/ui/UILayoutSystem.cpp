@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-#include "UILayoutSystem.hpp"
-#include "UISystem.hpp"
+#include "./UILayoutSystem.hpp"
+#include "./UISystem.hpp"
 
-#include "components/Transform.hpp"
-#include "components/Canvas.hpp"
-#include "components/FlexContainer.hpp"
-#include "components/UINode.hpp"   // UINode + AlignSelf
+#include "../ecs/components/Transform.hpp"
+#include "../ecs/components/Canvas.hpp"
+#include "../ecs/components/FlexContainer.hpp"
+#include "../ecs/components/UINode.hpp"   // UINode + AlignSelf
 
 #include <yoga/Yoga.h>
 #include <unordered_map>

@@ -38,8 +38,8 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/trail/TrailSystem.cpp
     ${ESENGINE_ROOT}/src/esengine/platform/PathResolver.cpp
     ${ESENGINE_ROOT}/src/esengine/animation/TweenSystem.cpp
-    ${ESENGINE_ROOT}/src/esengine/ecs/UILayoutSystem.cpp
-    ${ESENGINE_ROOT}/src/esengine/ecs/UISystem.cpp
+    ${ESENGINE_ROOT}/src/esengine/ui/UILayoutSystem.cpp
+    ${ESENGINE_ROOT}/src/esengine/ui/UISystem.cpp
 )
 
 # WebGL2 (GLES3) backend — the web/WeChat platform only. A native build renders

@@ -8,11 +8,11 @@
  */
 #pragma once
 
-#include "Registry.hpp"
-#include "components/Transform.hpp"
-#include "components/Hierarchy.hpp"
-#include "components/UINode.hpp"
-#include "components/UIMask.hpp"
+#include "../ecs/Registry.hpp"
+#include "../ecs/components/Transform.hpp"
+#include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/UINode.hpp"
+#include "../ecs/components/UIMask.hpp"
 
 #include <cmath>
 

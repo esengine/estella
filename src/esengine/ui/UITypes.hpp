@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
-#include "Types.hpp"
+#include "../core/Types.hpp"
 
 namespace esengine {
 

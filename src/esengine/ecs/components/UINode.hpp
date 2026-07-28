@@ -3,7 +3,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
-#include "../../core/UITypes.hpp"     // Dimension
+#include "../../ui/UITypes.hpp"     // Dimension
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"        // glm::vec2 (computed output)
 

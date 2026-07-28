@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
-#include "Registry.hpp"
-#include "UITree.hpp"
+#include "../ecs/Registry.hpp"
+#include "./UITree.hpp"
 
 #include <glm/glm.hpp>
 

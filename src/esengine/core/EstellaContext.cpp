@@ -37,7 +37,7 @@
 #endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
-#include "../ecs/UISystem.hpp"
+#include "../ui/UISystem.hpp"
 #include "../animation/TweenSystem.hpp"
 
 #ifdef ES_PLATFORM_WEB

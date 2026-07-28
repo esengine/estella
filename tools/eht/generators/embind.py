@@ -70,7 +70,7 @@ class EmbindGenerator:
             '#include <string>',
             '#include "../ecs/Registry.hpp"',
             '#include "../math/Math.hpp"',
-            '#include "../core/UITypes.hpp"',
+            '#include "../ui/UITypes.hpp"',
         ]
 
     def _gen_includes(self) -> List[str]:

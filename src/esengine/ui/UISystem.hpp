@@ -13,9 +13,9 @@
 #pragma once
 
 #include "../core/Types.hpp"
-#include "Entity.hpp"
-#include "Registry.hpp"
-#include "UITree.hpp"
+#include "../ecs/Entity.hpp"
+#include "../ecs/Registry.hpp"
+#include "./UITree.hpp"
 
 #include <memory>
 #include <vector>

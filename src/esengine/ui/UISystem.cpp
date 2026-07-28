@@ -7,14 +7,14 @@
  *          anonymous-namespace helpers (resolveFlexChildren, etc.).
  */
 
-#include "UISystem.hpp"
-#include "UIHitTestSystem.hpp"
+#include "./UISystem.hpp"
+#include "./UIHitTestSystem.hpp"
 
-#include "components/Interactable.hpp"
-#include "components/Transform.hpp"
-#include "components/UIInteraction.hpp"
-#include "components/UINode.hpp"
-#include "components/UIVisual.hpp"
+#include "../ecs/components/Interactable.hpp"
+#include "../ecs/components/Transform.hpp"
+#include "../ecs/components/UIInteraction.hpp"
+#include "../ecs/components/UINode.hpp"
+#include "../ecs/components/UIVisual.hpp"
 
 #include <algorithm>
 #include <cstdint>

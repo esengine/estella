@@ -33,10 +33,10 @@
 #include "TilemapBindings.hpp"
 #endif
 
-#include "../ecs/UILayoutSystem.hpp"
-#include "../ecs/UIHitTestSystem.hpp"
-#include "../ecs/UIRenderOrderSystem.hpp"
-#include "../ecs/UISystem.hpp"
+#include "../ui/UILayoutSystem.hpp"
+#include "../ui/UIHitTestSystem.hpp"
+#include "../ui/UIRenderOrderSystem.hpp"
+#include "../ui/UISystem.hpp"
 
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"

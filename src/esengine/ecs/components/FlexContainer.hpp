@@ -3,7 +3,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
-#include "../../core/UITypes.hpp"
+#include "../../ui/UITypes.hpp"
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 

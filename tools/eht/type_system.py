@@ -20,7 +20,7 @@ class TypeSystem:
     # Generalizes the former single Padding special case. Each entry maps a struct
     # name to its ordered (member_name, member_cpp_type) list; the struct must be
     # defined in the esengine:: namespace and included by WebBindings
-    # (core/UITypes.hpp) and be a standard C++ POD.
+    # (ui/UITypes.hpp) and be a standard C++ POD.
     #
     # Structs used as a DIRECT component field (Padding/Dimension) must have only
     # primitive members in PtrLayoutGenerator.TYPE_SIZES (they go through the
