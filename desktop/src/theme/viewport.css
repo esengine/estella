@@ -267,7 +267,7 @@
    warm re-Play) but is invisible, non-interactive, and behind the editor stage.
    visibility (not display:none) keeps the iframe's GL context alive. */
 .viewport__play--parked { visibility: hidden; pointer-events: none; z-index: -1; }
-.viewport__play-host { position: absolute; inset: 0; }
+.viewport__play-host { width: 100%; height: 100%; }
 .viewport__play-host iframe { width: 100%; height: 100%; border: 0; display: block; }
 .viewport__play-status {
   position: absolute;
@@ -338,7 +338,25 @@
 
 /* Game view (isolated play realm iframe) — REARCH_EDITOR_REALM Phase R. */
 .game-panel { position: relative; width: 100%; height: 100%; background: var(--srf-1); overflow: hidden; }
-.game-panel__host { position: absolute; inset: 0; }
+/* Bar over the stage rather than above it: the game keeps the full panel, and the
+   controls read as viewport chrome — the same glass buttons the viewport uses. */
+.game-panel__bar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.game-panel__size { color: var(--text-mute); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+/* The stage centres a host that may be narrower than the panel: a device
+   selection letterboxes by SHAPING the host, so the realm's canvas is the
+   device's shape and its ScreenScaling adapts exactly as on real hardware. */
+.game-panel__stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.game-panel__host { width: 100%; height: 100%; }
+/* Play-in-viewport gets the same letterbox: one target screen, both views. */
+.viewport__play-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .game-panel__overlay {
   position: absolute;
   inset: 0;

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
+import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, Magnet, Axis3d, Hexagon, MapPin, type LucideIcon,
+  Camera, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Monitor, Magnet, Axis3d, Hexagon, MapPin, type LucideIcon,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
   AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
@@ -16,7 +16,7 @@ import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
 import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
-import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
+import { RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { alignSelection, distributeSelection } from '@/tools/alignTools';
 import { TilemapAPI, tileIdOf, isNonOrthogonal, isCollisionPaletteRef, buildCollisionPaletteModel, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
@@ -40,7 +40,8 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
 import { PluginOverlays } from '@/plugins/PluginOverlays';
 import { Perf } from '@/components/Perf';
-import { Popover, usePopover } from '@/components/Popover';
+import { OvDropdown, DdRadio } from '@/components/OverlayMenu';
+import { TargetScreenDropdown, playHostAspectStyle } from '@/mode/TargetScreen';
 import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
@@ -520,65 +521,6 @@ function OvTool({
 // A viewport overlay dropdown (the "show flags" / "snap" menus): an .ovbtn
 // trigger with an icon, a label, and a chevron, over a glass <Popover> holding
 // the check/radio rows. Closes on item-click, outside press, scroll, or Escape.
-function OvDropdown({
-  icon: Icon,
-  label,
-  title,
-  children,
-}: {
-  icon: LucideIcon;
-  label: ReactNode;
-  title?: string;
-  children: ReactNode;
-}) {
-  const pop = usePopover();
-  const btnRef = useRef<HTMLButtonElement>(null);
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className={`ovbtn${pop.isOpen ? ' open' : ''}`}
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={pop.isOpen}
-        onClick={() => (pop.isOpen ? pop.close() : pop.open(btnRef.current))}
-      >
-        <Icon className="ic" size={13} strokeWidth={1.9} />
-        {label}
-        <ChevronDown className="cv" size={9} strokeWidth={2.5} />
-      </button>
-      {/* Item clicks bubble to the menu to dismiss; each runs its own handler. */}
-      {pop.isOpen && pop.anchor && (
-        <Popover anchor={pop.anchor} width="auto" className="popover--glass" onClose={pop.close}>
-          <div role="menu" onClick={pop.close}>
-            {children}
-          </div>
-        </Popover>
-      )}
-    </>
-  );
-}
-
-// Multi-toggle menu row (checkbox box) — for the Show Flags menu.
-function DdCheck({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
-  return (
-    <div className={`ovmenu-item${on ? ' on' : ''}`} role="menuitemcheckbox" aria-checked={on} onClick={onClick}>
-      <span className="chk">{on && <Check size={8} strokeWidth={3.5} />}</span>
-      <span className="l">{label}</span>
-    </div>
-  );
-}
-
-// Single-select menu row (tick mark, shown when active) — for the Snap menu.
-function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
-  return (
-    <div className={`ovmenu-item${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on} onClick={onClick}>
-      <span className="tk"><Check size={11} strokeWidth={3} /></span>
-      <span className="l">{label}</span>
-    </div>
-  );
-}
 
 // Only this node re-renders per mouse move; the HUD follows the slow stats cadence.
 function HudCursor() {
@@ -770,9 +712,12 @@ export function Viewport() {
   // Device-preview controls for the design-resolution overlay (the rAF reads these via
   // getState(); the subscriptions keep the device dropdown label current). Available in
   // any editor mode — a device preview is a screen concern, not a UI-layer one.
+  // The per-frame overlay draw reads these through getState(); subscribing keeps
+  // the component re-rendering when they change, and the play host below sizes
+  // itself from the same values.
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
-  const showSafeArea = useEditorMode((s) => s.showSafeArea);
+  useEditorMode((s) => s.showSafeArea);
   // Project design resolution — the reference the preview falls back to when the scene
   // has no Canvas (so gameplay-only scenes preview on devices too). Reactive for the label.
   const projectState = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
@@ -2081,46 +2026,10 @@ export function Viewport() {
             ))}
             <div className="ovmenu-lbl">{t('vp.designResExact')}</div>
           </OvDropdown>
-          <OvDropdown
-            icon={Smartphone}
-            label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
-            title={t('vp.deviceTitle')}
-          >
-            <div className="ovmenu-lbl">{t('vp.device')}</div>
-            {RESOLUTION_PRESETS.map((p) => (
-              <DdRadio
-                key={p.id}
-                on={device === p.id}
-                label={p.label}
-                onClick={() => {
-                  const ms = useEditorMode.getState();
-                  ms.setDevice(p.id);
-                  // Picking a real device snaps the orientation to the design's own
-                  // (a landscape design previews on a landscape phone); the explicit
-                  // orientation radios below still override.
-                  if (p.w > 0) {
-                    const dw = sceneCanvas ? sceneCanvas.x : projectDesign.width;
-                    const dh = sceneCanvas ? sceneCanvas.y : projectDesign.height;
-                    const want = dw >= dh ? 'landscape' : 'portrait';
-                    if (ms.orientation !== want) ms.toggleOrientation();
-                  }
-                }}
-              />
-            ))}
-            <div className="ovmenu-lbl">{t('vp.orientation')}</div>
-            <DdRadio
-              on={orientation === 'landscape'}
-              label={t('vp.landscape')}
-              onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
-            />
-            <DdRadio
-              on={orientation === 'portrait'}
-              label={t('vp.portrait')}
-              onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
-            />
-            <div className="ovmenu-lbl">{t('vp.overlay')}</div>
-            <DdCheck on={showSafeArea} label={t('vp.safeArea')} onClick={() => useEditorMode.getState().toggleSafeArea()} />
-          </OvDropdown>
+          <TargetScreenDropdown
+            designAspect={sceneCanvas ? { w: sceneCanvas.x, h: sceneCanvas.y } : { w: projectDesign.width, h: projectDesign.height }}
+            showSafeAreaToggle
+          />
           <span className="ov-divider" />
           <OvDropdown
             icon={Magnet}
@@ -2498,7 +2407,15 @@ export function Viewport() {
           button obscuring the running game. */}
       {playTarget === 'viewport' && (
         <div className={`viewport__play${playInViewport ? '' : ' viewport__play--parked'}`}>
-          <div className="viewport__play-host" ref={playHostRef} />
+          {/* Same target screen the edit overlay previews: playing in the viewport
+              letterboxes to the picked device instead of filling the dock. */}
+          <div className="viewport__play-stage">
+            <div
+              className="viewport__play-host"
+              style={playHostAspectStyle(device, orientation) ?? undefined}
+              ref={playHostRef}
+            />
+          </div>
           {playInViewport && (!realm.ready || realm.error) && (
             <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
               {realm.error ? t('vp.playFailed', { error: realm.error }) : t('vp.startingGame')}

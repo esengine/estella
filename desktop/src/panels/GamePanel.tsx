@@ -4,11 +4,16 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { t } from '@/i18n';
 import { PlayRealm, PlayRealms } from '@/engine/PlayRealm';
 import { useEditorStore } from '@/store/editorStore';
+import { useEditorMode } from '@/store/editorModeStore';
+import { TargetScreenDropdown, playHostAspectStyle, targetScreenLabel } from '@/mode/TargetScreen';
 
 // The "Game" dock panel: hosts the isolated play-realm iframe (the realm owns the
 // element + re-parents it here, so the realm survives panel remounts). The host
 // div has NO React children — the realm appends the iframe into it manually — so a
 // status overlay is a separate absolutely-positioned sibling.
+//
+// The overlay bar carries the target-screen control, so a game can be run at a
+// device's shape instead of at whatever aspect the dock was last dragged to.
 
 function overlayFor(snap: { playing: boolean; ready: boolean; error: string | null }): string | null {
   return snap.error
@@ -24,6 +29,8 @@ export function GamePanel() {
   const hostRef = useRef<HTMLDivElement>(null);
   const snap = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
   const playTarget = useEditorStore((s) => s.playTarget);
+  const device = useEditorMode((s) => s.device);
+  const orientation = useEditorMode((s) => s.orientation);
 
   // Only host the realm iframe in 'window' mode — in 'viewport' mode the Viewport
   // owns it (one iframe, one mount). Guards against a stale Game tab stealing it.
@@ -36,9 +43,18 @@ export function GamePanel() {
   }, [playTarget]);
 
   const overlay = overlayFor(snap);
+  const aspect = playHostAspectStyle(device, orientation);
+  const sizeLabel = targetScreenLabel(device, orientation);
+
   return (
     <div className="game-panel">
-      <div className="game-panel__host" ref={hostRef} />
+      <div className="game-panel__bar">
+        <TargetScreenDropdown />
+        {sizeLabel && <span className="game-panel__size">{sizeLabel}</span>}
+      </div>
+      <div className="game-panel__stage">
+        <div className="game-panel__host" style={aspect ?? undefined} ref={hostRef} />
+      </div>
       {overlay && <div className={`game-panel__overlay${snap.error ? ' error' : ''}`}>{overlay}</div>}
     </div>
   );
