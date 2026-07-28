@@ -1,0 +1,331 @@
+{
+  "version": "1.0",
+  "name": "DragonBonesDemo",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "DragonBoy",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -150,
+              "y": -55,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "DragonBonesAnimation",
+          "data": {
+            "skeletonPath": "@uuid:33c9e017-8e8d-4f05-aaf3-e0918c1f5491",
+            "atlasPath": "@uuid:763ea990-ac7f-4236-9a95-c66e15abd103",
+            "armature": "Dragon",
+            "animation": "stand",
+            "timeScale": 1,
+            "loop": true,
+            "playing": true,
+            "fadeInTime": 0.2,
+            "flipX": false,
+            "flipY": false,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "skeletonScale": 0.38,
+            "enabled": true
+          }
+        },
+        {
+          "type": "AnimState",
+          "data": {
+            "timer": 0,
+            "index": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "DragonBoyMirror",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 175,
+              "y": -85,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "DragonBonesAnimation",
+          "data": {
+            "skeletonPath": "@uuid:33c9e017-8e8d-4f05-aaf3-e0918c1f5491",
+            "atlasPath": "@uuid:763ea990-ac7f-4236-9a95-c66e15abd103",
+            "armature": "Dragon",
+            "animation": "stand",
+            "timeScale": 1,
+            "loop": true,
+            "playing": true,
+            "fadeInTime": 0.2,
+            "flipX": true,
+            "flipY": false,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "skeletonScale": 0.23,
+            "enabled": true
+          }
+        },
+        {
+          "type": "AnimState",
+          "data": {
+            "timer": 0,
+            "index": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        4,
+        5,
+        6
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Title",
+      "parent": 3,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 660,
+              "unit": 0
+            },
+            "height": {
+              "value": 30,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -330,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 40,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "DragonBones — one file, one armature, four animations",
+            "fontSize": 19,
+            "color": {
+              "r": 0.93,
+              "g": 0.94,
+              "b": 0.97,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Hint",
+      "parent": 3,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 660,
+              "unit": 0
+            },
+            "height": {
+              "value": 24,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -330,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 70,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Press 1-4 to crossfade: stand / walk / jump / fall   ·   both figures share ONE parsed skeleton",
+            "fontSize": 14,
+            "color": {
+              "r": 0.62,
+              "g": 0.66,
+              "b": 0.74,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Readout",
+      "parent": 3,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 660,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -330,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 34,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "stand",
+            "fontSize": 20,
+            "color": {
+              "r": 0.71,
+              "g": 0.83,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "Readout",
+          "data": {}
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

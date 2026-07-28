@@ -1,0 +1,23 @@
+{
+  "formatVersion": "1",
+  "name": "DragonBones Animation",
+  "description": "A DragonBones armature posed by the engine: DragonBoy crossfades between stand/walk/jump/fall (press 1-4), and two figures share one parsed skeleton.",
+  "tag": "Animation",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "packaging": {
+    "platform": "playable",
+    "config": "shipping",
+    "sourceMaps": false,
+    "openFolder": true,
+    "outDir": {
+      "playable": "dist-playable"
+    },
+    "compressTextures": false,
+    "atlasTextures": false
+  }
+}

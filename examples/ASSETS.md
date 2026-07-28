@@ -25,6 +25,14 @@ using the Spine runtime (and this asset) requires your own Spine Editor license,
 redistribution must keep the copyright notice. It is **not** CC0 and not free to reuse the
 way the Kenney art is.
 
+## DragonBones
+
+`dragonbones-demo` uses **DragonBoy** (`DragonBoy_ske.json` / `DragonBoy_tex.json` /
+`DragonBoy_tex.png`), the DragonBones project's own demo armature, taken from
+[DragonBonesCPP](https://github.com/DragonBones/DragonBonesCPP) (`SFML/Demos/HelloDragonBones`).
+It is **MIT** licensed — © 2012-2016 DragonBones team and other contributors — so unlike
+the Spine asset above it is free to reuse, provided the copyright notice travels with it.
+
 ## Audio
 
 `audio-demo` uses short synthesized drum one-shots (`assets/audio/*.wav`) generated for

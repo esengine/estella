@@ -21,6 +21,7 @@ for your own game.
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
 | **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
+| **dragonbones-demo** | Animation | A DragonBones armature crossfading stand/walk/jump/fall (1-4 to switch), with two figures sharing one parsed skeleton. |
 | **tween-animation** | Animation | Ease positions, scales and colors over time. |
 | **cutscene** | Animation | A code-free cutscene: an FSM state plays a timeline via the built-in `timeline.play` / `timeline.finished` names, then hands over to gameplay (R to replay). |
 | **input-demo** | Input | Keyboard, mouse and pointer input with a motion trail. |
