@@ -14,7 +14,7 @@ import { rgbaToHex8 } from '@/components/ColorControl';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { useEditorMode } from '@/store/editorModeStore';
-import type { ScreenOrientation, CameraScaleMode } from '@/project/format';
+import type { ScreenOrientation, CameraScaleMode, ScreenPreset } from '@/project/format';
 import { t } from '@/i18n';
 
 const ORIENTATION = [
@@ -54,6 +54,40 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.designResolution().height,
     set: (v) => void ProjectStore.setDisplay({ height: Math.round(v) }),
+  },
+});
+
+// The screens this project tests on. The built-in device list is a guess; a team
+// that ships to specific hardware corrects it here, and an entry reusing a
+// built-in id replaces that built-in rather than sitting beside it.
+settingsRegistry.register({
+  id: 'project.display.screenPresets',
+  type: 'objectList', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.screenPresets'),
+  description: t('set.project.display.screenPresets.desc'),
+  layout: 'block',
+  default: [],
+  columns: [
+    { key: 'id', label: t('set.screenPreset.id'), type: 'text', width: '120px', placeholder: 'my-device' },
+    { key: 'label', label: t('set.screenPreset.label'), type: 'text', width: '1fr', placeholder: 'My Device' },
+    { key: 'width', label: t('set.screenPreset.width'), type: 'number', width: '84px', min: 1 },
+    { key: 'height', label: t('set.screenPreset.height'), type: 'number', width: '84px', min: 1 },
+  ],
+  addLabel: t('set.screenPreset.add'),
+  emptyHint: t('set.screenPreset.empty'),
+  // Portrait storage keeps one meaning for the orientation toggle across the
+  // built-ins and a project's own, so a swap is always the same operation.
+  newRow: () => ({ id: '', label: '', width: 1080, height: 1920 }),
+  rowError: (row, all) => {
+    const id = String(row.id ?? '').trim();
+    if (!id) return t('set.screenPreset.errId');
+    if (all.filter((r) => String(r.id ?? '').trim() === id).length > 1) return t('set.screenPreset.errDup');
+    if (!(Number(row.width) > 0) || !(Number(row.height) > 0)) return t('set.screenPreset.errSize');
+    return null;
+  },
+  bind: {
+    get: () => ProjectStore.screenPresets() as unknown as Record<string, unknown>[],
+    set: (v) => void ProjectStore.setScreenPresets(v as unknown as ScreenPreset[]),
   },
 });
 

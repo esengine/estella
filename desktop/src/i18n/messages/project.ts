@@ -314,6 +314,7 @@ export const projectMessages = defineMessages({
         zh: '{instances} 个预制体实例上的 {overrides} 处覆盖已与预制体不符，已被丢弃',
     },
     'proj.saveSortingLayersFailed': { en: 'Failed to save sorting layers', zh: '保存排序层失败' },
+    'proj.saveScreenPresetsFailed': { en: 'Failed to save screen presets', zh: '保存屏幕预设失败' },
     'proj.saveDesignResolutionFailed': { en: 'Failed to save design resolution', zh: '保存设计分辨率失败' },
     'proj.savePackagingFailed': { en: 'Failed to save packaging settings', zh: '保存打包设置失败' },
     'proj.saveAssetGroupsFailed': { en: 'Failed to save asset delivery config', zh: '保存资产交付配置失败' },

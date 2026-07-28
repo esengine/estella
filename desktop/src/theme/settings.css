@@ -276,3 +276,31 @@
   padding: 8px 12px; cursor: pointer; font: inherit;
 }
 .mix-add:hover { color: var(--text); border-color: var(--line-strong); }
+
+/* Block row: the control stacks under its label at full width, for anything a
+   230px column cannot hold. Set by `layout: 'block'` on the descriptor. */
+.set-row--block { grid-template-columns: 1fr 18px; }
+.set-row--block .set-ctrl { grid-column: 1 / -1; justify-content: stretch; }
+
+/* Editable table of project-declared rows (screen presets today). */
+.set-objlist { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.set-objlist-head,
+.set-objlist-fields { display: grid; gap: 6px; align-items: center; }
+.set-objlist-head { font-size: var(--fs-2xs); color: var(--text-mute); padding: 0 2px; }
+.set-objlist .set-str { width: 100%; font-family: var(--mono); }
+.set-objlist-row.invalid .set-str { border-color: var(--error); }
+.set-objlist-err { color: var(--error); font-size: var(--fs-2xs); padding: 2px 2px 0; }
+.set-objlist-del,
+.set-objlist-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.set-objlist-del { justify-content: center; width: 24px; height: 24px; }
+.set-objlist-del:hover { color: var(--error); background: color-mix(in srgb, var(--error) 14%, transparent); }
+.set-objlist-add { align-self: flex-start; height: 26px; padding: 0 9px; font-size: var(--fs-xs); }
+.set-objlist-add:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.set-objlist-empty { color: var(--text-mute); font-size: var(--fs-xs); padding: 2px 0 4px; }

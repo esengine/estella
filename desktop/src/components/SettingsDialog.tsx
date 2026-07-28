@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, X, RotateCcw, FolderSearch } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
@@ -24,7 +24,7 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { ColorControl } from '@/components/ColorControl';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting, ObjectListSetting } from '@/settings/types';
 import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -294,6 +294,81 @@ function FlagListControl({ setting }: { setting: FlagListSetting }) {
   );
 }
 
+/**
+ * A table of rows the user can add to, edit and delete. Values are committed on
+ * every keystroke — the setting store is the working copy, and a row that is
+ * momentarily invalid shows its complaint inline instead of being refused.
+ */
+const EMPTY_ROWS: readonly Record<string, unknown>[] = [];
+
+function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  // useShallow, not a bare selector: `getValue` hands back a fresh array each
+  // call, and Object.is on a new reference re-renders forever — the same reason
+  // FlagListControl below reads its value this way.
+  const rows = useSettings(useShallow((s) => s.getValue<Record<string, unknown>[]>(setting.id) ?? (EMPTY_ROWS as Record<string, unknown>[])));
+  const cols = setting.columns;
+  const grid = { gridTemplateColumns: `${cols.map((c) => c.width ?? '1fr').join(' ')} 24px` };
+
+  // Read the CURRENT rows rather than the render's closure: editing two fields
+  // in quick succession would otherwise have the second patch built from the
+  // pre-first snapshot and silently drop the first edit.
+  const patch = (i: number, key: string, v: unknown) => {
+    const live = useSettings.getState().getValue<Record<string, unknown>[]>(setting.id) ?? rows;
+    setValue(setting.id, live.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
+  };
+
+  return (
+    <div className="set-objlist">
+      {rows.length === 0 && setting.emptyHint && <div className="set-objlist-empty">{setting.emptyHint}</div>}
+      {rows.length > 0 && (
+        <div className="set-objlist-head" style={grid}>
+          {cols.map((c) => <span key={c.key}>{c.label}</span>)}
+          <span />
+        </div>
+      )}
+      {rows.map((row, i) => {
+        const err = setting.rowError?.(row, rows) ?? null;
+        return (
+          <div key={i} className={`set-objlist-row${err ? ' invalid' : ''}`}>
+            <div className="set-objlist-fields" style={grid}>
+              {cols.map((c) => (
+                <input
+                  key={c.key}
+                  className="set-str"
+                  type={c.type === 'number' ? 'number' : 'text'}
+                  min={c.min}
+                  spellCheck={false}
+                  placeholder={c.placeholder}
+                  value={String(row[c.key] ?? '')}
+                  onChange={(e) =>
+                    patch(i, c.key, c.type === 'number' ? Number(e.target.value) : e.target.value)}
+                />
+              ))}
+              <button
+                type="button"
+                className="set-objlist-del"
+                title={t('set.objList.remove')}
+                onClick={() => setValue(setting.id, rows.filter((_, j) => j !== i))}
+              >
+                <Trash2 size={12} strokeWidth={2} />
+              </button>
+            </div>
+            {err && <div className="set-objlist-err">{err}</div>}
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="set-objlist-add"
+        onClick={() => setValue(setting.id, [...rows, setting.newRow()])}
+      >
+        <Plus size={12} strokeWidth={2.2} /> {setting.addLabel}
+      </button>
+    </div>
+  );
+}
+
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
   // useShallow: a bound list setting returns a fresh array each read, which would
@@ -385,6 +460,8 @@ function Control({ setting }: { setting: Setting }) {
       return <MatrixControl setting={setting} />;
     case 'flagList':
       return <FlagListControl setting={setting} />;
+    case 'objectList':
+      return <ObjectListControl setting={setting} />;
   }
 }
 
@@ -392,7 +469,7 @@ function Row({ setting }: { setting: Setting }) {
   const isChanged = useSettings((s) => s.isChanged(setting.id));
   const reset = useSettings((s) => s.reset);
   return (
-    <div className={`set-row${isChanged ? ' changed' : ''}`}>
+    <div className={`set-row${isChanged ? ' changed' : ''}${setting.layout === 'block' ? ' set-row--block' : ''}`}>
       <div>
         <div className="sn">{setting.label}</div>
         {setting.description && <div className="sd">{setting.description}</div>}

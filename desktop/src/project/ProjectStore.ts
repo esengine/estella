@@ -113,6 +113,8 @@ interface PreloadResult {
   fontHandles: Map<string, number>;
 }
 
+const NO_SCREEN_PRESETS: ScreenPreset[] = [];
+
 interface ProjectState {
   root: string;
   name: string;
@@ -1642,17 +1644,12 @@ class ProjectStoreImpl {
     else delete features.ui;
     this.store.setState({ project: { ...st, features } });
     applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      const rf = { ...(raw.features as Record<string, unknown> ?? {}) };
-      if (ui) rf.ui = ui;
-      else delete rf.ui;
-      raw.features = rf;
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.saveUiThemeFailed'), 'error');
-      console.error('[project] patchUiFeature write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        const rf = { ...(raw.features as Record<string, unknown> ?? {}) };
+        if (ui) rf.ui = ui;
+        else delete rf.ui;
+        raw.features = rf;
+    }, t('proj.saveUiThemeFailed'));
   }
 
   /**
@@ -1665,14 +1662,9 @@ class ProjectStoreImpl {
     if (!st) return;
     const features: ProjectFeatures = { ...st.features, audio: config };
     this.store.setState({ project: { ...st, features } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.features = { ...(raw.features as Record<string, unknown> ?? {}), audio: config };
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.saveAudioFailed'), 'error');
-      console.error('[project] setAudio write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        raw.features = { ...(raw.features as Record<string, unknown> ?? {}), audio: config };
+    }, t('proj.saveAudioFailed'));
   }
 
   /** The project's declared physics feature, with defaults (for Project Settings). The
@@ -1765,14 +1757,9 @@ class ProjectStoreImpl {
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
     Renderer.setYSortLayers(this.ySortMask());
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.saveSortingLayersFailed'), 'error');
-      console.error('[project] setRendering write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
+    }, t('proj.saveSortingLayersFailed'));
   }
 
   /** Project reference resolution — the seed for new Canvas entities. Falls back to
@@ -1788,14 +1775,61 @@ class ProjectStoreImpl {
     if (!st) return;
     const designResolution: DesignResolution = { ...this.designResolution(), ...patch };
     this.store.setState({ project: { ...st, designResolution } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.designResolution = designResolution;
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.saveDesignResolutionFailed'), 'error');
-      console.error('[project] setDisplay write failed', e);
-    }
+    await this.patchManifest((raw) => { raw.designResolution = designResolution; },
+      t('proj.saveDesignResolutionFailed'));
+  }
+
+  /**
+   * Read-modify-write the project manifest, SERIALLY.
+   *
+   * Every writer here is a read-modify-write, and they used to race: two edits
+   * in flight at once both read the pre-edit file, and the second write lands on
+   * top of the first — losing it, or, when the writes interleave, leaving the
+   * file with trailing garbage that no longer parses. That is not hypothetical;
+   * typing across the fields of one settings row produced exactly it.
+   *
+   * Patches queue on one chain, so each sees what the previous one wrote.
+   */
+  private manifestWrites: Promise<void> = Promise.resolve();
+
+  private patchManifest(apply: (raw: Record<string, unknown>) => void, failMessage: string): Promise<boolean> {
+    const done = this.manifestWrites.then(async () => {
+      try {
+        const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+        apply(raw);
+        await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+        return true;
+      } catch (e) {
+        Toasts.push(failMessage, 'error');
+        console.error('[project] manifest write failed', e);
+        return false;
+      }
+    });
+    // The chain carries no value, so one failed patch cannot stall the next.
+    this.manifestWrites = done.then(() => undefined);
+    return done;
+  }
+
+  /** The project's declared screens (empty when it declares none). The empty
+   *  case is ONE array, not a fresh one per call: callers select on it, and a
+   *  new reference every read is an infinite re-render. */
+  screenPresets(): ScreenPreset[] {
+    return this.state?.screenPresets ?? NO_SCREEN_PRESETS;
+  }
+
+  /**
+   * Replace the declared screens. Entries are written verbatim so a half-typed
+   * row survives a dialog round-trip; `parseManifest` is what decides which of
+   * them a LOAD accepts, keeping one validator rather than two that drift.
+   */
+  async setScreenPresets(presets: ScreenPreset[]): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    this.store.setState({ project: { ...st, screenPresets: presets } });
+    await this.patchManifest((raw) => {
+      if (presets.length > 0) raw.screenPresets = presets;
+      else delete raw.screenPresets;
+    }, t('proj.saveScreenPresetsFailed'));
   }
 
   /** Persisted Package Project settings (last target/config/output), or {}. */
@@ -1814,14 +1848,9 @@ class ProjectStoreImpl {
       outDir: { ...st.packaging?.outDir, ...patch.outDir },
     };
     this.store.setState({ project: { ...st, packaging } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.packaging = packaging;
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.savePackagingFailed'), 'error');
-      console.error('[project] setPackaging write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        raw.packaging = packaging;
+    }, t('proj.savePackagingFailed'));
   }
 
   // ── Asset delivery groups (.esengine/asset-groups.json) ──────────────────────
@@ -1901,14 +1930,9 @@ class ProjectStoreImpl {
     const platforms = { ...prev, [platform]: { ...prev[platform], ...patch } } as NonNullable<ProjectPackaging['platforms']>;
     const packaging: ProjectPackaging = { ...st.packaging, platforms };
     this.store.setState({ project: { ...st, packaging } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.packaging = packaging;
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.savePlatformFailed'), 'error');
-      console.error('[project] setPlatformPackaging write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        raw.packaging = packaging;
+    }, t('proj.savePlatformFailed'));
   }
 
   /**
@@ -1924,14 +1948,9 @@ class ProjectStoreImpl {
     const physics: NonNullable<ProjectFeatures['physics']> = { ...st.features?.physics, ...patch };
     const features: ProjectFeatures = { ...st.features, physics };
     this.store.setState({ project: { ...st, features } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.features = { ...(raw.features as Record<string, unknown> ?? {}), physics };
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-    } catch (e) {
-      Toasts.push(t('proj.savePhysicsFailed'), 'error');
-      console.error('[project] setPhysics write failed', e);
-    }
+    await this.patchManifest((raw) => {
+        raw.features = { ...(raw.features as Record<string, unknown> ?? {}), physics };
+    }, t('proj.savePhysicsFailed'));
   }
 
   /**
@@ -1946,22 +1965,19 @@ class ProjectStoreImpl {
     // The startup scene always ships — becoming it lifts any export exclusion.
     const packaging = this.packagingWithoutExclusion_(st.packaging, path);
     this.store.setState({ project: { ...st, defaultScene: path, packaging } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      raw.defaultScene = path;
-      if (packaging !== st.packaging) {
-        // Merge into the RAW packaging so fields the editor parser doesn't
-        // model survive the rewrite.
-        const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
-        if (packaging?.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
-        else delete rawPkg.excludeScenes;
-        raw.packaging = rawPkg;
-      }
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-      Toasts.push(t('proj.startupScene', { name: path.split('/').pop() ?? path }), 'info');
-    } catch (e) {
-      Toasts.push(t('proj.saveStartupSceneFailed'), 'error');
-      console.error('[project] setDefaultScene write failed', e);
+    const ok = await this.patchManifest((raw) => {
+        raw.defaultScene = path;
+        if (packaging !== st.packaging) {
+          // Merge into the RAW packaging so fields the editor parser doesn't
+          // model survive the rewrite.
+          const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
+          if (packaging?.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
+          else delete rawPkg.excludeScenes;
+          raw.packaging = rawPkg;
+        }
+    }, t('proj.saveStartupSceneFailed'));
+    if (ok) {
+        Toasts.push(t('proj.startupScene', { name: path.split('/').pop() ?? path }), 'info');
     }
   }
 
@@ -1990,20 +2006,17 @@ class ProjectStoreImpl {
     if (cur.size > 0) packaging.excludeScenes = [...cur].sort();
     else delete packaging.excludeScenes;
     this.store.setState({ project: { ...st, packaging } });
-    try {
-      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
-      // Merge into the RAW packaging so fields the editor parser doesn't model
-      // survive the rewrite.
-      const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
-      if (packaging.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
-      else delete rawPkg.excludeScenes;
-      raw.packaging = rawPkg;
-      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-      const leaf = path.split('/').pop() ?? path;
-      Toasts.push(t(excluded ? 'proj.excludedFromExport' : 'proj.includedInExport', { name: leaf }), 'info');
-    } catch (e) {
-      Toasts.push(t('proj.saveExclusionFailed'), 'error');
-      console.error('[project] setSceneExcluded write failed', e);
+    const ok = await this.patchManifest((raw) => {
+        // Merge into the RAW packaging so fields the editor parser doesn't model
+        // survive the rewrite.
+        const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
+        if (packaging.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
+        else delete rawPkg.excludeScenes;
+        raw.packaging = rawPkg;
+    }, t('proj.saveExclusionFailed'));
+    if (ok) {
+        const leaf = path.split('/').pop() ?? path;
+        Toasts.push(t(excluded ? 'proj.excludedFromExport' : 'proj.includedInExport', { name: leaf }), 'info');
     }
   }
 

@@ -36,6 +36,13 @@ interface BaseSetting<T> {
   label: string;
   description?: string;
   default: T;
+  /**
+   * Row layout. `inline` (default) puts the control in the fixed right-hand
+   * column beside the label; `block` stacks it under the label at full width,
+   * for controls a 230px column cannot hold — a table, a list that grows.
+   * Orthogonal to `type`, so a wide control does not need its own row plumbing.
+   */
+  layout?: 'inline' | 'block';
   /** Two-way delegation to a live store; when present the store owns the value. */
   bind?: { get: () => T; set: (value: T) => void };
   /** One-way push to runtime for store-owned settings (on set + on hydrate). */
@@ -135,6 +142,39 @@ export interface FlagListSetting extends BaseSetting<number[]> {
   labels: () => string[];
 }
 
+/** One editable field of an {@link ObjectListSetting} row. */
+export interface ObjectListColumn {
+  key: string;
+  label: string;
+  type: 'text' | 'number';
+  /** Grid track for this column (CSS), e.g. '1fr' or '68px'. Defaults to 1fr. */
+  width?: string;
+  placeholder?: string;
+  min?: number;
+}
+
+/**
+ * A list of structured rows the user can add to, edit and remove — unlike
+ * {@link StringListSetting} and {@link MatrixSetting}, whose length is fixed by
+ * the schema. The first user is the project's screen presets; the shape is
+ * general because "a table of things this project declares" is not.
+ *
+ * Rows are plain objects keyed by {@link columns}. `rowError` is checked per
+ * row and shown inline rather than blocking the edit — a half-typed row is a
+ * normal state, and refusing the keystroke is how a form becomes unusable.
+ */
+export interface ObjectListSetting extends BaseSetting<Record<string, unknown>[]> {
+  type: 'objectList';
+  columns: ObjectListColumn[];
+  /** Values a freshly added row starts with. */
+  newRow: () => Record<string, unknown>;
+  /** Per-row validation → message, or null when the row is fine. */
+  rowError?: (row: Record<string, unknown>, all: Record<string, unknown>[]) => string | null;
+  addLabel: string;
+  /** Shown in place of the table when the list is empty. */
+  emptyHint?: string;
+}
+
 export type Setting =
   | BooleanSetting
   | NumberSetting
@@ -146,6 +186,7 @@ export type Setting =
   | KeybindingSetting
   | StringListSetting
   | MatrixSetting
-  | FlagListSetting;
+  | FlagListSetting
+  | ObjectListSetting;
 
-export type SettingValue = boolean | number | string | string[] | number[];
+export type SettingValue = boolean | number | string | string[] | number[] | Record<string, unknown>[];
