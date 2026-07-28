@@ -28,6 +28,13 @@ export interface AssetTypeDef {
   /** Extensions (lower-case, no dot) that resolve to this type. Omitted for the
    *  virtual `folder`/`file` types, which aren't extension-derived. */
   extensions?: readonly string[];
+  /**
+   * Full lower-case name endings that resolve to this type, matched BEFORE
+   * extensions because they are the more specific claim. For formats whose files
+   * are told apart by a name convention rather than a suffix — DragonBones ships
+   * `_ske.json` beside `_tex.json`, and an extension alone cannot see that.
+   */
+  suffixes?: readonly string[];
   /** Short uppercase code shown in a tile's corner badge ('' = no badge). */
   badge: string;
   icon: LucideIcon;
@@ -48,6 +55,13 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   texture: { extensions: ['png', 'webp'], badge: 'TEX', icon: FileImage, tint: '#7fa6c4', externalProgram: 'image' },
   sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4', externalProgram: 'image' },
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
+  // Both halves are one type, as Spine's .skel and .atlas are: which file plays
+  // which role is the component's business, not the content browser's.
+  dragonbones: {
+    extensions: ['dbbin'],
+    suffixes: ['_ske.json', '_tex.json'],
+    badge: 'DB', icon: PersonStanding, tint: '#a89b6b',
+  },
   audio: { extensions: ['ogg', 'mp3', 'wav', 'aac', 'flac', 'm4a', 'webm'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
   video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
@@ -110,7 +124,17 @@ export function assetTypeDef(type: AssetType): AssetTypeDef {
  * Built-ins are matched first, so a plugin cannot re-map `.png`.
  */
 export function assetTypeOf(name: string): AssetType {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  const lower = name.toLowerCase();
+  // Suffixes first: `foo_ske.json` is a DragonBones skeleton, and letting the
+  // extension answer would call it whatever `.json` maps to.
+  for (const [type, def] of Object.entries(ASSET_TYPES) as [AssetType, AssetTypeDef][]) {
+    if (def.suffixes?.some((s) => lower.endsWith(s))) return type;
+  }
+  for (const type of contributed.all()) {
+    if (type.suffixes?.some((s) => lower.endsWith(s))) return type.id;
+  }
+
+  const ext = lower.split('.').pop() ?? '';
   const builtin = byExt.get(ext);
   if (builtin) return builtin;
   for (const type of contributed.all()) {

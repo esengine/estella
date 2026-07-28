@@ -197,6 +197,7 @@ export type BuiltinAssetType =
   | 'sprite'
   | 'texture'
   | 'spine'
+  | 'dragonbones'
   | 'audio'
   | 'video'
   | 'prefab'
