@@ -5,7 +5,7 @@
  * @brief   Verify Entity packing helpers and World's stale-handle detection.
  */
 import { describe, expect, it } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import {
     ENTITY_GEN_BITS,
     ENTITY_GEN_MASK,

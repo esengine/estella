@@ -12,7 +12,7 @@
  * gone. Geometry comes from the sibling {@link UINode}. Mirrors the C++
  * `UIVisual` builtin.
  */
-import { defineBuiltin } from '../../component';
+import { defineBuiltin } from '../../ecs/component';
 import type { Color, Vec2, Vec4 } from '../../types';
 
 // Draw mode (None = invisible but render-order/hit-participating; SolidColor;
@@ -27,7 +27,7 @@ import {
     UIVisualFit,
     UIFillMethod as FillMethod,
     UIFillOrigin as FillOrigin,
-} from '../../wasm.generated';
+} from '../../wasm/wasm.generated';
 export { UIVisualType, UIVisualFit, FillMethod, FillOrigin };
 
 export interface UIVisualData {

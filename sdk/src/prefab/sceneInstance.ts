@@ -31,7 +31,7 @@ import { diffEntities } from './diff';
 import type { DiffBaselineEntity } from './diff';
 import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
-import { getComponent } from '../component';
+import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {

@@ -8,12 +8,12 @@ import {
     type PhysicsDebugDrawConfig,
 } from '../src/physics/PhysicsDebugDraw';
 import { BodyType } from '../src/physics/PhysicsComponents';
-import { defineResource } from '../src/resource';
-import type { ResourceDef } from '../src/resource';
-import { clearDrawCallbacks, getDrawCallbacks } from '../src/customDraw';
-import { clearUserComponents } from '../src/component';
+import { defineResource } from '../src/ecs/resource';
+import type { ResourceDef } from '../src/ecs/resource';
+import { clearDrawCallbacks, getDrawCallbacks } from '../src/render/customDraw';
+import { clearUserComponents } from '../src/ecs/component';
 
-vi.mock('../src/draw', () => ({
+vi.mock('../src/render/draw', () => ({
     Draw: {
         line: vi.fn(),
         circle: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../src/draw', () => ({
     },
 }));
 
-import { Draw } from '../src/draw';
+import { Draw } from '../src/render/draw';
 
 interface MockEntity {
     components: Map<string, any>;

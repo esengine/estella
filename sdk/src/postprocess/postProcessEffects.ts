@@ -13,8 +13,8 @@
  *          resolution comes from the injected `u_viewport` (xy = pixels,
  *          zw = 1/pixels) instead of a per-pass upload.
  */
-import type { ShaderHandle } from '../material';
-import { Material } from '../material';
+import type { ShaderHandle } from '../render/material';
+import { Material } from '../render/material';
 
 export const postProcessEffects = {
     createLutGrade(): ShaderHandle {

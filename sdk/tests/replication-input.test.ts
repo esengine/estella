@@ -9,8 +9,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineComponent, clearUserComponents } from '../src/component';
-import { defineSystem, Schedule, GetWorld } from '../src/system';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { defineSystem, Schedule, GetWorld } from '../src/ecs/system';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import { replicationPlugin, Net, Replicated } from '../src/net/replication';
 

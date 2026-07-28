@@ -13,9 +13,9 @@
  *          per install, not module-global — so realms don't share queues.
  */
 import type { App } from './app';
-import { Schedule, defineSystem } from './system';
-import { Query, Mut } from './query';
-import { Sprite, Mesh2D } from './component';
+import { Schedule, defineSystem } from './ecs/system';
+import { Query, Mut } from './ecs/query';
+import { Sprite, Mesh2D } from './ecs/component';
 import type { Assets } from './asset/Assets';
 
 export function installHotUpdateRebind(app: App, assets: Assets): void {

@@ -5,7 +5,7 @@ import {
     initResourceManager,
     shutdownResourceManager,
     setTextureBudget,
-} from '../src/resourceManager';
+} from '../src/wasm/resourceManager';
 
 const setBudget = vi.fn();
 const mockRm = {

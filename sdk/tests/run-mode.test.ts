@@ -11,9 +11,9 @@
  */
 import { describe, expect, it, afterEach } from 'vitest';
 import { App } from '../src/app';
-import { Schedule, defineSystem } from '../src/system';
+import { Schedule, defineSystem } from '../src/ecs/system';
 import { setEditorMode, setPlayMode, isEditor, isPlayMode, isRuntime, playModeOnly } from '../src/env';
-import { getDefaultContext } from '../src/context';
+import { getDefaultContext } from '../src/ecs/context';
 
 function namedSystem(name: string, trace: string[]) {
     return defineSystem([], () => { trace.push(name); }, { name });

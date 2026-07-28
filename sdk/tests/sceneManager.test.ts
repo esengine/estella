@@ -6,7 +6,7 @@ vi.mock('../src/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 
-vi.mock('../src/customDraw', () => ({
+vi.mock('../src/render/customDraw', () => ({
     registerDrawCallback: vi.fn(),
     unregisterDrawCallback: vi.fn(),
 }));
@@ -19,7 +19,7 @@ vi.mock('../src/postprocess', () => ({
     PostProcessStack: vi.fn(),
 }));
 
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: {
         release: vi.fn(),
         createShader: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('../src/material', () => ({
     defineResource: vi.fn(),
 }));
 
-vi.mock('../src/draw', () => ({
+vi.mock('../src/render/draw', () => ({
     Draw: {
         setLayer: vi.fn(),
         setDepth: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('../src/draw', () => ({
     },
 }));
 
-vi.mock('../src/resource', () => ({
+vi.mock('../src/ecs/resource', () => ({
     defineResource: vi.fn((_init: unknown, name?: string) => ({
         _id: Symbol(name ?? 'Resource'),
         _name: name ?? 'Resource',
@@ -43,7 +43,7 @@ vi.mock('../src/resource', () => ({
     })),
 }));
 
-vi.mock('../src/component', () => ({
+vi.mock('../src/ecs/component', () => ({
     SceneOwner: Symbol('SceneOwner'),
     Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
     Sprite: Symbol('Sprite'),
@@ -67,11 +67,11 @@ vi.mock('../src/defaults', () => ({
 }));
 
 import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/sceneManager';
-import { SceneOwner, Sprite, SpineAnimation, BitmapText } from '../src/component';
+import { SceneOwner, Sprite, SpineAnimation, BitmapText } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene';
-import { registerDrawCallback, unregisterDrawCallback } from '../src/customDraw';
+import { registerDrawCallback, unregisterDrawCallback } from '../src/render/customDraw';
 import { PostProcess } from '../src/postprocess';
-import { Material } from '../src/material';
+import { Material } from '../src/render/material';
 
 function createMockApp() {
     const entities = new Map<number, Map<symbol, any>>();

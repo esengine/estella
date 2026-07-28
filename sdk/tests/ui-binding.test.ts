@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { signal, derived, bind, Text } from '../src/ui';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 function mockWorld() {
     const comps = new Map<number, Map<object, unknown>>();

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { flushPendingSystems } from '../src/app';
 import type { App } from '../src/app';
-import { Input, InputState } from '../src/input';
+import { Input, InputState } from '../src/input/input';
 import { UIEvents, UIEventQueue } from '../src/ui/core/events';
 import { Focusable, FocusManager } from '../src/ui/input/focusable';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';

@@ -8,8 +8,8 @@
  *        is the runtime ctor truth, _default the authoring truth.
  */
 import { describe, it, expect } from 'vitest';
-import { Camera, Sprite, ProjectionType } from '../src/component';
-import { COMPONENT_META } from '../src/component.generated';
+import { Camera, Sprite, ProjectionType } from '../src/ecs/component';
+import { COMPONENT_META } from '../src/ecs/component.generated';
 import { DEFAULT_SPRITE_SIZE } from '../src/defaults';
 
 describe('editor_default single-source', () => {

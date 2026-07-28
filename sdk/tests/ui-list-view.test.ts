@@ -8,7 +8,7 @@ import {
     type DataSource,
 } from '../src/ui';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 // ---- Minimal World stub: enough surface for ListView + ViewPool ----
 

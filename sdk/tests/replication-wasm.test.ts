@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
-import { Transform, getReplicatedFields } from '../src/component';
+import { Transform, getReplicatedFields } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import { MemoryTransport } from '../src/net/MemoryTransport';

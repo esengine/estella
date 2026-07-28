@@ -15,7 +15,7 @@
  */
 import { setPlatform } from './platform';
 import { nodeAdapter } from './platform/node';
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 import type { ESEngineModule } from './wasm';
 
@@ -28,7 +28,7 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-export * from './webAppFactory';
+export * from './runtime/webAppFactory';
 export { nodeAdapter } from './platform/node';
 
 /**

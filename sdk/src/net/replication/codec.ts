@@ -19,7 +19,7 @@
  *          declaration order, entity-ref field → u32 netId (remapped at both
  *          ends), anything else → JSON string fallback.
  */
-import { getComponentRegistry, type AnyComponentDef } from '../../component';
+import { getComponentRegistry, type AnyComponentDef } from '../../ecs/component';
 import { REPLICATION_PROTOCOL_VERSION, type ReplComponentSchema } from './protocol';
 
 const FRAME_MAGIC = 0x45535250; // 'ESRP'

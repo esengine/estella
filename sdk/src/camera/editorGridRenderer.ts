@@ -26,11 +26,11 @@
  * editor and the headless render host (pixel verification) get the grid for free.
  */
 import type { App } from '../app';
-import { Draw } from '../draw';
-import { Geometry, type GeometryHandle } from '../geometry';
-import { Material, type MaterialHandle } from '../material';
-import { BlendMode } from '../blend';
-import { registerPreSceneDrawCallback } from '../customDraw';
+import { Draw } from '../render/draw';
+import { Geometry, type GeometryHandle } from '../render/geometry';
+import { Material, type MaterialHandle } from '../render/material';
+import { BlendMode } from '../render/blend';
+import { registerPreSceneDrawCallback } from '../render/customDraw';
 import { EditorView } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
 

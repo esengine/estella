@@ -29,7 +29,7 @@ import {
     type PhysicsPluginConfig,
     type ResolvedPhysicsConfig,
 } from './PhysicsTypes';
-import { handleWasmError } from '../wasmError';
+import { handleWasmError } from '../wasm/wasmError';
 
 // Re-export the shapes consumers reach for via the plugin file so
 // existing `import from './physics/PhysicsPlugin'` sites keep working.

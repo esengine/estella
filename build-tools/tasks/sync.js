@@ -60,7 +60,7 @@ async function writeWasmManifest(rootDir) {
             (v) => existsSync(path.join(rootDir, 'build/wasm', v)),
         );
 
-        const genPath = path.join(config.paths.sdk, 'src/component.generated.ts');
+        const genPath = path.join(config.paths.sdk, 'src/ecs/component.generated.ts');
         const gen = await readFile(genPath, 'utf8');
         const m = /ABI_LAYOUT_HASH\s*=\s*['"]([0-9a-f]+)['"]/i.exec(gen);
         const abiHash = m ? m[1] : 'unknown';

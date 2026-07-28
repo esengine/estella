@@ -16,10 +16,10 @@
  *          despawns. Without a policy every ready connection sees everything
  *          on a single broadcast frame (the fast path).
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { Name, Parent, getComponent } from '../../component';
-import { ABI_LAYOUT_HASH } from '../../component.generated';
+import { Name, Parent, getComponent } from '../../ecs/component';
+import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import { serializeEntityComponents, type SceneComponentData } from '../../scene';
 import { NetChannel, type NetTransport } from '../NetChannel';
 import { log } from '../../logger';

@@ -9,9 +9,9 @@
  *          registry + memory backend end-to-end, headless, no device.
  */
 import { describe, expect, it } from 'vitest';
-import { createNativeWorld } from '../src/ecs/nativeRuntime';
-import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
-import { Sprite, Transform } from '../src/component';
+import { createNativeWorld } from '../src/ecs/bridge/nativeRuntime';
+import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
+import { Sprite, Transform } from '../src/ecs/component';
 
 /** A self-contained fake native ECS + the host bindings createNativeWorld expects. */
 function mockNativeEcs() {

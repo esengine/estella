@@ -8,7 +8,7 @@
  *        isolation like viewportMath. CameraPlugin builds on top of it.
  */
 
-import { CanvasScaleMode } from '../wasm.generated';
+import { CanvasScaleMode } from '../wasm/wasm.generated';
 
 /**
  * Half-height (world units) of the visible area after fitting a design resolution

@@ -19,7 +19,7 @@ import type {
 } from './bridge';
 import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
-import { hasAudioBindings } from '../../ecs/nativeBindings';
+import { hasAudioBindings } from '../../ecs/bridge/nativeBindings';
 
 /** Touch phases the host reports, matching the order it dispatches. */
 const TOUCH_START = 0;

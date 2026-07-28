@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
     defineComponent, clearUserComponents, getComponent,
     getUserComponentFingerprint, markEngineComponentBaseline, seedEngineComponents,
-} from '../src/component';
+} from '../src/ecs/component';
 import { probeRegistrations } from '../src/hotReload';
 
 describe('engine component baseline survives a hot reload', () => {

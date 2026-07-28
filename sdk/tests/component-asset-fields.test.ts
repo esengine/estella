@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
     Sprite, BitmapText, SpineAnimation, ParticleEmitter, TilemapLayer,
     getComponent,
-} from '../src/component';
+} from '../src/ecs/component';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { SpriteAnimator } from '../src/animation/SpriteAnimator';
 import { AudioSource } from '../src/audio/AudioComponents';

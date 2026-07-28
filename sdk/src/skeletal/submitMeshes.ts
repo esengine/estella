@@ -14,7 +14,7 @@
  *          live. Nothing intermediate is allocated, and nothing is cached between
  *          frames.
  */
-import { withScratch } from '../wasmScratch';
+import { withScratch } from '../wasm/wasmScratch';
 import type { Entity } from '../types';
 import type { MeshBatchVisitor } from './meshBatches';
 

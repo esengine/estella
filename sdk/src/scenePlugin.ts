@@ -8,12 +8,12 @@
 import type { App, Plugin } from './app';
 import { SceneManager, SceneManagerState } from './sceneManager';
 import { SceneStreaming, SceneStreamingController } from './sceneStreaming';
-import { defineSystem, Schedule, GetWorld } from './system';
-import { Res, ResMut, Time } from './resource';
-import { Transform, type TransformData } from './component';
+import { defineSystem, Schedule, GetWorld } from './ecs/system';
+import { Res, ResMut, Time } from './ecs/resource';
+import { Transform, type TransformData } from './ecs/component';
 import { playModeOnly } from './env';
-import type { SystemDef } from './system';
-import type { World } from './world';
+import type { SystemDef } from './ecs/system';
+import type { World } from './ecs/world';
 import { log } from './logger';
 
 const sceneTransitionSystem = defineSystem(

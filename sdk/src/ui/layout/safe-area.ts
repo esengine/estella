@@ -7,15 +7,15 @@
  */
 import type { App, Plugin } from '../../app';
 import { isWeChat, platformDevicePixelRatio } from '../../platform';
-import { defineComponent, registerComponent } from '../../component';
-import { Res } from '../../resource';
-import { defineSystem, Schedule } from '../../system';
+import { defineComponent, registerComponent } from '../../ecs/component';
+import { Res } from '../../ecs/resource';
+import { defineSystem, Schedule } from '../../ecs/system';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';
-import { SystemLabel, PluginName } from '../../systemLabels';
+import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 
 export interface SafeAreaData {
     applyTop: boolean;

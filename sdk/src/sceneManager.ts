@@ -9,20 +9,20 @@ import type { App } from './app';
 import type { Entity, Color } from './types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { discoverSceneAssets } from './asset/discoverAssets';
-import type { SystemDef } from './system';
-import { Material } from './material';
-import type { DrawCallback } from './customDraw';
-import { Schedule } from './system';
+import type { SystemDef } from './ecs/system';
+import { Material } from './render/material';
+import type { DrawCallback } from './render/customDraw';
+import { Schedule } from './ecs/system';
 import { loadSceneWithAssets } from './scene';
-import { registerDrawCallback, unregisterDrawCallback } from './customDraw';
+import { registerDrawCallback, unregisterDrawCallback } from './render/customDraw';
 import { PostProcess, PostProcessStack } from './postprocess';
-import { defineResource } from './resource';
+import { defineResource } from './ecs/resource';
 import { SceneTransitionController } from './scene/SceneTransitionController';
 import {
     SceneOwner, Disabled, Sprite, SpineAnimation, BitmapText,
     ShapeRenderer, ParticleEmitter,
     type AnyComponentDef,
-} from './component';
+} from './ecs/component';
 import { UIVisual } from './ui/core/ui-visual';
 import { Assets } from './asset/AssetPlugin';
 import { RuntimeConfig } from './defaults';

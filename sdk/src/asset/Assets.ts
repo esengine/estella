@@ -15,7 +15,7 @@ import type {
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
-import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../resourceManager';
+import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
@@ -32,7 +32,7 @@ import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAsset
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
-import { getComponentDefaults } from '../component';
+import { getComponentDefaults } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene';
 import { discoverSceneAssets } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';

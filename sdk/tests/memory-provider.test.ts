@@ -12,10 +12,10 @@
  *          the same input — the crux of "one SDK, two backends". No device.
  */
 import { describe, expect, it } from 'vitest';
-import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
-import { NativeMemoryProvider } from '../src/ecs/memoryProvider';
-import { PTR_LAYOUTS } from '../src/ptrLayouts.generated';
-import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
+import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
+import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
+import { PTR_LAYOUTS } from '../src/wasm/ptrLayouts.generated';
+import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 
 const CPP = 'Sprite';

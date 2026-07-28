@@ -7,8 +7,8 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { World } from '../src/world';
-import { Transform, Sprite, Parent, Children } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Transform, Sprite, Parent, Children } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 

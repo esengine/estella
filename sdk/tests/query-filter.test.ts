@@ -5,9 +5,9 @@
  * @brief   Composable filter predicates (With/Without/And/Or/Not) on Query.
  */
 import { describe, expect, it, beforeEach } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent, defineTag } from '../src/component';
-import { Query, QueryInstance, With, Without, And, Or, Not } from '../src/query';
+import { World } from '../src/ecs/world';
+import { defineComponent, defineTag } from '../src/ecs/component';
+import { Query, QueryInstance, With, Without, And, Or, Not } from '../src/ecs/query';
 
 const Position = defineComponent('F_Position', { x: 0, y: 0 });
 const Health   = defineComponent('F_Health',   { hp: 100 });

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: {
         createShader: vi.fn().mockReturnValue(42),
         compileShader: vi.fn().mockReturnValue(42),
@@ -10,7 +10,7 @@ vi.mock('../src/material', () => ({
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PostProcessAPI, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
-import { Material } from '../src/material';
+import { Material } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
 
 // =============================================================================

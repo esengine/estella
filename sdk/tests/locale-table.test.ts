@@ -12,7 +12,7 @@ import { LocaleAssetLoader } from '../src/asset/loaders/LocaleAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { applyTextLocalization, type TextWorldView } from '../src/ui/text/localize';
 import { Text, type TextData } from '../src/ui/core/text';
-import { sceneUsesI18n } from '../src/runtimeLoader';
+import { sceneUsesI18n } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene';
 import type { Entity } from '../src/types';
 

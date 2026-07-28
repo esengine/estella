@@ -9,10 +9,10 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     WasmModuleAborted, markModuleAborted, isModuleAborted,
     throwIfModuleAborted, installAbortGuard,
-} from '../src/moduleHealth';
-import { handleWasmError } from '../src/wasmError';
-import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
-import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/component.generated';
+} from '../src/wasm/moduleHealth';
+import { handleWasmError } from '../src/wasm/wasmError';
+import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
+import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/ecs/component.generated';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 

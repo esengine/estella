@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import { px, percent } from '../core/dimension';
 import { UIVisualType } from '../core/ui-visual';

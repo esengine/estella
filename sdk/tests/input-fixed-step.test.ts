@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { App } from '../src/app';
-import { Schedule, defineSystem } from '../src/system';
-import { Res } from '../src/resource';
-import { Input, InputState } from '../src/input';
+import { Schedule, defineSystem } from '../src/ecs/system';
+import { Res } from '../src/ecs/resource';
+import { Input, InputState } from '../src/input/input';
 
 /**
  * Edge input (isKeyPressed / isMouseButtonPressed) read from a FixedUpdate-family

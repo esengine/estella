@@ -7,7 +7,7 @@
  *          binder. Previously each site had its own parallel branches.
  */
 import { describe, expect, it } from 'vitest';
-import { classifyUniformArity } from '../src/material';
+import { classifyUniformArity } from '../src/render/material';
 
 describe('classifyUniformArity', () => {
     it('classifies a plain number as arity 1', () => {

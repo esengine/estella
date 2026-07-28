@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ShaderHandle } from '../material';
+import type { ShaderHandle } from '../render/material';
 import { postProcessEffects } from './postProcessEffects';
 
 export interface EffectUniformDef {

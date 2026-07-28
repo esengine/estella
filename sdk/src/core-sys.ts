@@ -59,8 +59,8 @@ export {
 // Entity Utils
 // =============================================================================
 
-export { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from './entityUtils';
-export { CacheBitmap, type BitmapCache } from './cacheBitmap';
+export { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from './ecs/entityUtils';
+export { CacheBitmap, type BitmapCache } from './render/cacheBitmap';
 export {
     CacheAsBitmap,
     getCacheForEntity,
@@ -68,8 +68,8 @@ export {
     removeCacheForEntity,
     clearAllCaches,
     type CacheAsBitmapData,
-} from './cacheAsBitmap';
-export { pointInHitArea, type HitAreaShape } from './hitArea';
+} from './render/cacheAsBitmap';
+export { pointInHitArea, type HitAreaShape } from './input/hitArea';
 
 // =============================================================================
 // Screen
@@ -151,13 +151,13 @@ export {
 export {
     GLDebug,
     shutdownGLDebugAPI,
-} from './glDebug';
+} from './render/glDebug';
 
 // =============================================================================
 // WASM Error Handling
 // =============================================================================
 
-export { setWasmErrorHandler } from './wasmError';
+export { setWasmErrorHandler } from './wasm/wasmError';
 
 // =============================================================================
 // Stats
@@ -202,7 +202,7 @@ export {
     type LifecycleEvent,
     type LifecycleListener,
     type LifecyclePluginOptions,
-} from './lifecycle';
+} from './ecs/lifecycle';
 
 // =============================================================================
 // Side Modules (physics / spine acquisition)
@@ -229,18 +229,18 @@ export {
 export {
     initPlayableRuntime,
     type PlayableRuntimeConfig,
-} from './playableRuntime';
+} from './runtime/playableRuntime';
 
 export {
     playableCta,
     hasPlayableCta,
     type PlayableAdBridge,
-} from './playableCta';
+} from './runtime/playableCta';
 
 export {
     initPlayRealmRuntime,
     type PlayRealmRuntimeConfig,
-} from './playRealmRuntime';
+} from './runtime/playRealmRuntime';
 
 export {
     RuntimeConfig,
@@ -257,7 +257,7 @@ export {
     getResourceManager,
     shutdownResourceManager,
     evictTextureDimensions,
-} from './resourceManager';
+} from './wasm/resourceManager';
 
 // =============================================================================
 // Core Plugin
@@ -268,10 +268,10 @@ export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 // The engine entry points a plugin may call, from whichever core is present (the
 // wasm module on the web, a native host's bindings on a device) — the parameter
 // type the UI pick helpers take. @beta while the native host is unshipped.
-export type { EngineApi } from './ecs/engineApi';
+export type { EngineApi } from './ecs/bridge/engineApi';
 
 // =============================================================================
 // App Context
 // =============================================================================
 
-export { AppContext, getDefaultContext, setDefaultContext, type EditorBridge } from './context';
+export { AppContext, getDefaultContext, setDefaultContext, type EditorBridge } from './ecs/context';

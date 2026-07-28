@@ -6,7 +6,7 @@
  *          build hid — the directory a Spine atlas names its page PNG relative to.
  */
 import { describe, it, expect } from 'vitest';
-import { indexPackagedManifest, createPackagedAssetSource } from '../src/packagedRuntime';
+import { indexPackagedManifest, createPackagedAssetSource } from '../src/runtime/packagedRuntime';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 
 // A content-addressed pack: the atlas and its page PNG are staged under hashed

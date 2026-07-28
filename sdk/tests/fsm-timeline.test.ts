@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Entity } from '../src/types';
-import type { CommandsInstance } from '../src/commands';
+import type { CommandsInstance } from '../src/ecs/commands';
 import { StateMachineAgent, registerFsm, clearFsmStore } from '../src/ai/fsm/StateMachineAgent';
 import { aiRegistry, registerAction } from '../src/ai/fsm/AiContext';
 import { stepStateMachines, agentBlackboard, type FsmWorldView } from '../src/ai/fsm/FsmPlugin';

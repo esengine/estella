@@ -6,7 +6,7 @@
  */
 
 import type { Vec2 } from '../types';
-import { defineBuiltin, defineComponent } from '../component';
+import { defineBuiltin, defineComponent } from '../ecs/component';
 
 // Box2D collision filtering: a body's own layers (category) and the layers it
 // collides with (mask), as named bitmasks. Bit labels come from the project's
@@ -108,7 +108,7 @@ export interface ChainColliderData {
 
 // Single-sourced from the C++ BodyType ES_ENUM via the generated module — the
 // hand-restated `as const` copy this replaced could drift from C++.
-export { BodyType } from '../wasm.generated';
+export { BodyType } from '../wasm/wasm.generated';
 
 // =============================================================================
 // Builtin Component Instances

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../types';
-import type { ShaderHandle, Vec4 } from '../material';
+import type { ShaderHandle, Vec4 } from '../render/material';
 
 export interface PassConfig {
     name: string;

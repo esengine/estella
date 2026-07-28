@@ -49,7 +49,7 @@ describe.skipIf(!HAS_WASM)('createListView (WASM integration)', () => {
         arrayDataSource(Array.from({ length: n }, (_, i) => i));
 
     const numberRow = {
-        create: (w: import('../src/world').World, parent: import('../src/types').Entity) =>
+        create: (w: import('../src/ecs/world').World, parent: import('../src/types').Entity) =>
             spawnUIEntity({ world: w, parent, node: { height: px(40) } }),
         bind: () => {},
     };

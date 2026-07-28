@@ -18,7 +18,7 @@ import type { FsmDefinition } from '../src/ai/fsm/types';
 import {
     SpriteAnimator, SpriteAnimationAPI, type SpriteAnimatorData, type SpriteAnimClip,
 } from '../src/animation/SpriteAnimator';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 /** A one-entity AiContext over a plain component store. */
 function makeCtx(components: Map<string, unknown>): AiContext {

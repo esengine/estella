@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, SpineResult } from '../AssetLoader';
-import { requireResourceManager } from '../../resourceManager';
+import { requireResourceManager } from '../../wasm/resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';
 import type { ESEngineModule } from '../../wasm';
 import type { SpineModuleController } from '../../spine/SpineController';

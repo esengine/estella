@@ -9,7 +9,7 @@
  *          supports cheap outline/shadow.
  */
 import type { ESEngineModule } from '../../wasm';
-import { withScratch } from '../../wasmScratch';
+import { withScratch } from '../../wasm/wasmScratch';
 
 /**
  * Convert a tight `width*height` alpha coverage buffer to a single-channel SDF.

@@ -4,7 +4,7 @@
  * @file    GameSocket.ts
  * @brief   Raw browser-WebSocket wrapper behind the platform socket seam.
  */
-import { Emitter } from '../emitter';
+import { Emitter } from '../ecs/emitter';
 import type {
     PlatformSocket,
     PlatformSocketEvents,

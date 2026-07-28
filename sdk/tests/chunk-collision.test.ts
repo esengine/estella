@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { decodeTilemapChunks, CHUNK_SIZE } from '../src/tilemap/chunkCodec';
 import { generateChunkCollision } from '../src/tilemap/tiledLoader';
 import { BodyType } from '../src/physics/PhysicsComponents';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 // Build a `tilemap_exportChunks`-format blob (base64url) for the given chunks.

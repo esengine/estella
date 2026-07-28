@@ -16,10 +16,10 @@
  * their properties as `current` changes; the resolution walks self → ancestors so
  * a controller can live on the UI root while gears live on the leaves.
  */
-import { defineComponent } from '../../component';
+import { defineComponent } from '../../ecs/component';
 import { walkParentChain } from '../util/helpers';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 /** One named enum-state: a page list plus the currently selected page name. */
 export interface ControllerState {

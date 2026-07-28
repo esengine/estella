@@ -11,7 +11,7 @@
  * `$interaction` colour gears (behavior state) plus `UIVisual`/`Text` (core);
  * `theme/` is cross-cutting and may not import up into behaviors.
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Color } from '../../types';
 import { ThemeStyle, type ThemeStyleData } from '../theme/theme-style';
 import { setTheme, themeColors, type ThemeTokens } from '../theme/tokens';

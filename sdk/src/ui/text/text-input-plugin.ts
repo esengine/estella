@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
 import type { Entity } from '../../types';
-import { defineSystem, Schedule } from '../../system';
-import { registerComponent } from '../../component';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { registerComponent } from '../../ecs/component';
 import { TextInput, type TextInputData } from './text-input';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
@@ -13,9 +13,9 @@ import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text'
 import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
 import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
-import { Transform, type TransformData } from '../../component';
+import { Transform, type TransformData } from '../../ecs/component';
 import { UIEvents, UIEventQueue } from '../core/events';
-import { Res } from '../../resource';
+import { Res } from '../../ecs/resource';
 import { playModeOnly } from '../../env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { spawnUIEntity } from '../core/compose';
@@ -30,7 +30,7 @@ import {
 import { uiWorldToScreen } from '../util/ui-pick';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
-import { SystemLabel, PluginName } from '../../systemLabels';
+import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { log } from '../../logger';
 
 /** Masking bullet for password fields. */

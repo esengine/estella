@@ -6,10 +6,10 @@ import {
     RenderStage,
     initRendererAPI,
     shutdownRendererAPI,
-} from '../src/renderer';
-import type { RenderStats } from '../src/renderer';
+} from '../src/render/renderer';
+import type { RenderStats } from '../src/render/renderer';
 import type { ESEngineModule } from '../src/wasm';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 // =============================================================================
 // Mock WASM module for Renderer API

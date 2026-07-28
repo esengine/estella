@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: {
         createShader: vi.fn().mockReturnValue(42),
         releaseShader: vi.fn(),

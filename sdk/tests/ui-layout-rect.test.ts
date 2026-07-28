@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY } from '../src/camera/uiLayoutRect';
-import { CanvasScaleMode } from '../src/wasm.generated';
+import { CanvasScaleMode } from '../src/wasm/wasm.generated';
 
 // A 1280x720 canvas (design aspect 16:9), Expand scale mode.
 const canvas = {

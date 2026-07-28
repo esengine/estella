@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent, defineTag } from '../src/component';
+import { World } from '../src/ecs/world';
+import { defineComponent, defineTag } from '../src/ecs/component';
 
 describe('Component Data Validation', () => {
     let world: World;

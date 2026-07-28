@@ -8,9 +8,9 @@
  *          Verified directly on CoreApiBridge and end-to-end via GLDebug.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { WasmModuleAborted } from '../src/moduleHealth';
-import { CoreApiBridge } from '../src/CoreApiBridge';
-import { GLDebug, initGLDebugAPI, shutdownGLDebugAPI } from '../src/glDebug';
+import { WasmModuleAborted } from '../src/wasm/moduleHealth';
+import { CoreApiBridge } from '../src/wasm/CoreApiBridge';
+import { GLDebug, initGLDebugAPI, shutdownGLDebugAPI } from '../src/render/glDebug';
 import type { ESEngineModule } from '../src/wasm';
 
 describe('CoreApiBridge', () => {

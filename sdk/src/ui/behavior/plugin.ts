@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
-import { Res, Time, type TimeData } from '../../resource';
-import { defineSystem, Schedule } from '../../system';
-import { Input, type InputState } from '../../input';
-import { Transform, type TransformData } from '../../component';
+import { Res, Time, type TimeData } from '../../ecs/resource';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { Input, type InputState } from '../../input/input';
+import { Transform, type TransformData } from '../../ecs/component';
 import { playModeOnly } from '../../env';
 import type { Entity, Vec2 } from '../../types';
 
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
-import { PluginName, SystemLabel } from '../../systemLabels';
+import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
 import { KineticScroll } from '../collection/kinetic-scroll';
@@ -21,7 +21,7 @@ import { UISlider, createSliderSystem } from './slider';
 import { UIToggle, createToggleSystem } from './toggle';
 import { UIDropdown, createDropdownSystem } from './dropdown';
 import { createScrollbarSystem } from './scrollbar';
-import { registerComponent } from '../../component';
+import { registerComponent } from '../../ecs/component';
 
 /** Screen-px slop before a press becomes a scroll drag (matches Draggable). */
 const SCROLL_DRAG_THRESHOLD_PX = 5;

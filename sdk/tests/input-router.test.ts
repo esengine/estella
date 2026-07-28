@@ -8,7 +8,7 @@
  *        edge that releases it). None of that was asserted.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { InputRouter, type InputHandler, type Modifiers } from '../src/inputRouter';
+import { InputRouter, type InputHandler, type Modifiers } from '../src/input/inputRouter';
 
 describe('InputRouter tier ordering & consumption', () => {
   it('dispatches editor before UI and stops when the editor consumes', () => {

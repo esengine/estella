@@ -9,7 +9,7 @@
  *          per locale for languages whose rules differ from the default.
  */
 
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 

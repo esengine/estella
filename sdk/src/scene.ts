@@ -5,12 +5,12 @@
  * @brief   Scene loading utilities
  */
 
-import { World } from './world';
+import { World } from './ecs/world';
 import { Entity, INVALID_ENTITY } from './types';
-import { getComponent, Name, Camera, RuntimeOnly } from './component';
+import { getComponent, Name, Camera, RuntimeOnly } from './ecs/component';
 import { deepClone } from './deepClone';
 import { discoverSceneAssets } from './asset/discoverAssets';
-import { requireResourceManager } from './resourceManager';
+import { requireResourceManager } from './wasm/resourceManager';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from './validation';
 import { log } from './logger';
 import { ESTELLA_SCENE_GENERATOR } from './provenance';

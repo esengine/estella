@@ -23,8 +23,8 @@ import type { PlatformVideoBackend, VideoBackendContext, VideoStreamHandle, Vide
 import type { SideModule } from '../sideModules/host';
 import type { AudioAPI } from '../audio/Audio';
 import type { AudioHandle } from '../audio/PlatformAudioBackend';
-import { createTextureFromPixels, updateTextureSubregion } from '../runtimeAssets';
-import { requireResourceManager } from '../resourceManager';
+import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { getPlatform } from '../platform/base';
 import { log } from '../logger';
 

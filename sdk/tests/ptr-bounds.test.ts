@@ -5,7 +5,7 @@
  * @brief   BuiltinBridge pointer helpers reject out-of-bounds access.
  */
 import { describe, expect, it } from 'vitest';
-import { fillPtrFields, readPtrField, writePtrField } from '../src/ecs/BuiltinBridge';
+import { fillPtrFields, readPtrField, writePtrField } from '../src/ecs/bridge/BuiltinBridge';
 
 function makeHeap(size = 64) {
     const buffer = new ArrayBuffer(size);

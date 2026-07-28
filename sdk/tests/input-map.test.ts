@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { InputState, GamepadButton, GamepadAxis } from '../src/input';
+import { InputState, GamepadButton, GamepadAxis } from '../src/input/input';
 import {
     InputMap, Button, Axis1D, Axis2D,
     Key, MouseButton, GpButton, Keys1D, Keys2D, Stick,
-} from '../src/inputMap';
+} from '../src/input/inputMap';
 import type { GamepadSnapshot } from '../src/platform/types';
 
 function pad(o: { buttons?: Record<number, number>; axes?: Record<number, number> } = {}): GamepadSnapshot {

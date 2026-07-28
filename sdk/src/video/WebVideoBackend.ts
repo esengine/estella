@@ -5,8 +5,8 @@
 // (zero-copy), else a canvas readback feeds updateTextureSubregion (WebGPU).
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
-import { createTextureFromPixels, updateTextureSubregion } from '../runtimeAssets';
-import { requireResourceManager } from '../resourceManager';
+import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { findWebGL2Context } from '../asset/loaders/TextureLoader';
 import { linearColorSpace } from '../env';
 import { log } from '../logger';

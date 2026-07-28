@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Filters } from '../src/filters';
+import { Filters } from '../src/render/filters';
 
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: {
         compileShader: vi.fn(() => 42),
     },
 }));
 
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({
         createMaterial: vi.fn(() => 100),
     }),

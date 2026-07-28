@@ -15,25 +15,25 @@
 // Filters
 // =============================================================================
 
-export { Filters } from './filters';
+export { Filters } from './render/filters';
 
 export {
     SpriteFilter,
     type OutlineFilterOptions,
     type DropShadowFilterOptions,
-} from './spriteFilter';
+} from './render/spriteFilter';
 
 // =============================================================================
 // Graphics
 // =============================================================================
 
-export { Graphics } from './graphics';
+export { Graphics } from './render/graphics';
 
 // =============================================================================
 // Texture
 // =============================================================================
 
-export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams, setTextureSliceBorder } from './textureParams';
+export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams, setTextureSliceBorder } from './render/textureParams';
 
 // =============================================================================
 // Camera
@@ -64,7 +64,7 @@ export {
     BlendMode,
     shutdownDrawAPI,
     type DrawAPI,
-} from './draw';
+} from './render/draw';
 
 // =============================================================================
 // Material API
@@ -83,13 +83,13 @@ export {
     type MaterialAssetData,
     type UniformValue,
     type TextureRef,
-} from './material';
+} from './render/material';
 
 export {
     BUILTIN_SHADER_TEMPLATES,
     builtinShaderTemplate,
     type BuiltinShaderTemplate,
-} from './builtinShaders';
+} from './render/builtinShaders';
 
 export {
     compileMaterialGraph,
@@ -107,7 +107,7 @@ export {
     type NodeSpec,
     type NodePort,
     type NodeParamSpec,
-} from './materialGraph';
+} from './render/materialGraph';
 
 // =============================================================================
 // Geometry API
@@ -120,7 +120,7 @@ export {
     type GeometryHandle,
     type GeometryOptions,
     type VertexAttributeDescriptor,
-} from './geometry';
+} from './render/geometry';
 
 // =============================================================================
 // PostProcess API
@@ -148,14 +148,14 @@ export {
     shutdownRendererAPI,
     type RenderTargetHandle,
     type RenderStats,
-} from './renderer';
+} from './render/renderer';
 
 export {
     FlushReason,
     RenderType,
     type DrawCallInfo,
     type FrameCaptureData,
-} from './frameCapture';
+} from './render/frameCapture';
 
 // =============================================================================
 // RenderTexture API
@@ -165,7 +165,7 @@ export {
     RenderTexture,
     type RenderTextureHandle,
     type RenderTextureOptions,
-} from './renderTexture';
+} from './render/renderTexture';
 
 // =============================================================================
 // Render Pipeline
@@ -176,7 +176,7 @@ export {
     type Viewport,
     type RenderParams,
     type CameraRenderParams,
-} from './renderPipeline';
+} from './render/renderPipeline';
 
 // =============================================================================
 // Custom Draw Callbacks
@@ -191,4 +191,4 @@ export {
     unregisterPreSceneDrawCallback,
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
-} from './customDraw';
+} from './render/customDraw';

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { COMPONENT_META } from '../src/component.generated';
-import { getComponent, ensureBuiltinComponentsRegistered } from '../src/component';
+import { COMPONENT_META } from '../src/ecs/component.generated';
+import { getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 
 describe('builtin component registry completeness', () => {
     it('every COMPONENT_META component is registered (no silent-drop)', () => {

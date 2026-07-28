@@ -17,10 +17,10 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 
 const setTextureMetadata = vi.fn();
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({
         createTexture: vi.fn(() => 7),
         registerExternalTexture: vi.fn(() => 7),

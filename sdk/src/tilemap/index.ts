@@ -55,7 +55,7 @@ export {
     registerResolvedTileset, getResolvedTileset, clearResolvedTilesetCache,
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
 } from './tilesetCache';
-export { getTextureDimensions, type TextureDimensions } from '../resourceManager';
+export { getTextureDimensions, type TextureDimensions } from '../wasm/resourceManager';
 
 export {
     tileCollisionAt, isTileSolid, tileCollisionAtWorld,

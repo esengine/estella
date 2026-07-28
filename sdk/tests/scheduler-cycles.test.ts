@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { App } from '../src/app';
-import { Schedule, defineSystem } from '../src/system';
+import { Schedule, defineSystem } from '../src/ecs/system';
 
 function trackedSystem(name: string, trace: string[]) {
     return defineSystem([], () => { trace.push(name); }, { name });

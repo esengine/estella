@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-vi.mock('../src/material', () => {
+vi.mock('../src/render/material', () => {
     const materials = new Map();
     return {
         Material: {
@@ -27,8 +27,8 @@ vi.mock('../src/material', () => {
 });
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Draw, initDrawAPI, shutdownDrawAPI, BlendMode } from '../src/draw';
-import { Material, isTextureRef } from '../src/material';
+import { Draw, initDrawAPI, shutdownDrawAPI, BlendMode } from '../src/render/draw';
+import { Material, isTextureRef } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
 
 // =============================================================================

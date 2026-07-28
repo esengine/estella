@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
-import { registerComponent, Transform, Parent, Sprite } from '../../component';
-import type { TransformData, ParentData, SpriteData } from '../../component';
+import { registerComponent, Transform, Parent, Sprite } from '../../ecs/component';
+import type { TransformData, ParentData, SpriteData } from '../../ecs/component';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';
-import { defineSystem, Schedule } from '../../system';
-import { Res } from '../../resource';
-import { Input } from '../../input';
-import type { InputState } from '../../input';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input } from '../../input/input';
+import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import { Draggable, DragState } from './draggable';
 import type { DraggableData, DragStateData } from './draggable';
 import { UIInteraction } from './interactable';
@@ -21,7 +21,7 @@ import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import { playModeOnly } from '../../env';
 import { getEntityDepth } from '../util/helpers';
-import { SystemLabel, PluginName } from '../../systemLabels';
+import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { quaternionToAngle2D } from '../util/math';
 
 function worldToLocalDelta(

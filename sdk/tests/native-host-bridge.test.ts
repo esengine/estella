@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { createHostBridge, assertHostEnvironment, assertNativeHost } from '../src/platform/native';
-import { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/nativeBindings';
+import { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/bridge/nativeBindings';
 
 /** The globals a real host installs (console, timers, clock, decoder). */
 function hostGlobals(): Record<string, unknown> {

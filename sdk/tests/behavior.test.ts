@@ -3,9 +3,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App, flushPendingSystems } from '../src/app';
 import { defineBehavior } from '../src/behavior';
-import { AppContext, setDefaultContext } from '../src/context';
-import { getUserComponents } from '../src/component';
-import { Schedule } from '../src/system';
+import { AppContext, setDefaultContext } from '../src/ecs/context';
+import { getUserComponents } from '../src/ecs/component';
+import { Schedule } from '../src/ecs/system';
 
 // Each test gets a fresh context so behaviors/components/pending-systems don't leak.
 beforeEach(() => setDefaultContext(new AppContext()));

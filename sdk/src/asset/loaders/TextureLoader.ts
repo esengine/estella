@@ -5,12 +5,12 @@ import { linearColorSpace } from '../../env';
 import { platformCreateCanvas, platformCreateImage } from '../../platform/base';
 import type { PlatformCanvas, PlatformCanvas2DContext, PlatformImage } from '../../platform/types';
 import { decodeImageBitmap } from '../imageDecode';
-import { requireResourceManager } from '../../resourceManager';
+import { requireResourceManager } from '../../wasm/resourceManager';
 import type { ESEngineModule } from '../../wasm';
-import { withMalloc } from '../../wasmScratch';
+import { withMalloc } from '../../wasm/wasmScratch';
 import { isKtx2, isKtx2Path, loadCompressedTexture, type BasisTranscoder } from '../compressed';
 import { glWrapMode } from '../glTexParams';
-import { createTextureFromPixels, type TextureParams } from '../../runtimeAssets';
+import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
 
 /**
  * Decode a texture ref to raw RGBA pixels on the current platform. Set by a

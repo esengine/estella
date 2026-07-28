@@ -21,10 +21,10 @@
  *          authoritative value before the replay. Owned entities bypass
  *          snapshot interpolation entirely.
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { getComponent } from '../../component';
-import { ABI_LAYOUT_HASH } from '../../component.generated';
+import { getComponent } from '../../ecs/component';
+import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import { loadComponent } from '../../scene';
 import { NetChannel, type NetTransport } from '../NetChannel';
 import { log } from '../../logger';

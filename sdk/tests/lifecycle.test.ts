@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LifecycleManager } from '../src/lifecycle';
+import { LifecycleManager } from '../src/ecs/lifecycle';
 
 describe('LifecycleManager', () => {
     let manager: LifecycleManager;

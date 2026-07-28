@@ -17,7 +17,7 @@
  * cached; a child stays hidden until its texture lands.
  */
 import type { App, Plugin } from '../../app';
-import { defineSystem, Schedule } from '../../system';
+import { defineSystem, Schedule } from '../../ecs/system';
 import { resolveTextFamily } from './font-registry';
 import type { Entity } from '../../types';
 import type { ESEngineModule } from '../../wasm';

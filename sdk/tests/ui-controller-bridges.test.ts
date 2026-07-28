@@ -12,7 +12,7 @@ import { ensureControllerAiRegistrations } from '../src/ui/controller/ai-builtin
 import { bindControllerPage } from '../src/ui/controller/bind-page';
 import { signal } from '../src/ui/binding/signal';
 import type { Entity } from '../src/types';
-import type { AnyComponentDef } from '../src/component';
+import type { AnyComponentDef } from '../src/ecs/component';
 
 function makeMockWorld() {
     const storage = new Map<AnyComponentDef, Map<Entity, unknown>>();

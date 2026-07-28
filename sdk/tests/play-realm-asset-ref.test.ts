@@ -9,7 +9,7 @@
  * step must resolve the ref before lookup.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resolvePlayAssetRef } from '../src/playRealmRuntime';
+import { resolvePlayAssetRef } from '../src/runtime/playRealmRuntime';
 import { registerFsm, getFsm, clearFsmStore, StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { stepStateMachines } from '../src/ai/fsm/FsmPlugin';
 

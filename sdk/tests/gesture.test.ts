@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GestureDetector, type SwipeDirection } from '../src/gesture';
-import { InputState } from '../src/input';
+import { GestureDetector, type SwipeDirection } from '../src/input/gesture';
+import { InputState } from '../src/input/input';
 
 describe('GestureDetector', () => {
     let input: InputState;

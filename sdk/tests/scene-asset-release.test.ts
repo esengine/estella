@@ -11,7 +11,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 vi.mock('../src/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
-vi.mock('../src/customDraw', () => ({
+vi.mock('../src/render/customDraw', () => ({
     registerDrawCallback: vi.fn(),
     unregisterDrawCallback: vi.fn(),
 }));
@@ -19,14 +19,14 @@ vi.mock('../src/postprocess', () => ({
     PostProcess: { bind: vi.fn(), unbind: vi.fn() },
     PostProcessStack: vi.fn(),
 }));
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: { release: vi.fn(), createShader: vi.fn() },
     defineResource: vi.fn(),
 }));
 
 import { SceneManagerState } from '../src/sceneManager';
 import { Assets } from '../src/asset';
-import { Material } from '../src/material';
+import { Material } from '../src/render/material';
 
 function createMockApp(assets?: unknown) {
     const entities = new Map<number, Map<symbol, unknown>>();

@@ -7,7 +7,7 @@ import type {
     PrefabOverride,
     ProcessedEntity,
 } from './types';
-import { getComponent } from '../component';
+import { getComponent } from '../ecs/component';
 
 /**
  * An entity-typed field on an instance holds a numeric runtime id; the source

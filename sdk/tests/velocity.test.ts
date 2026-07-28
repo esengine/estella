@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
-import { SystemRunner } from '../src/system';
-import { ResourceStorage, Time } from '../src/resource';
-import { EventRegistry } from '../src/event';
-import { Transform, Velocity, defineComponent } from '../src/component';
+import { World } from '../src/ecs/world';
+import { SystemRunner } from '../src/ecs/system';
+import { ResourceStorage, Time } from '../src/ecs/resource';
+import { EventRegistry } from '../src/ecs/event';
+import { Transform, Velocity, defineComponent } from '../src/ecs/component';
 import { velocitySystem } from '../src/velocity';
 import { createMockModule } from './mocks/wasm';
 

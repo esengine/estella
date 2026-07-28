@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { TilemapAPI } from './tilemapAPI';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
-import { Transform, Marker, RuntimeOnly } from '../component';
+import { Transform, Marker, RuntimeOnly } from '../ecs/component';
 
 // Matches TilemapSystem::CHUNK_SIZE on the C++ side.
 const TILEMAP_CHUNK_SIZE = 16;

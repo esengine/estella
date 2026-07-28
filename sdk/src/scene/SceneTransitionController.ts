@@ -10,8 +10,8 @@
  * of this controller and drives it from `updateTransition()`.
  */
 import type { Color } from '../types';
-import { registerDrawCallback, unregisterDrawCallback } from '../customDraw';
-import { Draw } from '../draw';
+import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import { Draw } from '../render/draw';
 import { log } from '../logger';
 
 export interface FadeTransitionOptions {

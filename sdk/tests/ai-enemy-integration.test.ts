@@ -7,10 +7,10 @@
  *          the AI1 (nav) + AI2 (fsm) seam that unit tests cover only in isolation.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Transform } from '../src/component';
+import { Transform } from '../src/ecs/component';
 import type { Entity } from '../src/types';
-import type { CommandsInstance } from '../src/commands';
-import type { AnyComponentDef, ComponentData } from '../src/component';
+import type { CommandsInstance } from '../src/ecs/commands';
+import type { AnyComponentDef, ComponentData } from '../src/ecs/component';
 import { NavGrid } from '../src/ai/nav/NavGrid';
 import { Navigation } from '../src/ai/nav/Navigation';
 import { NavAgent, setNavDestination } from '../src/ai/nav/NavAgent';

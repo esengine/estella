@@ -14,7 +14,7 @@
 import { aiRegistry } from '../../ai/fsm/AiContext';
 import { setControllerPage } from './ui-controller';
 import { UINode } from '../core/ui-node';
-import { UIDisplay } from '../../wasm.generated';
+import { UIDisplay } from '../../wasm/wasm.generated';
 
 /**
  * Idempotently register the UI AI glue. `ui.setPage` takes an arg `"controller:page"`

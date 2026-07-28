@@ -4,10 +4,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, FrameHistory, type FrameStats } from '../src/stats';
 import { StatsOverlay } from '../src/stats-overlay';
 import { App } from '../src/app';
-import { Schedule, defineSystem, SystemRunner } from '../src/system';
-import { World } from '../src/world';
-import { ResourceStorage } from '../src/resource';
-import * as rendererModule from '../src/renderer';
+import { Schedule, defineSystem, SystemRunner } from '../src/ecs/system';
+import { World } from '../src/ecs/world';
+import { ResourceStorage } from '../src/ecs/resource';
+import * as rendererModule from '../src/render/renderer';
 
 afterEach(() => {
     vi.restoreAllMocks();

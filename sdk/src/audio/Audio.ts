@@ -3,7 +3,7 @@
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig } from './PlatformAudioBackend';
 import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../logger';
 

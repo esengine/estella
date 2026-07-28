@@ -11,8 +11,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     createNativeSideModules, NATIVE_SIDE_MODULE_PROBES, SPINE_VERSION_BINDING,
-} from '../src/ecs/nativeSideModules';
-import { HEAP_BINDINGS } from '../src/ecs/nativeHeap';
+} from '../src/ecs/bridge/nativeSideModules';
+import { HEAP_BINDINGS } from '../src/ecs/bridge/nativeHeap';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import { wrapDragonBonesModule } from '../src/dragonbones/DragonBonesModuleLoader';
 import type { DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModuleLoader';

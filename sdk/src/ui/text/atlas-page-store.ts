@@ -8,8 +8,8 @@
  *          renderer can pass it straight to submitTextBatch as the atlas texture.
  */
 import type { ESEngineModule } from '../../wasm';
-import { createTextureFromPixels, updateTextureSubregion } from '../../runtimeAssets';
-import { requireResourceManager } from '../../resourceManager';
+import { createTextureFromPixels, updateTextureSubregion } from '../../runtime/runtimeAssets';
+import { requireResourceManager } from '../../wasm/resourceManager';
 import type { AtlasPageStore } from './glyph-atlas';
 
 export class EngineAtlasPageStore implements AtlasPageStore {

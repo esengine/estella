@@ -22,7 +22,7 @@
  * store paths directly.
  */
 
-import { getComponent } from '../component';
+import { getComponent } from '../ecs/component';
 import type { SceneData, AssetFieldType } from '../scene';
 
 export interface SpineAssetRef {

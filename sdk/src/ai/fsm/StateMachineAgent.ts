@@ -9,7 +9,7 @@
  * to stay clear of the UI-owned `StateMachine` component.
  */
 
-import { defineComponent } from '../../component';
+import { defineComponent } from '../../ecs/component';
 import { isUuidRef } from '../../asset/AssetRegistry';
 import type { FsmDefinition } from './types';
 import { compileFsm, type CompiledFsm } from './FsmRunner';

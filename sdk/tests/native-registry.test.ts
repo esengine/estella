@@ -9,11 +9,11 @@
  *          device — proving Stage A: one SDK, native core.
  */
 import { describe, expect, it } from 'vitest';
-import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
-import { createNativeRegistry } from '../src/ecs/nativeRegistry';
-import { NativeMemoryProvider } from '../src/ecs/memoryProvider';
-import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
-import { Sprite } from '../src/component';
+import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
+import { createNativeRegistry } from '../src/ecs/bridge/nativeRegistry';
+import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
+import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
+import { Sprite } from '../src/ecs/component';
 
 /**
  * A fake native host: each component's storage is an entity->ArrayBuffer map, with

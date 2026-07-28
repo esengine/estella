@@ -10,8 +10,8 @@
  *          {@link resolveTextRenderMode}.
  */
 import type { App, Plugin } from '../../app';
-import { Transform, type TransformData, registerComponent } from '../../component';
-import { defineSystem, Schedule } from '../../system';
+import { Transform, type TransformData, registerComponent } from '../../ecs/component';
+import { defineSystem, Schedule } from '../../ecs/system';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import { SdfTextRenderer } from './text-renderer';
@@ -25,7 +25,7 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { resolveTextFamily } from './font-registry';
 import { platformDevicePixelRatio } from '../../platform';
-import { engineApi } from '../../ecs/engineApi';
+import { engineApi } from '../../ecs/bridge/engineApi';
 
 // Base glyph rasterization size in CSS px; the real source is this × DPR so text
 // stays crisp on HiDPI displays. 64 covers common UI sizes at 1:1 or finer.

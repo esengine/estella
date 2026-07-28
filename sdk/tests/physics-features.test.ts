@@ -7,7 +7,7 @@
  *        defaults, registration, and MotorJoint's place in the joint reconcile.
  */
 import { describe, it, expect } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import {
     OneWayPlatform, MotorJoint,

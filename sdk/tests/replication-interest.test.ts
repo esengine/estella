@@ -9,14 +9,14 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineComponent, clearUserComponents, Name } from '../src/component';
+import { defineComponent, clearUserComponents, Name } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import {
     replicationPlugin, Net, Replicated, radiusInterest,
     type InterestPolicy,
 } from '../src/net/replication';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 const STEP = 1 / 60;
 

@@ -22,9 +22,9 @@
 
 import { TrackType, InterpType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
-import { getComponent, type AnyComponentDef } from '../component';
+import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 
 // ---------------------------------------------------------------------------
 // Core math — 1:1 port of TimelineSystem.cpp (keep in lock-step)

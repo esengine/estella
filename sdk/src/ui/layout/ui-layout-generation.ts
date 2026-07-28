@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineResource } from '../../resource';
+import { defineResource } from '../../ecs/resource';
 
 export interface UILayoutGenerationData {
     generation: number;

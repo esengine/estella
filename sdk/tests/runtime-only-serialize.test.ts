@@ -8,8 +8,8 @@
  *        play-stop world restore would double every Tiled layer).
  */
 import { describe, it, expect } from 'vitest';
-import { World } from '../src/world';
-import { Transform, RuntimeOnly, Name, Parent } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Transform, RuntimeOnly, Name, Parent } from '../src/ecs/component';
 import { serializeScene } from '../src/scene';
 import { createMockModule } from './mocks/wasm';
 

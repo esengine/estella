@@ -8,7 +8,7 @@
  *          batch-shader variant. Mirrors the proven spine mesh-submit path.
  */
 import type { ESEngineModule } from '../../wasm';
-import { withScratch } from '../../wasmScratch';
+import { withScratch } from '../../wasm/wasmScratch';
 
 /** Floats per glyph vertex: position(2) + uv(2) + color(4). */
 export const TEXT_VERTEX_FLOATS = 8;

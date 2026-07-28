@@ -10,14 +10,14 @@
  * pair that got a non-zero handle.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/component';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { Assets } from '../src/asset/Assets';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene';
 import type { SceneAssetResult } from '../src/asset/Assets';
 
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn() }),
     evictTextureDimensions: vi.fn(),
 }));

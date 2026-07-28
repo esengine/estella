@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
-import type { EngineApi } from '../ecs/engineApi';
+import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { log } from '../logger';

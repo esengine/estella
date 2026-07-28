@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CommandsInstance, EntityCommands, Commands } from '../src/commands';
-import { defineComponent, defineBuiltin, Name } from '../src/component';
-import { defineResource, ResourceStorage } from '../src/resource';
-import type { World } from '../src/world';
+import { CommandsInstance, EntityCommands, Commands } from '../src/ecs/commands';
+import { defineComponent, defineBuiltin, Name } from '../src/ecs/component';
+import { defineResource, ResourceStorage } from '../src/ecs/resource';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 const Position = defineComponent('CmdTestPosition', { x: 0, y: 0 });

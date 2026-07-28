@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { buildCameraInfo, snapToPixelGrid, type CameraPOV } from '../src/camera/CameraPlugin';
-import { ProjectionType, ClearFlags } from '../src/component';
+import { ProjectionType, ClearFlags } from '../src/ecs/component';
 
 function ndc(vp: Float32Array, x: number, y: number) {
   return { x: vp[0] * x + vp[4] * y + vp[12], y: vp[1] * x + vp[5] * y + vp[13] };

@@ -12,7 +12,7 @@ import { Catalog, type CatalogData } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { AssetLoader } from '../src/asset/AssetLoader';
 
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({
         createTexture: vi.fn(() => 42),
         registerExternalTexture: vi.fn(() => 42),

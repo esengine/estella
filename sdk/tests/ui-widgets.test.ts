@@ -28,7 +28,7 @@ import {
     type UIGearData,
 } from '../src/ui';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 // Minimal mock world — only the surface widgets + helpers touch.
 

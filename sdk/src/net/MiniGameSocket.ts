@@ -10,7 +10,7 @@
  *          normalized {@link MiniGameSocketTask} — so it is the socket for every
  *          vendor of the family, not for one of them.
  */
-import { Emitter } from '../emitter';
+import { Emitter } from '../ecs/emitter';
 import type { PlatformSocket, PlatformSocketEvents } from '../platform/types';
 import type { MiniGameGlobal, MiniGameSocketTask } from '../platform/minigame/api';
 import type { GameSocketOptions, SocketReadyState } from './GameSocket';

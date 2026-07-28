@@ -5,11 +5,11 @@
  * @brief   Sprite frame animation component and system (pure TypeScript)
  */
 
-import { defineComponent, type ComponentDef } from '../component';
-import { defineResource } from '../resource';
+import { defineComponent, type ComponentDef } from '../ecs/component';
+import { defineResource } from '../ecs/resource';
 import type { Entity, TextureHandle } from '../types';
-import type { World } from '../world';
-import { Sprite, type SpriteData } from '../component';
+import type { World } from '../ecs/world';
+import { Sprite, type SpriteData } from '../ecs/component';
 
 // =============================================================================
 // Sprite Animation Clip

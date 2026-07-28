@@ -11,7 +11,7 @@
  *          director is the runtime that selects + transitions between them.
  */
 import type { App } from '../app';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { applyEasing, EasingType } from '../animation/Easing';
 import type { CameraPOV } from './CameraPlugin';
 

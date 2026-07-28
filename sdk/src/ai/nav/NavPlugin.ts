@@ -14,13 +14,13 @@
 
 import type { App, Plugin } from '../../app';
 import type { Entity } from '../../types';
-import { defineSystem, Schedule, GetWorld } from '../../system';
-import { Res, Time, type TimeData } from '../../resource';
+import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
+import { Res, Time, type TimeData } from '../../ecs/resource';
 import {
     Transform,
     type AnyComponentDef,
     type ComponentData,
-} from '../../component';
+} from '../../ecs/component';
 import { playModeOnly } from '../../env';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';

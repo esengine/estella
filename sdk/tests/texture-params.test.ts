@@ -15,7 +15,7 @@ const rendererCalls: Array<{
     wrapT: number;
 }> = [];
 
-vi.mock('../src/renderer', () => ({
+vi.mock('../src/render/renderer', () => ({
     Renderer: {
         setTextureParams: vi.fn((
             textureId: number,
@@ -35,7 +35,7 @@ import {
     setTextureFilter,
     setTextureWrap,
     setTextureParams,
-} from '../src/textureParams';
+} from '../src/render/textureParams';
 
 describe('textureParams enums', () => {
     it('maps Nearest/Linear to 0/1', () => {

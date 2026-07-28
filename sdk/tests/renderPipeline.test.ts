@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../src/renderer', () => ({
+vi.mock('../src/render/renderer', () => ({
     Renderer: {
         init: vi.fn(),
         resize: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('../src/postprocess', () => ({
     },
 }));
 
-vi.mock('../src/draw', () => ({
+vi.mock('../src/render/draw', () => ({
     Draw: {
         begin: vi.fn(),
         end: vi.fn(),
@@ -52,18 +52,18 @@ vi.mock('../src/draw', () => ({
 
 const mockCallbacks = new Map<string, { fn: (elapsed: number) => void; scene: string }>();
 const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
-vi.mock('../src/customDraw', () => ({
+vi.mock('../src/render/customDraw', () => ({
     getDrawCallbacks: vi.fn(() => mockCallbacks),
     unregisterDrawCallback: vi.fn(),
     getPreSceneDrawCallbacks: vi.fn(() => mockPreSceneCallbacks),
     unregisterPreSceneDrawCallback: vi.fn(),
 }));
 
-import { RenderPipeline } from '../src/renderPipeline';
-import { Renderer } from '../src/renderer';
+import { RenderPipeline } from '../src/render/renderPipeline';
+import { Renderer } from '../src/render/renderer';
 import { PostProcess } from '../src/postprocess';
-import { Draw } from '../src/draw';
-import { unregisterDrawCallback } from '../src/customDraw';
+import { Draw } from '../src/render/draw';
+import { unregisterDrawCallback } from '../src/render/customDraw';
 
 describe('RenderPipeline', () => {
     let pipeline: RenderPipeline;

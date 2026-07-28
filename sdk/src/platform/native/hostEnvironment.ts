@@ -15,7 +15,7 @@
  *          missing global is named at the seam instead.
  */
 
-import { assertNativeBindings } from '../../ecs/nativeBindings';
+import { assertNativeBindings } from '../../ecs/bridge/nativeBindings';
 
 /** A host global the SDK requires, and what breaks without it. */
 interface RequiredGlobal {

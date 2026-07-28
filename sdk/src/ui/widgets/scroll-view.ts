@@ -10,7 +10,7 @@
  * `content`; sizes are explicit because scroll math needs them up front.
  */
 import type { Entity, Vec2 } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';

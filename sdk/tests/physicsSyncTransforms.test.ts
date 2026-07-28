@@ -3,11 +3,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Entity } from '../src/types';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
-import type { TransformData, ParentData } from '../src/component';
-import { Transform, Parent } from '../src/component';
+import type { TransformData, ParentData } from '../src/ecs/component';
+import { Transform, Parent } from '../src/ecs/component';
 import { applyPhysicsTransforms } from '../src/physics/PhysicsSystem';
 import { createMockModule } from './mocks/wasm';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 
 // Publish the module's pose buffer to Transforms. The lerp itself lives in the
 // physics module (see PhysicsModuleEntry.cpp / physics_interpolation doctests);

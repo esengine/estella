@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
-import { defineSystem, Schedule } from '../system';
-import { Res } from '../resource';
-import { Time, type TimeData } from '../resource';
+import { defineSystem, Schedule } from '../ecs/system';
+import { Res } from '../ecs/resource';
+import { Time, type TimeData } from '../ecs/resource';
 import { fxPreviewOrPlayMode } from '../env';
 import type { CppRegistry } from '../wasm';
-import { engineApi } from '../ecs/engineApi';
-import { TrailRenderer } from '../component';
+import { engineApi } from '../ecs/bridge/engineApi';
+import { TrailRenderer } from '../ecs/component';
 import { Trail, TrailAPI } from './TrailAPI';
 
 export class TrailPlugin implements Plugin {

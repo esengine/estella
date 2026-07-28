@@ -17,7 +17,7 @@
  * x=0 / y=0 axis lines use the axis colors (red X / green Y) so the origin reads
  * at a glance.
  */
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 export type GridColor = [number, number, number, number];
 

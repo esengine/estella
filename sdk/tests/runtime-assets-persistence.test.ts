@@ -9,11 +9,11 @@
  *        caches/refcounts on every scene switch.
  */
 import { describe, it, expect } from 'vitest';
-import { loadRuntimeScene } from '../src/runtimeLoader';
+import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets as AssetsClass } from '../src/asset/Assets';
 import { ManifestModel } from '../src/asset/AddressableManifest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import type { App } from '../src/app';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';

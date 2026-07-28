@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
-import { Schedule } from '../system';
+import { Schedule } from '../ecs/system';
 import { Assets } from '../asset/AssetPlugin';
 import { PostProcess, PostProcessAPI } from './PostProcessAPI';
 import { postProcessVolumeSystem, cleanupVolumeSystem, setVolumeTextureResolver, PostProcessVolumeConfigResource } from './volumeSystem';

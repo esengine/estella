@@ -10,10 +10,10 @@
  * `flex`/`safe-area` schemas in this module.
  */
 import type { App, Plugin } from '../../app';
-import { registerComponent } from '../../component';
-import { defineSystem, Schedule } from '../../system';
-import { SystemLabel } from '../../systemLabels';
-import { Res } from '../../resource';
+import { registerComponent } from '../../ecs/component';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { SystemLabel } from '../../ecs/systemLabels';
+import { Res } from '../../ecs/resource';
 import { UINode } from '../core/ui-node';
 import { UIVisual } from '../core/ui-visual';
 import { FlexContainer } from './flex';
@@ -22,7 +22,7 @@ import type { UICameraData } from '../core/ui-camera-info';
 import { UILayoutGeneration } from './ui-layout-generation';
 import type { UILayoutGenerationData } from './ui-layout-generation';
 import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/engineApi';
+import { engineApi } from '../../ecs/bridge/engineApi';
 import { initUIHelpers } from '../util/helpers';
 
 export class UILayoutPlugin implements Plugin {

@@ -11,7 +11,7 @@ import {
     clearDrawCallbacks,
     clearSceneDrawCallbacks,
     getDrawCallbacks,
-} from '../src/customDraw';
+} from '../src/render/customDraw';
 
 describe('customDraw callback registry', () => {
     beforeEach(() => {

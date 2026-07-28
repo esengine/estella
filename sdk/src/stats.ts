@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Renderer } from './renderer';
-import { defineResource, Res, Time } from './resource';
-import { defineSystem, GetWorld, Schedule } from './system';
+import { Renderer } from './render/renderer';
+import { defineResource, Res, Time } from './ecs/resource';
+import { defineSystem, GetWorld, Schedule } from './ecs/system';
 import type { App, Plugin } from './app';
 import { StatsOverlay, type StatsPosition } from './stats-overlay';
 

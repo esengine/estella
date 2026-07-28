@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeAll } from 'vitest';
-import { InputState, GamepadButton } from '../src/input';
-import { InputMap, Button, Key } from '../src/inputMap';
+import { InputState, GamepadButton } from '../src/input/input';
+import { InputMap, Button, Key } from '../src/input/inputMap';
 import type { GamepadSnapshot, PlatformAdapter } from '../src/platform/types';
 import { setPlatform } from '../src/platform/base';
 

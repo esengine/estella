@@ -9,9 +9,9 @@
  * immediately, then tracks the signal; the binding auto-disposes when the entity
  * despawns (and returns a manual dispose).
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import type { ComponentDef } from '../../component';
+import type { ComponentDef } from '../../ecs/component';
 import type { ReadonlySignal } from './signal';
 
 /**

@@ -7,7 +7,7 @@
 
 import { setPlatform } from './platform';
 import { wechatAdapter, initWeChatPlatform } from './platform/wechat';
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 
 initWeChatPlatform();
@@ -20,7 +20,7 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-export * from './webAppFactory';
+export * from './runtime/webAppFactory';
 
 export {
     wxReadFile,
@@ -37,4 +37,4 @@ export {
 export {
     initWeChatRuntime,
     type WeChatRuntimeConfig,
-} from './wechatRuntime';
+} from './runtime/wechatRuntime';

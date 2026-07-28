@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { withMalloc } from '../wasmScratch';
-import { WasmBridge } from '../WasmBridge';
-import type { EngineApi } from '../ecs/engineApi';
-import { defineResource } from '../resource';
+import { withMalloc } from '../wasm/wasmScratch';
+import { WasmBridge } from '../wasm/WasmBridge';
+import type { EngineApi } from '../ecs/bridge/engineApi';
+import { defineResource } from '../ecs/resource';
 
 /**
  * The tilemap entry points as a core that HAS tilemaps answers them — the shape

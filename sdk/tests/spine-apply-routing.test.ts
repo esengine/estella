@@ -8,7 +8,7 @@
  *          remnant that left 4.2 spine unrendered in the runtime/play path.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/component';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { applySpineEntities, spineEntityProps } from '../src/spine/loadSpineScene';
 import type { SceneData } from '../src/scene';
 import type { Entity } from '../src/types';

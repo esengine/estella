@@ -15,7 +15,7 @@
  *          those bytes straight into its own heap, and nothing allocates a typed
  *          array per batch per frame.
  */
-import { withMalloc, withScratch } from '../wasmScratch';
+import { withMalloc, withScratch } from '../wasm/wasmScratch';
 
 /** The heap a module marshals through. */
 export interface SkeletalHeap {

@@ -14,11 +14,11 @@
  * The popup is a transient runtime subtree, rebuilt on each open with fresh
  * theme colors and tagged with ThemeStyle roles for live re-theming.
  */
-import { defineComponent } from '../../component';
-import { defineSystem, type SystemDef } from '../../system';
-import { Res } from '../../resource';
-import { Input, type InputState } from '../../input';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input, type InputState } from '../../input/input';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { px, percent } from '../core/dimension';
 import { spawnUIEntity } from '../core/compose';

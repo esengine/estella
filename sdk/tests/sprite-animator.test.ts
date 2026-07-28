@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
-import { Sprite, type SpriteData } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Sprite, type SpriteData } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 import {

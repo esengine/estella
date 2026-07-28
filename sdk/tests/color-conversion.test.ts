@@ -6,7 +6,7 @@
  *          slots without touching the caller's inner color objects.
  */
 import { describe, expect, it } from 'vitest';
-import { convertForWasm, convertFromWasm } from '../src/ecs/BuiltinBridge';
+import { convertForWasm, convertFromWasm } from '../src/ecs/bridge/BuiltinBridge';
 
 describe('convertFromWasm', () => {
     it('returns the same outer object (zero outer allocation)', () => {

@@ -14,7 +14,7 @@ import {
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
-import { ProjectionType, ClearFlags } from '../src/component';
+import { ProjectionType, ClearFlags } from '../src/ecs/component';
 
 const mkPOV = (over: Partial<CameraPOV>): CameraPOV => ({
   entity: 0,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { Transform } from '../src/component';
+import { Transform } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import { NavGrid } from '../src/ai/nav/NavGrid';
 import { Navigation } from '../src/ai/nav/Navigation';

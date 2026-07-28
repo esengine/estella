@@ -15,7 +15,7 @@
  * entry backs the non-WebGL2 fallback path instead.
  */
 import type { ESEngineModule } from '../wasm';
-import { requireResourceManager } from '../resourceManager';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { glWrapMode } from './glTexParams';
 
 // =============================================================================

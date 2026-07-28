@@ -12,9 +12,9 @@
  * connection always sees the entities it owns, and with no policy installed
  * every connection sees everything (the pre-interest broadcast behavior).
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { getComponent } from '../../component';
+import { getComponent } from '../../ecs/component';
 import { Replicated, type ReplicatedData } from './components';
 
 /** What a policy sees when the server asks it for one connection's interest. */

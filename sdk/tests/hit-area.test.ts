@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { HitAreaShape, pointInHitArea } from '../src/hitArea';
+import { HitAreaShape, pointInHitArea } from '../src/input/hitArea';
 
 describe('HitArea', () => {
     describe('rect', () => {

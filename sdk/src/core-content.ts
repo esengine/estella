@@ -97,7 +97,7 @@ export {
 // Resource budget (VRAM)
 // =============================================================================
 
-export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStats } from './resourceManager';
+export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStats } from './wasm/resourceManager';
 
 // =============================================================================
 // Scene
@@ -239,7 +239,7 @@ export {
     type RuntimeAssetSource,
     type LoadRuntimeSceneOptions,
     type RuntimeInitConfig,
-} from './runtimeLoader';
+} from './runtime/runtimeLoader';
 
 // The packaged-realm assembly (WeChat, native) + the game.config.json contract the
 // export pipeline writes and every runtime reads.
@@ -252,7 +252,7 @@ export {
     type PackagedAssetIndex,
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,
-} from './packagedRuntime';
+} from './runtime/packagedRuntime';
 
 // =============================================================================
 // Preview
@@ -442,7 +442,7 @@ export {
     Meshes2D,
     Mesh2DPlugin,
     mesh2dPlugin,
-} from './mesh2d';
+} from './render/mesh2d';
 
 // =============================================================================
 // Tilemap

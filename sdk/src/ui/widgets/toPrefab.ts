@@ -11,7 +11,7 @@
  * drop-in, themed control asset generated from the exact same code the runtime
  * uses — no hand-authored duplicate to drift.
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { extractPrefab, type ExtractEntity } from '../../prefab/sceneInstance';
 import type { PrefabData, ComponentData } from '../../prefab/types';

@@ -15,9 +15,9 @@
  * value in its payload: `UISlider.value` (`{ value }`), `UIToggle.isOn`
  * (`{ isOn }`), `UIDropdown.selectedIndex` (`{ index }`).
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import type { ComponentDef } from '../../component';
+import type { ComponentDef } from '../../ecs/component';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import type { Signal } from './signal';
 import { bind } from './bind';

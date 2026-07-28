@@ -18,7 +18,7 @@
  * Installed by every runtime; the shipped game / play realm / editor set it from
  * the project config (design resolution + fit). Read by CameraPlugin.resolveCameras.
  */
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 /** `scaleMode` sentinel: no camera fit — the camera uses its own orthoSize (default). */
 export const SCREEN_FIT_OFF = -1;

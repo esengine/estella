@@ -11,8 +11,8 @@ import {
     defineComponent,
     getReplicatedFields,
     clearUserComponents,
-} from '../src/component';
-import { COMPONENT_META } from '../src/component.generated';
+} from '../src/ecs/component';
+import { COMPONENT_META } from '../src/ecs/component.generated';
 
 describe('replicated single-source (builtins)', () => {
     it('Transform authors its local pose as replicated at the ES_PROPERTY site', () => {

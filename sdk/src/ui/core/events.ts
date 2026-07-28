@@ -12,12 +12,12 @@
  */
 // The queue class and the shared resource, under their UI-facing names — the
 // same objects, so `Res(UIEvents)` and `Res(EntityEvents)` resolve identically.
-export { EntityEventQueue as UIEventQueue, EntityEvents as UIEvents } from '../../entityEvents';
+export { EntityEventQueue as UIEventQueue, EntityEvents as UIEvents } from '../../ecs/entityEvents';
 export type {
     EntityEvent as UIEvent,
     EntityEventHandler as UIEventHandler,
     Unsubscribe,
-} from '../../entityEvents';
+} from '../../ecs/entityEvents';
 
 /**
  * Common UI event types. Event type strings are open — users may emit any

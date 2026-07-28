@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent, defineBuiltin } from '../src/component';
+import { World } from '../src/ecs/world';
+import { defineComponent, defineBuiltin } from '../src/ecs/component';
 import { rankByOrder, reorderMapByRank, reorderSetByRank, UNRANKED } from '../src/ecs/entityOrder';
 import type { Entity } from '../src/types';
 import { createMockModule } from './mocks/wasm';

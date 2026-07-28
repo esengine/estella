@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/component';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { discoverSceneAssets, getAssetPathsByType } from '../src/asset/discoverAssets';
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
-import { TilemapLayer } from '../src/component';
+import { TilemapLayer } from '../src/ecs/component';
 import type { SceneData } from '../src/scene';
 
 const SPRITE_NAME = 'DiscoverTest_Sprite';

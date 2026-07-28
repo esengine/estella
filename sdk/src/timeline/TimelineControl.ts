@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../types';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { createTimelineState, type TimelineState } from './TimelineDrive';
 import { WrapMode } from './TimelineTypes';
 

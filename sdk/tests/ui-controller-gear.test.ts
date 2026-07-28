@@ -7,7 +7,7 @@
  *          normal/hover/pressed/disabled states through the unified layer.
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { Transform, Parent, type TransformData } from '../src/component';
+import { Transform, Parent, type TransformData } from '../src/ecs/component';
 import { UIVisual, UIVisualType, type UIVisualData } from '../src/ui/core/ui-visual';
 import { UINode } from '../src/ui/core/ui-node';
 import { px } from '../src/ui/core/dimension';
@@ -32,8 +32,8 @@ import {
     lerpGearValue,
 } from '../src/ui/controller/gear-apply';
 import type { Entity } from '../src/types';
-import type { SystemDef } from '../src/system';
-import type { AnyComponentDef } from '../src/component';
+import type { SystemDef } from '../src/ecs/system';
+import type { AnyComponentDef } from '../src/ecs/component';
 
 /** Minimal World backed by per-component Maps (no C++ registry needed). */
 function makeMockWorld() {

@@ -10,12 +10,12 @@
  * drag, keyboard, `handle.setValue`, a data binding, the editor inspector —
  * just writes `value`, and change events fire uniformly for all of them.
  */
-import { defineComponent } from '../../component';
-import { defineSystem, type SystemDef } from '../../system';
-import { Res } from '../../resource';
-import { Input, type InputState } from '../../input';
-import { Transform, type TransformData } from '../../component';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input, type InputState } from '../../input/input';
+import { Transform, type TransformData } from '../../ecs/component';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { UIVisual, type UIVisualData } from '../core/ui-visual';
 import { UINode, type UINodeData } from '../core/ui-node';

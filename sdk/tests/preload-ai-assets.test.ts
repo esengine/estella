@@ -18,13 +18,13 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 import { getFsm, clearFsmStore } from '../src/ai/fsm/StateMachineAgent';
 import { getBt, clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 
 // The FSM/BT loaders don't touch the ResourceManager, but the shared LoadContext
 // materializes it eagerly — stub it so the load path runs headless.
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({}),
     evictTextureDimensions: vi.fn(),
 }));

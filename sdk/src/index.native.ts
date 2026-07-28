@@ -21,7 +21,7 @@
  * @beta   Pre-1.0: the native host is unshipped; this entry's shape (and the
  *         NativeBridge contract) will change as the shell lands.
  */
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 
 // No setPlatform here — the shell calls installNativePlatform(bridge) at boot.
@@ -32,7 +32,7 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-export * from './webAppFactory';
+export * from './runtime/webAppFactory';
 
 export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment, assertNativeHost } from './platform/native';
 export type { NativeBridge, NativeInputListener, NativeFetchResult, NativeHostBindings } from './platform/native';
@@ -41,37 +41,37 @@ export type { NativeBridge, NativeInputListener, NativeFetchResult, NativeHostBi
 // host-injected `es_<Component>_buffer` bindings and passes it to the bridge
 // (BuiltinBridge.connect's `memory` option), so the real SDK component API reads
 // and writes native ECS memory through the same generated ptrAccessors as web.
-export { NativeMemoryProvider } from './ecs/memoryProvider';
-export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './ecs/memoryProvider';
+export { NativeMemoryProvider } from './ecs/bridge/memoryProvider';
+export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './ecs/bridge/memoryProvider';
 
 // The native component registry — the embind-Registry sibling the SDK's bridge
 // drives (add/get/has/remove). Built over the host's es_<Component>_buffer/_has/
 // _remove bindings; pass to BuiltinBridge.connect as the cppRegistry.
-export { createNativeRegistry } from './ecs/nativeRegistry';
+export { createNativeRegistry } from './ecs/bridge/nativeRegistry';
 
 // The es_* names a host binds, declared once and checked at boot.
-export { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS, assertNativeBindings } from './ecs/nativeBindings';
+export { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS, assertNativeBindings } from './ecs/bridge/nativeBindings';
 
 // The native ResourceManager — the embind-ResourceManager sibling the SDK's asset
 // pipeline drives (createTexture / releaseTexture / dims). Built over the host's
 // es_createTexture / es_releaseTexture / es_getTextureDimensions bindings; uploads
 // texture bytes directly (no wasm heap). createNativeApp installs one automatically.
-export { createNativeResourceManager } from './ecs/nativeResourceManager';
+export { createNativeResourceManager } from './ecs/bridge/nativeResourceManager';
 
 // Boot the real SDK ECS World over the native core — the host's entry point for
 // running the actual SDK (spawn/insert/query authoring) against native C++ ECS.
-export { createNativeWorld } from './ecs/nativeRuntime';
+export { createNativeWorld } from './ecs/bridge/nativeRuntime';
 
 // Boot a native App: the same App + the native platform (input via the host's
 // NativeBridge) + native ECS. The system-binding layer (Stage B) over the World.
-export { createNativeApp } from './ecs/nativeRuntime';
+export { createNativeApp } from './ecs/bridge/nativeRuntime';
 
 // Boot an EXPORTED project (cooked assets + scenes + game.config.json read off
 // the device) rather than a hand-written game script — the native sibling of the
 // WeChat runtime and the web game host.
-export { initNativeGame } from './nativeGameRuntime';
-export type { NativeGame, NativeGameOptions } from './nativeGameRuntime';
+export { initNativeGame } from './runtime/nativeGameRuntime';
+export type { NativeGame, NativeGameOptions } from './runtime/nativeGameRuntime';
 
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
-export { ABI_LAYOUT_HASH } from './component.generated';
+export { ABI_LAYOUT_HASH } from './ecs/component.generated';

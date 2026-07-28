@@ -11,11 +11,11 @@
  * `createDialog` composes this; the panel swallows clicks with its own
  * Interactable, so only true scrim clicks dismiss.
  */
-import { defineComponent } from '../../component';
-import { defineSystem, type SystemDef } from '../../system';
-import { Res } from '../../resource';
-import { Input, type InputState } from '../../input';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input, type InputState } from '../../input/input';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { UINode, UIDisplay, type UINodeData } from '../core/ui-node';
 import { UIInteraction, type UIInteractionData } from '../input/interactable';

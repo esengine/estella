@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { defineResource, Res, ResMut, ResourceStorage, ResMutInstance } from '../src/resource';
+import { defineResource, Res, ResMut, ResourceStorage, ResMutInstance } from '../src/ecs/resource';
 
 describe('Resource System', () => {
     describe('defineResource', () => {

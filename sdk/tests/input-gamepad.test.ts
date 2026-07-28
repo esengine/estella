@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { InputState, GamepadButton, GamepadAxis } from '../src/input';
+import { InputState, GamepadButton, GamepadAxis } from '../src/input/input';
 import type { GamepadSnapshot } from '../src/platform/types';
 
 /** Build a standard-layout snapshot (17 buttons / 4 axes) with specific overrides. */

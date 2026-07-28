@@ -11,7 +11,7 @@ import {
     EventReaderInstance,
     EventWriterDescriptor,
     EventReaderDescriptor,
-} from '../src/event';
+} from '../src/ecs/event';
 
 // =============================================================================
 // defineEvent

@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
-import { Transform, Sprite, Canvas } from '../src/component';
+import { Transform, Sprite, Canvas } from '../src/ecs/component';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src/ui/layout/flex';

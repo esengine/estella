@@ -9,7 +9,7 @@
  * pure TS, mirroring StateMachineAgent.
  */
 
-import { defineComponent } from '../../component';
+import { defineComponent } from '../../ecs/component';
 import { isUuidRef } from '../../asset/AssetRegistry';
 import type { BtDefinition } from './types';
 

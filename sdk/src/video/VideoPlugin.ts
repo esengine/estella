@@ -4,13 +4,13 @@
 // and runs one play-mode system that streams each Video onto its renderable.
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import type { World } from '../world';
-import { defineSystem, Schedule } from '../system';
-import { Res, Time, type TimeData } from '../resource';
+import type { World } from '../ecs/world';
+import { defineSystem, Schedule } from '../ecs/system';
+import { Res, Time, type TimeData } from '../ecs/resource';
 import { VideoPlayer, VideoAPI } from './VideoAPI';
 import { Video, type VideoData } from './VideoComponents';
-import { Sprite, Mesh2D, type SpriteData, type Mesh2DData } from '../component';
-import type { UIVisualData } from '../component.generated';
+import { Sprite, Mesh2D, type SpriteData, type Mesh2DData } from '../ecs/component';
+import type { UIVisualData } from '../ecs/component.generated';
 import { UIVisual } from '../ui/core/ui-visual';
 import type { VideoStreamHandle } from './PlatformVideoBackend';
 import { NullVideoBackend } from './NullVideoBackend';

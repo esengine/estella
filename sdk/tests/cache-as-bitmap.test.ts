@@ -8,8 +8,8 @@ import {
     removeCacheForEntity,
     clearAllCaches,
     getCacheStoreSize,
-} from '../src/cacheAsBitmap';
-import type { BitmapCache } from '../src/cacheBitmap';
+} from '../src/render/cacheAsBitmap';
+import type { BitmapCache } from '../src/render/cacheBitmap';
 
 function mockCache(id: number): BitmapCache {
     return { textureId: id, width: 256, height: 256, valid: true, _rt: null };

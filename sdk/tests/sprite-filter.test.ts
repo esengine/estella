@@ -16,7 +16,7 @@ const materialCalls: Array<
 let nextShaderId = 100;
 let nextMaterialId = 1000;
 
-vi.mock('../src/material', () => {
+vi.mock('../src/render/material', () => {
     return {
         Material: {
             compileShader: vi.fn(() => {
@@ -34,7 +34,7 @@ vi.mock('../src/material', () => {
     };
 });
 
-import { SpriteFilter } from '../src/spriteFilter';
+import { SpriteFilter } from '../src/render/spriteFilter';
 
 beforeEach(() => {
     materialCalls.length = 0;

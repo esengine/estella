@@ -10,9 +10,9 @@
  * (Absolute, out of flow) and no input surface (not interactable). Thumbs are
  * theme-tagged (`text` role, alpha preserved) so they re-skin live.
  */
-import { defineSystem, type SystemDef } from '../../system';
-import { Res, Time, type TimeData } from '../../resource';
-import type { World } from '../../world';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import { Res, Time, type TimeData } from '../../ecs/resource';
+import type { World } from '../../ecs/world';
 import type { Entity, Vec2 } from '../../types';
 import { px } from '../core/dimension';
 import { spawnUIEntity } from '../core/compose';

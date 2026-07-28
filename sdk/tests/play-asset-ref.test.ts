@@ -5,7 +5,7 @@
  *        paths (spine skel/atlas, …) → the project root, not the play subdir.
  */
 import { describe, it, expect } from 'vitest';
-import { resolvePlayAssetRef } from '../src/playRealmRuntime';
+import { resolvePlayAssetRef } from '../src/runtime/playRealmRuntime';
 
 const MANIFEST = { 'aaaa': 'estella://project/assets/textures/hero.png' };
 const BASE = 'estella://project';

@@ -21,11 +21,11 @@ import type { Entity } from '../types';
 import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
-import { requireResourceManager } from '../resourceManager';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { parseSpineAtlasPages } from './atlasPages';
-import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
+import { createTextureFromPixels, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 
 /**

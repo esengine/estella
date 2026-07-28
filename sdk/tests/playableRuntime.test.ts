@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../src/runtimeLoader', () => ({
+vi.mock('../src/runtime/runtimeLoader', () => ({
     initRuntime: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -10,9 +10,9 @@ vi.mock('../src/asset/AssetPlugin', () => ({
     Assets: Symbol('Assets'),
 }));
 
-import { initPlayableRuntime } from '../src/playableRuntime';
-import type { PlayableRuntimeConfig } from '../src/playableRuntime';
-import { initRuntime } from '../src/runtimeLoader';
+import { initPlayableRuntime } from '../src/runtime/playableRuntime';
+import type { PlayableRuntimeConfig } from '../src/runtime/playableRuntime';
+import { initRuntime } from '../src/runtime/runtimeLoader';
 import { Assets } from '../src/asset/AssetPlugin';
 
 function createMockConfig(overrides?: Partial<PlayableRuntimeConfig>): PlayableRuntimeConfig {

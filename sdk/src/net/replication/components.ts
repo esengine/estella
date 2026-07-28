@@ -9,7 +9,7 @@
  *          proxies so local simulation (physics, AI) can yield to the incoming
  *          authoritative state via Without(NetGhost) queries.
  */
-import { defineComponent, defineTag } from '../../component';
+import { defineComponent, defineTag } from '../../ecs/component';
 
 export interface ReplicatedData {
     /** Stable network identity, allocated by the server (0 = unassigned). */

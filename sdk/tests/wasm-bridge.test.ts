@@ -8,9 +8,9 @@
  *          the allocator pass straight through.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { WasmBridge } from '../src/WasmBridge';
-import { WasmModuleAborted, isModuleAborted } from '../src/moduleHealth';
-import { withMalloc } from '../src/wasmScratch';
+import { WasmBridge } from '../src/wasm/WasmBridge';
+import { WasmModuleAborted, isModuleAborted } from '../src/wasm/moduleHealth';
+import { withMalloc } from '../src/wasm/wasmScratch';
 import { PhysicsBridge } from '../src/physics/PhysicsBridge';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 

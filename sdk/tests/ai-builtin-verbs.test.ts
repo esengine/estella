@@ -12,9 +12,9 @@ import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import { ensureControllerAiRegistrations } from '../src/ui/controller/ai-builtins';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
 import { UINode } from '../src/ui/core/ui-node';
-import { UIDisplay } from '../src/wasm.generated';
-import { registerComponent, defineComponent } from '../src/component';
-import type { AnyComponentDef } from '../src/component';
+import { UIDisplay } from '../src/wasm/wasm.generated';
+import { registerComponent, defineComponent } from '../src/ecs/component';
+import type { AnyComponentDef } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 
 const Score = defineComponent<{ points: number; label: string }>('TestScore', { points: 0, label: '' });

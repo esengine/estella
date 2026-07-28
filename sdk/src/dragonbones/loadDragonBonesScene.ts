@@ -26,9 +26,9 @@ import type { Entity } from '../types';
 import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
-import { requireResourceManager } from '../resourceManager';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../logger';
-import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
+import { createTextureFromPixels, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 import type { DragonBonesManager } from './DragonBonesManager';
 

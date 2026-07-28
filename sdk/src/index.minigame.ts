@@ -32,7 +32,7 @@
  * @beta    Pre-1.0: the profile contract may still gain fields as vendors beyond
  *          WeChat are brought up against real devices.
  */
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 
 // No setPlatform here — the game calls installMiniGamePlatform(profile) at boot.
@@ -43,7 +43,7 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-export * from './webAppFactory';
+export * from './runtime/webAppFactory';
 
 // The family platform: describe the host as data, install, done.
 export { MiniGamePlatformAdapter, installMiniGamePlatform } from './platform/minigame';
@@ -65,7 +65,7 @@ export type {
 } from './platform/minigame';
 
 // The boot the exporter's generated game.js calls.
-export { initMiniGameRuntime, type MiniGameRuntimeConfig } from './miniGameRuntime';
+export { initMiniGameRuntime, type MiniGameRuntimeConfig } from './runtime/miniGameRuntime';
 
 // The family backends, exported so a profile can wrap or replace one rather than
 // write it from scratch.

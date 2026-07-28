@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { parseTmjJson, tiledObjectgroupShape, tiledCollisionMods, generateLayerTileShapes } from '../src/tilemap/tiledLoader';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 function mockWorld() {

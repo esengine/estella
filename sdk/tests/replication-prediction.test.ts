@@ -11,12 +11,12 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineComponent, clearUserComponents } from '../src/component';
-import { defineSystem, Schedule, GetWorld } from '../src/system';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { defineSystem, Schedule, GetWorld } from '../src/ecs/system';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import { replicationPlugin, Net, Replicated, type ReplicationServer } from '../src/net/replication';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 const STEP = 1 / 60;
 const SPEED = 600; // units/second → 10 units per tick

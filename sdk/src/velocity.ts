@@ -5,14 +5,14 @@
  * @brief   Velocity concept — integrates the builtin Velocity component into Transform.
  */
 import type { Plugin } from './app';
-import { defineSystem, Schedule, GetWorld } from './system';
-import { Query, Mut } from './query';
-import { Res, Time, type TimeData } from './resource';
+import { defineSystem, Schedule, GetWorld } from './ecs/system';
+import { Query, Mut } from './ecs/query';
+import { Res, Time, type TimeData } from './ecs/resource';
 import { playModeOnly } from './env';
-import { Transform, Velocity, getComponentRegistry } from './component';
-import type { TransformData, VelocityData } from './component';
+import { Transform, Velocity, getComponentRegistry } from './ecs/component';
+import type { TransformData, VelocityData } from './ecs/component';
 import type { Entity } from './types';
-import type { World } from './world';
+import type { World } from './ecs/world';
 
 export const velocitySystem = defineSystem(
     [Query(Mut(Transform), Velocity), Res(Time), GetWorld()],

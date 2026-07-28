@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { Transform } from '../src/component';
+import { Transform } from '../src/ecs/component';
 import type { Entity } from '../src/types';
-import type { AnyComponentDef, ComponentData } from '../src/component';
+import type { AnyComponentDef, ComponentData } from '../src/ecs/component';
 import { Perceiver, Perception, PerceptionTarget } from '../src/ai/perception/components';
 import { stepPerception, type PerceptionWorldView } from '../src/ai/perception/PerceptionPlugin';
 

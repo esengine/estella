@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { CanvasScaleMode } from './wasm.generated';
-import { COMPONENT_META } from './component.generated';
-import { getResourceManager, setTextureBudget } from './resourceManager';
+import { CanvasScaleMode } from './wasm/wasm.generated';
+import { COMPONENT_META } from './ecs/component.generated';
+import { getResourceManager, setTextureBudget } from './wasm/resourceManager';
 
 // Values with a C++ backing read the generated metadata (Canvas ctor defaults,
 // Sprite's editor_default annotation) so these constants cannot drift from the

@@ -11,8 +11,8 @@
 
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
-import type { EngineApi } from '../ecs/engineApi';
-import { defineResource } from '../resource';
+import type { EngineApi } from '../ecs/bridge/engineApi';
+import { defineResource } from '../ecs/resource';
 import { EasingType } from './Easing';
 import { LoopMode, TweenState, type TweenOptions } from './TweenTypes';
 import { ValueTweenManager, ValueTweenHandle } from './ValueTween';

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 import { serializeScene } from '../src/scene';
 import { DimensionUnit, px, percent, auto, isAuto } from '../src/ui/core/dimension';
 

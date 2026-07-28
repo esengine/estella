@@ -12,7 +12,7 @@
  * `current` rather than a plain component field, so it goes through
  * {@link setControllerPage} instead of a raw insert.
  */
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import type { ReadonlySignal } from '../binding/signal';
 import { setControllerPage } from './ui-controller';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineBuiltin } from '../../component';
+import { defineBuiltin } from '../../ecs/component';
 
 export const MaskMode = {
     Scissor: 0,

@@ -9,7 +9,7 @@
  */
 
 import type { Entity, Vec2 } from '../types';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 // =============================================================================
 // Plugin configuration

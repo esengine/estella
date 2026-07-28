@@ -8,13 +8,13 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../src/app';
-import { AppContext, setDefaultContext } from '../src/context';
+import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/env';
 import { createMockModule } from './mocks/wasm';
-import { Mesh2DPlugin, Meshes2D } from '../src/mesh2d';
+import { Mesh2DPlugin, Meshes2D } from '../src/render/mesh2d';
 import { ParticlePlugin } from '../src/particle/ParticlePlugin';
 import { TrailPlugin } from '../src/trail/TrailPlugin';
-import { TrailRenderer } from '../src/component';
+import { TrailRenderer } from '../src/ecs/component';
 import type { ESEngineModule } from '../src/wasm';
 
 // Like bootMockApp, but connects through App so plugins see app.wasmModule.

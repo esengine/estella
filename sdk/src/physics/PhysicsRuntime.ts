@@ -10,7 +10,7 @@
  * state in the same way they read any other resource.
  */
 
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 
 export interface PhysicsRuntimeData {

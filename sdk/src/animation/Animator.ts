@@ -16,11 +16,11 @@
  * World, no side effects — so it is fully unit-testable.
  */
 
-import { defineComponent, type ComponentDef } from '../component';
-import { defineResource } from '../resource';
+import { defineComponent, type ComponentDef } from '../ecs/component';
+import { defineResource } from '../ecs/resource';
 import { isUuidRef } from '../asset/AssetRegistry';
 import type { Entity } from '../types';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 import { SpriteAnimator, type SpriteAnimatorData } from './SpriteAnimator';
 
 // =============================================================================

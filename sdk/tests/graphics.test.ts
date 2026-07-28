@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { Graphics } from '../src/graphics';
+import { Graphics } from '../src/render/graphics';
 
-vi.mock('../src/draw', () => ({
+vi.mock('../src/render/draw', () => ({
     Draw: {
         line: vi.fn(),
         rect: vi.fn(),

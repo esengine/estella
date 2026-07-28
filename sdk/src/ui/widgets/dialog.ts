@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from '../core/compose';
 import { makeWidgetInteractable } from '../input/interactable';

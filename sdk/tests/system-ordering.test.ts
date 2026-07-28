@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineSystem, Schedule } from '../src/system';
+import { defineSystem, Schedule } from '../src/ecs/system';
 
 describe('System Dependency Ordering', () => {
     let app: App;

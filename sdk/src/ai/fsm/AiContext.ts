@@ -12,9 +12,9 @@
  */
 
 import type { Entity } from '../../types';
-import type { World } from '../../world';
-import type { CommandsInstance } from '../../commands';
-import type { AnyComponentDef, ComponentData } from '../../component';
+import type { World } from '../../ecs/world';
+import type { CommandsInstance } from '../../ecs/commands';
+import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import type { Blackboard } from './Blackboard';
 import { AiRegistry, type AiAction, type AiCondition } from './registry';
 

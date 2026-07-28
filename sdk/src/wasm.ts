@@ -6,7 +6,7 @@
  */
 
 import { Entity } from './types';
-import type { Registry as GeneratedRegistry } from './wasm.generated';
+import type { Registry as GeneratedRegistry } from './wasm/wasm.generated';
 
 // =============================================================================
 // C++ Registry Interface

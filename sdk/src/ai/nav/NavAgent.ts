@@ -11,8 +11,8 @@
  * with the `*Agent` suffix to stay clear of the UI-owned `StateMachine`.
  */
 
-import { defineComponent } from '../../component';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import type { World } from '../../ecs/world';
 import type { Entity, Vec2 } from '../../types';
 
 export interface NavAgentData {

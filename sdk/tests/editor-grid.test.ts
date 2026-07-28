@@ -17,7 +17,7 @@ import {
   registerPreSceneDrawCallback,
   unregisterPreSceneDrawCallback,
   getPreSceneDrawCallbacks,
-} from '../src/customDraw';
+} from '../src/render/customDraw';
 
 // Minimal App surface installEditorGrid + the grid callback actually touch.
 function stubApp() {

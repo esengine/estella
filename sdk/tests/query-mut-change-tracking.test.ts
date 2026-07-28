@@ -11,9 +11,9 @@
  *          runtime. This is the regression guard for that unified behaviour.
  */
 import { describe, it, expect } from 'vitest';
-import { World } from '../src/world';
-import { Query, QueryInstance, Mut, Changed } from '../src/query';
-import { Transform, type TransformData } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Query, QueryInstance, Mut, Changed } from '../src/ecs/query';
+import { Transform, type TransformData } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import { createMockModule } from './mocks/wasm';
 

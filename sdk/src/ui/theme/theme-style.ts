@@ -13,8 +13,8 @@
  * into prefabs/scenes — an editor-placed widget must re-theme like a
  * code-constructed one.
  */
-import { defineComponent } from '../../component';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import type { ThemeColors } from './tokens';
 

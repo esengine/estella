@@ -10,8 +10,8 @@
  *          (the ECS-native place), so the director simply blends already-followed
  *          POVs. Runs in play mode only.
  */
-import { defineComponent, Transform } from '../component';
-import type { World } from '../world';
+import { defineComponent, Transform } from '../ecs/component';
+import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 
 export interface FollowTargetData {

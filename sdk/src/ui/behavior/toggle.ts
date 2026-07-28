@@ -10,9 +10,9 @@
  * the indicator and fires `change` identically, so a prefab-placed toggle
  * works without code.
  */
-import { defineComponent } from '../../component';
-import { defineSystem, type SystemDef } from '../../system';
-import type { World } from '../../world';
+import { defineComponent } from '../../ecs/component';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { setUIVisible } from '../core/compose';
 import { Interactable, type InteractableData } from '../input/interactable';

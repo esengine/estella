@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from '../src/entityUtils';
+import { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from '../src/ecs/entityUtils';
 
 describe('Entity visibility helpers', () => {
     const mockWorld = () => {

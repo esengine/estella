@@ -6,7 +6,7 @@
  */
 
 import { Entity } from '../types';
-import { ComponentDef } from '../component';
+import { ComponentDef } from './component';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from '../validation';
 import { log } from '../logger';
 import { reorderMapByRank, type RankOf } from './entityOrder';

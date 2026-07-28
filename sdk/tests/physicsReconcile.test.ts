@@ -7,7 +7,7 @@
  *        jointChangedOrGone (a tracked joint's component removed or edited).
  */
 import { describe, it, expect } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import {
     BoxCollider, CircleCollider, CapsuleCollider, RevoluteJoint,

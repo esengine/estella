@@ -6,22 +6,22 @@
  */
 
 import type { App, Plugin } from '../app';
-import type { SystemDef } from '../system';
-import { Schedule, defineSystem } from '../system';
-import { Res, Time, type TimeData } from '../resource';
+import type { SystemDef } from '../ecs/system';
+import { Schedule, defineSystem } from '../ecs/system';
+import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../env';
 import { followUpdate } from './FollowTarget';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
-import { ProjectionType, SceneOwner, ClearFlags } from '../component';
+import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
-import { RenderPipeline } from '../renderPipeline';
-import { Renderer } from '../renderer';
+import { RenderPipeline } from '../render/renderPipeline';
+import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../sceneManager';
 import { ortho, perspective, invertViewZ, multiply, IDENTITY } from '../math/mat4';

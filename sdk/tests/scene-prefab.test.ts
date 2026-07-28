@@ -13,9 +13,9 @@
  *   - `loadSceneWithAssets` actually spawning the expanded instance into a World.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
-import { defineBuiltin, defineComponent } from '../src/component';
+import { defineBuiltin, defineComponent } from '../src/ecs/component';
 import { INVALID_ENTITY } from '../src/types';
 import {
     loadSceneData,

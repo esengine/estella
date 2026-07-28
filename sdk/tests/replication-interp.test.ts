@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineComponent, clearUserComponents } from '../src/component';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import {
     replicationPlugin, Net, Replicated,

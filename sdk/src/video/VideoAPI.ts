@@ -4,7 +4,7 @@
 // the VideoPlayer resource.
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { log } from '../logger';
 
 export type VideoHandle = VideoStreamHandle;

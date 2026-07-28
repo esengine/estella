@@ -6,8 +6,8 @@ import {
     DataType,
     initGeometryAPI,
     shutdownGeometryAPI,
-} from '../src/geometry';
-import type { GeometryHandle } from '../src/geometry';
+} from '../src/render/geometry';
+import type { GeometryHandle } from '../src/render/geometry';
 import type { ESEngineModule } from '../src/wasm';
 
 // =============================================================================

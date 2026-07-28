@@ -32,7 +32,7 @@ import {
     applyDeltaToSource,
 } from '../src/prefab/index';
 import type { FlattenContext, PrefabInstanceDelta } from '../src/prefab/index';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 
 // ─── Shared fixtures for hierarchical-address / structural-deletion suites ───
 

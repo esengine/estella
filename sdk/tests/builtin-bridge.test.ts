@@ -7,8 +7,8 @@
  *          generated component metadata in one diagnostic.
  */
 import { describe, expect, it } from 'vitest';
-import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
-import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/component.generated';
+import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
+import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/ecs/component.generated';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 
 function stubMethod() { return undefined; }

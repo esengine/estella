@@ -8,7 +8,7 @@
 // WebGPU backend.
 import { describe, expect, it } from 'vitest';
 
-import { BUILTIN_SHADER_TEMPLATES } from '../src/builtinShaders';
+import { BUILTIN_SHADER_TEMPLATES } from '../src/render/builtinShaders';
 
 // The filter modules export functions, not their sources — read the sources
 // from disk so the guard sees exactly what ships.
@@ -41,8 +41,8 @@ function sectionsBalance(source: string): boolean {
 
 const CASES: Array<{ name: string; source: string }> = [
     ...BUILTIN_SHADER_TEMPLATES.map((t) => ({ name: `template:${t.id}`, source: t.source })),
-    ...embeddedEsshaders('filters.ts').map((source, i) => ({ name: `filters.ts[${i}]`, source })),
-    ...embeddedEsshaders('spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
+    ...embeddedEsshaders('render/filters.ts').map((source, i) => ({ name: `filters.ts[${i}]`, source })),
+    ...embeddedEsshaders('render/spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
     ...embeddedEsshaders('postprocess/postProcessEffects.ts').map(
         (source, i) => ({ name: `postProcessEffects.ts[${i}]`, source })),
     ...embeddedEsshaders('camera/editorGridRenderer.ts').map(

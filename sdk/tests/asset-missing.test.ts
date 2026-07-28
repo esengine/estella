@@ -10,7 +10,7 @@
  * a stub Assets that only exercises the unresolved-ref branch.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/component';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { discoverSceneAssets } from '../src/asset/discoverAssets';
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import type { SceneData } from '../src/scene';

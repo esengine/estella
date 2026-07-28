@@ -9,7 +9,7 @@
  *        it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Transaction, TransactionManager } from '../src/transaction';
+import { Transaction, TransactionManager } from '../src/ecs/transaction';
 import { log } from '../src/logger';
 
 /** A recording op: pushes a marker on forward/reverse so ordering is observable. */

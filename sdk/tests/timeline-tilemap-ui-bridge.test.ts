@@ -8,8 +8,8 @@
  *          five historical bridge patterns are unified behind WasmBridge.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { WasmModuleAborted } from '../src/moduleHealth';
-import { CoreApiBridge } from '../src/CoreApiBridge';
+import { WasmModuleAborted } from '../src/wasm/moduleHealth';
+import { CoreApiBridge } from '../src/wasm/CoreApiBridge';
 import { TilemapAPI, initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
 import { initUIHelpers, getUINodeWidth } from '../src/ui/util/helpers';
 import { TimelineAPI } from '../src/timeline/TimelineControl';

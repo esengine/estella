@@ -9,7 +9,7 @@
  *          pumps them, which is how delivery order, latency and packet
  *          interleaving are simulated.
  */
-import { Emitter } from '../emitter';
+import { Emitter } from '../ecs/emitter';
 import type { NetTransport } from './NetChannel';
 
 export interface MemoryTransportOptions {

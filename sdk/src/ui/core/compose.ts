@@ -12,9 +12,9 @@
 import {
     Transform,
     type TransformData,
-} from '../../component';
+} from '../../ecs/component';
 import type { Entity, Vec2 } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import { UINode, UIPositionType, UIDisplay, UIPointerEvents, type UINodeData } from './ui-node';
 import { px, auto, type Dimension } from './dimension';

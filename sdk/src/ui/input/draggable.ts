@@ -5,7 +5,7 @@
  * @brief   Drag config (Draggable) + runtime drag state (DragState) components.
  *          Driven by the DragPlugin system in this concept module.
  */
-import { defineComponent } from '../../component';
+import { defineComponent } from '../../ecs/component';
 
 export interface DraggableData {
     enabled: boolean;

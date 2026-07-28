@@ -14,7 +14,7 @@
  * (pixels-per-unit) scales them to world pixels in shapeCenter / colliderShapeOutline.
  */
 import type { Vec2 } from '../types';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 import {
     BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider,

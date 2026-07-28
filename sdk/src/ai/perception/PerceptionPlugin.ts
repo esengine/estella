@@ -13,10 +13,10 @@
 
 import type { App, Plugin } from '../../app';
 import type { Entity } from '../../types';
-import { defineSystem, Schedule, GetWorld } from '../../system';
+import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
 import { playModeOnly } from '../../env';
-import { Transform } from '../../component';
-import type { AnyComponentDef, ComponentData } from '../../component';
+import { Transform } from '../../ecs/component';
+import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Physics, type PhysicsAPI } from '../../physics';
 import { senseTarget, facingFromQuat } from './sense';
 import { Perceiver, Perception, PerceptionTarget, type PerceptionData } from './components';

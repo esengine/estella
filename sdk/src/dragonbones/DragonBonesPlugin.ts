@@ -11,11 +11,11 @@
  *          that never does never touches the side module at all.
  */
 import type { App, Plugin } from '../app';
-import { Schedule } from '../system';
-import type { SystemDef } from '../system';
+import { Schedule } from '../ecs/system';
+import type { SystemDef } from '../ecs/system';
 import type { Entity } from '../types';
-import { defineResource, Time } from '../resource';
-import { engineApi } from '../ecs/engineApi';
+import { defineResource, Time } from '../ecs/resource';
+import { engineApi } from '../ecs/bridge/engineApi';
 import { DragonBonesManager } from './DragonBonesManager';
 import { DragonBonesModuleController } from './DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from './DragonBonesModuleLoader';

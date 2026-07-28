@@ -9,9 +9,9 @@
  *        staged path IS the URL) and drew a blank white quad everywhere else.
  */
 import { describe, it, expect } from 'vitest';
-import { loadRuntimeScene } from '../src/runtimeLoader';
+import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import { VideoPlayer } from '../src/video/VideoAPI';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import type { App } from '../src/app';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';

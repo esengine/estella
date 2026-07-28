@@ -10,7 +10,7 @@ import { ScrollContainer, ScrollContainerRegistry } from '../src/ui/collection/s
 import { UINode } from '../src/ui/core/ui-node';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 interface MockWorld {
     _entities: Set<number>;

@@ -15,7 +15,7 @@
  */
 
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 /**
  * Factory + binder pair for a single item type. Registered per type

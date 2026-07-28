@@ -6,7 +6,7 @@
  *        no bridge must stay playable rather than throw.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { playableCta, hasPlayableCta } from '../src/playableCta';
+import { playableCta, hasPlayableCta } from '../src/runtime/playableCta';
 
 const KEY = '__ESTELLA_PLAYABLE__';
 const g = globalThis as Record<string, unknown>;

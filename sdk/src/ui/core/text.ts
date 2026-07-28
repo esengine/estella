@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineComponent, enumOptions } from '../../component';
+import { defineComponent, enumOptions } from '../../ecs/component';
 import type { Color } from '../../types';
 
 export const TextAlign = {

@@ -2,10 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineSystem, Schedule } from '../src/system';
-import { defineComponent, clearUserComponents, getUserComponentFingerprint, getUserComponents } from '../src/component';
-import { setDefaultContext, AppContext } from '../src/context';
-import { addSystemToSchedule } from '../src/system';
+import { defineSystem, Schedule } from '../src/ecs/system';
+import { defineComponent, clearUserComponents, getUserComponentFingerprint, getUserComponents } from '../src/ecs/component';
+import { setDefaultContext, AppContext } from '../src/ecs/context';
+import { addSystemToSchedule } from '../src/ecs/system';
 import { probeRegistrations } from '../src/hotReload';
 
 // RC10 P3: the state-preserving hot-reload core — App.hotSwapSystems replaces user

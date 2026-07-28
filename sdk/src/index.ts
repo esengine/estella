@@ -6,7 +6,7 @@
  */
 
 import { setPlatform, webAdapter } from './platform';
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 setPlatform(webAdapter);
 
@@ -22,10 +22,10 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-export * from './webAppFactory';
+export * from './runtime/webAppFactory';
 
 // ABI layout hash of the component schema this SDK bundle was generated from.
 // Exposed so an embedding host (e.g. the editor) can compare it against the
 // wasm build it loads — see desktop EngineGuard. The authoritative, fatal
 // layout check still happens inside the runtime bridge handshake.
-export { ABI_LAYOUT_HASH } from './component.generated';
+export { ABI_LAYOUT_HASH } from './ecs/component.generated';

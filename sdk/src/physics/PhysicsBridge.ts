@@ -11,7 +11,7 @@
  *          previously called straight into a possibly-dead module.
  */
 
-import { WasmBridge } from '../WasmBridge';
+import { WasmBridge } from '../wasm/WasmBridge';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 
 export class PhysicsBridge extends WasmBridge<PhysicsWasmModule> {

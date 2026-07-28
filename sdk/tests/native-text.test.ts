@@ -13,14 +13,14 @@
  * only presents afterwards.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createNativeApp } from '../src/ecs/nativeRuntime';
-import { shutdownResourceManager } from '../src/resourceManager';
+import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { shutdownResourceManager } from '../src/wasm/resourceManager';
 import { setPlatform } from '../src/platform/base';
-import { setRendererBackend } from '../src/renderer';
+import { setRendererBackend } from '../src/render/renderer';
 import { setNativeTextSubmit, TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
-import { Camera, Canvas, Transform } from '../src/component';
+import { Camera, Canvas, Transform } from '../src/ecs/component';
 import { Text, TextRenderMode } from '../src/ui/core/text';
-import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
+import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import type { PlatformGlyphRequest } from '../src/platform/types';
 import type { NativeBridge } from '../src/platform/native/bridge';
 

@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ViewPool } from '../src/ui/collection/view-pool';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 // ---- Mock World (minimal surface ViewPool actually uses) ----
 

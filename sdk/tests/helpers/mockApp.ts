@@ -13,7 +13,7 @@
  *        to the *-smoke.mjs runners that link the real engine.
  */
 import { App } from '../../src/app';
-import { AppContext, setDefaultContext } from '../../src/context';
+import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../../src/env';
 import { createMockModule } from '../mocks/wasm';
 import type { ESEngineModule } from '../../src/wasm';

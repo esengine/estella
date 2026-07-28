@@ -19,7 +19,7 @@ import {
 import { UIPositionType, UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { DimensionUnit, px, auto } from '../src/ui/core/dimension';
 import { App } from '../src/app';
-import { Canvas, Transform, Sprite } from '../src/component';
+import { Canvas, Transform, Sprite } from '../src/ecs/component';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';

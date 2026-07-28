@@ -10,8 +10,8 @@
  *          'offline', so the plugin is safe to install unconditionally.
  */
 import type { App, Plugin } from '../../app';
-import { defineSystem, Schedule } from '../../system';
-import { defineResource, Res, Time, type TimeData } from '../../resource';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { defineResource, Res, Time, type TimeData } from '../../ecs/resource';
 import type { NetTransport } from '../NetChannel';
 import { ReplicationServer } from './server';
 import { ReplicationClient, type ReplicationClientOptions } from './client';

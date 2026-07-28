@@ -6,9 +6,9 @@
  *          UIInteraction (per-frame pointer state written by the hit-test
  *          system). Foundation that controllers + drag/focus build on.
  */
-import { defineBuiltin } from '../../component';
+import { defineBuiltin } from '../../ecs/component';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import { Focusable } from './focusable';
 
 export interface InteractableData {

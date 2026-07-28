@@ -7,7 +7,7 @@
  *          button, with the same queue and the same dispatcher.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { EntityEventQueue, EntityEvents } from '../src/entityEvents';
+import { EntityEventQueue, EntityEvents } from '../src/ecs/entityEvents';
 import { PhysicsEventType, registerPhysicsEventBridge, type PhysicsContactEventData } from '../src/physics/PhysicsEventBridge';
 import { PhysicsEvents, type PhysicsEventsData } from '../src/physics/PhysicsTypes';
 import type { Entity } from '../src/types';

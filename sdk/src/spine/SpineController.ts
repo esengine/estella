@@ -9,7 +9,7 @@ import type { Entity, Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../logger';
-import { withMalloc, withScratch } from '../wasmScratch';
+import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';

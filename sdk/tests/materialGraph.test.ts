@@ -11,7 +11,7 @@ import {
   moveNode,
   NODE_SPECS,
   type MaterialGraph,
-} from '../src/materialGraph';
+} from '../src/render/materialGraph';
 
 // TextureSample(u_albedo) × ConstColor(u_tint) → Output — a tint material as a graph.
 const tintGraph: MaterialGraph = {

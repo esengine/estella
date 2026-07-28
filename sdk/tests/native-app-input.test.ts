@@ -8,8 +8,8 @@
  *          inputPlugin -> native adapter -> Input resource path, headless.
  */
 import { describe, expect, it } from 'vitest';
-import { createNativeApp } from '../src/ecs/nativeRuntime';
-import { Input } from '../src/input';
+import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { Input } from '../src/input/input';
 import type { NativeBridge, NativeInputListener } from '../src/platform/native/bridge';
 
 /** A NativeBridge whose registerInput captures the engine's listener; everything

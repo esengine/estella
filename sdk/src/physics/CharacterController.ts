@@ -22,17 +22,17 @@
  */
 import type { App } from '../app';
 import type { Entity, Vec2 } from '../types';
-import { defineComponent, Transform, type TransformData } from '../component';
-import { Schedule, defineSystem, GetWorld } from '../system';
-import { Query, Mut } from '../query';
-import { Res, Time, type TimeData } from '../resource';
+import { defineComponent, Transform, type TransformData } from '../ecs/component';
+import { Schedule, defineSystem, GetWorld } from '../ecs/system';
+import { Query, Mut } from '../ecs/query';
+import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../env';
 import { Physics, type PhysicsAPI } from './Physics';
 import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
 import type {
     BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './PhysicsComponents';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 
 // =============================================================================
 // Component

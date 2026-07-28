@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
-import { engineApi } from '../ecs/engineApi';
-import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../component';
-import { Schedule } from '../system';
-import type { SystemDef } from '../system';
+import { engineApi } from '../ecs/bridge/engineApi';
+import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../ecs/component';
+import { Schedule } from '../ecs/system';
+import type { SystemDef } from '../ecs/system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { TilemapLiveSync } from './tilemapLiveSync';
 import { Tilemap } from './components';
@@ -21,7 +21,7 @@ import {
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
-import { Time } from '../resource';
+import { Time } from '../ecs/resource';
 import { playModeOnly } from '../env';
 import { log } from '../logger';
 import type { Entity } from '../types';

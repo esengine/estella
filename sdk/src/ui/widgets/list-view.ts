@@ -15,7 +15,7 @@
  * hovered raycast target.
  */
 import type { Entity, Vec2 } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, auto } from '../core/dimension';

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
-import { registerComponent } from '../../component';
-import { defineSystem, Schedule } from '../../system';
-import { Res } from '../../resource';
-import { Input } from '../../input';
-import type { InputState } from '../../input';
+import { registerComponent } from '../../ecs/component';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input } from '../../input/input';
+import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
 import { Focusable, FocusManager, FocusManagerState } from './focusable';
 import type { FocusableData } from './focusable';
@@ -18,9 +18,9 @@ import { UIDialog, isDialogOpen } from '../behavior/dialog';
 import { walkParentChain } from '../util/helpers';
 import { playModeOnly } from '../../env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
-import { PluginName } from '../../systemLabels';
+import { PluginName } from '../../ecs/systemLabels';
 import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/engineApi';
+import { engineApi } from '../../ecs/bridge/engineApi';
 
 export class FocusPlugin implements Plugin {
     name = PluginName.Focus;

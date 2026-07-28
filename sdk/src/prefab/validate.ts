@@ -7,7 +7,7 @@ import type {
     PrefabOverride,
 } from './types';
 import { PREFAB_ADDRESS_SEP } from './types';
-import { getComponent } from '../component';
+import { getComponent } from '../ecs/component';
 
 export interface StaleOverride {
     override: PrefabOverride;

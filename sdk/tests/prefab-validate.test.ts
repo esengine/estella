@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import type { PrefabData, PrefabDiagnostic } from '../src/prefab/index';
 import { validatePrefab, PREFAB_FORMAT_VERSION } from '../src/prefab/index';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 
 function clean(): PrefabData {
     return {

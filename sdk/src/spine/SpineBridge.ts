@@ -10,7 +10,7 @@
  *          in the core module any more — spine is fully side-module.)
  */
 
-import { WasmBridge } from '../WasmBridge';
+import { WasmBridge } from '../wasm/WasmBridge';
 import type { SpineWrappedAPI } from './SpineModuleLoader';
 
 /**

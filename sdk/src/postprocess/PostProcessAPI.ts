@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../types';
-import type { ShaderHandle } from '../material';
-import type { EngineApi } from '../ecs/engineApi';
-import { defineResource } from '../resource';
-import { handleWasmError } from '../wasmError';
-import { WasmBridge } from '../WasmBridge';
+import type { ShaderHandle } from '../render/material';
+import type { EngineApi } from '../ecs/bridge/engineApi';
+import { defineResource } from '../ecs/resource';
+import { handleWasmError } from '../wasm/wasmError';
+import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState } from './PostProcessStack';
 
 /**

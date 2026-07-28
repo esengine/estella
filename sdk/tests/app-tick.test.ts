@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { App } from '../src/app';
-import { Schedule, defineSystem } from '../src/system';
-import { Time } from '../src/resource';
-import { defineResource, Res } from '../src/resource';
+import { Schedule, defineSystem } from '../src/ecs/system';
+import { Time } from '../src/ecs/resource';
+import { defineResource, Res } from '../src/ecs/resource';
 
 describe('App.tick()', () => {
     it('should lazily initialize runner and Time resource', async () => {

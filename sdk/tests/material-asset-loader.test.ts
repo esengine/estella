@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../src/material', () => ({
+vi.mock('../src/render/material', () => ({
     Material: {
         createFromAsset: vi.fn().mockReturnValue(11),
         setUniform: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('../src/material', () => ({
 }));
 
 import { MaterialAssetLoader } from '../src/asset/loaders/MaterialAssetLoader';
-import { Material } from '../src/material';
+import { Material } from '../src/render/material';
 import type { LoadContext } from '../src/asset/AssetLoader';
 
 const MAT_PATH = 'assets/materials/foo.esmaterial';

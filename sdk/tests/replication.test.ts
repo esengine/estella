@@ -10,8 +10,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineComponent, clearUserComponents } from '../src/component';
-import { ABI_LAYOUT_HASH } from '../src/component.generated';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { ABI_LAYOUT_HASH } from '../src/ecs/component.generated';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import { NetChannel } from '../src/net/NetChannel';
 import {

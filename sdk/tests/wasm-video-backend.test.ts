@@ -8,7 +8,7 @@ import type { SideModuleHost } from '../src/sideModules/host';
 import type { AudioAPI } from '../src/audio/Audio';
 import type { AudioHandle } from '../src/audio/PlatformAudioBackend';
 import { setPlatform } from '../src/platform/base';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import type { PlatformAdapter } from '../src/platform/types';
 
 const WIDTH = 4, HEIGHT = 2;

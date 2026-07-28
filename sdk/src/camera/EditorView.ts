@@ -16,7 +16,7 @@
  * cameras (see CameraPlugin) — there is one source of view-projection math; only
  * the camera *configuration* (full-frame, raw orthoSize) differs.
  */
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 export interface EditorViewData {
   /** When true, the framebuffer + screen<->world use this view, not scene cameras. */

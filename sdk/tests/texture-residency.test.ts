@@ -94,7 +94,7 @@ function createPoolFake() {
 
 let pool = createPoolFake();
 
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => pool,
     getResourceManager: () => pool,
     evictTextureDimensions: vi.fn(),

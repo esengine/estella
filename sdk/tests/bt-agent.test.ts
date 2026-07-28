@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Entity } from '../src/types';
-import type { CommandsInstance } from '../src/commands';
+import type { CommandsInstance } from '../src/ecs/commands';
 import { BehaviorTreeAgent, registerBt, clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 import { aiRegistry, registerAction, registerCondition } from '../src/ai/fsm/AiContext';
 import { stepBehaviorTrees, agentBtBlackboard, BehaviorTrees, type AiWorldView } from '../src/ai/bt/BtPlugin';

@@ -7,7 +7,7 @@
  *          mutation or reuse of the WASM-backed source buffer.
  */
 import { describe, expect, it } from 'vitest';
-import { decodeFrameCapture, getSnapshotImageData, RenderType, FlushReason } from '../src/frameCapture';
+import { decodeFrameCapture, getSnapshotImageData, RenderType, FlushReason } from '../src/render/frameCapture';
 import type { ESEngineModule } from '../src/wasm';
 
 // Minimal ImageData shim for headless test runs. Mirrors the parts of the

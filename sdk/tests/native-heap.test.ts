@@ -7,7 +7,7 @@
 // (native/host/bindings/HeapBindings.cpp) — so the marshalling that physics,
 // tilemaps and particles rely on is checked without a device.
 import { describe, it, expect } from 'vitest';
-import { createNativeHeap, hasHeapBindings, HEAP_BINDINGS } from '../src/ecs/nativeHeap';
+import { createNativeHeap, hasHeapBindings, HEAP_BINDINGS } from '../src/ecs/bridge/nativeHeap';
 
 /** A mock host arena: one buffer plus a bump allocator, offsets never 0. */
 function mockHost(bytes = 1024): Record<string, unknown> {

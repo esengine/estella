@@ -17,7 +17,7 @@ import {
     Text,
 } from '../src/ui';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 interface MockWorld {
     _entities: Set<number>;

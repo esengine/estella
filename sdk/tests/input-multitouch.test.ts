@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { InputState } from '../src/input';
+import { InputState } from '../src/input/input';
 
 describe('InputState multi-touch', () => {
     let input: InputState;

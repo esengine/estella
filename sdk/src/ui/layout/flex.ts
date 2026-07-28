@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineBuiltin } from '../../component';
+import { defineBuiltin } from '../../ecs/component';
 import type { Vec2 } from '../../types';
-import type { Padding } from '../../wasm.generated';
+import type { Padding } from '../../wasm/wasm.generated';
 
 // -- FlexContainer ------------------------------------------------------------
 

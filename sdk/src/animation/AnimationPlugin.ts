@@ -6,12 +6,12 @@
  */
 
 import type { App, Plugin } from '../app';
-import { defineSystem, Schedule } from '../system';
-import { Res } from '../resource';
-import { Time, type TimeData } from '../resource';
+import { defineSystem, Schedule } from '../ecs/system';
+import { Res } from '../ecs/resource';
+import { Time, type TimeData } from '../ecs/resource';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
-import { engineApi } from '../ecs/engineApi';
+import { engineApi } from '../ecs/bridge/engineApi';
 import { log } from '../logger';
 import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
@@ -20,7 +20,7 @@ import { AnimatorController, AnimatorControllerAPI } from './Animator';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { playModeOnly } from '../env';
-import { SystemLabel } from '../systemLabels';
+import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';

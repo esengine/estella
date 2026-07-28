@@ -4,7 +4,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 import type { PrefabData } from '../src/prefab/types';
 import { widgetToPrefab } from '../src/ui/widgets/toPrefab';
 import { createButton } from '../src/ui/widgets/button';
@@ -17,7 +17,7 @@ import { createTextInput } from '../src/ui/widgets/text-input';
 import { UISlider } from '../src/ui/behavior/slider';
 import { UIToggle } from '../src/ui/behavior/toggle';
 import { UIDropdown } from '../src/ui/behavior/dropdown';
-import { registerComponent } from '../src/component';
+import { registerComponent } from '../src/ecs/component';
 import { spawnUIEntity } from '../src/ui/core/compose';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { UIPositionType } from '../src/ui/core/ui-node';

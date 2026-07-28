@@ -23,7 +23,7 @@ import {
     getComponentAssetFieldDescriptors,
     type AssetFieldType,
 } from '../src/scene';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 
 function ensureSpriteAnimator() {
     defineComponent('SpriteAnimator', {

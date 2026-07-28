@@ -9,14 +9,14 @@ import {
     addStartupSystem,
     addSystemToSchedule,
     SystemRunner,
-} from '../src/system';
-import { getDefaultContext } from '../src/context';
-import { Query, Mut, Added, Changed, QueryInstance, Removed, RemovedQueryInstance } from '../src/query';
-import { Res, ResMut, ResMutInstance, defineResource, ResourceStorage } from '../src/resource';
-import { Commands, CommandsInstance } from '../src/commands';
-import { EventWriter, EventReader, EventWriterInstance, EventReaderInstance, defineEvent, EventRegistry } from '../src/event';
-import { defineComponent } from '../src/component';
-import type { World } from '../src/world';
+} from '../src/ecs/system';
+import { getDefaultContext } from '../src/ecs/context';
+import { Query, Mut, Added, Changed, QueryInstance, Removed, RemovedQueryInstance } from '../src/ecs/query';
+import { Res, ResMut, ResMutInstance, defineResource, ResourceStorage } from '../src/ecs/resource';
+import { Commands, CommandsInstance } from '../src/ecs/commands';
+import { EventWriter, EventReader, EventWriterInstance, EventReaderInstance, defineEvent, EventRegistry } from '../src/ecs/event';
+import { defineComponent } from '../src/ecs/component';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 // =============================================================================

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { PostProcessVolumeData } from '../component';
+import type { PostProcessVolumeData } from '../ecs/component';
 import { getEffectDef } from './effects';
 
 export interface VolumeTransform {

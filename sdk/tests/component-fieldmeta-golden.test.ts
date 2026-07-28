@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { getComponentRegistry, getComponentFieldMeta } from '../src/component';
+import { getComponentRegistry, getComponentFieldMeta } from '../src/ecs/component';
 
 // Equivalence gate for RC9-1 (rich reflection metadata, single authoring source).
 // P2 moves the authority for builtin field presentation metadata from the

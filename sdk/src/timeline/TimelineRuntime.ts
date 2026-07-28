@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getComponent, SpineAnimation } from '../component';
+import { getComponent, SpineAnimation } from '../ecs/component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
-import type { World } from '../world';
+import type { World } from '../ecs/world';
 
 /**
  * Shared timeline runtime helpers. The timeline is a

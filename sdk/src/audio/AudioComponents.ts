@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineComponent } from '../component';
+import { defineComponent } from '../ecs/component';
 import { AttenuationModel } from './SpatialAudio';
 
 export interface AudioSourceData {

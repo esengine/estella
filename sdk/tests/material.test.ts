@@ -8,16 +8,16 @@ import {
     initMaterialAPI,
     shutdownMaterialAPI,
     CullMode,
-} from '../src/material';
+} from '../src/render/material';
 import type {
     MaterialHandle,
     ShaderHandle,
     TextureRef,
     MaterialAssetData,
-} from '../src/material';
+} from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
-import { BlendMode } from '../src/blend';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { BlendMode } from '../src/render/blend';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 // =============================================================================
 // Mock WASM module for Material API

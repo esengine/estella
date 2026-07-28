@@ -24,17 +24,17 @@
  *     Nearest-wins is what keeps two instances of the same prefab from wiring
  *     into each other.
  */
-import { defineComponent, Children, Name, Parent } from './component';
-import type { ChildrenData, NameData, ParentData } from './component';
+import { defineComponent, Children, Name, Parent } from './ecs/component';
+import type { ChildrenData, NameData, ParentData } from './ecs/component';
 import type { App, Plugin } from './app';
 import type { Entity } from './types';
-import type { World } from './world';
-import { defineSystem, Schedule } from './system';
-import { Commands, type CommandsInstance } from './commands';
-import { Res, Time, type TimeData } from './resource';
+import type { World } from './ecs/world';
+import { defineSystem, Schedule } from './ecs/system';
+import { Commands, type CommandsInstance } from './ecs/commands';
+import { Res, Time, type TimeData } from './ecs/resource';
 import { playModeOnly } from './env';
 import { log } from './logger';
-import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './entityEvents';
+import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './ecs/entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';
 import { aiRegistry, type AiContext } from './ai/fsm/AiContext';
 import { invokeAction, type AiParamValue } from './ai/fsm/registry';

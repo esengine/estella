@@ -8,8 +8,8 @@ import {
     getComponentRegistry,
     getComponent,
     isBuiltinComponent,
-} from '../src/component';
-import { getDefaultContext } from '../src/context';
+} from '../src/ecs/component';
+import { getDefaultContext } from '../src/ecs/context';
 
 /**
  * Confirms that the SDK-side `editorBridge` hook and the exports the

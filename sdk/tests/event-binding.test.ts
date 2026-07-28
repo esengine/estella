@@ -7,7 +7,7 @@
  *          bubbling from a child into an ancestor's rows.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EntityEventQueue } from '../src/entityEvents';
+import { EntityEventQueue } from '../src/ecs/entityEvents';
 import {
     EventBinding,
     createEventBindingRuntime,
@@ -18,8 +18,8 @@ import {
 import { Blackboard } from '../src/ai/fsm/Blackboard';
 import { aiRegistry } from '../src/ai/fsm/AiContext';
 import type { AiParams } from '../src/ai/fsm/registry';
-import { Children, Name, Parent } from '../src/component';
-import type { AnyComponentDef } from '../src/component';
+import { Children, Name, Parent } from '../src/ecs/component';
+import type { AnyComponentDef } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 
 /** A world stub with just the slice EventBinding touches (+ hierarchy helpers). */

@@ -6,8 +6,8 @@
  *          resource tracking the currently-focused entity. Driven by the
  *          FocusPlugin system in this concept module.
  */
-import { defineComponent } from '../../component';
-import { defineResource } from '../../resource';
+import { defineComponent } from '../../ecs/component';
+import { defineResource } from '../../ecs/resource';
 import type { Entity } from '../../types';
 
 export interface FocusableData {

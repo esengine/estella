@@ -17,15 +17,15 @@
  * The read/write/lerp helpers are pure and exported so unit tests (and a future
  * editor preview path) can exercise the value logic without a World.
  */
-import { defineSystem, type SystemDef } from '../../system';
-import { getComponent } from '../../component';
-import { Res, Time, type TimeData } from '../../resource';
+import { defineSystem, type SystemDef } from '../../ecs/system';
+import { getComponent } from '../../ecs/component';
+import { Res, Time, type TimeData } from '../../ecs/resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
 import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from '../input/interactable';
 import { Focusable, FocusManager, type FocusManagerState } from '../input/focusable';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import {
     UIController,
     INTERACTION_CONTROLLER,

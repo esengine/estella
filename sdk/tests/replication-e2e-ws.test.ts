@@ -11,8 +11,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 import { App } from '../src/app';
-import { createHeadlessApp } from '../src/webAppFactory';
-import { defineComponent, clearUserComponents, Transform } from '../src/component';
+import { createHeadlessApp } from '../src/runtime/webAppFactory';
+import { defineComponent, clearUserComponents, Transform } from '../src/ecs/component';
 import type { ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import { GameSocket } from '../src/net/GameSocket';

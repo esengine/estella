@@ -21,4 +21,4 @@ export {
     dragonBonesEntityProps,
 } from './loadDragonBonesScene';
 export type { DragonBonesAssetInfo } from './loadDragonBonesScene';
-export type { RuntimeAssetSource } from '../runtimeAssets';
+export type { RuntimeAssetSource } from '../runtime/runtimeAssets';

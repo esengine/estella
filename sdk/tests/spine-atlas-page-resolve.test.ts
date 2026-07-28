@@ -18,13 +18,13 @@ const { rm, createTextureFromPixels } = vi.hoisted(() => ({
     },
     createTextureFromPixels: vi.fn(() => 11),
 }));
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => rm,
 }));
-vi.mock('../src/runtimeAssets', () => ({ createTextureFromPixels }));
+vi.mock('../src/runtime/runtimeAssets', () => ({ createTextureFromPixels }));
 
 import { loadSpineAssets } from '../src/spine/loadSpineScene';
-import type { RuntimeAssetSource } from '../src/runtimeAssets';
+import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
 import type { BasisTranscoder } from '../src/asset/compressed';
 
 const ATLAS = 'spineboy.png\nsize: 4,4\nformat: RGBA8888\n';

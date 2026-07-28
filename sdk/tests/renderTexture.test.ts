@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-vi.mock('../src/renderer', () => ({
+vi.mock('../src/render/renderer', () => ({
     Renderer: {
         createRenderTarget: vi.fn().mockReturnValue(1),
         releaseRenderTarget: vi.fn(),
@@ -13,9 +13,9 @@ vi.mock('../src/renderer', () => ({
     },
 }));
 
-import { RenderTexture } from '../src/renderTexture';
-import { Renderer } from '../src/renderer';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { RenderTexture } from '../src/render/renderTexture';
+import { Renderer } from '../src/render/renderer';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import type { CppResourceManager } from '../src/wasm';
 
 describe('RenderTexture', () => {

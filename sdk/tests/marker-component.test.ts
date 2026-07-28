@@ -7,8 +7,8 @@
  *        field, and be query-able like any component — the object-authoring foundation.
  */
 import { describe, it, expect } from 'vitest';
-import { World } from '../src/world';
-import { Transform, Marker, markEngineComponentBaseline, seedEngineComponents } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Transform, Marker, markEngineComponentBaseline, seedEngineComponents } from '../src/ecs/component';
 import { serializeScene } from '../src/scene';
 import { createMockModule } from './mocks/wasm';
 

@@ -5,7 +5,7 @@
  * @brief   withScratch frees every allocation on normal return AND on throw.
  */
 import { describe, it, expect } from 'vitest';
-import { withScratch, withMalloc, type WasmAllocator } from '../src/wasmScratch';
+import { withScratch, withMalloc, type WasmAllocator } from '../src/wasm/wasmScratch';
 
 /** Fake allocator that hands out increasing pointers and records frees. */
 function makeAllocator() {

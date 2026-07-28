@@ -6,7 +6,7 @@ import { resolveTilesetModel, type ResolvedTileCollision } from '../src/tilemap/
 import { parseTileset } from '../src/tilemap/tilesetAsset';
 import { encodeTile } from '../src/tilemap/tileBits';
 import { CHUNK_SIZE } from '../src/tilemap/chunkCodec';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 function mockWorld() {

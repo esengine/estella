@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Transform, type TransformData } from '../../component';
+import { Transform, type TransformData } from '../../ecs/component';
 import type { Entity, Vec2 } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 
 import type { DataSource } from './data-source';
 import type { LayoutProvider, Rect } from './layout-provider';

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { defineComponent, clearUserComponents, getComponent } from '../src/component';
-import { AppContext, getDefaultContext, setDefaultContext } from '../src/context';
+import { defineComponent, clearUserComponents, getComponent } from '../src/ecs/component';
+import { AppContext, getDefaultContext, setDefaultContext } from '../src/ecs/context';
 
 // RC10 P3 prerequisite: user component _id is interned by name (stable, module-global)
 // so a re-imported project bundle resolves to the live World's existing component

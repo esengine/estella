@@ -18,7 +18,7 @@
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
 import type { SkeletalBounds, SkeletalController } from '../skeletal/types';
 import type { DragonBonesWasmModule, DragonBonesWrappedAPI } from './DragonBonesModuleLoader';
-import { withMalloc } from '../wasmScratch';
+import { withMalloc } from '../wasm/wasmScratch';
 import { encodeUtf8 } from '../utf8';
 import { log } from '../logger';
 

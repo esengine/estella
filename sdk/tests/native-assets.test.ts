@@ -11,10 +11,10 @@
  *          headless.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createNativeApp } from '../src/ecs/nativeRuntime';
-import { createNativeResourceManager } from '../src/ecs/nativeResourceManager';
+import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
 import { Assets } from '../src/asset/AssetPlugin';
-import { shutdownResourceManager } from '../src/resourceManager';
+import { shutdownResourceManager } from '../src/wasm/resourceManager';
 import { setPlatform } from '../src/platform/base';
 import type { NativeBridge } from '../src/platform/native/bridge';
 

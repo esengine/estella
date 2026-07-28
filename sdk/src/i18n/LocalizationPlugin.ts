@@ -6,7 +6,7 @@
  *          `app.addPlugin(localizationPlugin)` or with options.
  */
 import type { App, Plugin } from '../app';
-import { Schedule, defineSystem } from '../system';
+import { Schedule, defineSystem } from '../ecs/system';
 import { Assets } from '../asset/AssetPlugin';
 import { log } from '../logger';
 import { Localization, LocalizationAPI, type LocaleCatalog } from './Localization';

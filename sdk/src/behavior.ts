@@ -17,13 +17,13 @@ import {
     type ComponentData,
     type ComponentDef,
     type ComponentMetadata,
-} from './component';
-import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from './system';
-import { Query, Mut } from './query';
-import { Res, Time, type TimeData } from './resource';
-import { Commands, type CommandsInstance } from './commands';
-import { Input, type InputState } from './input';
-import type { World } from './world';
+} from './ecs/component';
+import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from './ecs/system';
+import { Query, Mut } from './ecs/query';
+import { Res, Time, type TimeData } from './ecs/resource';
+import { Commands, type CommandsInstance } from './ecs/commands';
+import { Input, type InputState } from './input/input';
+import type { World } from './ecs/world';
 
 /**
  * The per-entity handle passed to a behavior's lifecycle hooks. `self` is the

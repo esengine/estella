@@ -12,7 +12,7 @@
 
 import type { App } from '../app';
 import type { Entity, Vec2 } from '../types';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { PhysicsRuntime } from './PhysicsRuntime';
 import { PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';

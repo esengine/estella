@@ -12,12 +12,12 @@ const drawCalls = {
     unregister: vi.fn(),
 };
 
-vi.mock('../src/customDraw', () => ({
+vi.mock('../src/render/customDraw', () => ({
     registerDrawCallback: (id: string, fn: () => void) => drawCalls.register(id, fn),
     unregisterDrawCallback: (id: string) => drawCalls.unregister(id),
 }));
 
-vi.mock('../src/draw', () => ({
+vi.mock('../src/render/draw', () => ({
     Draw: {
         setLayer: vi.fn(),
         setDepth: vi.fn(),

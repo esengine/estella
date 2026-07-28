@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
-import { defineComponent, defineBuiltin, Name, Camera } from '../src/component';
+import { defineComponent, defineBuiltin, Name, Camera } from '../src/ecs/component';
 import { INVALID_ENTITY } from '../src/types';
 import {
     loadSceneData,
@@ -25,7 +25,7 @@ import {
 } from '../src/scene';
 import type { Entity } from '../src/types';
 import { discoverSceneAssets } from '../src/asset/discoverAssets';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 const Transform = defineBuiltin('Transform', {
     position: { x: 0, y: 0, z: 0 },

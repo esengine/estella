@@ -16,8 +16,8 @@ import {
     enumOptions,
     Camera,
     ProjectionType,
-} from '../src/component';
-import { AppContext, getDefaultContext, setDefaultContext } from '../src/context';
+} from '../src/ecs/component';
+import { AppContext, getDefaultContext, setDefaultContext } from '../src/ecs/context';
 
 describe('Component Registry', () => {
     beforeEach(() => {

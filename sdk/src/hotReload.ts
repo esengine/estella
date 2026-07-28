@@ -5,8 +5,8 @@
  * @brief   State-preserving hot-reload support (RC10 P3): collect a project bundle's
  *          re-registrations in isolation so the editor can decide hot-swap vs reload.
  */
-import { AppContext, getDefaultContext, setDefaultContext, type PendingSystemEntry } from './context';
-import { getUserComponentFingerprint, seedEngineComponents } from './component';
+import { AppContext, getDefaultContext, setDefaultContext, type PendingSystemEntry } from './ecs/context';
+import { getUserComponentFingerprint, seedEngineComponents } from './ecs/component';
 
 export interface ProbedRegistrations {
     /** Digest of the user component schemas the bundle declared (shape, not values). */

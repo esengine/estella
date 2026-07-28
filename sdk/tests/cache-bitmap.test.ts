@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { CacheBitmap } from '../src/cacheBitmap';
+import { CacheBitmap } from '../src/render/cacheBitmap';
 
-vi.mock('../src/renderer', () => ({
+vi.mock('../src/render/renderer', () => ({
     Renderer: {
         createRenderTarget: vi.fn(() => 1),
         getTargetTexture: vi.fn(() => 42),
@@ -18,7 +18,7 @@ vi.mock('../src/renderer', () => ({
     },
 }));
 
-vi.mock('../src/renderTexture', () => ({
+vi.mock('../src/render/renderTexture', () => ({
     RenderTexture: {
         create: vi.fn(() => ({ _handle: 1, textureId: 42, width: 256, height: 256, _depth: false, _filter: 'linear' })),
         release: vi.fn(),

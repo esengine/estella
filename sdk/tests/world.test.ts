@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { World, computeQueryCacheKey } from '../src/world';
-import { defineComponent, defineTag, defineBuiltin, Name } from '../src/component';
+import { World, computeQueryCacheKey } from '../src/ecs/world';
+import { defineComponent, defineTag, defineBuiltin, Name } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
 
 describe('World', () => {

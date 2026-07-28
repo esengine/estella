@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ComponentData, PrefabEntityId } from './types';
-import { getComponent } from '../component';
+import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
 
 /**

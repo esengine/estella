@@ -1,0 +1,232 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    commands.ts
+ * @brief   Deferred entity/component operations
+ */
+
+import { Entity } from '../types';
+import { AnyComponentDef, ComponentDef, isBuiltinComponent, Name } from './component';
+import type { World } from './world';
+import { ResourceDef, ResourceStorage } from './resource';
+import { log } from '../logger';
+
+// =============================================================================
+// Commands Descriptor (for system parameters)
+// =============================================================================
+
+export interface CommandsDescriptor {
+    readonly _type: 'commands';
+}
+
+export function Commands(): CommandsDescriptor {
+    return { _type: 'commands' };
+}
+
+// =============================================================================
+// Command Types
+// =============================================================================
+
+interface SpawnComponentEntry {
+    component: AnyComponentDef;
+    data: unknown;
+}
+
+interface DespawnCommand {
+    type: 'despawn';
+    entity: Entity;
+}
+
+interface InsertCommand {
+    type: 'insert';
+    entity: Entity;
+    component: AnyComponentDef;
+    data: unknown;
+}
+
+interface RemoveCommand {
+    type: 'remove';
+    entity: Entity;
+    component: AnyComponentDef;
+}
+
+interface InsertResourceCommand {
+    type: 'insert_resource';
+    resource: ResourceDef<unknown>;
+    value: unknown;
+}
+
+type Command =
+    | DespawnCommand
+    | InsertCommand
+    | RemoveCommand
+    | InsertResourceCommand;
+
+// =============================================================================
+// Entity Commands (Builder for spawning)
+// =============================================================================
+
+export class EntityCommands {
+    private readonly commands_: CommandsInstance;
+    private readonly entityRef_: { entity: Entity };
+    private readonly components_: SpawnComponentEntry[] = [];
+    private readonly spawnName_?: string;
+    private isNew_: boolean;
+
+    constructor(commands: CommandsInstance, entity: Entity | null, name?: string) {
+        this.commands_ = commands;
+
+        if (entity === null) {
+            this.entityRef_ = { entity: 0 as Entity };
+            this.isNew_ = true;
+            this.spawnName_ = name;
+        } else {
+            this.entityRef_ = { entity };
+            this.isNew_ = false;
+        }
+    }
+
+    insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this {
+        let instance: unknown;
+
+        if (isBuiltinComponent(component)) {
+            instance = { ...component._default, ...(data as object) };
+        } else {
+            instance = (component as ComponentDef<T>).create(data);
+        }
+
+        if (this.isNew_) {
+            this.components_.push({ component, data: instance });
+        } else {
+            this.commands_.queueInsert(this.entityRef_.entity, component, instance);
+        }
+
+        return this;
+    }
+
+    remove(component: AnyComponentDef): this {
+        if (!this.isNew_) {
+            this.commands_.queueRemove(this.entityRef_.entity, component);
+        }
+        return this;
+    }
+
+    id(): Entity {
+        if (this.isNew_ && this.entityRef_.entity === 0) {
+            this.finalize();
+        }
+        return this.entityRef_.entity;
+    }
+
+    finalize(): void {
+        if (this.isNew_) {
+            this.commands_.spawnImmediate(this.components_, this.entityRef_, this.spawnName_);
+            this.isNew_ = false;
+        }
+    }
+}
+
+// =============================================================================
+// Commands Instance (Runtime)
+// =============================================================================
+
+export class CommandsInstance {
+    private readonly world_: World;
+    private readonly resources_: ResourceStorage;
+    private pending_: Command[] = [];
+    private spawned_: EntityCommands[] = [];
+
+    constructor(world: World, resources: ResourceStorage) {
+        this.world_ = world;
+        this.resources_ = resources;
+    }
+
+    spawn(name?: string): EntityCommands {
+        const ec = new EntityCommands(this, null, name);
+        this.spawned_.push(ec);
+        return ec;
+    }
+
+    entity(entity: Entity): EntityCommands {
+        return new EntityCommands(this, entity);
+    }
+
+    despawn(entity: Entity): this {
+        this.pending_.push({ type: 'despawn', entity });
+        return this;
+    }
+
+    insertResource<T>(resource: ResourceDef<T>, value: T): this {
+        this.pending_.push({
+            type: 'insert_resource',
+            resource: resource as ResourceDef<unknown>,
+            value
+        });
+        return this;
+    }
+
+    queueInsert(entity: Entity, component: AnyComponentDef, data: unknown): void {
+        this.pending_.push({ type: 'insert', entity, component, data });
+    }
+
+    queueRemove(entity: Entity, component: AnyComponentDef): void {
+        this.pending_.push({ type: 'remove', entity, component });
+    }
+
+    spawnImmediate(components: SpawnComponentEntry[], entityRef: { entity: Entity }, name?: string): void {
+        const entity = this.world_.spawn(name);
+        entityRef.entity = entity;
+
+        for (const entry of components) {
+            this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
+        }
+    }
+
+    flush(): void {
+        for (const ec of this.spawned_) {
+            ec.finalize();
+        }
+        this.spawned_.length = 0;
+
+        for (const cmd of this.pending_) {
+            try {
+                this.executeCommand(cmd);
+            } catch (e) {
+                log.warn('commands', `Failed to execute command: ${cmd.type}`, e);
+            }
+        }
+        this.pending_.length = 0;
+    }
+
+    private executeCommand(cmd: Command): void {
+        switch (cmd.type) {
+            case 'despawn':
+                if (!this.world_.valid(cmd.entity)) {
+                    log.warn('commands', `despawn skipped: entity ${cmd.entity} is already invalid`);
+                    break;
+                }
+                this.world_.despawn(cmd.entity);
+                break;
+
+            case 'insert':
+                if (!this.world_.valid(cmd.entity)) {
+                    log.warn('commands', `insert skipped: entity ${cmd.entity} is invalid`);
+                    break;
+                }
+                this.world_.insert(cmd.entity, cmd.component, cmd.data as Record<string, unknown>);
+                break;
+
+            case 'remove':
+                if (!this.world_.valid(cmd.entity)) {
+                    log.warn('commands', `remove skipped: entity ${cmd.entity} is invalid`);
+                    break;
+                }
+                this.world_.remove(cmd.entity, cmd.component);
+                break;
+
+            case 'insert_resource':
+                this.resources_.insert(cmd.resource, cmd.value);
+                break;
+        }
+    }
+}

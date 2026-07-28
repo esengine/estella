@@ -2,14 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App } from '../app';
 import type { Color } from '../types';
-import type { TransformData, CanvasData } from '../component';
-import type { ResourceDef } from '../resource';
+import type { TransformData, CanvasData } from '../ecs/component';
+import type { ResourceDef } from '../ecs/resource';
 import type { RigidBodyData } from './PhysicsComponents';
 import type { PhysicsEventsData } from './PhysicsPlugin';
-import { Transform, Canvas } from '../component';
-import { Draw } from '../draw';
-import { defineResource } from '../resource';
-import { registerDrawCallback } from '../customDraw';
+import { Transform, Canvas } from '../ecs/component';
+import { Draw } from '../render/draw';
+import { defineResource } from '../ecs/resource';
+import { registerDrawCallback } from '../render/customDraw';
 import { RigidBody, BodyType } from './PhysicsComponents';
 import { readColliderShapes, shapeCenter, colliderShapeOutline } from './ColliderShape';
 

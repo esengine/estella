@@ -6,7 +6,7 @@
  */
 
 import { Entity } from '../types';
-import { AnyComponentDef } from '../component';
+import { AnyComponentDef } from './component';
 
 export class ChangeTracker {
     private worldTick_ = 0;

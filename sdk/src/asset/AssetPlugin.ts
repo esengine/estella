@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { transcoderFromModule, type BasisWasmModule } from './basisTranscoder';

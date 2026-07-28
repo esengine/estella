@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
-import { defineSystem, Schedule } from '../../system';
+import { defineSystem, Schedule } from '../../ecs/system';
 import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/engineApi';
-import { PluginName } from '../../systemLabels';
+import { engineApi } from '../../ecs/bridge/engineApi';
+import { PluginName } from '../../ecs/systemLabels';
 
 export class UIRenderOrderPlugin implements Plugin {
     name = PluginName.UIRenderOrder;

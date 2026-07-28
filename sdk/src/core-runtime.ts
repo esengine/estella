@@ -143,7 +143,7 @@ export {
     type ParticleForceFieldData,
     PostProcessVolume,
     type PostProcessVolumeData,
-} from './component';
+} from './ecs/component';
 
 export {
     RigidBody,
@@ -193,7 +193,7 @@ export {
     type ResMutDescriptor,
     type ResMutInstance,
     type TimeData,
-} from './resource';
+} from './ecs/resource';
 
 export { Storage } from './storage';
 
@@ -209,7 +209,7 @@ export {
     GamepadButton,
     GamepadAxis,
     type TouchPoint,
-} from './input';
+} from './input/input';
 
 export type { GamepadSnapshot } from './platform/types';
 
@@ -218,9 +218,9 @@ export {
     inputRouter,
     type InputHandler,
     type Modifiers,
-} from './inputRouter';
+} from './input/inputRouter';
 
-export { GestureDetector, type SwipeDirection } from './gesture';
+export { GestureDetector, type SwipeDirection } from './input/gesture';
 
 // =============================================================================
 // Input Map (named actions — UE Enhanced Input / Unity Input System analog)
@@ -245,7 +245,7 @@ export {
     type ActionType,
     type InputMapAsset,
     type ListenOptions,
-} from './inputMap';
+} from './input/inputMap';
 
 // =============================================================================
 // Query
@@ -272,7 +272,7 @@ export {
     type AddedWrapper,
     type ChangedWrapper,
     type RemovedQueryDescriptor,
-} from './query';
+} from './ecs/query';
 
 // =============================================================================
 // Events
@@ -288,7 +288,7 @@ export {
     type EventDef,
     type EventWriterDescriptor,
     type EventReaderDescriptor,
-} from './event';
+} from './ecs/event';
 
 // The per-entity, string-named channel (the other half of the story above:
 // `defineEvent` is the global typed bus, this is "what happened to THIS
@@ -298,7 +298,7 @@ export {
     EntityEvents,
     type EntityEvent,
     type EntityEventHandler,
-} from './entityEvents';
+} from './ecs/entityEvents';
 
 // Authored event → action wiring (the data form of `events.on(e, 'click', …)`).
 export {
@@ -319,7 +319,7 @@ export {
     CommandsInstance,
     EntityCommands,
     type CommandsDescriptor,
-} from './commands';
+} from './ecs/commands';
 
 // =============================================================================
 // Transactions (editor undo/redo)
@@ -330,7 +330,7 @@ export {
     TransactionManager,
     type TransactionOp,
     type TransactionManagerOptions,
-} from './transaction';
+} from './ecs/transaction';
 
 // =============================================================================
 // System
@@ -350,7 +350,7 @@ export {
     type SystemOptions,
     type InferParam,
     type InferParams,
-} from './system';
+} from './ecs/system';
 
 // =============================================================================
 // Behavior (per-entity scripted behavior → one ECS system)
@@ -366,11 +366,11 @@ export {
 // World
 // =============================================================================
 
-export { World } from './world';
-export { PTR_LAYOUTS } from './ptrLayouts.generated';
-export type { PtrLayout } from './ptrLayouts.generated';
-export { writePtrField, readPtrField } from './ecs/BuiltinBridge';
-export type { BuiltinBridge } from './ecs/BuiltinBridge';
+export { World } from './ecs/world';
+export { PTR_LAYOUTS } from './wasm/ptrLayouts.generated';
+export type { PtrLayout } from './wasm/ptrLayouts.generated';
+export { writePtrField, readPtrField } from './ecs/bridge/BuiltinBridge';
+export type { BuiltinBridge } from './ecs/bridge/BuiltinBridge';
 
 // =============================================================================
 // App

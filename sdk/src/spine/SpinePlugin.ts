@@ -2,14 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Plugin } from '../app';
 import type { App } from '../app';
-import { defineResource, Time } from '../resource';
-import { Schedule } from '../system';
-import type { SystemDef } from '../system';
+import { defineResource, Time } from '../ecs/resource';
+import { Schedule } from '../ecs/system';
+import type { SystemDef } from '../ecs/system';
 import type { Entity } from '../types';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import type { SpineModuleFactory, SpineWasmModule } from './SpineModuleLoader';
 import { SPINE_VERSIONS, spineModuleId } from '../sideModules';
-import { engineApi } from '../ecs/engineApi';
+import { engineApi } from '../ecs/bridge/engineApi';
 import { AnimatorController } from '../animation/Animator';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';

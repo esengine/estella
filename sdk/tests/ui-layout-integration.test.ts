@@ -12,11 +12,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { FlexContainer, type FlexContainerData } from '../src/ui/layout/flex';
-import { Canvas } from '../src/component';
+import { Canvas } from '../src/ecs/component';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 

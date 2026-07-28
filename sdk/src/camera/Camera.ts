@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App } from '../app';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
 import { screenToWorld, worldToScreen, createInvVPCache } from '../ui/util/math';
 

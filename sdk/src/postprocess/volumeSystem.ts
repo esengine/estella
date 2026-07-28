@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineSystem } from '../system';
-import { defineResource, Res } from '../resource';
-import { Query } from '../query';
+import { defineSystem } from '../ecs/system';
+import { defineResource, Res } from '../ecs/resource';
+import { Query } from '../ecs/query';
 import type { Entity } from '../types';
-import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../component';
+import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
 import { PostProcess, type PostProcessAPI } from './PostProcessAPI';
 import { getEffectDef } from './effects';
 import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type VolumeTransform } from './volumeBlending';
-import type { ShaderHandle } from '../material';
-import { Material } from '../material';
+import type { ShaderHandle } from '../render/material';
+import { Material } from '../render/material';
 
 export interface PostProcessVolumeConfig {
     enabled: boolean;

@@ -12,10 +12,10 @@
 
 import type { App } from '../app';
 import type { Entity } from '../types';
-import type { TransformData, ParentData, CanvasData } from '../component';
-import { Transform, Parent, Canvas } from '../component';
-import { Res, Time, type TimeData } from '../resource';
-import { Schedule, defineSystem } from '../system';
+import type { TransformData, ParentData, CanvasData } from '../ecs/component';
+import { Transform, Parent, Canvas } from '../ecs/component';
+import { Res, Time, type TimeData } from '../ecs/resource';
+import { Schedule, defineSystem } from '../ecs/system';
 import { playModeOnly } from '../env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { Physics } from './Physics';
@@ -40,8 +40,8 @@ import {
     type CollisionHitEvent,
     type SensorEvent,
 } from './PhysicsTypes';
-import { withMalloc } from '../wasmScratch';
-import { engineApi, type EngineApi } from '../ecs/engineApi';
+import { withMalloc } from '../wasm/wasmScratch';
+import { engineApi, type EngineApi } from '../ecs/bridge/engineApi';
 
 /**
  * The engine surface this file drives. `getTransformPtr` is the web module's own

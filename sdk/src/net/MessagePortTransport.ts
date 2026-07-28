@@ -8,7 +8,7 @@
  *          (JSON strings and ArrayBuffer frames) natively, and a port queues
  *          messages until the other end attaches, so wiring order is free.
  */
-import { Emitter } from '../emitter';
+import { Emitter } from '../ecs/emitter';
 import type { NetTransport } from './NetChannel';
 
 /** The minimal MessagePort surface (structural — works for window and worker

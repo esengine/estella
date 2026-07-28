@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import {
     isKtx2,
     chooseTargetFormat,

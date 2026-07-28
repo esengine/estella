@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
-import { registerComponent, Transform } from '../../component';
-import { defineSystem, Schedule } from '../../system';
-import { Res } from '../../resource';
-import { Input } from '../../input';
-import type { InputState } from '../../input';
+import { registerComponent, Transform } from '../../ecs/component';
+import { defineSystem, Schedule } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { Input } from '../../input/input';
+import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import { playModeOnly } from '../../env';
 import { Interactable } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { UIEventQueue, UIEventType } from '../core/events';
-import { ensureEntityEvents } from '../../entityEvents';
+import { ensureEntityEvents } from '../../ecs/entityEvents';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
@@ -21,9 +21,9 @@ import { screenToUiWorld, uiHitTestWorld } from '../util/ui-pick';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/engineApi';
+import { engineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
-import { SystemLabel, PluginName } from '../../systemLabels';
+import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
 
 function emitWithBubbling(

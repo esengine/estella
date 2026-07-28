@@ -14,9 +14,9 @@
  * path would corrupt (see TimelineEvaluator). Merging them is a real change, not
  * a rename.
  */
-import type { World } from './world';
+import type { World } from './ecs/world';
 import type { Entity } from './types';
-import { getComponent } from './component';
+import { getComponent } from './ecs/component';
 
 export function getNestedProperty(obj: Record<string, any>, path: string): unknown {
     const parts = path.split('.');

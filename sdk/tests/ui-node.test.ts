@@ -3,8 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import { UINode } from '../src/ui/core/ui-node';
 import { DimensionUnit } from '../src/ui/core/dimension';
-import { getComponent } from '../src/component';
-import { COMPONENT_META } from '../src/component.generated';
+import { getComponent } from '../src/ecs/component';
+import { COMPONENT_META } from '../src/ecs/component.generated';
 
 describe('UINode (REARCH_GUI F3)', () => {
     it('is a registered, non-transient builtin', () => {

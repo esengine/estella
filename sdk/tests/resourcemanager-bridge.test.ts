@@ -7,11 +7,11 @@
  *          touchpoint after the F2 five-pattern unification.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { WasmModuleAborted } from '../src/moduleHealth';
+import { WasmModuleAborted } from '../src/wasm/moduleHealth';
 import {
     initResourceManager, shutdownResourceManager,
     requireResourceManager, getResourceManager,
-} from '../src/resourceManager';
+} from '../src/wasm/resourceManager';
 import type { CppResourceManager, ESEngineModule } from '../src/wasm';
 
 function makeRm() {

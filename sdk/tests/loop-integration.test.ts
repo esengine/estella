@@ -9,10 +9,10 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { App, flushPendingSystems } from '../src/app';
-import { Input, InputState, GamepadButton, GamepadAxis } from '../src/input';
-import { defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton } from '../src/inputMap';
+import { Input, InputState, GamepadButton, GamepadAxis } from '../src/input/input';
+import { defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton } from '../src/input/inputMap';
 import { defineBehavior } from '../src/behavior';
-import { AppContext, setDefaultContext } from '../src/context';
+import { AppContext, setDefaultContext } from '../src/ecs/context';
 import type { GamepadSnapshot } from '../src/platform/types';
 
 beforeEach(() => setDefaultContext(new AppContext()));

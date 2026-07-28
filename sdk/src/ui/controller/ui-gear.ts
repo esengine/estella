@@ -15,7 +15,7 @@
  * the field untouched (the gear "doesn't care" on that page), and page names —
  * not indices — key it so reordering a controller's pages never misaligns values.
  */
-import { defineComponent } from '../../component';
+import { defineComponent } from '../../ecs/component';
 import type { Color, Vec2, Vec3 } from '../../types';
 import type { EasingType } from '../../animation/Easing';
 

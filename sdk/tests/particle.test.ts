@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { getComponent } from '../src/component';
+import { getComponent } from '../src/ecs/component';
 
 describe('ParticleEmitter Component', () => {
     it('should be registered as a builtin component', () => {
@@ -68,7 +68,7 @@ describe('ParticleEmitter Component', () => {
 
 describe('Particle Enums', () => {
     it('should export EmitterShape constants', async () => {
-        const { EmitterShape } = await import('../src/component');
+        const { EmitterShape } = await import('../src/ecs/component');
         expect(EmitterShape.Point).toBe(0);
         expect(EmitterShape.Circle).toBe(1);
         expect(EmitterShape.Rectangle).toBe(2);
@@ -76,7 +76,7 @@ describe('Particle Enums', () => {
     });
 
     it('should export SimulationSpace constants', async () => {
-        const { SimulationSpace } = await import('../src/component');
+        const { SimulationSpace } = await import('../src/ecs/component');
         expect(SimulationSpace.World).toBe(0);
         expect(SimulationSpace.Local).toBe(1);
     });

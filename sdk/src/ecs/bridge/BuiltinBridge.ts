@@ -1,0 +1,681 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    BuiltinBridge.ts
+ * @brief   C++ Registry integration layer for builtin components
+ */
+
+import { Entity } from '../../types';
+import type { BuiltinComponentDef } from '../component';
+import type { CppRegistry, ESEngineModule } from '../../wasm';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../../validation';
+import { handleWasmError } from '../../wasm/wasmError';
+import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../../wasm/moduleHealth';
+import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
+import { PTR_ACCESSORS } from './ptrAccessors.generated';
+import { reorderSetByRank, type RankOf } from '../entityOrder';
+import {
+    type MemoryProvider, type ComponentHeap,
+    WasmMemoryProvider, resolveWasmPtrFn,
+} from './memoryProvider';
+
+// =============================================================================
+// Color conversion helpers
+// =============================================================================
+
+/**
+ * Rewrite color-typed fields from the WASM {x,y,z,w} shape into the SDK
+ * {r,g,b,a} shape. The outer object comes fresh from embind on every
+ * Registry method call and has no outside aliases, so we mutate it in
+ * place; the inner color objects are likewise fresh. Setting r/g/b/a
+ * on the same object leaves ghost x/y/z/w properties, but consumers
+ * only read r/g/b/a — net zero allocations per get().
+ */
+export function convertFromWasm(
+    obj: Record<string, unknown>,
+    colorKeys: readonly string[],
+): Record<string, unknown> {
+    if (colorKeys.length === 0) return obj;
+    for (const key of colorKeys) {
+        const val = obj[key] as { x?: number; y?: number; z?: number; w?: number } & Record<string, unknown> | null | undefined;
+        if (val && typeof val === 'object') {
+            (val as { r: unknown }).r = val.x;
+            (val as { g: unknown }).g = val.y;
+            (val as { b: unknown }).b = val.z;
+            (val as { a: unknown }).a = val.w;
+        }
+    }
+    return obj;
+}
+
+/**
+ * Rewrite color-typed fields from the SDK {r,g,b,a} shape into the WASM
+ * {x,y,z,w} shape. The outer object is always a fresh merge constructed
+ * by the caller, but inner color values may alias user-supplied data or
+ * the shared component defaults, so we replace those slots with fresh
+ * {x,y,z,w} objects rather than mutating them.
+ */
+export function convertForWasm(
+    obj: Record<string, unknown>,
+    colorKeys: readonly string[],
+): Record<string, unknown> {
+    if (colorKeys.length === 0) return obj;
+    for (const key of colorKeys) {
+        const val = obj[key] as { r?: number; g?: number; b?: number; a?: number } | null | undefined;
+        if (val && typeof val === 'object') {
+            obj[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
+        }
+    }
+    return obj;
+}
+
+// =============================================================================
+// Pointer-based Field Access
+// =============================================================================
+
+type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'vec3' | 'vec4' | 'quat' | 'color';
+
+interface PtrFieldDesc {
+    readonly name: string;
+    readonly type: PtrFieldType;
+    readonly offset: number;
+}
+
+function fieldByteSize(type: PtrFieldType): number {
+    switch (type) {
+        case 'f32': case 'i32': case 'u32': return 4;
+        case 'bool': case 'u8': return 1;
+        case 'vec2': return 8;
+        case 'vec3': return 12;
+        case 'vec4': case 'quat': case 'color': return 16;
+    }
+}
+
+function assertPtrInBounds(heapByteLength: number, byteOff: number, size: number): void {
+    if (byteOff < 0 || byteOff + size > heapByteLength) {
+        throw new RangeError(
+            `WASM pointer field access out of bounds: offset ${String(byteOff)} + size ${String(size)} ` +
+            `exceeds heap byteLength ${String(heapByteLength)} (typed-array detached, or C++ returned a stale pointer)`,
+        );
+    }
+}
+
+export function readPtrField(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, field: PtrFieldDesc,
+): unknown {
+    const byteOff = ptr + field.offset;
+    assertPtrInBounds(u8.byteLength, byteOff, fieldByteSize(field.type));
+    const idx = byteOff >> 2;
+    switch (field.type) {
+        case 'f32':   return f32[idx];
+        case 'i32':   return u32[idx] | 0;
+        case 'u32':   return u32[idx];
+        case 'bool':  return u8[byteOff] !== 0;
+        case 'u8':    return u8[byteOff];
+        case 'vec2':  return { x: f32[idx], y: f32[idx + 1] };
+        case 'vec3':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2] };
+        case 'vec4':
+        case 'quat':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2], w: f32[idx + 3] };
+        case 'color': return { r: f32[idx], g: f32[idx + 1], b: f32[idx + 2], a: f32[idx + 3] };
+    }
+}
+
+interface XY { x: number; y: number }
+interface XYZ { x: number; y: number; z: number }
+interface XYZW { x: number; y: number; z: number; w: number }
+interface RGBA { r: number; g: number; b: number; a: number }
+
+export function fillPtrFields(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, fields: readonly PtrFieldDesc[], target: Record<string, unknown>,
+): void {
+    // One bounds check for the whole struct: compute the maximum byte extent
+    // across all fields and verify against the heap view once.
+    let maxEnd = 0;
+    for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        const end = f.offset + fieldByteSize(f.type);
+        if (end > maxEnd) maxEnd = end;
+    }
+    if (maxEnd > 0) assertPtrInBounds(u8.byteLength, ptr, maxEnd);
+
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        const byteOff = ptr + field.offset;
+        const idx = byteOff >> 2;
+        switch (field.type) {
+            case 'f32':   target[field.name] = f32[idx]; break;
+            case 'i32':   target[field.name] = u32[idx] | 0; break;
+            case 'u32':   target[field.name] = u32[idx]; break;
+            case 'bool':  target[field.name] = u8[byteOff] !== 0; break;
+            case 'u8':    target[field.name] = u8[byteOff]; break;
+            case 'vec2': {
+                const v = target[field.name] as XY;
+                v.x = f32[idx]; v.y = f32[idx + 1];
+                break;
+            }
+            case 'vec3': {
+                const v = target[field.name] as XYZ;
+                v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2];
+                break;
+            }
+            case 'vec4':
+            case 'quat': {
+                const v = target[field.name] as XYZW;
+                v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2]; v.w = f32[idx + 3];
+                break;
+            }
+            case 'color': {
+                const v = target[field.name] as RGBA;
+                v.r = f32[idx]; v.g = f32[idx + 1]; v.b = f32[idx + 2]; v.a = f32[idx + 3];
+                break;
+            }
+        }
+    }
+}
+
+export function createPreallocatedResult(fields: readonly PtrFieldDesc[]): Record<string, unknown> {
+    const obj: Record<string, unknown> = {};
+    for (const f of fields) {
+        switch (f.type) {
+            case 'vec2':  obj[f.name] = { x: 0, y: 0 }; break;
+            case 'vec3':  obj[f.name] = { x: 0, y: 0, z: 0 }; break;
+            case 'vec4':
+            case 'quat':  obj[f.name] = { x: 0, y: 0, z: 0, w: 0 }; break;
+            case 'color': obj[f.name] = { r: 0, g: 0, b: 0, a: 0 }; break;
+            default:      obj[f.name] = null; break;
+        }
+    }
+    return obj;
+}
+
+export type PtrFieldValue = number | boolean | XY | XYZ | XYZW | RGBA;
+
+export function writePtrField(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, field: PtrFieldDesc, value: PtrFieldValue | unknown,
+): void {
+    const byteOff = ptr + field.offset;
+    assertPtrInBounds(u8.byteLength, byteOff, fieldByteSize(field.type));
+    const idx = byteOff >> 2;
+    switch (field.type) {
+        case 'f32':   f32[idx] = value as number; break;
+        case 'i32':   u32[idx] = (value as number) | 0; break;
+        case 'u32':   u32[idx] = value as number; break;
+        case 'bool':  u8[byteOff] = value ? 1 : 0; break;
+        case 'u8':    u8[byteOff] = value as number; break;
+        case 'vec2': { const v = value as XY; f32[idx] = v.x; f32[idx + 1] = v.y; break; }
+        case 'vec3': { const v = value as XYZ; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; break; }
+        case 'vec4':
+        case 'quat': { const v = value as XYZW; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; f32[idx + 3] = v.w; break; }
+        case 'color': { const v = value as RGBA; f32[idx] = v.r; f32[idx + 1] = v.g; f32[idx + 2] = v.b; f32[idx + 3] = v.a; break; }
+    }
+}
+
+// =============================================================================
+// BuiltinMethods
+// =============================================================================
+
+export interface BuiltinMethods {
+    add: (e: Entity, d: unknown) => void;
+    get: (e: Entity) => unknown;
+    has: (e: Entity) => boolean;
+    remove: (e: Entity) => void;
+}
+
+/** Result of verifying a connected C++ Registry against the generated metadata. */
+export interface BridgeVerification {
+    /** True when every component in COMPONENT_META has all four methods. */
+    readonly ok: boolean;
+    /** List of components with missing bindings (empty when ok). */
+    readonly missing: readonly { readonly name: string; readonly methods: readonly string[] }[];
+    /**
+     * Components reported by the WASM module's reflection table
+     * (`getBuiltinComponentNames`) that are not present in the shipped
+     * COMPONENT_META — the WASM was built from a newer schema than the SDK
+     * bundle. Only populated when the module exposes the reflection call.
+     */
+    readonly wasmOnly: readonly string[];
+    /**
+     * Components declared in COMPONENT_META that the WASM module's reflection
+     * table does not list — the SDK was built from a newer schema than the
+     * WASM. Only populated when the module exposes the reflection call.
+     */
+    readonly sdkOnly: readonly string[];
+    /**
+     * Set when the WASM module reports an ABI layout hash
+     * (`getAbiLayoutHash`) that differs from the SDK bundle's
+     * {@link ABI_LAYOUT_HASH}. A mismatch means the loaded WASM and this SDK
+     * were generated from different component schemas, so the byte offsets the
+     * SDK uses for fast pointer access read the wrong memory. This is always
+     * fatal — never tolerated even in non-strict mode. Null when the hashes
+     * match or the module predates the handshake (no `getAbiLayoutHash`).
+     */
+    readonly abiMismatch: { readonly sdk: string; readonly wasm: string } | null;
+}
+
+/** Options for {@link BuiltinBridge.connect}. */
+export interface BridgeConnectOptions {
+    /**
+     * When true (recommended for production), verify every component in
+     * COMPONENT_META against the registry at connect time and throw a single
+     * aggregated diagnostic if any bindings are missing. When false (default,
+     * legacy-compatible), pre-populate the method cache for whatever bindings
+     * exist and let per-component lookups throw on demand — this keeps
+     * partial mock registries used in unit tests working unchanged.
+     */
+    readonly strict?: boolean;
+
+    /**
+     * Fast-path memory backend. Omit on web/emscripten: `connect` derives a
+     * {@link WasmMemoryProvider} from `module`. The native (embedded-Dawn) runtime
+     * injects a {@link NativeMemoryProvider} here — there is no wasm module, so the
+     * bridge reaches components through the host's `es_<Component>_buffer` bindings.
+     */
+    readonly memory?: MemoryProvider;
+}
+
+const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
+
+function formatBridgeDiagnostic(v: BridgeVerification): string {
+    const parts: string[] = [];
+    if (v.abiMismatch) {
+        parts.push(
+            `ABI layout hash mismatch: the WASM module was built from a different ` +
+            `component schema than this SDK bundle.\n` +
+            `  SDK  ABI_LAYOUT_HASH = ${v.abiMismatch.sdk}\n` +
+            `  WASM getAbiLayoutHash() = ${v.abiMismatch.wasm}\n` +
+            `  Fast pointer accessors would read the wrong bytes. This is fatal.`,
+        );
+    }
+    if (v.missing.length > 0) {
+        const detail = v.missing.map(m => `  - ${m.name}: missing ${m.methods.join(', ')}`).join('\n');
+        parts.push(`C++ Registry is missing ${String(v.missing.length)} builtin component binding(s):\n${detail}`);
+    }
+    if (v.wasmOnly.length > 0) {
+        parts.push(`WASM exposes components not in the SDK's COMPONENT_META:\n  ${v.wasmOnly.join(', ')}`);
+    }
+    if (v.sdkOnly.length > 0) {
+        parts.push(`SDK's COMPONENT_META lists components the WASM does not export:\n  ${v.sdkOnly.join(', ')}`);
+    }
+    parts.push(
+        'Likely cause: WebBindings.generated.cpp is out of sync with component.generated.ts. ' +
+        'Rerun the EHT generator and rebuild the WASM target.',
+    );
+    return parts.join('\n\n');
+}
+
+// =============================================================================
+// BuiltinBridge
+// =============================================================================
+
+export class BuiltinBridge {
+    private cppRegistry_: CppRegistry | null = null;
+    private module_: ESEngineModule | null = null;
+    private memory_: MemoryProvider | null = null;
+    private builtinMethodCache_ = new Map<string, BuiltinMethods>();
+    private builtinEntitySets_ = new Map<string, Set<Entity>>();
+
+    /**
+     * Bind to a C++ Registry.
+     *
+     * Production call sites should pass `{ strict: true }` so the bridge
+     * verifies that every component declared in COMPONENT_META has its four
+     * bindings (add/get/has/remove) and throws a single aggregated diagnostic
+     * if any are missing. This surfaces drift between the WASM build and the
+     * generated metadata at startup rather than on first component use.
+     *
+     * In non-strict mode (default, used by unit tests with partial mock
+     * registries) the cache is pre-populated for whatever bindings exist and
+     * individual `getBuiltinMethods()` calls throw lazily on missing ones.
+     */
+    connect(
+        cppRegistry: CppRegistry,
+        module?: ESEngineModule,
+        options: BridgeConnectOptions = {},
+    ): void {
+        this.cppRegistry_ = cppRegistry;
+        this.module_ = module ?? null;
+        // Web derives a wasm-HEAP backend from the module; the native runtime
+        // injects its own (es_<Component>_buffer). No module and no override => no
+        // fast path (resolvePtr* return null), exactly as before.
+        this.memory_ = options.memory
+            ?? (module ? new WasmMemoryProvider(module, cppRegistry) : null);
+        this.builtinMethodCache_.clear();
+        this.builtinEntitySets_.clear();
+
+        // Install the terminal-abort guard so a C++ abort flips the module-dead
+        // flag and subsequent boundary calls short-circuit (see moduleHealth.ts).
+        if (module) {
+            installAbortGuard(module);
+        }
+
+        const verification = this.verifyAgainst_(cppRegistry, module);
+        // An ABI hash mismatch is ALWAYS fatal, even in non-strict mode: the
+        // loaded WASM and this SDK disagree on byte layout, so any fast-path
+        // pointer access silently corrupts memory. Other drift (missing
+        // bindings) is only fatal under strict mode so partial mock registries
+        // in unit tests keep working. Mock registries never expose
+        // getAbiLayoutHash, so they never hit the fatal path.
+        if (verification.abiMismatch || (options.strict && !verification.ok)) {
+            this.cppRegistry_ = null;
+            this.module_ = null;
+            this.memory_ = null;
+            this.builtinMethodCache_.clear();
+            throw new Error(formatBridgeDiagnostic(verification));
+        }
+    }
+
+    disconnect(): void {
+        this.cppRegistry_ = null;
+        this.module_ = null;
+        this.memory_ = null;
+        this.builtinMethodCache_.clear();
+        this.builtinEntitySets_.clear();
+    }
+
+    get hasCpp(): boolean {
+        return this.cppRegistry_ !== null;
+    }
+
+    getCppRegistry(): CppRegistry | null {
+        return this.cppRegistry_;
+    }
+
+    getWasmModule(): ESEngineModule | null {
+        return this.module_;
+    }
+
+    /**
+     * Describe the current binding state without throwing. Useful for
+     * diagnostics and tests that want to inspect coverage.
+     */
+    verify(): BridgeVerification {
+        if (!this.cppRegistry_) {
+            return {
+                ok: false,
+                missing: [{ name: '<registry>', methods: ['connect() not called'] }],
+                wasmOnly: [],
+                sdkOnly: [],
+                abiMismatch: null,
+            };
+        }
+        return this.verifyAgainst_(this.cppRegistry_, this.module_ ?? undefined);
+    }
+
+    private verifyAgainst_(reg: CppRegistry, module?: ESEngineModule): BridgeVerification {
+        const missing: { name: string; methods: string[] }[] = [];
+        for (const cppName of Object.keys(COMPONENT_META)) {
+            const missingMethods: string[] = [];
+            for (const prefix of METHOD_PREFIXES) {
+                const fn = reg[`${prefix}${cppName}`];
+                if (typeof fn !== 'function') missingMethods.push(`${prefix}${cppName}`);
+            }
+            if (missingMethods.length > 0) {
+                missing.push({ name: cppName, methods: missingMethods });
+                continue;
+            }
+            this.resolveAndCache_(reg, cppName);
+        }
+
+        // Cross-check against the WASM module's self-reported component list
+        // (added in the EHT generator as `getBuiltinComponentNames`). Older
+        // WASM builds may not expose it — those skip this check.
+        let wasmOnly: string[] = [];
+        let sdkOnly: string[] = [];
+        const listFn = (module as unknown as { getBuiltinComponentNames?: () => string[] } | undefined)
+            ?.getBuiltinComponentNames;
+        if (typeof listFn === 'function') {
+            let wasmList: string[];
+            try {
+                wasmList = listFn();
+            } catch {
+                wasmList = [];
+            }
+            const sdkSet = new Set(Object.keys(COMPONENT_META));
+            const wasmSet = new Set(wasmList);
+            wasmOnly = wasmList.filter(n => !sdkSet.has(n));
+            sdkOnly = Object.keys(COMPONENT_META).filter(n => !wasmSet.has(n));
+        }
+
+        // ABI layout-hash handshake. The WASM module exposes the digest EHT
+        // baked into both sides from one schema parse; if it disagrees with the
+        // SDK's ABI_LAYOUT_HASH, the pointer offsets the SDK ships do not match
+        // the loaded binary and fast-path reads/writes would corrupt memory.
+        // Modules built before the handshake (no getAbiLayoutHash) skip it.
+        let abiMismatch: { sdk: string; wasm: string } | null = null;
+        const hashFn = (module as unknown as { getAbiLayoutHash?: () => string } | undefined)
+            ?.getAbiLayoutHash;
+        if (typeof hashFn === 'function') {
+            let wasmHash = '';
+            try {
+                wasmHash = hashFn();
+            } catch {
+                wasmHash = '';
+            }
+            if (wasmHash && wasmHash !== ABI_LAYOUT_HASH) {
+                abiMismatch = { sdk: ABI_LAYOUT_HASH, wasm: wasmHash };
+            }
+        }
+
+        const ok = missing.length === 0 && wasmOnly.length === 0
+            && sdkOnly.length === 0 && abiMismatch === null;
+        return { ok, missing, wasmOnly, sdkOnly, abiMismatch };
+    }
+
+    getBuiltinMethods(cppName: string): BuiltinMethods {
+        const cached = this.builtinMethodCache_.get(cppName);
+        if (cached) return cached;
+        if (!this.cppRegistry_) {
+            throw new Error(`BuiltinBridge.getBuiltinMethods("${cppName}") called before connect().`);
+        }
+        // Fallback for components not declared in COMPONENT_META — user-defined
+        // builtins and test-only synthetic components. Production components are
+        // resolved eagerly in verifyAgainst_ and never hit this path.
+        return this.resolveAndCache_(this.cppRegistry_, cppName);
+    }
+
+    private resolveAndCache_(reg: CppRegistry, cppName: string): BuiltinMethods {
+        const addFn = reg[`add${cppName}`];
+        const getFn = reg[`get${cppName}`];
+        const hasFn = reg[`has${cppName}`];
+        const removeFn = reg[`remove${cppName}`];
+        if (typeof addFn !== 'function' || typeof getFn !== 'function' ||
+            typeof hasFn !== 'function' || typeof removeFn !== 'function') {
+            throw new Error(
+                `C++ Registry missing methods for component "${cppName}". ` +
+                `Expected: add${cppName}, get${cppName}, has${cppName}, remove${cppName}`,
+            );
+        }
+        // Gate every boundary call through the module-abort guard at this single
+        // chokepoint: refuse to call a dead module (pre-check), and if a call
+        // itself aborts the module, surface it as a fatal WasmModuleAborted
+        // rather than letting the corpse return undefined memory.
+        const guard = <A extends unknown[], R>(op: string, fn: (...a: A) => R): ((...a: A) => R) => {
+            return (...a: A): R => {
+                throwIfModuleAborted(this.module_, `${op}${cppName}`);
+                try {
+                    return fn(...a);
+                } catch (err) {
+                    if (isModuleAborted(this.module_)) {
+                        throw new WasmModuleAborted(`${op}${cppName}`, undefined, err);
+                    }
+                    throw err;
+                }
+            };
+        };
+        const methods: BuiltinMethods = {
+            add: guard('add', (addFn as (e: Entity, d: unknown) => void).bind(reg)),
+            get: guard('get', (getFn as (e: Entity) => unknown).bind(reg)),
+            has: guard('has', (hasFn as (e: Entity) => boolean).bind(reg)),
+            remove: guard('remove', (removeFn as (e: Entity) => void).bind(reg)),
+        };
+        this.builtinMethodCache_.set(cppName, methods);
+        return methods;
+    }
+
+    getMethodCache(): Map<string, BuiltinMethods> {
+        return this.builtinMethodCache_;
+    }
+
+    getEntitySet(cppName: string): Set<Entity> | undefined {
+        return this.builtinEntitySets_.get(cppName);
+    }
+
+    getOrCreateEntitySet(cppName: string): Set<Entity> {
+        let set = this.builtinEntitySets_.get(cppName);
+        if (!set) {
+            set = new Set();
+            this.builtinEntitySets_.set(cppName, set);
+        }
+        return set;
+    }
+
+    /** Re-order every builtin entity set so queries iterate in rank order
+     *  (the JS half of {@link World.applyEntityOrder}; the engine's own pools are
+     *  permuted by the same call). */
+    reorderEntitySets(rankOf: RankOf): void {
+        for (const set of this.builtinEntitySets_.values()) reorderSetByRank(set, rankOf);
+    }
+
+    /** Removes the entity from every builtin set; returns the cppNames it was in. */
+    deleteFromEntitySets(entity: Entity): string[] {
+        const removed: string[] = [];
+        for (const [cppName, set] of this.builtinEntitySets_) {
+            if (set.delete(entity)) removed.push(cppName);
+        }
+        return removed;
+    }
+
+    insert<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): { merged: T; isNew: boolean } {
+        const defaults = component._default as Record<string, unknown>;
+        const filtered: Record<string, unknown> = {};
+        if (data !== null && data !== undefined && typeof data === 'object') {
+            for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+                if (v === undefined) continue;
+                if (!(k in defaults)) continue;
+                filtered[k] = v;
+            }
+
+            const errors = validateComponentData(
+                component._name,
+                defaults,
+                filtered,
+                assetFieldNames(component)
+            );
+            if (errors.length > 0) {
+                throw new Error(formatValidationErrors(component._name, errors));
+            }
+        }
+        const merged = { ...component._default, ...filtered } as T;
+
+        let isNew = true;
+        if (this.cppRegistry_) {
+            try {
+                const methods = this.getBuiltinMethods(component._cppName);
+                isNew = !methods.has(entity);
+                methods.add(entity, convertForWasm(merged as Record<string, unknown>, component.colorKeys));
+            } catch (e) {
+                handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
+            }
+        }
+
+        const set = this.getOrCreateEntitySet(component._cppName);
+        const tracked = set.has(entity);
+        if (isNew || !tracked) {
+            if (!tracked) set.add(entity);
+        }
+
+        return { merged, isNew: isNew || !tracked };
+    }
+
+    get<T>(entity: Entity, component: BuiltinComponentDef<T>): T {
+        if (!this.cppRegistry_) {
+            throw new Error('C++ Registry not connected');
+        }
+        try {
+            const raw = this.getBuiltinMethods(component._cppName).get(entity);
+            return convertFromWasm(
+                raw as Record<string, unknown>,
+                component.colorKeys,
+            ) as T;
+        } catch (e) {
+            handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
+            return { ...component._default } as T;
+        }
+    }
+
+    has(entity: Entity, component: BuiltinComponentDef<any>): boolean {
+        if (!this.cppRegistry_) {
+            return false;
+        }
+        try {
+            return this.getBuiltinMethods(component._cppName).has(entity);
+        } catch (e) {
+            handleWasmError(e, `hasBuiltin(${component._name}, entity=${entity})`);
+            return false;
+        }
+    }
+
+    remove(entity: Entity, component: BuiltinComponentDef<any>): void {
+        if (!this.cppRegistry_) {
+            return;
+        }
+        try {
+            this.getBuiltinMethods(component._cppName).remove(entity);
+        } catch (e) {
+            handleWasmError(e, `removeBuiltin(${component._name}, entity=${entity})`);
+        }
+        this.builtinEntitySets_.get(component._cppName)?.delete(entity);
+    }
+
+    /**
+     * The wasm-exported pointer function for `cppName` — `(entity) => byte offset
+     * of that entity's component in the wasm heap`. Web/emscripten only (there is
+     * no such numeric address on native); the fast path itself goes through the
+     * {@link MemoryProvider}, so this is a lower-level convenience.
+     */
+    resolvePtrFn(cppName: string): ((entity: Entity) => number) | null {
+        return resolveWasmPtrFn(this.module_, this.cppRegistry_, cppName);
+    }
+
+    resolvePtrSetter(cppName: string): ((entity: Entity, data: unknown) => void) | null {
+        const accessor = PTR_ACCESSORS[cppName];
+        if (!accessor) return null;
+        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
+        if (!resolveHeap) return null;
+        const heap: ComponentHeap = SCRATCH_HEAP();
+        return (e: Entity, data: unknown) => {
+            if (!resolveHeap(e, heap)) return;
+            accessor.write(heap.f32, heap.u32, heap.u8, heap.ptr, data);
+        };
+    }
+
+    /**
+     * Returns a getter that reads C++ component data into a shared preallocated object.
+     * WARNING: The returned object is reused across calls — copy it if you need to retain the values.
+     */
+    resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null {
+        const accessor = PTR_ACCESSORS[cppName];
+        if (!accessor) return null;
+        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
+        if (!resolveHeap) return null;
+        const heap: ComponentHeap = SCRATCH_HEAP();
+        const cached = accessor.create();
+        return (e: Entity) => {
+            if (!resolveHeap(e, heap)) return null;
+            accessor.fill(heap.f32, heap.u32, heap.u8, heap.ptr, cached);
+            return cached;
+        };
+    }
+}
+
+// A fresh reusable ComponentHeap for one resolver. Its views are overwritten on
+// every successful resolve, so the empty initial arrays are never observed.
+function SCRATCH_HEAP(): ComponentHeap {
+    return { f32: EMPTY_F32, u32: EMPTY_U32, u8: EMPTY_U8, ptr: 0 };
+}
+const EMPTY_F32 = new Float32Array(0);
+const EMPTY_U32 = new Uint32Array(0);
+const EMPTY_U8 = new Uint8Array(0);

@@ -14,7 +14,7 @@ import { NativeAudioBackend } from '../src/audio/NativeAudioBackend';
 import {
     AUDIO_BINDINGS, hasAudioBindings,
     REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS,
-} from '../src/ecs/nativeBindings';
+} from '../src/ecs/bridge/nativeBindings';
 
 function hostGlobals(): Record<string, unknown> {
     return {

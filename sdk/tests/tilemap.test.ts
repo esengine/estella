@@ -26,8 +26,8 @@ import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
 import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { BodyType, RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider } from '../src/physics/PhysicsComponents';
-import { clearUserComponents, Transform, Marker } from '../src/component';
-import type { World } from '../src/world';
+import { clearUserComponents, Transform, Marker } from '../src/ecs/component';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 describe('Tilemap Components', () => {

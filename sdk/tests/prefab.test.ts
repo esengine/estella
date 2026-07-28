@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrefabData, PrefabOverride, InstantiatePrefabOptions } from '../src/prefab';
 import type { SceneData } from '../src/scene';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 vi.mock('../src/scene', async (importOriginal) => {
@@ -16,7 +16,7 @@ vi.mock('../src/scene', async (importOriginal) => {
 
 import { instantiatePrefab } from '../src/prefab';
 import { loadSceneWithAssets } from '../src/scene';
-import { defineComponent } from '../src/component';
+import { defineComponent } from '../src/ecs/component';
 
 const mockLoadScene = vi.mocked(loadSceneWithAssets);
 

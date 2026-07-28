@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // The declarative Video component. It renders through its entity's Sprite (the
 // system writes the live frame texture into it), so a Video needs a Sprite.
-import { defineComponent } from '../component';
+import { defineComponent } from '../ecs/component';
 
 export interface VideoData {
     source: string;

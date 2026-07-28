@@ -2,10 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from '../src/app';
-import { defineSystem, Schedule, SystemRunner } from '../src/system';
-import { defineResource, Res, ResMut, ResourceStorage } from '../src/resource';
-import { Commands, CommandsInstance } from '../src/commands';
-import type { World } from '../src/world';
+import { defineSystem, Schedule, SystemRunner } from '../src/ecs/system';
+import { defineResource, Res, ResMut, ResourceStorage } from '../src/ecs/resource';
+import { Commands, CommandsInstance } from '../src/ecs/commands';
+import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
 // =============================================================================

@@ -11,14 +11,14 @@
  * builtin; `computed_size_` is C++-internal (not serialized). Construct lengths
  * with `px()/percent()/auto()`.
  */
-import { defineBuiltin } from '../../component';
+import { defineBuiltin } from '../../ecs/component';
 import { auto, px, type Dimension } from './dimension';
 
 // Positioning scheme (Relative = in flex flow; Absolute = out of flow, placed by
 // `inset` against the parent box — covers the old RectTransform anchor/stretch
 // cases) and per-item cross-axis alignment override. Both single-sourced from
 // the C++ ES_ENUMs via the generated module.
-export { UIPositionType, UIDisplay, UIPointerEvents, AlignSelf } from '../../wasm.generated';
+export { UIPositionType, UIDisplay, UIPointerEvents, AlignSelf } from '../../wasm/wasm.generated';
 
 export interface UINodeData {
     /** Relative (flex flow) or Absolute (placed by inset). */

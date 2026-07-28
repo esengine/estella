@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { editorCameraInfo } from '../src/camera/CameraPlugin';
-import { ClearFlags } from '../src/component';
+import { ClearFlags } from '../src/ecs/component';
 
 // Apply a column-major VP matrix to a 2D world point → clip/NDC xy.
 function ndc(vp: Float32Array, x: number, y: number) {

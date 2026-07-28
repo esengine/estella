@@ -204,15 +204,15 @@ def main() -> int:
     # ── TypeScript Definitions ──
     ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
     ts_content = ts_gen.generate()
-    write_ts('wasm.generated.ts', ts_content)
+    write_ts('wasm/wasm.generated.ts', ts_content)
 
     # ── Component Metadata ──
     meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums, abi_hash=abi_hash)
-    write_ts('component.generated.ts', meta_gen.generate())
+    write_ts('ecs/component.generated.ts', meta_gen.generate())
 
     # ── Pointer Layouts & Accessors ──
-    write_ts('ptrLayouts.generated.ts', ptr_gen.generate())
-    write_ts('ecs/ptrAccessors.generated.ts', ptr_gen.generate_accessors())
+    write_ts('wasm/ptrLayouts.generated.ts', ptr_gen.generate())
+    write_ts('ecs/bridge/ptrAccessors.generated.ts', ptr_gen.generate_accessors())
 
     print("[OK] Done!")
     return 0

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Parent } from '../../component';
-import type { ParentData, AnyComponentDef } from '../../component';
+import { Parent } from '../../ecs/component';
+import type { ParentData, AnyComponentDef } from '../../ecs/component';
 import type { Entity } from '../../types';
-import type { World } from '../../world';
+import type { World } from '../../ecs/world';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
 import type { CppRegistry } from '../../wasm';
-import type { EngineApi } from '../../ecs/engineApi';
-import { WasmBridge } from '../../WasmBridge';
+import type { EngineApi } from '../../ecs/bridge/engineApi';
+import { WasmBridge } from '../../wasm/WasmBridge';
 
 /** The helpers' view of the engine, guarded: after a wasm abort a call throws
  *  {@link WasmModuleAborted} instead of reaching a dead module. A native host's

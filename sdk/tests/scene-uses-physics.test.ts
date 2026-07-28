@@ -8,7 +8,7 @@
  *        so the ref check is what keeps tilemap-only-collision scenes working.
  */
 import { describe, it, expect } from 'vitest';
-import { sceneUsesPhysics } from '../src/runtimeLoader';
+import { sceneUsesPhysics } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene';
 
 function scene(components: Array<{ type: string; data?: Record<string, unknown> }>): SceneData {

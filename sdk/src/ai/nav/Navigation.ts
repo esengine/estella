@@ -8,7 +8,7 @@
  * `app.getResource(Nav)`) to swap the grid or query a path directly.
  */
 
-import { defineResource } from '../../resource';
+import { defineResource } from '../../ecs/resource';
 import type { Vec2 } from '../../types';
 import { NavGrid } from './NavGrid';
 import { findPath, pathToWorld, type PathfindOptions } from './pathfind';

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { InputState } from '../src/input';
-import { defineInputMap, loadInputMapAsset, Axis2D, Button, Keys2D, Key } from '../src/inputMap';
-import { AppContext, setDefaultContext } from '../src/context';
+import { InputState } from '../src/input/input';
+import { defineInputMap, loadInputMapAsset, Axis2D, Button, Keys2D, Key } from '../src/input/inputMap';
+import { AppContext, setDefaultContext } from '../src/ecs/context';
 
 beforeEach(() => setDefaultContext(new AppContext()));
 

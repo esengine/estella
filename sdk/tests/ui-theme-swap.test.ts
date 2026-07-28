@@ -23,7 +23,7 @@ import {
     type GearValue,
 } from '../src/ui';
 import type { Entity } from '../src/types';
-import type { World } from '../src/world';
+import type { World } from '../src/ecs/world';
 
 // A generic mock world: stores any component def per entity + supports the
 // getEntitiesWithComponents query applyThemeToWorld needs.

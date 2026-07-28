@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { World } from '../src/world';
+import { World } from '../src/ecs/world';
 import {
     Query, QueryInstance, Mut,
     Added, Changed, Removed,
     isMutWrapper, isAddedWrapper, isChangedWrapper,
     RemovedQueryInstance,
-} from '../src/query';
-import { defineComponent } from '../src/component';
+} from '../src/ecs/query';
+import { defineComponent } from '../src/ecs/component';
 
 
 describe('Query System', () => {

@@ -8,7 +8,7 @@
  *          now fully side-module.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { WasmModuleAborted } from '../src/moduleHealth';
+import { WasmModuleAborted } from '../src/wasm/moduleHealth';
 import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 

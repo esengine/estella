@@ -11,8 +11,8 @@
  * controller's authored `current` page — that is the editor's live preview.
  */
 import type { App, Plugin } from '../../app';
-import { Schedule } from '../../system';
-import { SystemLabel } from '../../systemLabels';
+import { Schedule } from '../../ecs/system';
+import { SystemLabel } from '../../ecs/systemLabels';
 import { createGearApplySystem, createInteractionControllerDriverSystem } from './gear-apply';
 import { ensureControllerAiRegistrations } from './ai-builtins';
 

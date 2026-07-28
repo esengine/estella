@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { CppRegistry } from '../wasm';
-import type { EngineApi } from '../ecs/engineApi';
+import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { Entity } from '../types';
-import { defineResource } from '../resource';
+import { defineResource } from '../ecs/resource';
 
 /**
  * Per-app motion-trail API. Wraps the C++ registry-scoped trail system so two App

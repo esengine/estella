@@ -9,7 +9,7 @@
  * functions are the stable public surface; gameplay systems gate on
  * {@link playModeOnly}.
  */
-import { getDefaultContext } from './context';
+import { getDefaultContext } from './ecs/context';
 
 export function setEditorMode(active: boolean): void {
     getDefaultContext().editorMode = active;

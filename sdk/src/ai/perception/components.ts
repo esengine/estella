@@ -8,7 +8,7 @@
  *          perception flows through ECS data, not a side channel.
  */
 
-import { defineComponent, defineTag } from '../../component';
+import { defineComponent, defineTag } from '../../ecs/component';
 
 export interface PerceiverData {
     /** Sight range in world pixels. */

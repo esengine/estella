@@ -15,10 +15,10 @@
  * each side receives the OTHER entity in the payload.
  */
 import type { App } from '../app';
-import { Schedule, defineSystem } from '../system';
-import { Res } from '../resource';
+import { Schedule, defineSystem } from '../ecs/system';
+import { Res } from '../ecs/resource';
 import { playModeOnly } from '../env';
-import { ensureEntityEvents } from '../entityEvents';
+import { ensureEntityEvents } from '../ecs/entityEvents';
 import { PhysicsEvents, type PhysicsEventsData } from './PhysicsTypes';
 import type { Entity } from '../types';
 

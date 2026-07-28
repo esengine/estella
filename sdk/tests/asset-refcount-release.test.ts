@@ -15,7 +15,7 @@ import type { Backend } from '../src/asset/Backend';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from '../src/audio/PlatformAudioBackend';
 
-vi.mock('../src/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({
         createTexture: vi.fn(() => 42),
         registerExternalTexture: vi.fn(() => 42),

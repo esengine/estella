@@ -12,8 +12,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { flushPendingSystems } from '../src/app';
 import type { App } from '../src/app';
-import { Transform } from '../src/component';
-import { Input, InputState } from '../src/input';
+import { Transform } from '../src/ecs/component';
+import { Input, InputState } from '../src/input/input';
 import { UIEvents, UIEventQueue } from '../src/ui/core/events';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import type { UICameraData } from '../src/ui/core/ui-camera-info';

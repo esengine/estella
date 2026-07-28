@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
-import { defineSystem, Schedule } from '../system';
-import { Res, Time, type TimeData } from '../resource';
+import { defineSystem, Schedule } from '../ecs/system';
+import { Res, Time, type TimeData } from '../ecs/resource';
 import { Audio, AudioAPI } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
-import { WorldTransform, type WorldTransformData } from '../component';
+import { WorldTransform, type WorldTransformData } from '../ecs/component';
 import { platformCreateAudioBackend, platformOnMemoryWarning } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';

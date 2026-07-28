@@ -98,7 +98,7 @@ async function generateNativeFunctionBindings(rootDir, genDir, python) {
     await runCommand(python, [
         eht,
         '--native-functions', ...ENGINE_BINDING_HEADERS.map(abs),
-        '--native-functions-ts', path.join(rootDir, 'sdk', 'src', 'ecs', 'nativeEngineApi.generated.ts'),
+        '--native-functions-ts', path.join(rootDir, 'sdk', 'src', 'ecs', 'bridge', 'nativeEngineApi.generated.ts'),
         '--native-shim', 'esn_shim.hpp',
     ], { cwd: rootDir });
     return out;
