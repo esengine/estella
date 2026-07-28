@@ -178,6 +178,17 @@ void EsSlot::emit(es::skeletal::TriangleSink& sink, float alpha) const {
         }
     }
 
+    // DragonBones poses in a y-DOWN space (its authoring tool inherits Flash's
+    // screen axes); the engine's world is y-up. Flipping here, at the one place
+    // geometry leaves the runtime, is what keeps every consumer consistent —
+    // db_getBounds reads these same vertices, so the box follows the character
+    // instead of describing a mirror of it. Winding is left alone: the 2D
+    // pipeline does not cull, and reversing it would only hide the flip if it
+    // ever started to.
+    for (std::size_t i = 0; i < vertexCount; ++i) {
+        world[i * 2 + 1] = -world[i * 2 + 1];
+    }
+
     const float rgba[4] = {
         _colorTransform.redMultiplier,
         _colorTransform.greenMultiplier,
@@ -196,6 +207,28 @@ void EsArmatureProxy::dispose(bool) {
 }
 
 // — Factory ------------------------------------------------------------------
+
+/**
+ * BaseFactory leaves `_dragonBones` null and never assigns it — every integration
+ * is expected to bring its own. Skipping that step does not fail to link and does
+ * not fail to draw: it fails the first time an armature retires an animation
+ * state, because `Animation::advanceTime` calls `_armature->_dragonBones->
+ * bufferObject(state)` unconditionally. On wasm a null dereference lands in
+ * readable low memory and passes unnoticed; on a device it is a SIGSEGV. So the
+ * bug looked platform-specific and was not.
+ */
+EsFactory::EsFactory() {
+    _dragonBones = new DragonBones(&_eventDispatcher);
+}
+
+EsFactory::~EsFactory() {
+    delete _dragonBones;
+    _dragonBones = nullptr;
+}
+
+void EsFactory::advanceTime(float passedTime) {
+    if (_dragonBones != nullptr) _dragonBones->advanceTime(passedTime);
+}
 
 EsFactory& EsFactory::instance() {
     static EsFactory factory;

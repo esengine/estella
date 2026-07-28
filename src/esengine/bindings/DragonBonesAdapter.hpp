@@ -152,14 +152,42 @@ private:
     Armature* _armature = nullptr;
 };
 
+/// Nothing listens: events leave through the module's own ABI, not this one.
+class EsEventDispatcher : public IEventDispatcher {
+public:
+    ~EsEventDispatcher() override = default;
+    bool hasDBEventListener(const std::string&) const override { return false; }
+    void addDBEventListener(const std::string&, const std::function<void(EventObject*)>&) override {}
+    void removeDBEventListener(const std::string&, const std::function<void(EventObject*)>&) override {}
+    void dispatchDBEvent(const std::string&, EventObject*) override {}
+};
+
 class EsFactory : public BaseFactory {
 public:
+    EsFactory();
+    ~EsFactory() override;
+
     static EsFactory& instance();
+
+    /**
+     * Recycle what the last frame retired, and drain the event queue.
+     *
+     * Not optional. An armature hands a finished animation state back by calling
+     * `_dragonBones->bufferObject(…)`, and the buffer is only emptied here — so
+     * without this the pool grows for the life of the app, and every queued event
+     * with it. The module calls it once per frame, before advancing armatures.
+     */
+    void advanceTime(float passedTime);
 
     /// Build an armature by name; null when this data holds no such armature.
     Armature* buildArmature(const std::string& armatureName, const std::string& dragonBonesName);
 
 protected:
+    /// The runtime object every armature recycles and buffers events through.
+    /// BaseFactory declares `_dragonBones` and leaves it null; nothing in the
+    /// vendored tree assigns it, so each integration owns one.
+    EsEventDispatcher _eventDispatcher;
+
     TextureAtlasData* _buildTextureAtlasData(TextureAtlasData* textureAtlasData, void* textureAtlas) const override;
     Armature* _buildArmature(const BuildArmaturePackage& dataPackage) const override;
     Slot* _buildSlot(const BuildArmaturePackage& dataPackage, const SlotData* slotData, Armature* armature) const override;

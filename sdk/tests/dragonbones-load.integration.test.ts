@@ -144,6 +144,82 @@ describe.skipIf(!HAS_ASSETS)('DragonBones side module', () => {
         call('db_unloadSkeleton', null, ['number'], [handle]);
     });
 
+    it('survives an animation being retired — a crossfade, then the state going away', () => {
+        // The runtime hands a finished animation state back through
+        // `_armature->_dragonBones->bufferObject(state)`, and BaseFactory leaves
+        // that pointer null unless an integration sets one. Nothing here failed
+        // when it was null: on wasm the null dereference lands in readable low
+        // memory, so this test passed against the broken build too — it took an
+        // arm64 SIGSEGV to see it. Kept because the wasm build is where the code
+        // is edited, and a leak (the buffer never drains) is the quiet half of the
+        // same bug.
+        const handle = load();
+        call('db_setAtlasTexture', null, ['number', 'number'], [handle, 7]);
+        const instance = call<number>('db_createInstance', 'number', ['number', 'string'], [handle, 'Dragon']);
+        call('db_playAnimation', 'number', ['number', 'string', 'number'], [instance, 'stand', 0]);
+
+        // Cross-fade repeatedly and run past each fade, so states really do retire
+        // rather than just being queued behind one another.
+        for (const name of ['walk', 'jump', 'fall', 'stand', 'walk']) {
+            call('db_fadeInAnimation', 'number', ['number', 'string', 'number', 'number'], [instance, name, 0.2, 0]);
+            for (let i = 0; i < 30; i++) call('db_update', null, ['number', 'number'], [instance, 1 / 60]);
+        }
+
+        // Still posing afterwards: a recycled state that was handed back twice, or
+        // one still in use, shows up here as no geometry rather than as a throw.
+        expect(call<number>('db_getMeshBatchCount', 'number', ['number'], [instance])).toBeGreaterThan(0);
+
+        call('db_destroyInstance', null, ['number'], [instance]);
+        call('db_unloadSkeleton', null, ['number'], [handle]);
+    });
+
+    it('stands the character up, rather than posing it in the authoring tool\'s axes', () => {
+        // DragonBones poses y-DOWN and the engine's world is y-up, so the adapter
+        // flips. Nothing else catches it: every other assertion here is about
+        // magnitude or finiteness, and an upside-down armature satisfies all of
+        // them — it took a screenshot to notice, which is exactly why this exists.
+        //
+        // The test is DragonBoy's head against his feet. The head slot sits at the
+        // TOP of a standing character, so its vertices must have the greater y.
+        const handle = load();
+        call('db_setAtlasTexture', null, ['number', 'number'], [handle, 7]);
+        const instance = call<number>('db_createInstance', 'number', ['number', 'string'], [handle, 'Dragon']);
+        call('db_playAnimation', 'number', ['number', 'string', 'number'], [instance, 'stand', 0]);
+        call('db_update', null, ['number', 'number'], [instance, 1 / 60]);
+
+        // Every posed vertex, across every batch — the split into batches is a
+        // texture/blend detail and says nothing about where a part is.
+        let minY = Infinity, maxY = -Infinity;
+        const batches = call<number>('db_getMeshBatchCount', 'number', ['number'], [instance]);
+        expect(batches).toBeGreaterThan(0);
+        for (let b = 0; b < batches; b++) {
+            const vertexCount = call<number>('db_getMeshBatchVertexCount', 'number', ['number', 'number'], [instance, b]);
+            const indexCount = call<number>('db_getMeshBatchIndexCount', 'number', ['number', 'number'], [instance, b]);
+            const vp = M._malloc(vertexCount * 8 * 4);
+            const ip = M._malloc(indexCount * 2);
+            const tp = M._malloc(4);
+            const bp = M._malloc(4);
+            call('db_getMeshBatchData', null, ['number', 'number', 'number', 'number', 'number', 'number'], [
+                instance, b, vp, ip, tp, bp,
+            ]);
+            const v = new Float32Array(M.HEAPF32.buffer, vp, vertexCount * 8);
+            for (let i = 0; i < vertexCount; i++) {
+                const y = v[i * 8 + 1];
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+            M._free(vp); M._free(ip); M._free(tp); M._free(bp);
+        }
+
+        // The armature's origin is at the feet, so a right-way-up DragonBoy
+        // reaches much further above it than below.
+        expect(maxY).toBeGreaterThan(0);
+        expect(maxY).toBeGreaterThan(Math.abs(minY));
+
+        call('db_destroyInstance', null, ['number'], [instance]);
+        call('db_unloadSkeleton', null, ['number'], [handle]);
+    });
+
     it('moves the character as it walks, and keeps it a character-sized thing', () => {
         const handle = load();
         call('db_setAtlasTexture', null, ['number', 'number'], [handle, 7]);

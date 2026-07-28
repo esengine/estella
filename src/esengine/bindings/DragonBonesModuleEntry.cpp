@@ -267,6 +267,11 @@ void db_update(int instanceId, float dt) {
     auto* armature = g_ctx.armatureOf(instanceId);
     if (!armature) return;
     g_ctx.events.clear();
+    // Return what the LAST advance retired before this one retires more. The
+    // runtime object is the only thing that empties that buffer, and an armature
+    // fills it whenever an animation state finishes or is faded out — so nothing
+    // else here can be what frees them.
+    EsFactory::instance().advanceTime(dt);
     armature->advanceTime(dt);
 }
 
