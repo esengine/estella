@@ -9,7 +9,7 @@ import { Entity } from '../types';
 import { AnyComponentDef, ComponentDef, isBuiltinComponent, Name } from './component';
 import type { World } from './world';
 import { ResourceDef, ResourceStorage } from './resource';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 // =============================================================================
 // Commands Descriptor (for system parameters)

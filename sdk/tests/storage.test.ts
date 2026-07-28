@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Storage } from '../src/storage';
+import { Storage } from '../src/util/storage';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 

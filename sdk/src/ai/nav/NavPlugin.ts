@@ -12,7 +12,7 @@
  * (REARCH_GAMEPLAY_AI.md AI4) — the grid path already clears static blockers.
  */
 
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
@@ -21,7 +21,7 @@ import {
     type AnyComponentDef,
     type ComponentData,
 } from '../../ecs/component';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
 import { advanceAlongPath } from './follow';

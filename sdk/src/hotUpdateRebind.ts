@@ -12,7 +12,7 @@
  *          Registered once per App (initRuntime). State lives in this closure —
  *          per install, not module-global — so realms don't share queues.
  */
-import type { App } from './app';
+import type { App } from './app/app';
 import { Schedule, defineSystem } from './ecs/system';
 import { Query, Mut } from './ecs/query';
 import { Sprite, Mesh2D } from './ecs/component';

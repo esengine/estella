@@ -8,7 +8,7 @@
  *        runtime scheduler (not just the per-unit tests).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app';
+import { App, flushPendingSystems } from '../src/app/app';
 import { Input, InputState, GamepadButton, GamepadAxis } from '../src/input/input';
 import { defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton } from '../src/input/inputMap';
 import { defineBehavior } from '../src/behavior';

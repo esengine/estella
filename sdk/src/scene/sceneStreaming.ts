@@ -11,8 +11,8 @@
  * thrash. This is pure orchestration — it owns no loading itself, only calls the
  * existing `loadAdditive`/`unload`/`sleep`/`wake` primitives.
  */
-import { defineResource } from './ecs/resource';
-import type { Entity } from './types';
+import { defineResource } from '../ecs/resource';
+import type { Entity } from '../types';
 
 /** A streamable cell: an additive scene with a world-space center + radius. */
 export interface StreamCell {

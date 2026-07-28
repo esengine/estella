@@ -9,7 +9,7 @@
  *          layout). Version or schema drift refuses the connection at
  *          handshake — never a silently mismatched simulation.
  */
-import type { SceneComponentData } from '../../scene';
+import type { SceneComponentData } from '../../scene/scene';
 
 export const REPLICATION_PROTOCOL_VERSION = 2;
 

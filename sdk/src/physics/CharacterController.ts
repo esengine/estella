@@ -20,13 +20,13 @@
  * Units: `velocity`/positions are world pixels (matching `Transform`); collider
  * dimensions are meters and are scaled to pixels via `PhysicsAPI.getPixelsPerUnit()`.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { Entity, Vec2 } from '../types';
 import { defineComponent, Transform, type TransformData } from '../ecs/component';
 import { Schedule, defineSystem, GetWorld } from '../ecs/system';
 import { Query, Mut } from '../ecs/query';
 import { Res, Time, type TimeData } from '../ecs/resource';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import { Physics, type PhysicsAPI } from './Physics';
 import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
 import type {

@@ -8,8 +8,8 @@ import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { findWebGL2Context } from '../asset/loaders/TextureLoader';
-import { linearColorSpace } from '../env';
-import { log } from '../logger';
+import { linearColorSpace } from '../util/env';
+import { log } from '../util/logger';
 
 let nextId_ = 1;
 

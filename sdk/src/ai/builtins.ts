@@ -17,7 +17,7 @@ import { aiRegistry, type AiContext } from './fsm/AiContext';
 import type { AiAction, AiCondition, AiParamValue } from './fsm/registry';
 import { TimelinePlayer } from '../timeline/TimelinePlugin';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
-import { setEntityProperty } from '../propertyPath';
+import { setEntityProperty } from '../util/propertyPath';
 
 /**
  * Register the engine's built-in actions/conditions. Idempotent (and safe after

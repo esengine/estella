@@ -3,7 +3,7 @@
 import { Renderer } from './render/renderer';
 import { defineResource, Res, Time } from './ecs/resource';
 import { defineSystem, GetWorld, Schedule } from './ecs/system';
-import type { App, Plugin } from './app';
+import type { App, Plugin } from './app/app';
 import { StatsOverlay, type StatsPosition } from './stats-overlay';
 
 export interface FrameStats {

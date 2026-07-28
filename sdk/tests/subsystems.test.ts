@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { SubsystemRegistry } from '../src/subsystems';
-import { App, type Plugin } from '../src/app';
+import { SubsystemRegistry } from '../src/app/subsystems';
+import { App, type Plugin } from '../src/app/app';
 import { Schedule, defineSystem } from '../src/ecs/system';
 
 describe('SubsystemRegistry', () => {

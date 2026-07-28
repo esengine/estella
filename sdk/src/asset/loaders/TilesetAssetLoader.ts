@@ -9,7 +9,7 @@
 import type { AssetLoader, LoadContext, TilesetResult } from '../AssetLoader';
 import { parseTileset } from '../../tilemap/tilesetAsset';
 import { registerResolvedTileset } from '../../tilemap/tilesetCache';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
     readonly type = 'tileset';

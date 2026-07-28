@@ -11,7 +11,7 @@
  * path (headless render verification); this pins the default plugin set shape.
  */
 import { describe, expect, it } from 'vitest';
-import { uiPlugins } from '../src/uiPlugins';
+import { uiPlugins } from '../src/app/uiPlugins';
 import { uiPlugin } from '../src/ui/ui-plugin';
 
 describe('default uiPlugins', () => {

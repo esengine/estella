@@ -12,7 +12,7 @@
 import type { Color } from '../types';
 import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
 import { Draw } from '../render/draw';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export interface FadeTransitionOptions {
     readonly duration: number;

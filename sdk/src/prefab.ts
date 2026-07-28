@@ -3,7 +3,7 @@
 import type { World } from './ecs/world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
-import { loadSceneWithAssets, SCENE_FORMAT_VERSION, type SceneData } from './scene';
+import { loadSceneWithAssets, SCENE_FORMAT_VERSION, type SceneData } from './scene/scene';
 import {
     flattenPrefab,
     preloadNestedPrefabs,

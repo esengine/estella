@@ -6,7 +6,7 @@
  */
 
 import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 // =============================================================================
 // .esanim File Format

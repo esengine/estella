@@ -17,7 +17,7 @@ import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder, reorderMapByRank } from './entityOrder';
 import { nativeEngineApi } from './bridge/engineApi';
 import { withScratch } from '../wasm/wasmScratch';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { getDefaultContext, type EditorBridge } from './context';
 
 /** The slice of a core {@link World.applyEntityOrder} needs: the entry point plus

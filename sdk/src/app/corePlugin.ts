@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Plugin } from './app';
-import { initResourceManager, shutdownResourceManager, setTextureBudget, trimTextureCache } from './wasm/resourceManager';
-import { platformOnMemoryWarning } from './platform/base';
-import { RuntimeConfig } from './defaults';
-import { initDrawAPI, shutdownDrawAPI } from './render/draw';
-import { clearDrawCallbacks } from './render/customDraw';
-import { initMaterialAPI, shutdownMaterialAPI } from './render/material';
-import { initGeometryAPI, shutdownGeometryAPI } from './render/geometry';
-import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
-import { initRendererAPI, shutdownRendererAPI } from './render/renderer';
-import { initGLDebugAPI, shutdownGLDebugAPI } from './render/glDebug';
-import { CameraView, CameraViewAPI } from './camera/Camera';
+import { initResourceManager, shutdownResourceManager, setTextureBudget, trimTextureCache } from '../wasm/resourceManager';
+import { platformOnMemoryWarning } from '../platform/base';
+import { RuntimeConfig } from '../defaults';
+import { initDrawAPI, shutdownDrawAPI } from '../render/draw';
+import { clearDrawCallbacks } from '../render/customDraw';
+import { initMaterialAPI, shutdownMaterialAPI } from '../render/material';
+import { initGeometryAPI, shutdownGeometryAPI } from '../render/geometry';
+import { initPostProcessAPI, shutdownPostProcessAPI } from '../postprocess';
+import { initRendererAPI, shutdownRendererAPI } from '../render/renderer';
+import { initGLDebugAPI, shutdownGLDebugAPI } from '../render/glDebug';
+import { CameraView, CameraViewAPI } from '../camera/Camera';
 
 let offMemoryWarning: (() => void) | null = null;
 

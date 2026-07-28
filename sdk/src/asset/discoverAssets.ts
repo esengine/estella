@@ -23,7 +23,7 @@
  */
 
 import { getComponent } from '../ecs/component';
-import type { SceneData, AssetFieldType } from '../scene';
+import type { SceneData, AssetFieldType } from '../scene/scene';
 
 export interface SpineAssetRef {
     skeleton: string;

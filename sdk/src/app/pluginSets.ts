@@ -21,21 +21,21 @@
  *          out. Internal: the factories are the public surface, not the lists.
  */
 import type { Plugin } from './app';
-import { animationPlugin } from './animation';
-import { audioPlugin } from './audio';
-import { videoPlugin } from './video';
-import { particlePlugin } from './particle';
-import { trailPlugin } from './trail';
-import { mesh2dPlugin } from './render/mesh2d';
-import { tilemapPlugin } from './tilemap';
-import { postProcessPlugin } from './postprocess';
-import { timelinePlugin } from './timeline';
-import { timerPlugin } from './timer';
-import { velocityPlugin } from './velocity';
-import { lifecyclePlugin } from './ecs/lifecycle';
-import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from './ai';
-import { eventBindingPlugin } from './eventBinding';
-import { replicationPlugin } from './net/replication';
+import { animationPlugin } from '../animation';
+import { audioPlugin } from '../audio';
+import { videoPlugin } from '../video';
+import { particlePlugin } from '../particle';
+import { trailPlugin } from '../trail';
+import { mesh2dPlugin } from '../render/mesh2d';
+import { tilemapPlugin } from '../tilemap';
+import { postProcessPlugin } from '../postprocess';
+import { timelinePlugin } from '../timeline';
+import { timerPlugin } from '../util/timer';
+import { velocityPlugin } from '../velocity';
+import { lifecyclePlugin } from '../ecs/lifecycle';
+import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from '../ai';
+import { eventBindingPlugin } from '../eventBinding';
+import { replicationPlugin } from '../net/replication';
 
 /**
  * The simulation: timers/lifecycle, gameplay AI, audio (silent on a host with no

@@ -11,7 +11,7 @@
  *          *transport* as an {@link SideModuleInstantiator}; the fetch / embedded
  *          / WeChat transports live in sibling files.
  */
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { SIDE_MODULES, type SideModuleDescriptor, type SideModuleId } from './registry';
 
 /** The instantiated emscripten module. Consumers cwrap their own `_*` exports. */

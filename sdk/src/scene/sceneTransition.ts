@@ -5,8 +5,8 @@
  * @brief   Convenience wrapper for scene transitions
  */
 
-import type { App } from './app';
-import type { Color } from './types';
+import type { App } from '../app/app';
+import type { Color } from '../types';
 import { SceneManager, SceneManagerState } from './sceneManager';
 
 export interface TransitionConfig {

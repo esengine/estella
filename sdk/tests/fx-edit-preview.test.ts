@@ -8,8 +8,8 @@
  * irrelevant.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { App } from '../src/app';
-import { setEditorMode, setPlayMode, setFxEditPreview, isFxEditPreview } from '../src/env';
+import { App } from '../src/app/app';
+import { setEditorMode, setPlayMode, setFxEditPreview, isFxEditPreview } from '../src/util/env';
 import { particlePlugin, Particle } from '../src/particle';
 import { trailPlugin, Trail } from '../src/trail';
 

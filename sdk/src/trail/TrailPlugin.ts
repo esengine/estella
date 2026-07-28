@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
-import { fxPreviewOrPlayMode } from '../env';
+import { fxPreviewOrPlayMode } from '../util/env';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { TrailRenderer } from '../ecs/component';

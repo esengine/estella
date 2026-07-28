@@ -10,13 +10,13 @@
 // authoring runs in the JS engine, writing the native C++ ECS, which the native
 // host renders. No wasm module: entity generations fall back to World's JS path.
 
-import { App } from '../../app';
+import { App } from '../../app/app';
 import { World } from '../world';
 import { inputPlugin } from '../../input/input';
-import { prefabsPlugin } from '../../prefabServer';
-import { sceneManagerPlugin } from '../../scenePlugin';
+import { prefabsPlugin } from '../../prefab/prefabServer';
+import { sceneManagerPlugin } from '../../scene/scenePlugin';
 import { headlessBasePlugins } from '../../runtime/webAppFactory';
-import { presentationBasePlugins } from '../../pluginSets';
+import { presentationBasePlugins } from '../../app/pluginSets';
 import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
@@ -33,12 +33,12 @@ import { initDrawAPI } from '../../render/draw';
 import { initGeometryAPI } from '../../render/geometry';
 import { initMaterialAPI } from '../../render/material';
 import type { ESEngineModule } from '../../wasm';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import { setRendererBackend } from '../../render/renderer';
 import { RenderPipeline } from '../../render/renderPipeline';
 import { cameraPlugin } from '../../camera/CameraPlugin';
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
-import { DEFAULT_UI_CAMERA_INFO } from '../../corePlugin';
+import { DEFAULT_UI_CAMERA_INFO } from '../../app/corePlugin';
 import { uiPlugin } from '../../ui/ui-plugin';
 import { SpinePlugin } from '../../spine';
 import { DragonBonesPlugin } from '../../dragonbones';

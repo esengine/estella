@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform, RuntimeOnly, Name, Parent } from '../src/ecs/component';
-import { serializeScene } from '../src/scene';
+import { serializeScene } from '../src/scene/scene';
 import { createMockModule } from './mocks/wasm';
 
 // Builtin components are C++-memory-backed; the mock module gives them a home

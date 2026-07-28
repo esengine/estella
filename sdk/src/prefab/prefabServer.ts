@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from './app';
-import type { World } from './ecs/world';
-import type { Entity } from './types';
-import type { Assets as AssetsClass } from './asset/Assets';
-import { Assets } from './asset/AssetPlugin';
-import { defineResource } from './ecs/resource';
+import type { App, Plugin } from '../app/app';
+import type { World } from '../ecs/world';
+import type { Entity } from '../types';
+import type { Assets as AssetsClass } from '../asset/Assets';
+import { Assets } from '../asset/AssetPlugin';
+import { defineResource } from '../ecs/resource';
 import {
     instantiatePrefab,
     type PrefabData,
     type PrefabOverride,
     type InstantiatePrefabResult,
-} from './prefab';
+} from '../prefab';
 
 export class PrefabServer {
     private readonly world_: World;

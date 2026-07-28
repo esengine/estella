@@ -19,7 +19,7 @@
  * left a subsystem out.
  */
 
-import type { App } from '../../app';
+import type { App } from '../../app/app';
 import type { NativeEngineApi } from './nativeEngineApi.generated';
 import type { NativeHeap } from './nativeHeap';
 

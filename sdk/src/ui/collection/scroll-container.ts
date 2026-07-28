@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Vec2 } from '../../types';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export interface ScrollContainerOptions {
     viewportSize: Vec2;

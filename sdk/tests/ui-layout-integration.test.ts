@@ -9,7 +9,7 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { FlexContainer, type FlexContainerData } from '../src/ui/layout/flex';
 import { Canvas } from '../src/ecs/component';

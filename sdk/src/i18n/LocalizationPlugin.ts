@@ -5,10 +5,10 @@
  * @brief   Registers the per-App Localization resource. Opt-in: add it via
  *          `app.addPlugin(localizationPlugin)` or with options.
  */
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Assets } from '../asset/AssetPlugin';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { Localization, LocalizationAPI, type LocaleCatalog } from './Localization';
 
 export interface LocalizationOptions {

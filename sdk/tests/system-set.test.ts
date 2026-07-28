@@ -5,7 +5,7 @@
  * @brief   SystemSet grouping, shared runIf, and set-name dep expansion.
  */
 import { describe, expect, it } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Schedule, defineSystem, defineSystemSet } from '../src/ecs/system';
 
 function namedSystem(name: string, trace: string[]) {

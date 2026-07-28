@@ -9,7 +9,7 @@
  *          pipelines — hinted bitmap vs SDF — routed per Text by
  *          {@link resolveTextRenderMode}.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { Transform, type TransformData, registerComponent } from '../../ecs/component';
 import { defineSystem, Schedule } from '../../ecs/system';
 import type { ESEngineModule, CppRegistry } from '../../wasm';

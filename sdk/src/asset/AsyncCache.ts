@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { RuntimeConfig } from '../defaults';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 interface PendingEntry<T> {
     promise: Promise<T>;

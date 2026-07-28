@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app';
+import { App, flushPendingSystems } from '../src/app/app';
 import { defineBehavior } from '../src/behavior';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { getUserComponents } from '../src/ecs/component';

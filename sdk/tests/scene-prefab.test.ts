@@ -23,7 +23,7 @@ import {
     expandScenePrefabs,
     sceneHasPrefabEntries,
     type SceneData,
-} from '../src/scene';
+} from '../src/scene/scene';
 import {
     migratePrefabData,
     flattenPrefab,

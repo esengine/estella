@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { Res } from '../src/ecs/resource';
 import { Input, InputState } from '../src/input/input';

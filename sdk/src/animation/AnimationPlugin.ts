@@ -5,21 +5,21 @@
  * @brief   Animation plugin registering Tween and SpriteAnimator systems
  */
 
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
 import { AnimatorController, AnimatorControllerAPI } from './Animator';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {

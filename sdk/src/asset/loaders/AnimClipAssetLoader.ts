@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
 import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
     readonly type = 'anim-clip';

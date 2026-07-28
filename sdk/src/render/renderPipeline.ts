@@ -16,7 +16,7 @@ import {
     getPreSceneDrawCallbacks,
     unregisterPreSceneDrawCallback,
 } from './customDraw';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export interface Viewport {
     x: number;

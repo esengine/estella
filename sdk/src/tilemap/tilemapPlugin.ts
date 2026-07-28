@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../ecs/component';
 import { Schedule } from '../ecs/system';
@@ -8,7 +8,7 @@ import type { SystemDef } from '../ecs/system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { TilemapLiveSync } from './tilemapLiveSync';
 import { Tilemap } from './components';
-import { registerSceneComponentCodec } from '../scene';
+import { registerSceneComponentCodec } from '../scene/scene';
 import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
 import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
@@ -22,8 +22,8 @@ import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Time } from '../ecs/resource';
-import { playModeOnly } from '../env';
-import { log } from '../logger';
+import { playModeOnly } from '../util/env';
+import { log } from '../util/logger';
 import type { Entity } from '../types';
 
 const GRID_TYPE_MAP: Record<string, number> = {

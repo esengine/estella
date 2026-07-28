@@ -5,7 +5,7 @@
  * @brief   Loads and initializes the standalone Spine WASM module
  */
 
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export interface SpineWasmModule {
     _spine_loadSkeleton(skelDataPtr: number, skelDataLen: number, atlasText: number, atlasLen: number, isBinary: number): number;

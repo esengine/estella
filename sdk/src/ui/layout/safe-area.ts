@@ -5,7 +5,7 @@
  * @brief   Safe-area concept — component + the PreUpdate system that pushes
  *          platform safe-area insets into UINode insets, co-located.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { isWeChat, platformDevicePixelRatio } from '../../platform';
 import { defineComponent, registerComponent } from '../../ecs/component';
 import { Res } from '../../ecs/resource';

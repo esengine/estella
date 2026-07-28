@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrefabData, PrefabOverride, InstantiatePrefabOptions } from '../src/prefab';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
-vi.mock('../src/scene', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../src/scene')>();
+vi.mock('../src/scene/scene', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../src/scene/scene')>();
     return {
         ...actual,
         loadSceneWithAssets: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('../src/scene', async (importOriginal) => {
 });
 
 import { instantiatePrefab } from '../src/prefab';
-import { loadSceneWithAssets } from '../src/scene';
+import { loadSceneWithAssets } from '../src/scene/scene';
 import { defineComponent } from '../src/ecs/component';
 
 const mockLoadScene = vi.mocked(loadSceneWithAssets);

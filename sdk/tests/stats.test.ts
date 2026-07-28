@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StatsCollector, defaultFrameStats, Stats, StatsPlugin, statsPlugin, FrameHistory, type FrameStats } from '../src/stats';
 import { StatsOverlay } from '../src/stats-overlay';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Schedule, defineSystem, SystemRunner } from '../src/ecs/system';
 import { World } from '../src/ecs/world';
 import { ResourceStorage } from '../src/ecs/resource';

@@ -8,7 +8,7 @@
 // checked against the platform's own answer.
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 
-type Utf8 = typeof import('../src/utf8');
+type Utf8 = typeof import('../src/util/utf8');
 
 /** utf8.ts as a host with no TextEncoder/TextDecoder sees it. */
 async function importWithoutGlobals(): Promise<Utf8> {
@@ -20,7 +20,7 @@ async function importWithoutGlobals(): Promise<Utf8> {
     delete (globalThis as { TextDecoder?: unknown }).TextDecoder;
     try {
         vi.resetModules();
-        return await import('../src/utf8?fallback');
+        return await import('../src/util/utf8?fallback');
     } finally {
         globalThis.TextEncoder = encoder;
         globalThis.TextDecoder = decoder;

@@ -14,7 +14,7 @@ import {
     type CustomEventTrack,
     type AnimFramesTrack,
 } from './TimelineTypes';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 const CURRENT_VERSION = '1.1';
 

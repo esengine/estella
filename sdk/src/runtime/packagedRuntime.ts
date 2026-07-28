@@ -21,7 +21,7 @@ import { FileSystemBackend, type Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { Audio } from '../audio/Audio';
 import { VideoPlayer } from '../video/VideoAPI';
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
 
 /**

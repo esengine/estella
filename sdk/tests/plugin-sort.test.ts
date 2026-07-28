@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { App, type Plugin } from '../src/app';
+import { App, type Plugin } from '../src/app/app';
 
 function makePlugin(name: string, opts?: { dependencies?: string[]; before?: string[]; after?: string[] }): Plugin {
     return {

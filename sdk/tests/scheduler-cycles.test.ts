@@ -5,7 +5,7 @@
  * @brief   Cycle detection quality + re-sort idempotence after sortSystems.
  */
 import { describe, expect, it } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Schedule, defineSystem } from '../src/ecs/system';
 
 function trackedSystem(name: string, trace: string[]) {

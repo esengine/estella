@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getPlatform } from './platform/base';
+import { getPlatform } from '../platform/base';
 import { log } from './logger';
 
 const KEY_PREFIX = 'esengine:';

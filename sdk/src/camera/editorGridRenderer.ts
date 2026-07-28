@@ -25,7 +25,7 @@
  * Frontends just install this once and flip the `EditorGrid` resource — the web
  * editor and the headless render host (pixel verification) get the grid for free.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import { Draw } from '../render/draw';
 import { Geometry, type GeometryHandle } from '../render/geometry';
 import { Material, type MaterialHandle } from '../render/material';

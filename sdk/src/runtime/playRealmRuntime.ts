@@ -15,7 +15,7 @@
  *          so its defineComponent/defineSystem populate the registry this drains. This
  *          entry only owns the runtime + snapshot + asset fetch.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { ESEngineModule } from '../wasm';
 import { Audio } from '../audio/Audio';
 import { VideoPlayer } from '../video/VideoAPI';
@@ -25,7 +25,7 @@ import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
-import type { SceneData } from '../scene';
+import type { SceneData } from '../scene/scene';
 import type { PhysicsPluginConfig } from '../physics/PhysicsPlugin';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { fetchDecodePixels } from '../asset/imageDecode';

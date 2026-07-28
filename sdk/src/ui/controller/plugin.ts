@@ -10,7 +10,7 @@
  * (no UIInteraction is written outside play), while gear-apply still reflects each
  * controller's authored `current` page — that is the editor's live preview.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { Schedule } from '../../ecs/system';
 import { SystemLabel } from '../../ecs/systemLabels';
 import { createGearApplySystem, createInteractionControllerDriverSystem } from './gear-apply';

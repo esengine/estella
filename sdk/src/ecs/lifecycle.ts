@@ -6,9 +6,9 @@
  */
 
 import { defineResource } from './resource';
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { getPlatformType, platformOnAppShow, platformOnAppHide } from '../platform';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 // =============================================================================
 // Lifecycle State

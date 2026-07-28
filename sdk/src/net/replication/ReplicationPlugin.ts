@@ -9,7 +9,7 @@
  *          not an environment flag: everything no-ops while NetRole stays
  *          'offline', so the plugin is safe to install unconditionally.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { defineResource, Res, Time, type TimeData } from '../../ecs/resource';
 import type { NetTransport } from '../NetChannel';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { registerComponent } from '../../ecs/component';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { Res } from '../../ecs/resource';
@@ -16,7 +16,7 @@ import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
 import { UIDialog, isDialogOpen } from '../behavior/dialog';
 import { walkParentChain } from '../util/helpers';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../ecs/systemLabels';
 import type { CppRegistry } from '../../wasm';

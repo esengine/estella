@@ -8,7 +8,7 @@
 import type { Entity, Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 import { SpineModuleBridge } from './SpineBridge';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
 

@@ -5,7 +5,7 @@
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { defineResource } from '../ecs/resource';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export type VideoHandle = VideoStreamHandle;
 export type VideoPlayOptions = VideoStreamOptions;

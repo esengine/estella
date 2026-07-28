@@ -16,7 +16,7 @@ import { MiniGamePlatformAdapter } from './adapter';
 import { polyfillFetch } from './fetch';
 import { polyfillPerformance, polyfillTextEncoder } from './polyfills';
 import type { MiniGameProfile } from './api';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 let installed: string | null = null;
 

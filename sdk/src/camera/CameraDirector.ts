@@ -10,7 +10,7 @@
  *          builds into the rendered view. Cameras stay declarative view defs; the
  *          director is the runtime that selects + transitions between them.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { applyEasing, EasingType } from '../animation/Easing';
 import type { CameraPOV } from './CameraPlugin';

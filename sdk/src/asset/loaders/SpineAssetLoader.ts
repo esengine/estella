@@ -6,7 +6,7 @@ import { getAssetTypeEntry } from '../../assetTypes';
 import type { ESEngineModule } from '../../wasm';
 import type { SpineModuleController } from '../../spine/SpineController';
 import { parseSpineAtlasPages } from '../../spine/atlasPages';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class SpineAssetLoader implements AssetLoader<SpineResult> {
     readonly type = 'spine';

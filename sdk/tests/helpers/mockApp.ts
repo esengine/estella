@@ -12,9 +12,9 @@
  *        system orchestration, event emission — and leave the native simulation
  *        to the *-smoke.mjs runners that link the real engine.
  */
-import { App } from '../../src/app';
+import { App } from '../../src/app/app';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { setEditorMode, setPlayMode } from '../../src/env';
+import { setEditorMode, setPlayMode } from '../../src/util/env';
 import { createMockModule } from '../mocks/wasm';
 import type { ESEngineModule } from '../../src/wasm';
 

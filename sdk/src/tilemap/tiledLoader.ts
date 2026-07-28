@@ -43,7 +43,7 @@ import type { ResolvedTileCollision } from './tilesetResolve';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { resolveRelativePath, resolveTiledRef, isLogicalAssetRef } from './tiledPath';
 
 export interface TiledChunkData {

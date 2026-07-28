@@ -14,7 +14,7 @@ import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { Assets } from '../src/asset/Assets';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import type { Backend } from '../src/asset/Backend';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 import type { SceneAssetResult } from '../src/asset/Assets';
 
 vi.mock('../src/wasm/resourceManager', () => ({

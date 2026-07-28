@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { Input, type InputState } from '../../input/input';
 import { Transform, type TransformData } from '../../ecs/component';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import type { Entity, Vec2 } from '../../types';
 
 import { UIEvents, UIEventQueue } from '../core/events';

@@ -8,7 +8,7 @@
  *          structs this used to probe were retired in REARCH_GUI F3).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';

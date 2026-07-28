@@ -6,7 +6,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat } from '../types';
-import { deepClone } from '../deepClone';
+import { deepClone } from '../util/deepClone';
 import { COMPONENT_META, type AssetFieldMeta, type SkeletalFieldMeta } from './component.generated';
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public

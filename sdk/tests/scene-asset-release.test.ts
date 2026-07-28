@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
-vi.mock('../src/scene', () => ({
+vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 vi.mock('../src/render/customDraw', () => ({
@@ -24,7 +24,7 @@ vi.mock('../src/render/material', () => ({
     defineResource: vi.fn(),
 }));
 
-import { SceneManagerState } from '../src/sceneManager';
+import { SceneManagerState } from '../src/scene/sceneManager';
 import { Assets } from '../src/asset';
 import { Material } from '../src/render/material';
 

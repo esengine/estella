@@ -33,15 +33,15 @@ import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import { getComponentDefaults } from '../ecs/component';
-import { getComponentAssetFieldDescriptors } from '../scene';
+import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { discoverSceneAssets } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
-import type { SceneData } from '../scene';
+import type { SceneData } from '../scene/scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
 import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 /** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries.
  *  `oldTextureHandle` is the texture handle that was bound before the drop (0 when

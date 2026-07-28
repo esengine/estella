@@ -26,7 +26,7 @@ import type { AudioHandle } from '../audio/PlatformAudioBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { getPlatform } from '../platform/base';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 let nextId_ = 1;
 

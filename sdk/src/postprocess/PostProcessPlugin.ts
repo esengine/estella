@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { Schedule } from '../ecs/system';
 import { Assets } from '../asset/AssetPlugin';
 import { PostProcess, PostProcessAPI } from './PostProcessAPI';

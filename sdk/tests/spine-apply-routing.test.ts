@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { applySpineEntities, spineEntityProps } from '../src/spine/loadSpineScene';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 import type { Entity } from '../src/types';
 
 const SPINE_COMP = 'ApplyRouting_Spine';

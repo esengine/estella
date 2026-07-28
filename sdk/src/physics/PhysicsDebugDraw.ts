@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { Color } from '../types';
 import type { TransformData, CanvasData } from '../ecs/component';
 import type { ResourceDef } from '../ecs/resource';

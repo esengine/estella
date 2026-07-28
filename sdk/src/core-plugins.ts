@@ -19,7 +19,7 @@
 
 // The single composed UI pipeline; the concept plugins below are
 // re-exported for granular/advanced wiring.
-export { uiPlugins } from './uiPlugins';
+export { uiPlugins } from './app/uiPlugins';
 export { uiPlugin, UIPlugin } from './ui/ui-plugin';
 export { textPlugin, TextPlugin } from './ui/text/plugin';
 export { uiMaskPlugin, UIMaskPlugin } from './ui/render/mask';

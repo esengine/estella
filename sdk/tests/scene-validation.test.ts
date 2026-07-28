@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { validateComponentData, formatValidationErrors } from '../src/validation';
+import { validateComponentData, formatValidationErrors } from '../src/util/validation';
 
 describe('validateComponentData', () => {
     it('should return no errors for valid data', () => {

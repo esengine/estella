@@ -10,7 +10,7 @@
  * wasm module; instantiation before that throws.
  */
 
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { Entity, Vec2 } from '../types';
 import { defineResource } from '../ecs/resource';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';

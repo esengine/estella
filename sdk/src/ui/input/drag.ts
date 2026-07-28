@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { registerComponent, Transform, Parent, Sprite } from '../../ecs/component';
 import type { TransformData, ParentData, SpriteData } from '../../ecs/component';
 import { UINode } from '../core/ui-node';
@@ -19,7 +19,7 @@ import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import { getEntityDepth } from '../util/helpers';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { quaternionToAngle2D } from '../util/math';

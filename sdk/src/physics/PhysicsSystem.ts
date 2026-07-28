@@ -10,13 +10,13 @@
  * the wasm module finishes loading.
  */
 
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { Entity } from '../types';
 import type { TransformData, ParentData, CanvasData } from '../ecs/component';
 import { Transform, Parent, Canvas } from '../ecs/component';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { Schedule, defineSystem } from '../ecs/system';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { Physics } from './Physics';
 import {

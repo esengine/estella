@@ -8,7 +8,7 @@
 import { Entity } from '../../types';
 import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../../wasm';
-import { validateComponentData, formatValidationErrors, assetFieldNames } from '../../validation';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../../util/validation';
 import { handleWasmError } from '../../wasm/wasmError';
 import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../../wasm/moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';

@@ -11,7 +11,7 @@
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
-vi.mock('../src/scene', () => ({
+vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 vi.mock('../src/render/customDraw', () => ({
@@ -37,7 +37,7 @@ vi.mock('../src/asset', () => ({
     preloadSceneAssets: vi.fn().mockResolvedValue({ loadedTextures: new Set(), loadedFonts: new Set(), loadedMaterials: new Set(), missing: [] }),
 }));
 
-import { SceneManagerState } from '../src/sceneManager';
+import { SceneManagerState } from '../src/scene/sceneManager';
 
 const SCENE_DATA = { version: '1.0', name: 'Test', entities: [] };
 

@@ -7,8 +7,8 @@
 
 import { Entity } from '../types';
 import { ComponentDef } from './component';
-import { validateComponentData, formatValidationErrors, assetFieldNames } from '../validation';
-import { log } from '../logger';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../util/validation';
+import { log } from '../util/logger';
 import { reorderMapByRank, type RankOf } from './entityOrder';
 
 export interface InsertResult<T> {

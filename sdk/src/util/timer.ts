@@ -5,13 +5,13 @@
  * @brief   Frame-based timer system integrated with engine loop
  */
 
-import { defineResource, Res } from './ecs/resource';
-import { defineSystem } from './ecs/system';
-import { Schedule } from './ecs/system';
-import { Time } from './ecs/resource';
+import { defineResource, Res } from '../ecs/resource';
+import { defineSystem } from '../ecs/system';
+import { Schedule } from '../ecs/system';
+import { Time } from '../ecs/resource';
 import { playModeOnly } from './env';
 import { log } from './logger';
-import type { Plugin } from './app';
+import type { Plugin } from '../app/app';
 
 // =============================================================================
 // Timer Entry

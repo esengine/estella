@@ -5,14 +5,14 @@
  * engine (mesh2d_setGeometry) and carries it through scene save/load as an
  * out-of-band field (variable-size payloads are not C++ component fields).
  */
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
 import type { Mesh2DGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { registerSceneComponentCodec } from '../scene';
+import { registerSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
 
 function packRgba(colors: number[], v: number): number {

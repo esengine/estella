@@ -6,7 +6,7 @@ import {
     SceneStreamingController,
     type StreamCell,
     type SceneStreamHost,
-} from '../src/sceneStreaming';
+} from '../src/scene/sceneStreaming';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 

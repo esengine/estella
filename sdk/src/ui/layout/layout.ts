@@ -9,7 +9,7 @@
  * that re-solves after scroll/list mutations. Co-located with the
  * `flex`/`safe-area` schemas in this module.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { registerComponent } from '../../ecs/component';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { SystemLabel } from '../../ecs/systemLabels';

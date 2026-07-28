@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { createHeadlessApp } from '../src/runtime/webAppFactory';
 import { defineComponent, clearUserComponents, Transform } from '../src/ecs/component';
 import type { ESEngineModule } from '../src/wasm';

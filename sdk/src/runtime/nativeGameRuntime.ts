@@ -15,16 +15,16 @@
  *          before the async boot settles).
  */
 
-import type { App } from '../app';
+import type { App } from '../app/app';
 import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
 import type { NativeBridge } from '../platform/native';
 import { platformReadTextFile } from '../platform';
 import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers, type PackagedGameConfig } from './packagedRuntime';
-import type { SceneData } from '../scene';
+import type { SceneData } from '../scene/scene';
 import type { ThemeOverrides } from '../ui';
 import { parseThemeOverrides } from '../ui';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export interface NativeGameOptions {
     /** The host's capability bridge (packaged files, image decode, input). */

@@ -16,7 +16,7 @@
  * flows the image. Textures resolve by `src` through `Assets.loadTexture`,
  * cached; a child stays hidden until its texture lands.
  */
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { resolveTextFamily } from './font-registry';
 import type { Entity } from '../../types';
@@ -31,7 +31,7 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { Assets } from '../../asset/AssetPlugin';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import type { Assets as AssetsApi } from '../../asset/Assets';
 
 const WHITE = { r: 1, g: 1, b: 1, a: 1 };

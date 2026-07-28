@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Logger, LogLevel, ConsoleLogHandler, type LogHandler, type LogEntry } from '../src/logger';
+import { Logger, LogLevel, ConsoleLogHandler, type LogHandler, type LogEntry } from '../src/util/logger';
 
 describe('Logger', () => {
     let logger: Logger;
@@ -231,7 +231,7 @@ describe('Logger', () => {
 
     describe('global functions', () => {
         it('should export convenience functions', async () => {
-            const { getLogger, setLogLevel, debug, info, warn, error } = await import('../src/logger');
+            const { getLogger, setLogLevel, debug, info, warn, error } = await import('../src/util/logger');
 
             expect(getLogger).toBeDefined();
             expect(setLogLevel).toBeDefined();
@@ -242,12 +242,12 @@ describe('Logger', () => {
         });
 
         it('getLogger should return a Logger instance', async () => {
-            const { getLogger } = await import('../src/logger');
+            const { getLogger } = await import('../src/util/logger');
             expect(getLogger()).toBeInstanceOf(Logger);
         });
 
         it('setLogLevel should change default logger level', async () => {
-            const { getLogger, setLogLevel } = await import('../src/logger');
+            const { getLogger, setLogLevel } = await import('../src/util/logger');
             const l = getLogger();
             l.clearHandlers();
             l.addHandler(mockHandler);
@@ -259,7 +259,7 @@ describe('Logger', () => {
         });
 
         it('shorthand functions should log through default logger', async () => {
-            const mod = await import('../src/logger');
+            const mod = await import('../src/util/logger');
             const l = mod.getLogger();
             l.clearHandlers();
             l.addHandler(mockHandler);

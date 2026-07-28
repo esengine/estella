@@ -7,9 +7,9 @@
  *        audio/video/spine plugins already follow.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
-import { setEditorMode, setPlayMode } from '../src/env';
+import { setEditorMode, setPlayMode } from '../src/util/env';
 import { createMockModule } from './mocks/wasm';
 import { Mesh2DPlugin, Meshes2D } from '../src/render/mesh2d';
 import { ParticlePlugin } from '../src/particle/ParticlePlugin';

@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 import { defineComponent } from '../src/ecs/component';
 
 const setTextureMetadata = vi.fn();

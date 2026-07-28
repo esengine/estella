@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { registerComponent } from '../../ecs/component';
@@ -16,7 +16,7 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { Transform, type TransformData } from '../../ecs/component';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { Res } from '../../ecs/resource';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
@@ -31,7 +31,7 @@ import { uiWorldToScreen } from '../util/ui-pick';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 /** Masking bullet for password fields. */
 const PASSWORD_CHAR = '●';

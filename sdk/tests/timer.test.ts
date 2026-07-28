@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TimerManager } from '../src/timer';
+import { TimerManager } from '../src/util/timer';
 
 describe('TimerManager', () => {
     let manager: TimerManager;

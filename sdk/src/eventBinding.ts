@@ -26,14 +26,14 @@
  */
 import { defineComponent, Children, Name, Parent } from './ecs/component';
 import type { ChildrenData, NameData, ParentData } from './ecs/component';
-import type { App, Plugin } from './app';
+import type { App, Plugin } from './app/app';
 import type { Entity } from './types';
 import type { World } from './ecs/world';
 import { defineSystem, Schedule } from './ecs/system';
 import { Commands, type CommandsInstance } from './ecs/commands';
 import { Res, Time, type TimeData } from './ecs/resource';
-import { playModeOnly } from './env';
-import { log } from './logger';
+import { playModeOnly } from './util/env';
+import { log } from './util/logger';
 import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './ecs/entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';
 import { aiRegistry, type AiContext } from './ai/fsm/AiContext';

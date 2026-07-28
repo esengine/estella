@@ -5,7 +5,7 @@
  * @brief   Resource system for global singleton data
  */
 
-import { deepClone } from '../deepClone';
+import { deepClone } from '../util/deepClone';
 
 // =============================================================================
 // Resource Definition

@@ -10,7 +10,7 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Transform, Sprite, Canvas } from '../src/ecs/component';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';

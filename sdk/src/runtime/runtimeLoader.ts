@@ -6,7 +6,7 @@
  */
 
 import { SceneOwner } from '../ecs/component';
-import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene';
+import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
 import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -17,13 +17,13 @@ import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from '../physics/PhysicsPlugin';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { SpinePlugin } from '../spine/SpinePlugin';
-import type { App } from '../app';
+import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource } from '../asset/AssetPlugin';
 import { transcoderFromModule, type BasisWasmModule } from '../asset/basisTranscoder';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
-import { SceneManager, type SceneConfig } from '../sceneManager';
+import { SceneManager, type SceneConfig } from '../scene/sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
@@ -31,10 +31,10 @@ import { VideoPlayer } from '../video/VideoAPI';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
-import { flushPendingSystems } from '../app';
+import { flushPendingSystems } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from '../spine/loadSpineScene';
 import { DragonBonesPlugin } from '../dragonbones/DragonBonesPlugin';

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/scene', () => ({
+vi.mock('../src/scene/scene', () => ({
     // Invoke the caller's onProgress so we can assert the manager forwarded it.
     loadSceneWithAssets: vi.fn((_w: unknown, _d: unknown, opts: { onProgress?: (l: number, t: number) => void }) => {
         opts?.onProgress?.(3, 3);
@@ -17,7 +17,7 @@ vi.mock('../src/render/customDraw', () => ({ registerDrawCallback: vi.fn(), unre
 vi.mock('../src/postprocess', () => ({ PostProcess: { bind: vi.fn(), unbind: vi.fn() }, PostProcessStack: vi.fn() }));
 vi.mock('../src/render/material', () => ({ Material: { release: vi.fn(), createShader: vi.fn() }, defineResource: vi.fn() }));
 
-import { SceneManagerState } from '../src/sceneManager';
+import { SceneManagerState } from '../src/scene/sceneManager';
 
 function createMockApp() {
     const entities = new Map<number, Map<symbol, unknown>>();

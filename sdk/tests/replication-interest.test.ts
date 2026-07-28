@@ -8,7 +8,7 @@
  * (including installing/removing a policy mid-session).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { defineComponent, clearUserComponents, Name } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import {

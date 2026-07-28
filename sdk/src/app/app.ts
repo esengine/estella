@@ -5,32 +5,32 @@
  * @brief   Application builder and web platform integration
  */
 
-import { World } from './ecs/world';
-import { Schedule, SystemDef, SystemRunner, SystemSet, type RunCondition } from './ecs/system';
-import { ResourceStorage, Time, TimeData, type ResourceDef } from './ecs/resource';
-import { EventRegistry, type EventDef } from './ecs/event';
-import type { ESEngineModule, CppRegistry } from './wasm';
-import type { BridgeConnectOptions } from './ecs/bridge/BuiltinBridge';
-import { UICameraInfo } from './ui/core/ui-camera-info';
-import { inputPlugin, Input } from './input/input';
-import { assetPlugin } from './asset';
-import { prefabsPlugin } from './prefabServer';
-import { setWasmErrorHandler } from './wasm/wasmError';
+import { World } from '../ecs/world';
+import { Schedule, SystemDef, SystemRunner, SystemSet, type RunCondition } from '../ecs/system';
+import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { EventRegistry, type EventDef } from '../ecs/event';
+import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
+import { UICameraInfo } from '../ui/core/ui-camera-info';
+import { inputPlugin, Input } from '../input/input';
+import { assetPlugin } from '../asset';
+import { prefabsPlugin } from '../prefab/prefabServer';
+import { setWasmErrorHandler } from '../wasm/wasmError';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
-import { platformNow } from './platform';
-import { RenderPipeline } from './render/renderPipeline';
-import type { SceneConfig } from './sceneManager';
-import { SceneManager } from './sceneManager';
-import { sceneManagerPlugin } from './scenePlugin';
-import { getDefaultContext } from './ecs/context';
-import { setLinearColorSpace } from './env';
-import { seedEngineComponents } from './ecs/component';
-import { cameraPlugin } from './camera/CameraPlugin';
-import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from './camera/ScreenScaling';
-import { PhysicsRuntime } from './physics/PhysicsRuntime';
+import { platformNow } from '../platform';
+import { RenderPipeline } from '../render/renderPipeline';
+import type { SceneConfig } from '../scene/sceneManager';
+import { SceneManager } from '../scene/sceneManager';
+import { sceneManagerPlugin } from '../scene/scenePlugin';
+import { getDefaultContext } from '../ecs/context';
+import { setLinearColorSpace } from '../util/env';
+import { seedEngineComponents } from '../ecs/component';
+import { cameraPlugin } from '../camera/CameraPlugin';
+import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
+import { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
-import type { SideModuleHost } from './sideModules/host';
-import { log } from './logger';
+import type { SideModuleHost } from '../sideModules/host';
+import { log } from '../util/logger';
 
 // =============================================================================
 // Plugin Interface

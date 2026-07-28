@@ -8,7 +8,7 @@
  * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiPlugin } from '../src/ui/ui-plugin';
 import { createListView } from '../src/ui/widgets/list-view';

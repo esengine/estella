@@ -27,7 +27,7 @@ import type {
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { toBuildPath } from '../../assetTypes';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import type { MiniGameGlobal, MiniGameProfile, MiniGameCanvas, MiniGameFileSystemManager, MiniGameTouchEvent } from './api';
 import { createPrimaryPointer } from '../primaryPointer';
 import { mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';

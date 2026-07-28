@@ -15,7 +15,7 @@ import { Material, isTextureRef, classifyUniformArity, type UniformValue, type T
 import { BlendMode } from './blend';
 import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export { BlendMode } from './blend';
 

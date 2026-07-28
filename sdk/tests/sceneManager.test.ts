@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../src/scene', () => ({
+vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 
@@ -66,9 +66,9 @@ vi.mock('../src/defaults', () => ({
     },
 }));
 
-import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/sceneManager';
+import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/scene/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText } from '../src/ecs/component';
-import { loadSceneWithAssets } from '../src/scene';
+import { loadSceneWithAssets } from '../src/scene/scene';
 import { registerDrawCallback, unregisterDrawCallback } from '../src/render/customDraw';
 import { PostProcess } from '../src/postprocess';
 import { Material } from '../src/render/material';
@@ -776,7 +776,7 @@ describe('SceneManager', () => {
             };
 
             // We need to set up getResource to return the manager
-            const { SceneManager } = await import('../src/sceneManager');
+            const { SceneManager } = await import('../src/scene/sceneManager');
             app.getResource.mockImplementation((key: any) => {
                 if (key === SceneManager || key?._name === 'SceneManager') return manager;
                 return undefined;
@@ -800,7 +800,7 @@ describe('SceneManager', () => {
                 _fn: innerFn,
             };
 
-            const { SceneManager } = await import('../src/sceneManager');
+            const { SceneManager } = await import('../src/scene/sceneManager');
             app.getResource.mockImplementation((key: any) => {
                 if (key === SceneManager || key?._name === 'SceneManager') return manager;
                 return undefined;

@@ -9,7 +9,7 @@
  *        reflection-driven codec round trip.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { ABI_LAYOUT_HASH } from '../src/ecs/component.generated';
 import { MemoryTransport } from '../src/net/MemoryTransport';

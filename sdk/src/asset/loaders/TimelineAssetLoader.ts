@@ -3,7 +3,7 @@
 import type { AssetLoader, LoadContext, TimelineResult } from '../AssetLoader';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
 import { registerTimelineAsset, registerTimelineTextureHandles } from '../../timeline/TimelineAssetRegistry';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly type = 'timeline';

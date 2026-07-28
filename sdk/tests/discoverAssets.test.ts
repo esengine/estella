@@ -7,7 +7,7 @@ import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
 import { TilemapLayer } from '../src/ecs/component';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 
 const SPRITE_NAME = 'DiscoverTest_Sprite';
 const AUDIO_NAME = 'DiscoverTest_Audio';

@@ -14,10 +14,10 @@
  * two roles (the area, and whoever walked into it) both routinely want to react;
  * each side receives the OTHER entity in the payload.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res } from '../ecs/resource';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import { ensureEntityEvents } from '../ecs/entityEvents';
 import { PhysicsEvents, type PhysicsEventsData } from './PhysicsTypes';
 import type { Entity } from '../types';

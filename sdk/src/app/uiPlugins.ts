@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { uiPlugin } from './ui/ui-plugin';
+import { uiPlugin } from '../ui/ui-plugin';
 import type { Plugin } from './app';
 
 // The ten hand-ordered UI concept plugins are now composed into

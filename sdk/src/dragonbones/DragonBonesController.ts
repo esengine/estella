@@ -19,8 +19,8 @@ import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches
 import type { SkeletalBounds, SkeletalController } from '../skeletal/types';
 import type { DragonBonesWasmModule, DragonBonesWrappedAPI } from './DragonBonesModuleLoader';
 import { withMalloc } from '../wasm/wasmScratch';
-import { encodeUtf8 } from '../utf8';
-import { log } from '../logger';
+import { encodeUtf8 } from '../util/utf8';
+import { log } from '../util/logger';
 
 /** Parse a `["a","b"]` the module published; a malformed one is no names, not a throw. */
 function parseNames(json: string): string[] {

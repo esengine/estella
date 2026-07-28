@@ -6,7 +6,7 @@ import {
     type TiledMapData, type TiledTilesetData,
 } from '../../tilemap/tiledLoader';
 import { registerTilemapSource, unregisterTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     readonly type = 'tilemap';

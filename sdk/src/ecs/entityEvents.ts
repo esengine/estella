@@ -21,8 +21,8 @@
  */
 import { defineResource } from './resource';
 import type { Entity } from '../types';
-import type { App } from '../app';
-import { log } from '../logger';
+import type { App } from '../app/app';
+import { log } from '../util/logger';
 
 export interface EntityEvent<TData = unknown> {
     /** Event type string (e.g. `'click'`, `'change'`). */

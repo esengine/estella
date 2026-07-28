@@ -18,11 +18,11 @@
  */
 import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
-import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene';
+import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene/scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../wasm/resourceManager';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { parseSpineAtlasPages } from './atlasPages';
 import { createTextureFromPixels, type RuntimeAssetSource } from '../runtime/runtimeAssets';

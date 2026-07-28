@@ -5,7 +5,7 @@ import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
-import { log } from '../logger';
+import { log } from '../util/logger';
 import { submitEntityMeshes } from '../skeletal/submitMeshes';
 
 interface EntityInfo {

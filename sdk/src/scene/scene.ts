@@ -5,15 +5,15 @@
  * @brief   Scene loading utilities
  */
 
-import { World } from './ecs/world';
-import { Entity, INVALID_ENTITY } from './types';
-import { getComponent, Name, Camera, RuntimeOnly } from './ecs/component';
-import { deepClone } from './deepClone';
-import { discoverSceneAssets } from './asset/discoverAssets';
-import { requireResourceManager } from './wasm/resourceManager';
-import { validateComponentData, formatValidationErrors, assetFieldNames } from './validation';
-import { log } from './logger';
-import { ESTELLA_SCENE_GENERATOR } from './provenance';
+import { World } from '../ecs/world';
+import { Entity, INVALID_ENTITY } from '../types';
+import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
+import { deepClone } from '../util/deepClone';
+import { discoverSceneAssets } from '../asset/discoverAssets';
+import { requireResourceManager } from '../wasm/resourceManager';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../util/validation';
+import { log } from '../util/logger';
+import { ESTELLA_SCENE_GENERATOR } from '../util/provenance';
 import {
     expandEntry,
     preloadNestedPrefabs,
@@ -21,7 +21,7 @@ import {
     type PrefabData,
     type PrefabInstanceEntry,
     type ProcessedEntity,
-} from './prefab/index';
+} from '../prefab/index';
 
 // =============================================================================
 // Types
@@ -72,10 +72,10 @@ export interface LoadedSceneAssets {
 
 export type SceneLoadProgressCallback = (loaded: number, total: number) => void;
 
-export type MissingAssetCallback = (missing: import('./asset/Assets').MissingAsset[]) => void;
+export type MissingAssetCallback = (missing: import('../asset/Assets').MissingAsset[]) => void;
 
 export interface SceneLoadOptions {
-    assets?: import('./asset/Assets').Assets;
+    assets?: import('../asset/Assets').Assets;
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
     onProgress?: SceneLoadProgressCallback;
@@ -94,8 +94,8 @@ export interface SceneLoadOptions {
 }
 
 export class MissingAssetsError extends Error {
-    readonly missing: import('./asset/Assets').MissingAsset[];
-    constructor(missing: import('./asset/Assets').MissingAsset[]) {
+    readonly missing: import('../asset/Assets').MissingAsset[];
+    constructor(missing: import('../asset/Assets').MissingAsset[]) {
         super(`Scene load aborted: ${missing.length} asset(s) missing`);
         this.name = 'MissingAssetsError';
         this.missing = missing;

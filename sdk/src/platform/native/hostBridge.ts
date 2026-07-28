@@ -12,7 +12,7 @@
  *          compiler, and identical on every platform the host runs on.
  */
 
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import type {
     NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener,
     NativeTextEditorBridge, NativeTextEditorPush,

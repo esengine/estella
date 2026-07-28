@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 import { defineComponent } from '../src/ecs/component';
 import { getFsm, clearFsmStore } from '../src/ai/fsm/StateMachineAgent';
 import { getBt, clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';

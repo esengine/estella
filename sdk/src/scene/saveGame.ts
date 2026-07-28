@@ -8,7 +8,7 @@
  *          shipped game can evolve its save shape without bricking old saves.
  */
 
-import { Storage } from './storage';
+import { Storage } from '../util/storage';
 
 export interface SaveEnvelope<T> {
     /** Schema version the `data` was written at. */

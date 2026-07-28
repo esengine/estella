@@ -5,28 +5,28 @@
  * @brief   Scene management system for loading, switching, and unloading scenes
  */
 
-import type { App } from './app';
-import type { Entity, Color } from './types';
+import type { App } from '../app/app';
+import type { Entity, Color } from '../types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
-import { discoverSceneAssets } from './asset/discoverAssets';
-import type { SystemDef } from './ecs/system';
-import { Material } from './render/material';
-import type { DrawCallback } from './render/customDraw';
-import { Schedule } from './ecs/system';
+import { discoverSceneAssets } from '../asset/discoverAssets';
+import type { SystemDef } from '../ecs/system';
+import { Material } from '../render/material';
+import type { DrawCallback } from '../render/customDraw';
+import { Schedule } from '../ecs/system';
 import { loadSceneWithAssets } from './scene';
-import { registerDrawCallback, unregisterDrawCallback } from './render/customDraw';
-import { PostProcess, PostProcessStack } from './postprocess';
-import { defineResource } from './ecs/resource';
-import { SceneTransitionController } from './scene/SceneTransitionController';
+import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import { PostProcess, PostProcessStack } from '../postprocess';
+import { defineResource } from '../ecs/resource';
+import { SceneTransitionController } from './SceneTransitionController';
 import {
     SceneOwner, Disabled, Sprite, SpineAnimation, BitmapText,
     ShapeRenderer, ParticleEmitter,
     type AnyComponentDef,
-} from './ecs/component';
-import { UIVisual } from './ui/core/ui-visual';
-import { Assets } from './asset/AssetPlugin';
-import { RuntimeConfig } from './defaults';
-import { log } from './logger';
+} from '../ecs/component';
+import { UIVisual } from '../ui/core/ui-visual';
+import { Assets } from '../asset/AssetPlugin';
+import { RuntimeConfig } from '../defaults';
+import { log } from '../util/logger';
 
 const RENDERABLE_COMPONENTS: AnyComponentDef[] = [
     Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIVisual,

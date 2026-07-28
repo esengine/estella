@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import { defineComponent } from '../src/ecs/component';
-import { serializeScene } from '../src/scene';
+import { serializeScene } from '../src/scene/scene';
 import { DimensionUnit, px, percent, auto, isAuto } from '../src/ui/core/dimension';
 
 describe('Dimension foundation (REARCH_GUI F2)', () => {

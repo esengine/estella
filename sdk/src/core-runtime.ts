@@ -195,7 +195,7 @@ export {
     type TimeData,
 } from './ecs/resource';
 
-export { Storage } from './storage';
+export { Storage } from './util/storage';
 
 // =============================================================================
 // Input
@@ -383,19 +383,19 @@ export {
     type PluginDependency,
     type WebAppOptions,
     type RenderSurfaceSource,
-} from './app';
+} from './app/app';
 
 // =============================================================================
 // Subsystem observability
 // =============================================================================
 
-export { SubsystemRegistry } from './subsystems';
+export { SubsystemRegistry } from './app/subsystems';
 export type {
     SubsystemStatus,
     SubsystemPhase,
     SubsystemActivity,
     SubsystemEvent,
-} from './subsystems';
+} from './app/subsystems';
 
 // =============================================================================
 // WASM Types
@@ -421,9 +421,9 @@ export {
     setFxEditPreview,
     isFxEditPreview,
     fxPreviewOrPlayMode,
-} from './env';
+} from './util/env';
 
-export type { RunCondition } from './app';
+export type { RunCondition } from './app/app';
 
 export { probeRegistrations } from './hotReload';
 export type { ProbedRegistrations } from './hotReload';

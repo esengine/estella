@@ -53,7 +53,7 @@ export {
     type SaveMigration,
     type SaveStorage,
     type SaveManagerOptions,
-} from './saveGame';
+} from './scene/saveGame';
 
 // =============================================================================
 // Entity Utils
@@ -142,7 +142,7 @@ export {
     LogLevel,
     type LogEntry,
     type LogHandler,
-} from './logger';
+} from './util/logger';
 
 // =============================================================================
 // GL Debug
@@ -186,7 +186,7 @@ export {
     TimerHandle,
     TimerRes,
     timerPlugin,
-} from './timer';
+} from './util/timer';
 
 export { velocityPlugin, velocitySystem } from './velocity';
 
@@ -263,7 +263,7 @@ export {
 // Core Plugin
 // =============================================================================
 
-export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
+export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './app/corePlugin';
 
 // The engine entry points a plugin may call, from whichever core is present (the
 // wasm module on the web, a native host's bindings on a device) — the parameter

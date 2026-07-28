@@ -10,7 +10,7 @@
  * re-deriving state. TransactionManager holds the undo/redo stacks.
  */
 
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 // =============================================================================
 // Types

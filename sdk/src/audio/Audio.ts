@@ -5,7 +5,7 @@ import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../ecs/resource';
 import { RuntimeConfig } from '../defaults';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 /**
  * One decoded buffer's residency record. Mirrors the texture pool's

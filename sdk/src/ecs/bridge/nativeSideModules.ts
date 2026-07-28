@@ -23,11 +23,11 @@
 
 import { createSideModuleHost, type SideModuleHost, type SideModule } from '../../sideModules/host';
 import { SPINE_VERSIONS, spineModuleId, type SideModuleId } from '../../sideModules/registry';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
 // Not TextEncoder/TextDecoder: this file runs inside QuickJS on a device, which
 // has neither. See utf8.ts.
-import { encodeUtf8, decodeUtf8 } from '../../utf8';
+import { encodeUtf8, decodeUtf8 } from '../../util/utf8';
 
 /**
  * One global per subsystem that proves the host compiled it in. Picked from the

@@ -14,10 +14,10 @@ import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets as AssetsClass } from '../src/asset/Assets';
 import { ManifestModel } from '../src/asset/AddressableManifest';
 import { World } from '../src/ecs/world';
-import type { App } from '../src/app';
+import type { App } from '../src/app/app';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 
 const fakeModule = { _malloc: () => 0, _free: () => {} } as unknown as ESEngineModule;
 

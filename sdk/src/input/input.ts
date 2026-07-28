@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { getPlatform, platformUnbindInputEvents } from '../platform';
 import type { GamepadSnapshot } from '../platform/types';
 import { inputRouter } from './inputRouter';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import type { Entity } from '../types';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
@@ -10,8 +10,8 @@ import { WorldTransform, type WorldTransformData } from '../ecs/component';
 import { platformCreateAudioBackend, platformOnMemoryWarning } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
-import { isEditor, isPlayMode } from '../env';
-import { log } from '../logger';
+import { isEditor, isPlayMode } from '../util/env';
+import { log } from '../util/logger';
 
 export interface AudioPluginConfig {
     initialPoolSize?: number;

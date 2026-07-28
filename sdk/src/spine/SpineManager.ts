@@ -8,7 +8,7 @@ import type { SpineModuleFactory } from './SpineModuleLoader';
 import { wrapSpineModule } from './SpineModuleLoader';
 import { SpineModuleController } from './SpineController';
 import { ModuleBackend } from './ModuleBackend';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
 

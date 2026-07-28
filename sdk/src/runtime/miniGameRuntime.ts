@@ -25,8 +25,8 @@ import { MiniGamePlatformAdapter } from '../platform/minigame';
 import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { Vec2 } from '../types';
-import type { SceneData } from '../scene';
-import { log } from '../logger';
+import type { SceneData } from '../scene/scene';
+import { log } from '../util/logger';
 
 // =============================================================================
 // Emscripten WASM Instantiation

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Wires the video system into an App: builds the backend, exposes VideoPlayer,
 // and runs one play-mode system that streams each Video onto its renderable.
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import { defineSystem, Schedule } from '../ecs/system';
@@ -16,8 +16,8 @@ import type { VideoStreamHandle } from './PlatformVideoBackend';
 import { NullVideoBackend } from './NullVideoBackend';
 import { Audio } from '../audio/Audio';
 import { getPlatform } from '../platform/base';
-import { isEditor, isPlayMode } from '../env';
-import { log } from '../logger';
+import { isEditor, isPlayMode } from '../util/env';
+import { log } from '../util/logger';
 
 const UI_VISUAL_IMAGE = 2; // UIVisualType.Image — samples the texture
 

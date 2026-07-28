@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
@@ -9,7 +9,7 @@ import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { SpriteAnimation, type SpriteAnimationAPI } from '../animation/SpriteAnimator';
 import { Localization, type LocalizationAPI } from '../i18n/Localization';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 export type AssetsData = AssetsClass;
 

@@ -130,7 +130,7 @@ export {
     type MissingAssetCallback,
     MissingAssetsError,
     type SliceBorder,
-} from './scene';
+} from './scene/scene';
 
 // =============================================================================
 // Scene Manager
@@ -145,7 +145,7 @@ export {
     type SceneContext,
     type SceneStatus,
     type TransitionOptions,
-} from './sceneManager';
+} from './scene/sceneManager';
 
 export {
     SceneStreaming,
@@ -156,14 +156,14 @@ export {
     type StreamPolicy,
     type SceneStreamingConfig,
     type SceneStreamHost,
-} from './sceneStreaming';
+} from './scene/sceneStreaming';
 
-export { sceneManagerPlugin } from './scenePlugin';
+export { sceneManagerPlugin } from './scene/scenePlugin';
 
 export {
     transitionTo,
     type TransitionConfig,
-} from './sceneTransition';
+} from './scene/sceneTransition';
 
 // =============================================================================
 // Prefab
@@ -225,7 +225,7 @@ export {
     type ExternalEntityRef,
 } from './prefab/index';
 
-export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabServer';
+export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefab/prefabServer';
 
 // =============================================================================
 // Runtime Loader

@@ -11,7 +11,7 @@
  * system layer.
  */
 
-import type { Plugin, App } from '../app';
+import type { Plugin, App } from '../app/app';
 import {
     loadPhysicsModule,
     type PhysicsWasmModule,

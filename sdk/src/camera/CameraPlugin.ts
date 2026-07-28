@@ -5,11 +5,11 @@
  * @brief   Camera system plugin — collects cameras, computes view-projection, drives rendering
  */
 
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import type { SystemDef } from '../ecs/system';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import { followUpdate } from './FollowTarget';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
@@ -23,7 +23,7 @@ import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDir
 import { RenderPipeline } from '../render/renderPipeline';
 import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
-import { SceneManager } from '../sceneManager';
+import { SceneManager } from '../scene/sceneManager';
 import { ortho, perspective, invertViewZ, multiply, IDENTITY } from '../math/mat4';
 
 // =============================================================================

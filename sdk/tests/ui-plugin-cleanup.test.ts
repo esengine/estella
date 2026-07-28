@@ -6,12 +6,12 @@
  *        teardown to its sub-plugins or their cleanups are unreachable.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { uiPlugin } from '../src/ui/ui-plugin';
 import { safeAreaPlugin } from '../src/ui/layout/safe-area';
 import { textInputPlugin, TextInputPlugin } from '../src/ui/text/text-input-plugin';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
-import { setEditorMode, setPlayMode } from '../src/env';
+import { setEditorMode, setPlayMode } from '../src/util/env';
 import { createMockModule } from './mocks/wasm';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';

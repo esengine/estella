@@ -7,7 +7,7 @@ import type { World } from '../../ecs/world';
 import type { DataSource } from './data-source';
 import type { LayoutProvider, Rect } from './layout-provider';
 import { ViewPool, type ViewPoolTemplate } from './view-pool';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export interface ListViewItemTemplate<T = unknown> extends ViewPoolTemplate<T> {}
 

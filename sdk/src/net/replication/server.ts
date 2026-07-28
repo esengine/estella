@@ -20,9 +20,9 @@ import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Name, Parent, getComponent } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
-import { serializeEntityComponents, type SceneComponentData } from '../../scene';
+import { serializeEntityComponents, type SceneComponentData } from '../../scene/scene';
 import { NetChannel, type NetTransport } from '../NetChannel';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,

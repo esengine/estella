@@ -5,7 +5,7 @@ import type { MaterialAssetData, ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { builtinShaderTemplate } from '../../render/builtinShaders';
 import { AsyncCache } from '../AsyncCache';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 // A `builtin:<id>` shader ref names a stock template compiled from its in-code source (no file);
 // anything else is a path to a project `.esshader`. Kept a literal (not a shared export) so it

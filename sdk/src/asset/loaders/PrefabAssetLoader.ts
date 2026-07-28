@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, PrefabResult } from '../AssetLoader';
 import { migratePrefabData } from '../../prefab';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class PrefabAssetLoader implements AssetLoader<PrefabResult> {
     readonly type = 'prefab';

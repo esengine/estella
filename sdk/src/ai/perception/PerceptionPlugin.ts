@@ -11,10 +11,10 @@
  *          skipped (range + FOV only) otherwise — no hard physics dependency.
  */
 
-import type { App, Plugin } from '../../app';
+import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
-import { playModeOnly } from '../../env';
+import { playModeOnly } from '../../util/env';
 import { Transform } from '../../ecs/component';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Physics, type PhysicsAPI } from '../../physics';

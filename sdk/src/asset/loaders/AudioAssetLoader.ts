@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, AudioResult } from '../AssetLoader';
 import type { AudioAPI } from '../../audio/Audio';
-import { log } from '../../logger';
+import { log } from '../../util/logger';
 
 export class AudioAssetLoader implements AssetLoader<AudioResult> {
     readonly type = 'audio';

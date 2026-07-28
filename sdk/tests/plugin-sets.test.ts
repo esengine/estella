@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     simulationBasePlugins, presentationBasePlugins, webBasePlugins,
-} from '../src/pluginSets';
+} from '../src/app/pluginSets';
 
 const names = (plugins: { name: string }[]): string[] => plugins.map((p) => p.name).sort();
 

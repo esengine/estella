@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
 import { defineComponent, getComponent } from '../ecs/component';
-import { playModeOnly } from '../env';
+import { playModeOnly } from '../util/env';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';

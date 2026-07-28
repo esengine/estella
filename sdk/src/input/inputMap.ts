@@ -15,7 +15,7 @@
 import { Schedule, defineSystem, addSystemToSchedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Input, InputState, GamepadAxis, GamepadButton } from './input';
-import { Storage } from '../storage';
+import { Storage } from '../util/storage';
 
 // =============================================================================
 // Binding model (plain, serializable — also the rebind / persistence format)

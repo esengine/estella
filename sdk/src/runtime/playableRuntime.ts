@@ -10,7 +10,7 @@
  *          self-gate off `app.sideModules` exactly as in every other realm. This
  *          entry only owns the embedded asset source + the runtime boot.
  */
-import type { App } from '../app';
+import type { App } from '../app/app';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
@@ -19,7 +19,7 @@ import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import type { Vec2 } from '../types';
-import type { SceneData } from '../scene';
+import type { SceneData } from '../scene/scene';
 import { Audio } from '../audio/Audio';
 import { VideoPlayer } from '../video/VideoAPI';
 

@@ -13,7 +13,7 @@
  * UIBehavior reads it at build). The concept plugins stay individually exported
  * for granular/advanced wiring (e.g. a layout-only test harness).
  */
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import type { Entity } from '../types';
 
 import { uiLayoutPlugin } from './layout/layout';

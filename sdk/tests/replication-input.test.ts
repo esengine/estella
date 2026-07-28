@@ -8,7 +8,7 @@
  *        process.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { defineSystem, Schedule, GetWorld } from '../src/ecs/system';
 import { MemoryTransport } from '../src/net/MemoryTransport';

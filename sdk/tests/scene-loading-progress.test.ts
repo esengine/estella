@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({

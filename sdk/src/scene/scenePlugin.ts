@@ -5,16 +5,16 @@
  * @brief   Plugin that provides scene management capabilities
  */
 
-import type { App, Plugin } from './app';
+import type { App, Plugin } from '../app/app';
 import { SceneManager, SceneManagerState } from './sceneManager';
 import { SceneStreaming, SceneStreamingController } from './sceneStreaming';
-import { defineSystem, Schedule, GetWorld } from './ecs/system';
-import { Res, ResMut, Time } from './ecs/resource';
-import { Transform, type TransformData } from './ecs/component';
-import { playModeOnly } from './env';
-import type { SystemDef } from './ecs/system';
-import type { World } from './ecs/world';
-import { log } from './logger';
+import { defineSystem, Schedule, GetWorld } from '../ecs/system';
+import { Res, ResMut, Time } from '../ecs/resource';
+import { Transform, type TransformData } from '../ecs/component';
+import { playModeOnly } from '../util/env';
+import type { SystemDef } from '../ecs/system';
+import type { World } from '../ecs/world';
+import { log } from '../util/logger';
 
 const sceneTransitionSystem = defineSystem(
     [ResMut(SceneManager), Res(Time)],

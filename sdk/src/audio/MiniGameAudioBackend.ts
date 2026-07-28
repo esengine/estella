@@ -15,7 +15,7 @@ import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, 
 import type { AudioMixer } from './AudioMixer';
 import type { MiniGameGlobal, MiniGameInnerAudioContext } from '../platform/minigame/api';
 import { scalar } from '../math/scalar';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 class MiniGameAudioHandle implements AudioHandle {
     readonly id: number;

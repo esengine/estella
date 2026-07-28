@@ -10,7 +10,7 @@
  *          nothing is fetched until something asks for the manager, and an app
  *          that never does never touches the side module at all.
  */
-import type { App, Plugin } from '../app';
+import type { App, Plugin } from '../app/app';
 import { Schedule } from '../ecs/system';
 import type { SystemDef } from '../ecs/system';
 import type { Entity } from '../types';
@@ -19,7 +19,7 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import { DragonBonesManager } from './DragonBonesManager';
 import { DragonBonesModuleController } from './DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from './DragonBonesModuleLoader';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 /** Reach the manager from a system or from gameplay code. Null until acquired. */
 export const DragonBones = defineResource<DragonBonesManager | null>(null, 'DragonBones');

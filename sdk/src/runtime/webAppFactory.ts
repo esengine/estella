@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { App, createWebApp as _createWebApp, type Plugin, type WebAppOptions } from '../app';
+import { App, createWebApp as _createWebApp, type Plugin, type WebAppOptions } from '../app/app';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { assetPlugin } from '../asset';
-import { prefabsPlugin } from '../prefabServer';
-import { sceneManagerPlugin } from '../scenePlugin';
+import { prefabsPlugin } from '../prefab/prefabServer';
+import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { seedEngineComponents } from '../ecs/component';
-import { uiPlugins } from '../uiPlugins';
-import { simulationBasePlugins, webBasePlugins } from '../pluginSets';
+import { uiPlugins } from '../app/uiPlugins';
+import { simulationBasePlugins, webBasePlugins } from '../app/pluginSets';
 import { SpinePlugin } from '../spine';
 import { DragonBonesPlugin } from '../dragonbones';
 import { createFetchSideModuleHost, type SideModuleHost } from '../sideModules';

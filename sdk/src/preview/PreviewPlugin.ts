@@ -5,18 +5,18 @@
  * @brief   Plugin for editor preview functionality
  */
 
-import type { App, Plugin } from '../app';
-import type { SceneData } from '../scene';
+import type { App, Plugin } from '../app/app';
+import type { SceneData } from '../scene/scene';
 import { loadRuntimeScene } from '../runtime/runtimeLoader';
 import { Transform, Camera, Canvas, ProjectionType, ClearFlags, type TransformData, type CameraData, type CanvasData } from '../ecs/component';
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from '../defaults';
 import { platformFetch } from '../platform';
-import { SceneManager } from '../sceneManager';
+import { SceneManager } from '../scene/sceneManager';
 import { HttpBackend } from '../asset/Backend';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import type { RuntimeAssetSource } from '../runtime/runtimeAssets';
 import { SpinePlugin } from '../spine/SpinePlugin';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 const PREVIEW_SCENE = '__preview__';
 

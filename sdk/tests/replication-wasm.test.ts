@@ -7,7 +7,7 @@
  *        on Transform.hpp drives the whole pipeline — no per-component code.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { App } from '../src/app';
+import { App } from '../src/app/app';
 import { Transform, getReplicatedFields } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';

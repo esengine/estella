@@ -22,7 +22,7 @@ import {
     getComponentSkeletalFieldDescriptor,
     type SceneData,
     type SceneComponentData,
-} from '../src/scene';
+} from '../src/scene/scene';
 import type { Entity } from '../src/types';
 import { discoverSceneAssets } from '../src/asset/discoverAssets';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';

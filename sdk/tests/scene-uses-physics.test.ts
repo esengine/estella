@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { sceneUsesPhysics } from '../src/runtime/runtimeLoader';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 
 function scene(components: Array<{ type: string; data?: Record<string, unknown> }>): SceneData {
     return {

@@ -19,7 +19,7 @@ import type { Entity } from '../types';
 import { submitEntityMeshes, type SkeletalSubmitCore } from '../skeletal/submitMeshes';
 import type { SkeletalBounds } from '../skeletal/types';
 import { DragonBonesModuleController } from './DragonBonesController';
-import { log } from '../logger';
+import { log } from '../util/logger';
 
 /** How one entity's armature is posed and drawn. */
 interface EntityInfo {

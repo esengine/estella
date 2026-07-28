@@ -12,10 +12,10 @@ import { describe, it, expect } from 'vitest';
 import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import { VideoPlayer } from '../src/video/VideoAPI';
 import { World } from '../src/ecs/world';
-import type { App } from '../src/app';
+import type { App } from '../src/app/app';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';
-import type { SceneData } from '../src/scene';
+import type { SceneData } from '../src/scene/scene';
 
 const fakeModule = { _malloc: () => 0, _free: () => {} } as unknown as ESEngineModule;
 

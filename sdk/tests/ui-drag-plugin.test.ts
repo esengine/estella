@@ -10,8 +10,8 @@
  *        the emitted events.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flushPendingSystems } from '../src/app';
-import type { App } from '../src/app';
+import { flushPendingSystems } from '../src/app/app';
+import type { App } from '../src/app/app';
 import { Transform } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { UIEvents, UIEventQueue } from '../src/ui/core/events';
