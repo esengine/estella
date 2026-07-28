@@ -29,6 +29,7 @@ extern "C" {
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -75,6 +76,11 @@ struct HostState {
     bool ready = false;             ///< engine + JS booted once
     bool surfaceReady = false;      ///< a live window surface is bound (false while screen off)
     uint64_t frame = 0;
+    /// When the last frame was stepped, for the delta the next one reports. Unset
+    /// until the first frame and cleared whenever the surface goes away, so a
+    /// resume does not hand the game the time the app spent in the background.
+    std::chrono::steady_clock::time_point lastFrameAt{};
+    bool haveLastFrame = false;
 };
 
 /** The running host. Valid from the first line of {@link boot}; a binding can only

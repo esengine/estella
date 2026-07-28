@@ -28,6 +28,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <chrono>
+
 using namespace esengine;
 
 namespace eshost {
@@ -130,7 +132,12 @@ bool bindSurface() {
 }
 
 void surfaceLost() {
-    if (hostAlive()) host().surfaceReady = false;
+    if (!hostAlive()) return;
+    host().surfaceReady = false;
+    // The next frame is the first of a new run of them. Without this the game is
+    // handed however long the app spent backgrounded — clamped, but still a
+    // quarter-second jump the moment it comes back.
+    host().haveLastFrame = false;
 }
 
 bool booted() { return hostAlive() && host().ready; }
@@ -195,7 +202,29 @@ void frame() {
         if (!bindSurface()) return;
     }
 
-    JSValue dt = JS_NewFloat64(h.js, 1.0 / 60.0);
+    // How much time actually passed, not how much we wish had. A host is stepped
+    // by the display — CADisplayLink on iOS, the Choreographer on Android — so the
+    // rate is the panel's, and a fixed 1/60 is only right on a 60 Hz one. A 120 Hz
+    // phone ran this game at 2.02x real speed for exactly that reason, which reads
+    // as "the animations are too fast" rather than as a clock bug.
+    //
+    // Same policy as the web loop (App's rAF path): clamp the delta, because the
+    // alternative to a long frame is a game that teleports through it. The ceiling
+    // matches App.maxDeltaTime — one number, so a game behaves the same after a
+    // stall wherever it runs.
+    constexpr double kMaxDelta = 0.25;
+    constexpr double kFirstFrameDelta = 1.0 / 60.0;
+    const auto nowAt = std::chrono::steady_clock::now();
+    double deltaSeconds = kFirstFrameDelta;
+    if (h.haveLastFrame) {
+        deltaSeconds = std::chrono::duration<double>(nowAt - h.lastFrameAt).count();
+        if (deltaSeconds > kMaxDelta) deltaSeconds = kMaxDelta;
+        if (deltaSeconds < 0.0) deltaSeconds = 0.0;   // a clock that went backwards
+    }
+    h.lastFrameAt = nowAt;
+    h.haveLastFrame = true;
+
+    JSValue dt = JS_NewFloat64(h.js, deltaSeconds);
     callJs(h, "update", 1, &dt);
     JS_FreeValue(h.js, dt);
     pumpJs(h);   // run the App tick's async systems and any timers they set
