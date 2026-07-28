@@ -131,6 +131,18 @@ class WebPlatformAdapter implements PlatformAdapter {
         return createWebTextEditor();
     }
 
+    /** Hand a shipped font to the browser's font stack, which is what Canvas2D
+     *  resolves `ctx.font` families against. `document.fonts` is the only route:
+     *  a file on disk (or behind `estella://`) is invisible to Canvas2D until a
+     *  FontFace for it is added to the document. */
+    async registerFont(family: string, bytes: ArrayBuffer): Promise<void> {
+        if (typeof FontFace === 'undefined' || typeof document === 'undefined') return;
+        const face = new FontFace(family, bytes);
+        await face.load();
+        // `FontFaceSet.add` predates the lib.dom typing we compile against.
+        (document.fonts as unknown as { add(f: FontFace): void }).add(face);
+    }
+
     createCanvas(width: number, height: number): PlatformCanvas {
         let canvas: HTMLCanvasElement | OffscreenCanvas;
         if (typeof OffscreenCanvas !== 'undefined') {

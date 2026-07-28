@@ -399,6 +399,20 @@ export interface PlatformAdapter {
     rasterizeGlyph?(request: PlatformGlyphRequest): PlatformGlyph | null;
 
     /**
+     * Make a font file the app SHIPS usable under `family`, so `Text` can name
+     * it the same way it names a system font. Every platform resolves a family
+     * through its own text stack — Canvas2D on the web, the OS matcher on native
+     * — and none of them can see a file inside the project, so a shipped font
+     * has to be handed to that stack explicitly. This is that hand-off; the font
+     * asset loader calls it once per font.
+     *
+     * Optional: a host without it simply has no project fonts, and `Text` falls
+     * back to `fontFamily` (documented behaviour, not a silent failure).
+     * Resolves when the family is ready to rasterize with.
+     */
+    registerFont?(family: string, bytes: ArrayBuffer): Promise<void>;
+
+    /**
      * The OS text-editing surface for editable fields (see
      * {@link PlatformTextEditor}). Optional — a host without one (a headless
      * realm, the editor's edit mode) renders fields but cannot type into them.

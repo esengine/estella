@@ -3,13 +3,13 @@
 export type AssetContentType = 'json' | 'text' | 'binary' | 'image' | 'audio';
 
 export type AddressableAssetType =
-    | 'texture' | 'material' | 'spine' | 'bitmap-font'
+    | 'texture' | 'material' | 'spine' | 'bitmap-font' | 'font'
     | 'prefab' | 'json' | 'text' | 'binary' | 'audio';
 
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown';
 
@@ -63,6 +63,10 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['inputmap'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['bmfont'], contentType: 'json', editorType: 'bitmap-font', addressableType: 'bitmap-font', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['fnt'], contentType: 'text', editorType: 'bitmap-font', addressableType: 'bitmap-font', wechatPackInclude: true, hasTransitiveDeps: true },
+    // Outline fonts a game SHIPS (Text.font). Unlike a bitmap font these have no
+    // page texture, so no transitive deps — the file IS the asset, handed whole
+    // to the platform's text stack.
+    { extensions: ['ttf', 'otf', 'woff', 'woff2'], contentType: 'binary', editorType: 'font', addressableType: 'font', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esprefab'], contentType: 'json', editorType: 'prefab', addressableType: 'prefab', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esscene'], contentType: 'json', editorType: 'scene', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },

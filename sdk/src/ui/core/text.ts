@@ -45,6 +45,15 @@ export interface TextData {
      * Localization resource ⇒ `content` stands as authored.
      */
     i18nKey: string;
+    /**
+     * A font asset the game SHIPS (`.ttf` / `.otf` / `.woff`). When set it wins
+     * over {@link fontFamily}: the loader registers the file with the platform's
+     * text stack and this handle resolves back to that family. Leave it empty to
+     * name a font the host already has, through `fontFamily`.
+     */
+    font: number;
+    /** Font family resolved by the platform's text stack — a font the HOST
+     *  already has. For a font you ship, use {@link font} instead. */
     fontFamily: string;
     fontSize: number;
     color: Color;
@@ -70,6 +79,7 @@ export interface TextData {
 export const Text = defineComponent<TextData>('Text', {
     content: '',
     i18nKey: '',
+    font: 0,
     fontFamily: 'Arial',
     fontSize: 24,
     color: { r: 1, g: 1, b: 1, a: 1 },
@@ -90,7 +100,13 @@ export const Text = defineComponent<TextData>('Text', {
     renderMode: TextRenderMode.Auto,
     enabled: true,
 }, {
+    // A shipped font is a real asset reference: declaring it here is what gives
+    // it dependency tracking, cook inclusion, `@uuid:` refs and hot-update for
+    // free — the same machinery every other asset slot rides.
+    assetFields: [{ field: 'font', type: 'font' }],
     fields: {
+        font: { label: 'Font', tooltip: 'A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has.' },
+        fontFamily: { tooltip: 'A font the HOST already has (system or page-loaded). Ignored when Font is set.' },
         i18nKey: { label: 'I18n Key', enumSource: 'localeKeys', tooltip: 'Localization key — when set, content is resolved from the Localization catalogs (and re-resolved on locale switch). Leave empty for plain text.' },
         align: { enum: enumOptions(TextAlign), tooltip: 'Horizontal alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (left/center/right edge).' },
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },

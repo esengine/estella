@@ -364,6 +364,7 @@
           "data": {
             "content": "Button",
             "i18nKey": "",
+            "font": 0,
             "fontFamily": "Arial",
             "fontSize": 14,
             "color": {

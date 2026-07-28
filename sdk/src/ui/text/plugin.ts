@@ -23,6 +23,7 @@ import { Localization } from '../../i18n/Localization';
 import { applyTextLocalization, type TextWorldView } from './localize';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
+import { resolveTextFamily } from './font-registry';
 import { platformDevicePixelRatio } from '../../platform';
 import { engineApi } from '../../ecs/engineApi';
 
@@ -170,7 +171,7 @@ export class TextPlugin implements Plugin {
                 renderer.drawText(
                     {
                         text: t.content,
-                        fontFamily: t.fontFamily,
+                        fontFamily: resolveTextFamily(t.font, t.fontFamily),
                         fontSizePx: t.fontSize,
                         color: [t.color.r, t.color.g, t.color.b, t.color.a],
                         style,

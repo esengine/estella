@@ -136,6 +136,7 @@ export function buildText(init: TextInit = {}): TextData {
     return {
         content: init.content ?? '',
         i18nKey: init.i18nKey ?? '',
+        font: init.font ?? 0,
         fontFamily: init.fontFamily ?? 'Arial',
         fontSize: init.fontSize ?? 14,
         color: init.color ?? { r: 1, g: 1, b: 1, a: 1 },

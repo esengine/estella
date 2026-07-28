@@ -454,6 +454,12 @@ export {
 } from './text/text-renderer';
 
 export {
+    familyNameFor,
+    projectFontFamily,
+    resolveTextFamily,
+} from './text/font-registry';
+
+export {
     GlyphAtlas,
     type GlyphRasterizer,
     type AtlasPageStore,

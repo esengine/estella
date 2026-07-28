@@ -59,7 +59,7 @@ _filterType: "added"
 
 ## AddressableAssetType — type
 ```
-| 'texture' | 'material' | 'spine' | 'bitmap-font'
+| 'texture' | 'material' | 'spine' | 'bitmap-font' | 'font'
     | 'prefab' | 'json' | 'text' | 'binary' | 'audio'
 ```
 
@@ -2475,7 +2475,7 @@ ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefin
 ```
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown'
 ```
@@ -4906,6 +4906,7 @@ rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | unde
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
+registerFont: ((family: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
 unbindInputEvents: (() => void) | undefined
@@ -6895,6 +6896,7 @@ bold: boolean
 color: Color
 content: string
 enabled: boolean
+font: number
 fontFamily: string
 fontSize: number
 i18nKey: string
@@ -6920,6 +6922,7 @@ bold: boolean | undefined
 color: Color | undefined
 content: string | undefined
 enabled: boolean | undefined
+font: number | undefined
 fontFamily: string | undefined
 fontSize: number | undefined
 i18nKey: string | undefined

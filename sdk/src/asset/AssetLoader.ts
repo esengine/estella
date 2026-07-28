@@ -32,6 +32,12 @@ export interface MaterialResult {
 
 export interface FontResult {
     handle: FontHandle;
+    /** Outline fonts (.ttf/.otf/.woff) only: the family name the font was
+     *  registered with, which is what `Text` rasterizes against. Absent for
+     *  bitmap fonts, whose handle IS the resource. */
+    family?: string;
+    /** Outline fonts only: the source path, so unload can drop the registration. */
+    path?: string;
 }
 
 export interface AudioResult {

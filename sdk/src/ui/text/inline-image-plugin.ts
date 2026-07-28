@@ -18,6 +18,7 @@
  */
 import type { App, Plugin } from '../../app';
 import { defineSystem, Schedule } from '../../system';
+import { resolveTextFamily } from './font-registry';
 import type { Entity } from '../../types';
 import type { ESEngineModule } from '../../wasm';
 import { Text, TextVerticalAlign, type TextData } from '../core/text';
@@ -101,7 +102,7 @@ export class InlineImagePlugin implements Plugin {
 
                 const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
                 const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
-                const layout = layoutText(t.content, atlas(), t.fontFamily, {
+                const layout = layoutText(t.content, atlas(), resolveTextFamily(t.font, t.fontFamily), {
                     fontSizePx: t.fontSize,
                     lineHeight: t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined,
                     align: t.align,
