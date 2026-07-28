@@ -5,7 +5,7 @@
 // confirm it routes create/uniform/reflect/delete through GfxDevice.
 
 #include "MockGfxDevice.hpp"
-#include "esengine/renderer/Shader.hpp"
+#include "esengine/renderer/rhi/Shader.hpp"
 
 #include <cstdio>
 

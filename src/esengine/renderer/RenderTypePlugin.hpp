@@ -3,12 +3,12 @@
 #pragma once
 
 #include "../core/Types.hpp"
-#include "RenderStage.hpp"
-#include "RenderItem.hpp"
-#include "DrawCommand.hpp"
-#include "DrawList.hpp"
-#include "ClipState.hpp"
-#include "TransientBufferPool.hpp"
+#include "./frame/RenderStage.hpp"
+#include "./draw/RenderItem.hpp"
+#include "./draw/DrawCommand.hpp"
+#include "./draw/DrawList.hpp"
+#include "./draw/ClipState.hpp"
+#include "./rhi/TransientBufferPool.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../resource/ResourceManager.hpp"

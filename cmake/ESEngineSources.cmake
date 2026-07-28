@@ -11,24 +11,24 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/core/Log.cpp
     ${ESENGINE_ROOT}/src/esengine/resource/ResourceManager.cpp
     ${ESENGINE_ROOT}/src/esengine/resource/ShaderParser.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/RenderContext.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/Shader.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/DrawParams.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/Buffer.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/Texture.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/Framebuffer.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/RenderFrame.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/RenderFrameMask.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/RenderFrameSubmit.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/FrameCapture.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/RenderTarget.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/ImmediateDraw.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/CustomGeometry.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/TransientBufferPool.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/DrawList.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/BatchBuilder.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/MaterialStore.cpp
-    ${ESENGINE_ROOT}/src/esengine/renderer/LightStore.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderContext.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Shader.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/draw/DrawParams.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Buffer.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Texture.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Framebuffer.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrame.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameMask.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameSubmit.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/FrameCapture.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/RenderTarget.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/draw/ImmediateDraw.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/draw/CustomGeometry.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/TransientBufferPool.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/draw/DrawList.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/draw/BatchBuilder.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/store/MaterialStore.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/store/LightStore.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/plugins/BatchPlugin.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/plugins/SpritePlugin.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/plugins/UIElementPlugin.cpp
@@ -45,7 +45,7 @@ set(ESENGINE_SOURCES
 # WebGL2 (GLES3) backend — the web/WeChat platform only. A native build renders
 # through the WebGPU backend on embedded Dawn, so it drops GLDevice entirely.
 if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-    list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/GLDevice.cpp)
+    list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/rhi/GLDevice.cpp)
 endif()
 
 # The binding ENTRY POINTS the SDK calls (renderer_begin, renderer_submitAll, …).
@@ -92,7 +92,7 @@ if(ES_ENABLE_WEBGPU)
 endif()
 
 if(ES_ENABLE_POSTPROCESS)
-    list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/PostProcessPipeline.cpp)
+    list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp)
 endif()
 
 if(ES_ENABLE_TILEMAP)

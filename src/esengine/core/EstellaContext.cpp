@@ -12,12 +12,12 @@
 #include "Log.hpp"
 
 #ifdef ES_PLATFORM_WEB
-#include "../renderer/GLDevice.hpp"  // WebGL2 backend — web platform only
+#include "../renderer/rhi/GLDevice.hpp"  // WebGL2 backend — web platform only
 #endif
-#include "../renderer/RenderContext.hpp"
-#include "../renderer/RenderFrame.hpp"
-#include "../renderer/ImmediateDraw.hpp"
-#include "../renderer/CustomGeometry.hpp"
+#include "../renderer/frame/RenderContext.hpp"
+#include "../renderer/frame/RenderFrame.hpp"
+#include "../renderer/draw/ImmediateDraw.hpp"
+#include "../renderer/draw/CustomGeometry.hpp"
 #include "../renderer/plugins/SpritePlugin.hpp"
 #include "../renderer/plugins/UIElementPlugin.hpp"
 #ifdef ES_ENABLE_BITMAP_TEXT

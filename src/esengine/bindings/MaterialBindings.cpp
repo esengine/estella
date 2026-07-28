@@ -9,10 +9,10 @@
 #include "ActiveContext.hpp"
 
 #include "../core/Log.hpp"
-#include "../renderer/MaterialStore.hpp"
-#include "../renderer/RenderContext.hpp"
-#include "../renderer/Shader.hpp"
-#include "../renderer/Texture.hpp"
+#include "../renderer/store/MaterialStore.hpp"
+#include "../renderer/frame/RenderContext.hpp"
+#include "../renderer/rhi/Shader.hpp"
+#include "../renderer/rhi/Texture.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../resource/ShaderParser.hpp"
 

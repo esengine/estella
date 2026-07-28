@@ -15,10 +15,10 @@
 #include "ShaderParser.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Log.hpp"
-#include "../renderer/GfxDevice.hpp"
-#include "../renderer/Shader.hpp"
-#include "../renderer/Texture.hpp"
-#include "../renderer/Buffer.hpp"
+#include "../renderer/rhi/GfxDevice.hpp"
+#include "../renderer/rhi/Shader.hpp"
+#include "../renderer/rhi/Texture.hpp"
+#include "../renderer/rhi/Buffer.hpp"
 
 namespace esengine::resource {
 

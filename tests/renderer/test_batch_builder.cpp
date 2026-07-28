@@ -10,10 +10,10 @@
 #include <doctest.h>
 
 #include "MockGfxDevice.hpp"
-#include "esengine/renderer/BatchBuilder.hpp"
-#include "esengine/renderer/DrawList.hpp"
-#include "esengine/renderer/MaterialStore.hpp"
-#include "esengine/renderer/TransientBufferPool.hpp"
+#include "esengine/renderer/draw/BatchBuilder.hpp"
+#include "esengine/renderer/draw/DrawList.hpp"
+#include "esengine/renderer/store/MaterialStore.hpp"
+#include "esengine/renderer/rhi/TransientBufferPool.hpp"
 
 using namespace esengine;
 

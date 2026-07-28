@@ -80,31 +80,31 @@ set(ESENGINE_HEADERS
     src/esengine/resource/Handle.hpp
     src/esengine/resource/ResourcePool.hpp
     src/esengine/resource/ResourceManager.hpp
-    src/esengine/renderer/RenderContext.hpp
-    src/esengine/renderer/Shader.hpp
-    src/esengine/renderer/Buffer.hpp
-    src/esengine/renderer/Texture.hpp
-    src/esengine/renderer/Framebuffer.hpp
-    src/esengine/renderer/RenderStage.hpp
-    src/esengine/renderer/RenderItem.hpp
+    src/esengine/renderer/frame/RenderContext.hpp
+    src/esengine/renderer/rhi/Shader.hpp
+    src/esengine/renderer/rhi/Buffer.hpp
+    src/esengine/renderer/rhi/Texture.hpp
+    src/esengine/renderer/rhi/Framebuffer.hpp
+    src/esengine/renderer/frame/RenderStage.hpp
+    src/esengine/renderer/draw/RenderItem.hpp
     src/esengine/renderer/plugins/TrailPlugin.hpp
     src/esengine/trail/TrailSystem.hpp
     src/esengine/ecs/components/TrailRenderer.hpp
-    src/esengine/renderer/RenderTarget.hpp
-    src/esengine/renderer/RenderFrame.hpp
-    src/esengine/renderer/ImmediateDraw.hpp
-    src/esengine/renderer/BlendMode.hpp
-    src/esengine/renderer/CustomGeometry.hpp
-    src/esengine/renderer/GfxEnums.hpp
-    src/esengine/renderer/GfxDevice.hpp
-    src/esengine/renderer/GLDevice.hpp
-    src/esengine/renderer/TransientBufferPool.hpp
-    src/esengine/renderer/DrawCommand.hpp
-    src/esengine/renderer/DrawList.hpp
-    src/esengine/renderer/ClipState.hpp
-    src/esengine/renderer/FrameConstants.hpp
-    src/esengine/renderer/PipelineState.hpp
-    src/esengine/renderer/BatchBuilder.hpp
+    src/esengine/renderer/rhi/RenderTarget.hpp
+    src/esengine/renderer/frame/RenderFrame.hpp
+    src/esengine/renderer/draw/ImmediateDraw.hpp
+    src/esengine/renderer/draw/BlendMode.hpp
+    src/esengine/renderer/draw/CustomGeometry.hpp
+    src/esengine/renderer/rhi/GfxEnums.hpp
+    src/esengine/renderer/rhi/GfxDevice.hpp
+    src/esengine/renderer/rhi/GLDevice.hpp
+    src/esengine/renderer/rhi/TransientBufferPool.hpp
+    src/esengine/renderer/draw/DrawCommand.hpp
+    src/esengine/renderer/draw/DrawList.hpp
+    src/esengine/renderer/draw/ClipState.hpp
+    src/esengine/renderer/frame/FrameConstants.hpp
+    src/esengine/renderer/rhi/PipelineState.hpp
+    src/esengine/renderer/draw/BatchBuilder.hpp
     src/esengine/renderer/RenderTypePlugin.hpp
     src/esengine/renderer/plugins/BatchPlugin.hpp
     src/esengine/renderer/plugins/SpritePlugin.hpp
@@ -124,7 +124,7 @@ set(ESENGINE_HEADERS
 
 if(ES_ENABLE_POSTPROCESS)
     list(APPEND ESENGINE_HEADERS
-        src/esengine/renderer/PostProcessPipeline.hpp
+        src/esengine/renderer/frame/PostProcessPipeline.hpp
     )
 endif()
 

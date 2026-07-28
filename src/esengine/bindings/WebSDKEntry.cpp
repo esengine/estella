@@ -38,15 +38,15 @@
 #include "../ui/UIRenderOrderSystem.hpp"
 #include "../ui/UISystem.hpp"
 
-#include "../renderer/OpenGLHeaders.hpp"
-#include "../renderer/GfxDevice.hpp"
+#include "../renderer/rhi/OpenGLHeaders.hpp"
+#include "../renderer/rhi/GfxDevice.hpp"
 #ifdef ES_ENABLE_WEBGPU
 #include "../renderer/webgpu/WebGPUDevice.hpp"
 #endif
-#include "../renderer/RenderContext.hpp"
-#include "../renderer/RenderFrame.hpp"
-#include "../renderer/ImmediateDraw.hpp"
-#include "../renderer/CustomGeometry.hpp"
+#include "../renderer/frame/RenderContext.hpp"
+#include "../renderer/frame/RenderFrame.hpp"
+#include "../renderer/draw/ImmediateDraw.hpp"
+#include "../renderer/draw/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../text/SdfGenerator.hpp"

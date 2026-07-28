@@ -5,8 +5,8 @@
 // attach/delete all route through GfxDevice.
 
 #include "MockGfxDevice.hpp"
-#include "esengine/renderer/Texture.hpp"
-#include "esengine/renderer/Framebuffer.hpp"
+#include "esengine/renderer/rhi/Texture.hpp"
+#include "esengine/renderer/rhi/Framebuffer.hpp"
 
 #include <cstdio>
 #include <vector>

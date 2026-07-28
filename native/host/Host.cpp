@@ -23,8 +23,8 @@
 #include "esengine/core/Log.hpp"
 #include "esengine/core/World.hpp"
 #include "esengine/ecs/TransformSystem.hpp"
-#include "esengine/renderer/RenderContext.hpp"
-#include "esengine/renderer/RenderFrame.hpp"
+#include "esengine/renderer/frame/RenderContext.hpp"
+#include "esengine/renderer/frame/RenderFrame.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 

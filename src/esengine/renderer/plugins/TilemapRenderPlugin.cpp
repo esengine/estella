@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TilemapRenderPlugin.hpp"
-#include "../BatchBuilder.hpp"
+#include "../draw/BatchBuilder.hpp"
 
 #include "../../tilemap/TilemapSystem.hpp"
 #include "../../tilemap/TileFlip.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/TilemapLayer.hpp"
-#include "../RenderFrame.hpp"
+#include "../frame/RenderFrame.hpp"
 
 #include <cmath>
 

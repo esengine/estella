@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    Framebuffer.hpp
+ * @brief   GPU framebuffer abstraction for render-to-texture
+ * @details Provides off-screen rendering targets with color and depth attachments
+ *          for OpenGL ES/WebGL.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the Apache License, Version 2.0.
+ */
+#pragma once
+
+// =============================================================================
+// Includes
+// =============================================================================
+
+#include "../../core/Types.hpp"
+#include "./Texture.hpp"
+
+namespace esengine {
+
+class GfxDevice;
+
+// =============================================================================
+// Framebuffer Specification
+// =============================================================================
+
+/**
+ * @brief Framebuffer creation parameters
+ *
+ * @details Specifies the dimensions and attachment configuration
+ *          for an off-screen rendering target.
+ *
+ * @code
+ * FramebufferSpec spec;
+ * spec.width = 1280;
+ * spec.height = 720;
+ * spec.samples = 1; // No multisampling
+ * auto fbo = Framebuffer::create(spec);
+ * @endcode
+ */
+struct FramebufferSpec {
+    /** @brief Framebuffer width in pixels */
+    u32 width = 1280;
+    /** @brief Framebuffer height in pixels */
+    u32 height = 720;
+    /** @brief Number of samples for MSAA (1 = no multisampling) */
+    u32 samples = 1;
+    /** @brief Whether to create depth/stencil attachment */
+    bool depthStencil = true;
+    /** @brief Texture filter mode: false=GL_NEAREST, true=GL_LINEAR */
+    bool linearFilter = false;
+    /** @brief Color attachment format. RGBA16F needs GfxDevice::supportsFloatTargets. */
+    GfxPixelFormat colorFormat = GfxPixelFormat::RGBA8;
+};
+
+// =============================================================================
+// Framebuffer Class
+// =============================================================================
+
+/**
+ * @brief Off-screen rendering target
+ *
+ * @details Encapsulates an OpenGL/WebGL framebuffer object with
+ *          color and optional depth attachments. Supports render-to-texture
+ *          for scene views, post-processing, and shadow maps.
+ *
+ * @code
+ * // Create framebuffer
+ * FramebufferSpec spec;
+ * spec.width = 800;
+ * spec.height = 600;
+ * auto fbo = Framebuffer::create(spec);
+ *
+ * // Render to texture
+ * fbo->bind();
+ * device.clear(true, true, false);
+ * // ... render scene ...
+ * fbo->unbind();
+ *
+ * // Use color texture
+ * TextureHandle texture = fbo->getColorAttachment();
+ * @endcode
+ */
+class Framebuffer {
+public:
+    Framebuffer() = default;
+    ~Framebuffer();
+
+    // Non-copyable, movable
+    Framebuffer(const Framebuffer&) = delete;
+    Framebuffer& operator=(const Framebuffer&) = delete;
+    Framebuffer(Framebuffer&& other) noexcept;
+    Framebuffer& operator=(Framebuffer&& other) noexcept;
+
+    // =========================================================================
+    // Creation
+    // =========================================================================
+
+    /**
+     * @brief Creates a framebuffer from specification
+     * @param spec Framebuffer parameters
+     * @return Unique pointer to the framebuffer
+     *
+     * @details Creates framebuffer with color attachment and optional
+     *          depth/stencil attachment based on spec.
+     */
+    static Unique<Framebuffer> create(GfxDevice& device, const FramebufferSpec& spec);
+
+    // =========================================================================
+    // Operations
+    // =========================================================================
+
+    /**
+     * @brief Binds the framebuffer for rendering
+     * @details All subsequent draw calls will render to this framebuffer
+     *          until unbind() is called.
+     */
+    void bind() const;
+
+    /**
+     * @brief Unbinds the framebuffer
+     * @details Restores rendering to the default framebuffer (screen).
+     */
+    void unbind() const;
+
+    /**
+     * @brief Resizes the framebuffer
+     * @param width New width in pixels
+     * @param height New height in pixels
+     *
+     * @details Recreates all attachments with new dimensions.
+     *          Existing content is lost.
+     */
+    void resize(u32 width, u32 height);
+
+    // =========================================================================
+    // Properties
+    // =========================================================================
+
+    /** @brief Gets the color attachment texture */
+    TextureHandle getColorAttachment() const { return colorAttachment_; }
+
+    /** @brief Gets the depth attachment texture (Invalid if none) */
+    TextureHandle getDepthAttachment() const { return depthAttachment_; }
+
+    /** @brief Gets the framebuffer width in pixels */
+    u32 getWidth() const { return spec_.width; }
+
+    /** @brief Gets the framebuffer height in pixels */
+    u32 getHeight() const { return spec_.height; }
+
+    /** @brief Gets the framebuffer specification */
+    const FramebufferSpec& getSpecification() const { return spec_; }
+
+    /** @brief Gets the device framebuffer handle */
+    FramebufferHandle handle() const { return handle_; }
+
+private:
+    /**
+     * @brief Initializes the framebuffer on GPU
+     * @return True on success
+     */
+    bool initialize();
+
+    /**
+     * @brief Releases GPU resources
+     */
+    void cleanup();
+
+    GfxDevice* device_ = nullptr;  ///< Set by create(); all GL goes through it.
+    FramebufferSpec spec_;
+    FramebufferHandle handle_ = FramebufferHandle::Default;
+    TextureHandle colorAttachment_ = TextureHandle::Invalid;
+    TextureHandle depthAttachment_ = TextureHandle::Invalid;
+};
+
+}  // namespace esengine

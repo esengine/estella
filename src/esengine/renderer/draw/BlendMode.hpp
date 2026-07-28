@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    BlendMode.hpp
+ * @brief   Blend mode enumeration for custom rendering
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the Apache License, Version 2.0.
+ */
+#pragma once
+
+#include "../../core/Types.hpp"
+
+namespace esengine {
+
+/**
+ * @brief Predefined blend modes for rendering
+ */
+enum class BlendMode : u8 {
+    Normal = 0,     // SrcAlpha, OneMinusSrcAlpha (default alpha blending)
+    Additive = 1,   // SrcAlpha, One (glow, particles)
+    Multiply = 2,   // DstColor, OneMinusSrcAlpha (shadows, multiply)
+    Screen = 3,     // One, OneMinusSrcColor (lighten)
+    PremultipliedAlpha = 4,  // One, OneMinusSrcAlpha (premultiplied alpha)
+    PmaAdditive = 5, // One, One (additive with premultiplied alpha source)
+    Lighten = 6,    // GL_MAX blend equation (take brighter pixel)
+    Darken = 7,     // GL_MIN blend equation (take darker pixel)
+    Overlay = 8,    // Screen on light, Multiply on dark (requires shader)
+};
+
+}  // namespace esengine

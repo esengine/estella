@@ -26,7 +26,7 @@
  * The electron runner (desktop/scripts/webgpu-bringup.mjs) asserts the pixels.
  */
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
-#include "esengine/renderer/ShaderEmbeds.generated.hpp"
+#include "esengine/renderer/rhi/ShaderEmbeds.generated.hpp"
 #include "esengine/resource/ShaderParser.hpp"
 
 #include <emscripten.h>

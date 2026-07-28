@@ -19,8 +19,8 @@
 #pragma once
 
 #include "../RenderTypePlugin.hpp"
-#include "../BatchBuilder.hpp"
-#include "../BatchVertex.hpp"
+#include "../draw/BatchBuilder.hpp"
+#include "../draw/BatchVertex.hpp"
 
 #include <glm/glm.hpp>
 

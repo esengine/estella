@@ -16,7 +16,7 @@ function toCppIdentifier(filename) {
 export async function generateShaderEmbeds() {
     const rootDir = config.paths.root;
     const shadersDir = path.join(rootDir, 'src/esengine/data/shaders');
-    const outputPath = path.join(rootDir, 'src/esengine/renderer/ShaderEmbeds.generated.hpp');
+    const outputPath = path.join(rootDir, 'src/esengine/renderer/rhi/ShaderEmbeds.generated.hpp');
 
     if (!existsSync(shadersDir)) {
         logger.warn('Shader directory not found, skipping embed generation');

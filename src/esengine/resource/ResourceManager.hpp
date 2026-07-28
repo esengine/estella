@@ -24,9 +24,9 @@
 #include "ResourcePool.hpp"
 #include "LoaderRegistry.hpp"
 #include "TextureMetadata.hpp"
-#include "../renderer/Shader.hpp"
-#include "../renderer/Texture.hpp"
-#include "../renderer/Buffer.hpp"
+#include "../renderer/rhi/Shader.hpp"
+#include "../renderer/rhi/Texture.hpp"
+#include "../renderer/rhi/Buffer.hpp"
 #include "../text/BitmapFont.hpp"
 
 // Standard library

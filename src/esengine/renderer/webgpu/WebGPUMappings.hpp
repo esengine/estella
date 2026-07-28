@@ -20,9 +20,9 @@
 #pragma once
 
 #include "../../core/Types.hpp"
-#include "../GfxEnums.hpp"
-#include "../BlendMode.hpp"
-#include "../PipelineState.hpp"
+#include "../rhi/GfxEnums.hpp"
+#include "../draw/BlendMode.hpp"
+#include "../rhi/PipelineState.hpp"
 
 #include <webgpu/webgpu.h>
 

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ShapePlugin.hpp"
-#include "../BatchBuilder.hpp"
-#include "../RenderContext.hpp"
-#include "../RenderFrame.hpp"
-#include "../Shader.hpp"
-#include "../ShaderEmbeds.generated.hpp"
+#include "../draw/BatchBuilder.hpp"
+#include "../frame/RenderContext.hpp"
+#include "../frame/RenderFrame.hpp"
+#include "../rhi/Shader.hpp"
+#include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ShapeRenderer.hpp"
 #include "../../resource/ShaderParser.hpp"

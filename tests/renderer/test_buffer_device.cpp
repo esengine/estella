@@ -5,8 +5,8 @@
 // layout-registration/bind/delete all route through GfxDevice.
 
 #include "MockGfxDevice.hpp"
-#include "esengine/renderer/Buffer.hpp"
-#include "esengine/renderer/CustomGeometry.hpp"
+#include "esengine/renderer/rhi/Buffer.hpp"
+#include "esengine/renderer/draw/CustomGeometry.hpp"
 
 #include <cstdio>
 #include <vector>

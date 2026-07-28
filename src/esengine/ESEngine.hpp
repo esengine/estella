@@ -40,9 +40,9 @@
 #include "ecs/TransformSystem.hpp"
 
 // Renderer
-#include "renderer/Buffer.hpp"
-#include "renderer/Shader.hpp"
-#include "renderer/Texture.hpp"
+#include "./renderer/rhi/Buffer.hpp"
+#include "./renderer/rhi/Shader.hpp"
+#include "./renderer/rhi/Texture.hpp"
 
 // =============================================================================
 // Version Information

@@ -5,7 +5,7 @@
 // interface stays self-consistent as it evolves.
 #pragma once
 
-#include "esengine/renderer/GfxDevice.hpp"
+#include "esengine/renderer/rhi/GfxDevice.hpp"
 
 #include <cstring>
 #include <vector>

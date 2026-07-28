@@ -3,8 +3,8 @@
 // commitParams into the UBO seam (no loose uniform uploads for lifted members).
 
 #include "MockGfxDevice.hpp"
-#include "esengine/renderer/DrawParams.hpp"
-#include "esengine/renderer/Shader.hpp"
+#include "esengine/renderer/draw/DrawParams.hpp"
+#include "esengine/renderer/rhi/Shader.hpp"
 
 #include <cstdio>
 #include <cstring>

@@ -8,9 +8,9 @@
 
 #include "basisu_transcoder.h"
 
-#include "esengine/renderer/GfxDevice.hpp"
-#include "esengine/renderer/GfxEnums.hpp"
-#include "esengine/renderer/Texture.hpp"           // TextureFormat
+#include "esengine/renderer/rhi/GfxDevice.hpp"
+#include "esengine/renderer/rhi/GfxEnums.hpp"
+#include "esengine/renderer/rhi/Texture.hpp"           // TextureFormat
 #include "esengine/resource/ResourceManager.hpp"
 
 #include <mutex>

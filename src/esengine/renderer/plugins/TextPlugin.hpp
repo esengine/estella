@@ -3,7 +3,7 @@
 #pragma once
 
 #include "BatchPlugin.hpp"
-#include "../BatchVertex.hpp"
+#include "../draw/BatchVertex.hpp"
 
 #include <string>
 #include <unordered_map>

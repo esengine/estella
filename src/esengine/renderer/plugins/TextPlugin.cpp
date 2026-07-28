@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TextPlugin.hpp"
-#include "../BatchBuilder.hpp"
-#include "../RenderContext.hpp"
-#include "../RenderFrame.hpp"
-#include "../Texture.hpp"
+#include "../draw/BatchBuilder.hpp"
+#include "../frame/RenderContext.hpp"
+#include "../frame/RenderFrame.hpp"
+#include "../rhi/Texture.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/BitmapText.hpp"
 #include "../../text/BitmapFont.hpp"

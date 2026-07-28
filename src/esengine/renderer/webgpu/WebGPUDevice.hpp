@@ -31,7 +31,7 @@
  */
 #pragma once
 
-#include "../GfxDevice.hpp"
+#include "../rhi/GfxDevice.hpp"
 
 #include <webgpu/webgpu.h>
 

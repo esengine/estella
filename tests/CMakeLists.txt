@@ -50,8 +50,8 @@ add_test(NAME test_resource_pool COMMAND test_resource_pool)
 # create/uniform/reflect/delete through GfxDevice.
 add_executable(test_shader_device
     renderer/test_shader_device.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Shader.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawParams.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Shader.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawParams.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_shader_device PRIVATE
@@ -65,8 +65,8 @@ add_test(NAME test_shader_device COMMAND test_shader_device)
 # loose uploads for lifted members).
 add_executable(test_draw_params
     renderer/test_draw_params.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Shader.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawParams.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Shader.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawParams.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_draw_params PRIVATE
@@ -89,8 +89,8 @@ add_test(NAME test_shader_variant COMMAND test_shader_variant)
 # MockGfxDevice. The harness stubs the (uncalled) stb file loader.
 add_executable(test_texture_fb
     renderer/test_texture_fb.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Texture.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Framebuffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Framebuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_texture_fb PRIVATE
@@ -104,8 +104,8 @@ add_test(NAME test_texture_fb COMMAND test_texture_fb)
 # upload/attribute-setup/bind/delete route through GfxDevice.
 add_executable(test_buffer_device
     renderer/test_buffer_device.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Buffer.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/CustomGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Buffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/CustomGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -187,11 +187,11 @@ add_test(NAME test_boundary_span COMMAND test_boundary_span)
 # math, texture-slot rules, instanced assembly, merge behavior, and execute() dispatch.
 add_executable(test_batch_builder
     renderer/test_batch_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/BatchBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawList.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/TransientBufferPool.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/MaterialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/FrameCapture.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/BatchBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawList.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/TransientBufferPool.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/store/MaterialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/frame/FrameCapture.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_batch_builder PRIVATE

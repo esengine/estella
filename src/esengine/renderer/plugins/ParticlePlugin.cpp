@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ParticlePlugin.hpp"
-#include "../BatchBuilder.hpp"
-#include "../RenderContext.hpp"
-#include "../RenderFrame.hpp"
-#include "../Shader.hpp"
-#include "../ShaderEmbeds.generated.hpp"
-#include "../Texture.hpp"
-#include "../BatchVertex.hpp"   // packColor
+#include "../draw/BatchBuilder.hpp"
+#include "../frame/RenderContext.hpp"
+#include "../frame/RenderFrame.hpp"
+#include "../rhi/Shader.hpp"
+#include "../rhi/ShaderEmbeds.generated.hpp"
+#include "../rhi/Texture.hpp"
+#include "../draw/BatchVertex.hpp"   // packColor
 #include "../../resource/ShaderParser.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ParticleEmitter.hpp"

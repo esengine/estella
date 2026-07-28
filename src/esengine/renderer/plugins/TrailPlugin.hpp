@@ -3,7 +3,7 @@
 #pragma once
 
 #include "../RenderTypePlugin.hpp"
-#include "../BatchVertex.hpp"
+#include "../draw/BatchVertex.hpp"
 
 #include <vector>
 

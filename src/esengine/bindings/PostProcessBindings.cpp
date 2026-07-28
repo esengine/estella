@@ -4,12 +4,12 @@
 
 #include "PostProcessBindings.hpp"
 #include "ActiveContext.hpp"
-#include "../renderer/GfxDevice.hpp"
-#include "../renderer/PostProcessPipeline.hpp"
-#include "../renderer/RenderContext.hpp"
-#include "../renderer/RenderFrame.hpp"
-#include "../renderer/ImmediateDraw.hpp"
-#include "../renderer/CustomGeometry.hpp"
+#include "../renderer/rhi/GfxDevice.hpp"
+#include "../renderer/frame/PostProcessPipeline.hpp"
+#include "../renderer/frame/RenderContext.hpp"
+#include "../renderer/frame/RenderFrame.hpp"
+#include "../renderer/draw/ImmediateDraw.hpp"
+#include "../renderer/draw/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 
