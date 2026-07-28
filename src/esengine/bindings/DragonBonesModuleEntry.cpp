@@ -29,7 +29,13 @@
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.
  */
+// KEEPALIVE keeps these exported through the emscripten link; natively the
+// attribute has no meaning and the header does not exist.
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#define EMSCRIPTEN_KEEPALIVE
+#endif
 
 #include <cstring>
 #include <string>

@@ -112,6 +112,20 @@ target_include_directories(estella_spine PUBLIC "${SRC}")
 target_link_libraries(estella_spine PUBLIC spine_runtime)
 target_compile_definitions(estella_spine PRIVATE ES_SPINE_VERSION=${SPINE_TAG})
 
+# DragonBones: the same two TUs the web links as the "dragonbones" side module,
+# over the vendored core. One runtime, not one per version — the format is frozen,
+# so there is no ESTELLA_DRAGONBONES_VERSION to pick.
+file(GLOB_RECURSE DRAGONBONES_SOURCES "${TP}/dragonbones/src/dragonBones/*.cpp")
+add_library(dragonbones_runtime STATIC ${DRAGONBONES_SOURCES})
+target_include_directories(dragonbones_runtime PUBLIC "${TP}/dragonbones/src" "${TP}/rapidjson")
+target_compile_options(dragonbones_runtime PRIVATE -w)   # vendored, not ours to lint
+
+add_library(estella_dragonbones STATIC
+    "${SRC}/esengine/bindings/DragonBonesModuleEntry.cpp"
+    "${SRC}/esengine/bindings/DragonBonesAdapter.cpp")
+target_include_directories(estella_dragonbones PUBLIC "${SRC}")
+target_link_libraries(estella_dragonbones PUBLIC dragonbones_runtime)
+
 # The engine's own MPEG-1 decoder (pl_mpeg), the same TU the web links as the
 # "videodec" side module. Header-only dependency, so nothing to fetch.
 add_library(estella_video STATIC "${SRC}/esengine/bindings/VideoModuleEntry.cpp")
@@ -241,7 +255,8 @@ if(ESTELLA_QUICKJS_DIR)
         set_source_files_properties(host/media/native_audio.cpp
         host/media/audio_spectrum.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
-        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine qjs
+        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
+            estella_dragonbones qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
             "-framework CoreText" "-framework CoreGraphics")
@@ -253,6 +268,7 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:estella_physics> $<TARGET_FILE:box2d>
                     $<TARGET_FILE:estella_video>
                     $<TARGET_FILE:estella_spine> $<TARGET_FILE:spine_runtime>
+                    $<TARGET_FILE:estella_dragonbones> $<TARGET_FILE:dragonbones_runtime>
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
     else()
@@ -260,7 +276,7 @@ if(ESTELLA_QUICKJS_DIR)
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp)
         target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
-            qjs native_app_glue android log)
+            estella_dragonbones qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
     # host/ is the include root: every host TU spells its siblings from there
