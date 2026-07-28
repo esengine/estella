@@ -261,7 +261,6 @@ void db_update(int instanceId, float dt) {
     if (!armature) return;
     g_ctx.events.clear();
     armature->advanceTime(dt);
-    extractBatches(instanceId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -277,9 +276,13 @@ const char* db_getAnimations(int instanceId) {
 // Geometry readback
 // =============================================================================
 
+// Posing happens HERE, not in update: one batch list serves every instance, so it
+// has to belong to whichever one is being read right now. Extracting in update
+// instead leaves it holding the last instance updated — and every getter below
+// would then answer for that one however carefully it was asked about another.
 EMSCRIPTEN_KEEPALIVE
 int db_getMeshBatchCount(int instanceId) {
-    (void)instanceId;
+    extractBatches(instanceId);
     return static_cast<int>(g_ctx.batches.size());
 }
 
@@ -316,9 +319,9 @@ EMSCRIPTEN_KEEPALIVE
 void db_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr, uintptr_t outWPtr, uintptr_t outHPtr) {
     // Derived from the posed batches rather than asked of the runtime: DragonBones
     // reports an armature's authored bounds, which is not where it currently is.
+    extractBatches(instanceId);
     float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
     bool any = false;
-    (void)instanceId;
     for (const auto& batch : g_ctx.batches) {
         for (std::size_t i = 0; i < batch.vertices.size(); i += es::skeletal::VERTEX_FLOATS) {
             const float x = batch.vertices[i];

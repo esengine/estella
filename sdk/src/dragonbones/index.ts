@@ -7,3 +7,5 @@ export type {
     DragonBonesWrappedAPI,
     DragonBonesModuleFactory,
 } from './DragonBonesModuleLoader';
+export { DragonBonesManager } from './DragonBonesManager';
+export type { DragonBonesEntityOptions } from './DragonBonesManager';
