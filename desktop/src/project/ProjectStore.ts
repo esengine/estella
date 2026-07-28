@@ -21,7 +21,7 @@ import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserC
 import { installDragonBonesEnumSources } from '@/engine/dragonBonesNames';
 import { setProjectActions, type ProjectActionSchema } from '@/ai/actionCatalog';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
-import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
+import { installSkeletalSync, type SkeletalTransport } from '@/engine/skeletalSync';
 import { SceneStore } from '@/engine/SceneStore';
 import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
@@ -496,10 +496,11 @@ class ProjectStoreImpl {
     // A projection that resolves COLD (assigned after the scene-open preload)
     // hands its ref here: async load through the engine loaders, re-project.
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
-    // Spine bindings (skeleton/atlas/pages → SpineManager) are a live projection
-    // of the model, driven by model events: adopt's `reset` performs the initial
-    // bind, and later ref/field edits keep the viewport true (see spineSync).
-    installSpineSync(this.spineTransport());
+    // Skeletal bindings (skeleton/atlas/pages → the runtime's manager) are a live
+    // projection of the model, driven by model events: adopt's `reset` performs the
+    // initial bind, and later ref/field edits keep the viewport true (see
+    // skeletalSync).
+    installSkeletalSync(this.skeletalTransport());
     await bootProfiler.phase('reconcile (build world)', () => Reconciler.adopt(expandedRaw, resolved));
     // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
@@ -555,7 +556,7 @@ class ProjectStoreImpl {
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
-    installSpineSync(this.spineTransport());
+    installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
     usePrefabConflicts.getState().clear();
@@ -770,9 +771,9 @@ class ProjectStoreImpl {
     return this.uuidToPath.get(uuid) ?? null;
   }
 
-  /** The project transport spine assets load over: ref → `estella://` URL for
+  /** The project transport skeletal assets load over: ref → `estella://` URL for
    *  fetches, `@uuid:` ref → project path for atlas-dir derivation. */
-  private spineTransport(): SpineTransport {
+  private skeletalTransport(): SkeletalTransport {
     return {
       toUrl: (ref) =>
         ref.startsWith(UUID_PREFIX)
@@ -2145,7 +2146,7 @@ class ProjectStoreImpl {
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
-    installSpineSync(this.spineTransport());
+    installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(raw, resolved);
     EngineHost.syncEditorViewToScene();
     applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());

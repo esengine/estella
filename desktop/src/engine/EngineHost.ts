@@ -21,6 +21,8 @@ import type { SpineManager } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';
 import { useSettings } from '@/store/settingsStore';
 import { loadEditorSpine } from './spineLoad';
+import { loadEditorDragonBones, editorDragonBonesManager } from './dragonBonesLoad';
+import type { DragonBonesManager } from 'esengine/dragonbones';
 import { checkEngineBuild } from './EngineGuard';
 import { bootProfiler } from './bootProfiler';
 import { PROJECT_MANIFEST_FILE } from '@/project/format';
@@ -118,6 +120,10 @@ class EngineHostImpl {
   /** Skin names of a spine entity's loaded skeleton; empty if none. */
   spineSkins(runtimeId: number): string[] {
     return this.app_?.getPlugin(SpinePlugin)?.spineManager?.getSkins(runtimeId as never) ?? [];
+  }
+  /** The viewport's DragonBonesManager; null until a scene has asked for one. */
+  get dragonBonesManager(): DragonBonesManager | null {
+    return editorDragonBonesManager(this.app_);
   }
   get module(): ESEngineModule | null {
     return this.module_;
@@ -398,6 +404,16 @@ class EngineHostImpl {
     resolvePath?: (ref: string) => string,
   ): Promise<void> {
     if (this.app_) await loadEditorSpine(this.app_, sceneData, entityMap, toUrl, resolvePath);
+  }
+
+  /** The DragonBones counterpart of {@link loadSpine}, over the same transport. */
+  async loadDragonBones(
+    sceneData: SceneData,
+    entityMap: Map<number, number>,
+    toUrl: (ref: string) => string,
+    resolvePath?: (ref: string) => string,
+  ): Promise<void> {
+    if (this.app_) await loadEditorDragonBones(this.app_, sceneData, entityMap, toUrl, resolvePath);
   }
 
   private resize() {

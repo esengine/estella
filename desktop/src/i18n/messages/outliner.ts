@@ -68,7 +68,7 @@ export const outlinerMessages = defineMessages({
     'out.prefab': { en: 'Prefab', zh: '预制体' },
     'out.kindCamera': { en: 'Camera', zh: '相机' },
     'out.kindSprite': { en: 'Sprite', zh: '精灵' },
-    'out.kindSpine': { en: 'Spine', zh: 'Spine' },
+    'out.kindSkeletal': { en: 'Skeletal', zh: '骨骼' },
     'out.kindPhysics': { en: 'Physics', zh: '物理' },
     'out.kindUi': { en: 'UI', zh: 'UI' },
     'out.kindAudio': { en: 'Audio', zh: '音频' },

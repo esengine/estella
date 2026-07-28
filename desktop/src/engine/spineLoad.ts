@@ -1,37 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { SpinePlugin, loadSpineSceneEntities } from 'esengine/spine';
-import type { RuntimeAssetSource } from 'esengine/spine';
-import { decodeImagePixels, type App, type SceneData } from 'esengine';
-
-/**
- * Fetch-backed asset source for spine in the editor: skeleton/atlas come over
- * fetch as text/bytes; the atlas PNG is decoded to RGBA via the shared
- * `decodeImagePixels` (the same path the play realm uses — robust across the
- * editor's http/app:// origins). `toUrl` maps an asset ref to a fetchable URL,
- * applied uniformly on fetch. `resolvePath` maps a `@uuid:` ref to its project
- * path — the loader derives the atlas's page-texture paths from it (a raw uuid
- * ref has no directory), the same job the runtime Catalog does in play.
- */
-function editorSpineSource(
-  toUrl: (ref: string) => string,
-  resolvePath: (ref: string) => string,
-): RuntimeAssetSource {
-  const fetchOk = async (ref: string, kind: string): Promise<Response> => {
-    const r = await fetch(toUrl(ref));
-    if (!r.ok) throw new Error(`spine ${kind} ${r.status}: ${ref}`);
-    return r;
-  };
-  return {
-    resolveRef: (ref) => resolvePath(ref),
-    backend: {
-      resolveUrl: (ref) => toUrl(ref),
-      fetchText: async (ref) => (await fetchOk(ref, 'asset')).text(),
-      fetchBinary: async (ref) => (await fetchOk(ref, 'asset')).arrayBuffer(),
-    },
-    decodePixels: async (ref) => decodeImagePixels(await (await fetchOk(ref, 'texture')).blob()),
-  };
-}
+import type { App, SceneData } from 'esengine';
+import { editorSkeletalSource } from './skeletalSource';
 
 /**
  * Bind every SpineAnimation entity's skeleton/atlas/textures into the app's
@@ -56,7 +27,7 @@ export async function loadEditorSpine(
   try {
     await loadSpineSceneEntities({
       module,
-      source: editorSpineSource(toUrl, resolvePath),
+      source: editorSkeletalSource(toUrl, resolvePath, 'spine'),
       spineManager,
       sceneData,
       entityMap: entityMap as Map<number, number>,

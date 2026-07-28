@@ -110,7 +110,7 @@ export const detailsMessages = defineMessages({
     // — Entity kind pill (mirrors the Outliner's kind labels) —
     'det.kindCamera': { en: 'Camera', zh: '相机' },
     'det.kindSprite': { en: 'Sprite', zh: '精灵' },
-    'det.kindSpine': { en: 'Spine', zh: 'Spine' },
+    'det.kindSkeletal': { en: 'Skeletal', zh: '骨骼' },
     'det.kindPhysics': { en: 'Physics', zh: '物理' },
     'det.kindUi': { en: 'UI', zh: 'UI' },
     'det.kindAudio': { en: 'Audio', zh: '音频' },
