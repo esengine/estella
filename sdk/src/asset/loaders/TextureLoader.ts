@@ -38,6 +38,13 @@ export interface TextureImportSettings {
      *  data (normal maps, masks) sets false so the linear pipeline skips the
      *  hardware EOTF. Ignored in gamma mode. */
     readonly srgb?: boolean;
+    /**
+     * 9-slice border in texture pixels. A property of the IMAGE (where its
+     * corners end), not of any one entity — so it is authored once at import
+     * and every `UIVisual` set to NineSlice inherits it. Applied to the texture
+     * handle's metadata at load; a UIVisual may still override per entity.
+     */
+    readonly sliceBorder?: { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number };
 }
 
 export type TextureImportSettingsResolver = (ref: string) => TextureImportSettings | undefined;

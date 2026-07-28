@@ -30,6 +30,7 @@ export {
 } from './assetGroups';
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';
+export { textureImportSettingsFrom, type ParsedTextureImportSettings } from './textureImportSettings';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels, fetchDecodePixels } from './imageDecode';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';

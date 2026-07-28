@@ -33,7 +33,7 @@ export { Graphics } from './graphics';
 // Texture
 // =============================================================================
 
-export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from './textureParams';
+export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams, setTextureSliceBorder } from './textureParams';
 
 // =============================================================================
 // Camera

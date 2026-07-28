@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Renderer } from './renderer';
+import { requireResourceManager } from './resourceManager';
 
 export const TextureFilter = {
     Nearest: 0,
@@ -33,4 +34,21 @@ export function setTextureParams(
     wrapT: TextureWrap,
 ): void {
     Renderer.setTextureParams(textureId, minFilter, magFilter, wrapS, wrapT);
+}
+
+/**
+ * The texture's 9-slice border, in texture pixels from each edge. A property of
+ * the IMAGE — every `UIVisual` set to NineSlice reads it, so a frame is sliced
+ * once at import rather than re-typed on every entity that uses it. Normally
+ * applied by the asset pipeline at load; call it directly to re-slice a texture
+ * already resident (an authoring tool editing the border live).
+ */
+export function setTextureSliceBorder(
+    textureId: number,
+    left: number,
+    right: number,
+    top: number,
+    bottom: number,
+): void {
+    requireResourceManager().setTextureMetadata(textureId, left, right, top, bottom);
 }

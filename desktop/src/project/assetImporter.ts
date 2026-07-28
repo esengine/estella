@@ -234,18 +234,12 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
   return resolved;
 }
 
-/** A texture's sampler settings, in the string shape the engine's TextureLoader
- *  and the runtime importer-resolver consume (filterMode/wrapMode → filter/wrap).
- *  Undefined when the `.meta` carries neither ⇒ loader defaults. */
-export function readTextureImportSettings(
-  importer: Record<string, unknown> | undefined,
-): { filter?: 'linear' | 'nearest'; wrap?: 'repeat' | 'clamp' | 'mirror'; srgb?: boolean } | undefined {
-  if (!importer) return undefined;
-  const filter = importer.filterMode as 'linear' | 'nearest' | undefined;
-  const wrap = importer.wrapMode as 'repeat' | 'clamp' | 'mirror' | undefined;
-  const srgb = typeof importer.sRGB === 'boolean' ? importer.sRGB : undefined;
-  return filter || wrap || srgb !== undefined ? { filter, wrap, srgb } : undefined;
-}
+// A texture's LOAD-time settings (sampler + 9-slice border) are parsed by the
+// SDK's `textureImportSettingsFrom`, not here: the editor and a shipped build
+// read the same `.meta` importer block, and a second reader is how "works in
+// the editor, not in the build" gets born. This module stays engine-free (the
+// Electron main process imports it for the cook), which is why the parser lives
+// on the SDK side rather than the other way round.
 
 /** Apply one inspector edit to a copy of the `importer` block (dotted keys →
  *  nested), returning the new block. Pure — the caller owns dirty/save. */

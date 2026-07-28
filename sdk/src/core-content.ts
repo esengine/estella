@@ -89,6 +89,8 @@ export {
     type SpineLoadResult,
     type LocaleResult,
     type AssetRefInfo,
+    textureImportSettingsFrom,
+    type ParsedTextureImportSettings,
 } from './asset';
 
 // =============================================================================

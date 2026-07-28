@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
-import { readTextureImportSettings, importerDefaults, applyImporterEdit } from './assetImporter';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, setTextureSliceBorder, textureImportSettingsFrom, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
+import { importerDefaults, applyImporterEdit } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
@@ -752,9 +752,9 @@ class ProjectStoreImpl {
 
   /** The texture filter/wrap for a ref (`@uuid:` or path), from its `.meta`
    *  importer — the shape `Assets`'s TextureLoader consumes. Undefined ⇒ defaults. */
-  private textureImportFor(ref: string): ReturnType<typeof readTextureImportSettings> {
+  private textureImportFor(ref: string): ReturnType<typeof textureImportSettingsFrom> {
     const uuid = refUuid(ref) ?? this.pathToUuid.get(ref);
-    return readTextureImportSettings(uuid ? this.uuidToImporter.get(uuid) : undefined);
+    return textureImportSettingsFrom(uuid ? this.uuidToImporter.get(uuid) : undefined);
   }
 
   /** Push a texture's just-saved import settings to its LIVE gl handle so the edit
@@ -763,13 +763,19 @@ class ProjectStoreImpl {
    *  after the asset inspector writes the `.meta` + refreshAssets. */
   applyLiveTextureSettings(path: string): void {
     const uuid = this.pathToUuid.get(path);
-    const s = readTextureImportSettings(uuid ? this.uuidToImporter.get(uuid) : undefined);
+    const s = textureImportSettingsFrom(uuid ? this.uuidToImporter.get(uuid) : undefined);
     const handle = uuid ? EngineHost.getResource(Assets)?.getTexture(UUID_PREFIX + uuid)?.handle : undefined;
     if (!s || !handle) return;
     const filter = s.filter === 'nearest' ? TextureFilter.Nearest : TextureFilter.Linear;
     const wrap =
       s.wrap === 'clamp' ? TextureWrap.ClampToEdge : s.wrap === 'mirror' ? TextureWrap.MirroredRepeat : TextureWrap.Repeat;
     setTextureParams(handle, filter, filter, wrap, wrap);
+    // The 9-slice border is applied at load; re-stamp it so dragging a border in
+    // the asset inspector re-slices the live viewport without a scene reload.
+    if (s.sliceBorder) {
+      const b = s.sliceBorder;
+      setTextureSliceBorder(handle, b.left, b.right, b.top, b.bottom);
+    }
   }
 
   /**
