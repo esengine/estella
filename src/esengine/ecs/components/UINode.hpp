@@ -49,6 +49,19 @@ enum class UIDisplay : u8 {
 };
 
 /**
+ * @brief CSS `pointer-events`. None makes the node AND its whole subtree
+ *        transparent to the pointer — still drawn, but hits pass straight
+ *        through to whatever is behind. The hierarchical input gate (a panel
+ *        mid-fade, a decorative overlay). Contrast with Interactable.enabled,
+ *        which silences one entity without letting hits through it.
+ */
+ES_ENUM()
+enum class UIPointerEvents : u8 {
+    Auto,
+    None
+};
+
+/**
  * @brief UINode — the CSS box-model layout input (the CSS/Flex
  *        primary layout model).
  *
@@ -70,6 +83,19 @@ struct UINode {
 
     ES_PROPERTY(tooltip="None removes this node and its whole subtree from layout, rendering and input.")
     UIDisplay display{UIDisplay::Flex};
+
+    /**
+     * Subtree opacity, multiplied down the tree like CSS `opacity` — the one
+     * knob that fades a whole panel. It multiplies into each descendant's own
+     * alpha (it does NOT composite the subtree offscreen first), so overlapping
+     * children show through one another mid-fade; that is the cheap, universal
+     * behaviour, and the same trade every UI toolkit's group-alpha makes.
+     */
+    ES_PROPERTY(min=0, max=1, tooltip="Subtree opacity, multiplied down the tree. Fades this node and everything under it.")
+    f32 opacity{1.0f};
+
+    ES_PROPERTY(tooltip="None makes this node and its subtree transparent to the pointer — hits pass through to what is behind.")
+    UIPointerEvents pointerEvents{UIPointerEvents::Auto};
 
     // Box size; auto = content-/flex-driven.
     ES_PROPERTY()
@@ -124,6 +150,13 @@ struct UINode {
     // display None. Written by the layout pass; read by rendering, text and
     // hit-testing so the whole subtree disappears from all three.
     bool hidden_in_tree_{false};
+
+    // Computed (not serialized), same pass and same contract as hidden_in_tree_:
+    // the product of this node's `opacity` and every ancestor's, and whether any
+    // ancestor (or this node) turned pointer events off. Rendering multiplies the
+    // first in; hit-testing skips on the second. Consumers stay tree-unaware.
+    f32 alpha_in_tree_{1.0f};
+    bool pointer_blocked_in_tree_{false};
 
     // Set by the tween system for Transform fields it drives, so the layout pass
     // leaves those fields alone this frame (cleared each frame).

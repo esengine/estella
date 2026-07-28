@@ -16,9 +16,9 @@ import {
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
-import { UINode, UIPositionType, UIDisplay, type UINodeData } from './ui-node';
+import { UINode, UIPositionType, UIDisplay, UIPointerEvents, type UINodeData } from './ui-node';
 import { px, auto, type Dimension } from './dimension';
-import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from './ui-visual';
+import { UIVisual, UIVisualType, UIVisualFit, FillMethod, FillOrigin, type UIVisualData } from './ui-visual';
 import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from './text';
 
 /** Identity Transform. Fresh object per call — safe to insert into ECS. */
@@ -38,6 +38,10 @@ export interface UINodeInit {
     fill?: boolean;
     /** UIPositionType: Relative (flex flow) or Absolute (placed by inset). */
     position?: number;
+    /** Subtree opacity (CSS `opacity`), multiplied down the tree. */
+    opacity?: number;
+    /** UIPointerEvents: None makes this node and its subtree click-through. */
+    pointerEvents?: number;
     width?: Dimension;
     height?: Dimension;
     insetLeft?: Dimension;
@@ -62,6 +66,8 @@ export function buildUINode(init: UINodeInit = {}): UINodeData {
     return {
         position: init.position ?? (fill ? UIPositionType.Absolute : UIPositionType.Relative),
         display: UIDisplay.Flex,
+        opacity: init.opacity ?? 1,
+        pointerEvents: init.pointerEvents ?? UIPointerEvents.Auto,
         width: init.width ?? auto(),
         height: init.height ?? auto(),
         minWidth: auto(),
@@ -87,6 +93,8 @@ export interface UIVisualInit {
     visualType?: UIVisualType;
     texture?: number;
     color?: { r: number; g: number; b: number; a: number };
+    /** CSS `object-fit` (UIVisualFit). Default Fill. */
+    fit?: UIVisualFit;
     uvOffset?: Vec2;
     uvScale?: Vec2;
     sliceBorder?: { x: number; y: number; z: number; w: number };
@@ -103,6 +111,7 @@ export function buildUIVisual(init: UIVisualInit = {}): UIVisualData {
         visualType: init.visualType ?? UIVisualType.SolidColor,
         texture: init.texture ?? 0,
         color: init.color ?? { r: 1, g: 1, b: 1, a: 1 },
+        fit: init.fit ?? UIVisualFit.Fill,
         uvOffset: init.uvOffset ?? { x: 0, y: 0 },
         uvScale: init.uvScale ?? { x: 1, y: 1 },
         sliceBorder: init.sliceBorder ?? { x: 0, y: 0, z: 0, w: 0 },

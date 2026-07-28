@@ -1432,6 +1432,7 @@ export function createUIInteractionData(): UIInteractionPtrData {
 export interface UIMaskPtrData {
     enabled: boolean;
     mode: number;
+    alphaCutoff: number;
 }
 
 export function fillUIMask(
@@ -1440,6 +1441,7 @@ export function fillUIMask(
 ): void {
     out.enabled = u8[ptr] !== 0;
     out.mode = u8[ptr + 1];
+    out.alphaCutoff = f32[(ptr + 4) >> 2];
 }
 
 export function writeUIMask(
@@ -1448,18 +1450,22 @@ export function writeUIMask(
 ): void {
     u8[ptr] = data.enabled ? 1 : 0;
     u8[ptr + 1] = data.mode;
+    f32[(ptr + 4) >> 2] = data.alphaCutoff;
 }
 
 export function createUIMaskData(): UIMaskPtrData {
     return {
         enabled: false,
         mode: 0,
+        alphaCutoff: 0,
     };
 }
 
 export interface UINodePtrData {
     position: number;
     display: number;
+    opacity: number;
+    pointerEvents: number;
     width: { value: number; unit: number; };
     height: { value: number; unit: number; };
     minWidth: { value: number; unit: number; };
@@ -1486,24 +1492,26 @@ export function fillUINode(
 ): void {
     out.position = u8[ptr];
     out.display = u8[ptr + 1];
-    const width_ = out.width; width_.value = f32[(ptr + 4) >> 2]; width_.unit = u8[ptr + 8];
-    const height_ = out.height; height_.value = f32[(ptr + 12) >> 2]; height_.unit = u8[ptr + 16];
-    const minWidth_ = out.minWidth; minWidth_.value = f32[(ptr + 20) >> 2]; minWidth_.unit = u8[ptr + 24];
-    const minHeight_ = out.minHeight; minHeight_.value = f32[(ptr + 28) >> 2]; minHeight_.unit = u8[ptr + 32];
-    const maxWidth_ = out.maxWidth; maxWidth_.value = f32[(ptr + 36) >> 2]; maxWidth_.unit = u8[ptr + 40];
-    const maxHeight_ = out.maxHeight; maxHeight_.value = f32[(ptr + 44) >> 2]; maxHeight_.unit = u8[ptr + 48];
-    out.flexGrow = f32[(ptr + 52) >> 2];
-    out.flexShrink = f32[(ptr + 56) >> 2];
-    const flexBasis_ = out.flexBasis; flexBasis_.value = f32[(ptr + 60) >> 2]; flexBasis_.unit = u8[ptr + 64];
-    out.alignSelf = u8[ptr + 68];
-    const marginLeft_ = out.marginLeft; marginLeft_.value = f32[(ptr + 72) >> 2]; marginLeft_.unit = u8[ptr + 76];
-    const marginTop_ = out.marginTop; marginTop_.value = f32[(ptr + 80) >> 2]; marginTop_.unit = u8[ptr + 84];
-    const marginRight_ = out.marginRight; marginRight_.value = f32[(ptr + 88) >> 2]; marginRight_.unit = u8[ptr + 92];
-    const marginBottom_ = out.marginBottom; marginBottom_.value = f32[(ptr + 96) >> 2]; marginBottom_.unit = u8[ptr + 100];
-    const insetLeft_ = out.insetLeft; insetLeft_.value = f32[(ptr + 104) >> 2]; insetLeft_.unit = u8[ptr + 108];
-    const insetTop_ = out.insetTop; insetTop_.value = f32[(ptr + 112) >> 2]; insetTop_.unit = u8[ptr + 116];
-    const insetRight_ = out.insetRight; insetRight_.value = f32[(ptr + 120) >> 2]; insetRight_.unit = u8[ptr + 124];
-    const insetBottom_ = out.insetBottom; insetBottom_.value = f32[(ptr + 128) >> 2]; insetBottom_.unit = u8[ptr + 132];
+    out.opacity = f32[(ptr + 4) >> 2];
+    out.pointerEvents = u8[ptr + 8];
+    const width_ = out.width; width_.value = f32[(ptr + 12) >> 2]; width_.unit = u8[ptr + 16];
+    const height_ = out.height; height_.value = f32[(ptr + 20) >> 2]; height_.unit = u8[ptr + 24];
+    const minWidth_ = out.minWidth; minWidth_.value = f32[(ptr + 28) >> 2]; minWidth_.unit = u8[ptr + 32];
+    const minHeight_ = out.minHeight; minHeight_.value = f32[(ptr + 36) >> 2]; minHeight_.unit = u8[ptr + 40];
+    const maxWidth_ = out.maxWidth; maxWidth_.value = f32[(ptr + 44) >> 2]; maxWidth_.unit = u8[ptr + 48];
+    const maxHeight_ = out.maxHeight; maxHeight_.value = f32[(ptr + 52) >> 2]; maxHeight_.unit = u8[ptr + 56];
+    out.flexGrow = f32[(ptr + 60) >> 2];
+    out.flexShrink = f32[(ptr + 64) >> 2];
+    const flexBasis_ = out.flexBasis; flexBasis_.value = f32[(ptr + 68) >> 2]; flexBasis_.unit = u8[ptr + 72];
+    out.alignSelf = u8[ptr + 76];
+    const marginLeft_ = out.marginLeft; marginLeft_.value = f32[(ptr + 80) >> 2]; marginLeft_.unit = u8[ptr + 84];
+    const marginTop_ = out.marginTop; marginTop_.value = f32[(ptr + 88) >> 2]; marginTop_.unit = u8[ptr + 92];
+    const marginRight_ = out.marginRight; marginRight_.value = f32[(ptr + 96) >> 2]; marginRight_.unit = u8[ptr + 100];
+    const marginBottom_ = out.marginBottom; marginBottom_.value = f32[(ptr + 104) >> 2]; marginBottom_.unit = u8[ptr + 108];
+    const insetLeft_ = out.insetLeft; insetLeft_.value = f32[(ptr + 112) >> 2]; insetLeft_.unit = u8[ptr + 116];
+    const insetTop_ = out.insetTop; insetTop_.value = f32[(ptr + 120) >> 2]; insetTop_.unit = u8[ptr + 124];
+    const insetRight_ = out.insetRight; insetRight_.value = f32[(ptr + 128) >> 2]; insetRight_.unit = u8[ptr + 132];
+    const insetBottom_ = out.insetBottom; insetBottom_.value = f32[(ptr + 136) >> 2]; insetBottom_.unit = u8[ptr + 140];
 }
 
 export function writeUINode(
@@ -1512,30 +1520,34 @@ export function writeUINode(
 ): void {
     u8[ptr] = data.position;
     u8[ptr + 1] = data.display;
-    f32[(ptr + 4) >> 2] = data.width.value; u8[ptr + 8] = data.width.unit;
-    f32[(ptr + 12) >> 2] = data.height.value; u8[ptr + 16] = data.height.unit;
-    f32[(ptr + 20) >> 2] = data.minWidth.value; u8[ptr + 24] = data.minWidth.unit;
-    f32[(ptr + 28) >> 2] = data.minHeight.value; u8[ptr + 32] = data.minHeight.unit;
-    f32[(ptr + 36) >> 2] = data.maxWidth.value; u8[ptr + 40] = data.maxWidth.unit;
-    f32[(ptr + 44) >> 2] = data.maxHeight.value; u8[ptr + 48] = data.maxHeight.unit;
-    f32[(ptr + 52) >> 2] = data.flexGrow;
-    f32[(ptr + 56) >> 2] = data.flexShrink;
-    f32[(ptr + 60) >> 2] = data.flexBasis.value; u8[ptr + 64] = data.flexBasis.unit;
-    u8[ptr + 68] = data.alignSelf;
-    f32[(ptr + 72) >> 2] = data.marginLeft.value; u8[ptr + 76] = data.marginLeft.unit;
-    f32[(ptr + 80) >> 2] = data.marginTop.value; u8[ptr + 84] = data.marginTop.unit;
-    f32[(ptr + 88) >> 2] = data.marginRight.value; u8[ptr + 92] = data.marginRight.unit;
-    f32[(ptr + 96) >> 2] = data.marginBottom.value; u8[ptr + 100] = data.marginBottom.unit;
-    f32[(ptr + 104) >> 2] = data.insetLeft.value; u8[ptr + 108] = data.insetLeft.unit;
-    f32[(ptr + 112) >> 2] = data.insetTop.value; u8[ptr + 116] = data.insetTop.unit;
-    f32[(ptr + 120) >> 2] = data.insetRight.value; u8[ptr + 124] = data.insetRight.unit;
-    f32[(ptr + 128) >> 2] = data.insetBottom.value; u8[ptr + 132] = data.insetBottom.unit;
+    f32[(ptr + 4) >> 2] = data.opacity;
+    u8[ptr + 8] = data.pointerEvents;
+    f32[(ptr + 12) >> 2] = data.width.value; u8[ptr + 16] = data.width.unit;
+    f32[(ptr + 20) >> 2] = data.height.value; u8[ptr + 24] = data.height.unit;
+    f32[(ptr + 28) >> 2] = data.minWidth.value; u8[ptr + 32] = data.minWidth.unit;
+    f32[(ptr + 36) >> 2] = data.minHeight.value; u8[ptr + 40] = data.minHeight.unit;
+    f32[(ptr + 44) >> 2] = data.maxWidth.value; u8[ptr + 48] = data.maxWidth.unit;
+    f32[(ptr + 52) >> 2] = data.maxHeight.value; u8[ptr + 56] = data.maxHeight.unit;
+    f32[(ptr + 60) >> 2] = data.flexGrow;
+    f32[(ptr + 64) >> 2] = data.flexShrink;
+    f32[(ptr + 68) >> 2] = data.flexBasis.value; u8[ptr + 72] = data.flexBasis.unit;
+    u8[ptr + 76] = data.alignSelf;
+    f32[(ptr + 80) >> 2] = data.marginLeft.value; u8[ptr + 84] = data.marginLeft.unit;
+    f32[(ptr + 88) >> 2] = data.marginTop.value; u8[ptr + 92] = data.marginTop.unit;
+    f32[(ptr + 96) >> 2] = data.marginRight.value; u8[ptr + 100] = data.marginRight.unit;
+    f32[(ptr + 104) >> 2] = data.marginBottom.value; u8[ptr + 108] = data.marginBottom.unit;
+    f32[(ptr + 112) >> 2] = data.insetLeft.value; u8[ptr + 116] = data.insetLeft.unit;
+    f32[(ptr + 120) >> 2] = data.insetTop.value; u8[ptr + 124] = data.insetTop.unit;
+    f32[(ptr + 128) >> 2] = data.insetRight.value; u8[ptr + 132] = data.insetRight.unit;
+    f32[(ptr + 136) >> 2] = data.insetBottom.value; u8[ptr + 140] = data.insetBottom.unit;
 }
 
 export function createUINodeData(): UINodePtrData {
     return {
         position: 0,
         display: 0,
+        opacity: 0,
+        pointerEvents: 0,
         width: { value: 0, unit: 0 },
         height: { value: 0, unit: 0 },
         minWidth: { value: 0, unit: 0 },
@@ -1561,6 +1573,7 @@ export interface UIVisualPtrData {
     visualType: number;
     texture: number;
     color: Color;
+    fit: number;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;
@@ -1579,15 +1592,16 @@ export function fillUIVisual(
     out.visualType = u8[ptr];
     out.texture = u32[(ptr + 4) >> 2];
     const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
-    const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 24) >> 2]; uvOffset_.y = f32[((ptr + 24) >> 2) + 1];
-    const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 32) >> 2]; uvScale_.y = f32[((ptr + 32) >> 2) + 1];
-    const sliceBorder_ = out.sliceBorder; sliceBorder_.x = f32[(ptr + 40) >> 2]; sliceBorder_.y = f32[((ptr + 40) >> 2) + 1]; sliceBorder_.z = f32[((ptr + 40) >> 2) + 2]; sliceBorder_.w = f32[((ptr + 40) >> 2) + 3];
-    const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 56) >> 2]; tileSize_.y = f32[((ptr + 56) >> 2) + 1];
-    out.fillMethod = u8[ptr + 64];
-    out.fillOrigin = u8[ptr + 65];
-    out.fillAmount = f32[(ptr + 68) >> 2];
-    out.material = u32[(ptr + 72) >> 2];
-    out.enabled = u8[ptr + 76] !== 0;
+    out.fit = u8[ptr + 24];
+    const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 28) >> 2]; uvOffset_.y = f32[((ptr + 28) >> 2) + 1];
+    const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 36) >> 2]; uvScale_.y = f32[((ptr + 36) >> 2) + 1];
+    const sliceBorder_ = out.sliceBorder; sliceBorder_.x = f32[(ptr + 44) >> 2]; sliceBorder_.y = f32[((ptr + 44) >> 2) + 1]; sliceBorder_.z = f32[((ptr + 44) >> 2) + 2]; sliceBorder_.w = f32[((ptr + 44) >> 2) + 3];
+    const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 60) >> 2]; tileSize_.y = f32[((ptr + 60) >> 2) + 1];
+    out.fillMethod = u8[ptr + 68];
+    out.fillOrigin = u8[ptr + 69];
+    out.fillAmount = f32[(ptr + 72) >> 2];
+    out.material = u32[(ptr + 76) >> 2];
+    out.enabled = u8[ptr + 80] !== 0;
 }
 
 export function writeUIVisual(
@@ -1597,15 +1611,16 @@ export function writeUIVisual(
     u8[ptr] = data.visualType;
     u32[(ptr + 4) >> 2] = data.texture;
     f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
-    f32[(ptr + 24) >> 2] = data.uvOffset.x; f32[((ptr + 24) >> 2) + 1] = data.uvOffset.y;
-    f32[(ptr + 32) >> 2] = data.uvScale.x; f32[((ptr + 32) >> 2) + 1] = data.uvScale.y;
-    f32[(ptr + 40) >> 2] = data.sliceBorder.x; f32[((ptr + 40) >> 2) + 1] = data.sliceBorder.y; f32[((ptr + 40) >> 2) + 2] = data.sliceBorder.z; f32[((ptr + 40) >> 2) + 3] = data.sliceBorder.w;
-    f32[(ptr + 56) >> 2] = data.tileSize.x; f32[((ptr + 56) >> 2) + 1] = data.tileSize.y;
-    u8[ptr + 64] = data.fillMethod;
-    u8[ptr + 65] = data.fillOrigin;
-    f32[(ptr + 68) >> 2] = data.fillAmount;
-    u32[(ptr + 72) >> 2] = data.material;
-    u8[ptr + 76] = data.enabled ? 1 : 0;
+    u8[ptr + 24] = data.fit;
+    f32[(ptr + 28) >> 2] = data.uvOffset.x; f32[((ptr + 28) >> 2) + 1] = data.uvOffset.y;
+    f32[(ptr + 36) >> 2] = data.uvScale.x; f32[((ptr + 36) >> 2) + 1] = data.uvScale.y;
+    f32[(ptr + 44) >> 2] = data.sliceBorder.x; f32[((ptr + 44) >> 2) + 1] = data.sliceBorder.y; f32[((ptr + 44) >> 2) + 2] = data.sliceBorder.z; f32[((ptr + 44) >> 2) + 3] = data.sliceBorder.w;
+    f32[(ptr + 60) >> 2] = data.tileSize.x; f32[((ptr + 60) >> 2) + 1] = data.tileSize.y;
+    u8[ptr + 68] = data.fillMethod;
+    u8[ptr + 69] = data.fillOrigin;
+    f32[(ptr + 72) >> 2] = data.fillAmount;
+    u32[(ptr + 76) >> 2] = data.material;
+    u8[ptr + 80] = data.enabled ? 1 : 0;
 }
 
 export function createUIVisualData(): UIVisualPtrData {
@@ -1613,6 +1628,7 @@ export function createUIVisualData(): UIVisualPtrData {
         visualType: 0,
         texture: 0,
         color: { r: 0, g: 0, b: 0, a: 0 },
+        fit: 0,
         uvOffset: { x: 0, y: 0 },
         uvScale: { x: 0, y: 0 },
         sliceBorder: { x: 0, y: 0, z: 0, w: 0 },

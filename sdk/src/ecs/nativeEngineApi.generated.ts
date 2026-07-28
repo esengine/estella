@@ -52,9 +52,11 @@ export interface NativeEngineApi {
     geometry_setIndices16?(handle: number, indicesPtr: number, indexCount: number): void;
     geometry_setIndices32?(handle: number, indicesPtr: number, indexCount: number): void;
     geometry_updateVertices?(handle: number, verticesPtr: number, vertexCount: number, offset: number): void;
+    getUINodeAlphaInTree?(registry: unknown, entity: number): number;
     getUINodeComputedHeight?(registry: unknown, entity: number): number;
     getUINodeComputedWidth?(registry: unknown, entity: number): number;
     getUINodeHiddenInTree?(registry: unknown, entity: number): boolean;
+    getUINodePointerBlockedInTree?(registry: unknown, entity: number): boolean;
     gl_checkErrors?(context: string): number;
     gl_enableErrorCheck?(enabled: boolean): void;
     material_compileEsshader?(source: string, featuresCsv: string): number;
@@ -283,9 +285,11 @@ export function createNativeEngineApi(
     bind('geometry_setIndices16', 'es_geometry_setIndices16', false);
     bind('geometry_setIndices32', 'es_geometry_setIndices32', false);
     bind('geometry_updateVertices', 'es_geometry_updateVertices', false);
+    bind('getUINodeAlphaInTree', 'es_getUINodeAlphaInTree', true);
     bind('getUINodeComputedHeight', 'es_getUINodeComputedHeight', true);
     bind('getUINodeComputedWidth', 'es_getUINodeComputedWidth', true);
     bind('getUINodeHiddenInTree', 'es_getUINodeHiddenInTree', true);
+    bind('getUINodePointerBlockedInTree', 'es_getUINodePointerBlockedInTree', true);
     bind('gl_checkErrors', 'es_gl_checkErrors', false);
     bind('gl_enableErrorCheck', 'es_gl_enableErrorCheck', false);
     bind('material_compileEsshader', 'es_material_compileEsshader', false);

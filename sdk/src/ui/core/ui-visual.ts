@@ -24,15 +24,20 @@ import type { Color, Vec2, Vec4 } from '../../types';
 // UIFillMethod/UIFillOrigin.
 import {
     UIVisualType,
+    UIVisualFit,
     UIFillMethod as FillMethod,
     UIFillOrigin as FillOrigin,
 } from '../../wasm.generated';
-export { UIVisualType, FillMethod, FillOrigin };
+export { UIVisualType, UIVisualFit, FillMethod, FillOrigin };
 
 export interface UIVisualData {
     visualType: UIVisualType;
     texture: number;
     color: Color;
+    /** CSS `object-fit`: Fill stretches to the box (default), Contain
+     *  letterboxes the whole image inside it, Cover fills the box and crops.
+     *  Ignored by NineSlice and Tiled, which exist to adapt to the box. */
+    fit: UIVisualFit;
     /** Base UV sub-region offset (identity = whole texture). */
     uvOffset: Vec2;
     /** Base UV sub-region scale (identity = whole texture). */
@@ -55,6 +60,7 @@ export const UIVisual = defineBuiltin<UIVisualData>('UIVisual', {
     visualType: UIVisualType.None,
     texture: 0,
     color: { r: 1, g: 1, b: 1, a: 1 },
+    fit: UIVisualFit.Fill,
     uvOffset: { x: 0, y: 0 },
     uvScale: { x: 1, y: 1 },
     sliceBorder: { x: 0, y: 0, z: 0, w: 0 },

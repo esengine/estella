@@ -51,6 +51,8 @@
           "data": {
             "position": 0,
             "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
             "width": {
               "value": 220,
               "unit": 0

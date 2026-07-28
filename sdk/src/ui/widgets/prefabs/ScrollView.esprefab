@@ -53,6 +53,8 @@
           "data": {
             "position": 0,
             "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
             "width": {
               "value": 240,
               "unit": 0
@@ -129,6 +131,7 @@
               "b": 0.26,
               "a": 1
             },
+            "fit": 0,
             "uvOffset": {
               "x": 0,
               "y": 0
@@ -226,6 +229,8 @@
           "data": {
             "position": 1,
             "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
             "width": {
               "value": 240,
               "unit": 0

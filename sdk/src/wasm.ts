@@ -435,6 +435,10 @@ export interface ESEngineModule {
     getUINodeComputedWidth?(registry: CppRegistry, entity: number): number;
     getUINodeComputedHeight?(registry: CppRegistry, entity: number): number;
     getUINodeHiddenInTree?(registry: CppRegistry, entity: number): boolean;
+    /** Subtree opacity resolved by the layout pass (UINode.opacity multiplied down). */
+    getUINodeAlphaInTree?(registry: CppRegistry, entity: number): number;
+    /** True when this node or an ancestor set pointerEvents = None. */
+    getUINodePointerBlockedInTree?(registry: CppRegistry, entity: number): boolean;
     uiTree_markStructureDirty(): void;
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;

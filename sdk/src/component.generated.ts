@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9219dd764c94a81e';
+export const ABI_LAYOUT_HASH = '52526b76662ebd4a';
 
 export interface AssetFieldMeta {
     field: string;
@@ -709,6 +709,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         defaults: {
             enabled: true,
             mode: 0,
+            alphaCutoff: 0,
         },
         assetFields: [],
         entityFields: [],
@@ -716,12 +717,15 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             mode: { enum: [{ label: 'Scissor', value: 0 }, { label: 'Stencil', value: 1 }] },
+            alphaCutoff: { tooltip: "Stencil only: above 0, clip to the mask sprite's shape instead of its box." },
         },
     },
     UINode: {
         defaults: {
             position: 0,
             display: 0,
+            opacity: 1,
+            pointerEvents: 0,
             width: { value: 0, unit: 2 },
             height: { value: 0, unit: 2 },
             minWidth: { value: 0, unit: 2 },
@@ -748,6 +752,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         fields: {
             position: { enum: [{ label: 'Relative', value: 0 }, { label: 'Absolute', value: 1 }] },
             display: { enum: [{ label: 'Flex', value: 0 }, { label: 'None', value: 1 }], tooltip: "None removes this node and its whole subtree from layout, rendering and input." },
+            opacity: { min: 0, max: 1, tooltip: "Subtree opacity, multiplied down the tree. Fades this node and everything under it." },
+            pointerEvents: { enum: [{ label: 'Auto', value: 0 }, { label: 'None', value: 1 }], tooltip: "None makes this node and its subtree transparent to the pointer — hits pass through to what is behind." },
             alignSelf: { enum: [{ label: 'Auto', value: 0 }, { label: 'Start', value: 1 }, { label: 'Center', value: 2 }, { label: 'End', value: 3 }, { label: 'Stretch', value: 4 }] },
         },
     },
@@ -756,6 +762,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             visualType: 0,
             texture: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
+            fit: 0,
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
             sliceBorder: { x: 0, y: 0, z: 0, w: 0 },
@@ -772,6 +779,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'fillAmount'],
         fields: {
             visualType: { enum: [{ label: 'None', value: 0 }, { label: 'SolidColor', value: 1 }, { label: 'Image', value: 2 }, { label: 'NineSlice', value: 3 }, { label: 'Tiled', value: 4 }, { label: 'Filled', value: 5 }] },
+            fit: { enum: [{ label: 'Fill', value: 0 }, { label: 'Contain', value: 1 }, { label: 'Cover', value: 2 }], tooltip: "How the image fits its box: Fill stretches, Contain letterboxes it whole, Cover fills and crops." },
             fillMethod: { enum: [{ label: 'Horizontal', value: 0 }, { label: 'Vertical', value: 1 }, { label: 'Radial360', value: 2 }, { label: 'Radial90', value: 3 }, { label: 'Radial180', value: 4 }] },
             fillOrigin: { enum: [{ label: 'Left', value: 0 }, { label: 'Right', value: 1 }, { label: 'Bottom', value: 2 }, { label: 'Top', value: 3 }] },
         },
@@ -1122,11 +1130,14 @@ export interface UIInteractionData {
 export interface UIMaskData {
     enabled: boolean;
     mode: number;
+    alphaCutoff: number;
 }
 
 export interface UINodeData {
     position: number;
     display: number;
+    opacity: number;
+    pointerEvents: number;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;
@@ -1151,6 +1162,7 @@ export interface UIVisualData {
     visualType: number;
     texture: number;
     color: Color;
+    fit: number;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;

@@ -55,6 +55,21 @@ enum class UIFillOrigin : u8 {
 };
 
 /**
+ * @brief How the texture is fitted into the node's box — CSS `object-fit`.
+ *        Fill stretches to the box (the default, and what a 9-slice or a tiled
+ *        visual always wants). Contain scales the image down until it fits
+ *        WHOLE inside the box, letterboxing the remainder — the "don't squash
+ *        my artwork" mode. Cover scales up until the box is covered and crops
+ *        the overflow, so the box is filled with no distortion.
+ */
+ES_ENUM()
+enum class UIVisualFit : u8 {
+    Fill,
+    Contain,
+    Cover
+};
+
+/**
  * @brief UIVisual — the single UI visual component, merging the
  *        former low-level UIRenderer (what the renderer drew) and high-level
  *        Image (Simple/Sliced/Tiled/Filled intent that used to be copied into a
@@ -75,6 +90,11 @@ struct UIVisual {
 
     ES_PROPERTY(animatable)
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
+
+    // How the texture fills the box. Ignored by NineSlice and Tiled, whose
+    // whole point is to adapt to the box rather than preserve a ratio.
+    ES_PROPERTY(tooltip="How the image fits its box: Fill stretches, Contain letterboxes it whole, Cover fills and crops.")
+    UIVisualFit fit{UIVisualFit::Fill};
 
     // Base sub-region (identity = whole texture); Tiled/Filled build on it.
     ES_PROPERTY()

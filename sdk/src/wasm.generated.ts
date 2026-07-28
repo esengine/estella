@@ -186,9 +186,20 @@ export enum UIFillOrigin {
     Top = 3,
 }
 
+export enum UIPointerEvents {
+    Auto = 0,
+    None = 1,
+}
+
 export enum UIPositionType {
     Relative = 0,
     Absolute = 1,
+}
+
+export enum UIVisualFit {
+    Fill = 0,
+    Contain = 1,
+    Cover = 2,
 }
 
 export enum UIVisualType {
@@ -531,11 +542,14 @@ export interface UIInteraction {
 export interface UIMask {
     enabled: boolean;
     mode: number;
+    alphaCutoff: number;
 }
 
 export interface UINode {
     position: number;
     display: number;
+    opacity: number;
+    pointerEvents: number;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;
@@ -560,6 +574,7 @@ export interface UIVisual {
     visualType: number;
     texture: number;
     color: Vec4;
+    fit: number;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;

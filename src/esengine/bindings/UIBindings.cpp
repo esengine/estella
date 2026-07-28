@@ -108,6 +108,19 @@ bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity) {
     return node && node->hidden_in_tree_;
 }
 
+// Subtree opacity / pointer gate, resolved by the layout pass. Same reason as
+// the hidden bit: computed state is not embind-readable, and the TS text
+// renderer + input router need it to behave like the C++ visuals do.
+f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity) {
+    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
+    return node ? node->alpha_in_tree_ : 1.0f;
+}
+
+bool getUINodePointerBlockedInTree(ecs::Registry& registry, u32 entity) {
+    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
+    return node && node->pointer_blocked_in_tree_;
+}
+
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
     if (!node) return 0.0f;

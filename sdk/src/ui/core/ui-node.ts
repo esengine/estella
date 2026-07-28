@@ -18,7 +18,7 @@ import { auto, px, type Dimension } from './dimension';
 // `inset` against the parent box — covers the old RectTransform anchor/stretch
 // cases) and per-item cross-axis alignment override. Both single-sourced from
 // the C++ ES_ENUMs via the generated module.
-export { UIPositionType, UIDisplay, AlignSelf } from '../../wasm.generated';
+export { UIPositionType, UIDisplay, UIPointerEvents, AlignSelf } from '../../wasm.generated';
 
 export interface UINodeData {
     /** Relative (flex flow) or Absolute (placed by inset). */
@@ -27,6 +27,13 @@ export interface UINodeData {
      *  from layout, rendering and hit-testing — the hierarchical show/hide.
      *  Contrast with UIVisual.enabled, which hides only this entity's visual. */
     display: number;
+    /** Subtree opacity, multiplied down the tree like CSS `opacity` — the knob
+     *  that fades a whole panel. Multiplies into each descendant's own alpha
+     *  rather than compositing the subtree offscreen. */
+    opacity: number;
+    /** CSS `pointer-events` (UIPointerEvents). None makes this node AND its
+     *  subtree transparent to the pointer: still drawn, hits pass through. */
+    pointerEvents: number;
     /** Box size; `auto()` = content-/flex-driven. */
     width: Dimension;
     height: Dimension;
@@ -57,6 +64,8 @@ export interface UINodeData {
 export const UINode = defineBuiltin<UINodeData>('UINode', {
     position: 0,
     display: 0,
+    opacity: 1,
+    pointerEvents: 0,
     width: auto(),
     height: auto(),
     minWidth: auto(),

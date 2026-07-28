@@ -14,6 +14,13 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 // Lit2D-domain shader, so applyLighting2D + LightConstants are injected.
 #pragma feature LIT
 
+// Compile-time variant: discard fragments the sprite draws as (near-)transparent.
+// Selected for a STENCIL MASK draw, which runs this shader with color writes off:
+// without the discard every transparent corner of the quad still writes stencil,
+// so a circular mask sprite would clip a rectangle. Off for ordinary sprites, so
+// they keep an unconditional (early-Z friendly) fragment path.
+#pragma feature ALPHA_CLIP
+
 #pragma vertex
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec4 a_color;
@@ -91,6 +98,12 @@ void main() {
     vec4 base = texColor * tint;
     fragColor = vec4(applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
 #else
+  #ifdef ALPHA_CLIP
+    // The SPRITE's alpha, not the tinted result: a mask graphic is routinely
+    // tinted to near-zero alpha so it masks without being seen, and testing the
+    // tinted value would discard the whole mask and clip everything away.
+    if (texColor.a < 0.5) discard;
+  #endif
     fragColor = texColor * tint;
 #endif
 }
@@ -186,6 +199,10 @@ struct VSOut {
     let base = texColor * tint;
     return vec4f(applyLighting2D(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos), base.a);
 #else
+  #ifdef ALPHA_CLIP
+    // See the GLSL stage: test the sprite's alpha, not the tinted result.
+    if (texColor.a < 0.5) { discard; }
+  #endif
     return texColor * tint;
 #endif
 }

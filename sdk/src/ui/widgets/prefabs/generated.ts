@@ -57,6 +57,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 140,
                 "unit": 0
@@ -133,6 +135,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 1,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -298,6 +301,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -471,6 +476,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 28,
                 "unit": 0
@@ -547,6 +554,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 1,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -719,6 +727,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -795,6 +805,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.96,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -887,6 +898,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 200,
                 "unit": 0
@@ -963,6 +976,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.15,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -1071,6 +1085,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 14,
                 "unit": 0
@@ -1147,6 +1163,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 1,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -1229,6 +1246,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -1305,6 +1324,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.96,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -1396,6 +1416,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -1472,6 +1494,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0,
                 "a": 0.5
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -1569,6 +1592,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 400,
                 "unit": 0
@@ -1645,6 +1670,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.18,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -1742,6 +1768,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 220,
                 "unit": 0
@@ -1928,6 +1956,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 200,
                 "unit": 0
@@ -2004,6 +2034,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.15,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -2086,6 +2117,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -2162,6 +2195,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.96,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -2253,6 +2287,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 150,
                 "unit": 0
@@ -2329,6 +2365,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.26,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -2491,6 +2528,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -2664,6 +2703,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 240,
                 "unit": 0
@@ -2740,6 +2781,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.26,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -2837,6 +2879,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -3010,6 +3054,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 0,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 240,
                 "unit": 0
@@ -3086,6 +3132,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "b": 0.26,
                 "a": 1
               },
+              "fit": 0,
               "uvOffset": {
                 "x": 0,
                 "y": 0
@@ -3183,6 +3230,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "position": 1,
               "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
               "width": {
                 "value": 240,
                 "unit": 0

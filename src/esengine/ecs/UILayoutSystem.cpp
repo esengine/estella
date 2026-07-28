@@ -12,8 +12,13 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <algorithm>
 
 namespace esengine::ecs {
+
+// Reused across frames so the per-frame inherited walk allocates nothing.
+static std::vector<f32> inherited_alpha_stack_;
+static std::vector<u8> inherited_block_stack_;
 
 // Retained Yoga node cache: one YGNode per UI entity, kept alive across frames.
 // A stable UI tree reuses its allocations instead of YGNodeNew/FreeRecursive
@@ -334,6 +339,41 @@ void propagateHiddenInTree(Registry& registry, UITree& tree) {
     }
 }
 
+// Resolve opacity and pointer-events hierarchically over the same DFS-ordered
+// tree: opacity multiplies down (CSS `opacity`), pointer-events latches off
+// (CSS `pointer-events: none` on an ancestor is not overridable by a child).
+// Rendering and hit-testing read the resulting UINode bits, so neither needs
+// tree knowledge — the contract propagateHiddenInTree already established.
+//
+// `depth` is monotonic in DFS order, so one running stack indexed by depth
+// carries each node's inherited value to its children without a second walk.
+void propagateInheritedUIState(Registry& registry, UITree& tree) {
+    auto& nodes = tree.nodes_;
+    if (nodes.empty()) return;
+
+    inherited_alpha_stack_.assign(nodes.size() + 1, 1.0f);
+    inherited_block_stack_.assign(nodes.size() + 1, static_cast<u8>(0));
+
+    for (usize i = 0; i < nodes.size(); ++i) {
+        const u16 depth = nodes[i].depth;
+        const f32 parentAlpha = depth == 0 ? 1.0f : inherited_alpha_stack_[depth - 1];
+        const bool parentBlocked = depth == 0 ? false : inherited_block_stack_[depth - 1] != 0;
+
+        auto* n = registry.tryGet<UINode>(nodes[i].entity);
+        if (!n) {
+            inherited_alpha_stack_[depth] = parentAlpha;
+            inherited_block_stack_[depth] = static_cast<u8>(parentBlocked);
+            continue;
+        }
+        const f32 alpha = parentAlpha * std::clamp(n->opacity, 0.0f, 1.0f);
+        const bool blocked = parentBlocked || n->pointerEvents == UIPointerEvents::None;
+        n->alpha_in_tree_ = alpha;
+        n->pointer_blocked_in_tree_ = blocked;
+        inherited_alpha_stack_[depth] = alpha;
+        inherited_block_stack_[depth] = static_cast<u8>(blocked);
+    }
+}
+
 // A tween drives Transform fields directly in C++ (TweenSystem), invisible to the
 // TS change-tracking that feeds tsPropertyDirty. Scan the UINode anim_override_
 // bits so the gate keeps solving while any tween is active — and, via the caller's
@@ -417,6 +457,7 @@ void UISystem::layoutUpdate(
     }
 
     propagateHiddenInTree(registry, tree);
+    propagateInheritedUIState(registry, tree);
     LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
     unifiedLayoutPass(registry, tree, *layoutCache_, cameraRect);
 

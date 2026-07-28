@@ -225,9 +225,18 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Bottom", esengine::ecs::UIFillOrigin::Bottom)
         .value("Top", esengine::ecs::UIFillOrigin::Top);
 
+    enum_<esengine::ecs::UIPointerEvents>("UIPointerEvents")
+        .value("Auto", esengine::ecs::UIPointerEvents::Auto)
+        .value("None", esengine::ecs::UIPointerEvents::None);
+
     enum_<esengine::ecs::UIPositionType>("UIPositionType")
         .value("Relative", esengine::ecs::UIPositionType::Relative)
         .value("Absolute", esengine::ecs::UIPositionType::Absolute);
+
+    enum_<esengine::ecs::UIVisualFit>("UIVisualFit")
+        .value("Fill", esengine::ecs::UIVisualFit::Fill)
+        .value("Contain", esengine::ecs::UIVisualFit::Contain)
+        .value("Cover", esengine::ecs::UIVisualFit::Cover);
 
     enum_<esengine::ecs::UIVisualType>("UIVisualType")
         .value("None", esengine::ecs::UIVisualType::None)
@@ -845,12 +854,14 @@ TrailRendererJS trailrendererToJS(const esengine::ecs::TrailRenderer& c) {
 struct UIMaskJS {
     bool enabled;
     i32 mode;
+    f32 alphaCutoff;
 };
 
 esengine::ecs::UIMask uimaskFromJS(const UIMaskJS& js) {
     esengine::ecs::UIMask c;
     c.enabled = js.enabled;
     c.mode = static_cast<MaskMode>(js.mode);
+    c.alphaCutoff = js.alphaCutoff;
     return c;
 }
 
@@ -858,12 +869,15 @@ UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
     UIMaskJS js;
     js.enabled = c.enabled;
     js.mode = static_cast<i32>(c.mode);
+    js.alphaCutoff = c.alphaCutoff;
     return js;
 }
 
 struct UINodeJS {
     i32 position;
     i32 display;
+    f32 opacity;
+    i32 pointerEvents;
     Dimension width;
     Dimension height;
     Dimension minWidth;
@@ -888,6 +902,8 @@ esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
     esengine::ecs::UINode c;
     c.position = static_cast<UIPositionType>(js.position);
     c.display = static_cast<UIDisplay>(js.display);
+    c.opacity = js.opacity;
+    c.pointerEvents = static_cast<UIPointerEvents>(js.pointerEvents);
     c.width = js.width;
     c.height = js.height;
     c.minWidth = js.minWidth;
@@ -913,6 +929,8 @@ UINodeJS uinodeToJS(const esengine::ecs::UINode& c) {
     UINodeJS js;
     js.position = static_cast<i32>(c.position);
     js.display = static_cast<i32>(c.display);
+    js.opacity = c.opacity;
+    js.pointerEvents = static_cast<i32>(c.pointerEvents);
     js.width = c.width;
     js.height = c.height;
     js.minWidth = c.minWidth;
@@ -938,6 +956,7 @@ struct UIVisualJS {
     i32 visualType;
     u32 texture;
     glm::vec4 color;
+    i32 fit;
     glm::vec2 uvOffset;
     glm::vec2 uvScale;
     glm::vec4 sliceBorder;
@@ -954,6 +973,7 @@ esengine::ecs::UIVisual uivisualFromJS(const UIVisualJS& js) {
     c.visualType = static_cast<UIVisualType>(js.visualType);
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
+    c.fit = static_cast<UIVisualFit>(js.fit);
     c.uvOffset = js.uvOffset;
     c.uvScale = js.uvScale;
     c.sliceBorder = js.sliceBorder;
@@ -971,6 +991,7 @@ UIVisualJS uivisualToJS(const esengine::ecs::UIVisual& c) {
     js.visualType = static_cast<i32>(c.visualType);
     js.texture = c.texture.id();
     js.color = c.color;
+    js.fit = static_cast<i32>(c.fit);
     js.uvOffset = c.uvOffset;
     js.uvScale = c.uvScale;
     js.sliceBorder = c.sliceBorder;
@@ -1289,11 +1310,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<UIMaskJS>("UIMask")
         .field("enabled", &UIMaskJS::enabled)
-        .field("mode", &UIMaskJS::mode);
+        .field("mode", &UIMaskJS::mode)
+        .field("alphaCutoff", &UIMaskJS::alphaCutoff);
 
     value_object<UINodeJS>("UINode")
         .field("position", &UINodeJS::position)
         .field("display", &UINodeJS::display)
+        .field("opacity", &UINodeJS::opacity)
+        .field("pointerEvents", &UINodeJS::pointerEvents)
         .field("width", &UINodeJS::width)
         .field("height", &UINodeJS::height)
         .field("minWidth", &UINodeJS::minWidth)
@@ -1317,6 +1341,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("visualType", &UIVisualJS::visualType)
         .field("texture", &UIVisualJS::texture)
         .field("color", &UIVisualJS::color)
+        .field("fit", &UIVisualJS::fit)
         .field("uvOffset", &UIVisualJS::uvOffset)
         .field("uvScale", &UIVisualJS::uvScale)
         .field("sliceBorder", &UIVisualJS::sliceBorder)
@@ -2248,38 +2273,42 @@ static_assert(offsetof(esengine::ecs::UIInteraction, justPressed) == 2, "ABI off
 static_assert(offsetof(esengine::ecs::UIInteraction, justReleased) == 3, "ABI offset drift: esengine::ecs::UIInteraction.justReleased (EHT expected 3)");
 static_assert(offsetof(esengine::ecs::UIMask, enabled) == 0, "ABI offset drift: esengine::ecs::UIMask.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIMask, mode) == 1, "ABI offset drift: esengine::ecs::UIMask.mode (EHT expected 1)");
+static_assert(offsetof(esengine::ecs::UIMask, alphaCutoff) == 4, "ABI offset drift: esengine::ecs::UIMask.alphaCutoff (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift: esengine::ecs::UINode.position (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UINode, display) == 1, "ABI offset drift: esengine::ecs::UINode.display (EHT expected 1)");
-static_assert(offsetof(esengine::ecs::UINode, width) == 4, "ABI offset drift: esengine::ecs::UINode.width (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::UINode, height) == 12, "ABI offset drift: esengine::ecs::UINode.height (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::UINode, minWidth) == 20, "ABI offset drift: esengine::ecs::UINode.minWidth (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::UINode, minHeight) == 28, "ABI offset drift: esengine::ecs::UINode.minHeight (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::UINode, maxWidth) == 36, "ABI offset drift: esengine::ecs::UINode.maxWidth (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::UINode, maxHeight) == 44, "ABI offset drift: esengine::ecs::UINode.maxHeight (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 52, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 56, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::UINode, flexBasis) == 60, "ABI offset drift: esengine::ecs::UINode.flexBasis (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 68, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 68)");
-static_assert(offsetof(esengine::ecs::UINode, marginLeft) == 72, "ABI offset drift: esengine::ecs::UINode.marginLeft (EHT expected 72)");
-static_assert(offsetof(esengine::ecs::UINode, marginTop) == 80, "ABI offset drift: esengine::ecs::UINode.marginTop (EHT expected 80)");
-static_assert(offsetof(esengine::ecs::UINode, marginRight) == 88, "ABI offset drift: esengine::ecs::UINode.marginRight (EHT expected 88)");
-static_assert(offsetof(esengine::ecs::UINode, marginBottom) == 96, "ABI offset drift: esengine::ecs::UINode.marginBottom (EHT expected 96)");
-static_assert(offsetof(esengine::ecs::UINode, insetLeft) == 104, "ABI offset drift: esengine::ecs::UINode.insetLeft (EHT expected 104)");
-static_assert(offsetof(esengine::ecs::UINode, insetTop) == 112, "ABI offset drift: esengine::ecs::UINode.insetTop (EHT expected 112)");
-static_assert(offsetof(esengine::ecs::UINode, insetRight) == 120, "ABI offset drift: esengine::ecs::UINode.insetRight (EHT expected 120)");
-static_assert(offsetof(esengine::ecs::UINode, insetBottom) == 128, "ABI offset drift: esengine::ecs::UINode.insetBottom (EHT expected 128)");
+static_assert(offsetof(esengine::ecs::UINode, opacity) == 4, "ABI offset drift: esengine::ecs::UINode.opacity (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::UINode, pointerEvents) == 8, "ABI offset drift: esengine::ecs::UINode.pointerEvents (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::UINode, width) == 12, "ABI offset drift: esengine::ecs::UINode.width (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::UINode, height) == 20, "ABI offset drift: esengine::ecs::UINode.height (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::UINode, minWidth) == 28, "ABI offset drift: esengine::ecs::UINode.minWidth (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::UINode, minHeight) == 36, "ABI offset drift: esengine::ecs::UINode.minHeight (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::UINode, maxWidth) == 44, "ABI offset drift: esengine::ecs::UINode.maxWidth (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::UINode, maxHeight) == 52, "ABI offset drift: esengine::ecs::UINode.maxHeight (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 60, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 64, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::UINode, flexBasis) == 68, "ABI offset drift: esengine::ecs::UINode.flexBasis (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 76, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::UINode, marginLeft) == 80, "ABI offset drift: esengine::ecs::UINode.marginLeft (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::UINode, marginTop) == 88, "ABI offset drift: esengine::ecs::UINode.marginTop (EHT expected 88)");
+static_assert(offsetof(esengine::ecs::UINode, marginRight) == 96, "ABI offset drift: esengine::ecs::UINode.marginRight (EHT expected 96)");
+static_assert(offsetof(esengine::ecs::UINode, marginBottom) == 104, "ABI offset drift: esengine::ecs::UINode.marginBottom (EHT expected 104)");
+static_assert(offsetof(esengine::ecs::UINode, insetLeft) == 112, "ABI offset drift: esengine::ecs::UINode.insetLeft (EHT expected 112)");
+static_assert(offsetof(esengine::ecs::UINode, insetTop) == 120, "ABI offset drift: esengine::ecs::UINode.insetTop (EHT expected 120)");
+static_assert(offsetof(esengine::ecs::UINode, insetRight) == 128, "ABI offset drift: esengine::ecs::UINode.insetRight (EHT expected 128)");
+static_assert(offsetof(esengine::ecs::UINode, insetBottom) == 136, "ABI offset drift: esengine::ecs::UINode.insetBottom (EHT expected 136)");
 static_assert(offsetof(esengine::ecs::UIVisual, visualType) == 0, "ABI offset drift: esengine::ecs::UIVisual.visualType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIVisual, texture) == 4, "ABI offset drift: esengine::ecs::UIVisual.texture (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::UIVisual, color) == 8, "ABI offset drift: esengine::ecs::UIVisual.color (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::UIVisual, uvOffset) == 24, "ABI offset drift: esengine::ecs::UIVisual.uvOffset (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::UIVisual, uvScale) == 32, "ABI offset drift: esengine::ecs::UIVisual.uvScale (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::UIVisual, sliceBorder) == 40, "ABI offset drift: esengine::ecs::UIVisual.sliceBorder (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::UIVisual, tileSize) == 56, "ABI offset drift: esengine::ecs::UIVisual.tileSize (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::UIVisual, fillMethod) == 64, "ABI offset drift: esengine::ecs::UIVisual.fillMethod (EHT expected 64)");
-static_assert(offsetof(esengine::ecs::UIVisual, fillOrigin) == 65, "ABI offset drift: esengine::ecs::UIVisual.fillOrigin (EHT expected 65)");
-static_assert(offsetof(esengine::ecs::UIVisual, fillAmount) == 68, "ABI offset drift: esengine::ecs::UIVisual.fillAmount (EHT expected 68)");
-static_assert(offsetof(esengine::ecs::UIVisual, material) == 72, "ABI offset drift: esengine::ecs::UIVisual.material (EHT expected 72)");
-static_assert(offsetof(esengine::ecs::UIVisual, enabled) == 76, "ABI offset drift: esengine::ecs::UIVisual.enabled (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::UIVisual, fit) == 24, "ABI offset drift: esengine::ecs::UIVisual.fit (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::UIVisual, uvOffset) == 28, "ABI offset drift: esengine::ecs::UIVisual.uvOffset (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::UIVisual, uvScale) == 36, "ABI offset drift: esengine::ecs::UIVisual.uvScale (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::UIVisual, sliceBorder) == 44, "ABI offset drift: esengine::ecs::UIVisual.sliceBorder (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::UIVisual, tileSize) == 60, "ABI offset drift: esengine::ecs::UIVisual.tileSize (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillMethod) == 68, "ABI offset drift: esengine::ecs::UIVisual.fillMethod (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillOrigin) == 69, "ABI offset drift: esengine::ecs::UIVisual.fillOrigin (EHT expected 69)");
+static_assert(offsetof(esengine::ecs::UIVisual, fillAmount) == 72, "ABI offset drift: esengine::ecs::UIVisual.fillAmount (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::UIVisual, material) == 76, "ABI offset drift: esengine::ecs::UIVisual.material (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::UIVisual, enabled) == 80, "ABI offset drift: esengine::ecs::UIVisual.enabled (EHT expected 80)");
 static_assert(offsetof(esengine::ecs::Velocity, linear) == 0, "ABI offset drift: esengine::ecs::Velocity.linear (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drift: esengine::ecs::Velocity.angular (EHT expected 12)");
 
@@ -2288,7 +2317,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "9219dd764c94a81e";
+static const char* kEsAbiLayoutHash = "52526b76662ebd4a";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

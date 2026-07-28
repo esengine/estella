@@ -22,6 +22,8 @@ function fullNode(over: Partial<UINodeData> = {}): UINodeData {
     return {
         position: 0,
         display: 0,
+        opacity: 1,
+        pointerEvents: 0,
         width: auto(), height: auto(),
         minWidth: auto(), minHeight: auto(),
         maxWidth: auto(), maxHeight: auto(),

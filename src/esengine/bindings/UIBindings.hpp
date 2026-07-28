@@ -54,6 +54,10 @@ void uiTree_markAllDirty();
 
 /** UINode computed state that is not embind-readable off the component. */
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity);
+/** Subtree opacity resolved by the layout pass (UINode.opacity multiplied down). */
+f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity);
+/** True when this node or an ancestor set pointerEvents = None. */
+bool getUINodePointerBlockedInTree(ecs::Registry& registry, u32 entity);
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity);
 f32 getUINodeComputedHeight(ecs::Registry& registry, u32 entity);
 

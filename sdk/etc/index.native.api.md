@@ -5,7 +5,7 @@ Symbols: 1388 stable · 22 beta · 1 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"9219dd764c94a81e"
+"52526b76662ebd4a"
 ```
 
 ## ANCHOR_AXES — const
@@ -2326,9 +2326,11 @@ getResourceManager: () => CppResourceManager
 getRigidBodyPtr: (registry: CppRegistry, entity: number) => number
 getSpritePtr: (registry: CppRegistry, entity: number) => number
 getTransformPtr: (registry: CppRegistry, entity: number) => number
+getUINodeAlphaInTree: ((registry: CppRegistry, entity: number) => number) | undefined
 getUINodeComputedHeight: ((registry: CppRegistry, entity: number) => number) | undefined
 getUINodeComputedWidth: ((registry: CppRegistry, entity: number) => number) | undefined
 getUINodeHiddenInTree: ((registry: CppRegistry, entity: number) => boolean) | undefined
+getUINodePointerBlockedInTree: ((registry: CppRegistry, entity: number) => boolean) | undefined
 getVelocityPtr: (registry: CppRegistry, entity: number) => number
 gl_checkErrors: (context: string) => number
 gl_enableErrorCheck: (enabled: boolean) => void
@@ -7833,6 +7835,7 @@ BuiltinComponentDef<UIMaskData>
 
 ## UIMaskData — interface
 ```
+alphaCutoff: number
 enabled: boolean
 mode: MaskMode
 ```
@@ -7864,6 +7867,8 @@ marginBottom: Dimension | undefined
 marginLeft: Dimension | undefined
 marginRight: Dimension | undefined
 marginTop: Dimension | undefined
+opacity: number | undefined
+pointerEvents: number | undefined
 position: number | undefined
 width: Dimension | undefined
 ```
@@ -7936,6 +7941,7 @@ enabled: boolean
 fillAmount: number
 fillMethod: FillMethod
 fillOrigin: FillOrigin
+fit: UIVisualFit
 material: number
 sliceBorder: Vec4
 texture: number
@@ -7952,6 +7958,7 @@ enabled: boolean | undefined
 fillAmount: number | undefined
 fillMethod: FillMethod | undefined
 fillOrigin: FillOrigin | undefined
+fit: UIVisualFit | undefined
 material: number | undefined
 sliceBorder: { x: number; y: number; z: number; w: number; } | undefined
 texture: number | undefined

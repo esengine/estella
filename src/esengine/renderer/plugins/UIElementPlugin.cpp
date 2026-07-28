@@ -8,6 +8,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/UIVisual.hpp"
 #include "../../ecs/components/UINode.hpp"
+#include "../../ecs/components/UIMask.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -153,6 +154,33 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
 
         glm::vec2 finalSize = glm::vec2(w, h) * glm::vec2(scale);
 
+        // object-fit. Contain shrinks the QUAD until the whole image fits (the
+        // box keeps its layout size; the image just stops filling it), Cover
+        // keeps the quad and crops the UV instead — so neither ever distorts the
+        // artwork. NineSlice and Tiled opt out: adapting to the box IS their job,
+        // and a ratio-preserving 9-slice is a contradiction.
+        if (renderer.fit != ecs::UIVisualFit::Fill && !useNineSlice
+            && renderer.visualType != ecs::UIVisualType::Tiled
+            && texSize.x > 0.0f && texSize.y > 0.0f
+            && finalSize.x > 0.0f && finalSize.y > 0.0f) {
+            const f32 boxRatio = finalSize.x / finalSize.y;
+            const f32 texRatio = texSize.x / texSize.y;
+            if (renderer.fit == ecs::UIVisualFit::Contain) {
+                if (texRatio > boxRatio) finalSize.y = finalSize.x / texRatio;
+                else                     finalSize.x = finalSize.y * texRatio;
+            } else { // Cover: crop the overflowing axis in UV space, centred.
+                if (texRatio > boxRatio) {
+                    const f32 keep = boxRatio / texRatio;   // fraction of width kept
+                    uvOffset.x += uvScale.x * (1.0f - keep) * 0.5f;
+                    uvScale.x  *= keep;
+                } else {
+                    const f32 keep = texRatio / boxRatio;   // fraction of height kept
+                    uvOffset.y += uvScale.y * (1.0f - keep) * 0.5f;
+                    uvScale.y  *= keep;
+                }
+            }
+        }
+
         const bool isRadialFill = renderer.visualType == ecs::UIVisualType::Filled
                                && isRadialMethod(renderer.fillMethod);
 
@@ -200,6 +228,15 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             .type = RenderType::UIElement,
         };
 
+        // A stencil mask with a cutoff clips to the SHAPE it draws, not its box:
+        // the mask pass runs this same draw with color writes off, so it needs
+        // the variant that discards transparent fragments — otherwise the whole
+        // quad writes stencil and a circular mask clips a rectangle.
+        if (const auto* mask = registry.tryGet<ecs::UIMask>(entity);
+            mask && mask->enabled && mask->mode == ecs::MaskMode::Stencil && mask->alphaCutoff > 0.0f) {
+            key.shaderId = ctx.frame->batchProgram({"ALPHA_CLIP"});
+        }
+
         // Same resolution as SpritePlugin: an unregistered handle falls back to
         // the default batch shader, so a dangling material renders plainly.
         if (renderer.material != 0) {
@@ -215,22 +252,28 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
 
         constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
 
+        // Subtree opacity (UINode.opacity, resolved down the tree by the layout
+        // pass) multiplies into this visual's own alpha — the CSS `opacity`
+        // model, applied per-visual rather than by compositing the subtree.
+        glm::vec4 color = renderer.color;
+        color.a *= node->alpha_in_tree_;
+
         if (isRadialFill) {
             f32 sweep = std::clamp(renderer.fillAmount, 0.0f, 1.0f)
                       * radialMaxSweep(renderer.fillMethod);
             emitRadialFill(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, angle,
                 radialStartAngle(renderer.fillOrigin), sweep,
-                uvOffset, uvScale, renderer.color, key);
+                uvOffset, uvScale, color, key);
         } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, CENTERED_PIVOT,
                 angle, texSize, sliceBorder,
-                uvOffset, uvScale, renderer.color, key);
+                uvOffset, uvScale, color, key);
         } else {
             emitQuad(buffers, draw_list, clips,
                 glm::vec2(position), finalSize, CENTERED_PIVOT,
-                angle, uvOffset, uvScale, renderer.color, key);
+                angle, uvOffset, uvScale, color, key);
         }
     }
 }
