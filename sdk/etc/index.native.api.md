@@ -5,7 +5,7 @@ Symbols: 1380 stable · 22 beta · 1 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"7454a67d3890bcbc"
+"9219dd764c94a81e"
 ```
 
 ## ANCHOR_AXES — const
@@ -1160,7 +1160,7 @@ entityFields: readonly string[]
 fieldMeta: Readonly<Record<string, FieldMeta>>
 readonlyFields: readonly string[]
 replicatedFields: readonly string[]
-spineFields: SpineFieldMeta | undefined
+skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
 ```
 
@@ -1654,7 +1654,7 @@ entityFields: readonly string[]
 fieldMeta: Readonly<Record<string, FieldMeta>>
 readonlyFields: readonly string[]
 replicatedFields: readonly string[]
-spineFields: SpineFieldMeta | undefined
+skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
 ```
 
@@ -1675,7 +1675,7 @@ entityFields: string[] | undefined
 fields: Record<string, FieldMeta> | undefined
 readonlyFields: string[] | undefined
 replicatedFields: string[] | undefined
-spineFields: SpineFieldMeta | undefined
+skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean | undefined
 ```
 
@@ -1713,6 +1713,7 @@ addCanvas: (entity: Entity, component: Canvas) => void
 addCapsuleCollider: (entity: Entity, component: CapsuleCollider) => void
 addChildren: (entity: Entity, component: Children) => void
 addCircleCollider: (entity: Entity, component: CircleCollider) => void
+addDragonBonesAnimation: (entity: Entity, component: DragonBonesAnimation) => void
 addFlexContainer: (entity: Entity, component: FlexContainer) => void
 addInteractable: (entity: Entity, component: Interactable) => void
 addLight2D: (entity: Entity, component: Light2D) => void
@@ -1745,6 +1746,7 @@ getCanvas: (entity: Entity) => Canvas
 getCapsuleCollider: (entity: Entity) => CapsuleCollider
 getChildren: (entity: Entity) => Children
 getCircleCollider: (entity: Entity) => CircleCollider
+getDragonBonesAnimation: (entity: Entity) => DragonBonesAnimation
 getFlexContainer: (entity: Entity) => FlexContainer
 getInteractable: (entity: Entity) => Interactable
 getLight2D: (entity: Entity) => Light2D
@@ -1773,6 +1775,7 @@ hasCanvas: (entity: Entity) => boolean
 hasCapsuleCollider: (entity: Entity) => boolean
 hasChildren: (entity: Entity) => boolean
 hasCircleCollider: (entity: Entity) => boolean
+hasDragonBonesAnimation: (entity: Entity) => boolean
 hasFlexContainer: (entity: Entity) => boolean
 hasInteractable: (entity: Entity) => boolean
 hasLight2D: (entity: Entity) => boolean
@@ -1801,6 +1804,7 @@ removeCanvas: (entity: Entity) => void
 removeCapsuleCollider: (entity: Entity) => void
 removeChildren: (entity: Entity) => void
 removeCircleCollider: (entity: Entity) => void
+removeDragonBonesAnimation: (entity: Entity) => void
 removeFlexContainer: (entity: Entity) => void
 removeInteractable: (entity: Entity) => void
 removeLight2D: (entity: Entity) => void
@@ -9192,9 +9196,9 @@ FsmPlugin
 (): Map<string, AnyComponentDef>
 ```
 
-## getComponentSpineFieldDescriptor — function
+## getComponentSkeletalFieldDescriptor — function
 ```
-(componentType: string): { skeletonField: string; atlasField: string; } | null
+(componentType: string): { skeletonField: string; atlasField: string; runtime: string; } | null
 ```
 
 ## getControllerPage — function

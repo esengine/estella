@@ -67,6 +67,21 @@ const SPINE: ImporterFieldSpec[] = [
   { key: 'premultiplyAlpha', label: 'Premultiply Alpha', type: 'bool', default: false, category: 'Spine', advanced: true },
 ];
 
+// A DragonBones file is a project: it can hold several armatures, so which one an
+// entity gets is an import-time default rather than something derived from the
+// file. Spine needs no equivalent — its file IS one skeleton.
+const DRAGONBONES: ImporterFieldSpec[] = [
+  { key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0, step: 0.01, category: 'DragonBones' },
+  {
+    key: 'defaultArmature', label: 'Default Armature', type: 'string', default: '', category: 'DragonBones',
+    tooltip: 'Armature used when an entity does not name one. Empty picks the first in the file.',
+  },
+  {
+    key: 'defaultAnimation', label: 'Default Animation', type: 'string', default: '', category: 'DragonBones',
+    tooltip: 'Played on spawn. Empty leaves the armature in its setup pose.',
+  },
+];
+
 const AUDIO: ImporterFieldSpec[] = [
   {
     key: 'compress', label: 'Compress', type: 'bool', default: true, category: 'Audio',
@@ -117,6 +132,7 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   texture: TEXTURE,
   sprite: TEXTURE,
   spine: SPINE,
+  dragonbones: DRAGONBONES,
   audio: AUDIO,
   video: VIDEO,
   scene: SCENELIKE,

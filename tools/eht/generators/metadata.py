@@ -17,6 +17,11 @@ def _is_number(s: str) -> bool:
         return False
 
 
+def _is_skeletal_asset(asset_type: str) -> bool:
+    """Half of a skeleton/atlas pair, which travels as one descriptor instead."""
+    return asset_type.endswith('_skeleton') or asset_type.endswith('_atlas')
+
+
 class MetadataGenerator:
     """Generates component.generated.ts with defaults and metadata."""
 
@@ -32,20 +37,28 @@ class MetadataGenerator:
         fields = []
         for prop in comp.properties:
             asset_type = prop.annotations.get('asset')
-            if asset_type and asset_type not in ('spine_skeleton', 'spine_atlas'):
+            if asset_type and not _is_skeletal_asset(asset_type):
                 fields.append({'field': prop.name, 'type': asset_type})
         return fields
 
-    def _get_spine_descriptor(self, comp: Component) -> Optional[Dict[str, str]]:
-        skel_field = atlas_field = None
+    def _get_skeletal_descriptor(self, comp: Component) -> Optional[Dict[str, str]]:
+        """The skeleton/atlas pair a skeletal component carries, and whose runtime.
+
+        A pair rather than two independent asset fields because neither half means
+        anything alone: loading a skeleton without its atlas gets you an armature
+        with no images. `runtime` is the prefix, so a consumer can tell a Spine
+        pair from a DragonBones one without a second descriptor kind.
+        """
+        skel_field = atlas_field = runtime = None
         for prop in comp.properties:
-            asset_type = prop.annotations.get('asset')
-            if asset_type == 'spine_skeleton':
+            asset_type = prop.annotations.get('asset') or ''
+            if asset_type.endswith('_skeleton'):
                 skel_field = prop.name
-            elif asset_type == 'spine_atlas':
+                runtime = asset_type[:-len('_skeleton')]
+            elif asset_type.endswith('_atlas'):
                 atlas_field = prop.name
-        if skel_field and atlas_field:
-            return {'skeletonField': skel_field, 'atlasField': atlas_field}
+        if skel_field and atlas_field and runtime:
+            return {'skeletonField': skel_field, 'atlasField': atlas_field, 'runtime': runtime}
         return None
 
     def _get_entity_fields(self, comp: Component) -> List[str]:
@@ -287,9 +300,11 @@ class MetadataGenerator:
             '    type: AssetFieldType;',
             '}',
             '',
-            'export interface SpineFieldMeta {',
+            'export interface SkeletalFieldMeta {',
             '    skeletonField: string;',
             '    atlasField: string;',
+            '    /** Which runtime the pair belongs to — `spine`, `dragonbones`. */',
+            '    runtime: string;',
             '}',
             '',
             'export interface ComponentMetaEntry {',
@@ -302,7 +317,7 @@ class MetadataGenerator:
             '     */',
             '    editorDefaults?: Record<string, unknown>;',
             '    assetFields: AssetFieldMeta[];',
-            '    spine?: SpineFieldMeta;',
+            '    skeletal?: SkeletalFieldMeta;',
             '    entityFields: string[];',
             '    colorFields: string[];',
             '    animatableFields: string[];',
@@ -332,7 +347,7 @@ class MetadataGenerator:
                 continue
 
             asset_fields = self._get_asset_fields(comp)
-            spine = self._get_spine_descriptor(comp)
+            skeletal = self._get_skeletal_descriptor(comp)
             entity_fields = self._get_entity_fields(comp)
             color_fields = self._get_color_fields(comp)
             animatable = self._get_animatable_fields(comp)
@@ -362,10 +377,10 @@ class MetadataGenerator:
             else:
                 lines.append('        assetFields: [],')
 
-            if spine:
+            if skeletal:
                 lines.append(
-                    f"        spine: {{ skeletonField: '{spine['skeletonField']}', "
-                    f"atlasField: '{spine['atlasField']}' }},"
+                    f"        skeletal: {{ skeletonField: '{skeletal['skeletonField']}', "
+                    f"atlasField: '{skeletal['atlasField']}', runtime: '{skeletal['runtime']}' }},"
                 )
 
             if entity_fields:

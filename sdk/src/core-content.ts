@@ -116,7 +116,7 @@ export {
     registerSceneComponentCodec,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
-    getComponentSpineFieldDescriptor,
+    getComponentSkeletalFieldDescriptor,
     type AssetFieldType,
     type SceneData,
     type SceneEntityData,

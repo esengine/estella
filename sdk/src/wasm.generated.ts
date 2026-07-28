@@ -277,6 +277,24 @@ export interface CircleCollider {
     maskBits: number;
 }
 
+export interface DragonBonesAnimation {
+    skeletonPath: string;
+    atlasPath: string;
+    armature: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    fadeInTime: number;
+    flipX: boolean;
+    flipY: boolean;
+    color: Vec4;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
+}
+
 export interface FlexContainer {
     direction: number;
     wrap: number;
@@ -593,6 +611,10 @@ export interface Registry {
     getCircleCollider(entity: Entity): CircleCollider;
     addCircleCollider(entity: Entity, component: CircleCollider): void;
     removeCircleCollider(entity: Entity): void;
+    hasDragonBonesAnimation(entity: Entity): boolean;
+    getDragonBonesAnimation(entity: Entity): DragonBonesAnimation;
+    addDragonBonesAnimation(entity: Entity, component: DragonBonesAnimation): void;
+    removeDragonBonesAnimation(entity: Entity): void;
     hasFlexContainer(entity: Entity): boolean;
     getFlexContainer(entity: Entity): FlexContainer;
     addFlexContainer(entity: Entity, component: FlexContainer): void;
@@ -698,6 +720,7 @@ export interface ESEngineModule {
     CapsuleCollider: new () => CapsuleCollider;
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
+    DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;
     Light2D: new () => Light2D;

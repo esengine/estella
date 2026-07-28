@@ -109,6 +109,22 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 32 },
         ],
     },
+    DragonBonesAnimation: {
+        ptrFn: 'getDragonBonesAnimationPtr',
+        fields: [
+            { name: 'timeScale', type: 'f32', offset: 48 },
+            { name: 'loop', type: 'bool', offset: 52 },
+            { name: 'playing', type: 'bool', offset: 53 },
+            { name: 'fadeInTime', type: 'f32', offset: 56 },
+            { name: 'flipX', type: 'bool', offset: 60 },
+            { name: 'flipY', type: 'bool', offset: 61 },
+            { name: 'color', type: 'color', offset: 64 },
+            { name: 'layer', type: 'i32', offset: 80 },
+            { name: 'skeletonScale', type: 'f32', offset: 84 },
+            { name: 'material', type: 'u32', offset: 88 },
+            { name: 'enabled', type: 'bool', offset: 92 },
+        ],
+    },
     FlexContainer: {
         ptrFn: 'getFlexContainerPtr',
         fields: [

@@ -15,6 +15,7 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
+#include "../ecs/components/DragonBonesAnimation.hpp"
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
@@ -1053,6 +1054,23 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
         .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
 
+    value_object<esengine::ecs::DragonBonesAnimation>("DragonBonesAnimation")
+        .field("skeletonPath", &esengine::ecs::DragonBonesAnimation::skeletonPath)
+        .field("atlasPath", &esengine::ecs::DragonBonesAnimation::atlasPath)
+        .field("armature", &esengine::ecs::DragonBonesAnimation::armature)
+        .field("animation", &esengine::ecs::DragonBonesAnimation::animation)
+        .field("timeScale", &esengine::ecs::DragonBonesAnimation::timeScale)
+        .field("loop", &esengine::ecs::DragonBonesAnimation::loop)
+        .field("playing", &esengine::ecs::DragonBonesAnimation::playing)
+        .field("fadeInTime", &esengine::ecs::DragonBonesAnimation::fadeInTime)
+        .field("flipX", &esengine::ecs::DragonBonesAnimation::flipX)
+        .field("flipY", &esengine::ecs::DragonBonesAnimation::flipY)
+        .field("color", &esengine::ecs::DragonBonesAnimation::color)
+        .field("layer", &esengine::ecs::DragonBonesAnimation::layer)
+        .field("skeletonScale", &esengine::ecs::DragonBonesAnimation::skeletonScale)
+        .field("material", &esengine::ecs::DragonBonesAnimation::material)
+        .field("enabled", &esengine::ecs::DragonBonesAnimation::enabled);
+
     value_object<FlexContainerJS>("FlexContainer")
         .field("direction", &FlexContainerJS::direction)
         .field("wrap", &FlexContainerJS::wrap)
@@ -1474,6 +1492,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
             r.remove<esengine::ecs::CircleCollider>(entity);
+        }))
+
+        // DragonBonesAnimation
+        .function("hasDragonBonesAnimation", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::DragonBonesAnimation>(static_cast<Entity>(e));
+        }))
+        .function("getDragonBonesAnimation", optional_override([](Registry& r, u32 e) -> esengine::ecs::DragonBonesAnimation& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::DragonBonesAnimation s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::DragonBonesAnimation>(entity)) return s_dummy;
+            return r.get<esengine::ecs::DragonBonesAnimation>(entity);
+        }), allow_raw_pointers())
+        .function("addDragonBonesAnimation", optional_override([](Registry& r, u32 e, const esengine::ecs::DragonBonesAnimation& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::DragonBonesAnimation>(entity, c);
+        }))
+        .function("removeDragonBonesAnimation", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::DragonBonesAnimation>(entity)) return;
+            r.remove<esengine::ecs::DragonBonesAnimation>(entity);
         }))
 
         // FlexContainer
@@ -1931,6 +1970,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("CapsuleCollider")));
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider")));
+    arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("Light2D")));
@@ -2018,6 +2058,17 @@ static_assert(offsetof(esengine::ecs::CircleCollider, isSensor) == 24, "ABI offs
 static_assert(offsetof(esengine::ecs::CircleCollider, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider.enabled (EHT expected 25)");
 static_assert(offsetof(esengine::ecs::CircleCollider, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider.categoryBits (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::CircleCollider, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider.maskBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::DragonBonesAnimation.timeScale (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, loop) == 52, "ABI offset drift: esengine::ecs::DragonBonesAnimation.loop (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, playing) == 53, "ABI offset drift: esengine::ecs::DragonBonesAnimation.playing (EHT expected 53)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, fadeInTime) == 56, "ABI offset drift: esengine::ecs::DragonBonesAnimation.fadeInTime (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, flipX) == 60, "ABI offset drift: esengine::ecs::DragonBonesAnimation.flipX (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, flipY) == 61, "ABI offset drift: esengine::ecs::DragonBonesAnimation.flipY (EHT expected 61)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, color) == 64, "ABI offset drift: esengine::ecs::DragonBonesAnimation.color (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, layer) == 80, "ABI offset drift: esengine::ecs::DragonBonesAnimation.layer (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, skeletonScale) == 84, "ABI offset drift: esengine::ecs::DragonBonesAnimation.skeletonScale (EHT expected 84)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, material) == 88, "ABI offset drift: esengine::ecs::DragonBonesAnimation.material (EHT expected 88)");
+static_assert(offsetof(esengine::ecs::DragonBonesAnimation, enabled) == 92, "ABI offset drift: esengine::ecs::DragonBonesAnimation.enabled (EHT expected 92)");
 static_assert(offsetof(esengine::ecs::FlexContainer, direction) == 0, "ABI offset drift: esengine::ecs::FlexContainer.direction (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::FlexContainer, wrap) == 1, "ABI offset drift: esengine::ecs::FlexContainer.wrap (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::FlexContainer, justifyContent) == 2, "ABI offset drift: esengine::ecs::FlexContainer.justifyContent (EHT expected 2)");
@@ -2237,7 +2288,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7454a67d3890bcbc";
+static const char* kEsAbiLayoutHash = "9219dd764c94a81e";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

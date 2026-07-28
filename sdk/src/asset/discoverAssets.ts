@@ -6,7 +6,7 @@
  *
  * Each component may reference assets in three ways: a custom
  * `discoverAssets` callback, declared `assetFields`, or paired
- * `spineFields`. This module walks a SceneData and buckets every
+ * `skeletalFields`. This module walks a SceneData and buckets every
  * such ref by asset type. A `discoverAssets` callback is authoritative:
  * when present, `assetFields` are not walked for discovery (they still
  * drive the editor's asset pickers and ref rewrites) — the callback may
@@ -118,9 +118,9 @@ export function discoverSceneAssets(
                 }
             }
 
-            if (comp.spineFields) {
-                const skelRaw = data[comp.spineFields.skeletonField] as string;
-                const atlasRaw = data[comp.spineFields.atlasField] as string;
+            if (comp.skeletalFields) {
+                const skelRaw = data[comp.skeletalFields.skeletonField] as string;
+                const atlasRaw = data[comp.skeletalFields.atlasField] as string;
                 if (skelRaw && atlasRaw) {
                     const skel = resolve(skelRaw);
                     const atlas = resolve(atlasRaw);

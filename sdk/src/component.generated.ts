@@ -15,16 +15,18 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '7454a67d3890bcbc';
+export const ABI_LAYOUT_HASH = '9219dd764c94a81e';
 
 export interface AssetFieldMeta {
     field: string;
     type: AssetFieldType;
 }
 
-export interface SpineFieldMeta {
+export interface SkeletalFieldMeta {
     skeletonField: string;
     atlasField: string;
+    /** Which runtime the pair belongs to — `spine`, `dragonbones`. */
+    runtime: string;
 }
 
 export interface ComponentMetaEntry {
@@ -37,7 +39,7 @@ export interface ComponentMetaEntry {
      */
     editorDefaults?: Record<string, unknown>;
     assetFields: AssetFieldMeta[];
-    spine?: SpineFieldMeta;
+    skeletal?: SkeletalFieldMeta;
     entityFields: string[];
     colorFields: string[];
     animatableFields: string[];
@@ -197,6 +199,36 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    DragonBonesAnimation: {
+        defaults: {
+            skeletonPath: '',
+            atlasPath: '',
+            armature: '',
+            animation: '',
+            timeScale: 1,
+            loop: true,
+            playing: true,
+            fadeInTime: 0,
+            flipX: false,
+            flipY: false,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            layer: 0,
+            skeletonScale: 1,
+            material: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'material', type: 'material' as AssetFieldType }],
+        skeletal: { skeletonField: 'skeletonPath', atlasField: 'atlasPath', runtime: 'dragonbones' },
+        entityFields: [],
+        colorFields: ['color'],
+        animatableFields: [],
+        fields: {
+            timeScale: { min: 0 },
+            fadeInTime: { min: 0, step: 0.05 },
+            layer: { step: 1, enumSource: "sortingLayers" },
+            skeletonScale: { min: 0 },
+        },
     },
     FlexContainer: {
         defaults: {
@@ -523,7 +555,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             enabled: true,
         },
         assetFields: [{ field: 'material', type: 'material' as AssetFieldType }],
-        spine: { skeletonField: 'skeletonPath', atlasField: 'atlasPath' },
+        skeletal: { skeletonField: 'skeletonPath', atlasField: 'atlasPath', runtime: 'spine' },
         entityFields: [],
         colorFields: ['color'],
         animatableFields: [],
@@ -830,6 +862,24 @@ export interface CircleColliderData {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+export interface DragonBonesAnimationData {
+    skeletonPath: string;
+    atlasPath: string;
+    armature: string;
+    animation: string;
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    fadeInTime: number;
+    flipX: boolean;
+    flipY: boolean;
+    color: Color;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
 }
 
 export interface FlexContainerData {

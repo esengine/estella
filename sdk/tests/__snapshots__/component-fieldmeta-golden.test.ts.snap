@@ -126,6 +126,22 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "How the canvas adapts the design resolution to the screen.",
     },
   },
+  "DragonBonesAnimation": {
+    "fadeInTime": {
+      "min": 0,
+      "step": 0.05,
+    },
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+    },
+    "skeletonScale": {
+      "min": 0,
+    },
+    "timeScale": {
+      "min": 0,
+    },
+  },
   "Light2D": {
     "direction": {
       "advanced": true,

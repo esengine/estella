@@ -119,9 +119,9 @@ export function getComponentAssetFields(componentType: string): string[] {
     for (const { field } of comp.assetFields) {
         fields.push(field);
     }
-    if (comp.spineFields) {
-        fields.push(comp.spineFields.skeletonField);
-        fields.push(comp.spineFields.atlasField);
+    if (comp.skeletalFields) {
+        fields.push(comp.skeletalFields.skeletonField);
+        fields.push(comp.skeletalFields.atlasField);
     }
     return fields;
 }
@@ -132,10 +132,11 @@ export function getComponentAssetFieldDescriptors(
     return getComponent(componentType)?.assetFields ?? [];
 }
 
-export function getComponentSpineFieldDescriptor(
+/** The skeleton/atlas pair a component carries, and whose runtime it belongs to. */
+export function getComponentSkeletalFieldDescriptor(
     componentType: string,
-): { skeletonField: string; atlasField: string } | null {
-    return getComponent(componentType)?.spineFields ?? null;
+): { skeletonField: string; atlasField: string; runtime: string } | null {
+    return getComponent(componentType)?.skeletalFields ?? null;
 }
 
 // =============================================================================

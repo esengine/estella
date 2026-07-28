@@ -18,7 +18,7 @@
  */
 import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
-import { getComponentSpineFieldDescriptor, type SceneData } from '../scene';
+import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../resourceManager';
@@ -180,7 +180,7 @@ export async function applySpineEntities(opts: {
         // expands prefabs before this runs).
         if (!Array.isArray(sceneEntity.components)) continue;
         for (const comp of sceneEntity.components) {
-            const spineDesc = getComponentSpineFieldDescriptor(comp.type);
+            const spineDesc = getComponentSkeletalFieldDescriptor(comp.type);
             if (!spineDesc || !comp.data) continue;
             const skelRef = comp.data[spineDesc.skeletonField] as string;
             const atlasRef = comp.data[spineDesc.atlasField] as string;

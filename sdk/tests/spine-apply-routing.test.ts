@@ -18,7 +18,7 @@ const SPINE_COMP = 'ApplyRouting_Spine';
 beforeEach(() => {
     clearUserComponents();
     defineComponent(SPINE_COMP, { skeleton: '', atlas: '' }, {
-        spineFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
+        skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
     });
 });
 

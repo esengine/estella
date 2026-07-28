@@ -20,7 +20,7 @@
  *        an install every event is a no-op (dev/automation scene loads bind
  *        spine themselves, once).
  */
-import { getComponentSpineFieldDescriptor } from 'esengine';
+import { getComponentSkeletalFieldDescriptor } from 'esengine';
 import { spineEntityProps } from 'esengine/spine';
 import type { SceneData } from 'esengine';
 import { SceneModel, type ModelEvent } from './SceneModel';
@@ -76,10 +76,10 @@ function onEvent(ev: ModelEvent): void {
       return;
     case 'componentAdded':
     case 'componentChanged':
-      if (getComponentSpineFieldDescriptor(ev.type)) syncEntity(ev.sourceId);
+      if (getComponentSkeletalFieldDescriptor(ev.type)) syncEntity(ev.sourceId);
       return;
     case 'componentRemoved':
-      if (getComponentSpineFieldDescriptor(ev.type)) unbind(ev.sourceId);
+      if (getComponentSkeletalFieldDescriptor(ev.type)) unbind(ev.sourceId);
       return;
     case 'entityRemoved':
       bound.delete(ev.sourceId); // the World despawn already dropped the instance
@@ -90,7 +90,7 @@ function onEvent(ev: ModelEvent): void {
 /** The entity's spine component (any component with a spine field descriptor). */
 function spineComp(entity: SceneEntity): { type: string; d: Record<string, unknown> } | null {
   for (const c of entity.components ?? []) {
-    if (getComponentSpineFieldDescriptor(c.type) && c.data) {
+    if (getComponentSkeletalFieldDescriptor(c.type) && c.data) {
       return { type: c.type, d: c.data as Record<string, unknown> };
     }
   }
@@ -98,7 +98,7 @@ function spineComp(entity: SceneEntity): { type: string; d: Record<string, unkno
 }
 
 function stateOf(type: string, d: Record<string, unknown>): BoundState {
-  const desc = getComponentSpineFieldDescriptor(type)!;
+  const desc = getComponentSkeletalFieldDescriptor(type)!;
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
   return {
     skel: str(d[desc.skeletonField]),

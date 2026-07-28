@@ -337,6 +337,70 @@ export function createCircleColliderData(): CircleColliderPtrData {
     };
 }
 
+export interface DragonBonesAnimationPtrData {
+    timeScale: number;
+    loop: boolean;
+    playing: boolean;
+    fadeInTime: number;
+    flipX: boolean;
+    flipY: boolean;
+    color: Color;
+    layer: number;
+    skeletonScale: number;
+    material: number;
+    enabled: boolean;
+}
+
+export function fillDragonBonesAnimation(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: DragonBonesAnimationPtrData,
+): void {
+    out.timeScale = f32[(ptr + 48) >> 2];
+    out.loop = u8[ptr + 52] !== 0;
+    out.playing = u8[ptr + 53] !== 0;
+    out.fadeInTime = f32[(ptr + 56) >> 2];
+    out.flipX = u8[ptr + 60] !== 0;
+    out.flipY = u8[ptr + 61] !== 0;
+    const color_ = out.color; color_.r = f32[(ptr + 64) >> 2]; color_.g = f32[((ptr + 64) >> 2) + 1]; color_.b = f32[((ptr + 64) >> 2) + 2]; color_.a = f32[((ptr + 64) >> 2) + 3];
+    out.layer = u32[(ptr + 80) >> 2] | 0;
+    out.skeletonScale = f32[(ptr + 84) >> 2];
+    out.material = u32[(ptr + 88) >> 2];
+    out.enabled = u8[ptr + 92] !== 0;
+}
+
+export function writeDragonBonesAnimation(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: DragonBonesAnimationPtrData,
+): void {
+    f32[(ptr + 48) >> 2] = data.timeScale;
+    u8[ptr + 52] = data.loop ? 1 : 0;
+    u8[ptr + 53] = data.playing ? 1 : 0;
+    f32[(ptr + 56) >> 2] = data.fadeInTime;
+    u8[ptr + 60] = data.flipX ? 1 : 0;
+    u8[ptr + 61] = data.flipY ? 1 : 0;
+    f32[(ptr + 64) >> 2] = data.color.r; f32[((ptr + 64) >> 2) + 1] = data.color.g; f32[((ptr + 64) >> 2) + 2] = data.color.b; f32[((ptr + 64) >> 2) + 3] = data.color.a;
+    u32[(ptr + 80) >> 2] = data.layer | 0;
+    f32[(ptr + 84) >> 2] = data.skeletonScale;
+    u32[(ptr + 88) >> 2] = data.material;
+    u8[ptr + 92] = data.enabled ? 1 : 0;
+}
+
+export function createDragonBonesAnimationData(): DragonBonesAnimationPtrData {
+    return {
+        timeScale: 0,
+        loop: false,
+        playing: false,
+        fadeInTime: 0,
+        flipX: false,
+        flipY: false,
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        layer: 0,
+        skeletonScale: 0,
+        material: 0,
+        enabled: false,
+    };
+}
+
 export interface FlexContainerPtrData {
     direction: number;
     wrap: number;
@@ -1602,6 +1666,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
+    DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },

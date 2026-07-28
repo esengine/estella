@@ -7,14 +7,14 @@
 
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
 import { deepClone } from './deepClone';
-import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
+import { COMPONENT_META, type AssetFieldMeta, type SkeletalFieldMeta } from './component.generated';
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
 // `esengine` import site is unchanged; Camera/ParticleEmitter add TS-only fields by
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
-    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
+    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     Mesh2DData as Mesh2DDataCpp,
@@ -93,7 +93,7 @@ export interface FieldMeta {
 
 export interface ComponentMetadata {
     assetFields?: AssetFieldMeta[];
-    spineFields?: SpineFieldMeta;
+    skeletalFields?: SkeletalFieldMeta;
     entityFields?: string[];
     /** Per-field editor presentation policy, keyed by field name. */
     fields?: Record<string, FieldMeta>;
@@ -160,7 +160,7 @@ export interface ComponentDef<T> {
     readonly _default: T;
     readonly _builtin: false;
     readonly assetFields: readonly AssetFieldMeta[];
-    readonly spineFields?: SpineFieldMeta;
+    readonly skeletalFields?: SkeletalFieldMeta;
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
@@ -235,7 +235,7 @@ function createComponentDef<T extends object>(
         _default: defaults,
         _builtin: false as const,
         assetFields: metadata?.assetFields ?? [],
-        spineFields: metadata?.spineFields,
+        skeletalFields: metadata?.skeletalFields,
         entityFields: metadata?.entityFields ?? [],
         colorKeys: detectColorKeys(defaults),
         animatableFields: metadata?.animatableFields ?? numericAnimatableFields(defaults),
@@ -367,7 +367,7 @@ export interface BuiltinComponentDef<T> {
     readonly _builtin: true;
     readonly _default: T;
     readonly assetFields: readonly AssetFieldMeta[];
-    readonly spineFields?: SpineFieldMeta;
+    readonly skeletalFields?: SkeletalFieldMeta;
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
@@ -519,7 +519,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         _builtin: true,
         _default: defaults,
         assetFields: metadata?.assetFields ?? meta?.assetFields ?? [],
-        spineFields: metadata?.spineFields ?? meta?.spine,
+        skeletalFields: metadata?.skeletalFields ?? meta?.skeletal,
         entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
@@ -590,7 +590,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
-    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
+    CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
 
@@ -708,6 +708,10 @@ export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
     metaDefaults<SpineAnimationData>('SpineAnimation')
+);
+
+export const DragonBonesAnimation = defineBuiltin<DragonBonesAnimationData>('DragonBonesAnimation',
+    metaDefaults<DragonBonesAnimationData>('DragonBonesAnimation')
 );
 
 /**

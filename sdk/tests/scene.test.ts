@@ -19,7 +19,7 @@ import {
     serializeEntityComponents,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
-    getComponentSpineFieldDescriptor,
+    getComponentSkeletalFieldDescriptor,
     type SceneData,
     type SceneComponentData,
 } from '../src/scene';
@@ -115,16 +115,23 @@ describe('Scene', () => {
             expect(getComponentAssetFieldDescriptors('NonExistent')).toEqual([]);
         });
 
-        it('should return spine field descriptor', () => {
-            const spine = getComponentSpineFieldDescriptor('SpineAnimation');
-            expect(spine).toEqual({
+        it('pairs a skeletal component`s two halves, and says whose they are', () => {
+            // The runtime rides along because the pair alone cannot tell a Spine
+            // skeleton from a DragonBones one — the field names are the same.
+            expect(getComponentSkeletalFieldDescriptor('SpineAnimation')).toEqual({
                 skeletonField: 'skeletonPath',
                 atlasField: 'atlasPath',
+                runtime: 'spine',
+            });
+            expect(getComponentSkeletalFieldDescriptor('DragonBonesAnimation')).toEqual({
+                skeletonField: 'skeletonPath',
+                atlasField: 'atlasPath',
+                runtime: 'dragonbones',
             });
         });
 
         it('should return null spine descriptor for non-spine component', () => {
-            expect(getComponentSpineFieldDescriptor('Sprite')).toBeNull();
+            expect(getComponentSkeletalFieldDescriptor('Sprite')).toBeNull();
         });
 
     });

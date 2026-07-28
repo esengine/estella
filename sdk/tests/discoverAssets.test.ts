@@ -38,7 +38,7 @@ beforeEach(() => {
         skeleton: '',
         atlas: '',
     }, {
-        spineFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
+        skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
     });
 
     defineComponent(SM_NAME, {
@@ -403,7 +403,7 @@ describe('discoverSceneAssets with UUID refResolver', () => {
         expect(refs.unresolved).toEqual([makeUuidRef(UUID_MISSING)]);
     });
 
-    it('resolves spineFields via the same resolver', () => {
+    it('resolves skeletalFields via the same resolver', () => {
         const reg = new AssetRegistry();
         const UUID_SKEL = '11111111-1111-4111-8111-111111111111';
         const UUID_ATLAS = '22222222-2222-4222-8222-222222222222';

@@ -62,7 +62,12 @@ class CppParser:
     })
     NUMERIC_ANNOTATIONS = frozenset({'min', 'max', 'step'})
     VALID_ASSET_TYPES = frozenset({
-        'texture', 'material', 'font', 'audio', 'spine_skeleton', 'spine_atlas',
+        'texture', 'material', 'font', 'audio',
+        # A skeletal runtime's two halves. Recognised as a PAIR (see
+        # metadata.py::_get_skeletal_descriptor), so adding a runtime is these two
+        # entries and nothing else.
+        'spine_skeleton', 'spine_atlas',
+        'dragonbones_skeleton', 'dragonbones_atlas',
     })
 
     def __init__(self):

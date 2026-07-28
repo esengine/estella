@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
+import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSkeletalFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
@@ -334,7 +334,7 @@ export function assetFieldType(compType: string, key: string): string | null {
  */
 export type SpineSlotType = 'spine-skeleton' | 'spine-atlas';
 export function spineSlotType(compType: string, key: string): SpineSlotType | null {
-  const d = getComponentSpineFieldDescriptor(compType);
+  const d = getComponentSkeletalFieldDescriptor(compType);
   if (!d) return null;
   if (key === d.skeletonField) return 'spine-skeleton';
   if (key === d.atlasField) return 'spine-atlas';
