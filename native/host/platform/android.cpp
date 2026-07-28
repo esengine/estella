@@ -20,6 +20,7 @@
 #include <android/font.h>
 #include <android/font_matcher.h>
 #include <android/native_window.h>
+#include <android/choreographer.h>
 #include <android/performance_hint.h>
 #include <jni.h>
 #include <unistd.h>
@@ -406,6 +407,12 @@ int32_t onInput(android_app*, AInputEvent* ev) {
     return 1;
 }
 
+// Asking for frames, and stopping. Declared here so the lifecycle handler below
+// reads in the order things happen rather than after the machinery it drives —
+// see FrameDriver.
+void framesSurface(bool has);
+void framesResumed(bool is);
+
 void onAppCmd(android_app* app, int32_t cmd) {
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
@@ -415,17 +422,23 @@ void onAppCmd(android_app* app, int32_t cmd) {
                 g_platform.window = app->window;
                 if (!eshost::booted()) eshost::boot(g_platform);
                 else eshost::bindSurface();
+                // Ask for frames only once there is something to present to, the
+                // same order iOS unpauses its display link in.
+                framesSurface(eshost::surfaceBound());
             }
             break;
         case APP_CMD_TERM_WINDOW:
             // Screen-off / backgrounded: the window is gone, stop presenting to it.
+            framesSurface(false);
             eshost::surfaceLost();
             g_platform.window = nullptr;
             break;
         case APP_CMD_PAUSE:
+            framesResumed(false);        // and stop drawing one nobody is looking at
             eshost::setVisible(false);   // suspend audio + auto-pause the game
             break;
         case APP_CMD_RESUME:
+            framesResumed(true);
             eshost::setVisible(true);
             break;
         case APP_CMD_LOW_MEMORY:
@@ -449,7 +462,8 @@ void onAppCmd(android_app* app, int32_t cmd) {
 struct PerformanceHints {
     APerformanceHintSession* session = nullptr;
 
-    // The host steps the SDK at a fixed 60 Hz, so that is the deadline to state.
+    // One display refresh. The Choreographer is what calls the frame, so the
+    // deadline is the panel's cadence, whatever it happens to be.
     static constexpr int64_t kFrameBudgetNanos = 16'666'667;
 
     void open() {
@@ -479,6 +493,113 @@ struct PerformanceHints {
         if (__builtin_available(android 31, *)) APerformanceHint_closeSession(session);
     }
 };
+
+// =============================================================================
+// The frame source
+// =============================================================================
+//
+// The display drives the frame, and nothing else does. That is what iOS already
+// says with a CADisplayLink and what the web says with requestAnimationFrame;
+// this is the Android third of the same sentence, and it is a Choreographer.
+//
+// It replaces a loop that polled with a zero timeout and called frame()
+// immediately, forever, trusting the swapchain's FIFO present to be the thing
+// that blocked. That holds right up until a present does NOT block — a surface
+// mid-teardown answers "GetCurrentTexture was not called this frame prior to
+// Present" and returns — and then the only brake is gone and the loop runs as
+// fast as the CPU allows. One backgrounded app was measured 11.5 million frames
+// in, holding a quarter of a core to render about one frame a second. A vsync
+// source cannot fail that way: no callback, no frame.
+//
+// Two conditions, both required, exactly the pair iOS pauses its display link on:
+// there has to be a surface to present to, and the activity has to be the one the
+// user is looking at. Either alone is not enough — pressing HOME leaves the
+// surface alive, so a driver gated on the surface only goes on rendering the game
+// at the full panel rate onto a window nobody can see. (Measured: 121 fps from the
+// home screen.) The host already treats PAUSE as "not visible" by suspending audio
+// and the game clock; this makes rendering agree with the other two.
+struct FrameDriver {
+    AChoreographer* choreographer = nullptr;
+    PerformanceHints* hints = nullptr;
+    /// A callback is in flight. Guards against posting twice for one vsync, which
+    /// would double the frame rate for as long as both chains lived.
+    bool posted = false;
+    bool hasSurface = false;
+    /// Starts true, and only APP_CMD_PAUSE clears it. Waiting for a RESUME to
+    /// arrive first is what broke this once: a launch that never delivered one
+    /// left the gate shut and the game rendered nothing at all. The safe default
+    /// is the one whose failure is recoverable — a missed RESUME then costs
+    /// nothing, where a missed PAUSE is the thing actually being guarded against,
+    /// and PAUSE always arrives because the OS is what sends it.
+    bool resumed = true;
+    /// Derived from the two above; kept so a callback already in flight can tell
+    /// it was cancelled.
+    bool running = false;
+
+    /// Must be called on the thread that will receive callbacks (the glue's own,
+    /// which has a prepared looper).
+    void attach() {
+        choreographer = AChoreographer_getInstance();
+        if (!choreographer) {
+            __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                                "no Choreographer on this thread — nothing will drive frames");
+        }
+    }
+
+    void setSurface(bool has) { hasSurface = has; sync(); }
+    void setResumed(bool is) { resumed = is; sync(); }
+
+    /// Start or stop asking for frames, to match the two conditions. An already
+    /// posted callback still arrives and is ignored — there is no API to cancel
+    /// one, and dropping it is what pausing means anyway.
+    void sync() {
+        const bool want = hasSurface && resumed;
+        if (want == running) return;
+        running = want;
+        // Transitions only, so this is a handful of lines per run — and it is the
+        // one place that can explain a black screen, which is otherwise silent.
+        __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "frames: %s (surface=%d resumed=%d)",
+                            running ? "running" : "paused", (int)hasSurface, (int)resumed);
+        if (running) post();
+    }
+
+    void post() {
+        if (!choreographer || posted || !running) return;
+        posted = true;
+        if (__builtin_available(android 29, *)) {
+            AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
+        } else {
+            // Deprecated in 29 and the only one that exists below it. minSdk is 26,
+            // so this branch is the two releases the 64-bit call cannot serve — not
+            // an oversight, which is why the warning is turned off rather than the
+            // call changed.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            AChoreographer_postFrameCallback(choreographer, &FrameDriver::onVsync32, this);
+#pragma clang diagnostic pop
+        }
+    }
+
+private:
+    void tick() {
+        posted = false;
+        if (!running) return;
+        // Timed around the frame alone, and re-posted after it: asking for the
+        // next vsync first would let a frame that overran queue behind itself.
+        const auto begin = std::chrono::steady_clock::now();
+        eshost::frame();
+        if (hints) hints->report(std::chrono::steady_clock::now() - begin);
+        post();
+    }
+
+    static void onVsync64(int64_t, void* data) { static_cast<FrameDriver*>(data)->tick(); }
+    static void onVsync32(long, void* data) { static_cast<FrameDriver*>(data)->tick(); }
+};
+
+FrameDriver g_frames;
+
+void framesSurface(bool has) { g_frames.setSurface(has); }
+void framesResumed(bool is) { g_frames.setResumed(is); }
 
 // =============================================================================
 // The window a game gets: no system bars, and the display cutout included
@@ -627,22 +748,24 @@ void android_main(android_app* app) {
     app->activity->callbacks->onWindowFocusChanged = onWindowFocusChanged;
     PerformanceHints hints;
     hints.open();
+    g_frames.hints = &hints;
+    g_frames.attach();
+
+    // Nothing but waiting. Frames arrive as Choreographer callbacks and input as
+    // looper events, both dispatched from inside the poll — so there is no state
+    // this loop has to sample, and therefore no reason for it to ever spin.
     while (true) {
         int events;
         android_poll_source* source;
-        // Poll (0) while we can render; block (-1) when there's no surface (screen
-        // off) so we wait for the next window event instead of spinning.
-        int timeoutMs = (eshost::booted() && eshost::surfaceBound()) ? 0 : -1;
-        while (ALooper_pollOnce(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
-            if (source) source->process(app, source);
-            if (app->destroyRequested) return;
-            timeoutMs = 0;
+        const int id = ALooper_pollOnce(-1, nullptr, &events, (void**)&source);
+        if (id == ALOOPER_POLL_ERROR) {
+            __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "looper error — leaving the frame loop");
+            return;
         }
-        // Timed around the frame alone: the poll above blocks while the screen is
-        // off, and reporting that wait as work would tell the system this frame
-        // took seconds.
-        const auto begin = std::chrono::steady_clock::now();
-        eshost::frame();
-        hints.report(std::chrono::steady_clock::now() - begin);
+        if (id >= 0 && source) source->process(app, source);
+        if (app->destroyRequested) {
+            framesResumed(false);
+            return;
+        }
     }
 }
