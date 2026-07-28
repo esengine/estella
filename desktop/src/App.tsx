@@ -125,7 +125,7 @@ export function App() {
   useEffect(() => {
     const apply = () => {
       const { device, orientation } = useEditorMode.getState();
-      EngineHost.setUiPreviewAspect(uiPreviewAspect(device, orientation));
+      EngineHost.setUiPreviewAspect(uiPreviewAspect(device, orientation, ProjectStore.getSnapshot()?.screenPresets));
     };
     apply();
     const unsubMode = useEditorMode.subscribe(apply);

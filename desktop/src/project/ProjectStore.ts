@@ -36,7 +36,7 @@ import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -126,6 +126,8 @@ interface ProjectState {
   packaging?: ProjectPackaging;
   /** Reference resolution new Canvas entities seed from; per-scene Canvas stays authoritative. */
   designResolution?: DesignResolution;
+  /** Project-declared screens the target-screen dropdown offers beside the built-ins. */
+  screenPresets?: ScreenPreset[];
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
   /** When editing a PREFAB asset in place (Prefab Mode) rather than a scene:
@@ -431,6 +433,7 @@ class ProjectStoreImpl {
         features: opened.manifest.features,
         packaging: opened.manifest.packaging,
         designResolution: opened.manifest.designResolution,
+        screenPresets: opened.manifest.screenPresets,
         currentScene: null,
       },
     });

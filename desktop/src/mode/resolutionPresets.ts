@@ -9,7 +9,10 @@
  *        orientation toggle swaps them at render time.
  */
 import { t } from '@/i18n';
+import type { ScreenPreset as ProjectScreenPreset } from '@/project/format';
 
+/** The built-in ids. Not a closed set: a project may declare its own screens, so
+ *  anything holding a selection types it as `string`. */
 export type DevicePresetId = 'design' | 'iphone' | 'ipad' | '1080p' | '720p';
 
 export interface DeviceInsets {
@@ -20,7 +23,7 @@ export interface DeviceInsets {
 }
 
 export interface DevicePreset {
-  id: DevicePresetId;
+  id: string;
   label: string;
   /** Portrait pixel dimensions. The `design` sentinel (0×0) means "use the Canvas' own aspect" (no letterbox). */
   w: number;
@@ -41,6 +44,35 @@ export const RESOLUTION_PRESET_BY_ID: Record<DevicePresetId, DevicePreset> = Obj
   RESOLUTION_PRESETS.map((p) => [p.id, p]),
 ) as Record<DevicePresetId, DevicePreset>;
 
+/**
+ * Built-ins plus whatever the open project declares (`screenPresets` in the
+ * manifest). Which handsets a team ships to is the project's business — a
+ * built-in list is a guess, and one that cannot be corrected means everyone
+ * tests on approximately the wrong screen.
+ *
+ * A project preset may take a built-in's id to REPLACE it (a studio that means
+ * something specific by "iPhone"), so ids stay unique and a saved selection
+ * still resolves. Everything downstream reads through here, so the dropdown, the
+ * design-frame overlay and the play-host letterbox cannot disagree about what a
+ * given id means.
+ */
+export function screenPresets(project?: readonly ProjectScreenPreset[]): DevicePreset[] {
+  if (!project || project.length === 0) return RESOLUTION_PRESETS;
+  const byId = new Map(RESOLUTION_PRESETS.map((p) => [p.id, p]));
+  for (const p of project) {
+    byId.set(p.id, { id: p.id, label: p.label, w: p.width, h: p.height, safe: p.safe });
+  }
+  return [...byId.values()];
+}
+
+/** Resolve one id against the built-ins + the project's. Unknown ⇒ the `design` sentinel. */
+export function screenPresetById(
+  id: string,
+  project?: readonly ProjectScreenPreset[],
+): DevicePreset {
+  return screenPresets(project).find((p) => p.id === id) ?? RESOLUTION_PRESET_BY_ID.design;
+}
+
 export type Orientation = 'portrait' | 'landscape';
 
 /**
@@ -49,8 +81,12 @@ export type Orientation = 'portrait' | 'landscape';
  * source of the device's oriented size — the design-frame overlay and the UI-layout-aspect
  * sync both read it, so the previewed frame and the actual UI layout can't drift apart.
  */
-export function deviceDims(device: DevicePresetId, orientation: Orientation): { w: number; h: number } | null {
-  const p = RESOLUTION_PRESET_BY_ID[device];
+export function deviceDims(
+  device: string,
+  orientation: Orientation,
+  presets?: readonly ProjectScreenPreset[],
+): { w: number; h: number } | null {
+  const p = screenPresetById(device, presets);
   if (p.w <= 0 || p.h <= 0) return null;
   return orientation === 'landscape' ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
 }
@@ -60,8 +96,12 @@ export function deviceDims(device: DevicePresetId, orientation: Orientation): { 
  * aspect (previewing adaptation), or 0 for the `design` sentinel (WYSIWYG at the authored
  * resolution). Fed to EditorView.uiPreviewAspect → uiLayoutRect.
  */
-export function uiPreviewAspect(device: DevicePresetId, orientation: Orientation): number {
-  const d = deviceDims(device, orientation);
+export function uiPreviewAspect(
+  device: string,
+  orientation: Orientation,
+  presets?: readonly ProjectScreenPreset[],
+): number {
+  const d = deviceDims(device, orientation, presets);
   return d ? d.w / d.h : 0;
 }
 

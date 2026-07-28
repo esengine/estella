@@ -113,6 +113,10 @@ export const viewportMessages = defineMessages({
     'vp.device': { en: 'Device', zh: '设备' },
     'vp.devDesign': { en: 'Design', zh: '设计' },
     'vp.orientation': { en: 'Orientation', zh: '方向' },
+    'vp.orientationNeedsDevice': {
+        en: 'Pick a device to rotate — “Design” simulates no screen',
+        zh: '选择设备后才能旋转——“设计”不模拟任何屏幕',
+    },
     'vp.landscape': { en: 'Landscape', zh: '横屏' },
     'vp.portrait': { en: 'Portrait', zh: '竖屏' },
     'vp.overlay': { en: 'Overlay', zh: '叠加层' },

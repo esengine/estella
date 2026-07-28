@@ -8,18 +8,18 @@
  */
 import { create } from 'zustand';
 import type { EditorModeId } from '@/mode/editorModes';
-import type { DevicePresetId } from '@/mode/resolutionPresets';
 
 interface EditorModeState {
   /** Explicit mode override; null ⇒ follow the selection-suggested mode. */
   pinned: EditorModeId | null;
-  /** Simulated target device for the design-resolution preview ('design' = no letterbox). */
-  device: DevicePresetId;
+  /** Simulated target screen ('design' = no letterbox). A project may declare its
+   *  own presets, so this is any id the preset table resolves — not a closed set. */
+  device: string;
   orientation: 'portrait' | 'landscape';
   showSafeArea: boolean;
   setMode(id: EditorModeId): void;
   clearPin(): void;
-  setDevice(id: DevicePresetId): void;
+  setDevice(id: string): void;
   toggleOrientation(): void;
   toggleSafeArea(): void;
 }

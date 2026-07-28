@@ -160,6 +160,11 @@
 }
 .ovmenu-item.on .chk { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }
 .ovmenu-item .l { flex: 1; }
+/* A choice that exists but cannot act yet — kept in place (the menu must not
+   reflow) and visibly inert, with a title saying what would enable it. */
+.ovmenu-item.disabled { opacity: 0.38; cursor: default; }
+.ovmenu-item.disabled:hover { color: var(--text-dim); background: none; }
+.ovmenu-note { padding: 2px 8px 6px; color: var(--text-mute); font-size: var(--fs-2xs); line-height: 1.4; max-width: 210px; }
 
 /* UI resize gizmo: accent edge/corner handles laid over a selected UINode's screen
    rect. Container is inert; only the handles take pointer events. */

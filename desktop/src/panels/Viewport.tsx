@@ -16,7 +16,7 @@ import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
 import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
-import { RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
+import { screenPresetById, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { alignSelection, distributeSelection } from '@/tools/alignTools';
 import { TilemapAPI, tileIdOf, isNonOrthogonal, isCollisionPaletteRef, buildCollisionPaletteModel, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
@@ -1109,12 +1109,12 @@ export function Viewport() {
         if (ci && des) {
           dsvg.style.opacity = '1';
           const ms = useEditorMode.getState();
-          const preset = RESOLUTION_PRESET_BY_ID[ms.device];
+          const preset = screenPresetById(ms.device, ProjectStore.getSnapshot()?.screenPresets);
           // Device visible frame: the design resolution fit into the simulated device's
           // aspect per the Canvas scaleMode. `dd` is the oriented device size (null for the
           // 'design' sentinel) — the SAME source App.tsx feeds to uiLayoutRect, so this
           // frame and the actual UI layout share one aspect and can't drift.
-          const dd = deviceDims(ms.device, ms.orientation);
+          const dd = deviceDims(ms.device, ms.orientation, ProjectStore.getSnapshot()?.screenPresets);
           let dev = des;
           if (dd) {
             const deviceAspect = dd.w / dd.h;
@@ -2412,7 +2412,7 @@ export function Viewport() {
           <div className="viewport__play-stage">
             <div
               className="viewport__play-host"
-              style={playHostAspectStyle(device, orientation) ?? undefined}
+              style={playHostAspectStyle(device, orientation, projectState?.screenPresets) ?? undefined}
               ref={playHostRef}
             />
           </div>

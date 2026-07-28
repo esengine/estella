@@ -5,7 +5,7 @@ import { t } from '@/i18n';
 import { PlayRealm, PlayRealms } from '@/engine/PlayRealm';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
-import { TargetScreenDropdown, playHostAspectStyle, targetScreenLabel } from '@/mode/TargetScreen';
+import { TargetScreenDropdown, playHostAspectStyle, targetScreenLabel, useProjectScreenPresets } from '@/mode/TargetScreen';
 
 // The "Game" dock panel: hosts the isolated play-realm iframe (the realm owns the
 // element + re-parents it here, so the realm survives panel remounts). The host
@@ -31,6 +31,7 @@ export function GamePanel() {
   const playTarget = useEditorStore((s) => s.playTarget);
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
+  const presets = useProjectScreenPresets();
 
   // Only host the realm iframe in 'window' mode — in 'viewport' mode the Viewport
   // owns it (one iframe, one mount). Guards against a stale Game tab stealing it.
@@ -43,8 +44,8 @@ export function GamePanel() {
   }, [playTarget]);
 
   const overlay = overlayFor(snap);
-  const aspect = playHostAspectStyle(device, orientation);
-  const sizeLabel = targetScreenLabel(device, orientation);
+  const aspect = playHostAspectStyle(device, orientation, presets);
+  const sizeLabel = targetScreenLabel(device, orientation, presets);
 
   return (
     <div className="game-panel">

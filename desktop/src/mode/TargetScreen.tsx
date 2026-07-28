@@ -13,11 +13,19 @@
  *
  * One selection now drives both. Editing previews it; play is constrained to it.
  */
+import { useSyncExternalStore } from 'react';
 import { Smartphone } from 'lucide-react';
 import { t } from '@/i18n';
 import { OvDropdown, DdCheck, DdRadio } from '@/components/OverlayMenu';
 import { useEditorMode } from '@/store/editorModeStore';
-import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, deviceDims } from '@/mode/resolutionPresets';
+import { screenPresets, screenPresetById, deviceDims } from '@/mode/resolutionPresets';
+import { ProjectStore } from '@/project/ProjectStore';
+import type { ScreenPreset as ProjectScreenPreset } from '@/project/format';
+
+/** The open project's declared screens, reactively. */
+export function useProjectScreenPresets(): ProjectScreenPreset[] | undefined {
+  return useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot)?.screenPresets;
+}
 
 /**
  * The dropdown: device presets, orientation, and (authoring only) the safe-area
@@ -37,15 +45,19 @@ export function TargetScreenDropdown({
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
   const showSafeArea = useEditorMode((s) => s.showSafeArea);
+  const presets = useProjectScreenPresets();
+  // The `design` sentinel simulates no screen, so there is nothing for the
+  // orientation to turn — deviceDims ignores it entirely for this case.
+  const noDevice = !deviceDims(device, orientation, presets);
 
   return (
     <OvDropdown
       icon={Smartphone}
-      label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
+      label={<span className="val">{screenPresetById(device, presets).label}</span>}
       title={t('vp.deviceTitle')}
     >
       <div className="ovmenu-lbl">{t('vp.device')}</div>
-      {RESOLUTION_PRESETS.map((p) => (
+      {screenPresets(presets).map((p) => (
         <DdRadio
           key={p.id}
           on={device === p.id}
@@ -63,17 +75,26 @@ export function TargetScreenDropdown({
           }}
         />
       ))}
+      {/* Orientation rotates a DEVICE. With no device simulated there is nothing to
+          rotate — the design resolution is the authored shape, not a screen being
+          held one way or the other — so the rows are disabled rather than being
+          clickable no-ops. */}
       <div className="ovmenu-lbl">{t('vp.orientation')}</div>
       <DdRadio
         on={orientation === 'landscape'}
         label={t('vp.landscape')}
+        disabled={noDevice}
+        title={noDevice ? t('vp.orientationNeedsDevice') : undefined}
         onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
       />
       <DdRadio
         on={orientation === 'portrait'}
         label={t('vp.portrait')}
+        disabled={noDevice}
+        title={noDevice ? t('vp.orientationNeedsDevice') : undefined}
         onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
       />
+      {noDevice && <div className="ovmenu-note">{t('vp.orientationNeedsDevice')}</div>}
       {showSafeAreaToggle && (
         <>
           <div className="ovmenu-lbl">{t('vp.overlay')}</div>
@@ -98,14 +119,19 @@ export function TargetScreenDropdown({
 export function playHostAspectStyle(
   device: string,
   orientation: 'portrait' | 'landscape',
+  presets?: readonly ProjectScreenPreset[],
 ): React.CSSProperties | null {
-  const d = deviceDims(device as never, orientation);
+  const d = deviceDims(device, orientation, presets);
   if (!d) return null;
   return { aspectRatio: `${d.w} / ${d.h}`, maxWidth: '100%', maxHeight: '100%', width: 'auto', height: '100%' };
 }
 
 /** Label for the status readout: the simulated screen's pixel size, or null. */
-export function targetScreenLabel(device: string, orientation: 'portrait' | 'landscape'): string | null {
-  const d = deviceDims(device as never, orientation);
+export function targetScreenLabel(
+  device: string,
+  orientation: 'portrait' | 'landscape',
+  presets?: readonly ProjectScreenPreset[],
+): string | null {
+  const d = deviceDims(device, orientation, presets);
   return d ? `${d.w} × ${d.h}` : null;
 }

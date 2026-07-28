@@ -61,10 +61,27 @@ export function DdCheck({ on, label, onClick }: { on: boolean; label: string; on
   );
 }
 
-/** Single-select menu row (tick mark, shown when active) — for the Snap menu. */
-export function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+/**
+ * Single-select menu row (tick mark, shown when active) — for the Snap menu.
+ *
+ * `disabled` is for a choice that exists but cannot act yet: it stays visible so
+ * the menu's shape does not shift, and `title` should say what would enable it. A
+ * row that looks clickable and does nothing is worse than a greyed one.
+ */
+export function DdRadio({
+  on, label, onClick, disabled = false, title,
+}: {
+  on: boolean; label: string; onClick: () => void; disabled?: boolean; title?: string;
+}) {
   return (
-    <div className={`ovmenu-item${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on} onClick={onClick}>
+    <div
+      className={`ovmenu-item${on ? ' on' : ''}${disabled ? ' disabled' : ''}`}
+      role="menuitemradio"
+      aria-checked={on}
+      aria-disabled={disabled || undefined}
+      title={title}
+      onClick={disabled ? undefined : onClick}
+    >
       <span className="tk"><Check size={11} strokeWidth={3} /></span>
       <span className="l">{label}</span>
     </div>

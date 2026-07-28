@@ -46,6 +46,26 @@ export interface DesignResolution {
 }
 
 /**
+ * A screen the project cares about testing on, shown in the viewport/Game
+ * target-screen dropdown alongside the built-in devices.
+ *
+ * Which handsets a team ships to is a property of the PROJECT, not of the
+ * editor: a built-in list can only ever be a guess, and a guess that cannot be
+ * corrected means everyone tests on approximately the wrong screen. Dimensions
+ * are stored portrait (w ≤ h) like the built-ins, so the orientation toggle
+ * means the same thing for both.
+ */
+export interface ScreenPreset {
+  /** Stable id — what the editor's device selection persists. */
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+  /** Safe-area insets in device pixels (notch / home indicator), if any. */
+  safe?: { top: number; bottom: number; left: number; right: number };
+}
+
+/**
  * Script entry points. Splitting declaration from
  * startup is what lets the editor extract a component schema WITHOUT executing
  * project startup: schema extraction imports ONLY `register`, the play-realm
@@ -244,6 +264,8 @@ export interface ProjectManifest {
   defaultScene?: string;
   /** Design resolution for the viewport / camera. */
   designResolution?: DesignResolution;
+  /** Extra screens the target-screen dropdown offers, beside the built-in devices. */
+  screenPresets?: ScreenPreset[];
   /** Spine runtime the project needs ('none' | '2.1' | '3.8' | '4.1' | '4.2' | '4.3' …). */
   spineVersion?: string;
   /** Per-path overrides of {@link DEFAULT_LAYOUT}. */
@@ -345,6 +367,21 @@ export function parseManifest(raw: unknown): ProjectManifest {
   const dr = o.designResolution as { width?: unknown; height?: unknown } | undefined;
   if (dr && typeof dr.width === 'number' && typeof dr.height === 'number') {
     manifest.designResolution = { width: dr.width, height: dr.height };
+  }
+  if (Array.isArray(o.screenPresets)) {
+    // Hand-edited manifests are normal, so a malformed entry is dropped rather
+    // than failing the load — a bad preset must not cost you the project.
+    const presets = (o.screenPresets as unknown[]).flatMap((raw) => {
+      const p = raw as Partial<ScreenPreset> | null;
+      if (!p || typeof p.id !== 'string' || typeof p.label !== 'string') return [];
+      if (typeof p.width !== 'number' || typeof p.height !== 'number') return [];
+      if (!(p.width > 0) || !(p.height > 0)) return [];
+      const out: ScreenPreset = { id: p.id, label: p.label, width: p.width, height: p.height };
+      const s = p.safe;
+      if (s && [s.top, s.bottom, s.left, s.right].every((n) => typeof n === 'number')) out.safe = s;
+      return [out];
+    });
+    if (presets.length > 0) manifest.screenPresets = presets;
   }
   if (o.layout && typeof o.layout === 'object') {
     manifest.layout = o.layout as Partial<ProjectLayout>;
