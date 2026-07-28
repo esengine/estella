@@ -13,6 +13,7 @@ import { setEntityClipboard, getEntityClipboard, remapClipboardEntities } from '
 import {
   componentByName,
   componentDefaults,
+  defaultDataFor,
   userSchema,
   angleZToQuat,
   hexToRgba,
@@ -86,9 +87,14 @@ export function toModelValue(
 ): unknown {
   switch (type) {
     case 'number':
-    case 'enum':
     case 'flags':
       return Number(value);
+    case 'enum':
+      // An enum option's value is a C++ ordinal OR a name read off a referenced
+      // asset ("walk", "Dragon") — see EnumOption. The control writes the option's
+      // own value, so its type is the answer; coercing everything through Number
+      // turned every name into NaN, which read back as an empty dropdown.
+      return typeof value === 'string' ? value : Number(value);
     case 'bool':
       return Boolean(value);
     case 'string':
@@ -391,7 +397,15 @@ export class SceneCommandsImpl {
     const firstTouch = !this.gesture || !this.gesture.touched.has(k);
     const before = firstTouch ? structuredClone(cur[key]) : undefined;
 
-    const after = clampFieldValue(compName, key, toModelValue(cur, type, key, value));
+    // Slice edits (one vec axis, one box edge) merge onto the field's CURRENT
+    // value, which is the stored value *over its default* — scene data holds only
+    // what was authored, so a field at its default simply isn't there. Merging onto
+    // the raw stored data wrote a partial vector for those ({ x } with no y/z): the
+    // World rejected it ("Missing field: y") and the inspector, unable to recognize
+    // the shape, dropped the row. A UINode hit this every time — layout owns its
+    // Transform.position, so the scene file never stores one.
+    const effective = { ...defaultDataFor(compName), ...cur };
+    const after = clampFieldValue(compName, key, toModelValue(effective, type, key, value));
     this.model.setField(sourceId, compName, key, after);
 
     if (this.gesture) {

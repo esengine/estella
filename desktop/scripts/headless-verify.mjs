@@ -25,6 +25,7 @@ import os from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 // SwiftShader rasterizes on the CPU; run the whole electron tree below normal
 // priority (child processes inherit the class) so a verify never starves the
@@ -120,8 +121,7 @@ app.whenReady().then(async () => {
       show: false, width: W, height: H, useContentSize: true,
       webPreferences: { offscreen: false },
     });
-    win.webContents.on('console-message', (...args) => {
-      const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
+    onRendererConsole(win.webContents, (msg) => {
       if (/error|fail|unwind|exception|webgl/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
     });
     await win.loadURL(url);

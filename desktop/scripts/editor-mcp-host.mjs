@@ -23,6 +23,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createExecEndpoint } from './mcp-exec-endpoint.mjs';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const TOKEN = process.env.ESTELLA_MCP_TOKEN;
@@ -68,8 +69,7 @@ app.whenReady().then(async () => {
     const assets = await serveDist();
     const url = `http://127.0.0.1:${assets.address().port}/headless.html?w=${W}&h=${H}`;
     const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
-    win.webContents.on('console-message', (...args) => {
-      const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
+    onRendererConsole(win.webContents, (msg) => {
       if (/error|fail|unwind|exception|webgl/i.test(msg)) log('[renderer]', msg.slice(0, 240));
     });
     await win.loadURL(url);

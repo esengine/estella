@@ -57,11 +57,11 @@ struct SpineAnimation {
     std::string atlasPath;
 
     /** @brief Current skin name (empty for default) */
-    ES_PROPERTY()
+    ES_PROPERTY(enum_source=spineSkins)
     std::string skin;
 
     /** @brief Current animation name */
-    ES_PROPERTY()
+    ES_PROPERTY(enum_source=spineAnimations)
     std::string animation;
 
     /** @brief Animation playback speed multiplier */

@@ -8,15 +8,18 @@
  * A declared parameter can name a source instead of listing options, because the
  * real choices depend on the scene: which controllers the target entity resolves,
  * which pages the chosen controller has. This is the same shape (and for the same
- * reason) as `registerDynamicEnum` for component fields — one keyed provider map,
- * consulted by whoever renders the control. Kept out of the SDK registry on
- * purpose: the sdk declares WHAT a parameter is, the editor knows what is on
- * screen to choose from.
+ * reason) as `setEnumSource` for component fields — one keyed provider map,
+ * consulted by whoever renders the control. Separate because the context differs:
+ * a field's source sees a component, an action's sees a row's target + sibling
+ * parameters. Kept out of the SDK registry on purpose: the sdk declares WHAT a
+ * parameter is, the editor knows what is on screen to choose from.
  */
 import { resolveControllers } from '@/controller/controllerModel';
-import type { DynamicEnumOption } from '@/engine/schema';
 import type { EntityId } from '@/types';
 import type { AiParamValue } from 'esengine';
+
+/** One choice: the value stored, and the label shown when it reads differently. */
+export interface AiParamOption { value: string; label?: string }
 
 export interface AiParamOptionContext {
   /** The entity the action will run on — a row's resolved target, not its owner. */
@@ -25,7 +28,7 @@ export interface AiParamOptionContext {
   params: Readonly<Record<string, AiParamValue>>;
 }
 
-export type AiParamOptionProvider = (ctx: AiParamOptionContext) => readonly (string | DynamicEnumOption)[];
+export type AiParamOptionProvider = (ctx: AiParamOptionContext) => readonly (string | AiParamOption)[];
 
 const providers = new Map<string, AiParamOptionProvider>();
 
@@ -34,7 +37,7 @@ export function registerAiParamOptions(source: string, provider: AiParamOptionPr
 }
 
 /** Options for an `optionsSource`, or null when unknown / nothing to offer. */
-export function aiParamOptions(source: string, ctx: AiParamOptionContext): DynamicEnumOption[] | null {
+export function aiParamOptions(source: string, ctx: AiParamOptionContext): AiParamOption[] | null {
   const opts = providers.get(source)?.(ctx);
   if (!opts || opts.length === 0) return null;
   return opts.map((o) => (typeof o === 'string' ? { value: o } : o));

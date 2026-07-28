@@ -17,6 +17,7 @@
  */
 import type {
   EntityId,
+  EnumOption,
   InspectorComponent,
   InspectorFieldType,
   InspectorFieldValue,
@@ -74,6 +75,10 @@ export function coerceFieldValue(
   declared: InspectorFieldType,
   key: string,
   value: InspectorFieldValue,
+  /** The field's own options, when it has them — an enum whose options are NAMES
+   *  ("walk", "Dragon", see EnumOption) stores the name, so the option set is what
+   *  says whether a string is a legal value or a typo. */
+  options?: readonly EnumOption[],
 ): InspectorFieldValue {
   const fail = (expected: string): never => {
     throw new Error(`field "${key}" (${declared}) expects ${expected}, got ${JSON.stringify(value)}`);
@@ -86,8 +91,19 @@ export function coerceFieldValue(
     }
   };
   switch (declared) {
+    case 'enum': {
+      // Name-valued options: accept the name (or a label spelling it), and refuse
+      // anything the field cannot actually hold, rather than silently writing NaN.
+      const named = options?.some((o) => typeof o.value === 'string');
+      if (named) {
+        const hit = options!.find((o) => o.value === value || o.label === value);
+        if (hit) return hit.value;
+        return fail(`one of: ${options!.map((o) => String(o.value)).join(', ')}`);
+      }
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fail('a number');
+    }
     case 'number':
-    case 'enum':
     case 'flags':
     case 'entity': {
       // 'entity' is a source-id reference to another entity — a plain number.
@@ -282,13 +298,14 @@ export class EditorControlSurfaceImpl {
     }
     // The enable toggle is surfaced in the component header, not in `fields` —
     // but it is still a writable bool field to automation.
+    const field = comp.fields.find((f) => f.key === key);
     const declared: InspectorFieldType | undefined =
-      comp.fields.find((f) => f.key === key)?.type ?? (comp.enable?.key === key ? 'bool' : undefined);
+      field?.type ?? (comp.enable?.key === key ? 'bool' : undefined);
     if (!declared) {
       const keys = [...comp.fields.map((f) => f.key), ...(comp.enable ? [comp.enable.key] : [])];
       throw new Error(`"${component}" has no field "${key}" (fields: ${keys.join(', ')})`);
     }
-    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value));
+    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field?.options));
   }
   /** Add a component (by schema name) to an entity — the Details "Add Component" door. */
   addComponent(entity: EntityId, component: string): void {

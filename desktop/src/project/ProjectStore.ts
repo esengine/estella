@@ -18,7 +18,9 @@ import { Boxes } from 'lucide-react';
 import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
-import { installDragonBonesEnumSources } from '@/engine/dragonBonesNames';
+import { installDragonBonesEnumSources, clearDragonBonesNameCache } from '@/engine/dragonBonesNames';
+import { installSpineEnumSources } from '@/engine/spineEnums';
+import { installLocaleKeyEnumSource } from './localeKeys';
 import { setProjectActions, type ProjectActionSchema } from '@/ai/actionCatalog';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSkeletalSync, type SkeletalTransport } from '@/engine/skeletalSync';
@@ -38,7 +40,7 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
-import { resetFsWatch } from './fsWatch';
+import { resetFsWatch, fsRefresh } from './fsWatch';
 import type { DocSnapshot } from '@/document/DirtyRegistry';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
@@ -244,11 +246,18 @@ class ProjectStoreImpl {
     });
     // Collider layer-mask fields resolve their bit labels from this project setting.
     setBitmaskSource('collisionLayers', () => this.collisionLayerOptions());
-    // Render `layer` fields become a dropdown once the project names sorting layers.
+    // Every dynamic dropdown the editor supplies, in one place. Each names what it
+    // answers from: a project fact (sorting layers), the file an entity REFERENCES
+    // (dragonBones armatures/animations), the skeleton an entity has LOADED (spine),
+    // or the project's locale tables (i18n keys). One registry, one control, one
+    // write path — see setEnumSource.
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
-    // Armature / animation dropdowns read the file each entity references, so
-    // their options are per-entity rather than per-project (see dragonBonesNames).
     installDragonBonesEnumSources();
+    installSpineEnumSources();
+    installLocaleKeyEnumSource();
+    // A skeleton re-exported outside the editor declares different animations —
+    // drop what was parsed from the old file so the next render re-reads it.
+    fsRefresh.subscribe(() => clearDragonBonesNameCache());
     // New Canvas entities seed their design resolution from the project setting.
     setCanvasDesignSeed(() => this.designResolution());
     // The device preview reads the project camera fit so its letterbox matches the
@@ -369,7 +378,13 @@ class ProjectStoreImpl {
    */
   private async loadUserSchemas(): Promise<void> {
     try {
-      const json = await window.estella.fs.read(`${WORKSPACE_DIR}/cache/schemas.json`);
+      // Optional: a project with no script components has never written one.
+      const json = await window.estella.fs.readOptional(`${WORKSPACE_DIR}/cache/schemas.json`);
+      if (json === null) {
+        setUserSchemas([]);
+        setProjectActions([], []);
+        return;
+      }
       const parsed = JSON.parse(json) as
         | UserComponentSchema[]
         | { components?: UserComponentSchema[]; actions?: ProjectActionSchema[]; conditions?: string[] };
@@ -1387,10 +1402,11 @@ class ProjectStoreImpl {
    *  legacy folder-name convention. */
   private async loadAssetGroupsConfig(): Promise<void> {
     try {
-      this.assetGroupsConfig = JSON.parse(
-        await window.estella.fs.read(`${WORKSPACE_DIR}/asset-groups.json`),
-      ) as AssetGroupsConfig;
-    } catch {
+      // Optional: most projects never configure delivery groups at all.
+      const json = await window.estella.fs.readOptional(`${WORKSPACE_DIR}/asset-groups.json`);
+      this.assetGroupsConfig = json === null ? null : (JSON.parse(json) as AssetGroupsConfig);
+    } catch (e) {
+      console.warn('[project] asset-groups.json is unreadable — falling back to defaults', e);
       this.assetGroupsConfig = null;
     }
   }

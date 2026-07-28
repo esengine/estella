@@ -19,6 +19,11 @@ vi.mock('@/engine/schema', () => ({
     setEnumSource: (name: string, provider: never) => sources.set(name, provider),
 }));
 
+const pokes = { count: 0 };
+vi.mock('@/engine/SceneStore', () => ({
+    SceneStore: { poke: () => { pokes.count++; } },
+}));
+
 const TWO_ARMATURES = JSON.stringify({
     armature: [
         { name: 'Dragon', animation: [{ name: 'walk' }, { name: 'stand' }] },
@@ -30,8 +35,11 @@ describe('DragonBones enum sources', () => {
     beforeEach(async () => {
         files.clear();
         sources.clear();
+        pokes.count = 0;
         (globalThis as { window?: unknown }).window = {
-            estella: { fs: { read: (p: string) => Promise.resolve(files.get(p) ?? '') } },
+            // `readOptional`: a ref can outlive the file it names, and absent is an
+            // answer (null) rather than a rejection the ipc layer logs as a failure.
+            estella: { fs: { readOptional: (p: string) => Promise.resolve(files.get(p) ?? null) } },
         };
         const mod = await import('@/engine/dragonBonesNames');
         mod.clearDragonBonesNameCache();
@@ -67,6 +75,24 @@ describe('DragonBones enum sources', () => {
         expect(anims('Effects')).toEqual(['burst']);
         // Unset means the first armature, which is what the component does too.
         expect(anims('')).toEqual(['walk', 'stand']);
+    });
+
+    it('repaints the panels when the read lands, so the dropdown appears by itself', async () => {
+        // Nothing else changes when a background read finishes. Without the poke the
+        // inspector kept rendering the cold answer (a plain text field) until some
+        // unrelated edit repainted it — which is why the dropdown only showed up
+        // after a Play/Stop round trip.
+        files.set('hero_ske.json', TWO_ARMATURES);
+        sources.get('dragonbonesArmatures')!({ skeletonPath: 'hero_ske.json' });
+        expect(pokes.count).toBe(0);
+        await settle();
+        expect(pokes.count).toBe(1);
+    });
+
+    it('does not repaint for a read that found nothing (no new options to show)', async () => {
+        sources.get('dragonbonesArmatures')!({ skeletonPath: 'missing_ske.json' });
+        await settle();
+        expect(pokes.count).toBe(0);
     });
 
     it('answers empty for a reference that does not resolve, and stops asking', async () => {

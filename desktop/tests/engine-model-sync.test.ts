@@ -105,6 +105,21 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         expect((wave!.data as { amplitude: number }).amplitude).toBe(5);
     });
 
+    it('a slice edit to a field the scene OMITS still writes a whole value', () => {
+        // Scene data stores only what was authored, so a field sitting at its default
+        // simply is not there — a UINode's Transform.position never is, because the
+        // layout pass owns it. Merging the edited axis onto the raw stored data wrote
+        // `{ x }` with no y/z: the World rejected it ("Missing field: y") and the
+        // inspector, unable to recognize the shape, dropped the row out of the panel.
+        const id = S.model.addEntity('Widget', [{ type: 'Transform', data: {} }] as never);
+        S.commands.setField(id, 'Transform', 'position', 'vec3', [50, NaN, NaN]);
+
+        const data = S.model.entityBySource(id)!.components.find((c) => c.type === 'Transform')!
+            .data as Record<string, unknown>;
+        expect(data.position).toEqual({ x: 50, y: 0, z: 0 });
+        expect(inspectorFields('Transform', data).some((f) => f.key === 'position')).toBe(true);
+    });
+
     it('a Transform edit preserves the engine-computed world fields (never clobbers them to the origin)', () => {
         // worldPosition/worldRotation/worldScale are ES_PROPERTY(readonly) — engine
         // outputs composed each frame, not authoring inputs. Seed a sentinel world

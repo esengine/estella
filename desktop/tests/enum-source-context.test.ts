@@ -2,11 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 //
 // Dynamic dropdown options used to be a project-wide fact (sorting layers) read
-// through a source that was handed nothing. Some option sets are not: which
-// armatures exist depends on which file THIS entity points at, so two entities of
-// one component type legitimately answer differently. These cover the two things
-// that had to change for that — the provider seeing the component, and an option
-// being allowed to BE a name rather than an index into one.
+// through a source that was handed nothing. Most option sets are not: which
+// armatures exist depends on which file THIS entity points at, and which
+// animations are playable depends on what THIS entity has loaded — so two entities
+// of one component type legitimately answer differently. This is the whole
+// contract of the one registry every dynamic dropdown goes through: the provider
+// sees the component and the entity, an option may BE a name rather than an index
+// into one, and it may carry a label that reads differently from what it stores.
 import { describe, it, expect, afterEach } from 'vitest';
 import { setEnumSource, inspectorFields } from '@/engine/schema';
 
@@ -16,7 +18,8 @@ afterEach(() => {
     setEnumSource('sortingLayers', null);
 });
 
-const fieldsOf = (comp: string, data: Record<string, unknown>) => inspectorFields(comp, data);
+const fieldsOf = (comp: string, data: Record<string, unknown>, entity?: number) =>
+    inspectorFields(comp, data, undefined, entity);
 
 describe('enum sources', () => {
     it('hands the provider the component`s own values', () => {
@@ -67,6 +70,29 @@ describe('enum sources', () => {
         const f = fieldsOf('Sprite', { layer: 3 }).find((x) => x.key === FIELD);
         expect(f?.type).toBe('enum');
         expect(f?.value).toBe(3);
+    });
+
+    it('hands the provider the entity being inspected', () => {
+        // Options that come from what an entity has LOADED (a spine skeleton's
+        // animation list) live in the runtime instance bound to that entity, and
+        // are reachable from nothing but its id.
+        let seen: number | undefined = -1;
+        setEnumSource('sortingLayers', (_data, entity) => {
+            seen = entity;
+            return [{ label: 'Default', value: 0 }];
+        });
+
+        fieldsOf('Sprite', { layer: 0 }, 42);
+        expect(seen).toBe(42);
+    });
+
+    it('keeps a label that reads differently from the value it stores', () => {
+        // An i18n key previews its translation; the key is still what gets written.
+        setEnumSource('sortingLayers', () => [{ label: 'menu.play · 开始', value: 'menu.play' }]);
+
+        const f = fieldsOf('Sprite', { layer: 'menu.play' }).find((x) => x.key === FIELD);
+        expect(f?.options).toEqual([{ label: 'menu.play · 开始', value: 'menu.play' }]);
+        expect(f?.value).toBe('menu.play');
     });
 
     it('stays a plain field while its source knows nothing', () => {

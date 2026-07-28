@@ -10,7 +10,10 @@
  *          A cold miss returns nothing, which the inspector already treats as
  *          "leave the field plainly editable" — so the field works before the read
  *          lands and improves after it, instead of stranding the value in an empty
- *          dropdown.
+ *          dropdown. A landed read POKES the panels: nothing else changes when a
+ *          background read finishes, so without it the inspector kept rendering the
+ *          cold answer until some unrelated edit repainted it (the dropdown only
+ *          appearing after a Play/Stop round trip).
  *
  *          A `.dbbin` yields nothing, on purpose. It is binary, naming what is
  *          inside it would mean instantiating the runtime, and a free-text field
@@ -19,6 +22,7 @@
 import { parseDragonBonesNames, type DragonBonesArmatureNames } from '../../../sdk/src/dragonbones/skeletonNames';
 import { ProjectStore } from '@/project/ProjectStore';
 import { setEnumSource } from './schema';
+import { SceneStore } from './SceneStore';
 import type { EnumOption } from '@/types';
 
 /** ref → what that file declares; an empty array is a read that found nothing. */
@@ -48,10 +52,18 @@ function warm(ref: string): void {
         inFlight.delete(ref);
         return;
     }
-    void window.estella.fs.read(path)
+    // Optional: a ref can outlive the file it names (deleted, moved outside the
+    // editor). Absent is an answer here — an empty list — not a failed IPC call.
+    void window.estella.fs.readOptional(path)
         .then((text) => cache.set(ref, text ? parseDragonBonesNames(text) : []))
         .catch(() => cache.set(ref, []))
-        .finally(() => inFlight.delete(ref));
+        .finally(() => {
+            inFlight.delete(ref);
+            // Repaint whoever is showing this component: the read is the only thing
+            // that changed, and an inspector re-renders off the scene revision.
+            // Cached now, so the repaint's provider call cannot start another read.
+            if (cache.get(ref)?.length) SceneStore.poke();
+        });
 }
 
 function armaturesFor(data: Readonly<Record<string, unknown>>): DragonBonesArmatureNames[] {

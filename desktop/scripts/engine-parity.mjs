@@ -19,6 +19,7 @@ import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 try {
   os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
@@ -85,13 +86,11 @@ function serve() {
 async function runBackend(win, baseUrl, backend) {
   let framesOk = false;
   const errors = [];
-  const onMessage = (...args) => {
-    const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
+  const stopConsole = onRendererConsole(win.webContents, (msg) => {
     if (/PARITY|error|warn/i.test(msg)) console.log(`[${backend}]`, msg.slice(0, 220));
     if (msg.includes('PARITY_FRAMES_OK')) framesOk = true;
     if (msg.includes('PARITY_FAIL') || msg.includes('PARITY_VALIDATION')) errors.push(msg);
-  };
-  win.webContents.on('console-message', onMessage);
+  });
   try {
     await win.loadURL(`${baseUrl}?backend=${backend}`);
 
@@ -109,7 +108,7 @@ async function runBackend(win, baseUrl, backend) {
     errors.push(`run failed: ${e.message}`);
     return { framesOk, errors, bitmap: Buffer.alloc(256 * 256 * 4), width: 256 };
   } finally {
-    win.webContents.removeListener('console-message', onMessage);
+    stopConsole();
   }
 }
 

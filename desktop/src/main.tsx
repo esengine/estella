@@ -66,8 +66,6 @@ import { assetTypeOf } from './project/assetTypes';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
-// Register the Text.i18nKey picker's key index (side effect, like spineEnums).
-import './project/localeKeys';
 import { applySettings } from './store/settingsStore';
 
 // Capture console (editor + SDK + wasm) into the Output Log panel from startup.

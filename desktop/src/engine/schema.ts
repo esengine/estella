@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSkeletalFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
 import type { App, SceneData } from 'esengine';
-import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
+import type { NodeKind, EntityId, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
+import { t } from '@/i18n';
 
 type SceneEntityLike = SceneData['entities'][number];
 
@@ -66,6 +67,20 @@ export function componentByName(name: string): AnyComp | undefined {
 /** A component's registered default field values (the `_default` describing its shape). */
 export function componentDefaults(def: AnyComp): Record<string, unknown> {
   return (def as unknown as { _default: Record<string, unknown> })._default;
+}
+
+/**
+ * A component's default field values BY NAME — the engine registry's `_default`,
+ * else a project component's extracted schema, else `{}`.
+ *
+ * Scene data stores only what was authored, so a field can be absent from a
+ * component's data and still have a value: its default. Anything reading "what
+ * this field is right now" (the inspector's effective view, a slice write's merge
+ * base) has to resolve through this, or it sees a hole where there is a value.
+ */
+export function defaultDataFor(compType: string): Record<string, unknown> {
+  const def = componentByName(compType);
+  return (def ? componentDefaults(def) : userSchema(compType)?.default) ?? {};
 }
 
 /** The component's entity-reference fields (source-id-valued in scene data), [] if none. */
@@ -357,30 +372,6 @@ export function readonlyFieldsFor(compType: string): readonly string[] {
   return getComponent(compType)?.readonlyFields ?? [];
 }
 
-// — Per-entity dynamic enums —
-// Some string fields are really a choice from a list that depends on the entity's
-// runtime state, not a static enum (e.g. a spine animation/skin name from the loaded
-// skeleton). A provider, keyed by `component|field`, yields the options for one
-// entity; the inspector renders a dropdown when it returns any. An option may
-// carry a display label distinct from the stored value (e.g. an i18n key with
-// its translated preview); plain strings stay valid for label-less providers.
-export interface DynamicEnumOption { value: string; label?: string }
-
-const dynamicEnums = new Map<string, (sourceId: number) => readonly (string | DynamicEnumOption)[]>();
-
-export function registerDynamicEnum(
-  component: string, field: string, provider: (sourceId: number) => readonly (string | DynamicEnumOption)[],
-): void {
-  dynamicEnums.set(`${component}|${field}`, provider);
-}
-
-/** Dynamic enum options for a field on an entity, or null if the field has no provider / no options. */
-export function dynamicEnumOptions(component: string, field: string, sourceId: number): DynamicEnumOption[] | null {
-  const opts = dynamicEnums.get(`${component}|${field}`)?.(sourceId);
-  if (!opts || !opts.length) return null;
-  return opts.map((o) => (typeof o === 'string' ? { value: o } : o));
-}
-
 // — Field presentation metadata (the SDK's UPROPERTY analog) —
 //
 // A component declares per-field editor policy (enum options, numeric range,
@@ -505,16 +496,34 @@ export function setBitmaskSource(name: string, provider: (() => EnumOption[]) | 
   else bitmaskSources.delete(name);
 }
 
-// Editor-registered providers of dynamic enum options (e.g. project sorting
-// layers). A field with `enumSource` becomes a dropdown when its source yields
-// options, else a plain number — so free-int editing survives an empty set.
+// — Dynamic enum sources —
+//
+// The ONE door for "this field's choices are not knowable at definition time".
+// A component names a source on the field (`enum_source=` in its C++ declaration,
+// `enumSource` in schemas.json); the editor registers what that name yields. The
+// field becomes a dropdown while its source answers, and stays a plain editable
+// field while it doesn't — so free editing survives a source that isn't warm yet
+// (a skeleton still being read) or isn't installed at all (a headless host).
+//
+// Options are values, not indices: a sorting layer is an int, an animation name
+// is the string itself (see EnumOption). Both flow through the same control and
+// the same write path.
 /**
- * A provider is handed the component's own values, because some option sets are
- * not global. Sorting layers are a project fact and ignore it; which armatures
- * exist depends on which file THIS entity's `skeletonPath` points at, and two
- * entities of one component type legitimately answer differently.
+ * A provider is handed the component's own values AND the entity being inspected,
+ * because option sets differ in where they come from:
+ * - project facts ignore both (sorting layers);
+ * - what an entity REFERENCES comes from the data (which armatures exist depends
+ *   on the file this component's `skeletonPath` points at, so two entities of one
+ *   component type legitimately answer differently);
+ * - what an entity has LOADED comes from the id (a spine skeleton's animation
+ *   list lives in the runtime instance bound to that entity).
+ *
+ * `entity` is absent where no single entity is on screen (a prefab diff, a test).
  */
-export type EnumOptionProvider = (data: Readonly<Record<string, unknown>>) => EnumOption[];
+export type EnumOptionProvider = (
+  data: Readonly<Record<string, unknown>>,
+  entity?: EntityId,
+) => EnumOption[];
 
 const enumSources = new Map<string, EnumOptionProvider>();
 /** Register (or clear) a named source of dynamic enum options. */
@@ -522,8 +531,12 @@ export function setEnumSource(name: string, provider: EnumOptionProvider | null)
   if (provider) enumSources.set(name, provider);
   else enumSources.delete(name);
 }
-function enumSourceOptions(name: string, data: Readonly<Record<string, unknown>>): EnumOption[] {
-  return enumSources.get(name)?.(data) ?? [];
+function enumSourceOptions(
+  name: string,
+  data: Readonly<Record<string, unknown>>,
+  entity?: EntityId,
+): EnumOption[] {
+  return enumSources.get(name)?.(data, entity) ?? [];
 }
 /** The bit options for a bitmask field: its source's labels, else `Layer N`. */
 function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] {
@@ -543,6 +556,7 @@ function fieldFor(
   value: unknown,
   isColor: boolean,
   data: Readonly<Record<string, unknown>> = {},
+  entity?: EntityId,
 ): InspectorField | null {
   const meta = fieldMetaFor(compType, key);
   const at = assetFieldType(compType, key) ?? spineSlotType(compType, key);
@@ -576,8 +590,8 @@ function fieldFor(
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: meta.flags.map((o) => ({ ...o })) };
   } else if (meta?.enum && meta.enum.length) {
     field = { key, label: prettyLabel(key), type: 'enum', value: Number(value) || 0, options: meta.enum.map((o) => ({ ...o })) };
-  } else if (meta?.enumSource && enumSourceOptions(meta.enumSource, data).length) {
-    const options = enumSourceOptions(meta.enumSource, data);
+  } else if (meta?.enumSource && enumSourceOptions(meta.enumSource, data, entity).length) {
+    const options = enumSourceOptions(meta.enumSource, data, entity);
     // A string-valued source names things; coercing through Number would turn
     // every option into NaN and the field into a broken 0.
     const stringly = typeof options[0].value === 'string';
@@ -672,6 +686,9 @@ export function inspectorFields(
   compType: string,
   data: Record<string, unknown>,
   baseData?: Record<string, unknown>,
+  /** The entity being inspected — reaches enum sources whose options come from
+   *  its LOADED runtime state (a spine skeleton's animations). */
+  entity?: EntityId,
 ): InspectorField[] {
   const def = componentByName(compType);
   const schema = def ? undefined : userSchema(compType);
@@ -688,12 +705,12 @@ export function inspectorFields(
     if (DERIVED_FIELDS.has(key)) continue;
     if (isConditionallyHidden(compType, key, eff)) continue;
     const value = key in data ? data[key] : defaults?.[key];
-    const f = fieldFor(compType, key, value, colorKeys.has(key), eff);
+    const f = fieldFor(compType, key, value, colorKeys.has(key), eff, entity);
     if (!f) continue;
     // Reset target: the prefab base for this key, else the registered default.
     const baseRaw = baseData && key in baseData ? baseData[key] : defaults?.[key];
     if (baseRaw !== undefined) {
-      const bf = fieldFor(compType, key, baseRaw, colorKeys.has(key), eff);
+      const bf = fieldFor(compType, key, baseRaw, colorKeys.has(key), eff, entity);
       if (bf) f.defaultValue = bf.value;
     }
     fields.push(f);
@@ -775,6 +792,18 @@ const POSITIONAL_LIGHT_TYPES = new Set([Light2DType.Point, Light2DType.Spot]);
  * explainable (e.g. the render path skips a positional light with no Transform).
  */
 export function componentNotice(compType: string, entity: SceneEntityLike): string | null {
+  // A UINode's placement is LAYOUT-owned: the layout pass writes the resolved box
+  // into Transform.position every relayout, so editing it here holds only until the
+  // next UI change and then snaps back. Said only once the scene actually CARRIES an
+  // authored position — that dead value is the symptom someone is chasing ("I dragged
+  // it and nothing moved"). Every well-formed UI node simply omits the field, and a
+  // notice true of all of them would be noise on the card and in the diagnostics sweep.
+  if (compType === 'Transform' && entity.components.some((c) => c.type === 'UINode')) {
+    const d = entity.components.find((c) => c.type === 'Transform')?.data as
+      | Record<string, unknown>
+      | undefined;
+    return d && d.position !== undefined ? t('det.noticeUILayoutOwnsPosition') : null;
+  }
   // Text align/verticalAlign resolve against a layout box, which only a UINode (laid
   // out under a Canvas) provides. Without one the text anchors to the entity origin —
   // surfaced when the user has actually set an alignment, so the behavior is explained.
@@ -783,8 +812,7 @@ export function componentNotice(compType: string, entity: SceneEntityLike): stri
       const d = entity.components.find((c) => c.type === 'Text')?.data as
         | { align?: number; verticalAlign?: number }
         | undefined;
-      if ((d?.align ?? 0) !== 0 || (d?.verticalAlign ?? 0) !== 0)
-        return 'No layout box — align anchors the text to the entity origin. To align within a fixed area, add a UINode and place this Text under a Canvas.';
+      if ((d?.align ?? 0) !== 0 || (d?.verticalAlign ?? 0) !== 0) return t('det.noticeTextNoLayoutBox');
     }
     return null;
   }
@@ -792,10 +820,9 @@ export function componentNotice(compType: string, entity: SceneEntityLike): stri
   if (hasTransform) return null;
   if (compType === 'Light2D') {
     const data = entity.components.find((c) => c.type === compType)?.data as { type?: number } | undefined;
-    if (POSITIONAL_LIGHT_TYPES.has(Number(data?.type ?? 0)))
-      return 'Point / Spot lights need a Transform for their position — this light is skipped.';
+    if (POSITIONAL_LIGHT_TYPES.has(Number(data?.type ?? 0))) return t('det.noticeLightNeedsTransform');
   }
-  if (compType === 'ShadowCaster2D') return 'Needs a Transform to place its shadow box — this caster is skipped.';
+  if (compType === 'ShadowCaster2D') return t('det.noticeShadowNeedsTransform');
   return null;
 }
 

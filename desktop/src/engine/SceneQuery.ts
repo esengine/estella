@@ -81,7 +81,7 @@ export function buildInspector(
     const cdata = (e.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
     const enable = componentEnable(name, cdata) ?? undefined;
     // The enable field is promoted to the header checkbox — drop it from the body.
-    const fields = inspectorFields(name, cdata, baseOf?.(name)).filter((f) => f.key !== enable?.key);
+    const fields = inspectorFields(name, cdata, baseOf?.(name), id).filter((f) => f.key !== enable?.key);
     out.push({ name, label, fields, enable, notice: componentNotice(name, e) ?? undefined });
   }
   return out;
@@ -124,7 +124,7 @@ export function buildMultiInspector(
     const enable = enableBase
       ? { ...enableBase, mixed: !datas.every((d) => (componentEnable(name, d)?.value ?? enableBase.value) === enableBase.value) }
       : undefined;
-    const fields = inspectorFields(name, datas[0], baseOf?.(name)).filter((f) => f.key !== enable?.key);
+    const fields = inspectorFields(name, datas[0], baseOf?.(name), primary.id).filter((f) => f.key !== enable?.key);
     // A vector axis reads from either the raw {x,y,z,w} object or an array form.
     const VKEYS = ['x', 'y', 'z', 'w'] as const;
     const axisOf = (raw: unknown, i: number): unknown =>

@@ -14,6 +14,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 const COOKED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.cooked-verify');
 const W = 256, H = 256;
@@ -50,8 +51,7 @@ app.whenReady().then(async () => {
     server = await serve(COOKED);
     const url = `http://127.0.0.1:${server.address().port}/index.html?headless=1`;
     const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
-    win.webContents.on('console-message', (...a) => {
-      const m = a.map((x) => (x && typeof x === 'object' ? x.message ?? '' : String(x))).join(' ');
+    onRendererConsole(win.webContents, (m) => {
       if (/error|fail|unwind|exception|webgl|basis|ktx/i.test(m)) diag.push(m.slice(0, 200));
     });
     await win.loadURL(url);

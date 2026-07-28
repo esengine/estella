@@ -562,6 +562,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['color'],
         animatableFields: [],
         fields: {
+            skin: { enumSource: "spineSkins" },
+            animation: { enumSource: "spineAnimations" },
             timeScale: { min: 0 },
             layer: { step: 1, enumSource: "sortingLayers" },
             skeletonScale: { min: 0 },

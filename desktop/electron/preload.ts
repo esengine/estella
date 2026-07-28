@@ -158,6 +158,10 @@ const api = {
   // Filesystem, scoped to the open project root (paths are project-relative).
   fs: {
     read: (relPath: string): Promise<string> => ipcRenderer.invoke('fs:read', relPath),
+    /** Read a file that may legitimately not exist (optional project config) —
+     *  `null` when it isn't there, so "absent" never travels as a failed IPC call. */
+    readOptional: (relPath: string): Promise<string | null> =>
+      ipcRenderer.invoke('fs:readOptional', relPath),
     write: (relPath: string, contents: string): Promise<void> =>
       ipcRenderer.invoke('fs:write', relPath, contents),
     readDir: (relPath: string): Promise<DirEntry[]> => ipcRenderer.invoke('fs:readdir', relPath),

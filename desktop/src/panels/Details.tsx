@@ -75,7 +75,7 @@ import { sourceById, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
 import { localizePlugin } from '@/plugins/localize';
 import type { AssetInspectorContribution, ComponentInspectorContribution } from '@/plugins/types';
@@ -308,9 +308,16 @@ export function SidesControl({
   );
 }
 
-// A named-int dropdown (e.g. Camera projection, body type) — a themed popover, not
-// a native <select>, so the list matches the editor and searches when long. The
-// stored value is the option's int; an unknown value shows a "(n)" placeholder.
+// A dropdown over an option set — a themed popover, not a native <select>, so the
+// list matches the editor and searches when long. The stored value is the option's
+// OWN value, which is an int for a C++ enum and a name for a choice read off an
+// asset (an animation, an armature — see EnumOption).
+//
+// Only ordinal labels are prettified: "SpaceBetween" reads better as "Space
+// Between", but a name IS the stored string and must be shown as written, or the
+// list would offer "Stand" for a value spelled "stand". A value with no matching
+// option still shows as itself (an animation the skeleton no longer declares is a
+// thing to SEE, not a blank), and an empty one reads as "None".
 export function EnumControl({
   value,
   options,
@@ -322,11 +329,12 @@ export function EnumControl({
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
   const [q, setQ] = useState('');
+  const optLabel = (o: EnumOption): string => (typeof o.value === 'number' ? prettyLabel(o.label) : o.label);
   const cur = options.find((o) => o.value === value);
-  const label = mixed ? '' : cur ? prettyLabel(cur.label) : `(${value})`;
+  const label = mixed ? '' : cur ? optLabel(cur) : String(value) || t('det.noneOption');
   const searchable = options.length > 8;
   const ql = q.trim().toLowerCase();
-  const filtered = ql ? options.filter((o) => prettyLabel(o.label).toLowerCase().includes(ql)) : options;
+  const filtered = ql ? options.filter((o) => optLabel(o).toLowerCase().includes(ql)) : options;
   const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: !searchable });
   const close = () => {
     pop.close();
@@ -363,7 +371,7 @@ export function EnumControl({
                   close();
                 }}
               >
-                <span className="dd-opt-label">{prettyLabel(o.label)}</span>
+                <span className="dd-opt-label">{optLabel(o)}</span>
                 {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
             ))}
@@ -1390,18 +1398,14 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
     max: field.max,
   });
 
-  // A string field whose choices depend on the entity's runtime state (e.g. a spine
-  // animation/skin name) or on project content (an i18n key with its translated
-  // preview) renders as a dropdown of the live options, falling back to the text
-  // field when none are available (no skeleton loaded / no locale tables yet).
-  const dynOpts =
-    field.type === 'select'
-      ? (field.selectOptions ?? []).map((o) => ({ value: o }))
-      : !mixed && !write && field.type === 'string'
-        ? dynamicEnumOptions(comp, field.key, entities[0])
-        : null;
+  // A fixed set of string choices declared on the field itself (an importer's
+  // compression format). Choices that depend on the scene — a spine animation, a
+  // dragonBones armature, an i18n key — are an `enum` with name-valued options
+  // (see setEnumSource) and render through EnumControl like every other dropdown.
+  const selectOpts =
+    !mixed && field.type === 'select' ? (field.selectOptions ?? []).map((o) => ({ value: o })) : null;
   let control;
-  if (dynOpts) {
+  if (selectOpts) {
     const cur = String(field.value);
     control = (
       <span className="field dropdown">
@@ -1410,8 +1414,8 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
           value={cur}
           ariaLabel={field.key}
           options={[
-            ...(dynOpts.some((o) => o.value === cur) ? [] : [{ value: cur, label: cur || t('det.noneOption') }]),
-            ...dynOpts,
+            ...(selectOpts.some((o) => o.value === cur) ? [] : [{ value: cur, label: cur || t('det.noneOption') }]),
+            ...selectOpts,
           ]}
           onChange={(v) => {
             begin();
@@ -1461,7 +1465,7 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
     case 'enum':
       control = (
         <EnumControl
-          value={field.value as number}
+          value={field.value as string | number}
           options={field.options ?? []}
           mixed={mixed}
           onBegin={begin}

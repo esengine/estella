@@ -70,6 +70,25 @@ export function readInRoot(root: string, relPath: string): Promise<string> {
   return readFile(resolveInRoot(root, relPath), 'utf8');
 }
 
+/**
+ * Read a file that is allowed not to exist — `null` instead of a throw.
+ *
+ * Optional project config (delivery groups, build profiles) is absent in most
+ * projects, and "absent" is an ANSWER there, not a failure. Asking `read` for it
+ * and swallowing the rejection still crossed IPC as a rejected handler, which
+ * Electron logs as `Error occurred in handler for 'fs:read'` — a stack trace on
+ * every project open for a file nothing was missing. A read that genuinely fails
+ * (permissions, a directory, a bad path) still throws.
+ */
+export async function readOptionalInRoot(root: string, relPath: string): Promise<string | null> {
+  try {
+    return await readFile(resolveInRoot(root, relPath), 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    throw e;
+  }
+}
+
 export async function writeInRoot(root: string, relPath: string, contents: string): Promise<void> {
   const abs = resolveInRoot(root, relPath);
   await mkdir(path.dirname(abs), { recursive: true });

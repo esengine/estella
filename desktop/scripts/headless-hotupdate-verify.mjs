@@ -15,6 +15,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.hotupdate-verify');
 const BUILD = path.join(ROOT, 'build');
@@ -59,8 +60,7 @@ app.whenReady().then(async () => {
     const base = `http://127.0.0.1:${server.address().port}`;
 
     const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
-    win.webContents.on('console-message', (...a) => {
-      const m = a.map((x) => (x && typeof x === 'object' ? x.message ?? '' : String(x))).join(' ');
+    onRendererConsole(win.webContents, (m) => {
       if (/error|fail|unwind|exception|webgl|update|group|manifest/i.test(m)) diag.push(m.slice(0, 200));
     });
     await win.loadURL(`${base}/index.html?headless=1`);

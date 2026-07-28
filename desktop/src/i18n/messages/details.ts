@@ -8,6 +8,24 @@ import { defineMessages } from './types';
 
 export const detailsMessages = defineMessages({
     // — Shared field controls (enum/flags dropdowns, asset refs, gradients/curves) —
+    // — Component notices: an entity state that leaves a component silently inert
+    //   or a field silently overwritten, said out loud on the component's card. —
+    'det.noticeUILayoutOwnsPosition': {
+        en: 'UI layout owns this position — it is recomputed every relayout. Move this widget with the UI Node anchors / offsets instead.',
+        zh: '该位置由 UI 布局决定 —— 每次重新布局都会重算。请改用 UI 节点的锚点 / 偏移来移动此控件。',
+    },
+    'det.noticeTextNoLayoutBox': {
+        en: 'No layout box — align anchors the text to the entity origin. To align within a fixed area, add a UINode and place this Text under a Canvas.',
+        zh: '没有布局框 —— 对齐只会把文本吸附到实体原点。要在固定区域内对齐，请添加 UI 节点并把该文本放到画布下。',
+    },
+    'det.noticeLightNeedsTransform': {
+        en: 'Point / Spot lights need a Transform for their position — this light is skipped.',
+        zh: '点光 / 聚光需要 Transform 提供位置 —— 该灯光被跳过。',
+    },
+    'det.noticeShadowNeedsTransform': {
+        en: 'Needs a Transform to place its shadow box — this caster is skipped.',
+        zh: '需要 Transform 来放置阴影盒 —— 该投影体被跳过。',
+    },
     'det.noMatch': { en: 'No match', zh: '无匹配项' },
     'det.none': { en: 'None', zh: '无' },
     'det.noneOption': { en: '(none)', zh: '（无）' },

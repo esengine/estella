@@ -620,12 +620,18 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "SpineAnimation": {
+    "animation": {
+      "enumSource": "spineAnimations",
+    },
     "layer": {
       "enumSource": "sortingLayers",
       "step": 1,
     },
     "skeletonScale": {
       "min": 0,
+    },
+    "skin": {
+      "enumSource": "spineSkins",
     },
     "timeScale": {
       "min": 0,

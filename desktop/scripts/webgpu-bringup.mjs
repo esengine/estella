@@ -20,6 +20,7 @@ import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRendererConsole } from './rendererConsole.mjs';
 
 try {
   os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
@@ -84,8 +85,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 256, height: 256, useContentSize: true });
   let framesOk = false;
   const errors = [];
-  win.webContents.on('console-message', (...args) => {
-    const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
+  onRendererConsole(win.webContents, (msg) => {
     if (/BRINGUP|error|warn/i.test(msg)) console.log('[page]', msg.slice(0, 200));
     if (msg.includes('BRINGUP_FRAMES_OK')) framesOk = true;
     if (msg.includes('BRINGUP_FAIL') || msg.includes('BRINGUP_VALIDATION')) errors.push(msg);

@@ -9,6 +9,7 @@ import {
   openProject,
   readManifest,
   readInRoot,
+  readOptionalInRoot,
   writeInRoot,
   readDirInRoot,
   listFilesInRoot,
@@ -195,9 +196,11 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
     w.webContents.executeJavaScript(code, true).catch(() => undefined);
 
   // Pipe renderer console (all frames, incl. the play OOPIF) to the shot log —
-  // headless failures otherwise die silently inside the window.
-  w.webContents.on('console-message', (_e, level, message) => {
-    if (level >= 2) console.log(`[console:${level === 3 ? 'error' : 'warn'}]`, message);
+  // headless failures otherwise die silently inside the window. Reads the event
+  // OBJECT (`{ level, message }`, named severities): the positional
+  // `(event, level, message)` form is deprecated and warns on every listener.
+  w.webContents.on('console-message', ({ level, message }) => {
+    if (level === 'error' || level === 'warning') console.log(`[console:${level}]`, message);
     // Surface engine diagnostics (e.g. the resolved GPU backend) in the dev terminal.
     else if (message.startsWith('[engine]')) console.log(message);
   });
@@ -751,6 +754,7 @@ ipcMain.handle('project:thumbnail', async (_e, rect: { x: number; y: number; wid
 });
 
 ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:readOptional', (_e, relPath: string) => readOptionalInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),
 );
