@@ -107,9 +107,11 @@ async function copyDistOutputs(sdkDir, outputDir) {
     await mkdir(cjsDir, { recursive: true });
 
     const spineDir = path.join(esmDir, 'spine');
+    const dragonBonesDir = path.join(esmDir, 'dragonbones');
     const physicsDir = path.join(esmDir, 'physics');
     const sharedDir = path.join(esmDir, 'shared');
     await mkdir(spineDir, { recursive: true });
+    await mkdir(dragonBonesDir, { recursive: true });
     await mkdir(physicsDir, { recursive: true });
     await mkdir(sharedDir, { recursive: true });
 
@@ -122,6 +124,8 @@ async function copyDistOutputs(sdkDir, outputDir) {
         { src: 'wasm.d.ts', dest: path.join(esmDir, 'wasm.d.ts') },
         { src: 'spine/index.js', dest: path.join(spineDir, 'index.js') },
         { src: 'spine/index.d.ts', dest: path.join(spineDir, 'index.d.ts') },
+        { src: 'dragonbones/index.js', dest: path.join(dragonBonesDir, 'index.js') },
+        { src: 'dragonbones/index.d.ts', dest: path.join(dragonBonesDir, 'index.d.ts') },
         { src: 'physics/index.js', dest: path.join(physicsDir, 'index.js') },
         { src: 'physics/index.d.ts', dest: path.join(physicsDir, 'index.d.ts') },
         { src: 'index.wechat.js', dest: path.join(cjsDir, 'index.wechat.js') },

@@ -41,6 +41,7 @@ import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { DEFAULT_UI_CAMERA_INFO } from '../corePlugin';
 import { uiPlugin } from '../ui/ui-plugin';
 import { SpinePlugin } from '../spine';
+import { DragonBonesPlugin } from '../dragonbones';
 import { setNativeTextSubmit } from '../ui/text/submit';
 import { initResourceManager } from '../resourceManager';
 import { Assets as AssetsClass } from '../asset/Assets';
@@ -122,6 +123,9 @@ export function createNativeApp(
     // SpineManager keyed to this app's core) and builds its runtime backends from
     // `app.sideModules` — which on a device is the runtime compiled into the binary.
     app.addPlugin(new SpinePlugin());
+    // Same shape for DragonBones — its runtime is linked into the host binary
+    // (estella_dragonbones), which is what `app.sideModules` hands back here.
+    app.addPlugin(new DragonBonesPlugin());
     return app;
 }
 

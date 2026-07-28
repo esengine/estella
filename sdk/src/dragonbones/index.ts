@@ -12,3 +12,13 @@ export type { DragonBonesEntityOptions } from './DragonBonesManager';
 export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './DragonBonesPlugin';
 export { parseDragonBonesNames } from './skeletonNames';
 export type { DragonBonesArmatureNames } from './skeletonNames';
+// Shared scene loader — the editor binds a scene's armatures through the same
+// single implementation the builder runtime uses (see ./loadDragonBonesScene).
+export {
+    loadDragonBonesSceneEntities,
+    loadDragonBonesAssets,
+    applyDragonBonesEntities,
+    dragonBonesEntityProps,
+} from './loadDragonBonesScene';
+export type { DragonBonesAssetInfo } from './loadDragonBonesScene';
+export type { RuntimeAssetSource } from '../runtimeAssets';

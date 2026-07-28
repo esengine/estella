@@ -30,6 +30,12 @@ interface EntityInfo {
     flipY: boolean;
     layer: number;
     timeScale: number;
+    /**
+     * False freezes the pose: the armature stops advancing but is still drawn.
+     * Distinct from {@link DragonBonesManager.setEnabled}, which removes it from
+     * the frame entirely — a paused character is still on screen.
+     */
+    playing: boolean;
     /** Set when the skeleton is shared; absent means this entity owns its own. */
     assetKey?: string;
 }
@@ -111,6 +117,7 @@ export class DragonBonesManager {
             flipY: options.flipY ?? false,
             layer: options.layer ?? 0,
             timeScale: 1,
+            playing: true,
             assetKey: options.assetKey,
         };
         this.entities_.set(entity, info);
@@ -138,9 +145,18 @@ export class DragonBonesManager {
         else this.disabled_.add(entity);
     }
 
-    setEntityProps(entity: Entity, props: Partial<Pick<EntityInfo, 'skeletonScale' | 'flipX' | 'flipY' | 'layer'>>): void {
+    setEntityProps(
+        entity: Entity,
+        props: Partial<Pick<EntityInfo, 'skeletonScale' | 'flipX' | 'flipY' | 'layer' | 'playing'>>
+            & { timeScale?: number },
+    ): void {
         const info = this.entities_.get(entity);
-        if (info) Object.assign(info, props);
+        if (!info) return;
+        const { timeScale, ...rest } = props;
+        Object.assign(info, rest);
+        // timeScale is not a field to assign: the module owns the clock, so it has
+        // to be told rather than remembered.
+        if (timeScale !== undefined) this.setTimeScale(entity, timeScale);
     }
 
     // — Animation ————————————————————————————————————————————————————————————
@@ -183,6 +199,9 @@ export class DragonBonesManager {
     updateAnimations(dt: number): void {
         for (const [entity, info] of this.entities_) {
             if (this.disabled_.has(entity)) continue;
+            // Paused armatures fall through to submitMeshes, which still draws the
+            // pose they are holding.
+            if (!info.playing) continue;
             this.controller_.update(info.instanceId, dt);
         }
     }

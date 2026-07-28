@@ -23,6 +23,7 @@ const esmBuilds = [
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
+            'dragonbones/index': 'src/dragonbones/index.ts',
             'wasm': 'src/wasm.ts',
         },
         output: {
@@ -78,6 +79,7 @@ const dtsBuilds = [
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
+            'dragonbones/index': 'src/dragonbones/index.ts',
             'wasm': 'src/wasm.ts',
         },
         output: {

@@ -37,5 +37,10 @@ export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './phys
 // module, since the wire is authored whether or not physics is loaded.
 export { PhysicsEventType, type PhysicsContactEventData } from './physics';
 export { SpinePlugin, SpineEvents, Spine } from './spine';
+// DragonBones beside it, and in the barrel for the same reason: the native entry
+// collapses every `esengine*` import onto ONE global, so a game reaching
+// `Res(DragonBones)` through `esengine/dragonbones` finds nothing on a device
+// unless the resource is here too.
+export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './dragonbones';
 
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';

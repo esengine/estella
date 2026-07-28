@@ -9,6 +9,7 @@ import { seedEngineComponents } from './component';
 import { uiPlugins } from './uiPlugins';
 import { simulationBasePlugins, webBasePlugins } from './pluginSets';
 import { SpinePlugin } from './spine';
+import { DragonBonesPlugin } from './dragonbones';
 import { createFetchSideModuleHost, type SideModuleHost } from './sideModules';
 
 
@@ -32,7 +33,11 @@ export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptio
         ?? (options?.wasmBaseUrl ? createFetchSideModuleHost(options.wasmBaseUrl) : undefined);
     // SpinePlugin builds its per-version SpineManager from app.sideModules in build().
     const spinePlugin = new SpinePlugin();
-    const plugins = [...uiPlugins, ...basePlugins, spinePlugin, ...(options?.plugins ?? [])];
+    // DragonBones is beside it and costs nothing to install: it fetches its wasm
+    // only when something asks for the manager, so a project with no DragonBones in
+    // it never touches the side module.
+    const dragonBonesPlugin = new DragonBonesPlugin();
+    const plugins = [...uiPlugins, ...basePlugins, spinePlugin, dragonBonesPlugin, ...(options?.plugins ?? [])];
     return _createWebApp(module, { ...options, sideModules, plugins });
 }
 

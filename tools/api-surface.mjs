@@ -32,6 +32,7 @@ const ENTRIES = {
     'index.native': 'src/index.native.ts',
     'physics': 'src/physics/index.ts',
     'spine': 'src/spine/index.ts',
+    'dragonbones': 'src/dragonbones/index.ts',
     'wasm': 'src/wasm.ts',
     'wechat': 'src/index.wechat.ts',
     'minigame': 'src/index.minigame.ts',

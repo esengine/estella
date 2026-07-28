@@ -21,6 +21,7 @@ import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
 import { Assets as AssetsResource } from './asset/AssetPlugin';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
+import type { BasisTranscoder } from './asset/compressed';
 import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
@@ -36,6 +37,9 @@ import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from './spine/loadSpineScene';
+import { DragonBonesPlugin } from './dragonbones/DragonBonesPlugin';
+import type { DragonBonesManager } from './dragonbones/DragonBonesManager';
+import { loadDragonBonesAssets, applyDragonBonesEntities, type DragonBonesAssetInfo } from './dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from './asset/AddressableManifest';
 import type { Catalog } from './asset/Catalog';
 
@@ -295,14 +299,35 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         log.warn('scene', `${discovered.spines.length} spine asset(s) skipped — `
             + 'this realm has no optional-module host to load a Spine runtime from');
     }
+    const transcoderProvider = async (): Promise<BasisTranscoder | null> => {
+        const host = app.sideModules;
+        if (!host) return null;
+        const mod = await host.acquire('basis');
+        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
+    };
     const spineAssetInfo = app.sideModules
-        ? await loadSpineAssets(module, source, spineManager, discovered.spines, async () => {
-            const host = app.sideModules;
-            if (!host) return null;
-            const mod = await host.acquire('basis');
-            return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-        })
+        ? await loadSpineAssets(module, source, spineManager, discovered.spines, transcoderProvider)
         : new Map<string, SpineAssetInfo>();
+
+    // DragonBones, the same two phases. The manager is acquired only when the
+    // scene actually holds an armature — the plugin fetches its wasm on the first
+    // ask, so a scene without one costs nothing.
+    let dragonBonesManager: DragonBonesManager | null = null;
+    let dragonBonesAssetInfo = new Map<string, DragonBonesAssetInfo>();
+    if (discovered.dragonBones.length > 0) {
+        if (!app.sideModules) {
+            log.warn('scene', `${discovered.dragonBones.length} DragonBones asset(s) skipped — `
+                + 'this realm has no optional-module host to load the DragonBones runtime from');
+        } else {
+            dragonBonesManager = (await app.getPlugin(DragonBonesPlugin)?.acquire()) ?? null;
+            if (!dragonBonesManager) {
+                log.warn('scene', 'DragonBones assets present but the runtime could not be loaded');
+            } else {
+                dragonBonesAssetInfo = await loadDragonBonesAssets(
+                    module, source, discovered.dragonBones, transcoderProvider);
+            }
+        }
+    }
 
     // Self-gating: install physics when the project declares it OR the scene uses
     // it, so no runtime entry can forget to wire it. The module comes from the
@@ -387,6 +412,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     if (spineManager && cppRegistry) {
         await applySpineEntities({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo });
+    }
+
+    if (dragonBonesManager) {
+        applyDragonBonesEntities({
+            manager: dragonBonesManager, sceneData, entityMap, assetInfo: dragonBonesAssetInfo,
+        });
     }
 
     if (sceneName && app.hasResource(SceneManager)) {

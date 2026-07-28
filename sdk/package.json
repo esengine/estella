@@ -37,6 +37,10 @@
       "import": "./dist/index.native.js",
       "types": "./dist/index.native.d.ts"
     },
+    "./dragonbones": {
+      "import": "./dist/dragonbones/index.js",
+      "types": "./dist/dragonbones/index.d.ts"
+    },
     "./spine": {
       "import": "./dist/spine/index.js",
       "types": "./dist/spine/index.d.ts"
