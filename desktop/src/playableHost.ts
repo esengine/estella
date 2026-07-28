@@ -66,12 +66,18 @@ async function boot(): Promise<void> {
     },
   });
 
+  // ?headless=1 is the render-verification harness (see the capture hook below).
+  // readPixels after a composite reads an UNDEFINED drawing buffer unless it is
+  // preserved, so a working playable captures as pure black — which reads as
+  // "renders nothing" and is the failure this flag exists to stop faking.
+  const headless = new URLSearchParams(location.search).has('headless');
   const gl = canvas.getContext('webgl2', {
     alpha: false,
     antialias: true,
     depth: true,
     stencil: true,
     premultipliedAlpha: false,
+    preserveDrawingBuffer: headless,
   }) as WebGL2RenderingContext | null;
   if (!gl) throw new Error('WebGL2 is not available.');
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
@@ -88,6 +94,20 @@ async function boot(): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
+
+  // Same capture hook the cooked web host exposes, and for the same reason: a
+  // playable is a single inlined file, so the only way to tell one that renders
+  // from one that boots and draws nothing is to read its framebuffer.
+  if (headless) {
+    (window as unknown as { __estellaPlayable?: unknown }).__estellaPlayable = {
+      capture(): { width: number; height: number; rgba: Uint8Array } {
+        const w = canvas.width, h = canvas.height;
+        const rgba = new Uint8Array(w * h * 4);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+        return { width: w, height: h, rgba };
+      },
+    };
+  }
 
   await initPlayableRuntime({
     app,
