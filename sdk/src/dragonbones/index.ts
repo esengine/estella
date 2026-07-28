@@ -9,3 +9,4 @@ export type {
 } from './DragonBonesModuleLoader';
 export { DragonBonesManager } from './DragonBonesManager';
 export type { DragonBonesEntityOptions } from './DragonBonesManager';
+export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './DragonBonesPlugin';

@@ -18,7 +18,7 @@
 export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
 
 /** Identifies an optional native module across every realm and transport. */
-export type SideModuleId = 'physics' | 'basis' | 'videodec' | `spine:${SpineVersion}`;
+export type SideModuleId = 'physics' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`;
 
 export interface SideModuleDescriptor {
     /** Artifact base name: the glue is `<file>.js`, the binary `<file>.wasm`. */
@@ -40,6 +40,9 @@ export const SIDE_MODULES: Record<SideModuleId, SideModuleDescriptor> = {
     // MPEG-1 software video decoder (pl_mpeg) — the engine-owned decode path
     // behind the wasm video backend on runtimes without a reliable native decoder.
     videodec: { file: 'videodec', globalName: 'ESVideoModule' },
+    // One entry, not one per version: the DragonBones format is frozen, so there
+    // is no second runtime for a version suffix to tell apart.
+    dragonbones: { file: 'dragonbones', globalName: 'ESDragonBonesModule' },
     'spine:2.1': { file: 'spine21', globalName: 'ESSpineModule' },
     'spine:3.8': { file: 'spine38', globalName: 'ESSpineModule' },
     'spine:4.1': { file: 'spine41', globalName: 'ESSpineModule' },

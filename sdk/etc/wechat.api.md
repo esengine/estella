@@ -6053,7 +6053,7 @@ acquire: (id: SideModuleId) => Promise<SideModule | null>
 
 ## SideModuleId — type
 ```
-'physics' | 'basis' | 'videodec' | `spine:${SpineVersion}`
+'physics' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`
 ```
 
 ## Signal — interface
