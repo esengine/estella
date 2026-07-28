@@ -220,9 +220,11 @@ Armature* EsFactory::_buildArmature(const BuildArmaturePackage& dataPackage) con
     return armature;
 }
 
-Slot* EsFactory::_buildSlot(const BuildArmaturePackage&, const SlotData* slotData, Armature*) const {
+Slot* EsFactory::_buildSlot(const BuildArmaturePackage&, const SlotData* slotData, Armature* armature) const {
     auto* slot = BaseObject::borrowObject<EsSlot>();
-    slot->init(slotData, nullptr, &slot->rawDisplay, &slot->meshDisplay);
+    // The armature is not optional: the slot reads its scale and its bones while
+    // posing, and a slot built without one silently produces nothing.
+    slot->init(slotData, armature, &slot->rawDisplay, &slot->meshDisplay);
     return slot;
 }
 

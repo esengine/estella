@@ -99,6 +99,15 @@ export default {
                 'sdk/spine41.wasm': 'wasm/web/spine41.wasm',
             },
         },
+        dragonbones: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON', '-DES_ENABLE_DRAGONBONES=ON'],
+            targets: ['dragonbones_module'],
+            outputs: {
+                'sdk/dragonbones.js': 'wasm/web/dragonbones.js',
+                'sdk/dragonbones.wasm': 'wasm/web/dragonbones.wasm',
+            },
+        },
         spine21: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],

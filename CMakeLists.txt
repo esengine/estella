@@ -321,16 +321,19 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # DragonBones: one module, not one per version. Its authoring tool is no
     # longer developed, so the format cannot move and there is nothing to track.
     if(ES_ENABLE_DRAGONBONES)
-        add_library(dragonbones_adapter STATIC
+        add_executable(dragonbones_module
+            src/esengine/bindings/DragonBonesModuleEntry.cpp
             src/esengine/bindings/DragonBonesAdapter.cpp
         )
-        target_link_libraries(dragonbones_adapter PUBLIC dragonbones)
-        target_include_directories(dragonbones_adapter PUBLIC
+        target_link_libraries(dragonbones_module PRIVATE dragonbones)
+        target_include_directories(dragonbones_module PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings
         )
-        if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-            target_compile_options(dragonbones_adapter PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
-        endif()
+        es_apply_dragonbones_module_settings(dragonbones_module)
+        set_target_properties(dragonbones_module PROPERTIES
+            OUTPUT_NAME "dragonbones"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
     endif()
 
     # Basis Universal KTX2 transcoder module (compressed textures — RC6)

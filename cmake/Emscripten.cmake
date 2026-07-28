@@ -379,6 +379,38 @@ function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
 endfunction()
 
 # =============================================================================
+# DragonBones Module (standalone WASM, no GL)
+# =============================================================================
+# The same shape as the Spine modules — no GL, no filesystem, geometry read back
+# through the heap — but one module rather than one per version: its format is
+# frozen, so there is nothing for a second to differ about.
+
+set(ES_EMSCRIPTEN_DRAGONBONES_MODULE_FLAGS
+    -sWASM=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sEXPORT_ES6=0
+    -sMODULARIZE=1
+    -sDYNAMIC_EXECUTION=0
+    -sFILESYSTEM=0
+    "-sEXPORT_NAME='ESDragonBonesModule'"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToNewUTF8','HEAPF32','HEAPU8','HEAPU32']"
+    -O3
+    -flto
+    -Wl,--gc-sections
+    # Exceptions stay ON: the vendored parser throws on malformed data, and a
+    # module that cannot catch that aborts the whole wasm instance instead of
+    # returning the error its caller is written to read.
+    -fno-rtti
+)
+
+function(es_apply_dragonbones_module_settings TARGET_NAME)
+    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    target_link_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_DRAGONBONES_MODULE_FLAGS})
+endfunction()
+
+# =============================================================================
 # Basis Universal KTX2 Transcoder Module (standalone WASM, no GL)
 # =============================================================================
 
