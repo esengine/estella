@@ -19,6 +19,7 @@ import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches
 import type { SkeletalBounds, SkeletalController } from '../skeletal/types';
 import type { DragonBonesWasmModule, DragonBonesWrappedAPI } from './DragonBonesModuleLoader';
 import { withMalloc } from '../wasmScratch';
+import { encodeUtf8 } from '../utf8';
 import { log } from '../logger';
 
 /** Parse a `["a","b"]` the module published; a malformed one is no names, not a throw. */
@@ -49,9 +50,9 @@ export class DragonBonesModuleController implements SkeletalController {
      */
     loadSkeleton(skeletonData: Uint8Array | string, atlasJson: string): number {
         const skeleton = typeof skeletonData === 'string'
-            ? new TextEncoder().encode(skeletonData)
+            ? encodeUtf8(skeletonData)
             : skeletonData;
-        const atlas = new TextEncoder().encode(atlasJson);
+        const atlas = encodeUtf8(atlasJson);
 
         return withMalloc(this.raw_, skeleton.length + atlas.length, basePtr => {
             const skeletonPtr = basePtr;
