@@ -27,7 +27,7 @@ import { assetTypeDef } from '@/project/assetTypes';
 const NODE_ICON: Record<NodeKind, LucideIcon> = {
   camera: Camera,
   sprite: Image,
-  spine: PersonStanding,
+  skeletal: PersonStanding,
   physics: Square,
   ui: LayoutPanelTop,
   audio: Volume2,

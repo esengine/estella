@@ -243,6 +243,7 @@ const ANCHOR_SPECS: { comp: string; label: string; comps: CompSpec[] }[] = [
   { comp: 'ShapeRenderer', label: 'Shape', comps: ['Transform', 'ShapeRenderer'] },
   { comp: 'Mesh2D', label: 'Mesh', comps: ['Transform', 'Mesh2D'] },
   { comp: 'SpineAnimation', label: 'Spine', comps: ['Transform', 'SpineAnimation'] },
+  { comp: 'DragonBonesAnimation', label: 'DragonBones', comps: ['Transform', 'DragonBonesAnimation'] },
   { comp: 'BitmapText', label: 'Bitmap Text', comps: ['Transform', 'BitmapText'] },
   { comp: 'Text', label: 'Text', comps: ['Transform', 'Text'] },
   { comp: 'ParticleEmitter', label: 'Particles', comps: ['Transform', 'ParticleEmitter'] },

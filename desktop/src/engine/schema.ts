@@ -790,7 +790,10 @@ export function modelKindOf(entity: SceneEntityLike): NodeKind {
   const types = new Set(entity.components.map((c) => c.type));
   if (types.has('Camera')) return 'camera';
   if (types.has('Light2D')) return 'light';
-  if (types.has('SpineAnimation')) return 'spine';
+  // One kind for both: to someone scanning the outliner a Spine armature and a
+  // DragonBones one are the same sort of thing, and a second identical icon would
+  // be a distinction the reader cannot use.
+  if (types.has('SpineAnimation') || types.has('DragonBonesAnimation')) return 'skeletal';
   if (types.has('Canvas') || types.has('BitmapText')) return 'ui';
   if (types.has('Sprite') || types.has('ShapeRenderer') || types.has('TilemapLayer')) return 'sprite';
   if (types.has('ParticleEmitter')) return 'sprite';

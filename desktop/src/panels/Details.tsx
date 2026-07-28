@@ -162,7 +162,7 @@ function componentIcon(name: string): LucideIcon {
 const KIND_LABEL: Record<NodeKind, string> = {
   camera: t('det.kindCamera'),
   sprite: t('det.kindSprite'),
-  spine: t('det.kindSpine'),
+  skeletal: t('det.kindSpine'),
   physics: t('det.kindPhysics'),
   ui: t('det.kindUi'),
   audio: t('det.kindAudio'),

@@ -9,7 +9,7 @@ export type EntityId = number;
 export type NodeKind =
   | 'camera'
   | 'sprite'
-  | 'spine'
+  | 'skeletal'
   | 'physics'
   | 'ui'
   | 'audio'

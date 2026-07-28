@@ -37,7 +37,7 @@ export interface OutlinerColumn {
 const KIND_TYPE: Record<NodeKind, string> = {
   camera: t('out.kindCamera'),
   sprite: t('out.kindSprite'),
-  spine: t('out.kindSpine'),
+  skeletal: t('out.kindSpine'),
   physics: t('out.kindPhysics'),
   ui: t('out.kindUi'),
   audio: t('out.kindAudio'),
