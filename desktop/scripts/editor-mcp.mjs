@@ -14,9 +14,12 @@
  *                      In the dev repo this is `electron .`; from the installed
  *                      editor (this file ships bundled under app.asar.unpacked)
  *                      the exe is auto-detected, or pass --editor-exe <path>.
- *   --attach <file>    connect to an already-running editor's endpoint via its
+ *   --attach [file]    connect to an already-running editor's endpoint via its
  *                      discovery file (<userData>/mcp-endpoint.json) — drive the
- *                      editor the user is looking at
+ *                      editor the user is looking at. The path is optional: the
+ *                      standard userData locations are probed. Resolution is
+ *                      LAZY and re-done per call, so this server starts before
+ *                      the editor does and survives an editor restart.
  *
  * Split on purpose: an Electron main process never receives piped stdin on
  * Windows, so the MCP protocol must live in a plain-node process. The surface
@@ -29,6 +32,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -129,41 +133,93 @@ function spawnHost(mode, token) {
   });
 }
 
-let port;
-let token;
+/** Where a `--mcp` editor advertises its endpoint. Electron's userData is
+ *  <appData>/<app name>: the dev app takes it from package.json (`@estella/editor`),
+ *  the installed one from electron-builder's productName (`Estella Editor`). */
+function attachCandidates() {
+  const explicit = argValue('--attach') ?? process.env.ESTELLA_MCP_DISCOVERY;
+  if (explicit) return [explicit];
+  const appData = process.platform === 'win32'
+    ? (process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'))
+    : process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : (process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'));
+  return [path.join('@estella', 'editor'), 'Estella Editor']
+    .map((dir) => path.join(appData, dir, 'mcp-endpoint.json'));
+}
+
+/** The live endpoint from the first discovery file whose editor is still running,
+ *  or null. A crashed editor leaves its file behind, so the recorded pid is the
+ *  liveness check — attaching to a dead port would hang every call instead. */
+function readEndpoint() {
+  for (const file of attachCandidates()) {
+    if (!existsSync(file)) continue;
+    try {
+      const { port: p, token: t, pid } = JSON.parse(readFileSync(file, 'utf8'));
+      if (!p || !t) continue;
+      if (pid) {
+        try { process.kill(pid, 0); } catch { continue; } // stale file, editor is gone
+      }
+      return { port: p, token: t, file };
+    } catch { /* torn or unreadable write — try the next candidate */ }
+  }
+  return null;
+}
+
+let endpoint = null;
 if (MODE === 'attach') {
-  // Connect to a running editor via its discovery file (written in --mcp mode).
-  const fileArg = argv[argv.indexOf('--attach') + 1];
-  const discovery = fileArg && !fileArg.startsWith('--') ? fileArg : process.env.ESTELLA_MCP_DISCOVERY;
-  if (!discovery) {
-    log('FATAL: --attach needs the discovery file path (<userData>/mcp-endpoint.json) or ESTELLA_MCP_DISCOVERY');
-    process.exit(1);
-  }
-  try {
-    ({ port, token } = JSON.parse(readFileSync(discovery, 'utf8')));
-  } catch (e) {
-    log(`FATAL: cannot read discovery file ${discovery}: ${e.message}`);
-    process.exit(1);
-  }
+  // Resolution is deliberately LAZY: this server is spawned by the MCP client at
+  // session start, typically BEFORE the user's editor is up. Failing here would
+  // make attach mode unusable, so resolve per call instead — which also means an
+  // editor restart (new port + token) is picked up without restarting the client.
+  endpoint = readEndpoint();
+  log(endpoint
+    ? `attached to editor on 127.0.0.1:${endpoint.port} (${endpoint.file})`
+    : `no editor yet — will attach on first call (looking for ${attachCandidates().join(' | ')})`);
 } else {
-  token = randomBytes(24).toString('hex');
-  port = await spawnHost(MODE, token).catch((e) => {
+  const token = randomBytes(24).toString('hex');
+  const port = await spawnHost(MODE, token).catch((e) => {
     log('FATAL', e.message);
     process.exit(1);
   });
+  endpoint = { port, token };
 }
 process.stdin.on('close', () => process.exit(0));
-log(`${MODE} host ready on 127.0.0.1:${port} (writes ${ALLOW_WRITES ? 'ENABLED' : 'disabled'})`);
+log(`${MODE} host ready (writes ${ALLOW_WRITES ? 'ENABLED' : 'disabled'})`);
+
+/** The endpoint to talk to, re-resolving in attach mode when we have none. */
+function currentEndpoint() {
+  if (!endpoint && MODE === 'attach') endpoint = readEndpoint();
+  if (!endpoint) {
+    throw new Error(
+      'no running editor to attach to — start the Estella editor with --mcp '
+      + `(looked for ${attachCandidates().join(' | ')})`,
+    );
+  }
+  return endpoint;
+}
 
 async function post(body) {
-  const res = await fetch(`http://127.0.0.1:${port}/exec`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-estella-mcp-token': token },
-    body: JSON.stringify(body),
-  });
-  const out = await res.json();
-  if (!out.ok) throw new Error(out.error);
-  return out.hasResult ? out.result : undefined;
+  // A transport failure means the editor went away (restart/quit), not a tool
+  // error: drop the cached endpoint and re-resolve once before giving up.
+  for (let attempt = 0; ; attempt++) {
+    const { port, token } = currentEndpoint();
+    let res;
+    try {
+      res = await fetch(`http://127.0.0.1:${port}/exec`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-estella-mcp-token': token },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      endpoint = MODE === 'attach' && attempt === 0 ? readEndpoint() : null;
+      if (endpoint) continue; // editor restarted on a new port
+      throw new Error(`editor endpoint unreachable on 127.0.0.1:${port} (${e.message})`);
+    }
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error);
+    return out.hasResult ? out.result : undefined;
+  }
 }
 
 // The registry's driver: surface/editor method calls, renderer-code snippets,

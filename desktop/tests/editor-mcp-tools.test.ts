@@ -116,6 +116,50 @@ describe('editor MCP tool registry', () => {
     expect(res.content[0]).toEqual({ type: 'image', data: 'aWFtYXBuZw==', mimeType: 'image/png' });
   });
 
+  it('apply_scene_ops forwards the op program to the editor door', async () => {
+    const driver = vi.fn(async () => ({ refs: { root: 5 }, created: [5], applied: 1 }));
+    const apply = TOOLS.find((t: { name: string }) => t.name === 'apply_scene_ops');
+    const ops = [{ op: 'create', ref: 'root', name: 'Panel' }];
+    const res = await runTool(apply, driver, { ops, label: 'Build' });
+    expect(driver).toHaveBeenCalledWith('applyOps', [ops, 'Build'], 'editor');
+    expect(JSON.parse(res.content[0].text).refs.root).toBe(5);
+  });
+
+  it('apply_scene_ops is a write tool and rejects a non-array program', async () => {
+    const driver = vi.fn();
+    const apply = TOOLS.find((t: { name: string }) => t.name === 'apply_scene_ops');
+    expect(apply.write).toBe(true);
+    const res = await runTool(apply, driver, { ops: 'create everything' });
+    expect(res.isError).toBe(true);
+    expect(driver).not.toHaveBeenCalled();
+  });
+
+  it('list_assets packs its filters into one options argument', async () => {
+    const driver = vi.fn(async () => ({ total: 0, assets: [] }));
+    const list = TOOLS.find((t: { name: string }) => t.name === 'list_assets');
+    await runTool(list, driver, { match: 'Icon/', type: 'texture', limit: 20 });
+    expect(driver).toHaveBeenCalledWith('listAssets', [{ match: 'Icon/', type: 'texture', limit: 20 }], 'editor');
+  });
+
+  it('set_import_settings passes the dotted patch through untouched', async () => {
+    const driver = vi.fn(async () => ({ sliceBorder: { left: 12 } }));
+    const set = TOOLS.find((t: { name: string }) => t.name === 'set_import_settings');
+    const patch = { 'sliceBorder.left': 12, 'sliceBorder.right': 12 };
+    await runTool(set, driver, { path: 'assets/ui/frame.png', patch });
+    expect(driver).toHaveBeenCalledWith('setImportSettings', ['assets/ui/frame.png', patch], 'editor');
+  });
+
+  it('write_project_file targets the project fs door with an escaped payload', async () => {
+    const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.js = vi.fn(async () => undefined);
+    const write = TOOLS.find((t: { name: string }) => t.name === 'write_project_file');
+    await runTool(write, driver, { path: 'src/main.ts', content: 'const s = "hi";\n' });
+    const code = driver.js.mock.calls[0][0];
+    expect(code).toContain('window.estella.fs.write');
+    // The content is JSON-encoded into the snippet — quotes/newlines must not break it.
+    expect(code).toContain(JSON.stringify('const s = "hi";\n'));
+  });
+
   it('every resource maps to a surface method with a JSON mime', () => {
     for (const r of RESOURCES as Array<{ uri: string; method: string; mimeType: string }>) {
       expect(r.uri.startsWith('editor://')).toBe(true);

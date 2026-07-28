@@ -9,7 +9,7 @@ Estella 编辑器支持 **Model Context Protocol (MCP)**。任何支持 MCP 的 
 Claude Code、Cursor，或你自己写的代理——都能驱动真实的编辑器：打开或创建项目、
 打开场景、用与你相同的"创建"菜单目录生成实体、编辑组件字段、在活的引擎 World
 里验证结果、进入 Play 模式、截图*亲眼看到*它搭出来的东西，并把成品游戏导出
-——走的都是 UI 自己的管线，共 40 个工具。
+——走的都是 UI 自己的管线，共 54 个工具。
 
 <Aside type="tip">
 代理做的每件事都经过编辑器自己的命令面——创建可撤销、Play 模式不会弄脏编辑
@@ -61,38 +61,69 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 ## 驱动你正看着的编辑器
 
-想让代理在你已经打开的编辑器会话里干活：以启用端点的方式启动编辑器，把服务器
-指向它的发现文件即可：
+想让代理在你已经打开的编辑器会话里干活，把 `--editor` 换成 `--attach` 即可：
 
 <Steps>
 
-1. 用 `--mcp` 启动编辑器（终端里：`estella-editor --mcp`）。它会在编辑器的
-   user-data 目录写一个发现文件 `mcp-endpoint.json`（Windows:
-   `%APPDATA%\Estella Editor\`；确切路径启动时会打印出来）。
-
-2. AI 工具的配置里用 `--attach` 代替 `--editor`：
+1. AI 工具的配置里用 `--attach`：
 
    ```json
-   "args": ["<path-to>/editor-mcp.mjs", "--attach", "<path-to>/mcp-endpoint.json"]
+   "args": ["<path-to>/editor-mcp.mjs", "--attach"]
    ```
+
+2. 用 `--mcp` 启动编辑器（终端里：`estella-editor --mcp`）。它会往自己的
+   user-data 目录写一个发现文件 `mcp-endpoint.json`，`--attach` 会自己找到它
+   ——只有你把它挪了位置，才需要显式传路径。
 
 3. 代理现在驱动的就是你眼前的这个窗口——选择、编辑、Play 全部同步——你可以
    一边看一边随时介入。
 
 </Steps>
 
+启动顺序无所谓：服务器**每次调用时**才去解析编辑器，所以你可以先开 AI 工具、
+后开编辑器；会话中途重启编辑器也会自动重连，不会把代理晾在那儿。
+
 ## 代理能做什么
 
 | 领域 | 工具（节选） |
 | --- | --- |
-| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针） |
-| 编辑场景 | `create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
-| 项目与资产 | `create_project` / `open_project`、`open_scene`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets` |
+| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针） |
+| 编辑场景 | `apply_scene_ops`（批量搭建）、`create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
+| 项目与资产 | `create_project` / `open_project`、`open_scene`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
+| 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |
 | 运行与发布 | `toggle_play` + `get_play_state`、`export_game`（web / desktop / wechat / playable） |
 
 典型的代理循环：`open_project` → `open_scene` → `list_entity_templates` →
-`create_entity` → `set_field` → `screenshot` 检查成果 → `save_scene` →
+`apply_scene_ops` → `get_diagnostics` → `screenshot` 检查成果 → `save_scene` →
 `toggle_play` → 再次 `screenshot` → `export_game`。
+
+### 规模化搭建场景
+
+`set_field` 一次只写一个字段——改一个值够用，搭一个场景就没戏了：一个 UI 面板
+动辄上百个节点、每个十几个字段。`apply_scene_ops` 收的是一段**程序**：创建、
+改父子、加组件、写字段按顺序执行，合成**一个可撤销步骤**。操作之间用名字互相
+引用，所以整棵子树一次调用就能落地：
+
+```json
+{
+  "label": "Build HUD",
+  "ops": [
+    { "op": "create", "ref": "hud", "name": "HUD", "template": "ui-container" },
+    { "op": "create", "ref": "coins", "name": "Coins", "template": "ui-text", "parent": "$hud",
+      "fields": { "Text.content": "1440", "Text.fontSize": 28 } }
+  ]
+}
+```
+
+它是原子的：任何一步失败，报错会指名是哪一步挂的（`op[7] set: …`），整批回滚
+——一段写错的程序不会留下一棵搭到一半的子树。
+
+<Aside type="note">
+有些东西在**导入设置**里，不在组件上——最容易踩的是纹理的九宫格边框：
+`UIVisual` 设成 NineSlice 后，边框是从纹理元数据读的，所以没配
+`set_import_settings` 就搭出来的边框和按钮，四角会被拉伸变形。
+`get_import_settings` 会把每个选项连同默认值一起列出来。
+</Aside>
 
 ## 从源码仓库使用（贡献者）
 

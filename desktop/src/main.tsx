@@ -53,6 +53,7 @@ import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { entitySources, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
 import { createTilemapFromTileset, createCollisionLayer } from './tilemap/createTilemap';
+import { applySceneOps, type SceneOp } from './engine/sceneOps';
 import { layerTilesetRefs, loadLayerTilesetModel } from './tilemap/layerTilesetModel';
 import { SceneCommands } from './engine/SceneCommands';
 import { useTilemapPaint } from './store/tilemapPaintStore';
@@ -217,6 +218,25 @@ if (new URLSearchParams(location.search).has('automation')) {
         position: opts?.x != null && opts?.y != null ? { x: opts.x, y: opts.y } : undefined,
       });
     },
+    /** Author a whole subtree in ONE undoable batch (create/parent/component/field
+     *  ops, with `"$ref"` addressing between them) — the door for scene authoring
+     *  at a scale where one-field-per-call is not viable. */
+    applyOps: (ops: SceneOp[], label?: string) => applySceneOps(ops, label),
+    /** Search the asset registry: case-insensitive substring over the project-relative
+     *  path, optional asset `type`, capped. A real project has thousands of assets, so
+     *  `total` reports the full match count even when `assets` is truncated. */
+    listAssets: (opts?: { match?: string; type?: string; limit?: number }) => {
+      const needle = opts?.match?.toLowerCase();
+      const all = ProjectStore.listAssets().filter(
+        (a) => (!opts?.type || a.type === opts.type) && (!needle || a.path.toLowerCase().includes(needle)),
+      );
+      return { total: all.length, assets: all.slice(0, opts?.limit ?? 200) };
+    },
+    /** An asset's `.meta` import settings, over its type's defaults. */
+    getImportSettings: (path: string) => ProjectStore.getImportSettings(path),
+    /** Patch an asset's `.meta` import settings (dotted keys, e.g. `sliceBorder.left`). */
+    setImportSettings: (path: string, patch: Record<string, unknown>) =>
+      ProjectStore.setImportSettings(path, patch),
     /** Double-click-open an asset by project path (FSM/BT/tileset/clip editors…). */
     openAsset: (path: string) => {
       const name = path.split('/').pop() ?? path;

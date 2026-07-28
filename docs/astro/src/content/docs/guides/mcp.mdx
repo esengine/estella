@@ -10,7 +10,7 @@ tool — Claude Code, Cursor, or your own agent — can drive the real editor: o
 create projects, open scenes, spawn entities from the same Create-menu catalog you
 use, edit component fields, verify the result in the live engine World, enter play
 mode, take screenshots to *see* what it built, and export the finished game — the
-exact pipelines the UI uses, forty tools in all.
+exact pipelines the UI uses, fifty-four tools in all.
 
 <Aside type="tip">
 Everything an agent does goes through the editor's own command surface — creates
@@ -66,38 +66,73 @@ refused. Grant writes deliberately.
 
 ## Driving the editor you're looking at
 
-To let an agent work inside an editor session you already have open, start the
-editor with the endpoint enabled and point the server at its discovery file:
+To let an agent work inside an editor session you already have open, use `--attach`
+instead of `--editor`:
 
 <Steps>
 
-1. Launch the editor with `--mcp` (from a terminal: `estella-editor --mcp`). It
-   writes a discovery file `mcp-endpoint.json` into the editor's user-data folder
-   (Windows: `%APPDATA%\Estella Editor\`; the exact path is printed on startup).
-
-2. Configure your AI tool with `--attach` instead of `--editor`:
+1. Configure your AI tool with `--attach`:
 
    ```json
-   "args": ["<path-to>/editor-mcp.mjs", "--attach", "<path-to>/mcp-endpoint.json"]
+   "args": ["<path-to>/editor-mcp.mjs", "--attach"]
    ```
+
+2. Launch the editor with `--mcp` (from a terminal: `estella-editor --mcp`). It
+   writes a discovery file `mcp-endpoint.json` into its user-data folder, which
+   `--attach` finds on its own — pass an explicit path only if you moved it.
 
 3. The agent now drives the same window you see — selections, edits, play mode and
    all — while you watch and intervene.
 
 </Steps>
 
+Order doesn't matter: the server resolves the editor **per call**, so you can start
+your AI tool first and open the editor later, and restarting the editor mid-session
+reconnects automatically rather than stranding the agent.
+
 ## What the agent can do
 
 | Area | Tools (excerpt) |
 | --- | --- |
-| Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe) |
-| Edit scenes | `create_entity` (the Create-menu catalog via `list_entity_templates`), `set_field`, `set_entity_xy`, `set_parent`, `duplicate_entity`, `undo` / `redo` |
-| Projects & assets | `create_project` / `open_project`, `open_scene`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets` |
+| Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `get_diagnostics`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe) |
+| Edit scenes | `apply_scene_ops` (batch authoring), `create_entity` (the Create-menu catalog via `list_entity_templates`), `set_field`, `set_entity_xy`, `set_parent`, `duplicate_entity`, `undo` / `redo` |
+| Projects & assets | `create_project` / `open_project`, `open_scene`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets`, `list_assets`, `get_import_settings` / `set_import_settings` |
+| Game code | `read_project_file`, `write_project_file`, `list_project_files` |
 | Run & ship | `toggle_play` + `get_play_state`, `export_game` (web / desktop / wechat / playable) |
 
 A typical agent loop: `open_project` → `open_scene` → `list_entity_templates` →
-`create_entity` → `set_field` → `screenshot` to check its work → `save_scene` →
-`toggle_play` → `screenshot` again → `export_game`.
+`apply_scene_ops` → `get_diagnostics` → `screenshot` to check its work →
+`save_scene` → `toggle_play` → `screenshot` again → `export_game`.
+
+### Building scenes at scale
+
+`set_field` writes one field per call, which is fine for a tweak and hopeless for a
+scene: a single UI panel is easily a hundred nodes with a dozen fields each.
+`apply_scene_ops` takes a **program** instead — creates, re-parents, component adds
+and field writes, executed in order as **one undoable step**. Ops address entities
+they create by name, so a whole subtree lands in one call:
+
+```json
+{
+  "label": "Build HUD",
+  "ops": [
+    { "op": "create", "ref": "hud", "name": "HUD", "template": "ui-container" },
+    { "op": "create", "ref": "coins", "name": "Coins", "template": "ui-text", "parent": "$hud",
+      "fields": { "Text.content": "1440", "Text.fontSize": 28 } }
+  ]
+}
+```
+
+It is atomic: if any op fails, the error names the op that failed (`op[7] set: …`)
+and the whole batch rolls back, so a bad program never leaves a half-built subtree
+behind.
+
+<Aside type="note">
+Some things live in **import settings**, not on a component — a texture's 9-slice
+border is the one that bites: a `UIVisual` set to NineSlice reads its border from
+texture metadata, so a frame or button authored without `set_import_settings`
+stretches its corners. `get_import_settings` shows every knob with its default.
+</Aside>
 
 ## From the repository (contributors)
 

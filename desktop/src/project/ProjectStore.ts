@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
 import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
-import { readTextureImportSettings } from './assetImporter';
+import { readTextureImportSettings, importerDefaults, applyImporterEdit } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
@@ -770,6 +770,49 @@ class ProjectStoreImpl {
     const wrap =
       s.wrap === 'clamp' ? TextureWrap.ClampToEdge : s.wrap === 'mirror' ? TextureWrap.MirroredRepeat : TextureWrap.Repeat;
     setTextureParams(handle, filter, filter, wrap, wrap);
+  }
+
+  /**
+   * An asset's import settings: its `.meta` importer block layered over the
+   * type's declared defaults, so a caller sees every knob (not just the ones
+   * that happen to have been edited). `type` is the importer schema key —
+   * `texture`, `audio`, `spine`, … — the vocabulary {@link setImportSettings}
+   * writes against.
+   */
+  async getImportSettings(path: string): Promise<{ type: string; settings: Record<string, unknown> }> {
+    const type = assetTypeOf(path.split('/').pop() ?? path);
+    const stored = JSON.parse(await window.estella.fs.read(path + '.meta')).importer as
+      | Record<string, unknown>
+      | undefined;
+    return { type, settings: { ...importerDefaults(type), ...(stored ?? {}) } };
+  }
+
+  /**
+   * Patch an asset's `.meta` importer block and persist it — the programmatic
+   * twin of the asset inspector's Import Settings panel, and the only way to
+   * set things that live in import rather than on a component (a texture's
+   * 9-slice border, a texture's filter/wrap, an audio stream flag).
+   *
+   * Keys are dotted paths into the block (`sliceBorder.left`), matching the
+   * inspector's own field keys; the write goes through the same
+   * {@link applyImporterEdit} the panel uses. Re-registers the asset and pushes
+   * filter/wrap to the live texture handle so the viewport reflects it without
+   * a scene reload. Returns the resulting block.
+   */
+  async setImportSettings(
+    path: string,
+    patch: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const meta = JSON.parse(await window.estella.fs.read(path + '.meta'));
+    let importer = (meta.importer as Record<string, unknown>) ?? {};
+    for (const [key, value] of Object.entries(patch)) {
+      importer = applyImporterEdit(importer, key, value as never);
+    }
+    meta.importer = importer;
+    await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
+    await this.refreshAssets();
+    this.applyLiveTextureSettings(path);
+    return importer;
   }
 
   /** Resolve a serialized asset ref to a project-relative path for the engine

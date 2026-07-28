@@ -112,6 +112,10 @@ export const TOOLS = [
   { name: 'select',
     description: 'Select an entity (id=null clears the selection).',
     schema: obj({ id: { type: ['number', 'null'] } }, ['id']), method: 'select', args: (i) => [i.id] },
+  { name: 'select_asset',
+    description: "Select an asset by project-relative path — what clicking it in the Content Browser does. The Details panel then shows that asset's inspector (import settings, previews, the 9-slice border editor for textures). Pass null to clear.",
+    schema: obj({ path: { type: ['string', 'null'] } }, ['path']),
+    method: 'selectAsset', args: (i) => [i.path], root: 'editor' },
   { name: 'get_selection',
     description: 'The primary selected entity id, or null.',
     schema: obj({}), method: 'getSelection', args: () => [] },
@@ -128,9 +132,16 @@ export const TOOLS = [
     schema: obj({ frames: { type: 'number' }, dt: { type: 'number' } }),
     method: 'step', args: (i) => [i.frames, i.dt] },
   { name: 'resize_viewport',
-    description: 'Resize the render canvas (the engine follows on the next stepped frame).',
+    description: "Resize the render canvas's DRAWING BUFFER — the resolution the engine renders and capture_viewport reads. The engine follows on the next stepped frame. "
+      + 'In the LIVE editor the canvas is laid out by its panel, so the next layout pass re-derives this from the panel size; to size the live viewport, use set_panel_size instead.',
     schema: obj({ width: { type: 'number' }, height: { type: 'number' } }, ['width', 'height']),
     method: 'resizeViewport', args: (i) => [i.width, i.height] },
+  { name: 'set_panel_size', write: true,
+    description: "Resize a docked panel (id: viewport, log, outliner, details, content...) — the live editor's real sizing door. The viewport canvas follows layout, so this is how you give the LIVE viewport a chosen size before a screenshot.",
+    schema: obj({
+      id: { type: 'string' }, width: { type: 'number' }, height: { type: 'number' },
+    }, ['id']),
+    method: 'setPanelSize', args: (i) => [i.id, { width: i.width, height: i.height }], root: 'editor' },
   { name: 'capture_viewport',
     description: 'Render the current viewport and return it as a PNG image, so you can SEE what the editor drew. Step first for a settled frame.',
     schema: obj({}), js: () => CAPTURE_PNG_JS, image: true },
@@ -188,6 +199,51 @@ export const TOOLS = [
       ['destDir', 'sources']),
     js: (i) => `window.estella.project.importFiles(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.sources)})
       .then((r) => window.__estellaEditor.refreshAssets().then(() => r))` },
+  { name: 'apply_scene_ops', write: true,
+    description: 'Author a whole subtree in ONE undoable batch — the tool to build scenes with (set_field one field per call does not scale past a few dozen nodes). '
+      + '`ops` is an array executed in order, atomically: a throw anywhere rolls the WHOLE batch back. Op shapes: '
+      + '{op:"create", ref?, name?, parent?, template?, components?, fields?, x?, y?} — `template` is an entity-template id (list_entity_templates, e.g. "ui-image"), '
+      + 'or give `components` as ["Transform","UINode","UIVisual"] / [{type,data}]; '
+      + '{op:"set", entity, fields}; {op:"add_component"|"remove_component", entity, component}; {op:"rename", entity, name}; {op:"parent", entity, parent}; {op:"delete", entity}. '
+      + 'ENTITY ADDRESSING: an entity is a live numeric id, or "$name" naming an earlier create\'s `ref` — so a parent/child tree is one call with no round trip to learn ids. '
+      + 'FIELDS is a flat map of "Component.key" → value, e.g. {"Transform.position.x": 10, "UIVisual.color": "#ff0000ff", "Text.content": "Hi"} — same coercion and validation as set_field. '
+      + 'Returns { refs: {name: id}, created: [id], applied: n }. Check get_diagnostics afterwards.',
+    schema: obj({
+      ops: { type: 'array', description: 'the op program, executed in order as one undo step' },
+      label: { type: 'string', description: 'undo-stack label (default "Apply scene ops")' },
+    }, ['ops']),
+    method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
+  { name: 'list_assets',
+    description: 'Search the open project\'s asset registry. `match` is a case-insensitive SUBSTRING of the project-relative path (not a glob); `type` filters by asset type (texture, scene, prefab, audio, font, material, shader...). '
+      + 'Returns { total, assets: [{ ref, path, name, type }] } — `total` is the full match count, `assets` is capped by `limit` (default 200). The `ref` is the stable @uuid: form to write into asset fields.',
+    schema: obj({
+      match: { type: 'string' }, type: { type: 'string' }, limit: { type: 'number' },
+    }),
+    method: 'listAssets', args: (i) => [{ match: i.match, type: i.type, limit: i.limit }], root: 'editor' },
+  { name: 'get_import_settings',
+    description: "An asset's .meta import settings, layered over its type's defaults — the Import Settings panel's data. Returns { type, settings }.",
+    schema: obj({ path: { type: 'string' } }, ['path']),
+    method: 'getImportSettings', args: (i) => [i.path], root: 'editor' },
+  { name: 'set_import_settings', write: true,
+    description: 'Patch an asset\'s .meta import settings and persist. Keys are DOTTED paths into the importer block, matching the inspector field keys — a texture\'s 9-slice border is '
+      + '{"sliceBorder.left":12,"sliceBorder.right":12,"sliceBorder.top":12,"sliceBorder.bottom":12}; filter/wrap are {"filterMode":"nearest","wrapMode":"clamp"}. '
+      + 'These live in IMPORT, not on a component: a UIVisual set to NineSlice takes its border from texture metadata, so this is what makes frames and buttons stretch correctly. '
+      + 'Re-registers the asset and updates the live texture. Returns the resulting importer block.',
+    schema: obj({ path: { type: 'string' }, patch: { type: 'object' } }, ['path', 'patch']),
+    method: 'setImportSettings', args: (i) => [i.path, i.patch], root: 'editor' },
+  { name: 'read_project_file',
+    description: 'Read a text file by project-relative path — game scripts (src/*.ts), project.esproject, .meta files, any project text. Complements get_inspector: scenes are model state, behaviour is code.',
+    schema: obj({ path: { type: 'string' } }, ['path']),
+    js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)})` },
+  { name: 'write_project_file', write: true,
+    description: 'Write a text file by project-relative path, CREATING or OVERWRITING it. This is how game scripts (src/*.ts) are authored — create_asset only makes .meta-carrying asset types and refuses to overwrite (it uniquifies to "name 2"). '
+      + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher.',
+    schema: obj({ path: { type: 'string' }, content: { type: 'string' } }, ['path', 'content']),
+    js: (i) => `window.estella.fs.write(${JSON.stringify(i.path)}, ${JSON.stringify(i.content)})` },
+  { name: 'list_project_files',
+    description: 'Project-relative paths of every file under a project-relative directory (recursive). Use for source trees (src/) where list_assets — which only knows registered assets — sees nothing.',
+    schema: obj({ dir: { type: 'string' } }, ['dir']),
+    js: (i) => `window.estella.fs.listFiles(${JSON.stringify(i.dir)})` },
   { name: 'set_project_physics', write: true,
     description: 'Patch the project physics feature (Project Settings → Physics), e.g. { "enabled": true }. Persists to the manifest; Play and exports boot it.',
     schema: obj({ patch: { type: 'object' } }, ['patch']),
