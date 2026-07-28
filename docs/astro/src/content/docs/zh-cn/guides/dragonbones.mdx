@@ -61,9 +61,10 @@ DragonBones 导出的是三个文件,Estella 把它们作为同一种资源类�
 
 编辑时骨架**就在视口里摆着**——改动画、改缩放、改翻转都会立刻看到,不用按 Play。
 
-<Aside type="caution">
-  `color` 可以填,但目前还没有作用到 DragonBones 骨架上——运行时的 ABI 没有着色入口。
-  在 DragonBones Pro 里给插槽设的颜色**是**生效的;这里说的是叠在它之上的那层每实体着色。
+<Aside type="note">
+  `color` 是**乘**在每个插槽自己的颜色上,而不是替换它——所以美术在 DragonBones Pro 里设的
+  颜色不会因为被着色而丢失。不透明白(默认值)就是"什么都不改变"的那个着色,所以清空这个字段
+  会还原成原样,而不是把最后一次的颜色留在那儿。
 </Aside>
 
 ## 选择骨架
@@ -113,8 +114,9 @@ const control = defineSystem(
 | `fadeIn(entity, name, seconds, loop?)` | 交叉淡入到一个动画。 |
 | `stop(entity, name?)` | 停一个动画;省略名字则全停。 |
 | `setTimeScale(entity, scale)` | 每实体的播放速度。 |
+| `setColor(entity, r, g, b, a)` | 给整个骨架着色(0..1),乘在插槽自身颜色上。 |
 | `setEnabled(entity, on)` | 整个从这一帧里拿掉(既冻结**又**隐藏)。 |
-| `setEntityProps(entity, props)` | 一次设 `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale? }`。 |
+| `setEntityProps(entity, props)` | 一次设 `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }`。 |
 
 `playing: false` 是冻住姿势但继续画;`setEnabled(false)` 是把骨架从这一帧里拿掉。这是两件事,
 而且两个都有用。

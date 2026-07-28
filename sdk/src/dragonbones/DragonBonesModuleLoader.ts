@@ -30,6 +30,7 @@ export interface DragonBonesWrappedAPI {
     fadeInAnimation(instanceId: number, name: string, fadeSeconds: number, playTimes: number): number;
     stopAnimation(instanceId: number, name: string): void;
     setTimeScale(instanceId: number, scale: number): void;
+    setColor(instanceId: number, r: number, g: number, b: number, a: number): void;
     update(instanceId: number, dt: number): void;
     getAnimations(instanceId: number): string;
 
@@ -67,6 +68,7 @@ export function wrapDragonBonesModule(raw: DragonBonesWasmModule): DragonBonesWr
         fadeInAnimation: w('fadeInAnimation', N, [N, S, N, N]),
         stopAnimation: w('stopAnimation', null, [N, S]),
         setTimeScale: w('setTimeScale', null, [N, N]),
+        setColor: w('setColor', null, [N, N, N, N, N]),
         update: w('update', null, [N, N]),
         getAnimations: w('getAnimations', S, [N]),
 

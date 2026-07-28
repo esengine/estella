@@ -14,6 +14,17 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A DragonBones armature ignored its Color.** The field was in the inspector and
+  did nothing — the runtime's ABI had no tint entry point, so the value was
+  authored, saved, and dropped. It tints now, and **multiplies** each slot's own
+  colour rather than replacing it, so what an artist set in DragonBones Pro
+  survives being tinted. Opaque white is the tint that changes nothing, which is
+  what makes clearing the field restore the original instead of leaving the last
+  colour stuck. Per entity, so one of two figures sharing a skeleton can be tinted
+  alone.
+
 ## [0.35.0] - 2026-07-28
 
 A second skeletal runtime. Estella has animated Spine skeletons since 0.19.0;

@@ -158,7 +158,7 @@ void EsSlot::_updateMesh() {
     }
 }
 
-void EsSlot::emit(es::skeletal::TriangleSink& sink, float alpha) const {
+void EsSlot::emit(es::skeletal::TriangleSink& sink, const float tint[4]) const {
     if (indices.empty() || textureId == 0 || !_visible) return;
 
     const std::size_t vertexCount = positions.size() / 2;
@@ -189,11 +189,14 @@ void EsSlot::emit(es::skeletal::TriangleSink& sink, float alpha) const {
         world[i * 2 + 1] = -world[i * 2 + 1];
     }
 
+    // The slot's authored colour and the entity's tint multiply. Replacing rather
+    // than multiplying would throw away what the artist set in DragonBones Pro the
+    // moment a game tinted anything.
     const float rgba[4] = {
-        _colorTransform.redMultiplier,
-        _colorTransform.greenMultiplier,
-        _colorTransform.blueMultiplier,
-        _colorTransform.alphaMultiplier * alpha,
+        _colorTransform.redMultiplier * tint[0],
+        _colorTransform.greenMultiplier * tint[1],
+        _colorTransform.blueMultiplier * tint[2],
+        _colorTransform.alphaMultiplier * tint[3],
     };
     sink.emit(world.data(), uvs.data(), static_cast<int>(vertexCount), indices.data(),
               static_cast<int>(indices.size()), textureId, static_cast<int>(_blendMode), rgba);

@@ -71,10 +71,11 @@ the link.
 The armature poses **in the viewport while you edit** — changing the animation, the
 scale or a flip shows immediately, without pressing Play.
 
-<Aside type="caution">
-  `color` is authored but not yet applied to a DragonBones armature — the runtime's
-  ABI has no tint entry point. Slot colours authored in DragonBones Pro *are*
-  honoured; this is the per-entity tint on top of them.
+<Aside type="note">
+  `color` **multiplies** each slot's authored colour rather than replacing it, so
+  what an artist set in DragonBones Pro survives being tinted — and opaque white
+  (the default) is the tint that changes nothing, which is why clearing the field
+  restores the original instead of leaving the last colour stuck.
 </Aside>
 
 ## Choosing an armature
@@ -129,8 +130,9 @@ const control = defineSystem(
 | `fadeIn(entity, name, seconds, loop?)` | Crossfade into an animation. |
 | `stop(entity, name?)` | Stop one animation, or all of them when omitted. |
 | `setTimeScale(entity, scale)` | Per-entity playback speed. |
+| `setColor(entity, r, g, b, a)` | Tint the whole armature (0..1), multiplied onto slot colours. |
 | `setEnabled(entity, on)` | Remove from the frame entirely (freeze **and** hide). |
-| `setEntityProps(entity, props)` | Set `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale? }` at once. |
+| `setEntityProps(entity, props)` | Set `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }` at once. |
 
 `playing: false` freezes the pose but keeps drawing it; `setEnabled(false)` takes
 the armature out of the frame. They are different things and both are useful.

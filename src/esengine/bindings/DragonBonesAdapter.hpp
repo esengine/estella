@@ -109,7 +109,10 @@ public:
     }
 
     /// Pour this slot's triangles into `sink`, applying its transform if it owes one.
-    void emit(es::skeletal::TriangleSink& sink, float alpha) const;
+    /// @param tint  RGBA multiplied onto the slot's own colour — the per-entity
+    ///              tint on top of what was authored in DragonBones Pro, not
+    ///              instead of it.
+    void emit(es::skeletal::TriangleSink& sink, const float tint[4]) const;
 
 protected:
     // — Scene-graph duties this module does not have —

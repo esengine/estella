@@ -46,6 +46,8 @@ int db_playAnimation(int instanceId, const char* name, int playTimes);
 int db_fadeInAnimation(int instanceId, const char* name, float fadeSeconds, int playTimes);
 void db_stopAnimation(int instanceId, const char* name);
 void db_setTimeScale(int instanceId, float scale);
+/** Per-entity tint, multiplied onto each slot's authored colour (1,1,1,1 = as drawn). */
+void db_setColor(int instanceId, float r, float g, float b, float a);
 void db_update(int instanceId, float dt);
 const char* db_getAnimations(int instanceId);
 

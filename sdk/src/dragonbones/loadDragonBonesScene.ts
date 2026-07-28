@@ -45,8 +45,10 @@ export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 export function dragonBonesEntityProps(d: Record<string, unknown>): {
     skeletonScale: number; flipX: boolean; flipY: boolean; layer: number;
     timeScale: number; playing: boolean;
+    color: { r: number; g: number; b: number; a: number };
 } {
     const num = (v: unknown, dflt: number): number => (typeof v === 'number' ? v : dflt);
+    const color = d.color;
     return {
         skeletonScale: num(d.skeletonScale, 1),
         flipX: d.flipX === true,
@@ -54,6 +56,12 @@ export function dragonBonesEntityProps(d: Record<string, unknown>): {
         layer: num(d.layer, 0),
         timeScale: num(d.timeScale, 1),
         playing: d.playing !== false,
+        // Opaque white rather than undefined, so CLEARING the field in the editor
+        // resets the tint instead of leaving the last colour applied (setEntityProps
+        // only writes a colour it was given). Same reasoning as spineEntityProps.
+        color: color && typeof color === 'object'
+            ? (color as { r: number; g: number; b: number; a: number })
+            : { r: 1, g: 1, b: 1, a: 1 },
     };
 }
 

@@ -144,6 +144,110 @@ describe.skipIf(!HAS_ASSETS)('DragonBones side module', () => {
         call('db_unloadSkeleton', null, ['number'], [handle]);
     });
 
+    it('tints the armature, multiplying rather than replacing the authored colour', () => {
+        const handle = load();
+        call('db_setAtlasTexture', null, ['number', 'number'], [handle, 7]);
+        const instance = call<number>('db_createInstance', 'number', ['number', 'string'], [handle, 'Dragon']);
+        call('db_playAnimation', 'number', ['number', 'string', 'number'], [instance, 'stand', 0]);
+        call('db_update', null, ['number', 'number'], [instance, 1 / 60]);
+
+        /// Every vertex's RGBA from batch 0. getMeshBatchCount is what re-poses into
+        /// the shared batch list — the other getters read that snapshot — so asking
+        /// for it is how a reader says which instance it means.
+        const colours = (): { r: number; g: number; b: number; a: number }[] => {
+            call('db_getMeshBatchCount', 'number', ['number'], [instance]);
+            const vertexCount = call<number>('db_getMeshBatchVertexCount', 'number', ['number', 'number'], [instance, 0]);
+            const indexCount = call<number>('db_getMeshBatchIndexCount', 'number', ['number', 'number'], [instance, 0]);
+            const vp = M._malloc(vertexCount * 8 * 4);
+            const ip = M._malloc(indexCount * 2);
+            const tp = M._malloc(4);
+            const bp = M._malloc(4);
+            call('db_getMeshBatchData', null, ['number', 'number', 'number', 'number', 'number', 'number'], [
+                instance, 0, vp, ip, tp, bp,
+            ]);
+            const v = new Float32Array(M.HEAPF32.buffer, vp, vertexCount * 8);
+            const out = [];
+            for (let i = 0; i < vertexCount; i++) {
+                out.push({ r: v[i * 8 + 4], g: v[i * 8 + 5], b: v[i * 8 + 6], a: v[i * 8 + 7] });
+            }
+            M._free(vp); M._free(ip); M._free(tp); M._free(bp);
+            return out;
+        };
+
+        // Untinted is the identity: whatever the file authored, unchanged.
+        const authored = colours();
+        expect(authored.length).toBeGreaterThan(0);
+
+        // Half red, half alpha. Each channel scales by its own factor, which a
+        // replace-instead-of-multiply implementation could not produce.
+        call('db_setColor', null, ['number', 'number', 'number', 'number', 'number'], [instance, 0.5, 1, 1, 0.5]);
+        call('db_update', null, ['number', 'number'], [instance, 1 / 60]);
+        const tinted = colours();
+        expect(tinted.length).toBe(authored.length);
+        for (let i = 0; i < authored.length; i++) {
+            expect(tinted[i].r).toBeCloseTo(authored[i].r * 0.5, 5);
+            expect(tinted[i].g).toBeCloseTo(authored[i].g, 5);
+            expect(tinted[i].b).toBeCloseTo(authored[i].b, 5);
+            expect(tinted[i].a).toBeCloseTo(authored[i].a * 0.5, 5);
+        }
+
+        // And white puts it back, which is what clearing the field must do.
+        call('db_setColor', null, ['number', 'number', 'number', 'number', 'number'], [instance, 1, 1, 1, 1]);
+        call('db_update', null, ['number', 'number'], [instance, 1 / 60]);
+        const restored = colours();
+        for (let i = 0; i < authored.length; i++) {
+            expect(restored[i].r).toBeCloseTo(authored[i].r, 5);
+            expect(restored[i].a).toBeCloseTo(authored[i].a, 5);
+        }
+
+        call('db_destroyInstance', null, ['number'], [instance]);
+        call('db_unloadSkeleton', null, ['number'], [handle]);
+    });
+
+    it('tints one instance without touching another sharing the skeleton', () => {
+        // The tint lives per instance, not on the shared skeleton — two entities of
+        // one file are the whole reason the sharing exists.
+        const handle = load();
+        call('db_setAtlasTexture', null, ['number', 'number'], [handle, 7]);
+        const a = call<number>('db_createInstance', 'number', ['number', 'string'], [handle, 'Dragon']);
+        const b = call<number>('db_createInstance', 'number', ['number', 'string'], [handle, 'Dragon']);
+        for (const id of [a, b]) {
+            call('db_playAnimation', 'number', ['number', 'string', 'number'], [id, 'stand', 0]);
+            call('db_update', null, ['number', 'number'], [id, 1 / 60]);
+        }
+
+        const firstAlpha = (id: number): number => {
+            call('db_getMeshBatchCount', 'number', ['number'], [id]);   // pose THIS instance
+            // Sized from what the batch actually holds — a fixed guess is a buffer
+            // db_getMeshBatchData writes straight past.
+            const vertexCount = call<number>('db_getMeshBatchVertexCount', 'number', ['number', 'number'], [id, 0]);
+            const indexCount = call<number>('db_getMeshBatchIndexCount', 'number', ['number', 'number'], [id, 0]);
+            const vp = M._malloc(vertexCount * 8 * 4);
+            const ip = M._malloc(indexCount * 2);
+            const tp = M._malloc(4);
+            const bp = M._malloc(4);
+            call('db_getMeshBatchData', null, ['number', 'number', 'number', 'number', 'number', 'number'], [
+                id, 0, vp, ip, tp, bp,
+            ]);
+            const alpha = new Float32Array(M.HEAPF32.buffer, vp, 8)[7];
+            M._free(vp); M._free(ip); M._free(tp); M._free(bp);
+            return alpha;
+        };
+
+        call('db_setColor', null, ['number', 'number', 'number', 'number', 'number'], [a, 1, 1, 1, 0.25]);
+        call('db_update', null, ['number', 'number'], [a, 1 / 60]);
+        const tintedA = firstAlpha(a);
+        call('db_update', null, ['number', 'number'], [b, 1 / 60]);
+        const untouchedB = firstAlpha(b);
+
+        expect(tintedA).toBeLessThan(untouchedB);
+        expect(untouchedB).toBeCloseTo(1, 5);
+
+        call('db_destroyInstance', null, ['number'], [a]);
+        call('db_destroyInstance', null, ['number'], [b]);
+        call('db_unloadSkeleton', null, ['number'], [handle]);
+    });
+
     it('survives an animation being retired — a crossfade, then the state going away', () => {
         // The runtime hands a finished animation state back through
         // `_armature->_dragonBones->bufferObject(state)`, and BaseFactory leaves

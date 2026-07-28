@@ -122,6 +122,11 @@ export class DragonBonesModuleController implements SkeletalController {
         this.api_.setTimeScale(instanceId, scale);
     }
 
+    /** Tint, multiplied onto each slot's authored colour — opaque white is "as drawn". */
+    setColor(instanceId: number, r: number, g: number, b: number, a: number): void {
+        this.api_.setColor(instanceId, r, g, b, a);
+    }
+
     update(instanceId: number, dt: number): void {
         this.api_.update(instanceId, dt);
     }

@@ -148,15 +148,27 @@ export class DragonBonesManager {
     setEntityProps(
         entity: Entity,
         props: Partial<Pick<EntityInfo, 'skeletonScale' | 'flipX' | 'flipY' | 'layer' | 'playing'>>
-            & { timeScale?: number },
+            & { timeScale?: number; color?: { r: number; g: number; b: number; a: number } },
     ): void {
         const info = this.entities_.get(entity);
         if (!info) return;
-        const { timeScale, ...rest } = props;
+        const { timeScale, color, ...rest } = props;
         Object.assign(info, rest);
-        // timeScale is not a field to assign: the module owns the clock, so it has
-        // to be told rather than remembered.
+        // Neither of these is a field to assign: the module owns the clock and the
+        // tint, so it has to be told rather than remembered.
         if (timeScale !== undefined) this.setTimeScale(entity, timeScale);
+        if (color) this.setColor(entity, color.r, color.g, color.b, color.a);
+    }
+
+    /**
+     * Tint the whole armature. Multiplied onto each slot's authored colour, so
+     * opaque white is not "no tint applied" but "the tint that changes nothing" —
+     * which is why clearing the field in the editor restores the original rather
+     * than leaving the last colour stuck.
+     */
+    setColor(entity: Entity, r: number, g: number, b: number, a: number): void {
+        const info = this.entities_.get(entity);
+        if (info) this.controller_.setColor(info.instanceId, r, g, b, a);
     }
 
     // — Animation ————————————————————————————————————————————————————————————

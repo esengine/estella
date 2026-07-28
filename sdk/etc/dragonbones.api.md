@@ -47,8 +47,9 @@ loadSkeleton: (skeletonData: Uint8Array | string, atlasJson: string, assetKey?: 
 play: (entity: Entity, animation: string, loop?: boolean) => boolean
 removeEntity: (entity: Entity) => void
 setAtlasTexture: (skeletonHandle: number, textureId: number) => void
+setColor: (entity: Entity, r: number, g: number, b: number, a: number) => void
 setEnabled: (entity: Entity, enabled: boolean) => void
-setEntityProps: (entity: Entity, props: Partial<Pick<EntityInfo, "skeletonScale" | "flipX" | "flipY" | "layer" | "playing">> & { timeScale?: number; }) => void
+setEntityProps: (entity: Entity, props: Partial<Pick<EntityInfo, "skeletonScale" | "flipX" | "flipY" | "layer" | "playing">> & { timeScale?: number; color?: { r: number; g: number; b: number; a: number; }; }) => void
 setTimeScale: (entity: Entity, scale: number) => void
 stop: (entity: Entity, animation?: string) => void
 submitMeshes: (core: SkeletalSubmitCore, registry: unknown) => void
@@ -72,6 +73,7 @@ loadSkeleton: (skeletonData: Uint8Array | string, atlasJson: string) => number
 play: (instanceId: number, animation: string, loop?: boolean) => boolean
 runtimeVersion: () => number
 setAtlasTexture: (handle: number, textureId: number) => void
+setColor: (instanceId: number, r: number, g: number, b: number, a: number) => void
 setTimeScale: (instanceId: number, scale: number) => void
 stop: (instanceId: number, animation?: string) => void
 unloadSkeleton: (handle: number) => void
@@ -125,6 +127,7 @@ loadSkeleton: (skeletonPtr: number, skeletonLen: number, atlasPtr: number, atlas
 playAnimation: (instanceId: number, name: string, playTimes: number) => number
 runtimeVersion: () => number
 setAtlasTexture: (handle: number, textureId: number) => void
+setColor: (instanceId: number, r: number, g: number, b: number, a: number) => void
 setTimeScale: (instanceId: number, scale: number) => void
 stopAnimation: (instanceId: number, name: string) => void
 unloadSkeleton: (handle: number) => void
@@ -147,7 +150,7 @@ resolveRef: ((ref: string) => string) | undefined
 
 ## dragonBonesEntityProps — function
 ```
-(d: Record<string, unknown>): { skeletonScale: number; flipX: boolean; flipY: boolean; layer: number; timeScale: number; playing: boolean; }
+(d: Record<string, unknown>): { skeletonScale: number; flipX: boolean; flipY: boolean; layer: number; timeScale: number; playing: boolean; color: { r: number; g: number; b: number; a: number; }; }
 ```
 
 ## dragonBonesPlugin — const

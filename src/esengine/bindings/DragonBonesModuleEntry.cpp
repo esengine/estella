@@ -64,6 +64,9 @@ struct LoadedSkeleton {
 struct LiveInstance {
     Armature* armature = nullptr;
     int skeletonHandle = -1;
+    /// Per-entity tint, multiplied onto every slot's own colour. Opaque white is
+    /// the identity, so an instance nobody tints looks exactly as authored.
+    float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 struct Context {
@@ -95,12 +98,12 @@ std::string skeletonName(int handle) { return "es_db_" + std::to_string(handle);
  */
 void extractBatches(int instanceId) {
     g_ctx.batches.clear();
-    auto* armature = g_ctx.armatureOf(instanceId);
-    if (!armature) return;
+    auto* live = g_ctx.instances.find(instanceId);
+    if (!live || !live->armature) return;
 
     es::skeletal::BatchCollector collector(g_ctx.batches);
-    for (auto* slot : armature->getSlots()) {
-        static_cast<EsSlot*>(slot)->emit(collector, 1.0f);
+    for (auto* slot : live->armature->getSlots()) {
+        static_cast<EsSlot*>(slot)->emit(collector, live->tint);
     }
 }
 
@@ -260,6 +263,18 @@ EMSCRIPTEN_KEEPALIVE
 void db_setTimeScale(int instanceId, float scale) {
     auto* armature = g_ctx.armatureOf(instanceId);
     if (armature) armature->getAnimation()->timeScale = scale;
+}
+
+/// Tint this instance. Multiplied onto each slot's authored colour, so opaque
+/// white leaves the armature exactly as it was drawn.
+EMSCRIPTEN_KEEPALIVE
+void db_setColor(int instanceId, float r, float g, float b, float a) {
+    auto* live = g_ctx.instances.find(instanceId);
+    if (!live) return;
+    live->tint[0] = r;
+    live->tint[1] = g;
+    live->tint[2] = b;
+    live->tint[3] = a;
 }
 
 EMSCRIPTEN_KEEPALIVE
