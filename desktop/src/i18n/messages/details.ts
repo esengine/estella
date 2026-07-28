@@ -216,6 +216,17 @@ export const detailsMessages = defineMessages({
     'det.importSaved': { en: 'Import settings saved — size / compression apply on the next build', zh: '导入设置已保存——尺寸 / 压缩在下次构建时生效' },
     'det.importSaveFailed': { en: 'Failed to save import settings: {error}', zh: '保存导入设置失败：{error}' },
     'det.noImportSettings': { en: 'This asset type has no import settings.', zh: '此资产类型没有导入设置。' },
+
+    // — 9-slice border editor (texture assets) —
+    'det.sliceDragTip': {
+        en: 'Drag a guide to set the 9-slice border. The shaded centre is the part that stretches.',
+        zh: '拖动参考线设置九宫格边框。阴影中心区域是会被拉伸的部分。',
+    },
+    'det.sliceNoImage': { en: 'Image unavailable', zh: '图片不可用' },
+    'det.sliceLeft': { en: 'L', zh: '左' },
+    'det.sliceRight': { en: 'R', zh: '右' },
+    'det.sliceTop': { en: 'T', zh: '上' },
+    'det.sliceBottom': { en: 'B', zh: '下' },
     'det.audioSeekTip': { en: 'Click to seek', zh: '点击跳转播放位置' },
     'det.audioPlayTip': { en: 'Play / pause', zh: '播放 / 暂停' },
     'det.audioDecodeFailed': { en: 'Could not decode audio', zh: '无法解码音频' },

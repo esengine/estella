@@ -18,7 +18,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug, Type,
   type LucideIcon,
 } from 'lucide-react';
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
@@ -63,6 +63,9 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
     badge: 'DB', icon: PersonStanding, tint: '#a89b6b',
   },
   audio: { extensions: ['ogg', 'mp3', 'wav', 'aac', 'flac', 'm4a', 'webm'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
+  // Outline fonts a project ships (Text.font). Bitmap fonts (.fnt/.bmfont) are a
+  // different asset — a baked page + metrics for BitmapText — and stay separate.
+  font: { extensions: ['ttf', 'otf', 'woff', 'woff2'], badge: 'FNT', icon: Type, tint: '#9a9fc4' },
   video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);

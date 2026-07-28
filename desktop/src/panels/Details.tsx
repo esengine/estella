@@ -53,6 +53,8 @@ import { AssetIcon } from '@/components/icons';
 import { EventBindingSection } from '@/events/EventBindingSection';
 import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderConvert';
 import { AudioWavePreview } from '@/components/AudioWavePreview';
+import { NineSliceEditor } from '@/components/NineSliceEditor';
+import { fsRefresh } from '@/project/fsWatch';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
 import { BUILTIN_PLATFORMS, type BuiltinPlatform } from '@/project/platforms';
@@ -115,7 +117,7 @@ import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
 import { Segmented, type SegmentedOption } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, MapValue, InspectSource } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, MapValue, InspectSource, FieldWrite } from '@/types';
 
 const AXES = ['x', 'y', 'z', 'w'];
 
@@ -1167,7 +1169,8 @@ export function AssetControl({
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
-type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue) => void;
+// The contract itself lives in types.ts — controls outside this panel (the
+// 9-slice editor) write through the same one.
 
 // The write primitives for one field, shared by FieldRow and the compound
 // BoxSidesControl so both commit through the identical door: an edit fans out to
@@ -3358,11 +3361,23 @@ function GenericAssetInspector({ path }: { path: string }) {
   const [collapsed, setCollapsed] = useState(false);
   const [usagesOpen, setUsagesOpen] = useState(false);
 
-  // Load the `.meta` importer block on (re)selection.
+  // Reset to the loading state when the SELECTION moves (not on a refresh).
   useEffect(() => {
-    let alive = true;
     setImporter(null);
     setDirty(false);
+  }, [path]);
+
+  // Load the `.meta` importer block on (re)selection, and re-read whenever the
+  // watcher reports a filesystem change: a `.meta` written outside this panel —
+  // git, a build step, an automation client — otherwise leaves the inspector
+  // showing values that no longer exist on disk. An unsaved edit always wins;
+  // re-reading over it would silently discard the user's work.
+  const fsVersion = useSyncExternalStore(fsRefresh.subscribe, fsRefresh.get);
+  const dirtyNow = useRef(dirty);
+  dirtyNow.current = dirty;
+  useEffect(() => {
+    if (dirtyNow.current) return;
+    let alive = true;
     void window.estella.fs
       .read(path + '.meta')
       .then((t) => alive && setImporter(((JSON.parse(t).importer as Record<string, unknown>) ?? {})))
@@ -3370,7 +3385,7 @@ function GenericAssetInspector({ path }: { path: string }) {
     return () => {
       alive = false;
     };
-  }, [path]);
+  }, [path, fsVersion]);
 
   // Metadata: disk stat, image dimensions, and how many assets reference this one.
   useEffect(() => {
@@ -3470,6 +3485,11 @@ function GenericAssetInspector({ path }: { path: string }) {
             Import Settings sit above the fold (the reason to open an asset). */}
         {type === 'audio' ? (
           <AudioWavePreview path={path} />
+        ) : isImage && importer && (type === 'texture' || type === 'sprite') ? (
+          // A texture's preview IS its 9-slice editor: the border is the one
+          // import setting you cannot sensibly type in, and it writes through
+          // the same `write` door as the numbers below.
+          <NineSliceEditor path={path} importer={importer} write={write} />
         ) : type === 'video' ? (
           <div className="cb-prev" style={{ height: 160 }}>
             <video

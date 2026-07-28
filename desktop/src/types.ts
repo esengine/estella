@@ -101,6 +101,20 @@ export type InspectorFieldValue =
   | DimensionValue
   | MapValue;
 
+/**
+ * How an inspector control commits a value. The one write contract shared by
+ * every inspector surface — entity components, materials, the anim-clip
+ * document, and asset import settings — so a control written against it drops
+ * into any of them without knowing which store is behind it.
+ */
+export type FieldWrite = (
+  key: string,
+  type: InspectorFieldType,
+  // `number[]` alongside the fixed-length tuples: the vec/sides controls build
+  // their arrays by mapping over edges, which widens the tuple away.
+  value: InspectorFieldValue | number[],
+) => void;
+
 export interface InspectorField {
   /** key in the component data object */
   key: string;
@@ -220,6 +234,7 @@ export type BuiltinAssetType =
   | 'animatorcontroller'
   | 'behaviortree'
   | 'locale'
+  | 'font'
   | 'file';
 
 /** A built-in asset type, or one a plugin contributed. */
