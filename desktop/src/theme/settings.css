@@ -291,6 +291,7 @@
 .set-objlist-row.invalid .set-str { border-color: var(--error); }
 .set-objlist-err { color: var(--error); font-size: var(--fs-2xs); padding: 2px 2px 0; }
 .set-objlist-del,
+.set-objlist-more,
 .set-objlist-add {
   display: inline-flex;
   align-items: center;
@@ -304,3 +305,20 @@
 .set-objlist-add { align-self: flex-start; height: 26px; padding: 0 9px; font-size: var(--fs-xs); }
 .set-objlist-add:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
 .set-objlist-empty { color: var(--text-mute); font-size: var(--fs-xs); padding: 2px 0 4px; }
+.set-objlist-more { justify-content: center; width: 24px; height: 24px; }
+.set-objlist-more:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.set-objlist-more svg { transition: transform var(--t-fast); }
+.set-objlist-more.open svg { transform: rotate(90deg); }
+/* Expanded secondary fields: indented under their row so the grouping reads. */
+.set-objlist-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 6px 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--border-soft);
+}
+.set-objlist-detail-lbl { color: var(--text-mute); font-size: var(--fs-2xs); }
+.set-objlist-detail-f { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: var(--fs-2xs); }
+.set-objlist-detail-f .set-str { width: 66px; }

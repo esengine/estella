@@ -142,7 +142,12 @@ export interface FlagListSetting extends BaseSetting<number[]> {
   labels: () => string[];
 }
 
-/** One editable field of an {@link ObjectListSetting} row. */
+/**
+ * One editable field of an {@link ObjectListSetting} row.
+ *
+ * `key` may be a dot path (`safe.top`), so a row's nested shape does not have to
+ * be flattened into the stored format just to be editable.
+ */
 export interface ObjectListColumn {
   key: string;
   label: string;
@@ -166,6 +171,14 @@ export interface ObjectListColumn {
 export interface ObjectListSetting extends BaseSetting<Record<string, unknown>[]> {
   type: 'objectList';
   columns: ObjectListColumn[];
+  /**
+   * Fields shown only when a row is expanded. For what most rows leave alone —
+   * putting them in the main table would widen every row to serve the few that
+   * need them, and a table wide enough to need scrolling is worse than a click.
+   */
+  detailColumns?: ObjectListColumn[];
+  /** Heading for the expanded area, and the expander's tooltip. */
+  detailLabel?: string;
   /** Values a freshly added row starts with. */
   newRow: () => Record<string, unknown>;
   /** Per-row validation → message, or null when the row is fine. */

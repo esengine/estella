@@ -33,8 +33,10 @@ const setting = settingsRegistry.get('project.display.screenPresets') as never a
   type: string;
   layout?: string;
   columns: { key: string; type: string }[];
+  detailColumns?: { key: string; type: string }[];
   newRow: () => Record<string, unknown>;
   rowError: (row: Record<string, unknown>, all: Record<string, unknown>[]) => string | null;
+  bind: { set: (v: Record<string, unknown>[]) => void };
 };
 
 describe('screen-preset setting descriptor', () => {
@@ -79,5 +81,41 @@ describe('screen-preset setting descriptor', () => {
       // A half-typed row is a normal state; the message is what tells the user.
       expect(typeof setting.rowError({ ...ok, id: '' }, [])).toBe('string');
     });
+  });
+});
+
+describe('safe-area insets', () => {
+  it('are edited in an expander, addressed by dot path', () => {
+    // Four more columns would widen every row to serve the few screens that
+    // have a notch, so they live behind the row's expander.
+    expect(setting.detailColumns?.map((c) => c.key))
+      .toEqual(['safe.top', 'safe.bottom', 'safe.left', 'safe.right']);
+    expect(setting.detailColumns?.every((c) => c.type === 'number')).toBe(true);
+  });
+
+  it('persist when any edge is set', async () => {
+    const { ProjectStore } = await import('@/project/ProjectStore');
+    setting.bind.set([{ id: 'a', label: 'A', width: 1170, height: 2532, safe: { top: 59, bottom: 34, left: 0, right: 0 } }]);
+    expect(ProjectStore.setScreenPresets).toHaveBeenCalledWith([
+      { id: 'a', label: 'A', width: 1170, height: 2532, safe: { top: 59, bottom: 34, left: 0, right: 0 } },
+    ]);
+  });
+
+  it('are dropped entirely when every edge is zero', async () => {
+    const { ProjectStore } = await import('@/project/ProjectStore');
+    // "No safe area" and "a safe area of nothing" are the same screen; only one
+    // of them belongs in the project file.
+    setting.bind.set([{ id: 'a', label: 'A', width: 8, height: 9, safe: { top: 0, bottom: 0, left: 0, right: 0 } }]);
+    expect(ProjectStore.setScreenPresets).toHaveBeenLastCalledWith([
+      { id: 'a', label: 'A', width: 8, height: 9 },
+    ]);
+  });
+
+  it('clamp a negative edge rather than shipping it', async () => {
+    const { ProjectStore } = await import('@/project/ProjectStore');
+    setting.bind.set([{ id: 'a', label: 'A', width: 8, height: 9, safe: { top: -5, bottom: 20, left: 0, right: 0 } }]);
+    expect(ProjectStore.setScreenPresets).toHaveBeenLastCalledWith([
+      { id: 'a', label: 'A', width: 8, height: 9, safe: { top: 0, bottom: 20, left: 0, right: 0 } },
+    ]);
   });
 });

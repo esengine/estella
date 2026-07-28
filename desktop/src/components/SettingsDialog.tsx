@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2 } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2, ChevronRight } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
@@ -24,7 +24,7 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { ColorControl } from '@/components/ColorControl';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting, ObjectListSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting, ObjectListSetting, ObjectListColumn } from '@/settings/types';
 import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -301,22 +301,67 @@ function FlagListControl({ setting }: { setting: FlagListSetting }) {
  */
 const EMPTY_ROWS: readonly Record<string, unknown>[] = [];
 
+/** Read `a.b.c` out of a row. */
+function readPath(row: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], row);
+}
+
+/** Immutably write `a.b.c` into a row, creating the intermediate objects. */
+function writePath(row: Record<string, unknown>, path: string, v: unknown): Record<string, unknown> {
+  const [head, ...rest] = path.split('.');
+  if (rest.length === 0) return { ...row, [head]: v };
+  const child = (row[head] as Record<string, unknown> | undefined) ?? {};
+  return { ...row, [head]: writePath(child, rest.join('.'), v) };
+}
+
+function ObjectListField({
+  col, row, onChange,
+}: {
+  col: ObjectListColumn;
+  row: Record<string, unknown>;
+  onChange: (v: unknown) => void;
+}) {
+  return (
+    <input
+      className="set-str"
+      type={col.type === 'number' ? 'number' : 'text'}
+      min={col.min}
+      spellCheck={false}
+      placeholder={col.placeholder}
+      value={String(readPath(row, col.key) ?? '')}
+      onChange={(e) => onChange(col.type === 'number' ? Number(e.target.value) : e.target.value)}
+    />
+  );
+}
+
+/**
+ * A table of rows the user can add to, edit and delete. Values are committed on
+ * every keystroke — the setting store is the working copy, and a row that is
+ * momentarily invalid shows its complaint inline instead of being refused.
+ */
 function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
   const setValue = useSettings((s) => s.setValue);
   // useShallow, not a bare selector: `getValue` hands back a fresh array each
   // call, and Object.is on a new reference re-renders forever — the same reason
   // FlagListControl below reads its value this way.
   const rows = useSettings(useShallow((s) => s.getValue<Record<string, unknown>[]>(setting.id) ?? (EMPTY_ROWS as Record<string, unknown>[])));
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set());
   const cols = setting.columns;
-  const grid = { gridTemplateColumns: `${cols.map((c) => c.width ?? '1fr').join(' ')} 24px` };
+  const details = setting.detailColumns ?? [];
+  const grid = { gridTemplateColumns: `${cols.map((c) => c.width ?? '1fr').join(' ')}${details.length > 0 ? ' 24px' : ''} 24px` };
 
   // Read the CURRENT rows rather than the render's closure: editing two fields
   // in quick succession would otherwise have the second patch built from the
   // pre-first snapshot and silently drop the first edit.
   const patch = (i: number, key: string, v: unknown) => {
     const live = useSettings.getState().getValue<Record<string, unknown>[]>(setting.id) ?? rows;
-    setValue(setting.id, live.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
+    setValue(setting.id, live.map((r, j) => (j === i ? writePath(r, key, v) : r)));
   };
+  const toggle = (i: number) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(i)) next.add(i);
+    return next;
+  });
 
   return (
     <div className="set-objlist">
@@ -324,37 +369,54 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
       {rows.length > 0 && (
         <div className="set-objlist-head" style={grid}>
           {cols.map((c) => <span key={c.key}>{c.label}</span>)}
+          {details.length > 0 && <span />}
           <span />
         </div>
       )}
       {rows.map((row, i) => {
         const err = setting.rowError?.(row, rows) ?? null;
+        const open = expanded.has(i);
         return (
           <div key={i} className={`set-objlist-row${err ? ' invalid' : ''}`}>
             <div className="set-objlist-fields" style={grid}>
               {cols.map((c) => (
-                <input
-                  key={c.key}
-                  className="set-str"
-                  type={c.type === 'number' ? 'number' : 'text'}
-                  min={c.min}
-                  spellCheck={false}
-                  placeholder={c.placeholder}
-                  value={String(row[c.key] ?? '')}
-                  onChange={(e) =>
-                    patch(i, c.key, c.type === 'number' ? Number(e.target.value) : e.target.value)}
-                />
+                <ObjectListField key={c.key} col={c} row={row} onChange={(v) => patch(i, c.key, v)} />
               ))}
+              {details.length > 0 && (
+                <button
+                  type="button"
+                  className={`set-objlist-more${open ? ' open' : ''}`}
+                  title={setting.detailLabel}
+                  aria-expanded={open}
+                  onClick={() => toggle(i)}
+                >
+                  <ChevronRight size={12} strokeWidth={2} />
+                </button>
+              )}
               <button
                 type="button"
                 className="set-objlist-del"
                 title={t('set.objList.remove')}
-                onClick={() => setValue(setting.id, rows.filter((_, j) => j !== i))}
+                onClick={() => {
+                  setValue(setting.id, rows.filter((_, j) => j !== i));
+                  setExpanded(new Set());
+                }}
               >
                 <Trash2 size={12} strokeWidth={2} />
               </button>
             </div>
             {err && <div className="set-objlist-err">{err}</div>}
+            {open && (
+              <div className="set-objlist-detail">
+                {setting.detailLabel && <span className="set-objlist-detail-lbl">{setting.detailLabel}</span>}
+                {details.map((c) => (
+                  <label key={c.key} className="set-objlist-detail-f">
+                    <span>{c.label}</span>
+                    <ObjectListField col={c} row={row} onChange={(v) => patch(i, c.key, v)} />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

@@ -97,6 +97,11 @@ export const settingsMessages = defineMessages({
     'set.screenPreset.label': { en: 'Name', zh: '名称' },
     'set.screenPreset.width': { en: 'Width', zh: '宽' },
     'set.screenPreset.height': { en: 'Height', zh: '高' },
+    'set.screenPreset.safeArea': { en: 'Safe area (px)', zh: '安全区域（像素）' },
+    'set.screenPreset.safeTop': { en: 'Top', zh: '上' },
+    'set.screenPreset.safeBottom': { en: 'Bottom', zh: '下' },
+    'set.screenPreset.safeLeft': { en: 'Left', zh: '左' },
+    'set.screenPreset.safeRight': { en: 'Right', zh: '右' },
     'set.screenPreset.add': { en: 'Add screen', zh: '添加屏幕' },
     'set.screenPreset.empty': {
         en: 'No project screens — the dropdown shows the built-in devices only.',

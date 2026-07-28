@@ -57,6 +57,22 @@ settingsRegistry.register({
   },
 });
 
+/**
+ * What gets persisted for one row: an all-zero (or half-filled) inset is dropped
+ * rather than written, because "no safe area" and "a safe area of nothing" are
+ * the same screen, and only one of them should appear in the project file.
+ */
+function normalizeScreenPreset(p: ScreenPreset): ScreenPreset {
+  const s = p.safe;
+  const edges = s ? [s.top, s.bottom, s.left, s.right].map((n) => (Number.isFinite(n) ? Number(n) : 0)) : [];
+  if (edges.length === 0 || edges.every((n) => n <= 0)) {
+    const { safe: _drop, ...rest } = p;
+    return rest;
+  }
+  const [top, bottom, left, right] = edges.map((n) => Math.max(0, n));
+  return { ...p, safe: { top, bottom, left, right } };
+}
+
 // The screens this project tests on. The built-in device list is a guess; a team
 // that ships to specific hardware corrects it here, and an entry reusing a
 // built-in id replaces that built-in rather than sitting beside it.
@@ -73,6 +89,15 @@ settingsRegistry.register({
     { key: 'width', label: t('set.screenPreset.width'), type: 'number', width: '84px', min: 1 },
     { key: 'height', label: t('set.screenPreset.height'), type: 'number', width: '84px', min: 1 },
   ],
+  // Safe-area insets ride in an expander: most screens have none, and four more
+  // columns would widen every row to serve the few that do.
+  detailColumns: [
+    { key: 'safe.top', label: t('set.screenPreset.safeTop'), type: 'number', width: '72px', min: 0 },
+    { key: 'safe.bottom', label: t('set.screenPreset.safeBottom'), type: 'number', width: '72px', min: 0 },
+    { key: 'safe.left', label: t('set.screenPreset.safeLeft'), type: 'number', width: '72px', min: 0 },
+    { key: 'safe.right', label: t('set.screenPreset.safeRight'), type: 'number', width: '72px', min: 0 },
+  ],
+  detailLabel: t('set.screenPreset.safeArea'),
   addLabel: t('set.screenPreset.add'),
   emptyHint: t('set.screenPreset.empty'),
   // Portrait storage keeps one meaning for the orientation toggle across the
@@ -87,7 +112,7 @@ settingsRegistry.register({
   },
   bind: {
     get: () => ProjectStore.screenPresets() as unknown as Record<string, unknown>[],
-    set: (v) => void ProjectStore.setScreenPresets(v as unknown as ScreenPreset[]),
+    set: (v) => void ProjectStore.setScreenPresets((v as unknown as ScreenPreset[]).map(normalizeScreenPreset)),
   },
 });
 
