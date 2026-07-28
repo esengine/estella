@@ -8,6 +8,7 @@ import {
   inspectorFields,
   inferField,
   isColorKey,
+  defaultDataFor,
   componentEnable,
   componentNotice,
   modelInspectableComponents,
@@ -226,7 +227,12 @@ export class SceneQueryImpl {
     const comp = this.model.entityBySource(id)?.components.find((c) => c.type === compName);
     if (!comp) return null;
     const data = comp.data as Record<string, unknown>;
-    const f = inferField(key, data[key], isColorKey(compName, key));
+    // Stored value, else the registered default — the same effective view the
+    // inspector renders. Scene data holds only what was authored, so reading the
+    // raw data reports "no value" for every field still at its default, and a
+    // caller asking a yes/no question about one gets the wrong answer.
+    const raw = key in data ? data[key] : defaultDataFor(compName)[key];
+    const f = inferField(key, raw, isColorKey(compName, key));
     return f ? f.value : null;
   }
 }

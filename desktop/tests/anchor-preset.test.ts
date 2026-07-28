@@ -98,6 +98,30 @@ describe.skipIf(!HAS_WASM)('SceneCommands.setUINodeAnchor (headless World)', () 
         }
     });
 
+    // A field a scene never authored still HAS a value — its default. Reading the
+    // raw stored data reported "unset" for those, and the UI-move path is built out
+    // of exactly such reads: it asks whether the entity is a UINode, whether it is
+    // Absolute, and what both insets of an axis are. Almost none of that is
+    // authored, so an Absolute widget could not be dragged in the viewport at all.
+    it('reads a field the scene never stored as its default, not as absent', () => {
+        const { id } = withUINode(); // a bare UINode: nothing authored on it
+        // "Is this a UINode, and how is it positioned?" — the question the move tool
+        // and setEntityXY both ask. Absent meant "not a UINode" / "no answer".
+        expect(S.query.getFieldValue(id, 'UINode', 'position')).toBe(UIPositionType.Relative);
+        expect(S.query.getFieldValue(id, 'UINode', 'insetRight')).toEqual({ value: 0, unit: AUTO });
+        // Still null for a component the entity genuinely does not have.
+        expect(S.query.getFieldValue(id, 'Sprite', 'layer')).toBeNull();
+    });
+
+    it('leaves a flow UINode`s Transform alone instead of writing a position layout owns', () => {
+        // An unauthored `position` reads as Relative (flow), so the move is dropped
+        // where it used to fall through and write Transform.position — a value the
+        // next layout pass overwrites.
+        const { id } = withUINode();
+        S.commands.setEntityXY(id, 123, 456);
+        expect(S.query.getFieldValue(id, 'Transform', 'position')).toEqual([0, 0, 0]);
+    });
+
     it('applies to a multi-selection in one undo step', () => {
         const a = withUINode();
         const b = withUINode();

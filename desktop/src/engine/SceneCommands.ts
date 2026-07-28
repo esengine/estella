@@ -227,10 +227,23 @@ export class SceneCommandsImpl {
     return () => this.editHooks.delete(fn);
   }
 
-  /** The current model value of one field, or undefined. */
+  /**
+   * The current model value of one field: the stored value, else the component's
+   * registered default. `undefined` means the ENTITY DOES NOT HAVE THE COMPONENT —
+   * which several callers rely on ("is this a UINode?").
+   *
+   * The default matters because scene data stores only what was authored: a field
+   * left alone is simply absent, not empty. Reading the raw data made every such
+   * field look unset, and a caller that needs a value gave up — an Absolute UINode
+   * could not be dragged in the viewport at all, because the inset shift bails
+   * unless it can read BOTH sides of the axis and the far side is almost never
+   * authored (it sits at `auto`).
+   */
   private modelFieldValue(sourceId: number, comp: string, key: string): unknown {
     const c = this.model.entityBySource(sourceId)?.components.find((c) => c.type === comp);
-    return c ? (c.data as Record<string, unknown>)[key] : undefined;
+    if (!c) return undefined;
+    const data = c.data as Record<string, unknown>;
+    return key in data ? data[key] : defaultDataFor(comp)[key];
   }
 
   /** Whether re-parenting every id in `ids` under `target` is valid — false when
