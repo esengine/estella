@@ -1,31 +1,35 @@
 name: Native smoke
 
-# Does a game packaged from the runtime templates actually start?
+# Do games packaged from the runtime templates actually start?
 #
 # `verify-template` reads what an archive carries, which is a weaker claim than it
 # sounds: v0.36.0's Android template carried a host that ran, and every game made
-# from it still opened on a black screen. This packages a real example around the
-# template the same way the editor's Package dialog does, installs it on a
+# from it still opened on a black screen. This packages every example around the
+# template the same way the editor's Package dialog does, installs each on a
 # simulator, and asks the two questions a completeness check cannot — did the boot
 # record reach "ready", and is the frame more than one flat color.
+#
+# Booting a device is minutes and each app is seconds, so one device runs many
+# examples and the SET is sharded across jobs. A job per example would spend its
+# whole budget starting emulators.
 #
 # A simulator is not a phone. Real GPU drivers, real compressed textures, thermal
 # throttling and memory pressure are all outside what this can see, and the two
 # Android rendering bugs this project has actually shipped were of that kind. What
-# this catches is the layer under them: a template that cannot produce a launching
-# app at all.
+# this catches is the layer under them: templates that cannot produce a launching
+# app at all, on any device.
 
 on:
   workflow_dispatch:
     inputs:
       template-tag:
-        description: "Release tag to take the templates from (blank = this run's own artifacts)."
+        description: "Release tag to take the templates from (blank = this run's own artifacts, or the latest release when run by hand)."
         required: false
         type: string
-      example:
-        description: 'Example project to package.'
+      examples:
+        description: 'Comma-separated example names, or blank for every one.'
         required: false
-        default: hello-world
+        default: ''
         type: string
   workflow_call:
     inputs:
@@ -33,19 +37,33 @@ on:
         required: false
         default: ''
         type: string
-      example:
+      examples:
         required: false
-        default: hello-world
+        default: ''
         type: string
 
 permissions:
   contents: read
 
+env:
+  # Pinned, because "whatever the runner listed first" is a device nobody chose:
+  # a runner image update would silently move the test to another phone. A name
+  # that stops existing fails loudly, listing what the image does have.
+  IOS_DEVICE: iPhone 17 Pro
+  # The action's default profile is 640x320 — enough to prove a launch, useless
+  # for looking at.
+  ANDROID_PROFILE: pixel_6
+  ANDROID_API: '34'
+
 jobs:
   android:
-    name: Android emulator boot
+    name: Android ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -89,14 +107,8 @@ jobs:
           mkdir -p template
           unzip -q templates/*.zip -d template
 
-      - name: Build the SDK the game is bundled against
+      - name: Build the SDK the games are bundled against
         run: pnpm --filter ./sdk build
-
-      - name: Package the example as a signed APK
-        run: |
-          node desktop/scripts/export-project.mjs "examples/${{ inputs.example }}" \
-            --platform android --template template --out dist-android --json export.json
-          echo "APK=$(node -p "require('./export.json').apkFile")" >> "$GITHUB_ENV"
 
       # Without this the emulator falls back to software CPU emulation and the
       # boot alone outlasts the job.
@@ -109,27 +121,35 @@ jobs:
 
       # The host is Dawn on Vulkan (the manifest requires it), which on a runner
       # with no GPU means the emulator's bundled SwiftShader Vulkan.
-      - name: Boot it on an emulator
+      - name: Package and boot every example in this shard
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ env.ANDROID_API }}
           target: google_apis
           arch: x86_64
+          profile: ${{ env.ANDROID_PROFILE }}
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: node tools/verify-native-boot.mjs --platform android --apk "$APK"
+          script: >-
+            node tools/verify-native-boot.mjs --platform android --examples all
+            --shard ${{ matrix.shard }}/3
+            ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
 
-      - name: Keep the frame and the record
+      - name: Keep the frames and the records
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: android-boot-${{ inputs.example }}
+          name: android-shots-${{ matrix.shard }}
           path: build/native-boot
           if-no-files-found: warn
 
   ios:
-    name: iOS simulator boot
+    name: iOS ${{ matrix.shard }}/3
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -168,39 +188,21 @@ jobs:
           mkdir -p template
           unzip -q templates/*.zip -d template
 
-      - name: Build the SDK the game is bundled against
+      - name: Build the SDK the games are bundled against
         run: pnpm --filter ./sdk build
-
-      - name: Write the Xcode project around the example
-        run: |
-          node desktop/scripts/export-project.mjs "examples/${{ inputs.example }}" \
-            --platform ios --template template --out dist-ios --json export.json
-          project=$(node -p "require('./export.json').xcodeProject")
-          if [ "$project" = "undefined" ]; then
-            echo "::error::the iOS export wrote no Xcode project — see the warnings above"
-            exit 1
-          fi
-          echo "XCODEPROJ=$project" >> "$GITHUB_ENV"
-          echo "SCHEME=$(basename "$project" .xcodeproj)" >> "$GITHUB_ENV"
 
       # Simulator slices need no signing identity, which is the whole reason this
       # can run on a hosted runner at all.
-      - name: Build it for the simulator
-        run: |
-          xcodebuild -project "$XCODEPROJ" -scheme "$SCHEME" -configuration Release \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath dd CODE_SIGNING_ALLOWED=NO build
-          app=$(find dd/Build/Products -maxdepth 2 -name '*.app' | head -1)
-          test -n "$app" || { echo "::error::xcodebuild produced no .app"; exit 1; }
-          echo "APP=$app" >> "$GITHUB_ENV"
+      - name: Package and boot every example in this shard
+        run: >-
+          node tools/verify-native-boot.mjs --platform ios --examples all
+          --device "$IOS_DEVICE" --shard ${{ matrix.shard }}/3
+          ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
 
-      - name: Boot it on a simulator
-        run: node tools/verify-native-boot.mjs --platform ios --app "$APP"
-
-      - name: Keep the frame and the record
+      - name: Keep the frames and the records
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-boot-${{ inputs.example }}
+          name: ios-shots-${{ matrix.shard }}
           path: build/native-boot
           if-no-files-found: warn
