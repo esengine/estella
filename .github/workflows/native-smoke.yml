@@ -31,6 +31,7 @@ on:
     inputs:
       template-tag:
         required: false
+        default: ''
         type: string
       example:
         required: false
@@ -50,16 +51,31 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # Called from the release pipeline the templates are this run's artifacts;
+      # run by hand there are none, so a blank tag means the newest release rather
+      # than a download that fails saying nothing was uploaded.
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.template-tag }}
+        run: |
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "no tag given — taking the templates from the latest release, $TAG"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Take the template from the release
-        if: inputs.template-tag != ''
+        if: steps.src.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "${{ inputs.template-tag }}" --repo "$GITHUB_REPOSITORY" \
+          gh release download "${{ steps.src.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
             -p 'estella-native-android-*.zip' -D templates
 
       - name: Take the template from this run
-        if: inputs.template-tag == ''
+        if: steps.src.outputs.tag == ''
         uses: actions/download-artifact@v8
         with:
           name: native-template-android
@@ -119,16 +135,28 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.template-tag }}
+        run: |
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "no tag given — taking the templates from the latest release, $TAG"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Take the template from the release
-        if: inputs.template-tag != ''
+        if: steps.src.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "${{ inputs.template-tag }}" --repo "$GITHUB_REPOSITORY" \
+          gh release download "${{ steps.src.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
             -p 'estella-native-ios-*.zip' -D templates
 
       - name: Take the template from this run
-        if: inputs.template-tag == ''
+        if: steps.src.outputs.tag == ''
         uses: actions/download-artifact@v8
         with:
           name: native-template-ios

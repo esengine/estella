@@ -227,6 +227,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
 
+  # Completeness is not the same as working. The archives this run just built are
+  # packaged around a real example and started on an emulator and a simulator, so
+  # a template that produces an app which dies — or draws nothing, which is how
+  # v0.36.0 reached players — cannot become a release.
+  smoke:
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.native-templates.result == 'success'
+    uses: ./.github/workflows/native-smoke.yml
+    secrets: inherit
+
   release:
     # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
     # and electron-builder needs the native OS. No emsdk, no C++ here.
@@ -368,11 +378,12 @@ jobs:
   # `release: published`, when the assets are final and downloadable by tag.
   publish:
     name: Publish the release
-    needs: [draft, release, publish-templates]
+    needs: [draft, release, publish-templates, smoke]
     if: >-
       github.event_name == 'push' &&
       needs.release.result == 'success' &&
-      needs.publish-templates.result == 'success'
+      needs.publish-templates.result == 'success' &&
+      needs.smoke.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
