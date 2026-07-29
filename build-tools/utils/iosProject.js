@@ -43,6 +43,18 @@ function targetName(appName) {
 }
 
 /**
+ * Text safe to substitute into the Info.plist, which is XML.
+ *
+ * A game called "Save & Load" wrote a plist Xcode could not parse, and the build
+ * failed with "unable to read property list" naming neither the ampersand nor
+ * the name it came from. Every project whose title contains `&`, `<` or `>` was
+ * unbuildable for iOS.
+ */
+function xmlText(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * Write the Xcode project into an export, in place: the export directory BECOMES
  * the project. Its cooked files stay where they are and join the resources phase
  * directly — they land at the bundle root, which is where the host reads them.
@@ -88,8 +100,8 @@ export async function emitIosXcodeProject(contentDir, app, sources, deploymentTa
     const orientations = iosInterfaceOrientations(app.orientation)
         .map((o) => `\t\t<string>${o}</string>`).join('\n');
     await writeFile(path.join(appDir, 'Info.plist'), template
-        .replace(/@APP_NAME@/g, app.name)
-        .replace(/@VERSION_NAME@/g, app.version)
+        .replace(/@APP_NAME@/g, xmlText(app.name))
+        .replace(/@VERSION_NAME@/g, xmlText(app.version))
         .replace(/@VERSION_CODE@/g, String(app.versionCode))
         .replace(/@ORIENTATIONS@/g, orientations));
 
