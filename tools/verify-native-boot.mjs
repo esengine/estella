@@ -55,7 +55,13 @@ const KNOWN_FAILURES = {};
 
 function parseArgs(argv) {
     const opts = {
-        platform: 'android', timeout: 120, minColors: 8,
+        platform: 'android', timeout: 120, settle: 3,
+        // Two, not a threshold that sounds more rigorous. A 2D scene of flat
+        // sprites is legitimately four colors, and "8" red-flagged camera-follow
+        // for rendering exactly what it is supposed to render. The claim this can
+        // honestly make is "not a uniform clear"; anything finer needs a baseline
+        // to compare against, not a bigger number.
+        minColors: 2,
         out: path.join(ROOT, 'build', 'native-boot'),
         template: path.join(ROOT, 'template'),
     };
@@ -66,12 +72,27 @@ function parseArgs(argv) {
     }
     opts.timeout = Number(opts.timeout);
     opts.minColors = Number(opts.minColors);
+    opts.settle = Number(opts.settle);
     return opts;
 }
 
 const sh = (cmd, args, o = {}) => execFileSync(cmd, args, { encoding: 'utf8', ...o });
 const trySh = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8' });
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
+
+/**
+ * Run a build step quietly, but keep its output for the failure.
+ *
+ * execFileSync's message is the command line, which is exactly what a reader of
+ * a failed build already knows. What they need is the compiler's last words.
+ */
+function quietly(what, cmd, args) {
+    const got = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (got.status === 0) return got.stdout ?? '';
+    const said = `${got.stdout ?? ''}\n${got.stderr ?? ''}`.trim().split('\n')
+        .filter((l) => /error|Error|fatal|FAILED/.test(l)).slice(-6).join('\n  ');
+    throw new Error(`${what} failed${said ? `:\n  ${said}` : ` (exit ${got.status})`}`);
+}
 
 // =============================================================================
 // Android — adb against whatever emulator or phone is attached
@@ -109,6 +130,18 @@ function androidDriver(opts) {
         },
         stop() {
             trySh(adb, ['shell', 'am', 'force-stop', APP_ID]);
+        },
+        // Counting colors on a SCREEN, not on the game: an emulator that pops
+        // "Pixel Launcher isn't responding" over a black app hands the check a
+        // dialog full of colors and it calls that a rendered frame.
+        foreground() {
+            const out = trySh(adb, ['shell', 'dumpsys', 'activity', 'activities']).stdout ?? '';
+            const line = out.split('\n').find((l) => /ResumedActivity/.test(l));
+            if (line) return line.includes(APP_ID) ? null : `on screen instead: ${line.trim().slice(0, 100)}`;
+            return trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim() ? null : 'the app process is gone';
+        },
+        clearScreen() {
+            trySh(adb, ['shell', 'am', 'broadcast', '-a', 'android.intent.action.CLOSE_SYSTEM_DIALOGS']);
         },
         readLog() {
             const got = trySh(adb, ['shell', 'cat', logFile]);
@@ -185,6 +218,14 @@ function iosDriver(opts) {
         stop() {
             trySh('xcrun', ['simctl', 'terminate', udid, APP_ID]);
         },
+        foreground() {
+            const out = trySh('xcrun', ['simctl', 'spawn', udid, 'launchctl', 'list']);
+            // Only answer when the probe itself worked — a failed probe is not
+            // evidence that the app died.
+            if (out.status !== 0) return null;
+            return out.stdout.includes(APP_ID) ? null : 'the app is no longer running';
+        },
+        clearScreen() {},
         readLog() {
             const container = trySh('xcrun', ['simctl', 'get_app_container', udid, APP_ID, 'data']);
             if (container.status !== 0) return '';
@@ -204,11 +245,11 @@ function iosDriver(opts) {
         build(exported) {
             if (!exported.xcodeProject) throw new Error('the export wrote no Xcode project');
             const scheme = path.basename(exported.xcodeProject, '.xcodeproj');
-            sh('xcodebuild', [
+            quietly('xcodebuild', 'xcodebuild', [
                 '-project', exported.xcodeProject, '-scheme', scheme, '-configuration', 'Release',
                 '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator',
                 '-derivedDataPath', derived, 'CODE_SIGNING_ALLOWED=NO', 'build',
-            ], { stdio: ['ignore', 'ignore', 'pipe'] });
+            ]);
             const app = path.join(derived, 'Build', 'Products', 'Release-iphonesimulator', `${scheme}.app`);
             if (!existsSync(app)) throw new Error(`xcodebuild produced no ${scheme}.app`);
             return app;
@@ -222,14 +263,26 @@ function iosDriver(opts) {
 
 async function verifyApp(driver, artifact, label, opts) {
     driver.install(artifact);
-    driver.launch();
 
     let log = '';
-    const deadline = Date.now() + opts.timeout * 1000;
-    while (Date.now() < deadline) {
-        log = driver.readLog();
-        if (log.includes(READY)) break;
-        await sleep(2000);
+    let offScreen = null;
+    // One retry, because a system dialog stealing focus is the emulator having a
+    // bad minute, not the game being broken — and a gate that reds on that gets
+    // ignored within a week.
+    for (let attempt = 0; attempt < 2; attempt++) {
+        driver.launch();
+        const deadline = Date.now() + opts.timeout * 1000;
+        while (Date.now() < deadline) {
+            log = driver.readLog();
+            if (log.includes(READY)) break;
+            await sleep(2000);
+        }
+        // `ready` is the first frame submitted; presenting it is not instant.
+        await sleep(opts.settle * 1000);
+        offScreen = driver.foreground();
+        if (!offScreen) break;
+        driver.clearScreen();
+        driver.stop();
     }
 
     const frame = driver.screenshot();
@@ -242,15 +295,19 @@ async function verifyApp(driver, artifact, label, opts) {
     const colors = distinctColors(image);
     const ready = log.includes(READY);
     const readyLine = log.split('\n').find((l) => l.includes(READY))?.trim() ?? '';
+    // The record already carries structured errors, and they say far more than a
+    // pixel count can: drawing-demo drew a black screen because a resize sent
+    // es_onNativeVisibility into infinite recursion, and the record said so.
+    const errors = log.split('\n').filter((l) => l.startsWith('ERROR ['));
+
+    const why = !ready ? 'never reported ready'
+        : offScreen ? `the game was not on screen — ${offScreen}`
+            : errors.length ? errors[0].trim()
+                : colors < opts.minColors ? `the frame is ${colors} flat color` : '';
+
     return {
-        ok: ready && colors >= opts.minColors,
-        ready,
-        colors,
-        readyLine,
-        size: `${image.width}x${image.height}`,
-        log,
-        shot,
-        why: !ready ? 'never reported ready' : (colors < opts.minColors ? `frame is ${colors} color(s)` : ''),
+        ok: !why, ready, colors, readyLine, errors, offScreen,
+        size: `${image.width}x${image.height}`, log, shot, why,
     };
 }
 
@@ -278,15 +335,14 @@ function packageExample(driver, name, opts) {
     const report = path.join(work, 'export.json');
     rmSync(work, { recursive: true, force: true });
     mkdirSync(work, { recursive: true });
-    const out = sh(process.execPath, [
+    quietly('export', process.execPath, [
         path.join(ROOT, 'desktop', 'scripts', 'export-project.mjs'),
         path.join(ROOT, 'examples', name),
         '--platform', driver.name,
         '--template', opts.template,
         '--out', path.join(work, 'dist'),
         '--json', report,
-    ], { stdio: ['ignore', 'ignore', 'pipe'] });
-    void out;
+    ]);
     if (!existsSync(report)) throw new Error('the export wrote no result');
     const exported = JSON.parse(sh('cat', [report]));
     if (!exported.ok) throw new Error(`export failed: ${(exported.errors ?? []).join('; ') || 'no reason given'}`);
@@ -318,8 +374,12 @@ if (!device) {
 console.log(`device: ${device}\n`);
 
 const summary = [];
+// Printed as well as filed: the emulator writes its own Vulkan chatter to this
+// same stream, so a table that existed only in the job summary left the log
+// unreadable exactly when someone was reading it to find out what broke.
 const note = (line) => {
     summary.push(line);
+    console.log(line);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${line}\n`);
 };
 
@@ -361,7 +421,6 @@ console.log(`${examples.length} example(s)${opts.shard ? ` (shard ${opts.shard})
 
 const results = [];
 for (const name of examples) {
-    process.stdout.write(`${name.padEnd(24)} `);
     let r;
     try {
         const { app, work } = packageExample(driver, name, opts);
@@ -373,7 +432,7 @@ for (const name of examples) {
         r = { ok: false, why: err.message.split('\n')[0], log: '', colors: 0, size: '-' };
     }
     results.push({ name, ...r });
-    console.log(r.ok ? `✓ ${r.colors} colors` : `✗ ${r.why}`);
+    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors` : `✗ ${r.why}`}`);
 }
 
 const known = Object.keys(KNOWN_FAILURES);
