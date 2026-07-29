@@ -6,7 +6,7 @@
  */
 
 import { World } from '../ecs/world';
-import { Schedule, SystemDef, SystemRunner, SystemSet, type RunCondition } from '../ecs/system';
+import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, type RunCondition } from '../ecs/system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { EventRegistry, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -234,6 +234,11 @@ export class App {
     // Systems
     // =========================================================================
 
+    /**
+     * Register `system` onto `schedule`. Ordering given here is added to
+     * whatever the definition already declared, so a system can carry its own
+     * edges and still be constrained further at the registration site.
+     */
     addSystemToSchedule(
         schedule: Schedule,
         system: SystemDef,
@@ -245,13 +250,15 @@ export class App {
             _params: system._params,
             _fn: system._fn,
             _name: name,
+            _runBefore: system._runBefore,
+            _runAfter: system._runAfter,
         };
         this.templateToRuntime_.set(system._id, scoped._id);
 
         this.systems_.get(schedule)!.push({
             system: scoped,
-            runBefore: options?.runBefore,
-            runAfter: options?.runAfter,
+            runBefore: mergeOrderingEdges(system._runBefore, options?.runBefore),
+            runAfter: mergeOrderingEdges(system._runAfter, options?.runAfter),
             runIf: options?.runIf,
             subsystem: this.buildingPlugin_ ?? undefined,
         });
@@ -321,11 +328,11 @@ export class App {
     }
 
     /**
-     * Register every system in `set` onto `schedule`. Each member inherits
-     * the set's `runIf` (AND-combined with its own if supplied per-system
-     * here), and its `runBefore` / `runAfter` lists are prepended to the
-     * member's edges. Other systems may reference the set's name in their
-     * own ordering; the scheduler expands those references to every member.
+     * Register every system in `set` onto `schedule`. Each member gets the set's
+     * `runIf`, and the set's `runBefore` / `runAfter` edges on top of any it
+     * declared itself; members keep the order they were listed in. Other systems
+     * may reference the set's name in their own ordering, and the scheduler
+     * expands those references to every member.
      */
     addSystemSetToSchedule(schedule: Schedule, set: SystemSet): this {
         const members: string[] = [];
@@ -333,8 +340,8 @@ export class App {
             const name = sys._name || `System_${String(++this.systemCounter_)}`;
             members.push(name);
 
-            const mergedRunBefore = set._runBefore ? [...set._runBefore] : undefined;
-            const mergedRunAfter = set._runAfter ? [...set._runAfter] : undefined;
+            const mergedRunBefore = mergeOrderingEdges(sys._runBefore, set._runBefore);
+            const mergedRunAfter = mergeOrderingEdges(sys._runAfter, set._runAfter);
             const setCondition = set._runIf;
             const runIf: RunCondition | undefined = setCondition ? (() => setCondition()) : undefined;
 
@@ -345,6 +352,8 @@ export class App {
                 _params: sys._params,
                 _fn: sys._fn,
                 _name: name,
+                _runBefore: sys._runBefore,
+                _runAfter: sys._runAfter,
             };
             this.templateToRuntime_.set(sys._id, scoped._id);
 

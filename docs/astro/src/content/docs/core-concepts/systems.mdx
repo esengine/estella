@@ -61,30 +61,103 @@ or into any phase with `addSystemToSchedule(Schedule.X, system)`:
 | `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | Every frame, in this order. |
 | `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | On the fixed timestep (physics / replication cadence) — 0..n times per frame. |
 
-Within a phase, systems run in registration order. To constrain that, register on
-the **`App`** with ordering options — these reference system **names**, so name the
-systems you want to order:
+Within a phase, systems run in **registration order** — a straight-line flow needs
+no annotations at all. Beyond that, reach for the coarsest lever that expresses
+what you mean.
+
+### Phases first
+
+Most "run this after that" is really "this belongs in the next phase". Order
+across phases is fixed, so it costs no edges: read input in `PreUpdate`, move in
+`Update`, follow with the camera in `PostUpdate`.
+
+### Ordering edges
+
+Where one system genuinely depends on another inside the same phase, say so.
+Edges reference system **names**, so name the systems you want to order. Ordering
+declared on `defineSystem` travels with the definition — which is how the
+top-level `addSystem`, which takes no options of its own, gets ordered:
+
+```typescript
+const move = defineSystem([...], moveFn, { name: 'move' });
+const camera = defineSystem([...], cameraFn, {
+  name: 'camera',
+  runAfter: ['move'],          // camera follows movement
+});
+
+addSystem(move);
+addSystem(camera);
+```
+
+Registering on the **`App`** takes the same edges plus `runIf`, and **adds** to
+whatever the definition declared rather than replacing it:
 
 ```typescript
 import { Schedule } from 'esengine';
 
-const move = defineSystem([...], moveFn, { name: 'move' });
-const camera = defineSystem([...], cameraFn, { name: 'camera' });
-
-app.addSystemToSchedule(Schedule.Update, move);
 app.addSystemToSchedule(Schedule.Update, camera, {
-  runAfter: ['move'],          // camera follows movement
+  runAfter: ['input'],         // on top of the 'move' edge above
   runIf: () => isPlaying,      // skip this system when the condition is false
 });
 ```
+
+An edge naming a system that isn't in that phase is ignored, and if the edges ever
+form a loop the scheduler throws with the offending path —
+`Circular system dependency: move → camera → move`.
+
+### System sets
+
+Naming a dependency once per system gets old. `defineSystemSet` gives a **group**
+one name: the set's `runIf` and edges apply to every member, and any other system
+can constrain the whole group by referring to that name.
+
+```typescript
+import { Schedule, defineSystemSet } from 'esengine';
+
+const physics = defineSystemSet('physics', {
+  systems: [applyForces, integrateVelocity, resolveContacts],
+  runBefore: ['render'],       // all three run before 'render'
+  runIf: () => !paused,        // ...and none of them run while paused
+});
+
+app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
+
+// One edge waits for the entire set:
+app.addSystemToSchedule(Schedule.FixedUpdate, debugDraw, { runAfter: ['physics'] });
+```
+
+Members keep the order they are listed in. `app.addSystemSet(set)` is the shortcut
+for the `Update` phase.
+
+### Priority numbers
+
+There is no `order: 100` option, and none is needed: registration order *is* the
+default order, so a numeric scheme is a sort at the call site.
+
+```typescript
+const ordered = [
+  { order: 100, system: input },
+  { order: 200, system: move },
+  { order: 300, system: camera },
+];
+for (const { system } of ordered.sort((a, b) => a.order - b.order)) {
+  app.addSystemToSchedule(Schedule.Update, system);
+}
+```
+
+The engine does not build this in because a number is an implicit global protocol:
+values collide, inserting between neighbours needs a magic gap, and deleting a
+system quietly takes an implied dependency with it. `runAfter: ['move']` states the
+dependency itself — local, composable across plugins, and checkable.
 
 Scene systems only run while their scene is active, so multiple scenes can coexist
 in one world without interfering.
 
 <Aside type="note">
-  The top-level `addSystem` / `addSystemToSchedule` take **no** options, and
-  `defineSystem`'s options keep only `name` — so ordering (`runBefore` / `runAfter`
-  / `runIf`) is applied through `app.addSystemToSchedule(schedule, system, options)`.
+  The top-level `addSystem` / `addSystemToSchedule` take **no** options — put `name`,
+  `runBefore` and `runAfter` in `defineSystem`. A run condition (`runIf`) has no
+  definition-site form, so it comes from `app.addSystemToSchedule(schedule, system,
+  options)` or from the enclosing `SystemSet`.
 </Aside>
 
 ## Filtering & change detection

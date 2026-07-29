@@ -54,28 +54,94 @@ addSystem(defineSystem(
 | `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | 每帧,按此顺序。 |
 | `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | 固定步长(物理 / 复制节拍)——每帧 0..n 次。 |
 
-同一阶段内,系统按注册顺序运行。要约束顺序,在 **`App`** 上带排序选项注册——它们按系统
-**名字**引用,所以给要排序的系统起名:
+同一阶段内,系统**按注册顺序**运行——线性流程一个标注都不用写。再往上,按"能表达你的
+意思的最粗那一层"来选工具。
+
+### 先用阶段
+
+大多数"我要跑在它之后"其实是"我属于下一个阶段"。跨阶段的先后是固定的,不用任何依赖边:
+`PreUpdate` 收输入,`Update` 移动,`PostUpdate` 跟相机。
+
+### 排序边
+
+同一阶段内确实存在依赖时,把它写出来。依赖边按系统**名字**引用,所以要给参与排序的系统
+起名。写在 `defineSystem` 上的排序会**跟着定义走**——顶层的 `addSystem` 自身不收选项,靠
+的就是这条:
+
+```typescript
+const move = defineSystem([...], moveFn, { name: 'move' });
+const camera = defineSystem([...], cameraFn, {
+  name: 'camera',
+  runAfter: ['move'],          // 相机跟在移动之后
+});
+
+addSystem(move);
+addSystem(camera);
+```
+
+在 **`App`** 上注册可以写同样的边,外加 `runIf`;它是在定义处已声明的边之上**追加**,而不是
+覆盖:
 
 ```typescript
 import { Schedule } from 'esengine';
 
-const move = defineSystem([...], moveFn, { name: 'move' });
-const camera = defineSystem([...], cameraFn, { name: 'camera' });
-
-app.addSystemToSchedule(Schedule.Update, move);
 app.addSystemToSchedule(Schedule.Update, camera, {
-  runAfter: ['move'],          // 相机跟在移动之后
+  runAfter: ['input'],         // 叠加在上面那条 'move' 边之上
   runIf: () => isPlaying,      // 条件为 false 时跳过该系统
 });
 ```
 
+指向本阶段内不存在的系统的边会被忽略;依赖边一旦成环,调度器会带着成环路径抛错——
+`Circular system dependency: move → camera → move`。
+
+### 系统集(System Set)
+
+一条条给每个系统写依赖很快就烦了。`defineSystemSet` 给**一组**系统起一个名字:集合的
+`runIf` 和依赖边对每个成员生效,别的系统也只要引用这个名字就能一次约束整组。
+
+```typescript
+import { Schedule, defineSystemSet } from 'esengine';
+
+const physics = defineSystemSet('physics', {
+  systems: [applyForces, integrateVelocity, resolveContacts],
+  runBefore: ['render'],       // 三个成员都跑在 'render' 之前
+  runIf: () => !paused,        // ……暂停时三个都不跑
+});
+
+app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
+
+// 一条边就等整组:
+app.addSystemToSchedule(Schedule.FixedUpdate, debugDraw, { runAfter: ['physics'] });
+```
+
+成员按列出的顺序运行。`app.addSystemSet(set)` 是注册进 `Update` 阶段的快捷方式。
+
+### 数值优先级
+
+没有 `order: 100` 这种选项,也不需要:注册顺序**就是**默认顺序,所以数值方案就是调用处
+的一次排序。
+
+```typescript
+const ordered = [
+  { order: 100, system: input },
+  { order: 200, system: move },
+  { order: 300, system: camera },
+];
+for (const { system } of ordered.sort((a, b) => a.order - b.order)) {
+  app.addSystemToSchedule(Schedule.Update, system);
+}
+```
+
+引擎不内建它,是因为数值是一份隐式的全局协议:数字会撞车,想往两者之间插入就得靠魔法
+间隔,删掉一个系统还会悄悄带走一条隐含依赖。而 `runAfter: ['move']` 陈述的是依赖本身
+——局部、可跨插件组合、且可校验。
+
 场景系统只在其所属场景处于激活状态时运行,因此多个场景可以共存于同一个世界而互不干扰。
 
 <Aside type="note">
-  顶层的 `addSystem` / `addSystemToSchedule` **不**收选项,`defineSystem` 的选项只保留
-  `name`——所以排序(`runBefore` / `runAfter` / `runIf`)要经
-  `app.addSystemToSchedule(schedule, system, options)` 施加。
+  顶层的 `addSystem` / `addSystemToSchedule` **不**收选项——`name` / `runBefore` /
+  `runAfter` 写在 `defineSystem` 里。运行条件 `runIf` 没有定义处的写法,只能经
+  `app.addSystemToSchedule(schedule, system, options)` 或所属的 `SystemSet` 施加。
 </Aside>
 
 ## 过滤与变更检测

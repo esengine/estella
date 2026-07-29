@@ -191,7 +191,7 @@ The members exported for users, grouped:
 |---|---|
 | `app.addSystem(sys)` | Register on `Schedule.Update`. |
 | `app.addStartupSystem(sys)` | Register on `Schedule.Startup` (runs once, before the first frame's schedules). |
-| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | Any schedule, with ordering edges and a run condition. |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | Any schedule, with a run condition and ordering edges — added to any the definition already declared. |
 | `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | Register a whole `SystemSet`; members inherit the set's `runIf` and ordering, and other systems can order against the set's name. |
 | `app.removeSystem(systemId)` | Remove by the def's `_id` symbol. |
 | `app.addEvent(eventDef)` | Register an event channel (double-buffered; swapped each frame). |

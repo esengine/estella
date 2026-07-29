@@ -339,6 +339,7 @@ export {
 export {
     Schedule,
     defineSystem,
+    defineSystemSet,
     addSystem,
     addStartupSystem,
     addSystemToSchedule,
@@ -348,6 +349,8 @@ export {
     type SystemDef,
     type SystemParam,
     type SystemOptions,
+    type SystemSet,
+    type SystemSetOptions,
     type InferParam,
     type InferParams,
 } from './ecs/system';

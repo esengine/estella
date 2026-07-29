@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App } from '../src/app/app';
-import { defineSystem, Schedule } from '../src/ecs/system';
+import { App, flushPendingSystems } from '../src/app/app';
+import { addSystem, defineSystem, Schedule } from '../src/ecs/system';
 
 describe('System Dependency Ordering', () => {
     let app: App;
@@ -189,6 +189,93 @@ describe('System Dependency Ordering', () => {
 
             expect(layoutIdx).toBeLessThan(timelineIdx);
             expect(timelineIdx).toBeLessThan(transformIdx);
+        });
+    });
+
+    describe('ordering declared on defineSystem', () => {
+        it('travels with the definition to the registration site', async () => {
+            const move = defineSystem([], () => {
+                executionOrder.push('move');
+            }, { name: 'MoveSystem' });
+
+            const camera = defineSystem([], () => {
+                executionOrder.push('camera');
+            }, { name: 'CameraSystem', runAfter: ['MoveSystem'] });
+
+            app.addSystemToSchedule(Schedule.Update, camera);
+            app.addSystemToSchedule(Schedule.Update, move);
+
+            (app as any).runner_ = { run: (sys: any) => sys._fn() };
+            await (app as any).runSchedule(Schedule.Update);
+
+            expect(executionOrder).toEqual(['move', 'camera']);
+        });
+
+        it('applies through the top-level addSystem path, which takes no options', async () => {
+            const move = defineSystem([], () => {
+                executionOrder.push('move');
+            }, { name: 'MoveSystem' });
+
+            const camera = defineSystem([], () => {
+                executionOrder.push('camera');
+            }, { name: 'CameraSystem', runAfter: ['MoveSystem'] });
+
+            addSystem(camera);
+            addSystem(move);
+            flushPendingSystems(app);
+
+            (app as any).runner_ = { run: (sys: any) => sys._fn() };
+            await (app as any).runSchedule(Schedule.Update);
+
+            expect(executionOrder).toEqual(['move', 'camera']);
+        });
+
+        it('adds to the registration site edges rather than being replaced by them', async () => {
+            const input = defineSystem([], () => {
+                executionOrder.push('input');
+            }, { name: 'InputSystem' });
+
+            const move = defineSystem([], () => {
+                executionOrder.push('move');
+            }, { name: 'MoveSystem' });
+
+            // Declares one edge itself, gets another at registration.
+            const camera = defineSystem([], () => {
+                executionOrder.push('camera');
+            }, { name: 'CameraSystem', runAfter: ['MoveSystem'] });
+
+            app.addSystemToSchedule(Schedule.Update, camera, { runAfter: ['InputSystem'] });
+            app.addSystemToSchedule(Schedule.Update, move);
+            app.addSystemToSchedule(Schedule.Update, input);
+
+            (app as any).runner_ = { run: (sys: any) => sys._fn() };
+            await (app as any).runSchedule(Schedule.Update);
+
+            const cameraIdx = executionOrder.indexOf('camera');
+            expect(executionOrder.indexOf('move')).toBeLessThan(cameraIdx);
+            expect(executionOrder.indexOf('input')).toBeLessThan(cameraIdx);
+        });
+
+        it('survives repeated registration of the same definition', async () => {
+            const move = defineSystem([], () => {
+                executionOrder.push('move');
+            }, { name: 'MoveSystem' });
+
+            const camera = defineSystem([], () => {
+                executionOrder.push('camera');
+            }, { name: 'CameraSystem', runAfter: ['MoveSystem'] });
+
+            const other = App.new();
+            other.addSystemToSchedule(Schedule.Update, camera);
+            other.addSystemToSchedule(Schedule.Update, move);
+
+            app.addSystemToSchedule(Schedule.Update, camera);
+            app.addSystemToSchedule(Schedule.Update, move);
+
+            (app as any).runner_ = { run: (sys: any) => sys._fn() };
+            await (app as any).runSchedule(Schedule.Update);
+
+            expect(executionOrder).toEqual(['move', 'camera']);
         });
     });
 

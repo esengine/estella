@@ -90,16 +90,29 @@ export interface SystemDef {
     readonly _params: readonly SystemParam[];
     readonly _fn: (...args: never[]) => void | Promise<void>;
     readonly _name: string;
+    readonly _runBefore?: readonly string[];
+    readonly _runAfter?: readonly string[];
 }
 
 let templateCounter_ = 0;
 
 export interface SystemOptions {
+    /** Name other systems reference in their ordering edges. */
     name?: string;
+    /** This system runs before each of these names (a system or a set). */
     runBefore?: string[];
+    /** This system runs after each of these names (a system or a set). */
     runAfter?: string[];
 }
 
+/**
+ * Declare a system: what it reads and writes, and the function to run.
+ *
+ * Ordering declared here travels with the definition, so it applies wherever
+ * the system is registered — including the top-level {@link addSystem}, which
+ * takes no options of its own. Edges given again at the registration site (or
+ * on the enclosing {@link SystemSet}) are added to these, not replaced.
+ */
 export function defineSystem<P extends readonly SystemParam[]>(
     params: [...P],
     fn: (...args: InferParams<P>) => void | Promise<void>,
@@ -111,8 +124,24 @@ export function defineSystem<P extends readonly SystemParam[]>(
         _id: Symbol(`SystemTemplate_${tid}`),
         _params: params,
         _fn: fn as (...args: never[]) => void,
-        _name: options?.name ?? ''
+        _name: options?.name ?? '',
+        _runBefore: options?.runBefore,
+        _runAfter: options?.runAfter,
     };
+}
+
+/** Union of ordering edges from two sources, preserving first-seen order. */
+export function mergeOrderingEdges(
+    a: readonly string[] | undefined,
+    b: readonly string[] | undefined
+): string[] | undefined {
+    if (!a?.length) return b?.length ? [...b] : undefined;
+    if (!b?.length) return [...a];
+    const out = [...a];
+    for (const name of b) {
+        if (!out.includes(name)) out.push(name);
+    }
+    return out;
 }
 
 // =============================================================================
@@ -120,11 +149,14 @@ export function defineSystem<P extends readonly SystemParam[]>(
 // =============================================================================
 
 /**
- * A named group of systems. When registered via `App.addSystemSet`, each
- * contained system inherits the set's `runIf` (AND-combined with its own)
- * and `runBefore`/`runAfter` edges. Other systems or sets may also reference
- * the set's *name* in their own `runBefore`/`runAfter` lists; the scheduler
- * expands such references to every member of the set.
+ * A named group of systems. When registered via `App.addSystemSet`, every
+ * member gets the set's `runIf` and its `runBefore` / `runAfter` edges — the
+ * group's ordering written once instead of per system. Other
+ * systems or sets may also reference the set's *name* in their own edges; the
+ * scheduler expands such a reference to every member of the set.
+ *
+ * Build one with {@link defineSystemSet}; the underscore-prefixed fields are
+ * the scheduler's, not an authoring surface.
  */
 export interface SystemSet {
     readonly _kind: 'set';
@@ -146,6 +178,21 @@ export interface SystemSetOptions {
     runAfter?: string[];
 }
 
+/**
+ * Group systems under one name so ordering and run conditions are written once.
+ *
+ * ```ts
+ * const physics = defineSystemSet('physics', {
+ *     systems: [applyForces, integrateVelocity],
+ *     runBefore: ['render'],
+ *     runIf: () => !paused,
+ * });
+ * app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
+ * ```
+ *
+ * Members keep the order they are listed in; anything constraining `'physics'`
+ * constrains all of them.
+ */
 export function defineSystemSet(name: string, options: SystemSetOptions): SystemSet {
     if (!name) throw new Error('SystemSet requires a name');
     return {

@@ -178,7 +178,7 @@ export const scorePlugin: Plugin = {
 |---|---|
 | `app.addSystem(sys)` | 注册到 `Schedule.Update`。 |
 | `app.addStartupSystem(sys)` | 注册到 `Schedule.Startup`(只跑一次,在首帧各调度之前)。 |
-| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | 任意调度,带排序边和运行条件。 |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | 任意调度,带运行条件和排序边——排序边追加在定义处已声明的边之上。 |
 | `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | 注册整个 `SystemSet`;成员继承集合的 `runIf` 与排序,其他系统可用集合名对其排序。 |
 | `app.removeSystem(systemId)` | 按系统定义的 `_id` symbol 移除。 |
 | `app.addEvent(eventDef)` | 注册事件通道(双缓冲;每帧交换)。 |
