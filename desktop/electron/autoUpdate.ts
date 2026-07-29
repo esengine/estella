@@ -7,11 +7,14 @@
  *          and the handover to the installer; updateCheck.ts remains the fallback.
  *          The two never both decide — `findUpdate` picks one and reports which.
  *
- *          Two builds cannot install an update. An unpackaged one has no
- *          app-update.yml to read. An UNSIGNED macOS bundle reads one, downloads
- *          the entire update, and only then does Squirrel.Mac refuse it for want of
- *          a signature — so the signature is settled up front, and a build that
- *          would fail at the end never starts.
+ *          Three builds cannot install an update, and two of them only find out at
+ *          the very end. An unpackaged one has no app-update.yml to read. An
+ *          UNSIGNED macOS bundle reads one, downloads the entire update, and only
+ *          then does Squirrel.Mac refuse it for want of a signature. A Windows
+ *          install whose app-update.yml names a publisher its own executable cannot
+ *          satisfy is refused the same way, by electron-updater, after the same
+ *          full download. So the signature is settled up front on both, and a build
+ *          that would fail at the end never starts.
  *
  *          The feed is the mirror before the origin, for the reason the update
  *          check and the runtime templates already ask a mirror first: the origin
@@ -20,9 +23,11 @@
  *          so pointing at one is a base swap and nothing else.
  */
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { app } from 'electron';
 import { checkForUpdate, updateFeeds, type LatestRelease } from './updateCheck';
+import { publisherNameIn, signatureSatisfies, type AuthenticodeProbe } from './updateSignature';
 
 /** Where a self-installing update sends anyone who would rather read about it first. */
 const RELEASE_PAGE = 'https://github.com/esengine/estella/releases/latest';
@@ -92,11 +97,60 @@ function macBundleIsSigned(): boolean {
   return macSignature;
 }
 
+let winVerifiable: boolean | null = null;
+
+/** `Get-AuthenticodeSignature` on a file, or null when Windows could not be asked. */
+function probeAuthenticode(file: string): AuthenticodeProbe | null {
+  try {
+    const ps = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command',
+        `Get-AuthenticodeSignature -LiteralPath '${file.replace(/'/g, "''")}' | ConvertTo-Json -Compress -Depth 3`],
+      { encoding: 'utf8', timeout: 20_000, windowsHide: true },
+    );
+    // Strip a leading BOM: a console whose code page PowerShell switches emits one,
+    // and JSON.parse rejects it — which would read as "could not ask Windows" and
+    // quietly promise a self-install that the updater then refuses.
+    const out = ps.stdout?.replace(/^﻿/, '');
+    return ps.status === 0 && out ? (JSON.parse(out) as AuthenticodeProbe) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether an update could clear electron-updater's Windows signature check here.
+ *
+ * The running executable came off the same signing pipeline the update will, so
+ * Windows's verdict on it is the verdict the update will get — and asking now is
+ * the difference between a link and a download that is refused at 100%. Cached:
+ * neither the pin nor the executable changes while the editor runs.
+ */
+function winUpdateCanVerify(): boolean {
+  if (winVerifiable === null) {
+    let publisher: string | null = null;
+    try {
+      publisher = publisherNameIn(readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8'));
+    } catch {
+      publisher = null; // no app-update.yml ⇒ the updater verifies nothing
+    }
+    winVerifiable = publisher === null || signatureSatisfies(publisher, probeAuthenticode(process.execPath));
+    if (!winVerifiable) {
+      console.warn(
+        `[update] this install pins publisher "${publisher}", which Windows will not vouch for on its own ` +
+        `executable — in-place updates cannot be verified here, so the editor links to the download instead. ` +
+        `Reinstalling from the release page clears it.`,
+      );
+    }
+  }
+  return winVerifiable;
+}
+
 /** Whether this build can download and install an update in place. */
 export function canSelfInstall(): boolean {
   if (!app.isPackaged) return false;
   if (process.platform === 'darwin') return macBundleIsSigned();
-  return process.platform === 'win32';
+  return process.platform === 'win32' && winUpdateCanVerify();
 }
 
 /** Reached a feed and got an answer, or reached none at all. */

@@ -18,6 +18,13 @@ on:
 # instead of updating in place (electron/autoUpdate.ts settles that by reading the
 # running bundle's own signature). Windows needs no certificate to auto-update; one
 # would buy a quiet SmartScreen, not the capability.
+#
+# Those secrets are macOS's alone, and the packager step scopes them to that leg on
+# purpose. `CSC_LINK` is electron-builder's PLATFORM-NEUTRAL certificate variable:
+# exported to the Windows leg it signs the installer with the Apple certificate,
+# which Windows cannot chain to a trusted root — and electron-updater refuses to
+# install any update whose signature is not Valid. v0.36.0 shipped that way, so every
+# Windows install from it is stuck on the download link until it is reinstalled once.
 
 # Read by default; the two jobs that touch the release raise it to contents:write.
 permissions:
@@ -264,12 +271,22 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # macOS ONLY. CSC_LINK is electron-builder's platform-NEUTRAL certificate
+          # variable: handed to the Windows leg it signs the NSIS installer with the
+          # Apple Developer ID .p12 (windowsSignToolManager falls back to CSC_LINK
+          # when WIN_CSC_LINK is unset), producing an installer whose chain Windows
+          # cannot build to a trusted root — and stamping that identity into
+          # app-update.yml as `publisherName`. electron-updater then demands an
+          # Authenticode status of Valid before installing, so every Windows
+          # auto-update is refused AFTER downloading the whole installer. An empty
+          # value reads as absent (getCscLink treats "" as null), so the Windows leg
+          # ships unsigned, which is what this project intends.
+          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
           # An app-specific password, NOT the Apple ID's own.
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
         # electron-builder's GitHub publisher dedups assets on re-upload, so the
         # whole command is idempotent — retry it to ride out GitHub API 5xx
         # blips (a 503 on GET /releases has failed an otherwise-finished build
@@ -293,12 +310,42 @@ jobs:
       - name: Package desktop app (dry run, no publish)
         if: github.event_name != 'push'
         env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS only — see the publish step above for why the Windows leg must
+          # never see a certificate meant for the other platform.
+          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
         run: pnpm --filter ./desktop exec electron-builder --publish never
+
+      # The invariant an update depends on, checked where it is cheap to check.
+      # electron-updater installs a Windows update only when Get-AuthenticodeSignature
+      # reports Valid, so an installer carrying a signature Windows will not accept is
+      # strictly worse than an unsigned one: it poisons `publisherName` in
+      # app-update.yml and every future update from that install is refused. Unsigned
+      # is fine (nothing to verify) and properly signed is fine; the state between
+      # them is the one that has already shipped once, so fail the release on it.
+      #
+      # It runs after publish rather than before because electron-builder packages and
+      # uploads in one command — which is enough, since releases are created as DRAFTS
+      # and a maintainer publishes them: a red job is seen before anyone can download.
+      - name: Windows installer must be unsigned or validly signed
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bad = @()
+          foreach ($exe in Get-ChildItem desktop/release/*.exe) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $exe.FullName
+            Write-Host "$($exe.Name): $($sig.Status)"
+            if ($sig.Status -ne 'NotSigned' -and $sig.Status -ne 'Valid') {
+              $bad += "$($exe.Name) is signed but Windows reports '$($sig.Status)' ($($sig.StatusMessage)); signer: $($sig.SignerCertificate.Subject)"
+            }
+          }
+          if ($bad) {
+            Write-Error ("Windows auto-update would be refused by every installed editor:`n" + ($bad -join "`n"))
+            exit 1
+          }
 
       - name: Upload installer artifact (dry run)
         if: github.event_name != 'push'
