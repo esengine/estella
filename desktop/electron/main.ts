@@ -27,6 +27,7 @@ import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type Autosa
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
+import { scaffoldScript, type ScriptKind } from './scriptScaffold';
 import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
@@ -853,6 +854,15 @@ ipcMain.handle('project:extractSchemas', async () => {
   const manifest = await readManifest(root);
   const { register } = resolveScripts(manifest);
   return extractProjectSchemas(root, { entry: register, required: manifest.scripts?.register !== undefined });
+});
+
+// Write a new project script and wire it into the entry its kind belongs to —
+// the declaration entry for a component, the startup entry for a system. Both
+// come from the SAME resolveScripts the extractor and the bundler read, so a
+// project that renamed its entries is wired at its own (see scriptScaffold.ts).
+ipcMain.handle('project:createScript', async (_e, kind: ScriptKind, name: string, dir?: string) => {
+  const root = requireRoot();
+  return scaffoldScript(root, { kind, name, dir, entries: resolveScripts(await readManifest(root)) });
 });
 
 // Scan the open project's `.meta` sidecars → the asset index (uuid↔path registry

@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry, ExportPlatform } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
+import type { ScaffoldScriptResult, ScriptKind } from './scriptScaffold';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
@@ -101,6 +102,11 @@ const api = {
     buildScripts: (): Promise<BuildScriptsResult> => ipcRenderer.invoke('project:buildScripts'),
     /** Extract the project's component field schemas → .esengine/cache/schemas.json. */
     extractSchemas: (): Promise<ExtractSchemasResult> => ipcRenderer.invoke('project:extractSchemas'),
+    /** Write a new script under the project's source root AND wire it into the entry
+     *  its kind belongs to (declaration entry for a component, startup entry for a
+     *  system) — an unwired module is one nothing bundles or inspects. */
+    createScript: (kind: ScriptKind, name: string, dir?: string): Promise<ScaffoldScriptResult> =>
+      ipcRenderer.invoke('project:createScript', kind, name, dir),
     /** Scan the project's .meta sidecars → the asset index (registry + dep graph). */
     scanAssets: (): Promise<ScanAssetsResult> => ipcRenderer.invoke('project:scanAssets'),
     /** The cached asset index (assets.json) without a tree walk, or null — the fast

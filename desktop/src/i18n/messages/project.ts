@@ -338,4 +338,23 @@ export const projectMessages = defineMessages({
         zh: '准备游戏运行环境超时（脚本打包器可能卡死）。请再次点击运行重试；若仍然如此，请重启编辑器。',
     },
     'proj.playRealmError': { en: 'play realm error', zh: '游戏运行环境错误' },
+
+    // — New Script dialog (Content Browser → New Script) —
+    'script.newTitle': { en: 'New Script', zh: '新建脚本' },
+    'script.create': { en: 'Create', zh: '创建' },
+    'script.field.kind': { en: 'Kind', zh: '类型' },
+    'script.field.name': { en: 'Name', zh: '名称' },
+    'script.kind.component': { en: 'Component', zh: '组件' },
+    'script.kind.system': { en: 'System', zh: '系统' },
+    'script.kind.componentHint': {
+        en: 'Data an entity carries. Declared for the editor to read, so it shows up in Add Component with a row per field.',
+        zh: '实体携带的数据。声明后编辑器即可读取，会出现在「添加组件」里，每个字段一行。',
+    },
+    'script.kind.systemHint': {
+        en: 'Behaviour that runs every frame while the scene plays, over the entities its query matches.',
+        zh: '场景运行时每帧执行的行为，作用于查询匹配到的实体。',
+    },
+    'script.willCreate': { en: 'Creates', zh: '创建' },
+    'script.willWire': { en: 'Wires into', zh: '接入' },
+    'script.created': { en: 'Created {path} and wired it into {entry}', zh: '已创建 {path} 并接入 {entry}' },
 });

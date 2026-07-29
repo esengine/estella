@@ -12,6 +12,7 @@ import '@/document/dirtyDocs'; // side effect: registers scene + asset docs on t
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { ConfirmHost } from '@/components/ConfirmHost';
+import { NewScriptHost } from '@/components/NewScriptHost';
 import { PrefabModeBanner } from '@/components/PrefabModeBanner';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { LoadGate } from '@/store/loadGate';
@@ -305,6 +306,7 @@ export function App() {
       {paletteOpen && <CommandPalette onClose={() => useEditorStore.getState().setPaletteOpen(false)} />}
       <Toaster />
       <ConfirmHost />
+      <NewScriptHost />
       <LoadingScreen />
     </div>
   );

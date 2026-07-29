@@ -37,7 +37,7 @@ import { assetTypeOf } from '@/project/assetMeta';
 import { ASSET_TYPES, assetTypeDef } from '@/project/assetTypes';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -133,6 +133,10 @@ interface ProjectState {
   defaultScene?: string;
   /** Engine features (subsystems) the project enables; drives the play realm. */
   features?: ProjectFeatures;
+  /** The manifest's script entries, resolved over the defaults — the same pair the
+   *  schema extractor and the play bundler read, so anything the editor wires into
+   *  a project's scripts wires into ITS entries and not the conventional ones. */
+  scripts: Required<ProjectScripts>;
   /** Persisted Package Project settings (last target/config/output). */
   packaging?: ProjectPackaging;
   /** Reference resolution new Canvas entities seed from; per-scene Canvas stays authoritative. */
@@ -448,6 +452,7 @@ class ProjectStoreImpl {
         packaging: opened.manifest.packaging,
         designResolution: opened.manifest.designResolution,
         screenPresets: opened.manifest.screenPresets,
+        scripts: resolveScripts(opened.manifest),
         currentScene: null,
       },
     });
@@ -610,6 +615,13 @@ class ProjectStoreImpl {
       ? (name.trim().endsWith('.esscene') ? name.trim() : `${name.trim()}.esscene`)
       : 'scene.esscene';
     return window.estella.project.createAsset(destDir, base, content, 'scene');
+  }
+
+  /** The open project's script entries — the declaration module the editor reads
+   *  schemas from and the startup module the play realm bundles. Falls back to the
+   *  conventional pair when no project is open (the dialog previews against it). */
+  scriptEntries(): Required<ProjectScripts> {
+    return this.state?.scripts ?? DEFAULT_SCRIPTS;
   }
 
   /** Create a blank `.inputmap` asset (named input actions) under `destDir`. */

@@ -64,6 +64,7 @@ export const contentMessages = defineMessages({
     'cb.menuImport': { en: 'Import…', zh: '导入…' },
     'cb.menuNewFolder': { en: 'New Folder', zh: '新建文件夹' },
     'cb.menuNewScene': { en: 'New Scene', zh: '新建场景' },
+    'cb.menuNewScript': { en: 'New Script…', zh: '新建脚本…' },
     'cb.menuNewAnimation': { en: 'New Animation', zh: '新建动画' },
     'cb.menuNewInputMap': { en: 'New Input Map', zh: '新建输入映射' },
     'cb.menuNewLocaleTable': { en: 'New Locale Table', zh: '新建本地化表' },

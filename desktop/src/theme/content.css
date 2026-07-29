@@ -168,3 +168,20 @@
 .cb-foot { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 12px; border-top: 1px solid var(--border); background: var(--srf-2); flex-shrink: 0; font-size: var(--fs-xs); color: var(--text-dim); }
 .cb-foot .sp { flex: 1; }
 .cb-foot input[type='range'] { width: 110px; accent-color: var(--acc); cursor: ew-resize; }
+
+/* New-script dialog. Same one-column label/field rhythm as the new-plugin dialog
+   (.npl), plus a plan block: what gets written and which entry gains a line. The
+   plan is shown before the file exists because the wiring — not the file — is
+   what makes a script one the engine runs. */
+.nsc { display: flex; flex-direction: column; gap: 10px; }
+.nsc__row { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 8px; }
+.nsc__label { font-size: var(--fs-xs); color: var(--text-dim); }
+.nsc__row input { width: 100%; padding: 4px 7px; background: var(--srf-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); font-size: var(--fs-xs); font-family: var(--font-ui); }
+.nsc__row input:focus { outline: none; border-color: var(--acc); }
+.nsc__hint { display: flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; margin-left: 68px; }
+.nsc__hint.is-error { color: #e0736a; }
+.nsc__plan { display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-md); }
+.nsc__planRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.nsc__planKey { flex: none; width: 52px; font-size: var(--fs-2xs); color: var(--text-faint); }
+.nsc__plan code { font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-dim); word-break: break-all; }
+.nsc__planLine { display: block; margin-top: 2px; padding-left: 60px; color: var(--star-hi) !important; }

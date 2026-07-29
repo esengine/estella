@@ -23,6 +23,7 @@ import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
 import { createAnimatorController } from '@/animator/openAnimatorController';
 import { createBehaviorTree } from '@/bt/openBehaviorTree';
+import { newScript } from '@/components/newScript';
 
 /** Create an asset in `dir`; a returned path means "reveal + rename me" (see file). */
 export type CreateAsset = (dir: string) => Promise<string | void> | string | void;
@@ -42,6 +43,11 @@ const shaderTemplateMenu = (make: (dir: string, templateId: string) => Promise<v
 
 export const NEW_ASSET_TYPES: NewAssetEntry[] = [
   { labelKey: 'cb.menuNewScene', create: (dir) => ProjectStore.createSceneFile(dir), errorKey: 'cb.newSceneFailed' },
+  // Returns void like the editor-backed creators: a script's editor is the one
+  // configured for source files, which the dialog hands it to itself — and its
+  // name is fixed at creation (it is also an identifier and an import specifier),
+  // so it must not land in the Content Browser's inline rename.
+  { labelKey: 'cb.menuNewScript', create: (dir) => void newScript(dir) },
   { labelKey: 'cb.menuNewAnimation', create: createAnimationClip },
   { labelKey: 'cb.menuNewInputMap', create: (dir) => ProjectStore.createInputMapFile(dir), errorKey: 'cb.newInputMapFailed' },
   { labelKey: 'cb.menuNewLocaleTable', create: (dir) => ProjectStore.createLocaleTableFile(dir), errorKey: 'cb.newLocaleTableFailed' },
