@@ -111,6 +111,39 @@ export class EditorHistoryImpl {
     }
   }
 
+  /**
+   * `group`, but a throw puts back what `fn` had already done and records
+   * nothing.
+   *
+   * The difference is who is watching. A UI gesture that fails mid-way leaves
+   * the user looking at the result with undo one keystroke away, so `group`
+   * keeps the partial work. A program applied over a socket has no such reader:
+   * its caller is told the batch failed and reasonably believes the scene is
+   * untouched, so a half-built subtree is a lie that outlives the error.
+   */
+  atomic<T>(label: string, fn: () => T): T {
+    if (this.groupOps) return fn(); // nested: the outer owner decides the step
+    const ops: HistoryOp[] = [];
+    this.groupOps = ops;
+    try {
+      const out = fn();
+      this.groupOps = null;
+      this.batch(label, ops);
+      return out;
+    } catch (e) {
+      this.groupOps = null;
+      // LIFO, exactly as undoing this entry would, then drop it entirely.
+      for (let i = ops.length - 1; i >= 0; i--) {
+        try {
+          ops[i].reverse();
+        } catch (err) {
+          console.warn(`[history] rollback op ${i} of "${label}" threw`, err);
+        }
+      }
+      throw e;
+    }
+  }
+
   // Ops run per-direction under try/catch — one broken closure must not wedge
   // the rest of the entry (matches the engine TransactionManager this replaced).
   private static apply(entry: HistoryEntry, dir: 'undo' | 'redo'): void {

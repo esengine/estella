@@ -334,6 +334,28 @@ export class SceneCommandsImpl {
   }
 
   /**
+   * Run `fn` as ONE undo step that rolls all the way back if it throws —
+   * structural edits included, which is what separates this from
+   * {@link transact}. A gesture only remembers the FIELDS it touched, so a
+   * batch that spawns entities and then fails leaves them behind: the fields
+   * snap back and the entities stay. Here the structural commands reverse
+   * themselves through the history group, and the field gesture aborts as
+   * before, so the scene is what it was before the batch started.
+   */
+  atomic(label: string, fn: () => void): void {
+    this.history.atomic(label, () => {
+      this.beginGesture(label);
+      try {
+        fn();
+        this.endGesture(); // the coalesced field edits join this step
+      } catch (e) {
+        this.abortGesture(); // touched fields restored live, nothing recorded
+        throw e;
+      }
+    });
+  }
+
+  /**
    * Write a single inspector field to the model (the Reconciler re-projects it
    * to the World). Always undoable: coalesced into an open gesture, else its own step.
    */

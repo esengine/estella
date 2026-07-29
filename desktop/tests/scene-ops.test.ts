@@ -16,7 +16,12 @@ const state = vi.hoisted(() => ({ nextId: 100, createReturnsNull: false, throwOn
 
 vi.mock('@/engine/EditorSession', () => ({
   EditorControlSurface: {
-    transact: (label: string, fn: () => void) => {
+    // The real one rolls structural edits back too (SceneCommands.atomic); this
+    // fake only records the boundary, which is all the interpreter can be asked
+    // about. That the rollback HAPPENS is pinned in editor-history-group.test.ts
+    // against the real history — a fake that simply rethrows once made this
+    // suite report a rollback contract nothing was keeping.
+    atomic: (label: string, fn: () => void) => {
       calls.push(['transact:begin', label]);
       try {
         fn();

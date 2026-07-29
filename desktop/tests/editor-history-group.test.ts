@@ -88,4 +88,62 @@ describe('EditorHistory group', () => {
     h.undo();
     expect(value).toBe(0);
   });
+
+  // `atomic` is what a program applied over MCP runs in: nobody is watching the
+  // editor to notice a half-built subtree and press undo, so a failed batch has
+  // to leave the scene as it found it.
+  describe('atomic', () => {
+    it('collapses into one step, exactly like group, when nothing throws', () => {
+      h.atomic('Batch', () => { add(1); add(2); });
+      expect(value).toBe(3);
+      expect(h.undoLabel()).toBe('Batch');
+      h.undo();
+      expect(value).toBe(0);
+    });
+
+    it('reverses what it already did when the callback throws', () => {
+      expect(() =>
+        h.atomic('Boom', () => {
+          add(1);
+          add(2);
+          throw new Error('boom');
+        }),
+      ).toThrow('boom');
+      expect(value).toBe(0);        // both reversed, not just the last
+      expect(h.canUndo()).toBe(false); // and nothing was recorded to undo
+    });
+
+    it('reverses in LIFO order, so an op can depend on what came before it', () => {
+      const order: string[] = [];
+      expect(() =>
+        h.atomic('Boom', () => {
+          h.record('a', () => {}, () => order.push('a'));
+          h.record('b', () => {}, () => order.push('b'));
+          throw new Error('boom');
+        }),
+      ).toThrow('boom');
+      expect(order).toEqual(['b', 'a']);
+    });
+
+    it('a rollback op that throws does not strand the rest of the rollback', () => {
+      expect(() =>
+        h.atomic('Boom', () => {
+          add(1);
+          h.record('bad', () => {}, () => { throw new Error('reverse failed'); });
+          throw new Error('boom');
+        }),
+      ).toThrow('boom');
+      expect(value).toBe(0); // the good reversal still ran
+    });
+
+    it('nested in a group, the outer step owns the work and keeps it', () => {
+      expect(() =>
+        h.group('Outer', () => {
+          h.atomic('Inner', () => { add(1); throw new Error('boom'); });
+        }),
+      ).toThrow('boom');
+      expect(value).toBe(1); // the outer gesture decides, as with a nested group
+      expect(h.undoLabel()).toBe('Outer');
+    });
+  });
 });

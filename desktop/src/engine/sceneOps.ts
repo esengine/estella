@@ -118,8 +118,9 @@ export async function applySceneOps(
     }
   };
 
-  // Phase 2 (sync): one transaction — a throw rolls the whole batch back.
-  EditorControlSurface.transact(label, () => {
+  // Phase 2 (sync): one undo step — a throw rolls the whole batch back, the
+  // entities it had already spawned included.
+  EditorControlSurface.atomic(label, () => {
     ops.forEach((op, i) => {
       const at = `op[${i}] ${op.op}`;
       try {

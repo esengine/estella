@@ -335,6 +335,11 @@ export class EditorControlSurfaceImpl {
     this.s.commands.transact(label, fn);
   }
 
+  /** Run `fn` as one undo step, rolling structural edits back too if it throws. */
+  atomic(label: string, fn: () => void): void {
+    this.s.commands.atomic(label, fn);
+  }
+
   // =========================================================================
   // Hierarchy & organization — the World Outliner's model operations, exposed
   // so the headless host + editor MCP drive the same undoable commands the UI
