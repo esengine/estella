@@ -98,6 +98,21 @@ struct IOSPlatform final : eshost::Platform {
         return std::string([dirs[0] UTF8String]);
     }
 
+    /** Documents, not Caches: the record exists to be sent, and Documents is the
+     *  directory the Files app shows (with UIFileSharingEnabled) and iTunes/Finder
+     *  can copy off a device that has none. */
+    std::string logDir() override {
+        NSArray* dirs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        if (dirs.count == 0) return {};
+        return std::string([dirs[0] UTF8String]);
+    }
+
+    std::string describe() override {
+        UIDevice* d = [UIDevice currentDevice];
+        return std::string([[d model] UTF8String]) + ", iOS "
+             + std::string([[d systemVersion] UTF8String]) + ", arm64";
+    }
+
     WGPUBackendType backend() const override { return WGPUBackendType_Metal; }
 
     WebGPUDevice::NativeSurface surface() override {

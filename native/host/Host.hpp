@@ -96,6 +96,22 @@ struct Platform {
     /** Writable private directory for the SDK bytecode cache; empty disables it. */
     virtual std::string cacheDir() = 0;
 
+    /**
+     * Writable directory a PLAYER can reach — where the boot record goes.
+     *
+     * Distinct from {@link cacheDir}, which is private to the app and reachable
+     * only over adb or a rooted phone. When a packaged game fails on someone
+     * else's device, the only evidence that can travel back is a file they can
+     * find: `Android/data/<pkg>/files` on Android, Documents on iOS. Empty turns
+     * the record off, and a platform that returns empty is choosing to make its
+     * failures unreportable.
+     */
+    virtual std::string logDir() = 0;
+
+    /** This device, in one line: model, OS version, ABI. The first thing asked
+     *  about a failure that happens on someone else's phone and not on yours. */
+    virtual std::string describe() = 0;
+
     /** The backend Dawn must pick: Vulkan on Android, Metal on iOS. */
     virtual WGPUBackendType backend() const = 0;
 

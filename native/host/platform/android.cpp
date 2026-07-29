@@ -15,6 +15,7 @@
  */
 #include <android_native_app_glue.h>
 #include <android/log.h>
+#include <sys/system_properties.h>
 #include <android/input.h>
 #include <android/asset_manager.h>
 #include <android/font.h>
@@ -146,6 +147,7 @@ struct AndroidPlatform final : eshost::Platform {
     ANativeWindow* window = nullptr;
     JavaVM* vm = nullptr;                    // for JNI HttpURLConnection off-thread
     std::string cache;                      // app private dir — SDK bytecode cache
+    std::string logs;                       // Android/data/<pkg>/files — a player can open this
 
     // Read an APK asset (assets/<path>) fully into a buffer; empty if missing.
     std::vector<u8> readAsset(const char* path) override {
@@ -163,6 +165,18 @@ struct AndroidPlatform final : eshost::Platform {
     }
 
     std::string cacheDir() override { return cache; }
+
+    std::string logDir() override { return logs; }
+
+    /** Model, Android release and ABI, from the system properties every device
+     *  answers — no JNI round trip, so this works before anything else is up. */
+    std::string describe() override {
+        char model[PROP_VALUE_MAX] = {0}, release[PROP_VALUE_MAX] = {0}, abi[PROP_VALUE_MAX] = {0};
+        __system_property_get("ro.product.model", model);
+        __system_property_get("ro.build.version.release", release);
+        __system_property_get("ro.product.cpu.abi", abi);
+        return std::string(model) + ", Android " + release + ", " + abi;
+    }
 
     WGPUBackendType backend() const override { return WGPUBackendType_Vulkan; }
 
@@ -739,6 +753,8 @@ void android_main(android_app* app) {
     // es_textEditor_* entry points are bound at all.
     attachTextEditor(app->activity);
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
+    // The boot record goes where a person can reach it without a cable.
+    if (app->activity->externalDataPath) g_platform.logs = app->activity->externalDataPath;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;
     // Chained, not replaced: the glue's handler is what wakes the frame loop on

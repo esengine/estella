@@ -1,0 +1,203 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+
+#include "BootLog.hpp"
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <string>
+
+#include <csignal>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <unwind.h>
+
+namespace eshost {
+namespace {
+
+FILE* g_file = nullptr;
+std::string g_path;
+const char* g_phase = "(none)";
+/// The same file, as a descriptor — what the signal handler is allowed to use.
+int g_fd = -1;
+
+/** Wall-clock, ISO-ish. The record is read by a person comparing it against
+ *  "it broke this afternoon", so it wants the clock, not the monotonic timer. */
+std::string stamp() {
+    std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    return buf;
+}
+
+void writeLine(const char* prefix, const char* text) {
+    if (!g_file) return;
+    std::fprintf(g_file, "%s%s\n", prefix, text);
+    // Flushed per line, not per buffer: a launch that is about to die is exactly
+    // the one whose last line matters, and a buffered line is one the crash eats.
+    std::fflush(g_file);
+}
+
+}  // namespace
+
+void openBootLog(const std::string& dir) {
+    if (dir.empty()) return;
+
+    g_path = dir + "/estella-boot.log";
+    const std::string prev = dir + "/estella-boot.prev.log";
+    std::remove(prev.c_str());
+    std::rename(g_path.c_str(), prev.c_str());
+
+    g_file = std::fopen(g_path.c_str(), "w");
+    if (!g_file) { g_path.clear(); return; }
+    g_fd = fileno(g_file);
+
+    std::fprintf(g_file, "estella boot record — %s\n", stamp().c_str());
+    std::fflush(g_file);
+}
+
+void bootPhase(const char* name) {
+    g_phase = name ? name : "(none)";
+    writeLine("phase: ", g_phase);
+}
+
+void bootNote(const char* fmt, ...) {
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    std::vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    writeLine("", buf);
+}
+
+void bootReady(double ms) {
+    char buf[128];
+    std::snprintf(buf, sizeof(buf), "ready in %.0f ms", ms);
+    writeLine("", buf);
+}
+
+void bootLogLine(bool error, const char* message) {
+    if (!g_file || !message) return;
+    // Errors carry the phase they happened in: the file is read top-down by
+    // someone who wants to know where it stopped, and an error that names its own
+    // phase answers that without counting lines.
+    if (error) {
+        std::fprintf(g_file, "ERROR [%s] %s\n", g_phase, message);
+    } else {
+        std::fprintf(g_file, "  %s\n", message);
+    }
+    std::fflush(g_file);
+}
+
+const std::string& bootLogPath() { return g_path; }
+
+// =============================================================================
+// The crash handler
+// =============================================================================
+
+namespace {
+
+/** write(2) a NUL-terminated string. The only output primitive a signal handler
+ *  is allowed; a partial write is retried because a signal can interrupt one. */
+void rawWrite(const char* s) {
+    if (g_fd < 0 || !s) return;
+    size_t n = std::strlen(s);
+    while (n > 0) {
+        const ssize_t got = write(g_fd, s, n);
+        if (got <= 0) return;
+        s += got;
+        n -= (size_t)got;
+    }
+}
+
+/** An unsigned value in hex, without printf. */
+void rawHex(uintptr_t v) {
+    char buf[2 + sizeof(uintptr_t) * 2 + 1];
+    char* p = buf + sizeof(buf) - 1;
+    *p = '\0';
+    do { *--p = "0123456789abcdef"[v & 0xf]; v >>= 4; } while (v);
+    *--p = 'x';
+    *--p = '0';
+    rawWrite(p);
+}
+
+struct Frames {
+    static constexpr int kMax = 32;
+    void* pc[kMax];
+    int n = 0;
+};
+
+_Unwind_Reason_Code collectFrame(_Unwind_Context* ctx, void* arg) {
+    auto* f = static_cast<Frames*>(arg);
+    const uintptr_t ip = _Unwind_GetIP(ctx);
+    if (ip && f->n < Frames::kMax) f->pc[f->n++] = reinterpret_cast<void*>(ip);
+    return f->n >= Frames::kMax ? _URC_END_OF_STACK : _URC_NO_REASON;
+}
+
+const char* signalName(int sig) {
+    switch (sig) {
+        case SIGSEGV: return "SIGSEGV (bad memory access)";
+        case SIGABRT: return "SIGABRT (abort — an assert or an uncaught throw)";
+        case SIGBUS:  return "SIGBUS (misaligned or unmapped access)";
+        case SIGFPE:  return "SIGFPE (arithmetic)";
+        case SIGILL:  return "SIGILL (illegal instruction)";
+        default:      return "signal";
+    }
+}
+
+void onFatalSignal(int sig, siginfo_t*, void*) {
+    rawWrite("\nFATAL ");
+    rawWrite(signalName(sig));
+    rawWrite(" during phase: ");
+    rawWrite(g_phase);
+    rawWrite("\nbacktrace (symbolize against this version's unstripped libestella_js_host.so):\n");
+
+    Frames frames;
+    _Unwind_Backtrace(collectFrame, &frames);
+    for (int i = 0; i < frames.n; i++) {
+        rawWrite("  ");
+        rawHex(reinterpret_cast<uintptr_t>(frames.pc[i]));
+        // dladdr is not formally async-signal-safe, but it is what every Android
+        // crash reporter uses here, and a frame with a library and an offset is
+        // the difference between a number and an address someone can look up.
+        Dl_info info;
+        if (dladdr(frames.pc[i], &info) && info.dli_fname) {
+            rawWrite("  ");
+            rawWrite(info.dli_fname);
+            if (info.dli_fbase) {
+                rawWrite("+");
+                rawHex(reinterpret_cast<uintptr_t>(frames.pc[i])
+                       - reinterpret_cast<uintptr_t>(info.dli_fbase));
+            }
+            if (info.dli_sname) { rawWrite("  "); rawWrite(info.dli_sname); }
+        }
+        rawWrite("\n");
+    }
+    fsync(g_fd);
+
+    // Die the way we would have: the OS still writes its tombstone, and the
+    // process still reports the same signal to whatever is watching.
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+}  // namespace
+
+void installCrashHandler() {
+    if (g_fd < 0) return;   // nowhere to write — nothing to install
+    struct sigaction sa = {};
+    sa.sa_sigaction = onFatalSignal;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sigemptyset(&sa.sa_mask);
+    for (int sig : {SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL}) sigaction(sig, &sa, nullptr);
+}
+
+}  // namespace eshost

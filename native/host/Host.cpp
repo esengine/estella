@@ -18,6 +18,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 #include "Bindings.hpp"
+#include "BootLog.hpp"
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
 #include "esengine/core/Log.hpp"
@@ -65,6 +66,16 @@ void fallbackFrame(HostState& h) {
     rf.collectAll(*h.registry);
     rf.flush();
     rf.end();
+}
+
+/** One cleared frame, presented — the host's own colour, since the game's lives
+ *  on a Canvas that does not exist yet. */
+void paintBootFrame(HostState& h) {
+    if (!h.gfx || !h.ctx) return;
+    auto& rf = h.ctx->require<RenderFrame>();
+    rf.begin(glm::ortho(0.0f, h.w, 0.0f, h.h), 0, RenderFrame::PassClear{true, true, kFallbackClear});
+    rf.end();
+    h.gfx->present();
 }
 
 /** Ask Dawn for an adapter and a device on the platform's backend, enabling the
@@ -115,6 +126,26 @@ bool createDevice(HostState& h) {
     return true;
 }
 
+/**
+ * Record which GPU this is.
+ *
+ * The first question about a failure that happens on someone else's phone and
+ * not on yours, and the one a log without it cannot answer. Dawn knows it as
+ * soon as the adapter exists.
+ */
+void logAdapter(HostState& h) {
+    if (!h.adapter) return;
+    WGPUAdapterInfo info = {};
+    if (wgpuAdapterGetInfo(h.adapter, &info) != WGPUStatus_Success) return;
+    auto str = [](const WGPUStringView& v) {
+        return v.data ? std::string(v.data, v.length == WGPU_STRLEN ? strlen(v.data) : v.length)
+                      : std::string();
+    };
+    bootNote("gpu: %s %s (%s) — %s", str(info.vendor).c_str(), str(info.device).c_str(),
+             str(info.architecture).c_str(), str(info.description).c_str());
+    wgpuAdapterInfoFreeMembers(info);
+}
+
 }  // namespace
 
 bool bindSurface() {
@@ -156,11 +187,21 @@ bool boot(Platform& platform) {
         hostLog(entry.level >= esengine::LogLevel::Error, "[engine] %s", entry.message.c_str());
     });
 
+    // Opened before anything can fail, so a launch that dies in the GPU bring-up
+    // still leaves a file saying so. Every ESHOST_LOG from here on lands in it.
+    openBootLog(platform.logDir());
+    installCrashHandler();
+    bootNote("device: %s", platform.describe().c_str());
+    if (!bootLogPath().empty()) ESHOST_LOGI("boot record: %s", bootLogPath().c_str());
+
     const double t0 = nowMs();
+    bootPhase("gpu device");
     if (!createDevice(h)) return false;
+    logAdapter(h);
 
     auto device = makeUnique<WebGPUDevice>(h.device, h.instance, h.adapter);
     h.gfx = device.get();
+    bootPhase("surface");
     if (!bindSurface()) return false;
 
     static EstellaContext context;
@@ -172,6 +213,7 @@ bool boot(Platform& platform) {
     g_activeContext = &context;
     context.state().viewport_width = (i32)h.w;
     context.state().viewport_height = (i32)h.h;
+    bootPhase("engine context");
     if (!context.init(std::move(device))) { ESHOST_LOGE("context.init failed"); return false; }
 
     static ecs::Registry registry;
@@ -179,9 +221,19 @@ bool boot(Platform& platform) {
     ESHOST_LOGI("boot ms — Dawn instance/adapter/device + EstellaContext: %.0f", nowMs() - t0);
     ESHOST_LOGI("audio: %s", h.audio.init() ? "native engine up (miniaudio)" : "no device — silent");
 
+    // Paint the surface before the slow part. Until the game's first frame the
+    // window holds whatever was there — black — which is also what a process that
+    // died leaves behind; they are the same picture for as long as boot takes, and
+    // on a first launch that has to compile the SDK bundle that is seconds. One
+    // filled frame is the difference between "starting" and "gone".
+    paintBootFrame(h);
+
+    bootPhase("js runtime");
     initRuntime(h);
+    bootPhase("game script");
     if (!runPackagedGame(h)) return false;
     h.ready = true;
+    bootReady(nowMs() - t0);
     ESHOST_LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)h.w, (int)h.h);
     return true;
 }

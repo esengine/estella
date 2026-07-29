@@ -21,6 +21,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 #include "Bindings.hpp"
+#include "BootLog.hpp"
 
 #include "esn_shim.hpp"          // esn_register / esn_register_functions
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
@@ -60,6 +61,9 @@ void hostLog(bool error, const char* fmt, ...) {
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     if (g_host && g_host->platform) g_host->platform->log(error, buf);
+    // …and into the boot record, so what a developer reads over a cable and what
+    // a player can send are the same lines.
+    bootLogLine(error, buf);
 }
 
 double nowMs() {
@@ -235,6 +239,7 @@ bool tryBytecode(HostState& h, const u8* blob, size_t size, uint64_t want,
         return false;
     }
     ESHOST_LOGI("SDK bundle: loaded from %s", origin);
+    bootNote("bundle: %s", origin);
     out = JS_EvalFunction(h.js, fn);
     return true;
 }
@@ -286,6 +291,10 @@ JSValue evalCachedScript(HostState& h, const char* src, size_t srcLen, const cha
     }
 
     // Parse once (slow), cache the bytecode, run.
+    // No bytecode from either source: this launch pays the parse. Said plainly,
+    // because it is seconds of black screen and the question it raises ("did it
+    // crash?") is the one the record exists to answer.
+    bootNote("bundle: NO bytecode — parsing on device, expect a slow first launch");
     JSValue fn = JS_Eval(h.js, src, srcLen, filename, JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
     if (JS_IsException(fn)) return fn;
     if (!cachePath.empty()) {

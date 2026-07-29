@@ -230,6 +230,7 @@ if(ESTELLA_QUICKJS_DIR)
     set(HOST_SOURCES
         host/Host.cpp
         host/Runtime.cpp
+        host/BootLog.cpp
         host/EsnShim.cpp
         host/bindings/HeapBindings.cpp
         host/bindings/EcsBindings.cpp
