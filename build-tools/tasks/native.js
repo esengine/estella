@@ -65,11 +65,13 @@ export const ENGINE_BINDING_HEADERS = [
     'MaterialBindings.hpp',
 ];
 
+// Paths are relative to src/esengine/bindings — a side module's sources sit
+// together under modules/<name>/, so the entry is a path, not a bare filename.
 export const MODULE_BINDING_HEADERS = [
-    'PhysicsBindings.hpp',
-    'VideoBindings.hpp',
-    'SpineBindings.hpp',
-    'DragonBonesBindings.hpp',
+    'modules/physics/PhysicsBindings.hpp',
+    'modules/video/VideoBindings.hpp',
+    'modules/spine/SpineBindings.hpp',
+    'modules/dragonbones/DragonBonesBindings.hpp',
 ];
 
 export const NATIVE_BINDING_HEADERS = [...ENGINE_BINDING_HEADERS, ...MODULE_BINDING_HEADERS];

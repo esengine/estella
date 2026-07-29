@@ -356,6 +356,18 @@ describe('WASM binding surface: side modules (C exports)', () => {
             .toEqual([]);
     });
 
+    // The device build reads this list to generate its QuickJS wrappers, and it is
+    // the only consumer — so a header that moves takes ~17 minutes of Dawn build to
+    // report itself, at release time, on the one workflow that compiles for a phone.
+    // v0.36.0's release failed exactly here, four headers behind a reorganisation.
+    it('every binding header the native build lists is where it says it is', async () => {
+        const { NATIVE_BINDING_HEADERS } = await import('../../build-tools/tasks/native.js');
+        const missing = (NATIVE_BINDING_HEADERS as string[])
+            .filter((h) => !existsSync(resolve(CPP, 'bindings', h)));
+        expect(missing, `listed in build-tools/tasks/native.js but absent: ${missing.join(', ')}`)
+            .toEqual([]);
+    });
+
     // Exported for the NATIVE side only, so no SDK caller names them: which spine
     // runtime a host linked (the web names the artifact instead — spine38 / 41 / 42)
     // and how much the event buffer published, which a native wrapper needs to copy
