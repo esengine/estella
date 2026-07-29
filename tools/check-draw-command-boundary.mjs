@@ -6,22 +6,32 @@
 //
 // Enforces the unified-pipeline invariant: DrawCommand assembly and DrawList
 // submission may appear ONLY in the single submission face
-// (renderer/BatchBuilder.cpp). Every renderer — plugin or direct submit —
+// (renderer/draw/BatchBuilder.cpp). Every renderer — plugin or direct submit —
 // describes its draw as a BatchDrawKey + geometry and produces the command
 // through that face; sort/merge/submit stay unified in DrawList.
 //
 // Run: node tools/check-draw-command-boundary.mjs   (exit 1 on violation)
 // =============================================================================
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = 'src/esengine';
 
 // The one translation unit allowed to build + push DrawCommands.
 const ALLOWED = new Set([
-    'src/esengine/renderer/BatchBuilder.cpp',
+    'src/esengine/renderer/draw/BatchBuilder.cpp',
 ]);
+
+// A moved or renamed exemption means the guard is describing a tree that no
+// longer exists — say so instead of reporting the submission face as its own
+// violation.
+for (const allowed of ALLOWED) {
+    if (!existsSync(allowed)) {
+        console.error(`Render-command boundary guard is stale: exempt file ${allowed} does not exist.`);
+        process.exit(1);
+    }
+}
 
 // A DrawCommand local/member being assembled (`DrawCommand cmd{...}`, `= DrawCommand{...}`),
 // and a command being pushed into the queue. References/params (`const DrawCommand&`) and

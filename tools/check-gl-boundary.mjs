@@ -5,21 +5,30 @@
 // GL boundary guard (RC5)
 //
 // Enforces the keystone invariant: raw OpenGL/WebGL calls (`glXxx(...)`) may
-// appear ONLY in the single backend implementation (renderer/GLDevice.cpp).
+// appear ONLY in the single backend implementation (renderer/rhi/GLDevice.cpp).
 // Every other translation unit must reach the GPU through GfxDevice/StateTracker.
 //
 // Run: node tools/check-gl-boundary.mjs   (exit 1 on violation)
 // =============================================================================
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = 'src/esengine';
 
 // The one file allowed to call gl* — the concrete GfxDevice backend.
 const ALLOWED = new Set([
-    'src/esengine/renderer/GLDevice.cpp',
+    'src/esengine/renderer/rhi/GLDevice.cpp',
 ]);
+
+// A moved or renamed exemption means the guard is describing a tree that no
+// longer exists — say so instead of reporting the backend as its own violation.
+for (const allowed of ALLOWED) {
+    if (!existsSync(allowed)) {
+        console.error(`GL boundary guard is stale: exempt file ${allowed} does not exist.`);
+        process.exit(1);
+    }
+}
 
 // A gl call: `gl` + uppercase letter + identifier + `(`. Does not match `glm::`
 // (lowercase m) or `GL_CONSTANT` macros.
