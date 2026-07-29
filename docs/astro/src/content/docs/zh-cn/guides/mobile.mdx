@@ -256,11 +256,21 @@ adb pull /sdcard/Android/data/<你的包名>/files/estella-boot.log
 ```
 
 <Aside type="caution">
-  目前 `adb` 是拿到这个文件唯一可靠的办法。Android 11 起,一个应用的 `Android/data`
-  目录不被文件管理器和系统「文件」应用读取——`adb shell` 能读只是因为那个用户恰好在
-  `ext_data_rw` 组里。所以这条路适合你自己和能插数据线的测试同学;
-  报障的玩家目前还没法自己取。
+  这条路径是给你的,不是给玩家的:Android 11 起,一个应用的 `Android/data` 对文件管理器
+  和系统「文件」应用都是关的,`adb shell` 能读只是因为那个用户恰好在 `ext_data_rw` 组里。
 </Aside>
+
+**游戏崩溃后,下一次启动会把记录发布到玩家能拿到的地方**——
+`Android/media/<你的包名>/`(文件管理器能列出),取不到时退回 `Download/`。
+文件名是 `estella-crash-<日期>.log`,新那次运行自己的记录里也会写明它去了哪儿:
+
+```
+previous run CRASHED; its record was copied to
+  /storage/emulated/0/Android/media/com.example.game/estella-crash-20260729-190738.log
+```
+
+所以给报障的人的说法是:**再打开一次游戏,然后把那个目录里最新的 `estella-crash-*.log` 发过来**。
+只有崩溃才会被发布——正常跑完的启动不会在那儿留下任何东西。
 
 设备连着的时候,同样的内容也在 `logcat` 里:
 

@@ -298,12 +298,24 @@ adb pull /sdcard/Android/data/<your.package.id>/files/estella-boot.log
 ```
 
 <Aside type="caution">
-  `adb` is currently the only reliable way to get that file. Since Android 11 an
-  app's `Android/data` directory is not readable by a file manager or by the
-  system Files app — `adb shell` can only do it because that user is in the
-  `ext_data_rw` group. So this works for you and for a tester who can plug in a
-  cable; a player reporting a problem cannot fetch it themselves yet.
+  That path is for you, not for a player: since Android 11 an app's
+  `Android/data` is closed to file managers and to the system Files app, and
+  `adb shell` reaches it only because that user is in the `ext_data_rw` group.
 </Aside>
+
+**When a game crashes, the next launch publishes the record where a player can
+get at it** — `Android/media/<your.package.id>/`, which a file manager lists,
+falling back to `Download/`. The file is named `estella-crash-<date>.log`, and
+the new run's own record says where it went:
+
+```
+previous run CRASHED; its record was copied to
+  /storage/emulated/0/Android/media/com.example.game/estella-crash-20260729-190738.log
+```
+
+So the instruction to give someone who reports a crash is: **open the game once
+more, then send the newest `estella-crash-*.log`** from that folder. Only crashes
+are published — a launch that finished leaves nothing there.
 
 While a device is attached, the same lines are in `logcat`:
 
