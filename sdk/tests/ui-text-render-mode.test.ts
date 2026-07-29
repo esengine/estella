@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { Text, TextRenderMode, resolveTextRenderMode, buildText } from '../src/ui';
+import { Text, TextRenderMode, resolveTextRenderMode, glyphContentScale, buildText } from '../src/ui';
 
 describe('TextRenderMode', () => {
     it('defines Auto / Bitmap / Sdf', () => {
@@ -79,5 +79,41 @@ describe('GlyphAtlas content scale (bitmap rasterization density)', () => {
         const sdf = new GlyphAtlas(fakeRasterizer as never, fakeStore as never, { sdf: true });
         sdf.setContentScale(0.5);
         expect(sdf.pixelSizeFor(13)).toBe(48);             // SDF is one fixed source
+    });
+});
+
+describe('glyphContentScale (what size to rasterize FOR)', () => {
+    const cam = (over: Record<string, unknown> = {}) => ({
+        valid: true, vpW: 1920, worldLeft: -960, worldRight: 960,
+        viewProjection: new Float32Array([2 / 1920, 0, 0, 0]),
+        ...over,
+    } as never);
+
+    it('is device pixels per world unit, so a 1:1 view rasterizes 1:1', () => {
+        expect(glyphContentScale(cam(), 1)).toBeCloseTo(1, 5);
+        expect(glyphContentScale(cam(), 2)).toBeCloseTo(0.5, 5); // dpr folded in by the atlas
+    });
+
+    // The editor holds the layout box at the design size on purpose, so UI does
+    // not reflow while the view zooms. Reading the span from that box asked for
+    // design-sized glyphs and let the camera scale them — the blur this fixes.
+    it('follows the camera when it shows less than the layout box (zoomed in)', () => {
+        const zoomed = cam({ viewProjection: new Float32Array([2 / 480, 0, 0, 0]) }); // 4× in
+        expect(glyphContentScale(zoomed, 1)).toBeCloseTo(4, 5);
+    });
+
+    it('follows the camera when it shows more than the layout box (zoomed out)', () => {
+        const wide = cam({ viewProjection: new Float32Array([2 / 3840, 0, 0, 0]) }); // 2× out
+        expect(glyphContentScale(wide, 1)).toBeCloseTo(0.5, 5);
+    });
+
+    it('falls back to the layout box when the projection says nothing', () => {
+        expect(glyphContentScale(cam({ viewProjection: new Float32Array(4) }), 1)).toBeCloseTo(1, 5);
+    });
+
+    it('is 1 when there is no valid camera, or a nonsense dpr', () => {
+        expect(glyphContentScale(undefined, 1)).toBe(1);
+        expect(glyphContentScale(cam({ valid: false }), 1)).toBe(1);
+        expect(glyphContentScale(cam(), 0)).toBe(1);
     });
 });

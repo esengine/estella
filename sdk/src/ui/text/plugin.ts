@@ -53,6 +53,32 @@ export function resolveTextRenderMode(
     return Math.abs(effectiveScale - 1) <= BITMAP_SCALE_EPSILON ? 'bitmap' : 'sdf';
 }
 
+/**
+ * Pure: how many device pixels one world unit covers, which is the size bitmap
+ * glyphs must be rasterized at to land on screen pixels.
+ *
+ * It comes from what the camera SHOWS, not from the box UI lays out in. Those
+ * agree in a shipped game — the camera frames the design box — and diverge in
+ * the editor, whose free-zoom view deliberately holds the layout box fixed so UI
+ * does not reflow while you zoom (see syncUICameraInfo). Taking the span from
+ * the layout box therefore rasterized glyphs for the design scale and left the
+ * camera to scale the result, so editor text went soft at every zoom but "fit" —
+ * and the sharper look of SDF there was really the bitmap path being asked for
+ * the wrong size.
+ *
+ * An orthographic view-projection's first element is 2 / the span it covers.
+ */
+export function glyphContentScale(
+    cam: Pick<UICameraData, 'valid' | 'vpW' | 'worldLeft' | 'worldRight' | 'viewProjection'> | undefined,
+    dpr: number,
+): number {
+    if (!cam?.valid || !(dpr > 0)) return 1;
+    const vpScaleX = cam.viewProjection?.[0] ?? 0;
+    const layoutSpan = cam.worldRight - cam.worldLeft;
+    const shownSpan = vpScaleX !== 0 ? Math.abs(2 / vpScaleX) : layoutSpan;
+    return shownSpan > 0 ? cam.vpW / (shownSpan * dpr) : 1;
+}
+
 export class TextPlugin implements Plugin {
     name = 'text';
 
@@ -99,10 +125,7 @@ export class TextPlugin implements Plugin {
             // camera plugin may build after this one.
             const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
             const dpr = platformDevicePixelRatio();
-            const span = uiCamera ? uiCamera.worldRight - uiCamera.worldLeft : 0;
-            const contentScale = uiCamera?.valid && span > 0
-                ? uiCamera.vpW / (span * dpr)
-                : 1;
+            const contentScale = glyphContentScale(uiCamera, dpr);
 
             const seen = new Set<number>();
             for (const e of world.getEntitiesWithComponents([Text, Transform])) {
