@@ -148,7 +148,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Patch the project's physics feature (Project Settings → Physics). */
     setPhysics: (patch: Record<string, unknown>) => ProjectStore.setPhysics(patch),
     /** Create a blank scene FILE under `destDir` (Content Browser "New Scene"). */
-    createSceneFile: (destDir: string) => ProjectStore.createSceneFile(destDir),
+    createSceneFile: (destDir: string, name?: string | null) =>
+      ProjectStore.createSceneFile(destDir, name ?? undefined),
     /** The Create-popover catalog: every ready-made entity the editor can spawn. */
     listEntityTemplates: () => entitySources().map(({ id, label, category }) => ({ id, label, category })),
     /** Create a TilemapLayer from an .estileset with an optional grid layout

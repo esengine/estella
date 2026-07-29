@@ -130,8 +130,20 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     const id = S.surface.addEntity()!;
     S.surface.addComponent(id, 'Sprite');
     expect(() => S.surface.setField(id, 'Rigidbody2D', 'mass', 'number', 1)).toThrow(/not on entity/);
-    expect(() => S.surface.setField(id, 'Sprite', 'size.x', 'number', 16)).toThrow(/no field/);
+    expect(() => S.surface.setField(id, 'Sprite', 'sizes', 'number', 16)).toThrow(/no field/);
+    expect(() => S.surface.setField(id, 'Sprite', 'size.w', 'number', 16)).toThrow(/no field/);
     expect(() => S.surface.setField(id, 'Sprite', 'size', 'vec2', 'garbage')).toThrow(/expects/);
+  });
+
+  it('setField writes ONE member of a structural field, leaving the rest', () => {
+    const id = S.surface.addEntity()!;
+    S.surface.addComponent(id, 'Sprite');
+    const e = S.model.runtimeFor(id)!;
+    const before = { ...host.world.get(e, Sprite).size };
+
+    S.surface.setField(id, 'Sprite', 'size.x', 'number', 16);
+    expect(host.world.get(e, Sprite).size.x).toBe(16);
+    expect(host.world.get(e, Sprite).size.y).toBe(before.y);
   });
 
   it('getDiagnostics flags a required-empty field (Details parity) and clears when set', () => {

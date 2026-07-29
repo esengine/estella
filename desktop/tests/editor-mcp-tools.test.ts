@@ -168,3 +168,29 @@ describe('editor MCP tool registry', () => {
     }
   });
 });
+
+describe('apply_scene_ops program sources', () => {
+  const apply = () => TOOLS.find((t) => t.name === 'apply_scene_ops');
+
+  it('reads the program from a file when one is named, so a big panel need not fit in a message', async () => {
+    const js = vi.fn().mockResolvedValue({ refs: {}, created: [], applied: 3 });
+    const driver = Object.assign(vi.fn(), { js });
+    await runTool(apply(), driver, { opsPath: 'assets/scenes/panel.ops.json', label: 'Panel' });
+
+    expect(driver).not.toHaveBeenCalled();          // not the inline door
+    const src = js.mock.calls[0][0];
+    expect(src).toContain('assets/scenes/panel.ops.json');
+    expect(src).toContain('JSON.parse');
+    expect(src).toContain('applyOps');
+  });
+
+  it('still takes the typed door for an inline program', async () => {
+    const js = vi.fn();
+    const driver = Object.assign(vi.fn().mockResolvedValue({ refs: {}, created: [], applied: 1 }), { js });
+    const ops = [{ op: 'create', ref: 'a' }];
+    await runTool(apply(), driver, { ops, label: 'Inline' });
+
+    expect(js).not.toHaveBeenCalled();
+    expect(driver).toHaveBeenCalledWith('applyOps', [ops, 'Inline'], 'editor');
+  });
+});

@@ -124,8 +124,20 @@ they create by name, so a whole subtree lands in one call:
 ```
 
 It is atomic: if any op fails, the error names the op that failed (`op[7] set: …`)
-and the whole batch rolls back, so a bad program never leaves a half-built subtree
-behind.
+and the whole batch rolls back — entities it had already created included — so a
+bad program never leaves a half-built subtree behind.
+
+A field path may name **one member** of a structural field (`"Transform.position.x"`,
+`"FlexContainer.gap.y"`, `"UINode.width.value"`), which reads and writes back the
+rest, so moving a node one axis does not cost a read-modify-write.
+
+Past a few hundred nodes the program itself is the problem — a real panel is
+hundreds of KB of JSON, which does not belong in a chat message. Write it with
+`write_project_file` and hand `apply_scene_ops` the path instead:
+
+```json
+{ "opsPath": "assets/scenes/shop.ops.json", "label": "Build the shop" }
+```
 
 <Aside type="note">
 Some things live in **import settings**, not on a component — a texture's 9-slice

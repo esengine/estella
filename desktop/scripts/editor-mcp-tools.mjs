@@ -82,7 +82,9 @@ export const TOOLS = [
     schema: obj({ id: { type: 'number' }, name: { type: 'string' } }, ['id', 'name']),
     method: 'renameEntity', args: (i) => [i.id, i.name] },
   { name: 'set_field', write: true,
-    description: 'Set a component field (undoable). The field\'s DECLARED inspector type wins (see get_inspector: number, bool, string, vec2, vec3, angle, color, enum, select, flags, gradient, curve, dimension, asset) — `type` is advisory. Vecs take [x, y(, z)] number arrays, colors "#rrggbbaa" hex or {r,g,b,a} 0..1, assets a project-relative path or @uuid ref. Unknown components/fields and malformed values are errors, never silent writes.',
+    description: 'Set a component field (undoable). The field\'s DECLARED inspector type wins (see get_inspector: number, bool, string, vec2, vec3, angle, color, enum, select, flags, gradient, curve, dimension, asset) — `type` is advisory. Vecs take [x, y(, z)] number arrays, colors "#rrggbbaa" hex or {r,g,b,a} 0..1, assets a project-relative path or @uuid ref. '
+      + '`key` may name one MEMBER of a structural field — "position.x" / "position.z" (vec2/vec3), "gap.y", "padding.left" (sides), "width.value" / "width.unit" (dimension) — which reads and writes back the rest, so one number does not cost a read-modify-write. '
+      + 'Unknown components/fields and malformed values are errors, never silent writes.',
     schema: obj({
       entity: { type: 'number' }, component: { type: 'string' }, key: { type: 'string' },
       type: { type: 'string' },
@@ -181,9 +183,10 @@ export const TOOLS = [
     description: 'Save the open scene to disk (the toolbar Save).',
     schema: obj({}), method: 'save', args: () => [], root: 'editor' },
   { name: 'create_scene_file', write: true,
-    description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path, immediately referenceable (the registry refresh happens before this resolves).',
-    schema: obj({ destDir: { type: 'string' } }, ['destDir']),
-    js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)})
+    description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path, immediately referenceable (the registry refresh happens before this resolves). '
+      + '`name` names it (the `.esscene` extension is added if absent); without one it is `scene.esscene`, which collides the moment you make a second.',
+    schema: obj({ destDir: { type: 'string' }, name: { type: 'string' } }, ['destDir']),
+    js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
   { name: 'create_asset', write: true,
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
@@ -206,12 +209,20 @@ export const TOOLS = [
       + 'or give `components` as ["Transform","UINode","UIVisual"] / [{type,data}]; '
       + '{op:"set", entity, fields}; {op:"add_component"|"remove_component", entity, component}; {op:"rename", entity, name}; {op:"parent", entity, parent}; {op:"delete", entity}. '
       + 'ENTITY ADDRESSING: an entity is a live numeric id, or "$name" naming an earlier create\'s `ref` — so a parent/child tree is one call with no round trip to learn ids. '
-      + 'FIELDS is a flat map of "Component.key" → value, e.g. {"Transform.position.x": 10, "UIVisual.color": "#ff0000ff", "Text.content": "Hi"} — same coercion and validation as set_field. '
-      + 'Returns { refs: {name: id}, created: [id], applied: n }. Check get_diagnostics afterwards.',
+      + 'FIELDS is a flat map of "Component.key" → value, e.g. {"Transform.position.x": 10, "UIVisual.color": "#ff0000ff", "Text.content": "Hi"} — same coercion and validation as set_field, '
+      + 'including one member of a structural field ("FlexContainer.gap.x", "UINode.marginLeft"). '
+      + 'Give either `ops` inline or `opsPath` (a JSON file), never both. Returns { refs: {name: id}, created: [id], applied: n }. Check get_diagnostics afterwards.',
     schema: obj({
       ops: { type: 'array', description: 'the op program, executed in order as one undo step' },
+      opsPath: { type: 'string', description: 'project-relative path to a JSON file holding the op array, INSTEAD of `ops` — a panel of a few hundred entities is a few hundred KB of program, which does not belong in a message. Write it with write_project_file, then name it here.' },
       label: { type: 'string', description: 'undo-stack label (default "Apply scene ops")' },
-    }, ['ops']),
+    }),
+    // Only the file form needs the escape hatch; an inline program goes through
+    // the typed door like everything else.
+    js: (i) => (i.opsPath
+      ? `window.estella.fs.read(${JSON.stringify(i.opsPath)})
+          .then((text) => window.__estellaEditor.applyOps(JSON.parse(text), ${JSON.stringify(i.label ?? null)}))`
+      : null),
     method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
   { name: 'list_assets',
     description: 'Search the open project\'s asset registry. `match` is a case-insensitive SUBSTRING of the project-relative path (not a glob); `type` filters by asset type (texture, scene, prefab, audio, font, material, shader...). '
@@ -357,8 +368,12 @@ export async function runTool(tool, driver, rawInput, allowWrites = true) {
       if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
       return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
     }
-    if (tool.js) {
-      const data = await driver.js(tool.js(input));
+    // A js template may DECLINE (return null) for inputs it has nothing special
+    // to do with, leaving the tool's typed `method` door to handle them — which
+    // is how a tool grows one alternate path without every call losing the door.
+    const js = tool.js ? tool.js(input) : null;
+    if (js) {
+      const data = await driver.js(js);
       if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
       return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
     }

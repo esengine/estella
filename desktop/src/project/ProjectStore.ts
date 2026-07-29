@@ -590,9 +590,14 @@ class ProjectStoreImpl {
    * Browser's "New Scene" — writes it to disk WITHOUT switching the editor to it
    * (unlike {@link newScene}). Returns its project-relative path.
    */
-  async createSceneFile(destDir: string): Promise<string> {
+  async createSceneFile(destDir: string, name?: string): Promise<string> {
     const content = JSON.stringify(this.blankScene(), null, 2) + '\n';
-    return window.estella.project.createAsset(destDir, 'scene.esscene', content, 'scene');
+    // A bare name takes the extension, so a caller naming scenes in bulk does not
+    // have to know it. Nameless keeps the Content Browser's "New Scene" default.
+    const base = name?.trim()
+      ? (name.trim().endsWith('.esscene') ? name.trim() : `${name.trim()}.esscene`)
+      : 'scene.esscene';
+    return window.estella.project.createAsset(destDir, base, content, 'scene');
   }
 
   /** Create a blank `.inputmap` asset (named input actions) under `destDir`. */

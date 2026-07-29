@@ -71,6 +71,63 @@ export function setAssetRefProblemResolver(fn: AssetRefProblemResolver | null): 
  * the `{x, y}` object spelling get_inspector-style reads suggest. Anything that
  * doesn't coerce cleanly throws — the automation door must never write garbage.
  */
+/**
+ * The members a structural field can be addressed by, and where each one sits
+ * in the value the inspector holds.
+ *
+ * Automation writes field PATHS ("Transform.position.x"), which read as CSS-ish
+ * and are what an agent reaches for first — the MCP tool even documented that
+ * exact example while rejecting it, because the inspector's field is `position`,
+ * a whole vec3. Rather than make callers read back a vector, patch a component
+ * and send the vector, a member path resolves to the field plus an index into it.
+ */
+const FIELD_MEMBERS: Partial<Record<InspectorFieldType, Record<string, number | string>>> = {
+  vec2: { x: 0, y: 1 },
+  vec3: { x: 0, y: 1, z: 2 },
+  sides: { left: 0, top: 1, right: 2, bottom: 3 },
+  dimension: { value: 'value', unit: 'unit' },
+};
+
+/** Split "position.x" into the field key and the member, when the field has one. */
+export function splitFieldMember(
+  key: string,
+  fieldTypeOf: (k: string) => InspectorFieldType | undefined,
+): { key: string; member: string; type: InspectorFieldType } | null {
+  const dot = key.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const base = key.slice(0, dot);
+  const member = key.slice(dot + 1);
+  const type = fieldTypeOf(base);
+  if (!type) return null;
+  return FIELD_MEMBERS[type]?.[member] !== undefined ? { key: base, member, type } : null;
+}
+
+/** Write `value` into `member` of a structural field's current value. */
+export function patchFieldMember(
+  type: InspectorFieldType,
+  current: InspectorFieldValue,
+  member: string,
+  value: unknown,
+): InspectorFieldValue {
+  const at = FIELD_MEMBERS[type]?.[member];
+  if (at === undefined) throw new Error(`"${type}" has no member "${member}"`);
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n)) {
+    throw new Error(`member "${member}" expects a number, got ${JSON.stringify(value)}`);
+  }
+  if (typeof at === 'number') {
+    const arr = Array.isArray(current) ? [...(current as number[])] : [];
+    while (arr.length <= at) arr.push(0);
+    arr[at] = n;
+    return arr as InspectorFieldValue;
+  }
+  const obj = current !== null && typeof current === 'object' && !Array.isArray(current)
+    ? { ...(current as Record<string, unknown>) }
+    : {};
+  obj[at] = n;
+  return obj as InspectorFieldValue;
+}
+
 export function coerceFieldValue(
   declared: InspectorFieldType,
   key: string,
@@ -302,6 +359,16 @@ export class EditorControlSurfaceImpl {
     const declared: InspectorFieldType | undefined =
       field?.type ?? (comp.enable?.key === key ? 'bool' : undefined);
     if (!declared) {
+      // "position.x" / "gap.y" / "padding.left": one member of a structural field.
+      const nested = splitFieldMember(key, (k) => comp.fields.find((f) => f.key === k)?.type);
+      if (nested) {
+        const whole = comp.fields.find((f) => f.key === nested.key)!;
+        this.s.commands.setField(
+          entity, component, nested.key, nested.type,
+          patchFieldMember(nested.type, whole.value, nested.member, value),
+        );
+        return;
+      }
       const keys = [...comp.fields.map((f) => f.key), ...(comp.enable ? [comp.enable.key] : [])];
       throw new Error(`"${component}" has no field "${key}" (fields: ${keys.join(', ')})`);
     }

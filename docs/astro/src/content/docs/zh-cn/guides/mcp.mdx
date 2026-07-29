@@ -116,7 +116,18 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 ```
 
 它是原子的：任何一步失败，报错会指名是哪一步挂的（`op[7] set: …`），整批回滚
-——一段写错的程序不会留下一棵搭到一半的子树。
+——**包括它已经创建出来的实体**——一段写错的程序不会留下一棵搭到一半的子树。
+
+字段路径可以只点名结构字段里的**一个成员**（`"Transform.position.x"`、
+`"FlexContainer.gap.y"`、`"UINode.width.value"`），其余部分会被读出来原样写回，
+所以只挪一个轴不必先读再改再写。
+
+节点数量上到几百之后，程序本身就成了负担——一个真实面板是几百 KB 的 JSON，
+不该塞进对话里。用 `write_project_file` 写成文件，再把路径交给 `apply_scene_ops`：
+
+```json
+{ "opsPath": "assets/scenes/shop.ops.json", "label": "搭建商店" }
+```
 
 <Aside type="note">
 有些东西在**导入设置**里，不在组件上——最容易踩的是纹理的九宫格边框：
