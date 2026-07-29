@@ -45,6 +45,7 @@ import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
+import { EditorHistory } from './engine/EditorHistory';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
 import { Particle, getComponent } from 'esengine';
@@ -97,7 +98,16 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Resolves once the scene is ADOPTED and readable (drivers must not need
      *  their own get_scene_tree polling): waits out the model-version bump the
      *  adopt performs, racing the engine boot on a freshly opened project. */
-    openScene: async (rel: string) => {
+    openScene: async (rel: string, discardChanges = false) => {
+      // A person gets a "save your work?" prompt here. A driver got silence and
+      // lost whatever it had built — opening the scene it had just authored into
+      // reloads it from disk, and the hundred entities never written are gone.
+      // Refuse instead, and make discarding something the caller says out loud.
+      if (!discardChanges && EditorHistory.isDirty()) {
+        throw new Error(
+          'the open scene has unsaved changes — save_scene first, or pass discardChanges to throw them away',
+        );
+      }
       const v0 = EditorControlSurface.worldVersion();
       await ProjectStore.openScene(rel);
       const t0 = Date.now();

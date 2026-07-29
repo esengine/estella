@@ -176,9 +176,10 @@ export const TOOLS = [
     js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)})
       .then((ok) => { window.__estellaEditor.enterEditor(); return window.__estellaEditor.sceneReady().then(() => ok); })` },
   { name: 'open_scene',
-    description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor. Resolves once the scene is adopted — get_scene_tree is immediately valid.',
-    schema: obj({ path: { type: 'string' } }, ['path']),
-    method: 'openScene', args: (i) => [i.path], root: 'editor' },
+    description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor. Resolves once the scene is adopted — get_scene_tree is immediately valid. '
+      + 'REFUSES while the open scene has unsaved changes (opening reloads from disk, so anything just authored would be gone): save_scene first, or pass discardChanges to throw the edits away on purpose.',
+    schema: obj({ path: { type: 'string' }, discardChanges: { type: 'boolean' } }, ['path']),
+    method: 'openScene', args: (i) => [i.path, i.discardChanges === true], root: 'editor' },
   { name: 'save_scene', write: true,
     description: 'Save the open scene to disk (the toolbar Save).',
     schema: obj({}), method: 'save', args: () => [], root: 'editor' },

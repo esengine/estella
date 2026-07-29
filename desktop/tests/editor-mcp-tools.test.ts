@@ -194,3 +194,24 @@ describe('apply_scene_ops program sources', () => {
     expect(driver).toHaveBeenCalledWith('applyOps', [ops, 'Inline'], 'editor');
   });
 });
+
+describe('open_scene guards unsaved work', () => {
+  const openScene = () => TOOLS.find((t) => t.name === 'open_scene');
+
+  it('passes the discard flag through, defaulting to refusing', async () => {
+    const driver = vi.fn().mockResolvedValue(undefined);
+    await runTool(openScene(), driver, { path: 'assets/scenes/a.esscene' });
+    expect(driver).toHaveBeenCalledWith('openScene', ['assets/scenes/a.esscene', false], 'editor');
+
+    driver.mockClear();
+    await runTool(openScene(), driver, { path: 'assets/scenes/a.esscene', discardChanges: true });
+    expect(driver).toHaveBeenCalledWith('openScene', ['assets/scenes/a.esscene', true], 'editor');
+  });
+
+  it('surfaces the refusal as an error the caller can act on', async () => {
+    const driver = vi.fn().mockRejectedValue(new Error('the open scene has unsaved changes — save_scene first'));
+    const res = await runTool(openScene(), driver, { path: 'assets/scenes/a.esscene' });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toMatch(/unsaved changes/);
+  });
+});
