@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" role="img">
+  <style>
+    .t { font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+    .h { fill: #cbd0db; font-size: 13px; font-weight: 600; }
+    .c { fill: #8b91a0; font-size: 11px; }
+    .n { fill: #8b91a0; font-size: 10px; }
+    .bad { fill: #e8615f; font-size: 11px; font-weight: 600; }
+    .good { fill: #54c479; font-size: 11px; font-weight: 600; }
+  </style>
+
+  <!-- source texture -->
+  <text class="t h" x="12" y="18">Source · 100 × 112</text>
+  <rect x="12" y="28" width="100" height="112" rx="16" fill="#3a2f1a" stroke="#f0bd4f" stroke-width="5"/>
+  <rect x="30" y="44" width="64" height="10" rx="5" fill="#f0bd4f" opacity="0.55"/>
+  <text class="t n" x="12" y="156">rounded corners, 5px rim</text>
+
+  <!-- stretched -->
+  <text class="t h" x="180" y="18">Stretched to 450 × 130</text>
+  <rect x="180" y="28" width="450" height="130" rx="72" ry="18" fill="#3a2f1a" stroke="#e8615f" stroke-width="5"/>
+  <rect x="261" y="46" width="288" height="12" rx="6" fill="#f0bd4f" opacity="0.4"/>
+  <text class="t bad" x="180" y="176">✗ corners smeared 4.5× wide, rim thickened</text>
+
+  <!-- the grid -->
+  <text class="t h" x="12" y="214">The 3 × 3 cut</text>
+  <g stroke="#2b2f3a" stroke-width="1" fill="#14161c">
+    <rect x="12" y="224" width="36" height="26"/><rect x="48" y="224" width="86" height="26"/><rect x="134" y="224" width="34" height="26"/>
+    <rect x="12" y="250" width="36" height="24"/><rect x="48" y="250" width="86" height="24"/><rect x="134" y="250" width="34" height="24"/>
+    <rect x="12" y="274" width="36" height="18"/><rect x="48" y="274" width="86" height="18"/><rect x="134" y="274" width="34" height="18"/>
+  </g>
+  <g class="t" fill="#54c479" font-size="13" text-anchor="middle" font-weight="700">
+    <text x="30" y="242">·</text><text x="151" y="242">·</text><text x="30" y="290">·</text><text x="151" y="290">·</text>
+  </g>
+  <g class="t" fill="#5b9cf0" font-size="12" text-anchor="middle">
+    <text x="91" y="242">↔</text><text x="91" y="290">↔</text><text x="30" y="267">↕</text><text x="151" y="267">↕</text>
+    <text x="91" y="267">↔↕</text>
+  </g>
+  <text class="t n" x="12" y="222" fill="#8b91a0"></text>
+  <g class="t n" fill="#8b91a0">
+    <text x="184" y="238"><tspan fill="#54c479">·</tspan> corners — drawn 1:1, never scaled</text>
+    <text x="184" y="256"><tspan fill="#5b9cf0">↔ ↕</tspan> edges — stretched along one axis only</text>
+    <text x="184" y="274"><tspan fill="#5b9cf0">↔↕</tspan> middle — stretched both ways</text>
+    <text x="184" y="292">sliceBorder = how far in the fixed bands reach</text>
+  </g>
+
+  <!-- 9-sliced result -->
+  <text class="t h" x="430" y="214">9-sliced to the same 450 × 130</text>
+  <rect x="430" y="224" width="278" height="56" rx="16" fill="#3a2f1a" stroke="#54c479" stroke-width="5"/>
+  <rect x="448" y="238" width="242" height="10" rx="5" fill="#f0bd4f" opacity="0.55"/>
+  <text class="t good" x="430" y="296">✓ corners and rim keep their exact pixels</text>
+</svg>

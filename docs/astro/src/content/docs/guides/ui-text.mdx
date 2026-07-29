@@ -215,11 +215,26 @@ addStartupSystem(buildBubble);
 
 ## Custom fonts
 
-`fontFamily` is resolved by the platform's **Canvas2D** when glyphs rasterize —
-any family the host page can resolve works: system fonts, or a web font the page
-loads (CSS `@font-face` or the `FontFace` API). The SDK does not fetch font
-files for the `Text` component itself; make sure a web font is loaded before the
-text first renders, or its glyphs rasterize with the fallback font.
+There are two ways to say *which typeface*, and they end in the same place — a family
+name the platform's text stack rasterizes with.
+
+**Ship the font with the game (`Text.font`).** Import a `.ttf` / `.otf` / `.woff2` into
+the project and assign it to the `font` slot in the inspector. It is a real asset
+reference, so it rides the machinery every other asset slot rides: dependency tracking,
+cook inclusion, `@uuid:` refs, hot update, ref counting. The loader registers the file
+with the platform's text stack under a family name it mints, and `Text` uses that name —
+so a shipped font is not a second text path, just another way to arrive at a family. This
+is the answer on **native**, where there is no page to load a web font into.
+
+**Name a font the host already has (`fontFamily`).** Resolved by the platform's
+**Canvas2D** on the web (or the OS font matcher on native) when glyphs rasterize — system
+fonts, or a web font the page loads itself (CSS `@font-face` or the `FontFace` API). The
+SDK does not fetch these; make sure a web font is loaded before the text first renders,
+or its glyphs rasterize with the fallback font.
+
+`font` wins when both are set. Prefer it for anything your brand depends on: `fontFamily`
+alone silently falls back to a different typeface on a machine that lacks the family, and
+that failure only shows up on someone else's device.
 
 Separately, **bitmap font assets** (`.fnt` / `.bmfont`) load through the asset
 pipeline — `Assets.loadFont(ref)` resolves the `.fnt`, loads its page texture,

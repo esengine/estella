@@ -114,9 +114,73 @@ Each layer builds on the one before it:
 | `Tiled` | `tileSize` | Texture repeated across the box. |
 | `Filled` | `fillAmount`, `fillMethod`, `fillOrigin` | Cropped fill (health/progress bars, cooldown rings). |
 
+#### What 9-slice is for
+
+A button drawn at 100×112 and used at 450×130 is stretched 4.5× wide — and the border,
+the rounded corners and the highlight stretch with it. The frame looks melted, and you
+cannot fix it by drawing a second image for every button size in the game.
+
+9-slice cuts the image into a 3×3 grid and scales each piece differently:
+
+![A source button texture stretched wide smears its corners; cut into a 3×3 grid the corners stay 1:1, the edges stretch along one axis and only the middle stretches both ways](../../../assets/guides/nine-slice.svg)
+
+`sliceBorder` is those four numbers: how far in from each edge the "do not stretch" band
+reaches. Corners keep their exact pixels at any size, so one 100×112 texture serves a tiny
+tooltip and a full-width banner. The border belongs to the **image**, not to the entity
+using it, so it is a texture import setting — set it once and every `NineSlice` that
+references the texture is sliced the same way. See
+[dragging the border](/docs/guides/editor/#the-content-browser) in the asset inspector.
+
+#### What a mask is for
+
+A mask answers "show this content, but only inside that region". The classic cases are a
+square avatar photo that has to appear circular, and a scrolling list whose items must
+disappear at the edge of their viewport rather than spilling over the rest of the screen.
+
+Add `UIMask` to a node and its children are clipped to that node. By default the clip is
+the node's **box** — a rectangle. That is enough for a list viewport, but it is why a
+circular avatar frame used to still cut a square: the mask graphic was round, the clip
+was not. `alphaCutoff` above 0 switches the clip to the shape the mask actually draws.
+
+![A square photo under a circular mask: clipped to the box it stays square; with alphaCutoff above zero it is clipped to the circle](../../../assets/guides/ui-mask.svg)
+
 `UIVisual.enabled` hides this entity's visual only; `UINode.display = None`
 removes the node **and its whole subtree** from layout, rendering, and
 hit-testing. Add `UIMask` to a node to clip its children to the box.
+
+**`UIVisual.fit` — CSS `object-fit`.** By default an image is *stretched* to its box, so
+art whose ratio differs from its slot is visibly squashed. `Contain` shrinks the quad
+until the whole image fits (the box keeps its layout size); `Cover` keeps the box and
+crops the UV instead. Neither ever distorts the artwork. `NineSlice` and `Tiled` ignore
+it — adapting to the box is their whole job.
+
+![Wide art in a square slot: Fill squashes it, Contain shrinks the whole image inside the box, Cover fills the box and crops the overflow](../../../assets/guides/object-fit.svg)
+
+**`UIMask.alphaCutoff` — clip to the shape, not the box.** A stencil mask clips to the
+mask's *rectangle*, so a circular avatar frame still cut a square. Above `0` it clips to
+the shape the mask actually draws, testing the **sprite's** alpha (not the tinted result,
+because a mask graphic is routinely tinted to near-zero alpha so it masks without being
+seen). `0` stays the default, so scenes authored against box clipping are unchanged.
+
+### Subtree opacity and pointer gating
+
+`UINode` carries two fields that resolve **hierarchically**, in the same pass that already
+resolves `display`:
+
+| Field | Default | Effect |
+|---|---|---|
+| `opacity` | `1` | Multiplied down the tree like CSS `opacity`. Fades a whole panel with one value. |
+| `pointerEvents` | `Auto` | `None` makes the node **and its subtree** transparent to the pointer — still drawn, hits pass straight through. |
+
+These are the "CanvasGroup" knobs: fading a panel used to mean touching every visual's
+`color.a`, and a decorative overlay had no way to stop eating clicks (`Interactable.blockRaycast`
+is per-entity, not inherited). `opacity` follows CSS semantics — it multiplies per visual
+rather than compositing the subtree offscreen, the same trade every UI toolkit makes.
+
+```ts
+// Fade a whole dialog out and let clicks through while it animates away.
+world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
+```
 
 ## Editor or code
 

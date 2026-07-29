@@ -14,8 +14,67 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The target screen now governs the running game, not just the canvas you author
+  against.** The device selection shaped the edit overlay and nothing else: a game played
+  in the viewport or the Game panel filled whatever space the dock happened to have, so a
+  project authored for a phone was only ever *run* at whatever aspect its panel was
+  dragged to. One selection now drives all three views — editing previews it, and both
+  play hosts letterbox to it. The Game panel gained an overlay bar carrying that control
+  plus a readout of the simulated size. `Design` stays the "no simulation" choice, so a
+  desktop project is unchanged. The letterbox is applied to the element hosting the realm
+  rather than inside the engine, so the realm sees a canvas of the device's shape and its
+  own `ScreenScaling` adapts exactly as it would on the hardware.
+- **A project declares the screens it tests on.** The built-in device list is a guess, and
+  a guess nobody can correct means everyone tests on approximately the wrong screen.
+  `screenPresets` in `project.esproject` adds rows to the dropdown, editable in Project
+  Settings → Display (id, name, portrait size, and safe-area insets behind a per-row
+  expander). An entry reusing a built-in id **replaces** that built-in, so a studio can
+  make "iPhone" mean the exact handset it ships to and every saved selection still
+  resolves. Presets ride version control with the project.
+- **UI: subtree opacity, a pointer gate, mask shapes, and `object-fit`.** `UINode.opacity`
+  multiplies down the tree like CSS `opacity` (fading a panel no longer means touching
+  every visual's alpha) and `UINode.pointerEvents = None` makes a node and its subtree
+  transparent to the pointer, so a decorative overlay stops eating clicks. Both resolve in
+  the same hierarchical pass that already resolves `display`. `UIMask.alphaCutoff` above 0
+  clips to the shape the mask *draws* instead of its box, so a circular avatar frame stops
+  cutting a square. `UIVisual.fit` is CSS `object-fit`: `Contain` letterboxes the image
+  inside its box, `Cover` crops it — neither distorts art whose ratio differs from its slot.
+- **A game can ship its own font.** `Text.font` is a real asset reference to an imported
+  `.ttf`/`.otf`, so it rides the same machinery as every other asset slot (dependency
+  tracking, cook inclusion, `@uuid:` refs, hot update, ref counting). Previously `Text`
+  could only name a family the *host* already had, which on native meant there was no
+  answer at all. Shipped fonts are not a second text path — the loader mints a family name
+  and the pipeline still speaks one language for "which typeface".
+- **Drag a 9-slice border on the texture instead of typing four numbers.** The asset
+  inspector draws the four guides on the preview and they are draggable; the numeric
+  fields stay in sync for exact nudges.
+- **An agent can build a scene through MCP, not just poke at one.** The editor's MCP
+  surface could observe anything and change one field at a time — fine for a tweak,
+  hopeless for authoring. `apply_scene_ops` runs a program of create/parent/component/field
+  ops as one undoable, atomic batch: if any op fails, the error names it and the whole
+  batch rolls back rather than leaving a half-built subtree.
+
 ### Fixed
 
+- **9-slice borders were dropped everywhere except the edit viewport.** A frame that
+  sliced correctly while authoring stretched the moment you pressed Play, and would have
+  stretched in every shipped build. Three separate breaks stacked: scene preloading asked
+  the import-settings resolver with the *resolved* path while suppliers key by the
+  authored ref; the editor keyed its Play payload by `@uuid:` alone, so a ported or
+  hand-authored scene holding paths got nothing; and assembling the addressable manifest
+  dropped the importer block entirely, so a packaged build had no channel for the `.meta`
+  at all. Import settings now travel with the asset through one description that Play, a
+  playable and a cooked build all read.
+- **Orientation was a clickable no-op for the default screen.** Landscape/Portrait took
+  clicks and changed nothing while `Design` was selected — there is no screen being held
+  one way when none is simulated. The rows are disabled with a note saying what enables them.
+- **Concurrent writes could corrupt `project.esproject`.** Every project-settings writer
+  did an unserialized read-modify-write of the manifest, so two edits in flight both read
+  the pre-edit file and the second landed on top of the first — losing it, or interleaving
+  into JSON that no longer parses. Typing across the fields of one settings row produced
+  exactly that. All manifest patches now queue on one chain.
 - **A DragonBones armature ignored its Color.** The field was in the inspector and
   did nothing — the runtime's ABI had no tint entry point, so the value was
   authored, saved, and dropped. It tints now, and **multiplies** each slot's own

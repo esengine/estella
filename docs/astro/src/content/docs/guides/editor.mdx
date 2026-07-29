@@ -127,13 +127,57 @@ scene has a Canvas, UI additionally lays out inside the frame per its scale mode
 
 - **Design** dropdown (viewport toolbar) — sets the design resolution and reframes to it
   (undoable). With a Canvas it edits that Canvas; otherwise it edits the project value.
-- **Device** dropdown — *simulates* a target screen (iPhone / iPad / 1080p …) in any mode:
-  draws the device's aspect as letterbox bars + safe-area insets over your scene, so you
-  preview how it fits. A preview only — it does **not** change your design resolution.
+- **Device** dropdown — picks the **target screen** (iPhone / iPad / 1080p …) in any mode.
+  While editing it draws that screen's aspect as letterbox bars + safe-area insets over
+  your scene; when you press **Play** the running game is letterboxed to the same shape,
+  in the viewport and in the **Game** panel alike. It never changes your design
+  resolution — it changes what you are looking at it *through*.
+- **Orientation** (same dropdown) — swaps the device's width and height. It applies to a
+  **device**, so it is disabled while `Design` is selected: with no screen simulated
+  there is nothing to rotate.
 - **Camera Fit** (Project Settings → Display) — how the **main camera** scales the design
   resolution, independent of any UI Canvas. `None` (default) keeps the camera's own
   orthoSize; any other mode letterboxes the game the same way on every device, and the
   device preview then shows the **real** framing (WYSIWYG for gameplay, not just UI).
+
+**One screen, edit and run.** The `Design` entry is the "no simulation" choice: the game
+fills whatever space the panel has, which is what authoring for desktop wants. Pick any
+real device and both the edit overlay and the running game commit to its shape — so a
+project authored for a phone is never only ever *run* at whatever aspect the dock
+happened to be dragged to.
+
+![A scene running in the viewport, framed to the selected target screen rather than to the panel's own shape](../../../assets/guides/en/game-target-screen.png)
+
+### Project screen presets
+
+The built-in device list is a guess. A team that ships to specific hardware corrects it
+in **Project Settings → Display → Screen presets**: add a row with an id, a name and the
+portrait size, and it joins the dropdown for everyone who opens the project.
+
+- **Id** is what a saved selection resolves through, so keep it stable. Reusing a built-in
+  id (`iphone`, `ipad`, `1080p`, `720p`) **replaces** that built-in rather than sitting
+  beside it — which is how a studio makes "iPhone" mean the exact handset it tests on.
+- **Sizes are stored portrait** (width ≤ height), like the built-ins, so the orientation
+  toggle means the same thing for every screen.
+- **Safe area** (the row's ▸ expander) sets the notch / home-indicator insets in device
+  pixels. Leave them at zero and nothing is written to the project file — the viewport's
+  *Safe area* overlay then has nothing to draw for that screen.
+
+![Project Settings showing a screen preset row with its safe-area insets expanded](../../../assets/guides/en/settings-screen-presets.png)
+
+Presets live in `project.esproject`, so they are shared through version control:
+
+```json title="project.esproject"
+{
+  "screenPresets": [
+    { "id": "steam-deck", "label": "Steam Deck", "width": 800, "height": 1280 },
+    {
+      "id": "iphone", "label": "iPhone 15 Pro", "width": 1179, "height": 2556,
+      "safe": { "top": 59, "bottom": 34, "left": 0, "right": 0 }
+    }
+  ]
+}
+```
 
 ## Building a scene
 
@@ -202,6 +246,18 @@ widget** — most of them for UI nodes:
 
 Details also serves as the **asset inspector**: select an asset in the Content Browser to
 edit its import settings or, for a material, its parameters.
+
+**Dragging a 9-slice border.** A texture's slice border decides where a `NineSlice` panel
+keeps its corners crisp, and typing four numbers means guessing at them. Select the
+texture and drag the four guides directly on the preview instead — the numeric fields stay
+in sync, so you can nudge one edge exactly after eyeballing the rest.
+
+Import settings describe the **asset**, not the scene that happens to use it, and they now
+reach every place the texture is drawn: the edit viewport, Play (in the viewport and in
+the Game panel), and a packaged build. A frame that slices correctly while you author it
+slices correctly in the shipped game.
+
+![Dragging the 9-slice border guides on a texture in the asset inspector](../../../assets/guides/en/nine-slice-drag.png)
 
 ## The Content Browser
 

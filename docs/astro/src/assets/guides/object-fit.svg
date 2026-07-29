@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 210" width="640" height="210" role="img">
+  <style>
+    .t { font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+    .h { fill: #cbd0db; font-size: 13px; font-weight: 600; }
+    .n { fill: #8b91a0; font-size: 11px; }
+    .bad { fill: #e8615f; font-size: 11px; font-weight: 600; }
+    .good { fill: #54c479; font-size: 11px; font-weight: 600; }
+  </style>
+  <defs>
+    <clipPath id="coverClip"><rect x="470" y="46" width="110" height="110"/></clipPath>
+    <linearGradient id="art" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5b9cf0"/><stop offset="1" stop-color="#54c479"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the mismatch -->
+  <text class="t h" x="12" y="18">Wide art in a square slot</text>
+  <rect x="12" y="72" width="176" height="58" rx="4" fill="url(#art)"/>
+  <circle cx="60" cy="101" r="17" fill="#0d0f14" opacity="0.45"/>
+  <text class="t n" x="12" y="150">176 × 58 image · 110 × 110 box</text>
+
+  <!-- Fill -->
+  <text class="t h" x="234" y="18">Fill · default</text>
+  <rect x="234" y="46" width="110" height="110" rx="4" fill="url(#art)"/>
+  <ellipse cx="264" cy="101" rx="10.6" ry="32" fill="#0d0f14" opacity="0.45"/>
+  <rect x="234" y="46" width="110" height="110" rx="4" fill="none" stroke="#e8615f" stroke-width="2"/>
+  <text class="t bad" x="234" y="176">✗ squashed</text>
+  <text class="t n" x="234" y="194">stretched to the box</text>
+
+  <!-- Contain -->
+  <text class="t h" x="352" y="18">Contain</text>
+  <rect x="352" y="46" width="110" height="110" rx="4" fill="none" stroke="#2b2f3a" stroke-width="1" stroke-dasharray="4 4"/>
+  <rect x="352" y="83" width="110" height="36" rx="3" fill="url(#art)"/>
+  <circle cx="382" cy="101" r="10.5" fill="#0d0f14" opacity="0.45"/>
+  <text class="t good" x="352" y="176">✓ whole image</text>
+  <text class="t n" x="352" y="194">shrinks; box keeps its size</text>
+
+  <!-- Cover -->
+  <text class="t h" x="470" y="18">Cover</text>
+  <g clip-path="url(#coverClip)">
+    <rect x="304" y="46" width="333" height="110" fill="url(#art)"/>
+    <circle cx="395" cy="101" r="32" fill="#0d0f14" opacity="0.45"/>
+  </g>
+  <rect x="470" y="46" width="110" height="110" rx="4" fill="none" stroke="#54c479" stroke-width="2"/>
+  <text class="t good" x="470" y="176">✓ fills the box</text>
+  <text class="t n" x="470" y="194">crops the overflow</text>
+</svg>
