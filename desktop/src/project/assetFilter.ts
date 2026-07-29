@@ -9,9 +9,12 @@
  */
 export type AssetSort = 'name' | 'type';
 
-/** The minimal row shape the filter/sort needs (name + folder flag). */
+/** The minimal row shape the filter/sort needs (name + path + folder flag). The
+ *  path is what `typeOf` is asked about: a file's type is not always readable
+ *  from its name, so the caller resolves it against the asset registry. */
 export interface AssetRowLike {
   name: string;
+  path: string;
   isDir: boolean;
 }
 
@@ -47,7 +50,7 @@ export function filterAndSortAssets<T extends AssetRowLike>(
   parsed: ParsedQuery,
   chipTypes: ReadonlySet<string>,
   sort: AssetSort,
-  typeOf: (name: string) => string,
+  typeOf: (path: string) => string,
 ): T[] {
   const constraints = [...new Set([...chipTypes, ...parsed.types])];
   const hasType = constraints.length > 0;
@@ -55,13 +58,13 @@ export function filterAndSortAssets<T extends AssetRowLike>(
   const list = entries.filter((e) => {
     if (parsed.text && !e.name.toLowerCase().includes(parsed.text)) return false;
     if (e.isDir) return !hasType;
-    return !hasType || constraints.some((c) => matchesType(typeOf(e.name), c));
+    return !hasType || constraints.some((c) => matchesType(typeOf(e.path), c));
   });
 
   return [...list].sort((a, b) => {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1; // folders first
     if (sort === 'type' && !a.isDir && !b.isDir) {
-      const t = typeOf(a.name).localeCompare(typeOf(b.name));
+      const t = typeOf(a.path).localeCompare(typeOf(b.path));
       if (t !== 0) return t;
     }
     return a.name.localeCompare(b.name);

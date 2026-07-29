@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { importAssets, createAsset } from '../electron/importAssets';
+import { importAssets, createAsset, IMPORT_EXTENSIONS } from '../electron/importAssets';
 
 let root: string;
 let outside: string;
@@ -84,6 +84,30 @@ describe('importAssets', () => {
     const res = await importAssets(root, 'assets', [src]);
     expect(res.imported).toEqual([]);
     expect(res.skipped).toEqual(['notes.txt']);
+  });
+
+  // Spine 2.1 has no binary export: a project on that runtime ships `skeleton.json`,
+  // and a name-only door left it unregistered — so the Skeleton Path slot had nothing
+  // to offer and rejected the file the user dropped on it.
+  it('imports a Spine JSON skeleton as spine (typed by its content, not its name)', async () => {
+    const src = path.join(outside, 'skeleton.json');
+    writeFileSync(src, '{"skeleton":{"hash":"h","spine":"2.1.27"},"bones":[{"name":"root"}]}');
+    const res = await importAssets(root, 'assets/spine', [src]);
+    expect(res.imported).toEqual(['assets/spine/skeleton.json']);
+    expect(meta(path.join(root, 'assets/spine/skeleton.json')).type).toBe('spine');
+  });
+
+  it('still skips a plain data .json — being JSON does not make a file an asset', async () => {
+    const src = path.join(outside, 'levels.json');
+    writeFileSync(src, '{"levels":[1,2,3]}');
+    const res = await importAssets(root, 'assets', [src]);
+    expect(res.imported).toEqual([]);
+    expect(res.skipped).toEqual(['levels.json']);
+  });
+
+  it('offers the content-typed extensions in the dialog filter', () => {
+    expect(IMPORT_EXTENSIONS).toContain('json');
+    expect(new Set(IMPORT_EXTENSIONS).size).toBe(IMPORT_EXTENSIONS.length);
   });
 });
 

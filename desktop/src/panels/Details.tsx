@@ -56,7 +56,7 @@ import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { NineSliceEditor } from '@/components/NineSliceEditor';
 import { fsRefresh } from '@/project/fsWatch';
 import { Toasts } from '@/store/Toasts';
-import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
+import { baseName, IMAGE_RE } from '@/project/assetMeta';
 import { BUILTIN_PLATFORMS, type BuiltinPlatform } from '@/project/platforms';
 import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
@@ -3184,7 +3184,7 @@ function LocaleSection({ title, badge, action, children }: {
 
 // rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
-  const type = assetTypeOf(baseName(path));
+  const type = ProjectStore.assetTypeAt(path);
   if (isMaterialAsset(path)) {
     return <MaterialAssetInspector path={path} />;
   }
@@ -3350,7 +3350,7 @@ function TexturePlatformOverrides({ importer, write }: { importer: Record<string
 // (written to the `.meta` sidecar) through the shared ComponentSection engine.
 function GenericAssetInspector({ path }: { path: string }) {
   const name = baseName(path);
-  const type = assetTypeOf(name);
+  const type = ProjectStore.assetTypeAt(path);
   const isImage = IMAGE_RE.test(name);
 
   const [importer, setImporter] = useState<Record<string, unknown> | null>(null);

@@ -11,10 +11,16 @@ import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { resolveInRoot, META_EXT } from './projectFs';
-import { EXT_TO_TYPE, metaTypeFor, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
+import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
+import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
 
-/** The supported import extensions (no leading dot) — used by the file dialog filter. */
-export const IMPORT_EXTENSIONS = Object.keys(EXT_TO_TYPE).map((e) => e.slice(1));
+/** The supported import extensions (no leading dot) — used by the file dialog filter.
+ *  The content-typed ones are offered too: a Spine JSON skeleton is a `.json`, and a
+ *  dialog that hides it leaves the user no way to bring one in. Whether such a file
+ *  really is an asset is settled by reading it (metaTypeForFile), not by the filter. */
+export const IMPORT_EXTENSIONS = [
+  ...new Set([...Object.keys(EXT_TO_TYPE), ...CONTENT_TYPED_EXTENSIONS]),
+].map((e) => e.slice(1));
 
 /** A unique destination name in `absDir`: "hero.png" → "hero 2.png" if taken. */
 function uniqueName(absDir: string, name: string): string {
@@ -103,7 +109,7 @@ export async function importAssets(root: string, destDir: string, sources: strin
   const imported: string[] = [];
   const skipped: string[] = [];
   for (const src of sources) {
-    const type = metaTypeFor(src);
+    const type = await metaTypeForFile(src);
     if (!type) {
       skipped.push(path.basename(src));
       continue;

@@ -13,7 +13,7 @@ import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
-import { IMAGE_RE, assetTypeOf as assetType, baseName, TYPE_CODE } from '@/project/assetMeta';
+import { IMAGE_RE, baseName, TYPE_CODE } from '@/project/assetMeta';
 import { openAssetOfType } from '@/project/assetOpen';
 import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
@@ -42,6 +42,12 @@ const TILE_MAX = 152;
 const TILE_KEY = 'estella.content.tileSize';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** What kind of thing a project file is — the ONE resolver the tiles, badges, type
+ *  chips, sort and double-click open all read, so they cannot disagree. Asked by
+ *  PATH, not name: a file's type is not always readable from its name (a Spine JSON
+ *  skeleton is a plain `.json`), and the registry knows what its `.meta` recorded. */
+const typeAt = (path: string): AssetType => ProjectStore.assetTypeAt(path);
 
 // Per-delivery-mode presentation (menu label + corner badge; `local` has none).
 // Keyed by AssetGroupMode so adding a mode to the SDK's ASSET_GROUP_MODES forces
@@ -151,7 +157,7 @@ function AssetTipCard({ path, entry }: { path: string; entry: DirEntry }) {
   const [stat, setStat] = useState<{ size: number; mtimeMs: number } | null>(null);
   const [dims, setDims] = useState<string | null>(null);
 
-  const type: AssetType = entry.isDir ? 'folder' : assetType(entry.name);
+  const type: AssetType = entry.isDir ? 'folder' : typeAt(path);
   const isImg = !entry.isDir && IMAGE_RE.test(entry.name);
   const assetReference = entry.isDir ? null : ProjectStore.assetRef(path);
 
@@ -445,7 +451,7 @@ export function ContentBrowser() {
     [searching, scan.files, entries, cwd],
   );
   const items = useMemo(
-    () => filterAndSortAssets(rows, parsed, filters as ReadonlySet<string>, sort, assetType),
+    () => filterAndSortAssets(rows, parsed, filters as ReadonlySet<string>, sort, typeAt),
     [rows, parsed, filters, sort],
   );
   const listLoading = searching ? scan.loading : dirLoading;
@@ -466,7 +472,7 @@ export function ContentBrowser() {
       go(path);
       return;
     }
-    openAssetOfType(assetType(name), path, name);
+    openAssetOfType(typeAt(path), path, name);
   };
 
   // After any fs mutation: re-read open directories + re-scan the asset registry
@@ -506,8 +512,8 @@ export function ContentBrowser() {
       return;
     }
     // Preserve a FILE's extension if the user dropped it (e.g. Ctrl+A + retype):
-    // assetType() drives the icon AND double-click open and is extension-based, so
-    // an extensionless file would go inert. Folders have no extension to keep.
+    // the type drives the icon AND double-click open and is mostly extension-based,
+    // so an extensionless file would go inert. Folders have no extension to keep.
     const isDir = entries.find((e) => e.name === cur)?.isDir ?? false;
     const dot = cur.lastIndexOf('.');
     const ext = !isDir && dot > 0 ? cur.slice(dot) : '';
@@ -1002,11 +1008,12 @@ export function ContentBrowser() {
       ];
     }
     const { path, entry } = ctx.target;
-    const isScene = !entry.isDir && assetType(entry.name) === 'scene';
-    const isTexture = !entry.isDir && (assetType(entry.name) === 'texture' || assetType(entry.name) === 'sprite');
-    const isTileset = !entry.isDir && assetType(entry.name) === 'tileset';
-    const isAnimClip = !entry.isDir && assetType(entry.name) === 'animclip';
-    const isMaterial = !entry.isDir && assetType(entry.name) === 'material';
+    const targetType = entry.isDir ? 'folder' : typeAt(path);
+    const isScene = targetType === 'scene';
+    const isTexture = targetType === 'texture' || targetType === 'sprite';
+    const isTileset = targetType === 'tileset';
+    const isAnimClip = targetType === 'animclip';
+    const isMaterial = targetType === 'material';
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
       // Offered for everything, because opening now always resolves to something —
@@ -1245,7 +1252,7 @@ export function ContentBrowser() {
                   ))}
                 {!listLoading && items.map((it) => {
                   const path = it.path;
-                  const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
+                  const type: AssetType = it.isDir ? 'folder' : typeAt(path);
                   const isImg = !it.isDir && IMAGE_RE.test(it.name);
                   const deliv = it.isDir ? ProjectStore.folderDeliveryMode(path) : 'local';
                   return (
@@ -1322,7 +1329,7 @@ export function ContentBrowser() {
                   ))}
                 {!listLoading && items.map((it) => {
                   const path = it.path;
-                  const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
+                  const type: AssetType = it.isDir ? 'folder' : typeAt(path);
                   return (
                     <div
                       key={path}

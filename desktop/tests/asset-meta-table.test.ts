@@ -9,7 +9,9 @@
 // never got a `.meta`).
 import { describe, it, expect } from 'vitest';
 import { EXT_TO_TYPE, metaTypeFor } from '../electron/assetMeta';
-import { EXT_TO_TYPE as SHARED } from '../../tools/assetMetaTable.js';
+import {
+  EXT_TO_TYPE as SHARED, metaTypeForContent, needsContentType,
+} from '../../tools/assetMetaTable.js';
 
 describe('.meta type table (single source)', () => {
     it('the editor mint door re-exports the shared table verbatim', () => {
@@ -36,5 +38,46 @@ describe('.meta type table (single source)', () => {
         expect(metaTypeFor('X.ESANIM')).toBe('animclip');
         expect(metaTypeFor('notes.txt')).toBeNull();
         expect(metaTypeFor('README.md')).toBeNull();
+    });
+
+    it('types a DragonBones pair by its name suffix (`.json` alone cannot)', () => {
+        expect(metaTypeFor('DragonBoy_ske.json')).toBe('dragonbones');
+        expect(metaTypeFor('DragonBoy_tex.json')).toBe('dragonbones');
+        expect(metaTypeFor('DragonBoy.dbbin')).toBe('dragonbones');
+    });
+});
+
+// A Spine skeleton exported as JSON is a plain `.json` under whatever name the
+// artist chose — and Spine 2.1 has NO binary export, so that is the only form
+// such a project can hand the editor. It is typed by the marker inside the file:
+// the same one the runtime's version detection reads, so the editor and the
+// runtime cannot disagree about what a given `.json` is.
+describe('content-typed assets', () => {
+    const SKELETON = '{"skeleton":{"hash":"4NGJIALC","spine":"2.1.27","width":1371.35},"bones":[]}';
+
+    it('claims only the files a name cannot type', () => {
+        expect(needsContentType('skeleton.json')).toBe(true);
+        expect(needsContentType('hero.png')).toBe(false);
+        expect(needsContentType('level.tmj')).toBe(false);
+        // A name that DOES type it is not up for content review.
+        expect(needsContentType('DragonBoy_ske.json')).toBe(false);
+    });
+
+    it('types a Spine JSON skeleton as spine', () => {
+        expect(metaTypeForContent('skeleton.json', SKELETON)).toBe('spine');
+        expect(metaTypeForContent('boy.json', '{"skeleton":{"spine":"4.2.31"},"bones":[]}')).toBe('spine');
+        // Pretty-printed exports read the same.
+        expect(metaTypeForContent('x.json', '{\n  "skeleton": {\n    "spine": "3.8.99"\n  }\n}')).toBe('spine');
+    });
+
+    it('leaves project data alone — a `.json` is not an asset just for being JSON', () => {
+        expect(metaTypeForContent('levels.json', '{"levels":[1,2,3]}')).toBeNull();
+        // "spine" outside a skeleton header is not a skeleton.
+        expect(metaTypeForContent('notes.json', '{"about":"the spine: 4.2 runtime"}')).toBeNull();
+    });
+
+    it('never overrides a name that already typed the file', () => {
+        expect(metaTypeForContent('DragonBoy_ske.json', '{"armature":[]}')).toBe('dragonbones');
+        expect(metaTypeForContent('hero.png', SKELETON)).toBe('texture');
     });
 });

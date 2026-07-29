@@ -23,11 +23,13 @@
  *   2  — usage / IO error
  */
 
-import { readdir, stat, readFile, writeFile, access } from 'node:fs/promises';
-import { join, extname, basename, relative, resolve } from 'node:path';
+import { readdir, stat, readFile, writeFile, access, open } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
-import { EXT_TO_TYPE } from './assetMetaTable.js';
+import {
+    EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES,
+} from './assetMetaTable.js';
 
 const META_VERSION = '2.0';
 
@@ -43,8 +45,9 @@ const SKIP_FILES = new Set([
     '.gitkeep', '.gitignore', '.gitattributes',
 ]);
 
-// Extension → `.meta` type is single-sourced in ./assetMetaTable.js (shared
-// with the editor's mint door, desktop/electron/assetMeta.ts).
+// File → `.meta` type is single-sourced in ./assetMetaTable.js (shared with the
+// editor's mint door, desktop/electron/assetMeta.ts) — extension, name suffix,
+// and the content sniff for the formats a name cannot type.
 
 /**
  * Default `importer` settings per type. Shapes match the examples/ meta
@@ -81,10 +84,31 @@ function getImporterDefaults(type) {
     }
 }
 
-/** Returns the asset type for a path, or null if the extension is unknown. */
-function getAssetType(filePath) {
-    const ext = extname(filePath).toLowerCase();
-    return EXT_TO_TYPE[ext] ?? null;
+/** The first `bytes` of a file as text, or '' if it can't be read. */
+async function readHead(filePath, bytes) {
+    let handle;
+    try {
+        handle = await open(filePath, 'r');
+        const buf = Buffer.alloc(bytes);
+        const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+        return buf.subarray(0, bytesRead).toString('utf8');
+    } catch {
+        return '';
+    } finally {
+        await handle?.close();
+    }
+}
+
+/**
+ * The asset type for a path on disk, or null if nothing can type it. The name
+ * answers for almost everything; the formats it cannot type (Spine's JSON
+ * skeleton is a plain `.json`) are typed by a marker in the file's head — the
+ * same rule the editor's mint door applies.
+ */
+async function getAssetType(filePath) {
+    const byName = metaTypeForExt(filePath);
+    if (byName || !needsContentType(filePath)) return byName;
+    return metaTypeForContent(filePath, await readHead(filePath, CONTENT_SNIFF_BYTES));
 }
 
 /** Builds the meta object (JSON-shape) for a given type. */
@@ -153,7 +177,7 @@ export async function generateMetaForDir(dir, options = {}) {
     const skipped = [];
 
     for await (const filePath of walk(root)) {
-        const type = getAssetType(filePath);
+        const type = await getAssetType(filePath);
         if (type === null) {
             if (verbose) skipped.push({ path: filePath, reason: 'unknown extension' });
             continue;
@@ -224,7 +248,7 @@ export async function buildManifest(dir, options = {}) {
     const warnings = [];
 
     for await (const filePath of walk(root)) {
-        const type = getAssetType(filePath);
+        const type = await getAssetType(filePath);
         if (type === null) continue;
 
         const metaPath = filePath + '.meta';

@@ -34,6 +34,7 @@ import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
+import { ASSET_TYPES, assetTypeDef } from '@/project/assetTypes';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
@@ -59,10 +60,18 @@ function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): bo
   if (!fieldType) return true;
   // A 'texture' slot accepts any image (texture or sprite); others match by name.
   if (fieldType === 'texture') return type === 'texture' || type === 'sprite';
-  // Spine slots discriminate the shared 'spine' Content-Browser type by
-  // extension, through the SDK's own classification (.skel vs .atlas) — the
-  // same vocabulary the cook's dep scan uses.
-  if (fieldType === 'spine-skeleton' || fieldType === 'spine-atlas') return getEditorType(path) === fieldType;
+  // Spine slots split the shared 'spine' Content-Browser type into its two
+  // halves, through the SDK's own classification (.skel vs .atlas) — the same
+  // vocabulary the cook's dep scan uses.
+  if (fieldType === 'spine-skeleton' || fieldType === 'spine-atlas') {
+    const named = getEditorType(path);
+    if (named === 'spine-skeleton' || named === 'spine-atlas') return named === fieldType;
+    // A JSON skeleton has no extension of its own — Spine 2.1 exports nothing
+    // else — so what says it is one is its registered `spine` type, minted from
+    // the marker inside the file. Only the skeleton half can arrive unnamed:
+    // the atlas is always `.atlas`.
+    return fieldType === 'spine-skeleton' && type === 'spine';
+  }
   if (type === fieldType) return true;
   // Slots named in the SDK's editorType vocabulary rather than the
   // Content-Browser type name (anim-clip for .esanim, timeline for .estimeline).
@@ -797,7 +806,7 @@ class ProjectStoreImpl {
    * writes against.
    */
   async getImportSettings(path: string): Promise<{ type: string; settings: Record<string, unknown> }> {
-    const type = assetTypeOf(path.split('/').pop() ?? path);
+    const type = this.assetTypeAt(path);
     const stored = JSON.parse(await window.estella.fs.read(path + '.meta')).importer as
       | Record<string, unknown>
       | undefined;
@@ -2038,12 +2047,31 @@ class ProjectStoreImpl {
     return path ? { path, name: path.split('/').pop() ?? path } : null;
   }
 
+  /**
+   * The Content-Browser type of a project file — the ONE answer the picker, the
+   * drag-drop guard and the browser tiles all read, so they cannot disagree about
+   * what a file is.
+   *
+   * The name decides it wherever an extension (or a `_ske.json`-style suffix) can:
+   * that claim is cheap, and holds for files the registry has never seen. Where
+   * the name says nothing, the registered `.meta` type does — it was minted from
+   * the file's own content, which is the only thing that can tell a Spine JSON
+   * skeleton from any other `.json`.
+   */
+  assetTypeAt(path: string): AssetType {
+    const byName = assetTypeOf(path.split('/').pop() ?? path);
+    if (byName !== 'file') return byName;
+    const uuid = this.pathToUuid.get(path);
+    const metaType = uuid ? this.uuidToType.get(uuid) : undefined;
+    return metaType && assetTypeDef(metaType) !== ASSET_TYPES.file ? (metaType as AssetType) : byName;
+  }
+
   /** Project assets valid for an asset slot (the inspector's asset picker), by name. */
   listAssets(fieldType?: string): AssetEntry[] {
     const out: AssetEntry[] = [];
     for (const [uuid, path] of this.uuidToPath) {
       const name = path.split('/').pop() ?? path;
-      const type = assetTypeOf(name);
+      const type = this.assetTypeAt(path);
       if (!assetMatchesSlot(type, path, fieldType)) continue;
       out.push({ ref: UUID_PREFIX + uuid, path, name, type });
     }
@@ -2054,8 +2082,7 @@ class ProjectStoreImpl {
    *  the picker popover filters by, exposed so drag-drop can reject a wrong-typed asset. */
   assetTypeAllowed(fieldType: string | undefined, path: string): boolean {
     if (!fieldType) return true;
-    const name = path.split('/').pop() ?? path;
-    return assetMatchesSlot(assetTypeOf(name), path, fieldType);
+    return assetMatchesSlot(this.assetTypeAt(path), path, fieldType);
   }
 
   /**

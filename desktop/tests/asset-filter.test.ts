@@ -5,23 +5,26 @@
  *        filter (tokens + chips, prefix match), and sort order.
  */
 import { describe, it, expect } from 'vitest';
-import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
-import type { DirEntry } from '@/project/format';
+import { parseAssetQuery, filterAndSortAssets, type AssetSort, type AssetRowLike } from '@/project/assetFilter';
 
-const typeOf = (name: string): string => {
-  if (name.endsWith('.png')) return 'texture';
-  if (name.endsWith('.esmat')) return 'material';
-  if (name.endsWith('.esscene')) return 'scene';
+// Typed by PATH, as the panel does: the registry — not the bare name — is what
+// can answer for a file whose name doesn't declare its kind.
+const typeOf = (path: string): string => {
+  if (path.endsWith('.png')) return 'texture';
+  if (path.endsWith('.esmat')) return 'material';
+  if (path.endsWith('.esscene')) return 'scene';
+  if (path === 'assets/skeleton.json') return 'spine';
   return 'other';
 };
-const E = (name: string, isDir = false): DirEntry => ({ name, isDir });
-const entries: DirEntry[] = [
+const E = (name: string, isDir = false): AssetRowLike => ({ name, path: `assets/${name}`, isDir });
+const entries: AssetRowLike[] = [
   E('zfolder', true),
   E('afolder', true),
   E('villain.png'),
   E('hero.png'),
   E('ground.esmat'),
   E('main.esscene'),
+  E('skeleton.json'),
 ];
 const run = (q: string, chips: string[] = [], sort: AssetSort = 'name') =>
   filterAndSortAssets(entries, parseAssetQuery(q), new Set(chips), sort, typeOf).map((e) => e.name);
@@ -54,12 +57,21 @@ describe('filterAndSortAssets', () => {
   });
 
   it('sort=name lists folders first, then files alphabetically', () => {
-    expect(run('')).toEqual(['afolder', 'zfolder', 'ground.esmat', 'hero.png', 'main.esscene', 'villain.png']);
+    expect(run('')).toEqual([
+      'afolder', 'zfolder', 'ground.esmat', 'hero.png', 'main.esscene', 'skeleton.json', 'villain.png',
+    ]);
   });
 
   it('sort=type groups files by type after the folders', () => {
-    // material, scene, texture, texture — folders first.
-    expect(run('', [], 'type')).toEqual(['afolder', 'zfolder', 'ground.esmat', 'main.esscene', 'hero.png', 'villain.png']);
+    // material, scene, spine, texture, texture — folders first.
+    expect(run('', [], 'type')).toEqual([
+      'afolder', 'zfolder', 'ground.esmat', 'main.esscene', 'skeleton.json', 'hero.png', 'villain.png',
+    ]);
+  });
+
+  it('types a row by its PATH, so a name that cannot declare its kind still filters', () => {
+    // A Spine JSON skeleton is a plain `.json`; only the registry knows it is spine.
+    expect(run('type:spine')).toEqual(['skeleton.json']);
   });
 
   it('is generic — preserves extra row fields (e.g. a full path for recursive search)', () => {

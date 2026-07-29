@@ -146,4 +146,21 @@ describe('scanAssetDatabase — orphan adoption', () => {
     expect(existsSync(`${abs}.meta`)).toBe(false);
     rmSync(abs);
   });
+
+  // "I dropped my spine folder into the project" — with a JSON skeleton, which is
+  // all Spine 2.1 can export. Nothing in the NAME says the `.json` is a skeleton,
+  // so a name-only adoption left it out of the registry entirely and its component
+  // slot had nothing to offer.
+  it('adopts a JSON Spine skeleton as spine, and leaves plain data JSON alone', async () => {
+    const skel = path.join(root, 'assets/skeleton.json');
+    const data = path.join(root, 'assets/levels.json');
+    writeFileSync(skel, '{"skeleton":{"hash":"h","spine":"2.1.27"},"bones":[{"name":"root"}]}');
+    writeFileSync(data, '{"levels":[1,2,3]}');
+    const res = await scanAssetDatabase(root, { write: false });
+    expect(res.adopted).toEqual(['assets/skeleton.json']);
+    expect(JSON.parse(readFileSync(`${skel}.meta`, 'utf8')).type).toBe('spine');
+    expect(existsSync(`${data}.meta`)).toBe(false);
+    expect(res.index.entries.find((e) => e.path === 'assets/skeleton.json')?.type).toBe('spine');
+    rmSync(skel); rmSync(`${skel}.meta`); rmSync(data);
+  });
 });
