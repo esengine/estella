@@ -21,8 +21,15 @@ def _emit_native_functions(args) -> int:
         if not path.is_file():
             print(f"[FAIL] --native-functions: no such header: {path}")
             return 1
-        # The generated TU includes the header the way the binding TUs do.
-        include = f'esengine/bindings/{path.name}'
+        # The generated TU includes the header the way the binding TUs do: by its
+        # path under src/. Deriving it (rather than pasting a basename onto a
+        # fixed directory) is what lets a header move without the generated file
+        # pointing at where it used to be.
+        parts = path.resolve().parts
+        if 'src' not in parts:
+            print(f"[FAIL] --native-functions: {path} is not under src/, so its include cannot be derived")
+            return 1
+        include = '/'.join(parts[len(parts) - 1 - parts[::-1].index('src') + 1:])
         headers.append((include, path.read_text(encoding='utf-8')))
 
     gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim)

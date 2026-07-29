@@ -110,6 +110,12 @@ jobs:
     - name: Check render-command boundary (DrawCommands built only by BatchBuilder)
       run: node tools/check-draw-command-boundary.mjs
 
+    # The device build's codegen, without the device build: it needs no compiler
+    # and takes a second, but nothing outside a release ran it — so a header that
+    # moved cost a full Dawn build to find out about, twice.
+    - name: Check native binding codegen (headers + the includes it generates)
+      run: node tools/check-native-bindings.mjs
+
     # Filtered so the SDK is checked by ITS OWN pinned TypeScript (the workspace
     # carries two majors — desktop is on 6.x); a bare root `pnpm exec tsc`
     # resolves an arbitrary compiler. Mirrors the repo's `verify` gate exactly.
