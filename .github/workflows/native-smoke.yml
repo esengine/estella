@@ -1,0 +1,178 @@
+name: Native smoke
+
+# Does a game packaged from the runtime templates actually start?
+#
+# `verify-template` reads what an archive carries, which is a weaker claim than it
+# sounds: v0.36.0's Android template carried a host that ran, and every game made
+# from it still opened on a black screen. This packages a real example around the
+# template the same way the editor's Package dialog does, installs it on a
+# simulator, and asks the two questions a completeness check cannot — did the boot
+# record reach "ready", and is the frame more than one flat color.
+#
+# A simulator is not a phone. Real GPU drivers, real compressed textures, thermal
+# throttling and memory pressure are all outside what this can see, and the two
+# Android rendering bugs this project has actually shipped were of that kind. What
+# this catches is the layer under them: a template that cannot produce a launching
+# app at all.
+
+on:
+  workflow_dispatch:
+    inputs:
+      template-tag:
+        description: "Release tag to take the templates from (blank = this run's own artifacts)."
+        required: false
+        type: string
+      example:
+        description: 'Example project to package.'
+        required: false
+        default: hello-world
+        type: string
+  workflow_call:
+    inputs:
+      template-tag:
+        required: false
+        type: string
+      example:
+        required: false
+        default: hello-world
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android emulator boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Take the template from the release
+        if: inputs.template-tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ inputs.template-tag }}" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-android-*.zip' -D templates
+
+      - name: Take the template from this run
+        if: inputs.template-tag == ''
+        uses: actions/download-artifact@v8
+        with:
+          name: native-template-android
+          path: templates
+
+      # Under release strictness, so this never packages around an archive the
+      # publish gate would reject anyway.
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template templates/*.zip
+          mkdir -p template
+          unzip -q templates/*.zip -d template
+
+      - name: Build the SDK the game is bundled against
+        run: pnpm --filter ./sdk build
+
+      - name: Package the example as a signed APK
+        run: |
+          node desktop/scripts/export-project.mjs "examples/${{ inputs.example }}" \
+            --platform android --template template --out dist-android --json export.json
+          echo "APK=$(node -p "require('./export.json').apkFile")" >> "$GITHUB_ENV"
+
+      # Without this the emulator falls back to software CPU emulation and the
+      # boot alone outlasts the job.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # The host is Dawn on Vulkan (the manifest requires it), which on a runner
+      # with no GPU means the emulator's bundled SwiftShader Vulkan.
+      - name: Boot it on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: node tools/verify-native-boot.mjs --platform android --apk "$APK"
+
+      - name: Keep the frame and the record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-boot-${{ inputs.example }}
+          path: build/native-boot
+          if-no-files-found: warn
+
+  ios:
+    name: iOS simulator boot
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Take the template from the release
+        if: inputs.template-tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ inputs.template-tag }}" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-ios-*.zip' -D templates
+
+      - name: Take the template from this run
+        if: inputs.template-tag == ''
+        uses: actions/download-artifact@v8
+        with:
+          name: native-template-ios
+          path: templates
+
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template templates/*.zip
+          mkdir -p template
+          unzip -q templates/*.zip -d template
+
+      - name: Build the SDK the game is bundled against
+        run: pnpm --filter ./sdk build
+
+      - name: Write the Xcode project around the example
+        run: |
+          node desktop/scripts/export-project.mjs "examples/${{ inputs.example }}" \
+            --platform ios --template template --out dist-ios --json export.json
+          project=$(node -p "require('./export.json').xcodeProject")
+          if [ "$project" = "undefined" ]; then
+            echo "::error::the iOS export wrote no Xcode project — see the warnings above"
+            exit 1
+          fi
+          echo "XCODEPROJ=$project" >> "$GITHUB_ENV"
+          echo "SCHEME=$(basename "$project" .xcodeproj)" >> "$GITHUB_ENV"
+
+      # Simulator slices need no signing identity, which is the whole reason this
+      # can run on a hosted runner at all.
+      - name: Build it for the simulator
+        run: |
+          xcodebuild -project "$XCODEPROJ" -scheme "$SCHEME" -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd CODE_SIGNING_ALLOWED=NO build
+          app=$(find dd/Build/Products -maxdepth 2 -name '*.app' | head -1)
+          test -n "$app" || { echo "::error::xcodebuild produced no .app"; exit 1; }
+          echo "APP=$app" >> "$GITHUB_ENV"
+
+      - name: Boot it on a simulator
+        run: node tools/verify-native-boot.mjs --platform ios --app "$APP"
+
+      - name: Keep the frame and the record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-boot-${{ inputs.example }}
+          path: build/native-boot
+          if-no-files-found: warn

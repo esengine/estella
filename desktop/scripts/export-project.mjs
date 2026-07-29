@@ -16,14 +16,16 @@
 //     --scene <path>      entry scene, project-relative (default: the project's own)
 //     --title <name>      app title (default: the project's name)
 //     --scripts <path>    scripts entry, project-relative (default src/main.ts if present)
+//     --template <dir>    android/ios: the runtime template to wrap, else the installed one
+//     --json <file>       also write the result here, for a caller that reads it back
 //
 // Prints the export result as JSON — errors and warnings included, so a caller can
 // tell a clean package from one that silently dropped half a scene.
 import path from 'node:path';
-import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { installedTemplateDir } from '../../build-tools/utils/nativeTemplate.js';
+import { installedTemplateDir, iosTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.join(HERE, '..');
@@ -139,10 +141,11 @@ const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, `dist-${platf
 // explicitly with --template, else looked up the way the editor does, so a headless
 // export assembles the same package the dialog would rather than content alone.
 const engineVersion = JSON.parse(readFileSync(path.join(DESKTOP, 'package.json'), 'utf8')).version;
-const androidTemplate = platform === 'android'
+const nativePlatform = platform === 'android' || platform === 'ios';
+const templateDir = nativePlatform
     ? (opts.template
         ? path.resolve(opts.template)
-        : firstExisting([installedTemplateDir(engineVersion, 'android')]) ?? null)
+        : firstExisting([installedTemplateDir(engineVersion, platform)]) ?? null)
     : null;
 const { resolveOrientation } = await loadProjectFormat();
 const { exportGame, cleanup } = await loadExportGame();
@@ -159,10 +162,15 @@ try {
         platform,
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
         orientation: resolveOrientation(project),
-        androidTemplate,
+        androidTemplate: platform === 'android' ? templateDir : null,
+        iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
         androidOutput: opts.output === 'project' ? 'project' : undefined,
     });
-    console.log(JSON.stringify({ ...result, outDir }, null, 2));
+    const report = { ...result, outDir };
+    console.log(JSON.stringify(report, null, 2));
+    // stdout carries the cook's own progress too, so a caller that wants the
+    // result mechanically cannot just redirect it.
+    if (opts.json) writeFileSync(path.resolve(opts.json), `${JSON.stringify(report, null, 2)}\n`);
     code = result.ok ? 0 : 1;
 } finally {
     // Before the exit, not after: process.exit() in the try block would skip this
