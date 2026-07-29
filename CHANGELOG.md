@@ -14,6 +14,22 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-29
+
+A game is run at the screen it was authored for. The target device shaped the edit
+overlay and nothing else, so a project made for a phone was only ever *played* at
+whatever shape its panel happened to be dragged to. One selection now drives editing
+and both play hosts, the device list is the project's own to extend, and each screen
+carries the safe area it should be tested against.
+
+The UI toolkit also gained the pieces a real UI package turns out to need — subtree
+opacity, a pointer gate, masks that clip to what they draw, `object-fit`, and a font a
+game ships itself — while 9-slice borders, which had been dropped everywhere outside
+the edit viewport, now survive Play and a packaged build. Underneath, the source tree
+was reorganised: the renderer separates the device from the frame that drives it, the
+SDK's modules found shelves, eleven build trees became one, and the guards that police
+those boundaries fail when the layout drifts instead of going quiet.
+
 ### Added
 
 - **The target screen now governs the running game, not just the canvas you author
@@ -50,6 +66,14 @@ published separately; it ships inside the editor.
 - **Drag a 9-slice border on the texture instead of typing four numbers.** The asset
   inspector draws the four guides on the preview and they are draggable; the numeric
   fields stay in sync for exact nudges.
+- **Ordering a group of systems, written once.** `defineSystemSet` puts systems under one
+  name, so a run condition and the ordering edges are stated for the group instead of
+  repeated per member — and anything ordered against that name waits for all of them.
+  `App.addSystemSet` had been there for a while with no exported way to build its
+  argument; `defineSystemSet` and its types are public now. Ordering also travels on the
+  system definition itself, which is what finally gives the top-level `addSystem` — the
+  path examples and game code actually use, and the one that takes no options — a way to
+  say "after that one".
 - **An agent can build a scene through MCP, not just poke at one.** The editor's MCP
   surface could observe anything and change one field at a time — fine for a tweak,
   hopeless for authoring. `apply_scene_ops` runs a program of create/parent/component/field
@@ -83,6 +107,13 @@ published separately; it ships inside the editor.
   what makes clearing the field restore the original instead of leaving the last
   colour stuck. Per entity, so one of two figures sharing a skeleton can be tinted
   alone.
+- **Three engine systems declared an execution order that never reached the scheduler.**
+  `defineSystem` accepted `runBefore` / `runAfter` and then discarded them, so the
+  character controller was not in fact running before the physics step, and neither drag
+  system was running after UI interaction — each landed wherever registration order
+  happened to leave it. Edges now travel with the definition and combine with whatever the
+  registration site or the enclosing set adds, rather than one silently replacing the
+  other.
 
 ## [0.35.0] - 2026-07-28
 
