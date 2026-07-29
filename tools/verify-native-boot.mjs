@@ -89,9 +89,12 @@ const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 function quietly(what, cmd, args) {
     const got = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if (got.status === 0) return got.stdout ?? '';
-    const said = `${got.stdout ?? ''}\n${got.stderr ?? ''}`.trim().split('\n')
-        .filter((l) => /error|Error|fatal|FAILED/.test(l)).slice(-6).join('\n  ');
-    throw new Error(`${what} failed${said ? `:\n  ${said}` : ` (exit ${got.status})`}`);
+    const all = `${got.stdout ?? ''}\n${got.stderr ?? ''}`.trim().split('\n').filter((l) => l.trim());
+    const blamed = all.filter((l) => /error|Error|fatal|FAILED/.test(l));
+    // A tool that fails without saying "error" still said something, and the tail
+    // is better than the empty string this used to report.
+    const said = (blamed.length ? blamed : all).slice(-8).join('\n  ');
+    throw new Error(`${what} failed (exit ${got.status})${said ? `:\n  ${said}` : ''}`);
 }
 
 // =============================================================================
@@ -117,6 +120,16 @@ function androidDriver(opts) {
             const release = trySh(adb, ['shell', 'getprop', 'ro.build.version.release']).stdout.trim();
             const size = trySh(adb, ['shell', 'wm', 'size']).stdout.trim().replace(/^.*:\s*/, '');
             return `${serial} — ${model}, Android ${release}, ${size}`;
+        },
+        // An emulator running forty apps in a row starves its launcher, which then
+        // ANRs, and the system paints "Pixel Launcher isn't responding" over the
+        // game. That dialog does not change the resumed activity, so a foreground
+        // check waves it through — and its antialiased text is hundreds of colors,
+        // so the frame "passed" while the game behind it was black. The dialog is
+        // noise from a busy runner, and Android can simply not draw it.
+        prepare() {
+            trySh(adb, ['shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1']);
+            trySh(adb, ['shell', 'settings', 'put', 'global', 'anr_show_background', '0']);
         },
         install(apk) {
             trySh(adb, ['uninstall', APP_ID]);
@@ -218,6 +231,7 @@ function iosDriver(opts) {
         stop() {
             trySh('xcrun', ['simctl', 'terminate', udid, APP_ID]);
         },
+        prepare() {},
         foreground() {
             const out = trySh('xcrun', ['simctl', 'spawn', udid, 'launchctl', 'list']);
             // Only answer when the probe itself worked — a failed probe is not
@@ -285,6 +299,7 @@ async function verifyApp(driver, artifact, label, opts) {
         driver.stop();
     }
 
+    driver.clearScreen();
     const frame = driver.screenshot();
     const shot = path.join(opts.out, `${driver.name}-${label}.png`);
     writeFileSync(shot, frame);
@@ -372,6 +387,7 @@ if (!device) {
     process.exit(1);
 }
 console.log(`device: ${device}\n`);
+driver.prepare();
 
 const summary = [];
 // Printed as well as filed: the emulator writes its own Vulkan chatter to this
@@ -414,8 +430,10 @@ if (!opts.examples) {
 
 const examples = listExamples(opts);
 if (!examples.length) {
-    console.error('✗ no examples selected');
-    process.exit(2);
+    // A shard with nothing in it is what a named set smaller than the matrix
+    // looks like, not a mistake.
+    console.log(opts.shard ? `nothing in shard ${opts.shard}` : '✗ no examples selected');
+    process.exit(opts.shard ? 0 : 2);
 }
 console.log(`${examples.length} example(s)${opts.shard ? ` (shard ${opts.shard})` : ''}\n`);
 
@@ -429,10 +447,10 @@ for (const name of examples) {
         // is gigabytes for no reason.
         rmSync(work, { recursive: true, force: true });
     } catch (err) {
-        r = { ok: false, why: err.message.split('\n')[0], log: '', colors: 0, size: '-' };
+        r = { ok: false, why: err.message, log: '', colors: 0, size: '-' };
     }
     results.push({ name, ...r });
-    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors` : `✗ ${r.why}`}`);
+    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors` : `✗ ${r.why.split('\n')[0]}`}`);
 }
 
 const known = Object.keys(KNOWN_FAILURES);
@@ -446,7 +464,8 @@ note('');
 note('| example | result | frame |');
 note('| --- | --- | --- |');
 for (const r of results) {
-    const state = r.ok ? '✓' : (KNOWN_FAILURES[r.name] ? `✗ known — ${KNOWN_FAILURES[r.name]}` : `✗ ${r.why}`);
+    const state = r.ok ? '✓'
+        : (KNOWN_FAILURES[r.name] ? `✗ known — ${KNOWN_FAILURES[r.name]}` : `✗ ${r.why.split('\n')[0]}`);
     note(`| ${r.name} | ${state} | ${r.ok ? `${r.size}, ${r.colors} colors` : '—'} |`);
 }
 
