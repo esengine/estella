@@ -73,6 +73,29 @@ async function loadExportGame() {
     return { exportGame: mod.exportGame, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
+/**
+ * The editor's own project-format helpers, bundled the same way.
+ *
+ * Reading the manifest by hand here is how this script drifts from the editor,
+ * which is the one thing it exists not to do: orientation was read as a
+ * top-level `orientation` field, a key the format does not have, so every
+ * project packaged landscape — a 600x1080 shmup included.
+ */
+async function loadProjectFormat() {
+    const require = createRequire(path.join(DESKTOP, 'package.json'));
+    const esbuild = require('esbuild');
+    const dir = mkdtempSync(path.join(DESKTOP, '.format-'));
+    const outfile = path.join(dir, 'format.mjs');
+    await esbuild.build({
+        entryPoints: [path.join(DESKTOP, 'src', 'project', 'format.ts')],
+        outfile, bundle: true, format: 'esm', platform: 'node', target: 'node20',
+        external: ['esbuild', 'electron', 'sharp'], logLevel: 'error',
+    });
+    const mod = await import(fileUrl(outfile));
+    rmSync(dir, { recursive: true, force: true });
+    return mod;
+}
+
 /** The project's own settings, so a headless export matches what the editor would do. */
 function projectSettings(projectDir) {
     for (const name of ['project.esproject', 'project.esproj', 'project.json']) {
@@ -121,6 +144,7 @@ const androidTemplate = platform === 'android'
         ? path.resolve(opts.template)
         : firstExisting([installedTemplateDir(engineVersion, 'android')]) ?? null)
     : null;
+const { resolveOrientation } = await loadProjectFormat();
 const { exportGame, cleanup } = await loadExportGame();
 let code = 1;
 try {
@@ -134,7 +158,7 @@ try {
         outDir,
         platform,
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
-        orientation: project.orientation ?? 'landscape',
+        orientation: resolveOrientation(project),
         androidTemplate,
         androidOutput: opts.output === 'project' ? 'project' : undefined,
     });

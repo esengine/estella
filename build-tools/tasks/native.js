@@ -154,8 +154,6 @@ async function generateSdkBundle(rootDir, genDir) {
 async function precompileBundleBytecode(rootDir, genDir, quickjs) {
     const source = path.join(genDir, 'esengine_bundle.embedded.js');
     const out = path.join(genDir, BYTECODE_FILE);
-    const exe = process.platform === 'win32' ? '.exe' : '';
-    const tool = path.join(genDir, `mkbc${exe}`);
 
     // The very sources the host links, so the bytecode it writes is the bytecode
     // the host reads. Anything else is a format gamble.
@@ -167,15 +165,40 @@ async function precompileBundleBytecode(rootDir, genDir, quickjs) {
         return null;
     }
 
-    const cc = process.platform === 'win32' ? 'gcc' : 'cc';
+    // Through CMake, which is already required to be here — the NDK toolchain
+    // builds the host with it. Invoking a compiler directly means naming one, and
+    // the name that was here (`gcc` on Windows) is the one a Windows machine set
+    // up for this build is least likely to have: it has MSVC, or the NDK's clang,
+    // under neither of those names. Skipping is silent apart from a warning, and
+    // what it costs is ~14s of black screen on first launch — a packaged game that
+    // looks hung. CMake is the one thing that finds whatever compiler is here.
+    const buildDir = path.join(genDir, 'mkbc-build');
     try {
-        await runCommand(cc, [
-            '-std=c11', '-O2', '-w',
-            '-I', quickjs,
-            '-o', tool,
-            path.join(rootDir, 'native', 'tools', 'mkbc.c'),
-            ...qjsSources,
-        ], { cwd: rootDir, silent: true });
+        await mkdir(buildDir, { recursive: true });
+        const sources = [path.join(rootDir, 'native', 'tools', 'mkbc.c'), ...qjsSources]
+            .map((f) => `"${fwd(f)}"`).join(' ');
+        writeFileSync(path.join(buildDir, 'CMakeLists.txt'), [
+            'cmake_minimum_required(VERSION 3.20)',
+            'project(mkbc C)',
+            'set(CMAKE_C_STANDARD 11)',
+            `add_executable(mkbc ${sources})`,
+            `target_include_directories(mkbc PRIVATE "${fwd(quickjs)}")`,
+            'if(MSVC)',
+            '  target_compile_options(mkbc PRIVATE /w)',
+            'else()',
+            '  target_compile_options(mkbc PRIVATE -w)',
+            'endif()',
+        ].join('\n') + '\n', 'utf8');
+        await runCommand('cmake', ['-S', buildDir, '-B', buildDir, '-DCMAKE_BUILD_TYPE=Release'],
+            { cwd: rootDir, silent: true });
+        await runCommand('cmake', ['--build', buildDir, '--config', 'Release'],
+            { cwd: rootDir, silent: true });
+        const exe = process.platform === 'win32' ? '.exe' : '';
+        // Single-config generators put it in the build dir; multi-config (MSBuild,
+        // Xcode) put it under the configuration.
+        const tool = [path.join(buildDir, `mkbc${exe}`), path.join(buildDir, 'Release', `mkbc${exe}`)]
+            .find(existsSync);
+        if (!tool) throw new Error('mkbc built but not found');
         await runCommand(tool, [source, out], { cwd: rootDir, silent: true });
     } catch (err) {
         logger.warn('Bytecode precompile skipped (no host compiler?) — the app will '
