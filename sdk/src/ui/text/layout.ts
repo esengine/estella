@@ -113,6 +113,7 @@ export function buildGlyphVertices(
     color: RGBA,
     originX = 0,
     originY = 0,
+    sdfBias = 0,
 ): GlyphVertexData {
     const n = glyphs.length;
     const vertices = new Float32Array(n * 4 * TEXT_VERTEX_FLOATS);
@@ -125,10 +126,10 @@ export function buildGlyphVertices(
         const y0 = gl.y0 + originY, y1 = gl.y1 + originY;
         const vo = i * 4 * TEXT_VERTEX_FLOATS;
         // BL, BR, TR, TL — UV V uses v1 at the bottom, v0 at the top.
-        writeVertex(vertices, vo + 0 * TEXT_VERTEX_FLOATS, x0, y0, gl.u0, gl.v1, r, g, b, a);
-        writeVertex(vertices, vo + 1 * TEXT_VERTEX_FLOATS, x1, y0, gl.u1, gl.v1, r, g, b, a);
-        writeVertex(vertices, vo + 2 * TEXT_VERTEX_FLOATS, x1, y1, gl.u1, gl.v0, r, g, b, a);
-        writeVertex(vertices, vo + 3 * TEXT_VERTEX_FLOATS, x0, y1, gl.u0, gl.v0, r, g, b, a);
+        writeVertex(vertices, vo + 0 * TEXT_VERTEX_FLOATS, x0, y0, gl.u0, gl.v1, r, g, b, a, sdfBias);
+        writeVertex(vertices, vo + 1 * TEXT_VERTEX_FLOATS, x1, y0, gl.u1, gl.v1, r, g, b, a, sdfBias);
+        writeVertex(vertices, vo + 2 * TEXT_VERTEX_FLOATS, x1, y1, gl.u1, gl.v0, r, g, b, a, sdfBias);
+        writeVertex(vertices, vo + 3 * TEXT_VERTEX_FLOATS, x0, y1, gl.u0, gl.v0, r, g, b, a, sdfBias);
 
         const io = i * 6, vb = i * 4;
         indices[io] = vb; indices[io + 1] = vb + 1; indices[io + 2] = vb + 2;
@@ -141,10 +142,11 @@ export function buildGlyphVertices(
 function writeVertex(
     out: Float32Array, o: number,
     x: number, y: number, u: number, v: number,
-    r: number, g: number, b: number, a: number,
+    r: number, g: number, b: number, a: number, sdfBias: number,
 ): void {
     out[o] = x; out[o + 1] = y; out[o + 2] = u; out[o + 3] = v;
     out[o + 4] = r; out[o + 5] = g; out[o + 6] = b; out[o + 7] = a;
+    out[o + 8] = sdfBias;
 }
 
 export interface RichTextLayoutOptions extends TextLayoutOptions {

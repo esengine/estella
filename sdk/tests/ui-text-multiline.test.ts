@@ -13,6 +13,7 @@ import { layoutText, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT } from '../src/ui/text/
 function makeAtlas(): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
         renderSize: 48,
+        spread: 6,
         rasterize: (): RasterGlyph => ({ pixels: new Uint8Array(10 * 12 * 4), width: 10, height: 12, advance: 11, bearingX: 1, bearingY: 10 }),
     };
     let next = 1;

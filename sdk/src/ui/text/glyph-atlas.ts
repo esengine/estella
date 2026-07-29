@@ -35,6 +35,9 @@ export interface RasterGlyph {
 export interface GlyphRasterizer {
     /** The size glyphs are rasterized at; metrics are in these units. */
     readonly renderSize: number;
+    /** SDF spread in rasterized texels — the distance one half of the encoded
+     *  range covers. 0 when the glyphs are plain coverage, not a distance field. */
+    readonly spread: number;
     /**
      * Render one glyph to an upload-ready bitmap + metrics, or null if the glyph
      * cannot be produced (unknown codepoint / no font). `pixelSize` overrides the
@@ -116,6 +119,14 @@ export class GlyphAtlas {
 
     /** The px size glyphs are rasterized at; layout scales by displaySize/renderSize. */
     get renderSize(): number { return this.rasterizer.renderSize; }
+
+    /** Distance units per rasterized texel, or 0 when these glyphs carry coverage
+     *  rather than a distance field. What turns an outline width in text px into
+     *  the edge shift the shader applies. */
+    get distancePerTexel(): number {
+        const spread = this.rasterizer.spread;
+        return this.sdf && spread > 0 ? 0.5 / spread : 0;
+    }
 
     /**
      * On-screen device px per design px beyond DPR (the canvas design fit).

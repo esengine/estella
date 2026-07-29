@@ -7,6 +7,8 @@
  *        verified headless.
  */
 import { describe, it, expect } from 'vitest';
+
+import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
@@ -18,6 +20,7 @@ const UNKNOWN = 0xffff;
 function makeAtlas(): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
         renderSize: 48,
+        spread: 6,
         rasterize: (cp: number): RasterGlyph | null => {
             if (cp === UNKNOWN) return null;
             if (cp === SPACE) return { pixels: new Uint8Array(0), width: 0, height: 0, advance: 12, bearingX: 0, bearingY: 0 };
@@ -71,7 +74,7 @@ describe('REARCH_GUI P1.3b: text layout', () => {
         const atlas = makeAtlas();
         const layout = layoutLine('AB', atlas, 'Arial', { fontSizePx: 24 });
         const { vertices, indices } = buildGlyphVertices(layout.glyphs, [1, 0, 0, 1], 100, 200);
-        expect(vertices.length).toBe(2 * 4 * 8);
+        expect(vertices.length).toBe(2 * 4 * TEXT_VERTEX_FLOATS);
         expect(indices.length).toBe(2 * 6);
         // first vertex = bottom-left of glyph 0, with origin applied
         expect(vertices[0]).toBeCloseTo(0.5 + 100); // x

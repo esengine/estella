@@ -15,6 +15,7 @@ import { UI_TEXT_BOLD } from '../src/ui/text/text-transform';
 function makeAtlas(calls: Array<{ cp: number; style: number }>): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
         renderSize: 48,
+        spread: 6,
         rasterize: (cp: number, _f: string, style: number): RasterGlyph | null => {
             calls.push({ cp, style });
             return { pixels: new Uint8Array(10 * 12 * 4), width: 10, height: 12, advance: 11, bearingX: 1, bearingY: 10 };

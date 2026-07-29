@@ -95,6 +95,8 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
     private readonly canvas: Canvas2D;
     private readonly ctx: Ctx2D | null;
 
+    get spread(): number { return this.sdf ? this.pad : 0; }
+
     constructor(module: ESEngineModule | null, opts: CanvasGlyphRasterizerOptions = {}) {
         this.module = module;
         this.renderSize = opts.renderSize ?? 48;

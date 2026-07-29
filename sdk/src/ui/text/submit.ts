@@ -10,8 +10,8 @@
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasm/wasmScratch';
 
-/** Floats per glyph vertex: position(2) + uv(2) + color(4). */
-export const TEXT_VERTEX_FLOATS = 8;
+/** Floats per glyph vertex: position(2) + uv(2) + color(4) + sdfBias(1). */
+export const TEXT_VERTEX_FLOATS = 9;
 
 /**
  * The same submit, without a wasm heap to marshal through: the native host takes
@@ -40,7 +40,7 @@ export function setNativeTextSubmit(submit: NativeTextBatchSubmit | null): void 
 
 /**
  * Submit a batch of glyph quads. `vertices` is `TEXT_VERTEX_FLOATS` floats per
- * vertex (x,y,u,v,r,g,b,a); `indices` reference those vertices; `transform` is a
+ * vertex (x,y,u,v,r,g,b,a,sdfBias); `indices` reference those vertices; `transform` is a
  * column-major mat4 applied to vertex positions (pass identity if positions are
  * already world-space). No-op if the engine build lacks the binding.
  */

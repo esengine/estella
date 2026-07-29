@@ -32,6 +32,8 @@ export class NativeGlyphRasterizer implements GlyphRasterizer {
     private readonly pad: number;
     private readonly sdf: boolean;
 
+    get spread(): number { return this.sdf ? this.pad : 0; }
+
     constructor(opts: NativeGlyphRasterizerOptions = {}) {
         this.renderSize = opts.renderSize ?? 48;
         this.pad = opts.padding ?? 6;

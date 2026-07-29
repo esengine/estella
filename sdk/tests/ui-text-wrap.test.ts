@@ -15,6 +15,7 @@ import type { TextSegment } from '../src/ui/text/rich-text-parser';
 function makeAtlas(): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
         renderSize: 48,
+        spread: 6,
         rasterize: (cp: number): RasterGlyph =>
             cp === 32
                 ? { pixels: new Uint8Array(0), width: 0, height: 0, advance: 6, bearingX: 0, bearingY: 0 }

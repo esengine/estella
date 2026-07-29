@@ -47,7 +47,7 @@ void RenderFrame::submitTextBatch(
 ) {
     if (vertexCount <= 0 || indexCount <= 0) return;
 
-    constexpr i32 FLOATS_PER_VERTEX = 8;  // x, y, u, v, r, g, b, a
+    constexpr i32 FLOATS_PER_VERTEX = 9;  // x, y, u, v, r, g, b, a, sdfBias
     glm::mat4 model = glm::make_mat4(transform16);
 
     u32 vBytes = static_cast<u32>(vertexCount) * sizeof(BatchVertex);
@@ -58,7 +58,9 @@ void RenderFrame::submitTextBatch(
         const f32* v = vertices + i * FLOATS_PER_VERTEX;
         glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
         u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
-        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
+        // texIndex is assigned at merge time; sdfBias rides in from the layout,
+        // which is where an outline pass says how far to grow the glyph.
+        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]}, 0.0f, v[8] };
     }
 
     // sdf: the SDF variant derives coverage from the distance field; otherwise the

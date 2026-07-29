@@ -26,7 +26,7 @@ function makeRasterizer() {
         const w = 10, h = 12;
         return { pixels: new Uint8Array(w * h * 4).fill(200), width: w, height: h, advance: 11, bearingX: 1, bearingY: 10 };
     });
-    return { renderSize: 48, rasterize } as GlyphRasterizer & { rasterize: typeof rasterize };
+    return { renderSize: 48, spread: 6, rasterize } as GlyphRasterizer & { rasterize: typeof rasterize };
 }
 
 function makeStore() {

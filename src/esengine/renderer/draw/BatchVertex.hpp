@@ -12,6 +12,13 @@ struct BatchVertex {
     u32 color;
     glm::vec2 texCoord;
     f32 texIndex = 0.0f;  // sampler slot within the draw's texture set; assigned at merge time
+    // How far to push the SDF text edge outward, in the atlas's own distance units
+    // (0.5 = one spread). An outline is the glyph drawn once more with this raised,
+    // which is a real dilation of the distance field — the alternative, stamping the
+    // glyph around itself, stops looking like the glyph once the ring is wide.
+    // Per-vertex rather than per-draw so labels of different styles still batch;
+    // everything that is not SDF text leaves it at 0.
+    f32 sdfBias = 0.0f;
 };
 
 inline u32 packColor(f32 r, f32 g, f32 b, f32 a) {

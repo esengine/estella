@@ -6,6 +6,8 @@
  *        given the atlas, so the per-page grouping + geometry are headless-tested.
  */
 import { describe, it, expect, vi } from 'vitest';
+
+import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
@@ -15,6 +17,7 @@ import type { DrawTextParams } from '../src/ui/text/text-renderer';
 function makeAtlas(pageSize: number): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
         renderSize: 48,
+        spread: 6,
         rasterize: (cp: number): RasterGlyph | null => {
             if (cp === 32) return { pixels: new Uint8Array(0), width: 0, height: 0, advance: 12, bearingX: 0, bearingY: 0 };
             return { pixels: new Uint8Array(10 * 12 * 4), width: 10, height: 12, advance: 11, bearingX: 1, bearingY: 10 };
@@ -32,7 +35,7 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         drawTextWith(atlas, sink, { text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1] });
         expect(sink).toHaveBeenCalledTimes(1);
         const [vertices, indices, pageId] = sink.mock.calls[0];
-        expect(vertices.length).toBe(2 * 4 * 8);
+        expect(vertices.length).toBe(2 * 4 * TEXT_VERTEX_FLOATS);
         expect(indices.length).toBe(2 * 6);
         expect(pageId).toBe(1000);
     });
@@ -47,7 +50,7 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         const pages = sink.mock.calls.map(c => c[2]);
         expect(new Set(pages).size).toBe(2);                       // distinct pages
         const totalVerts = sink.mock.calls.reduce((s, c) => s + c[0].length, 0);
-        expect(totalVerts).toBe(6 * 4 * 8);                        // all 6 glyphs emitted
+        expect(totalVerts).toBe(6 * 4 * TEXT_VERTEX_FLOATS);                        // all 6 glyphs emitted
     });
 
     it('emits shadow + outline passes behind the fill (REARCH_GUI F8)', () => {
@@ -58,12 +61,50 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
             shadow: { color: [0, 0, 0, 1], dx: 2, dy: 2 },
             outline: { color: [0, 0, 0, 1], width: 1 },
         });
-        // 1 shadow + 8 outline directions + 1 fill = 10 single-page batches.
-        expect(sink).toHaveBeenCalledTimes(10);
+        // 1 shadow + 1 dilated outline + 1 fill = 3 single-page batches.
+        expect(sink).toHaveBeenCalledTimes(3);
         // Shadow (first pass) is offset on x by dx; fill (last pass) is not.
         const shadowX = sink.mock.calls[0][0][0];
-        const fillX = sink.mock.calls[9][0][0];
+        const fillX = sink.mock.calls[2][0][0];
         expect(shadowX - fillX).toBeCloseTo(2, 5);
+    });
+
+    it('outlines a distance-field glyph by moving its edge, not by stamping it', () => {
+        // One pass, sitting exactly on the fill, carrying a positive edge shift —
+        // the glyph grown by its own distance field. Eight offset copies of a wide
+        // outline stop resembling the glyph; one dilation cannot.
+        const sink = vi.fn();
+        drawTextWith(makeAtlas(1024), sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            outline: { color: [0, 0, 0, 1], width: 3 },
+        });
+        expect(sink).toHaveBeenCalledTimes(2); // outline + fill
+        const [outline, , ] = sink.mock.calls[0];
+        const [fill] = sink.mock.calls[1];
+        expect(outline[0]).toBeCloseTo(fill[0], 5);          // not offset
+        // 3px at 24px display off a 48px/6-spread atlas: 3 × (48/24) × (0.5/6).
+        expect(outline[8]).toBeCloseTo(0.5, 6);
+        expect(fill[8]).toBe(0);
+    });
+
+    it('falls back to the stamp fan when the glyphs are coverage, not distance', () => {
+        // A bitmap atlas has no distance to move, so the only way to widen a glyph
+        // is still to draw it around itself.
+        const rasterizer: GlyphRasterizer = {
+            renderSize: 48,
+            spread: 0,
+            rasterize: (): RasterGlyph =>
+                ({ pixels: new Uint8Array(10 * 12 * 4), width: 10, height: 12, advance: 11, bearingX: 1, bearingY: 10 }),
+        };
+        let next = 2000;
+        const store: AtlasPageStore = { createPage: () => next++, uploadSubRegion: () => {} };
+        const atlas = new GlyphAtlas(rasterizer, store, { pageSize: 1024, padding: 1, sdf: false });
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            outline: { color: [0, 0, 0, 1], width: 1 },
+        });
+        expect(sink).toHaveBeenCalledTimes(9); // 8 directions + fill
     });
 
     it('spreads a blurred shadow into a ring, still behind the fill', () => {

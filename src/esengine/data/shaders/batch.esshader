@@ -22,6 +22,9 @@ layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
+#ifdef SDF
+layout(location = 4) in float a_sdfBias;
+#endif
 
 layout(std140) uniform FrameConstants {
     mat4 u_projection;
@@ -30,6 +33,9 @@ layout(std140) uniform FrameConstants {
 out vec4 v_color;
 out vec2 v_texCoord;
 flat out int v_texIndex;
+#ifdef SDF
+out float v_sdfBias;
+#endif
 #ifdef LIT
 out highp vec2 v_worldPos;
 #endif
@@ -39,6 +45,9 @@ void main() {
     v_color = a_color;
     v_texCoord = a_texCoord;
     v_texIndex = int(a_texIndex);
+#ifdef SDF
+    v_sdfBias = a_sdfBias;
+#endif
 #ifdef LIT
     v_worldPos = a_position;
 #endif
@@ -53,6 +62,9 @@ precision highp float;
 in vec4 v_color;
 in vec2 v_texCoord;
 flat in int v_texIndex;
+#ifdef SDF
+in float v_sdfBias;
+#endif
 #ifdef LIT
 in highp vec2 v_worldPos;
 #endif
@@ -85,8 +97,11 @@ void main() {
     // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
     // Distance ÷ fwidth = screen px from the edge; the ±0.5px clamp is exactly
     // one pixel of linear coverage ramp (the msdfgen standard).
+    // v_sdfBias moves the edge outward before the ramp, which grows the glyph's
+    // own shape by that many distance units — an outline pass draws the same
+    // quads with it raised and its colour in the vertices.
     float dist = texColor.a;
-    float screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
+    float screenPxDist = (dist - 0.5 + v_sdfBias) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(tint.rgb, tint.a * coverage);
 #elif defined(LIT)
@@ -114,6 +129,9 @@ struct VSIn {
     @location(1) a_color : vec4f,
     @location(2) a_texCoord : vec2f,
     @location(3) a_texIndex : f32,
+#ifdef SDF
+    @location(4) a_sdfBias : f32,
+#endif
 };
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -123,6 +141,9 @@ struct VSOut {
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
 #endif
+#ifdef SDF
+    @location(4) v_sdfBias : f32,
+#endif
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
@@ -131,6 +152,9 @@ struct VSOut {
     out.v_color = v.a_color;
     out.v_texCoord = v.a_texCoord;
     out.v_texIndex = v.a_texIndex;
+#ifdef SDF
+    out.v_sdfBias = v.a_sdfBias;
+#endif
 #ifdef LIT
     out.v_worldPos = v.a_position;
 #endif
@@ -164,6 +188,9 @@ struct VSOut {
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
 #endif
+#ifdef SDF
+    @location(4) v_sdfBias : f32,
+#endif
 };
 
 // textureSampleLevel(…, 0) keeps sampling uniform-flow-legal inside the
@@ -188,7 +215,7 @@ struct VSOut {
     // Same coverage math as the GLSL stage; fwidth here is in uniform control
     // flow (main scope), which WGSL requires of derivative builtins.
     let dist = texColor.a;
-    let screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
+    let screenPxDist = (dist - 0.5 + v.v_sdfBias) / max(fwidth(dist), 1e-6);
     let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     return vec4f(tint.rgb, tint.a * coverage);
 #elif defined(LIT)

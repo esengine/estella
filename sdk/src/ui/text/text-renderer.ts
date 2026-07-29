@@ -57,6 +57,7 @@ export interface DrawTextParams {
 }
 
 // 8-direction offsets (unit) for the outline fan — scaled by the outline width.
+// The bitmap atlas's only way to widen a glyph; see outlineBias.
 const OUTLINE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
     [-1, -1], [0, -1], [1, -1],
     [-1, 0], [1, 0],
@@ -64,12 +65,30 @@ const OUTLINE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
+ * An outline width in text px as the edge shift the SDF shader applies, or 0 when
+ * these glyphs are coverage rather than distance (no edge to shift).
+ *
+ * A glyph is rasterized at the atlas's renderSize and drawn at fontSizePx, so one
+ * atlas texel covers fontSizePx/renderSize text px; the atlas encodes `spread`
+ * texels into half its range. Both conversions are in the value, which therefore
+ * says the same thing at every font size and every zoom.
+ *
+ * Asking for more than the spread cannot dilate further — the field simply stops
+ * there — so an over-wide request degrades to the widest real outline instead of
+ * flooding the glyph's cell.
+ */
+function outlineBias(atlas: GlyphAtlas, fontSizePx: number, widthPx: number): number {
+    const perTexel = atlas.distancePerTexel;
+    if (perTexel <= 0 || fontSizePx <= 0) return 0;
+    return widthPx * (atlas.renderSize / fontSizePx) * perTexel;
+}
+
+/**
  * A blurred shadow is the glyphs stamped around a ring, which is the same shape
  * the outline already takes — one mechanism for "spread these glyphs out", not
  * two. Two rings plus the centre approximate a Gaussian closely enough at the
- * sizes UI text uses; a true one-pass soft edge wants a per-draw threshold the
- * batch path cannot carry yet (the vertex format is shared with every sprite),
- * and both effects collapse into it on the day it can.
+ * sizes UI text uses. Unlike the outline, a blur wants a SOFTER edge rather than
+ * a moved one, which the single distance the vertices carry cannot express.
  */
 const SHADOW_RING: ReadonlyArray<readonly [number, number, number]> = [
     // [x, y, radius fraction] — the inner ring carries most of the mass.
@@ -147,9 +166,9 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
     // glyphs in the same atlas/layer, so they batch and draw in submit order —
     // shadow + outline first (behind), fill last (on top).
-    const emitPass = (color: RGBA, dx: number, dy: number): void => {
+    const emitPass = (color: RGBA, dx: number, dy: number, bias = 0): void => {
         for (const [pageId, glyphs] of byPage) {
-            const { vertices, indices } = buildGlyphVertices(glyphs, color, baseX + dx, originY + dy);
+            const { vertices, indices } = buildGlyphVertices(glyphs, color, baseX + dx, originY + dy, bias);
             sink(vertices, indices, pageId);
         }
     };
@@ -169,10 +188,15 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
             emitPass(color, dx, -dy);
         }
     }
-    // Outline (8-direction fan around the glyph).
+    // Outline. On a distance-field atlas this is the glyph drawn once more with
+    // its edge pushed out — a real dilation, so the shape survives any width. The
+    // bitmap atlas has no distance to push, so it keeps the eight-way stamp, which
+    // is only ever asked for hairlines there.
     if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
         const w = p.outline.width;
-        for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
+        const bias = outlineBias(atlas, p.fontSizePx, w);
+        if (bias > 0) emitPass(p.outline.color, 0, 0, bias);
+        else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
     }
     // Fill (on top).
     emitPass(p.color, 0, 0);
