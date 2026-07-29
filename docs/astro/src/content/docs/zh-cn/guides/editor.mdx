@@ -26,8 +26,8 @@ Estella 编辑器是一个桌面应用(Electron + React),带 UE5 风格的**可�
 | `.esengine/workspace.json` | 编辑器本地状态(上次打开的场景、面板布局)。被 gitignore。 |
 | `assets/scenes/*.esscene` | 你的场景。 |
 | `assets/…` | 纹理、材质、瓦片集等资产,每个带一个 `.meta` 边车文件。 |
-| `src/components.ts` | 声明项目组件与行为的地方。 |
-| `src/main.ts` | 启动入口——注册系统的地方。 |
+| `src/components.ts` | **声明入口**——编辑器会求值这个模块以及它 import 到的一切,以此认识你的组件。组件定义在哪都行,从这里 re-export 出来即可。见[脚本](/zh-cn/docs/guides/scripting/#声明放在哪里)。 |
+| `src/main.ts` | **启动入口**——注册系统的地方。跑游戏的是它;编辑器从不求值它。 |
 
 资产按 UUID(`@uuid:…`)可移植地引用,而不是按路径,所以移动或重命名文件不会断掉引用。
 

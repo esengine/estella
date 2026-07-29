@@ -16,10 +16,10 @@
  */
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan } from 'lucide-react';
-import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, applyThemeToWorld, type PrefabData } from 'esengine';
+import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { ContributionRegistry } from '@/contrib/ContributionRegistry';
-import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
+import { componentByName, componentDefaults, prettyLabel, componentCategory, userComponentNames } from './schema';
 import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 import { EngineHost } from './EngineHost';
@@ -324,9 +324,15 @@ export const ENTITY_SOURCES: EntitySource[] = [
  * — the dynamic half of "cover all cases" (REARCH ENTITY_CREATION E4).
  */
 export function userComponentSources(): EntitySource[] {
-  // `Marker` is an engine component but ships a CURATED Create preset above (with its own
-  // icon + category), so drop it from the generic user-component list to avoid a duplicate.
-  return [...getUserComponents().keys()].filter((name) => name !== 'Marker').map((name) => ({
+  // From `schemas.json` — the SAME source the Details panel's Add Component reads.
+  // The engine's own getUserComponents() registry cannot answer this: the editor
+  // never executes project code, so a project's components are never in it and this
+  // list was empty for every project.
+  //
+  // A name the engine registry already answers to is an engine component, and those
+  // reach the picker through their own curated preset (with a real icon and
+  // category) — take that one rather than a second, generic entry.
+  return userComponentNames().filter((name) => !componentByName(name)).map((name) => ({
     id: `component:${name}`,
     label: prettyLabel(name),
     category: 'Scripts',
@@ -353,9 +359,30 @@ export function entitySources(): readonly EntitySource[] {
   return sourceContrib.all();
 }
 
-/** The source with this id, or null. */
+/**
+ * Everything an entity can be born from RIGHT NOW: the static catalog plus the
+ * sources that come and go with the open project. Recomputed per call — the
+ * project's components and prefabs change while the editor runs.
+ *
+ * Every surface that offers "create an entity" reads this one list, so the Create
+ * popover, the menus, and the automation/MCP catalog cannot drift apart into
+ * offering different things.
+ */
+export function allEntitySources(): EntitySource[] {
+  return [...entitySources(), ...userComponentSources(), ...projectPrefabSources()];
+}
+
+/** Project prefab sources, injected by ProjectStore (which owns the asset registry)
+ *  so this module stays free of a project dependency. */
+let projectPrefabSources: () => EntitySource[] = () => [];
+export function setProjectPrefabSources(fn: () => EntitySource[]): void {
+  projectPrefabSources = fn;
+}
+
+/** The source with this id, or null — over the SAME list the pickers offer, so an
+ *  id that appears in a catalog can always be spawned. */
 export function sourceById(id: string): EntitySource | null {
-  return sourceContrib.get(id) ?? null;
+  return sourceContrib.get(id) ?? allEntitySources().find((s) => s.id === id) ?? null;
 }
 
 /** Case-insensitive filter over label + category + keywords, for the Create popover. */

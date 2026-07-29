@@ -16,7 +16,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { installDragonBonesEnumSources, clearDragonBonesNameCache } from '@/engine/dragonBonesNames';
@@ -274,6 +274,9 @@ class ProjectStoreImpl {
     fsRefresh.subscribe(() => clearDragonBonesNameCache());
     // New Canvas entities seed their design resolution from the project setting.
     setCanvasDesignSeed(() => this.designResolution());
+    // The project's .esprefab assets join the one create-source list, so the picker
+    // and the automation catalog offer them without either reassembling the list.
+    setProjectPrefabSources(() => this.prefabSources());
     // The device preview reads the project camera fit so its letterbox matches the
     // runtime (WYSIWYG when the fit is on).
     setProjectCameraFit(() => {

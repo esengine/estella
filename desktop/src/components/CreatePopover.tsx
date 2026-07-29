@@ -12,8 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { entitySources, userComponentSources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
-import { ProjectStore } from '@/project/ProjectStore';
+import { allEntitySources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 import { usePanelWindow } from '@/components/PanelWindow';
@@ -53,9 +52,9 @@ export function CreatePopover({
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
 
-  // Static builtins + the user's own components + the project's prefab assets;
-  // computed once when the popover opens.
-  const all = useMemo(() => [...entitySources(), ...userComponentSources(), ...ProjectStore.prefabSources()], []);
+  // Static builtins + the project's own components + its prefab assets. Computed
+  // once per open, which is once per mount — the popover is unmounted when closed.
+  const all = useMemo(() => allEntitySources(), []);
   const results = useMemo(() => matchSources(all, query), [all, query]);
   const groups = useMemo(() => groupByCategory(results), [results]);
 

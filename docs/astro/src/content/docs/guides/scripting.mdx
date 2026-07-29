@@ -52,6 +52,42 @@ const spawn = defineSystem([Commands()], (cmds) => {
   two doors to the same data.
 </Aside>
 
+## Where declarations live
+
+The editor knows about your components without ever running your game: it evaluates
+**one entry module** and reads back whatever declared itself. That entry is
+`src/components.ts` by default — the manifest's `scripts.register`, if you want it
+somewhere else.
+
+The rule is *reachability*, not location. `defineBehavior` and `defineComponent`
+register when the call runs, so a module nobody imports never registers anything.
+Spread declarations across as many files as you like and pull them in from the entry:
+
+```typescript
+// src/components.ts — the editor's view of your project
+export * from './behaviors/patrol';
+export * from './components/health';
+```
+
+A behavior the entry cannot reach still *works at runtime*, because the game starts
+from `src/main.ts` — which is exactly what makes this confusing. What you lose is the
+editor: no fields in the Details panel (the component round-trips but shows as
+unknown), no entry under **Scripts** in the Create-entity popover, and no
+`registerAction` / `registerCondition` names in the behavior-tree and event-binding
+palettes.
+
+<Aside type="caution">
+  The entry and everything it imports must be **pure declarations**. The editor
+  evaluates that module graph in an isolated context with no engine and no wasm —
+  systems are queued, never run. Startup side effects belong in `src/main.ts`; keep
+  the two entries separate rather than pointing `scripts.register` at your `main.ts`.
+</Aside>
+
+Saving any file under `src/` re-extracts, so new fields appear in the Details panel a
+moment after you save. If a component never shows up, look at
+`.esengine/cache/schemas.json`: absent there means it was never reached; present there
+but missing in the inspector is a different problem.
+
 ## The lifecycle
 
 Each hook is optional; define only the ones you need.

@@ -52,7 +52,7 @@ import { Particle, getComponent } from 'esengine';
 import { actionNames, actionParams, conditionNames } from '@/ai/actionCatalog';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
-import { entitySources, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
+import { allEntitySources, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
 import { createTilemapFromTileset, createCollisionLayer } from './tilemap/createTilemap';
 import { applySceneOps, type SceneOp } from './engine/sceneOps';
 import { layerTilesetRefs, loadLayerTilesetModel } from './tilemap/layerTilesetModel';
@@ -159,8 +159,10 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Create a blank scene FILE under `destDir` (Content Browser "New Scene"). */
     createSceneFile: (destDir: string, name?: string | null) =>
       ProjectStore.createSceneFile(destDir, name ?? undefined),
-    /** The Create-popover catalog: every ready-made entity the editor can spawn. */
-    listEntityTemplates: () => entitySources().map(({ id, label, category }) => ({ id, label, category })),
+    /** The Create-popover catalog: every ready-made entity the editor can spawn —
+     *  including the open project's own components and prefabs, so automation sees
+     *  the same list a person does. */
+    listEntityTemplates: () => allEntitySources().map(({ id, label, category }) => ({ id, label, category })),
     /** Create a TilemapLayer from an .estileset with an optional grid layout
      *  (orientation/stagger/hex) — drives the New-Tilemap flow headlessly. */
     createTilemap: (tilesetPath: string, grid?: TileGridConfig) => createTilemapFromTileset(tilesetPath, grid),

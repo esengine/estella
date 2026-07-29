@@ -316,6 +316,16 @@ export function userSchema(name: string): UserComponentSchema | undefined {
   return userSchemas.get(name);
 }
 
+/** Every project component the editor knows of, by name.
+ *
+ * The editor never runs project code, so the engine's own `getUserComponents()`
+ * registry holds only what the EDITOR realm defined — never the open project's
+ * components. `schemas.json` is how a project's components reach the editor, so
+ * it is what every surface offering them has to read. */
+export function userComponentNames(): string[] {
+  return [...userSchemas.keys()];
+}
+
 /** Whether a component field renders as a color (registry colorKeys, then schema). */
 export function isColorKey(compType: string, key: string): boolean {
   const def = componentByName(compType);

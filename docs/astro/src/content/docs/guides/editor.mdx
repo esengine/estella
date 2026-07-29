@@ -28,8 +28,8 @@ A project is a folder on disk. The pieces the editor cares about:
 | `.esengine/workspace.json` | Editor-local state (last-opened scene, panel layout). Gitignored. |
 | `assets/scenes/*.esscene` | Your scenes. |
 | `assets/…` | Textures, materials, tilesets, and other assets, each with a `.meta` sidecar. |
-| `src/components.ts` | Where you declare your project's components and behaviors. |
-| `src/main.ts` | The startup entry — where you register systems. |
+| `src/components.ts` | The **declaration entry** — the editor evaluates this module and everything it imports to learn your components. Declare them anywhere; re-export them from here. See [Scripting](/docs/guides/scripting/#where-declarations-live). |
+| `src/main.ts` | The **startup entry** — where you register systems. This is what runs the game; the editor never evaluates it. |
 
 Assets are referenced portably by UUID (`@uuid:…`) rather than by path, so moving or
 renaming a file doesn't break references.

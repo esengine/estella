@@ -47,6 +47,34 @@ const spawn = defineSystem([Commands()], (cmds) => {
   实体上,在那里调 `speed`。代码和编辑器是通往同一份数据的两扇门。
 </Aside>
 
+## 声明放在哪里
+
+编辑器不运行你的游戏也能认识你的组件:它会**求值一个入口模块**,然后读回其中声明过的东西。
+这个入口默认是 `src/components.ts`——想放别处,改清单里的 `scripts.register`。
+
+规则是**可达性**,不是位置。`defineBehavior` 和 `defineComponent` 在调用发生时才注册,
+所以没人 import 的模块什么也不会注册。声明想分几个文件都行,从入口把它们接进来:
+
+```typescript
+// src/components.ts —— 编辑器眼中的你的项目
+export * from './behaviors/patrol';
+export * from './components/health';
+```
+
+入口够不到的行为**运行时照样能跑**,因为游戏是从 `src/main.ts` 启动的——这也正是它容易让人困惑的地方。
+丢的是编辑器那一侧:细节面板里没有字段(组件仍能无损往返,但显示为未知)、创建实体弹窗的
+**脚本** 分类里不出现、行为树与事件绑定的调色板里也没有 `registerAction` / `registerCondition` 的名字。
+
+<Aside type="caution">
+  入口以及它 import 到的一切必须是**纯声明**。编辑器是在一个隔离上下文里求值这张模块图的,
+  没有引擎也没有 wasm——系统只入队,从不运行。启动期副作用属于 `src/main.ts`;
+  让两个入口各司其职,别把 `scripts.register` 指向 `main.ts`。
+</Aside>
+
+保存 `src/` 下的任何文件都会重新提取一次,所以保存后片刻新字段就会出现在细节面板里。
+如果某个组件始终不出现,去看 `.esengine/cache/schemas.json`:不在里面说明它压根没被够到;
+在里面但检视器仍然空着,那是另一个问题。
+
 ## 生命周期
 
 每个钩子都是可选的;只定义你需要的那些。
