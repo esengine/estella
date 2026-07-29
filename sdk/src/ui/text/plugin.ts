@@ -178,11 +178,15 @@ export class TextPlugin implements Plugin {
                     layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
                 }
 
-                const shadow = t.shadowColor.a > 0 && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0)
+                // A blur with no offset is still a shadow — a halo centred on the
+                // glyphs — so it counts as one for the "is there a shadow" test.
+                const shadow = t.shadowColor.a > 0
+                    && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
                     ? {
                         color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
                         dx: t.shadowOffsetX,
                         dy: t.shadowOffsetY,
+                        blur: t.shadowBlur,
                     }
                     : undefined;
                 const outline = t.strokeWidth > 0 && t.strokeColor.a > 0

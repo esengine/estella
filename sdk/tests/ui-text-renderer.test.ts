@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { drawTextWith, signatureOf } from '../src/ui/text/text-renderer';
+import { drawTextWith, signatureOf, tapAlpha } from '../src/ui/text/text-renderer';
 import type { DrawTextParams } from '../src/ui/text/text-renderer';
 
 function makeAtlas(pageSize: number): GlyphAtlas {
@@ -64,6 +64,43 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         const shadowX = sink.mock.calls[0][0][0];
         const fillX = sink.mock.calls[9][0][0];
         expect(shadowX - fillX).toBeCloseTo(2, 5);
+    });
+
+    it('spreads a blurred shadow into a ring, still behind the fill', () => {
+        const atlas = makeAtlas(1024);
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            shadow: { color: [0, 0, 0, 0.5], dx: 0, dy: 4, blur: 3 },
+        });
+        // 9 shadow taps + 1 fill.
+        expect(sink).toHaveBeenCalledTimes(10);
+        // Every tap sits within the blur radius of the offset, and none of them
+        // is the full-strength colour — that is what stops a blurred shadow from
+        // reading as several stamps of the text.
+        const fillX = sink.mock.calls[9][0][0];
+        for (let i = 0; i < 9; i++) {
+            const verts = sink.mock.calls[i][0];
+            expect(Math.abs(verts[0] - fillX)).toBeLessThanOrEqual(3.0001);
+            expect(verts[7]).toBeLessThan(0.5); // per-tap alpha
+        }
+    });
+
+    it('composites the ring back to the requested shadow alpha', () => {
+        // Nine layers of a/9 would land at 1-(1-a/9)^9, well under a.
+        expect(1 - Math.pow(1 - tapAlpha(0.5, 9), 9)).toBeCloseTo(0.5, 6);
+        expect(1 - Math.pow(1 - tapAlpha(0.37, 9), 9)).toBeCloseTo(0.37, 6);
+        expect(tapAlpha(0.5, 1)).toBe(0.5);
+    });
+
+    it('a blur with no offset is a halo, not a skipped shadow', () => {
+        const atlas = makeAtlas(1024);
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            shadow: { color: [0, 0, 0, 1], dx: 0, dy: 0, blur: 2 },
+        });
+        expect(sink).toHaveBeenCalledTimes(10);
     });
 
     it('skips shadow/outline passes when transparent or zero-width', () => {
@@ -147,6 +184,9 @@ describe('text cache signature completeness', () => {
         ['originY', { originY: 5 }],
         ['color', { color: [1, 0, 0, 1] }],
         ['shadow', { shadow: { color: [0, 0, 0, 1], dx: 2, dy: 2 } }],
+        // The blur changes the geometry (a ring instead of one copy), so a label
+        // whose blur alone changed must not keep the cached quads.
+        ['shadow blur', { shadow: { color: [0, 0, 0, 1], dx: 2, dy: 2, blur: 3 } }],
         ['outline', { outline: { color: [0, 0, 0, 1], width: 1 } }],
     ])('changes when %s changes', (_field, override) => {
         expect(signatureOf({ ...base, ...override })).not.toBe(signatureOf(base));

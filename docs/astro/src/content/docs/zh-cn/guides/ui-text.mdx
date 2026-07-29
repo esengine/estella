@@ -80,8 +80,8 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `strokeColor` | Color | `{0,0,0,1}` | 描边颜色。 |
 | `strokeWidth` | number | `0` | 描边宽度(px);`0` 关闭。以 8 方向扇形展开的换色字形副本绘制。 |
 | `shadowColor` | Color | `{0,0,0,1}` | 投影颜色。 |
-| `shadowOffsetX` / `shadowOffsetY` | number | `0` | 投影偏移(px)。仅当颜色有 alpha 且至少一个偏移非零时绘制。 |
-| `shadowBlur` | number | `0` | 保留字段——当前渲染器把投影画成硬边偏移副本,不应用模糊。 |
+| `shadowOffsetX` / `shadowOffsetY` | number | `0` | 投影偏移(px)。 |
+| `shadowBlur` | number | `0` | 投影柔度(px)。`0` 是硬边偏移副本;大于 0 时投影摊成一圈,读起来是字下面一团柔和的暗,而不是又盖了一遍字。只给柔度不给偏移就是一圈光晕。 |
 | `richText` | boolean | `false` | 解析内联[富文本标记](#富文本)。 |
 | `renderMode` | `TextRenderMode` | `Auto` | 字形管线:`Auto` / `Bitmap` / `Sdf`(见上文)。 |
 | `enabled` | boolean | `true` | 渲染开关(编辑器的眼睛图标也用它)。 |

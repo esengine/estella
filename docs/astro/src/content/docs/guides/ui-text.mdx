@@ -86,8 +86,8 @@ Defaults below are the component defaults (what the inspector shows).
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
 | `strokeWidth` | number | `0` | Outline width in px; `0` disables. Drawn as recolored glyph copies fanned out in 8 directions. |
 | `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. |
-| `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. The shadow draws only when the color has alpha and at least one offset is non-zero. |
-| `shadowBlur` | number | `0` | Reserved — the current renderer draws the shadow as a hard-edged offset copy and does not apply blur. |
+| `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. |
+| `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
 | `richText` | boolean | `false` | Parse inline [rich-text markup](#rich-text). |
 | `renderMode` | `TextRenderMode` | `Auto` | Glyph pipeline: `Auto` / `Bitmap` / `Sdf` (see above). |
 | `enabled` | boolean | `true` | Render toggle (the editor's eye icon uses it too). |

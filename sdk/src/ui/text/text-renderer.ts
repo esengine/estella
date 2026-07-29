@@ -46,8 +46,12 @@ export interface DrawTextParams {
     verticalAlign?: number;
     /** Box height (px) for vertical alignment; 0/undefined = boxless (anchor to origin). */
     boxHeight?: number;
-    /** Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill. */
-    shadow?: { color: RGBA; dx: number; dy: number };
+    /**
+     * Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill.
+     * `blur` (px, 0 = hard) spreads that copy into a ring so the shadow reads as
+     * a soft mass rather than a second stamp of the text.
+     */
+    shadow?: { color: RGBA; dx: number; dy: number; blur?: number };
     /** Outline: recolored glyph copies fanned out by `width` px around the fill. */
     outline?: { color: RGBA; width: number };
 }
@@ -58,6 +62,32 @@ const OUTLINE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
     [-1, 0], [1, 0],
     [-1, 1], [0, 1], [1, 1],
 ];
+
+/**
+ * A blurred shadow is the glyphs stamped around a ring, which is the same shape
+ * the outline already takes — one mechanism for "spread these glyphs out", not
+ * two. Two rings plus the centre approximate a Gaussian closely enough at the
+ * sizes UI text uses; a true one-pass soft edge wants a per-draw threshold the
+ * batch path cannot carry yet (the vertex format is shared with every sprite),
+ * and both effects collapse into it on the day it can.
+ */
+const SHADOW_RING: ReadonlyArray<readonly [number, number, number]> = [
+    // [x, y, radius fraction] — the inner ring carries most of the mass.
+    [0, 0, 0],
+    [-0.55, -0.55, 1], [0, -0.78, 1], [0.55, -0.55, 1],
+    [-0.78, 0, 1], [0.78, 0, 1],
+    [-0.55, 0.55, 1], [0, 0.78, 1], [0.55, 0.55, 1],
+];
+
+/**
+ * Per-tap alpha for `n` stacked copies that should composite to `target`.
+ * Straight division under-shoots badly: eight layers of `a/8` reach
+ * 1-(1-a/8)^8, not `a`. This is that inverted.
+ */
+export function tapAlpha(target: number, n: number): number {
+    if (n <= 1) return target;
+    return 1 - Math.pow(1 - Math.min(1, Math.max(0, target)), 1 / n);
+}
 
 /**
  * Lay out `text` against `atlas` and emit one quad batch per atlas page to
@@ -120,7 +150,17 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // Shadow (offset drop copy). y-up local space: a positive screen-down offset
     // moves the copy toward -y.
     if (p.shadow && p.shadow.color[3] > 0) {
-        emitPass(p.shadow.color, p.shadow.dx, -p.shadow.dy);
+        const { color, dx, dy } = p.shadow;
+        const blur = p.shadow.blur ?? 0;
+        if (blur > 0) {
+            const a = tapAlpha(color[3], SHADOW_RING.length);
+            const tap: RGBA = [color[0], color[1], color[2], a];
+            for (const [rx, ry, r] of SHADOW_RING) {
+                emitPass(tap, dx + rx * blur * r, -dy + ry * blur * r);
+            }
+        } else {
+            emitPass(color, dx, -dy);
+        }
     }
     // Outline (8-direction fan around the glyph).
     if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
@@ -221,7 +261,9 @@ export class SdfTextRenderer {
 
 /** Serialize every DrawTextParams field that affects the laid-out, colored geometry. */
 export function signatureOf(p: DrawTextParams): string {
-    const shadow = p.shadow ? `${p.shadow.color.join(',')}:${p.shadow.dx}:${p.shadow.dy}` : '';
+    const shadow = p.shadow
+        ? `${p.shadow.color.join(',')}:${p.shadow.dx}:${p.shadow.dy}:${p.shadow.blur ?? 0}`
+        : '';
     const outline = p.outline ? `${p.outline.color.join(',')}:${p.outline.width}` : '';
     return [
         p.text, p.fontFamily, p.fontSizePx, p.style ?? 0,
