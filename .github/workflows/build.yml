@@ -110,6 +110,11 @@ jobs:
     - name: Check render-command boundary (DrawCommands built only by BatchBuilder)
       run: node tools/check-draw-command-boundary.mjs
 
+    # The release path has no pull request to fail on, so a workflow step that
+    # cannot run is found by pushing a tag. Checked here, where every push is.
+    - name: Check workflows (tooling steps install the workspace)
+      run: node tools/check-workflows.mjs
+
     # The device build's codegen, without the device build: it needs no compiler
     # and takes a second, but nothing outside a release ran it — so a header that
     # moved cost a full Dawn build to find out about, twice.
