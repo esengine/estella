@@ -120,6 +120,13 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         const slack = boxHeight - layout.lineHeight;
         originY -= p.verticalAlign === 1 ? slack / 2 : slack; // 1 middle, 2 bottom
     }
+    // Half-leading. A lineHeight above 1em adds space around the text, and that
+    // space belongs half above the first baseline and half below the last — the
+    // caller hands us a baseline a flat 0.8em under the line top, which puts all
+    // of it below. The block then rides (lineHeight - 1em)/2 too high inside its
+    // own box: at the default 1.2, every centred label sits 0.1em above where it
+    // should, which on a 60px label is a visible 6px.
+    originY -= Math.max(0, ((p.lineHeight ?? p.fontSizePx * 1.2) - p.fontSizePx) / 2);
 
     // A string can reference glyphs across several atlas pages; each page is a
     // distinct texture, so group by page and emit one batch per page.

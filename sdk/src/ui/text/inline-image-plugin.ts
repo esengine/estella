@@ -120,9 +120,13 @@ export class InlineImagePlugin implements Plugin {
                 // same shift `drawTextWith` applies to the glyphs (mirror it so the
                 // images track the text).
                 const slack = h - layout.lineHeight;
-                const vshift = t.verticalAlign === TextVerticalAlign.Middle ? slack / 2
+                const perLine = t.lineHeight > 0 ? t.lineHeight * t.fontSize : t.fontSize * 1.2;
+                // …including the half-leading it charges above the first baseline,
+                // or an image floats where the glyph beside it no longer is.
+                const halfLeading = Math.max(0, (perLine - t.fontSize) / 2);
+                const vshift = halfLeading + (t.verticalAlign === TextVerticalAlign.Middle ? slack / 2
                     : t.verticalAlign === TextVerticalAlign.Bottom ? slack
-                    : 0;
+                    : 0);
                 syncChildren(e, t, images, vshift);
             }
 

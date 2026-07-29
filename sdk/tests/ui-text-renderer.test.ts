@@ -147,6 +147,17 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         expect(bottom).toBeGreaterThan(middle);
     });
 
+    it('centres on the em box, not on the baseline, so leading does not push text up', () => {
+        // A lineHeight above 1em adds space around the line; half belongs above the
+        // first baseline. Charge it all below and every centred label rides
+        // (lineHeight - 1em)/2 too high — 0.1em at the 1.2 default, which is what a
+        // 60px label showed as a visible 6px.
+        const box = { boxHeight: 200, verticalAlign: 1, fontSizePx: 24 };
+        const tight = drawFirst({ ...box, lineHeight: 24 }).y;   // 1.0em: no leading to split
+        const loose = drawFirst({ ...box, lineHeight: 24 * 1.2 }).y;
+        expect(loose).toBeCloseTo(tight, 5); // y-up: extra leading must not raise the block
+    });
+
     it('horizontal align works inside a fixed box even with word-wrap off (boxWidth, no maxWidth)', () => {
         // boxWidth aligns within the box independently of maxWidth (wrap). The block was
         // previously left-anchored whenever wrap was off — align silently did nothing.
