@@ -21,7 +21,7 @@ import {
 import { listPlatforms } from '../electron/platformCatalog';
 import {
   requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
-  TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX,
+  missingTemplateEntries, TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
 
@@ -286,5 +286,52 @@ describe('the template layout is the one source of filenames', () => {
     }
     expect(requiredTemplateFiles('ios')).not.toContain(
       path.relative(dir, sources.bytecode).split(path.sep).join('/'));
+  });
+});
+
+describe('what a PUBLISHED template must carry', () => {
+  // The bytecode is optional for a local build and not for a release, and reading
+  // "optional" as one answer to both is what let v0.36.0 ship an Android template
+  // without it — every game packaged from that template opened on a black screen
+  // while the host compiled the bundle on the device.
+  const BYTECODE = 'assets/esengine.native.qjsbc';
+
+  // What v0.36.0 actually published, minus the bytecode: complete by the rule a
+  // contributor's build is held to.
+  const shipped = (extra: string[] = []) => [
+    'AndroidManifest.xml.in', 'classes.dex', 'icon.png',
+    'java/com/estella/host/TextEditor.java',
+    'lib/arm64-v8a/libestella_js_host.so', 'lib/arm64-v8a/libwebgpu_dawn.so',
+    'lib/arm64-v8a/libc++_shared.so',
+    'lib/x86_64/libestella_js_host.so', 'lib/x86_64/libwebgpu_dawn.so',
+    'lib/x86_64/libc++_shared.so',
+    'template.json', ...extra,
+  ];
+
+  it('accepts a template without bytecode, and refuses to publish it', () => {
+    expect(missingTemplateEntries(shipped(), 'android')).toEqual([]);
+    expect(missingTemplateEntries(shipped(), 'android', { release: true })).toEqual([BYTECODE]);
+    expect(missingTemplateEntries(shipped([BYTECODE]), 'android', { release: true })).toEqual([]);
+  });
+
+  it('holds a release to every ABI the template claims', () => {
+    // One ABI is a usable template; a release builds both, and losing the emulator
+    // one leaves everybody without a phone unable to run the game at all.
+    const oneAbi = shipped([BYTECODE]).filter((n) => !n.startsWith('lib/x86_64/'));
+    expect(missingTemplateEntries(oneAbi, 'android')).toEqual([]);
+    expect(missingTemplateEntries(oneAbi, 'android', { release: true }))
+      .toEqual(expect.arrayContaining(['lib/x86_64/libestella_js_host.so']));
+  });
+
+  it('counts a directory entry as held when something inside it is', () => {
+    // A zip stores files, never the folder — so `java` is present because
+    // `java/com/...` is, and absent when nothing under it shipped.
+    const noJava = shipped([BYTECODE]).filter((n) => !n.startsWith('java/'));
+    expect(missingTemplateEntries(noJava, 'android', { release: true })).toEqual(['java']);
+  });
+
+  it('reads Windows separators, since that is where an archive may be listed', () => {
+    const win = shipped([BYTECODE]).map((n) => n.split('/').join(String.fromCharCode(92)));
+    expect(missingTemplateEntries(win, 'android', { release: true })).toEqual([]);
   });
 });

@@ -86,10 +86,11 @@ export function templateLayout(platform, options = {}) {
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
             // The same first-launch fix the Android template carries: without it the
             // host parses the ~700 KB SDK bundle on first run, which is seconds of
-            // black screen after an install. Absent is valid — the host compiles and
-            // caches instead.
+            // black screen after an install. A local build without it still works —
+            // a PUBLISHED one may not ship that first launch to every game made with
+            // it, so `release` requires what `optional` excuses.
             {
-                rel: `assets/${BYTECODE_FILE}`, optional: true,
+                rel: `assets/${BYTECODE_FILE}`, optional: true, releaseRequired: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native-ios', 'gen', BYTECODE_FILE),
             },
         ];
@@ -97,18 +98,20 @@ export function templateLayout(platform, options = {}) {
     if (platform === 'android') {
         // Every ABI the build machine produced. Only the first is required: one
         // architecture is a working template, two is one package that installs on a
-        // phone and in an emulator alike.
+        // phone and in an emulator alike. A release builds both, so a release is
+        // held to both — losing the emulator ABI costs everyone without a phone
+        // their only way to run the game.
         const libs = abis.flatMap((abi, n) => [
             {
-                rel: `lib/${abi}/libestella_js_host.so`, strip: true, abi, optional: n > 0,
+                rel: `lib/${abi}/libestella_js_host.so`, strip: true, abi, optional: n > 0, releaseRequired: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, 'libestella_js_host.so'),
             },
             {
-                rel: `lib/${abi}/libwebgpu_dawn.so`, strip: true, abi, optional: n > 0,
+                rel: `lib/${abi}/libwebgpu_dawn.so`, strip: true, abi, optional: n > 0, releaseRequired: true,
                 from: (ctx) => ctx.dawnLibrary?.(abi),
             },
             {
-                rel: `lib/${abi}/libc++_shared.so`, abi, optional: n > 0,
+                rel: `lib/${abi}/libc++_shared.so`, abi, optional: n > 0, releaseRequired: true,
                 from: (ctx) => ctx.libcxxShared?.(abi),
             },
         ]);
@@ -126,10 +129,12 @@ export function templateLayout(platform, options = {}) {
                 rel: 'java', kind: 'dir',
                 from: (ctx) => path.join(ctx.root, 'native', 'android', 'java'),
             },
-            // Absent is valid — the host falls back to compiling the bundle, at the
-            // cost of a ~14 s black screen on first launch.
+            // Absent is valid in a local build — the host falls back to compiling the
+            // bundle, at the cost of a ~14 s black screen on first launch. Not valid
+            // in a release: v0.36.0 shipped without it, and every Android package
+            // built from that template opened black.
             {
-                rel: `assets/${BYTECODE_FILE}`, optional: true,
+                rel: `assets/${BYTECODE_FILE}`, optional: true, releaseRequired: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', 'gen', BYTECODE_FILE),
             },
             {
@@ -142,9 +147,23 @@ export function templateLayout(platform, options = {}) {
     throw new Error(`Unknown native platform "${platform}" (expected android or ios).`);
 }
 
+/**
+ * The entries a template must carry, for one audience.
+ *
+ * `optional` is not one question but two, and conflating them is how a release
+ * shipped an Android template with no precompiled bytecode: a contributor's local
+ * build is fine without it (the host compiles on the device instead), and a
+ * PUBLISHED template is not — every game packaged from it then opens on a black
+ * screen the first time. `release: true` applies the stricter rule.
+ */
+function requiredTemplateEntries(platform, options = {}) {
+    return templateLayout(platform, options)
+        .filter((e) => !e.optional || (options.release && e.releaseRequired));
+}
+
 /** Template-relative paths that must be present for a template to be usable. */
 export function requiredTemplateFiles(platform, options) {
-    return templateLayout(platform, options).filter((e) => !e.optional).map((e) => e.rel);
+    return requiredTemplateEntries(platform, options).map((e) => e.rel);
 }
 
 /**
@@ -175,6 +194,23 @@ export function templateAbis(dir) {
 /** What a template is missing, if anything — the one readiness test. */
 export function missingTemplateFiles(dir, platform, options) {
     return requiredTemplateFiles(platform, options).filter((rel) => !existsSync(path.join(dir, rel)));
+}
+
+/**
+ * The same test over a LISTING rather than a directory — for an archive that has
+ * not been unpacked, which is the form a template is published in and therefore
+ * the form worth checking before anyone can install it.
+ *
+ * A directory entry is present when something inside it is: a zip stores the
+ * files, not the folder.
+ */
+export function missingTemplateEntries(names, platform, options = {}) {
+    const held = names.map((n) => n.split('\\').join('/').replace(/\/+$/, ''));
+    const set = new Set(held);
+    const has = (e) => (e.kind === 'dir'
+        ? held.some((n) => n === e.rel || n.startsWith(`${e.rel}/`))
+        : set.has(e.rel));
+    return requiredTemplateEntries(platform, options).filter((e) => !has(e)).map((e) => e.rel);
 }
 
 // =============================================================================

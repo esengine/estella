@@ -393,6 +393,22 @@ jobs:
             exit 1
           fi
 
+      # Names on a release say nothing about what is inside the archives, and the
+      # thing that goes wrong is inside: v0.36.0 published an Android template with
+      # no precompiled bytecode, so every game packaged from it opened on a black
+      # screen the first time and nothing here noticed. Check the contents against
+      # the same table the emitter writes from, under release strictness.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Check the templates carry everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"             -p 'estella-native-*.zip' -D templates
+          node build-tools/cli.js verify-template templates/*.zip
+
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

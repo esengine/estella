@@ -280,6 +280,22 @@ program
     });
 
 program
+    .command('verify-template <archives...>')
+    .description('Check published runtime-template archives carry everything a release must')
+    .action(async (archives) => {
+        logger.header('Verify Runtime Templates');
+        const { verifyTemplates } = await import('./tasks/verifyTemplate.js');
+        try {
+            verifyTemplates(archives);
+        } catch (err) {
+            // The reason is already printed per archive; a stack trace on top of it
+            // only buries what a release engineer has to read.
+            logger.error(err.message);
+            process.exit(1);
+        }
+    });
+
+program
     .command('toolchain')
     .description('Package local emsdk + cmake into Tauri resources for bundling')
     .option('--no-strip', 'Skip stripping unnecessary files')
