@@ -188,6 +188,19 @@ async function precompileBundleBytecode(rootDir, genDir, quickjs) {
             'else()',
             '  target_compile_options(mkbc PRIVATE -w)',
             'endif()',
+            // QuickJS needs libm, and finds it the same way its own build does.
+            // Linking nothing is what the old direct-compiler call did, which is
+            // why this step failed on every Linux runner — including the one that
+            // builds the Android template every release ships.
+            'find_library(M_LIBRARIES m)',
+            'if(M_LIBRARIES)',
+            '  target_link_libraries(mkbc PRIVATE ${M_LIBRARIES})',
+            'endif()',
+            'target_link_libraries(mkbc PRIVATE ${CMAKE_DL_LIBS})',
+            'find_package(Threads)',
+            'if(Threads_FOUND)',
+            '  target_link_libraries(mkbc PRIVATE Threads::Threads)',
+            'endif()',
         ].join('\n') + '\n', 'utf8');
         await runCommand('cmake', ['-S', buildDir, '-B', buildDir, '-DCMAKE_BUILD_TYPE=Release'],
             { cwd: rootDir, silent: true });
