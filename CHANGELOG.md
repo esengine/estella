@@ -14,6 +14,178 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-07-29
+
+Two things this release is mostly about: what a game does on hardware you do not own,
+and text.
+
+v0.36.0's Android template shipped without its precompiled bytecode, so every game
+packaged from it opened on a black screen for about fourteen seconds while QuickJS
+compiled the SDK bundle on the phone — a first launch a player reports as a crash.
+That had two separate causes, a compiler asked for by a name Windows does not have and
+an unlinked libm on Linux, and it reached players because the publish gate checked that
+an archive was in the release rather than what was inside it. A packaged game now also
+keeps a boot-and-crash record in a place its player can find and send, which is the
+only way to learn anything about a failure that happens on their device and not yours.
+Windows auto-update had been failing for the whole of 0.36.0 as well, on a certificate
+the installer should never have been signed with.
+
+And text draws what it has been claiming to. An outline moves the glyph's edge through
+the distance field instead of stamping the glyph eight times around itself; `shadowBlur`
+softens the shadow instead of being documented as reserved; a line's extra leading is
+split above and below the text the way a line box always has, which moves every centred
+label in every project down by the tenth of an em it had been floating; and glyphs are
+rasterized for the pixels they land on rather than for the design box, which is why
+editor text was soft at every zoom except "fit".
+
+### Added
+
+- **A scene can say that a node scrolls.** Scrolling was reachable only by *building* the
+  ScrollView widget in code, so a scene could describe every part of a scroll area — the
+  clipped box, the oversized child — without the one fact that made it a scroll area. Drop
+  a ScrollView from the Create menu and it sat there: clipped, hittable, motionless.
+  `UIScroll` is that fact. The behaviour plugin attaches a ScrollContainer to any entity
+  carrying one, sized from the box the layout pass resolved rather than the authored
+  fields, and moves the content by its insets — the same container and the same input path
+  the widget has always used, so the two ways of building a scroll area now differ only in
+  who writes the components.
+- **An outline moves the glyph's edge instead of stamping the glyph.** Outlined text was
+  eight offset copies of itself, which reads as an outline while it is a hairline and
+  merges into a blob past a few pixels. The glyphs are already a distance field, so the
+  outline is a threshold — the same quads draw the same shape, grown. Carrying the width
+  needed a per-draw value the batch path has no seam for, so it rides per *vertex*:
+  `BatchVertex` gains one float, which keeps every label in one batch regardless of its
+  style. The value is in the atlas's own distance units, so it means the same thing at
+  every font size and every zoom, and asking for more than the atlas spread degrades to
+  the widest real outline rather than flooding the glyph's cell. Bitmap atlases have no
+  distance to move and keep the stamp fan. WebGL2 and WebGPU agree to within a pixel.
+- **`Text.shadowBlur` softens the shadow.** The field was in the component, the inspector,
+  the scene file and the guide — as "reserved", because the renderer read the colour and
+  the offset and nothing else, so a shadow was a second stamp of the text sitting slightly
+  below the first. It is now nine taps spread around a ring, with each tap's alpha inverted
+  out of the compositing equation rather than divided, so the layers land at the alpha that
+  was asked for.
+- **A packaged game leaves a record its player can send.** Everything the native host
+  reported went to the platform log, which means logcat, which means a cable and a
+  developer — so a failure on someone else's phone left its evidence on their phone. The
+  host now writes the same lines to a file: the device, the GPU and its driver, which boot
+  phase each line belongs to, where the SDK bundle came from, and how long the launch took,
+  with the previous run kept alongside so a crash-and-retry does not overwrite the record
+  of the crash. SIGSEGV / SIGABRT / SIGBUS / SIGFPE / SIGILL are caught, the signal and its
+  phase and the return addresses go in, and then the default handler is restored and the
+  signal re-raised so the OS still produces its tombstone. On the launch after a crash the
+  record is copied somewhere a file manager will list it — since Android 11 an app's
+  `Android/data` is closed to the Files app, so the thing built to make a failure
+  reportable was reachable by everyone except the person reporting it.
+- **New Script writes the module and the line that makes it run.** A project has exactly
+  two script entries, and a module neither of them reaches is dead — never bundled, schema
+  never extracted, component never in Add Component. Nobody can be expected to know that
+  before they have seen a project laid out, so the editor writes both halves: a component
+  is re-exported from the declaration entry, a system is imported by the startup entry, and
+  the entries come from the manifest rather than a conventional pair. The dialog shows what
+  will be written and which line the entry gains, and refreshes the schemas rather than
+  waiting on the watcher, so a component is in Add Component the moment it closes.
+- **MCP: name a scene, address one member, hand over a program too big to say.** A scene
+  file could only be called `scene.esscene`, which is fine for the first one and collides
+  on the second. A field path naming one member of a structural field was rejected —
+  `"Transform.position.x"` appeared in the tool's own description while the surface threw
+  on it — and now resolves to the field plus an index, reads the rest and writes it back.
+  And an op program had to arrive inline: a panel of a few hundred entities is a few
+  hundred KB of JSON, which does not belong in a message, so `apply_scene_ops` takes an
+  `opsPath` to a project file instead.
+
+### Fixed
+
+- **A published template is checked for what is inside it.** The publish gate listed the
+  release's asset *names*, and a zip missing half its contents passes that. v0.36.0's
+  Android template shipped without its precompiled bytecode and nothing between the build
+  and the store looked inside the archive. The reason it could go unnoticed is that one
+  `optional` flag answered two different questions: a contributor's local build without the
+  bytecode is fine, because the host compiles and caches instead, but a *published*
+  template without it ships that first launch to every game made from it. Those audiences
+  are now separate, and the check reads the archive's central directory against the drafted
+  release before it is made public.
+- **The Android template carries its bytecode.** Two causes, and the first hid the second.
+  The precompile step shells out to a C compiler and asked for `gcc` on Windows — the one
+  name a machine set up for this build is least likely to have — so it built through CMake
+  instead, which the native build already requires and which finds whatever is installed.
+  Then the step linked no libraries at all, and QuickJS needs libm: macOS carries the math
+  functions in libSystem so a bare `cc` links there, Linux does not, and the Ubuntu runner
+  is the one that builds the Android template each release publishes. Clean install to
+  first frame on a Xiaomi 15 is now under four seconds.
+- **A packaged game starts in the orientation it was authored in.** The headless export read
+  orientation from a top-level key the project format does not have, so the fallback always
+  won and a 600x1080 shmup shipped as a letterboxed landscape app. It calls the same
+  `resolveOrientation` the editor's own export does; reading the manifest by hand is how the
+  two drifted apart.
+- **The Windows installer is no longer signed with the macOS certificate.** `CSC_LINK` is
+  electron-builder's platform-*neutral* variable and the release workflow exported it to
+  both legs of the matrix, so the NSIS installer was signed with the project's Apple
+  Developer ID and that identity was stamped into `app-update.yml`. Windows cannot build a
+  chain to a trusted root for an Apple-issued certificate, so every Windows auto-update
+  failed — after downloading the whole installer. The secrets are scoped to the macOS leg
+  now, and a guard after packaging fails the release on anything other than NotSigned or
+  Valid. Installs already carrying that pin refuse every update they can never verify, so
+  the editor settles it up front instead of at the end of a download.
+- **A Spine sequence stops sampling empty atlas space.** A sequence swaps which atlas region
+  an attachment points at, and with the region goes the page — spine-c does that swap inside
+  `computeWorldVertices`, and this draw loop read the texture *before* that call and the uvs
+  after. A sequence whose frames sit on one page was fine by luck; effect flipbooks are
+  exactly the ones that span pages, so every glow, energy trail and ground pool drew the new
+  frame's uvs against the previous frame's texture and simply was not there. The same file
+  also gated the premultiplied *tint* on whether the blend code got a premultiplied twin, so
+  a Multiply or Screen slot on a premultiplied page stopped fading correctly; both backends
+  now key both decisions off the one fact.
+- **A Spine skeleton exported as JSON is an asset.** Spine 2.1 has no binary export, so a
+  project on that runtime ships a plain `.json` — and the `.meta` mint door typed files by
+  extension and name suffix only, so the skeleton never entered the registry and the
+  Skeleton Path picker was empty. Everything downstream already handled it. The file→type
+  table gained a third criterion beside extension and suffix, a marker in the content: a
+  JSON skeleton is claimed by the same `"skeleton":{..."spine":"<ver>"...}` header the
+  runtime's version detection reads, so the editor and the runtime cannot disagree. Only the
+  head is read, and only for extensions a name cannot type. The same table could not type a
+  DragonBones pair either; added alongside.
+- **The Create popover offers the project's components.** It read the engine's user-component
+  registry, but the editor deliberately never executes project code, so that registry only
+  ever held what the *editor* realm defined — empty for every project that has ever opened.
+  It reads `schemas.json` now, the same source Add Component has always read. The Create
+  catalog was also assembled inline in the popover, so `listEntityTemplates` had only the
+  static half and `create_entity` could not spawn a project component or a prefab the
+  popover was happy to show; one source now backs all three.
+- **A lineHeight's extra space belongs half above the text, not all below.** The baseline was
+  placed a flat 0.8em under the line's top, so everything a lineHeight adds beyond the em box
+  landed below it and a centred block sat `(lineHeight - 1em)/2` too high — 0.1em at the 1.2
+  default, which a real UI pack showed as a visible 6px on a 60px number. Every centred label
+  in every project moves down by that half-leading, which is where they should have been.
+- **Glyphs are rasterized for the pixels they land on, not the design box.** Bitmap text
+  rasterizes per display size, but the size it asked for came from the box UI lays out in,
+  and that box is deliberately pinned to the design size in the editor so UI does not reflow
+  while the view zooms. The two agree in a shipped game and nowhere else, so editor text was
+  rasterized for the design scale and then scaled by the camera. It also explains why SDF
+  looked so much better in the editor: it was the only pipeline not being asked for the wrong
+  size.
+- **A scene batch that fails leaves the scene alone.** `apply_scene_ops` promises that a throw
+  anywhere rolls the whole batch back, and it rolled back field writes — all a gesture knows
+  how to undo. Every structural edit stayed: a program that spawned sixteen entities and then
+  hit a bad field path left sixteen entities behind, under an error saying the batch had
+  failed. The suite already claimed to cover this while faking the transaction with a rethrow,
+  so the assertion could only ever pass.
+- **Opening a scene stops throwing away the scene you just built.** A person who opens a scene
+  over unsaved work gets asked about it; a driver got nothing, and the panel it had just
+  authored was gone while the call returned ok. It refuses now, and names the two ways out —
+  `discardChanges` is one of them, because throwing edits away is a legitimate thing to want
+  and should be said out loud.
+
+### Documentation
+
+- **Where a device failure leaves its evidence, and who can actually fetch it.** What the boot
+  record holds, what the phase lines mean, how a crash reads, and how to symbolize the
+  addresses — plus the sentence to give a player who has no cable: open it once more, then
+  send the newest `estella-crash-*.log`. The first-launch section also described a build
+  machine with no compiler as producing "a working app that compiles on first run", which is
+  true and reads as harmless; it costs that launch ten seconds on a screen a player reads as
+  a hang, and v0.36.0 shipped exactly that way.
+
 ## [0.36.0] - 2026-07-29
 
 A game is run at the screen it was authored for. The target device shaped the edit
@@ -2041,7 +2213,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.35.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/esengine/estella/compare/v0.36.0...v0.37.0
+[0.36.0]: https://github.com/esengine/estella/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/esengine/estella/compare/v0.34.1...v0.35.0
 [0.34.1]: https://github.com/esengine/estella/compare/v0.34.0...v0.34.1
 [0.34.0]: https://github.com/esengine/estella/compare/v0.33.0...v0.34.0
