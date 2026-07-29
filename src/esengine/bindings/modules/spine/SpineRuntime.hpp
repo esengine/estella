@@ -119,6 +119,45 @@ using EventSink = void (*)(const Event&);
 /// backends below name this type, so it stays spelled `es::spine::TriangleSink`.
 using TriangleSink = es::skeletal::TriangleSink;
 
+/**
+ * How PREMULTIPLIED artwork changes what a slot emits — one rule, because both
+ * backends below face the same question and used to answer it separately.
+ *
+ * An atlas page declares `pma: true` when its pixels are stored premultiplied.
+ * Two things follow, and Spine's own runtimes (spine-libgdx SkeletonRenderer,
+ * spine-glfw) settle both:
+ *
+ *  1. THE BLEND FUNCTION, but only for two of the four modes. Normal and Additive
+ *     have premultiplied twins — their source factor becomes ONE, which is what
+ *     blend codes 4 and 5 are. Multiply and Screen use the SAME function either
+ *     way (DST_COLOR / ONE already ignore the source alpha), so they pass through
+ *     unchanged; that is Spine's table, not a simplification of it.
+ *
+ *  2. THE TINT, for EVERY mode. The shader multiplies a premultiplied texel by
+ *     the emitted colour, and that product is only itself premultiplied when the
+ *     colour is — so the tint's rgb must carry its alpha. Gating this on the
+ *     blend code instead (the two modes that got a twin) leaves a Multiply or
+ *     Screen slot with a straight tint over premultiplied pixels, and it stops
+ *     fading correctly as its alpha animates.
+ */
+inline bool blendHasPremultipliedTwin(int slotBlend) {
+    return slotBlend == 0 || slotBlend == 1;  // normal, additive
+}
+
+/// The blend code to emit for a slot's mode on a page of the given kind (see above).
+inline int blendForPage(int slotBlend, bool pagePremultiplied) {
+    return pagePremultiplied && blendHasPremultipliedTwin(slotBlend) ? slotBlend + 4 : slotBlend;
+}
+
+/// Fold the tint's alpha into its rgb — required for every slot on a premultiplied
+/// page, and a no-op on any other. Call with the SAME flag `blendForPage` got.
+inline void premultiplyTint(float rgba[4], bool pagePremultiplied) {
+    if (!pagePremultiplied) return;
+    rgba[0] *= rgba[3];
+    rgba[1] *= rgba[3];
+    rgba[2] *= rgba[3];
+}
+
 // --- resources -------------------------------------------------------------
 
 /** Returns null and fills `error` when the atlas or the skeleton data is unreadable. */

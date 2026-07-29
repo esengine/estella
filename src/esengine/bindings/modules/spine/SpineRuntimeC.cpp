@@ -138,12 +138,11 @@ uint32_t meshTexture(spMeshAttachment* attachment) {
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(attachment->region->rendererObject));
 }
 
-/// Straight-alpha blend modes get their premultiplied twin when the page is PMA.
-int premultiply(int blendMode, spAtlasRegion* region) {
-    if (!region || !region->page || !region->page->pma) return blendMode;
-    if (blendMode == 0) return 4;
-    if (blendMode == 1) return 5;
-    return blendMode;
+/// Whether an attachment's page stores premultiplied artwork — the one fact that
+/// decides both its blend code and whether its tint carries its alpha
+/// (SpineRuntime.hpp). Atlases before 4.0 have no `pma` flag at all.
+bool pagePremultiplied(spAtlasRegion* region) {
+    return region && region->page && region->page->pma;
 }
 #endif
 
@@ -624,19 +623,25 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
 
             if (attachment->type == SP_ATTACHMENT_REGION) {
                 auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
+                g_worldVertices.resize(8);
+#if ES_SPINE_VERSION < 40
+                spRegionAttachment_computeWorldVertices(region, slot->bone,
+                                                        g_worldVertices.data(), 0, 2);
+                const bool pma = false;  // no page carries a pma flag before 4.0
+#else
+                // Applies the attachment's SEQUENCE, if it has one — which swaps the
+                // region this attachment points at for the frame the slot is on, and
+                // with it the page, the uvs and the renderer object. So everything
+                // that identifies the artwork must be read AFTER this call: a
+                // sequence whose frames sit on different atlas pages (an effect
+                // flipbook usually does) otherwise draws the new frame's uvs against
+                // the previous frame's texture, and the effect samples empty space.
+                spRegionAttachment_computeWorldVertices(region, slot,
+                                                        g_worldVertices.data(), 0, 2);
+                const bool pma = pagePremultiplied(reinterpret_cast<spAtlasRegion*>(region->region));
+#endif
                 const uint32_t texture = regionTexture(region);
                 if (texture) {
-                    g_worldVertices.resize(8);
-#if ES_SPINE_VERSION < 40
-                    spRegionAttachment_computeWorldVertices(region, slot->bone,
-                                                            g_worldVertices.data(), 0, 2);
-                    const int effectiveBlend = blendMode;
-#else
-                    spRegionAttachment_computeWorldVertices(region, slot,
-                                                            g_worldVertices.data(), 0, 2);
-                    const int effectiveBlend = premultiply(
-                        blendMode, reinterpret_cast<spAtlasRegion*>(region->region));
-#endif
                     const spColor& attachmentColor = region->color;
                     float rgba[4] = {
                         skeletonColor.r * slotColor.r * attachmentColor.r,
@@ -644,30 +649,28 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
                         skeletonColor.b * slotColor.b * attachmentColor.b,
                         skeletonColor.a * slotColor.a * attachmentColor.a,
                     };
-                    if (effectiveBlend >= 4) {
-                        rgba[0] *= rgba[3];
-                        rgba[1] *= rgba[3];
-                        rgba[2] *= rgba[3];
-                    }
+                    premultiplyTint(rgba, pma);
 
                     static unsigned short quad[6] = {0, 1, 2, 2, 3, 0};
                     emit(sink, clipping, g_worldVertices.data(), 4, region->uvs, quad, 6,
-                         texture, effectiveBlend, rgba);
+                         texture, blendForPage(blendMode, pma), rgba);
                 }
             } else if (attachment->type == SP_ATTACHMENT_MESH) {
                 auto* mesh = reinterpret_cast<spMeshAttachment*>(attachment);
+                const int length = SUPER(mesh)->worldVerticesLength;
+                g_worldVertices.resize(length);
+                // Applies this attachment's SEQUENCE — see the region branch above:
+                // the texture, the region and the uvs are only settled once this has
+                // run, so none of them may be read before it.
+                spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0, length,
+                                                        g_worldVertices.data(), 0, 2);
+#if ES_SPINE_VERSION < 40
+                const bool pma = false;  // no page carries a pma flag before 4.0
+#else
+                const bool pma = pagePremultiplied(reinterpret_cast<spAtlasRegion*>(mesh->region));
+#endif
                 const uint32_t texture = meshTexture(mesh);
                 if (texture) {
-                    const int length = SUPER(mesh)->worldVerticesLength;
-                    g_worldVertices.resize(length);
-                    spVertexAttachment_computeWorldVertices(SUPER(mesh), slot, 0, length,
-                                                            g_worldVertices.data(), 0, 2);
-#if ES_SPINE_VERSION < 40
-                    const int effectiveBlend = blendMode;
-#else
-                    const int effectiveBlend = premultiply(
-                        blendMode, reinterpret_cast<spAtlasRegion*>(mesh->region));
-#endif
                     const spColor& attachmentColor = mesh->color;
                     float rgba[4] = {
                         skeletonColor.r * slotColor.r * attachmentColor.r,
@@ -675,15 +678,11 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
                         skeletonColor.b * slotColor.b * attachmentColor.b,
                         skeletonColor.a * slotColor.a * attachmentColor.a,
                     };
-                    if (effectiveBlend >= 4) {
-                        rgba[0] *= rgba[3];
-                        rgba[1] *= rgba[3];
-                        rgba[2] *= rgba[3];
-                    }
+                    premultiplyTint(rgba, pma);
 
                     emit(sink, clipping, g_worldVertices.data(), length / 2, mesh->uvs,
                          mesh->triangles, mesh->trianglesCount,
-                         texture, effectiveBlend, rgba);
+                         texture, blendForPage(blendMode, pma), rgba);
                 }
             }
         }

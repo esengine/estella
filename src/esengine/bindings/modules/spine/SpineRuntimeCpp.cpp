@@ -514,20 +514,16 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
             static_cast<float>((packed >> 24) & 0xFF) / 255.0f,
         };
 
-        int blendMode = blendModeOf(command->blendMode);
-        if (instance->owner->isPremultiplied(command->texture)) {
-            if (blendMode == 0 || blendMode == 1) {
-                blendMode += 4;
-                rgba[0] *= rgba[3];
-                rgba[1] *= rgba[3];
-                rgba[2] *= rgba[3];
-            }
-        }
+        // Both consequences of premultiplied artwork, from the one rule the C
+        // backend also reads (SpineRuntime.hpp): the blend code gains a twin for
+        // two of the four modes, and the tint carries its alpha for ALL of them.
+        const bool pma = instance->owner->isPremultiplied(command->texture);
+        premultiplyTint(rgba, pma);
 
         sink.emit(command->positions, command->uvs, command->numVertices,
                   command->indices, command->numIndices,
                   static_cast<uint32_t>(reinterpret_cast<uintptr_t>(command->texture)),
-                  blendMode, rgba);
+                  blendForPage(blendModeOf(command->blendMode), pma), rgba);
     }
 }
 
