@@ -192,6 +192,13 @@ bool boot(Platform& platform) {
     openBootLog(platform.logDir());
     installCrashHandler();
     bootNote("device: %s", platform.describe().c_str());
+    // If the run before this one died, put its record where the player can find
+    // it — the copy is made now, on a healthy launch, because a signal handler
+    // may not copy files.
+    if (const std::string at = publishPreviousCrash(platform.publicDirs()); !at.empty()) {
+        ESHOST_LOGE("the previous run crashed — its record is at %s", at.c_str());
+        bootNote("previous run CRASHED; its record was copied to %s", at.c_str());
+    }
     if (!bootLogPath().empty()) ESHOST_LOGI("boot record: %s", bootLogPath().c_str());
 
     const double t0 = nowMs();

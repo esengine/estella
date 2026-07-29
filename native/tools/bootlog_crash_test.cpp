@@ -32,6 +32,11 @@ int main(int argc, char** argv) {
     }
     eshost::installCrashHandler();
 
+    // Second run: the first one crashed, so its record should now be copied
+    // somewhere a player could browse to. Printed for the caller to check.
+    const std::string published = eshost::publishPreviousCrash({std::string(argv[1]) + "/public"});
+    std::printf("PUBLISHED=%s\n", published.c_str());
+
     eshost::bootPhase("gpu device");
     eshost::bootNote("device: a test, not a phone");
     eshost::bootPhase("engine context");

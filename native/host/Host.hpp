@@ -112,6 +112,17 @@ struct Platform {
      *  about a failure that happens on someone else's phone and not on yours. */
     virtual std::string describe() = 0;
 
+    /**
+     * Directories a PLAYER can browse to, best first — where a crash record is
+     * copied so it can be sent.
+     *
+     * {@link logDir} is not one of them on Android: since Android 11 an app's
+     * `Android/data` is closed to file managers and to the system Files app, so
+     * the record a developer pulls over adb is one a player cannot reach at all.
+     * Empty means this platform has nowhere better, and the copy is skipped.
+     */
+    virtual std::vector<std::string> publicDirs() { return {}; }
+
     /** The backend Dawn must pick: Vulkan on Android, Metal on iOS. */
     virtual WGPUBackendType backend() const = 0;
 

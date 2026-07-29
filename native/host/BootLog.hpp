@@ -21,6 +21,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace eshost {
 
@@ -79,5 +80,19 @@ const std::string& bootLogPath();
  * own report and the process still dies the way it would have.
  */
 void installCrashHandler();
+
+/**
+ * If the run before this one ended in a crash, copy its record somewhere the
+ * player can reach, and return where it landed. Empty when the last run was
+ * fine, or when nowhere reachable could be written.
+ *
+ * Done HERE — on the next healthy launch, on the main thread — rather than in
+ * the handler, because copying a file is not something a signal handler may do.
+ * What a player experiences is: it closed itself, they opened it again, and now
+ * there is a file they can send.
+ *
+ * @param dirs Candidate directories, best first (see Platform::publicDirs).
+ */
+std::string publishPreviousCrash(const std::vector<std::string>& dirs);
 
 }  // namespace eshost

@@ -96,12 +96,30 @@ try {
 }
 const record = sh(`cat ${DEVICE_DIR}/estella-boot.log`);
 
+// The launch AFTER the crash: the record of the death has moved aside, and its
+// copy should now be somewhere a player could reach.
+console.log('opening it again, the way a player would…');
+let second = '';
+try {
+    second = sh(`${DEVICE_DIR}/t ${DEVICE_DIR} --no-crash`);
+} catch (err) {
+    second = String(err.stdout ?? '');
+}
+const publishedTo = (/PUBLISHED=(\S+)/.exec(second) ?? [])[1] ?? '';
+const publishedText = publishedTo ? sh(`cat ${publishedTo}`) : '';
+
 console.log('\n--- the file a player would send ---');
 console.log(record.trimEnd());
 console.log('------------------------------------\n');
 
+console.log(`the crash record was published to: ${publishedTo || '(nowhere)'}`);
+
 const problems = [];
 if (!/FATAL SIGSEGV/.test(record)) problems.push('no FATAL SIGSEGV line');
+if (!publishedTo) problems.push('the crash record was not published anywhere a player could reach');
+if (publishedTo && !/FATAL SIGSEGV/.test(publishedText)) {
+    problems.push('the published copy does not carry the crash');
+}
 if (!/during phase: js runtime/.test(record)) problems.push('the phase it died in was not recorded');
 if (!/backtrace/.test(record)) problems.push('no backtrace');
 if (!/libc|bootlog_crash_test|\+0x/.test(record)) problems.push('no resolved frames in the backtrace');

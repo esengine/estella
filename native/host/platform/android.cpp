@@ -168,6 +168,32 @@ struct AndroidPlatform final : eshost::Platform {
 
     std::string logDir() override { return logs; }
 
+    /**
+     * `Android/media/<pkg>/` first, then Downloads.
+     *
+     * An app's own directory under `Android/media` belongs to the shared media
+     * collection rather than to app-private storage: a file manager lists it, and
+     * ordinary file IO can write it with no permission and no MediaStore round
+     * trip. `Android/data` — where the record itself lives — is none of those
+     * things since Android 11. Downloads is the fallback for devices that still
+     * allow a direct write there; both are tried and whichever works is recorded.
+     */
+    std::vector<std::string> publicDirs() override {
+        std::vector<std::string> out;
+        // externalDataPath is <root>/Android/data/<pkg>/files; its sibling under
+        // Android/media is the same package's public corner.
+        const std::string mark = "/Android/data/";
+        const size_t at = logs.find(mark);
+        if (at != std::string::npos) {
+            std::string pkg = logs.substr(at + mark.size());
+            const size_t slash = pkg.find('/');
+            if (slash != std::string::npos) pkg = pkg.substr(0, slash);
+            out.push_back(logs.substr(0, at) + "/Android/media/" + pkg);
+            out.push_back(logs.substr(0, at) + "/Download");
+        }
+        return out;
+    }
+
     /** Model, Android release and ABI, from the system properties every device
      *  answers — no JNI round trip, so this works before anything else is up. */
     std::string describe() override {

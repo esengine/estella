@@ -9,6 +9,8 @@
 #include <ctime>
 #include <string>
 
+#include <sys/stat.h>
+
 #include <csignal>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -19,6 +21,8 @@ namespace {
 
 FILE* g_file = nullptr;
 std::string g_path;
+/// The run before this one — read once, to see whether it ended in a crash.
+std::string g_prev;
 const char* g_phase = "(none)";
 /// The same file, as a descriptor — what the signal handler is allowed to use.
 int g_fd = -1;
@@ -38,6 +42,29 @@ std::string stamp() {
     return buf;
 }
 
+/** The same clock as the header, in a form a filename can carry. */
+std::string fileStamp() {
+    std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y%m%d-%H%M%S", &tm);
+    return buf;
+}
+
+/** mkdir -p, for a public directory this app has never written to before. */
+void mkdirs(const std::string& dir) {
+    for (size_t i = 1; i <= dir.size(); i++) {
+        if (i < dir.size() && dir[i] != '/') continue;
+        const std::string part = dir.substr(0, i);
+        if (!part.empty()) mkdir(part.c_str(), 0775);
+    }
+}
+
 void writeLine(const char* prefix, const char* text) {
     if (!g_file) return;
     std::fprintf(g_file, "%s%s\n", prefix, text);
@@ -52,9 +79,9 @@ void openBootLog(const std::string& dir) {
     if (dir.empty()) return;
 
     g_path = dir + "/estella-boot.log";
-    const std::string prev = dir + "/estella-boot.prev.log";
-    std::remove(prev.c_str());
-    std::rename(g_path.c_str(), prev.c_str());
+    g_prev = dir + "/estella-boot.prev.log";
+    std::remove(g_prev.c_str());
+    std::rename(g_path.c_str(), g_prev.c_str());
 
     g_file = std::fopen(g_path.c_str(), "w");
     if (!g_file) { g_path.clear(); return; }
@@ -98,6 +125,37 @@ void bootLogLine(bool error, const char* message) {
 }
 
 const std::string& bootLogPath() { return g_path; }
+
+std::string publishPreviousCrash(const std::vector<std::string>& dirs) {
+    if (g_prev.empty() || dirs.empty()) return {};
+
+    // Only a crash is worth publishing. A record that ends in "ready in" is the
+    // last healthy run, and copying that into someone's file manager every launch
+    // is litter.
+    std::string text;
+    {
+        FILE* f = std::fopen(g_prev.c_str(), "rb");
+        if (!f) return {};
+        char buf[4096];
+        size_t got = 0;
+        while ((got = std::fread(buf, 1, sizeof(buf), f)) > 0) text.append(buf, got);
+        std::fclose(f);
+    }
+    if (text.find("FATAL ") == std::string::npos) return {};
+
+    const std::string name = "estella-crash-" + fileStamp() + ".log";
+    for (const std::string& dir : dirs) {
+        mkdirs(dir);
+        const std::string dest = dir + "/" + name;
+        FILE* out = std::fopen(dest.c_str(), "wb");
+        if (!out) continue;
+        const bool wrote = std::fwrite(text.data(), 1, text.size(), out) == text.size();
+        std::fclose(out);
+        if (wrote) return dest;
+        std::remove(dest.c_str());
+    }
+    return {};
+}
 
 // =============================================================================
 // The crash handler
