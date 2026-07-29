@@ -13,6 +13,9 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
+import { createScrollAdoptSystem } from './scroll';
+import { engineApi } from '../../ecs/bridge/engineApi';
+import type { CppRegistry } from '../../wasm';
 import { KineticScroll } from '../collection/kinetic-scroll';
 import { UIInteraction, type UIInteractionData } from '../input/interactable';
 import { getEntityDepth, walkParentChain } from '../util/helpers';
@@ -121,6 +124,15 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             createDropdownSystem(world, events),
+            { runIf: playModeOnly },
+        );
+
+        // A scroll area authored in a scene becomes a live one here, so the
+        // editor's ScrollView and a hand-built UIScroll node scroll for the same
+        // reason the widget does — one input path, one container registry.
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createScrollAdoptSystem(world, engineApi(app), world.getCppRegistry() as CppRegistry, this),
             { runIf: playModeOnly },
         );
 

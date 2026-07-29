@@ -34,6 +34,7 @@
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/UINode.hpp"
+#include "../ecs/components/UIScroll.hpp"
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Velocity.hpp"
 
@@ -175,6 +176,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::ProjectionType>("ProjectionType")
         .value("Perspective", esengine::ecs::ProjectionType::Perspective)
         .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
+
+    enum_<esengine::ecs::ScrollMovement>("ScrollMovement")
+        .value("Clamped", esengine::ecs::ScrollMovement::Clamped)
+        .value("Elastic", esengine::ecs::ScrollMovement::Elastic);
 
     enum_<esengine::ecs::ShapeType>("ShapeType")
         .value("Circle", esengine::ecs::ShapeType::Circle)
@@ -952,6 +957,43 @@ UINodeJS uinodeToJS(const esengine::ecs::UINode& c) {
     return js;
 }
 
+struct UIScrollJS {
+    bool enabled;
+    u32 content;
+    bool horizontal;
+    bool vertical;
+    i32 movement;
+    f32 wheelSpeed;
+    bool dragScroll;
+    f32 decelerationRate;
+};
+
+esengine::ecs::UIScroll uiscrollFromJS(const UIScrollJS& js) {
+    esengine::ecs::UIScroll c;
+    c.enabled = js.enabled;
+    c.content = js.content;
+    c.horizontal = js.horizontal;
+    c.vertical = js.vertical;
+    c.movement = static_cast<ScrollMovement>(js.movement);
+    c.wheelSpeed = js.wheelSpeed;
+    c.dragScroll = js.dragScroll;
+    c.decelerationRate = js.decelerationRate;
+    return c;
+}
+
+UIScrollJS uiscrollToJS(const esengine::ecs::UIScroll& c) {
+    UIScrollJS js;
+    js.enabled = c.enabled;
+    js.content = c.content;
+    js.horizontal = c.horizontal;
+    js.vertical = c.vertical;
+    js.movement = static_cast<i32>(c.movement);
+    js.wheelSpeed = c.wheelSpeed;
+    js.dragScroll = c.dragScroll;
+    js.decelerationRate = c.decelerationRate;
+    return js;
+}
+
 struct UIVisualJS {
     i32 visualType;
     u32 texture;
@@ -1336,6 +1378,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("insetTop", &UINodeJS::insetTop)
         .field("insetRight", &UINodeJS::insetRight)
         .field("insetBottom", &UINodeJS::insetBottom);
+
+    value_object<UIScrollJS>("UIScroll")
+        .field("enabled", &UIScrollJS::enabled)
+        .field("content", &UIScrollJS::content)
+        .field("horizontal", &UIScrollJS::horizontal)
+        .field("vertical", &UIScrollJS::vertical)
+        .field("movement", &UIScrollJS::movement)
+        .field("wheelSpeed", &UIScrollJS::wheelSpeed)
+        .field("dragScroll", &UIScrollJS::dragScroll)
+        .field("decelerationRate", &UIScrollJS::decelerationRate);
 
     value_object<UIVisualJS>("UIVisual")
         .field("visualType", &UIVisualJS::visualType)
@@ -1931,6 +1983,26 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::UINode>(entity);
         }))
 
+        // UIScroll
+        .function("hasUIScroll", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::UIScroll>(static_cast<Entity>(e));
+        }))
+        .function("getUIScroll", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIScroll>(entity)) return UIScrollJS{};
+            return uiscrollToJS(r.get<esengine::ecs::UIScroll>(entity));
+        }))
+        .function("addUIScroll", optional_override([](Registry& r, u32 e, const UIScrollJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::UIScroll>(entity, uiscrollFromJS(js));
+        }))
+        .function("removeUIScroll", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::UIScroll>(entity)) return;
+            r.remove<esengine::ecs::UIScroll>(entity);
+        }))
+
         // UIVisual
         .function("hasUIVisual", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::UIVisual>(static_cast<Entity>(e));
@@ -2015,6 +2087,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));
     arr.set(i++, val(std::string("UINode")));
+    arr.set(i++, val(std::string("UIScroll")));
     arr.set(i++, val(std::string("UIVisual")));
     arr.set(i++, val(std::string("Velocity")));
     return arr;
@@ -2296,6 +2369,14 @@ static_assert(offsetof(esengine::ecs::UINode, insetLeft) == 112, "ABI offset dri
 static_assert(offsetof(esengine::ecs::UINode, insetTop) == 120, "ABI offset drift: esengine::ecs::UINode.insetTop (EHT expected 120)");
 static_assert(offsetof(esengine::ecs::UINode, insetRight) == 128, "ABI offset drift: esengine::ecs::UINode.insetRight (EHT expected 128)");
 static_assert(offsetof(esengine::ecs::UINode, insetBottom) == 136, "ABI offset drift: esengine::ecs::UINode.insetBottom (EHT expected 136)");
+static_assert(offsetof(esengine::ecs::UIScroll, enabled) == 0, "ABI offset drift: esengine::ecs::UIScroll.enabled (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::UIScroll, content) == 4, "ABI offset drift: esengine::ecs::UIScroll.content (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::UIScroll, horizontal) == 8, "ABI offset drift: esengine::ecs::UIScroll.horizontal (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::UIScroll, vertical) == 9, "ABI offset drift: esengine::ecs::UIScroll.vertical (EHT expected 9)");
+static_assert(offsetof(esengine::ecs::UIScroll, movement) == 10, "ABI offset drift: esengine::ecs::UIScroll.movement (EHT expected 10)");
+static_assert(offsetof(esengine::ecs::UIScroll, wheelSpeed) == 12, "ABI offset drift: esengine::ecs::UIScroll.wheelSpeed (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::UIScroll, dragScroll) == 16, "ABI offset drift: esengine::ecs::UIScroll.dragScroll (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::UIScroll, decelerationRate) == 20, "ABI offset drift: esengine::ecs::UIScroll.decelerationRate (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::UIVisual, visualType) == 0, "ABI offset drift: esengine::ecs::UIVisual.visualType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIVisual, texture) == 4, "ABI offset drift: esengine::ecs::UIVisual.texture (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::UIVisual, color) == 8, "ABI offset drift: esengine::ecs::UIVisual.color (EHT expected 8)");
@@ -2317,7 +2398,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "52526b76662ebd4a";
+static const char* kEsAbiLayoutHash = "638b897738f9c7db";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

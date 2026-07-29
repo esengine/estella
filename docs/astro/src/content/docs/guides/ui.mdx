@@ -22,6 +22,7 @@ detailed UI guides. Deep reference for each area lives in its own chapter.
 | `Text` | Text via a dynamic glyph atlas (content, font, color, align, stroke, shadow, rich text). | [UI Text](/docs/guides/ui-text/) |
 | `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. | below |
 | `UIMask` | Clips its children. | below |
+| `UIScroll` | Makes a clipped node a scroll viewport: the wheel and drags move its content. | below |
 | `Interactable` | Marks a node hit-testable so it can be hovered/clicked. | [UI Interaction](/docs/guides/ui-interaction/) |
 | `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). | [UI Interaction](/docs/guides/ui-interaction/) |
 
@@ -181,6 +182,41 @@ rather than compositing the subtree offscreen, the same trade every UI toolkit m
 // Fade a whole dialog out and let clicks through while it animates away.
 world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
 ```
+
+### Scrolling
+
+`UIScroll` turns a clipped node into a **scroll viewport**: the wheel and drags move its
+content, and the node's `UIMask` is what hides the part hanging outside. Content that fits
+does not move, so the component is inert until there is something to scroll.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `content` | first child | The child that moves. |
+| `horizontal` / `vertical` | `false` / `true` | Which axes scroll. |
+| `movement` | `Clamped` | `Elastic` overshoots at the ends and springs back. |
+| `wheelSpeed` | `1` | Multiplier on wheel deltas. |
+| `dragScroll` | `true` | Drag/touch grabbing, with a kinetic fling. |
+| `decelerationRate` | `0.135` | Fling velocity kept per second; `0` stops on release. |
+
+```ts
+// A list that scrolls vertically inside a fixed box.
+const viewport = spawnUIEntity({ world, parent: panel, node: { width: px(400), height: px(300) } });
+world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, alphaCutoff: 0 });
+world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
+
+const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
+world.insert(viewport, UIScroll, { vertical: true });   // content defaults to the first child
+```
+
+The component is what a **scene** can say. Scrolling used to be reachable only by building
+the `ScrollView` widget in code, so a scroll area placed in the editor described all its
+parts — the clipped box, the oversized child — without the one fact that it scrolled.
+`UIScroll` is that fact, and the widget and the scene now drive the same container.
+
+<Aside type="note">
+  A viewport needs `UIMask` to clip and `Interactable` to receive the pointer. The editor's
+  **Create → ScrollView** gives you all three already assembled.
+</Aside>
 
 ## Editor or code
 

@@ -83,6 +83,13 @@ class CppParser:
         self._parse_enums(content, namespace)
         self._parse_components(content, namespace, filepath)
 
+    RE_COMMENT = re.compile(r'/\*.*?\*/|//[^\n]*', re.DOTALL)
+
+    @classmethod
+    def _strip_comments(cls, text: str) -> str:
+        """Blank out C and C++ comments, keeping the text's length and lines."""
+        return cls.RE_COMMENT.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text)
+
     def _parse_enums(self, content: str, namespace: str) -> None:
         for match in self.RE_ENUM.finditer(content):
             enum_name = match.group(1)
@@ -95,7 +102,12 @@ class CppParser:
             if brace_end == -1:
                 continue
 
-            enum_body = content[brace_start + 1:brace_end]
+            # Comments first: the value pattern is "a word, optionally = N", which
+            # every word of a doc comment also matches. A member documented in
+            # place ("/** Overshoot and spring back. */") otherwise contributes
+            # `Overshoot`, `and`, `spring`… as enum values, and the generated C++
+            # then names members that do not exist.
+            enum_body = self._strip_comments(content[brace_start + 1:brace_end])
             values = [m.group(1) for m in self.RE_ENUM_VALUE.finditer(enum_body) if m.group(1)]
 
             self.enums.append(Enum(

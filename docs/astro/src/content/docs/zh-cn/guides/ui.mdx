@@ -20,6 +20,7 @@ flexbox,用 `px` / `percent` / `auto` 加 `Absolute` 内偏移(inset)来定尺�
 | `Text` | 经动态字形图集渲染文本(内容、字体、颜色、对齐、描边、阴影、富文本)。 | [UI 文本](/docs/zh-cn/guides/ui-text/) |
 | `UIVisual` | 填充——纯色、纹理、九宫格、平铺或填充。 | 见下文 |
 | `UIMask` | 裁剪它的子项。 | 见下文 |
+| `UIScroll` | 让被裁剪的节点成为滚动视口:滚轮与拖拽移动它的内容。 | 见下文 |
 | `Interactable` | 标记节点可命中,从而能被悬停/点击。 | [UI 交互](/docs/zh-cn/guides/ui-interaction/) |
 | `UIInteraction` | 引擎每帧写入的指针状态(对你的逻辑只读)。 | [UI 交互](/docs/zh-cn/guides/ui-interaction/) |
 
@@ -165,6 +166,39 @@ CSS 语义——逐视觉相乘而不是把子树离屏合成,这是每个 UI �
 // 淡出整个对话框,并在它退场动画期间让点击穿过。
 world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
 ```
+
+### 滚动
+
+`UIScroll` 把一个被裁剪的节点变成**滚动视口**:滚轮和拖拽移动它的内容,而节点上的 `UIMask`
+负责把露到外面的部分藏起来。内容装得下时不会动,所以在没有可滚内容之前这个组件是惰性的。
+
+| 字段 | 默认 | 含义 |
+|---|---|---|
+| `content` | 第一个子节点 | 被移动的那个子节点。 |
+| `horizontal` / `vertical` | `false` / `true` | 哪些轴可滚。 |
+| `movement` | `Clamped` | `Elastic` 会在两端过冲再弹回。 |
+| `wheelSpeed` | `1` | 滚轮增量的倍率。 |
+| `dragScroll` | `true` | 拖拽/触摸抓取,带惯性甩动。 |
+| `decelerationRate` | `0.135` | 甩动速度每秒保留的比例;`0` 表示松手即停。 |
+
+```ts
+// 一个在固定盒子里纵向滚动的列表。
+const viewport = spawnUIEntity({ world, parent: panel, node: { width: px(400), height: px(300) } });
+world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, alphaCutoff: 0 });
+world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
+
+const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
+world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第一个子节点
+```
+
+这个组件补的是**场景能说出口的话**。以前滚动只能靠在代码里构造 `ScrollView` widget,所以在
+编辑器里摆出来的滚动区能描述自己的每个零件——被裁剪的盒子、超长的子节点——唯独说不出「它会滚」
+这件事。`UIScroll` 就是这件事,现在 widget 和场景驱动的是同一个容器。
+
+<Aside type="note">
+  视口需要 `UIMask` 来裁剪、`Interactable` 来接收指针。编辑器的 **Create → ScrollView**
+  已经把这三样装配好了。
+</Aside>
 
 ## 编辑器还是代码
 

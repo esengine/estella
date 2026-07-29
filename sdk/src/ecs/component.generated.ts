@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '52526b76662ebd4a';
+export const ABI_LAYOUT_HASH = '638b897738f9c7db';
 
 export interface AssetFieldMeta {
     field: string;
@@ -757,6 +757,28 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             alignSelf: { enum: [{ label: 'Auto', value: 0 }, { label: 'Start', value: 1 }, { label: 'Center', value: 2 }, { label: 'End', value: 3 }, { label: 'Stretch', value: 4 }] },
         },
     },
+    UIScroll: {
+        defaults: {
+            enabled: true,
+            content: 0,
+            horizontal: false,
+            vertical: true,
+            movement: 0,
+            wheelSpeed: 1,
+            dragScroll: true,
+            decelerationRate: 0.135,
+        },
+        assetFields: [],
+        entityFields: ['content'],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            content: { tooltip: "The child that scrolls inside this node. Leave empty to use the first child." },
+            movement: { enum: [{ label: 'Clamped', value: 0 }, { label: 'Elastic', value: 1 }], tooltip: "Clamped stops at the ends; Elastic overshoots and springs back." },
+            wheelSpeed: { min: 0 },
+            decelerationRate: { min: 0, max: 1, tooltip: "Fraction of flick velocity kept per second. 0 stops on release." },
+        },
+    },
     UIVisual: {
         defaults: {
             visualType: 0,
@@ -1156,6 +1178,17 @@ export interface UINodeData {
     insetTop: Dimension;
     insetRight: Dimension;
     insetBottom: Dimension;
+}
+
+export interface UIScrollData {
+    enabled: boolean;
+    content: Entity;
+    horizontal: boolean;
+    vertical: boolean;
+    movement: number;
+    wheelSpeed: number;
+    dragScroll: boolean;
+    decelerationRate: number;
 }
 
 export interface UIVisualData {

@@ -5,7 +5,7 @@ Symbols: 1391 stable · 22 beta · 1 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"52526b76662ebd4a"
+"638b897738f9c7db"
 ```
 
 ## ANCHOR_AXES — const
@@ -1735,6 +1735,7 @@ addTransform: (entity: Entity, component: Transform) => void
 addUIInteraction: (entity: Entity, component: UIInteraction) => void
 addUIMask: (entity: Entity, component: UIMask) => void
 addUINode: (entity: Entity, component: UINode) => void
+addUIScroll: (entity: Entity, component: UIScroll) => void
 addUIVisual: (entity: Entity, component: UIVisual) => void
 addVelocity: (entity: Entity, component: Velocity) => void
 create: () => Entity
@@ -1768,6 +1769,7 @@ getTransform: (entity: Entity) => Transform
 getUIInteraction: (entity: Entity) => UIInteraction
 getUIMask: (entity: Entity) => UIMask
 getUINode: (entity: Entity) => UINode
+getUIScroll: (entity: Entity) => UIScroll
 getUIVisual: (entity: Entity) => UIVisual
 getVelocity: (entity: Entity) => Velocity
 hasBitmapText: (entity: Entity) => boolean
@@ -1797,6 +1799,7 @@ hasTransform: (entity: Entity) => boolean
 hasUIInteraction: (entity: Entity) => boolean
 hasUIMask: (entity: Entity) => boolean
 hasUINode: (entity: Entity) => boolean
+hasUIScroll: (entity: Entity) => boolean
 hasUIVisual: (entity: Entity) => boolean
 hasVelocity: (entity: Entity) => boolean
 removeBitmapText: (entity: Entity) => void
@@ -1826,6 +1829,7 @@ removeTransform: (entity: Entity) => void
 removeUIInteraction: (entity: Entity) => void
 removeUIMask: (entity: Entity) => void
 removeUINode: (entity: Entity) => void
+removeUIScroll: (entity: Entity) => void
 removeUIVisual: (entity: Entity) => void
 removeVelocity: (entity: Entity) => void
 setParent: (child: Entity, parent: Entity) => void

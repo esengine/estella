@@ -1569,6 +1569,58 @@ export function createUINodeData(): UINodePtrData {
     };
 }
 
+export interface UIScrollPtrData {
+    enabled: boolean;
+    content: number;
+    horizontal: boolean;
+    vertical: boolean;
+    movement: number;
+    wheelSpeed: number;
+    dragScroll: boolean;
+    decelerationRate: number;
+}
+
+export function fillUIScroll(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: UIScrollPtrData,
+): void {
+    out.enabled = u8[ptr] !== 0;
+    out.content = u32[(ptr + 4) >> 2];
+    out.horizontal = u8[ptr + 8] !== 0;
+    out.vertical = u8[ptr + 9] !== 0;
+    out.movement = u8[ptr + 10];
+    out.wheelSpeed = f32[(ptr + 12) >> 2];
+    out.dragScroll = u8[ptr + 16] !== 0;
+    out.decelerationRate = f32[(ptr + 20) >> 2];
+}
+
+export function writeUIScroll(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: UIScrollPtrData,
+): void {
+    u8[ptr] = data.enabled ? 1 : 0;
+    u32[(ptr + 4) >> 2] = data.content;
+    u8[ptr + 8] = data.horizontal ? 1 : 0;
+    u8[ptr + 9] = data.vertical ? 1 : 0;
+    u8[ptr + 10] = data.movement;
+    f32[(ptr + 12) >> 2] = data.wheelSpeed;
+    u8[ptr + 16] = data.dragScroll ? 1 : 0;
+    f32[(ptr + 20) >> 2] = data.decelerationRate;
+}
+
+export function createUIScrollData(): UIScrollPtrData {
+    return {
+        enabled: false,
+        content: 0,
+        horizontal: false,
+        vertical: false,
+        movement: 0,
+        wheelSpeed: 0,
+        dragScroll: false,
+        decelerationRate: 0,
+    };
+}
+
 export interface UIVisualPtrData {
     visualType: number;
     texture: number;
@@ -1701,6 +1753,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },
+    UIScroll: { fill: fillUIScroll, write: writeUIScroll, create: createUIScrollData },
     UIVisual: { fill: fillUIVisual, write: writeUIVisual, create: createUIVisualData },
     Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
 };

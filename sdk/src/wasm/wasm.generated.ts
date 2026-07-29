@@ -127,6 +127,11 @@ export enum ProjectionType {
     Orthographic = 1,
 }
 
+export enum ScrollMovement {
+    Clamped = 0,
+    Elastic = 1,
+}
+
 export enum ShapeType {
     Circle = 0,
     Capsule = 1,
@@ -570,6 +575,17 @@ export interface UINode {
     insetBottom: Dimension;
 }
 
+export interface UIScroll {
+    enabled: boolean;
+    content: number;
+    horizontal: boolean;
+    vertical: boolean;
+    movement: number;
+    wheelSpeed: number;
+    dragScroll: boolean;
+    decelerationRate: number;
+}
+
 export interface UIVisual {
     visualType: number;
     texture: number;
@@ -706,6 +722,10 @@ export interface Registry {
     getUINode(entity: Entity): UINode;
     addUINode(entity: Entity, component: UINode): void;
     removeUINode(entity: Entity): void;
+    hasUIScroll(entity: Entity): boolean;
+    getUIScroll(entity: Entity): UIScroll;
+    addUIScroll(entity: Entity, component: UIScroll): void;
+    removeUIScroll(entity: Entity): void;
     hasUIVisual(entity: Entity): boolean;
     getUIVisual(entity: Entity): UIVisual;
     addUIVisual(entity: Entity, component: UIVisual): void;
@@ -755,6 +775,7 @@ export interface ESEngineModule {
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;
     UINode: new () => UINode;
+    UIScroll: new () => UIScroll;
     UIVisual: new () => UIVisual;
     Velocity: new () => Velocity;
 }

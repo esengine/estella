@@ -417,6 +417,19 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'insetBottom', type: 'struct', offset: 136, members: [{ name: 'value', type: 'f32', offset: 0 }, { name: 'unit', type: 'u8', offset: 4 }] },
         ],
     },
+    UIScroll: {
+        ptrFn: 'getUIScrollPtr',
+        fields: [
+            { name: 'enabled', type: 'bool', offset: 0 },
+            { name: 'content', type: 'u32', offset: 4 },
+            { name: 'horizontal', type: 'bool', offset: 8 },
+            { name: 'vertical', type: 'bool', offset: 9 },
+            { name: 'movement', type: 'u8', offset: 10 },
+            { name: 'wheelSpeed', type: 'f32', offset: 12 },
+            { name: 'dragScroll', type: 'bool', offset: 16 },
+            { name: 'decelerationRate', type: 'f32', offset: 20 },
+        ],
+    },
     UIVisual: {
         ptrFn: 'getUIVisualPtr',
         fields: [

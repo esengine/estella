@@ -56,6 +56,7 @@ export {
 } from './core/ui-visual';
 
 export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
+export { UIScroll, ScrollMovement, type UIScrollData } from './core/ui-scroll';
 
 export {
     Text,
