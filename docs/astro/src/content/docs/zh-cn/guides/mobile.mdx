@@ -204,8 +204,69 @@ Android 两者都给,是因为它两者都做得到:编辑器既能直接装配�
 
 在设备上解析 SDK bundle 要约 14 秒,而编译缓存要等一次启动付过账才存在——
 那次启动恰好就是刚装完的那一次。所以**字节码是随应用一起构建**的,跟着资产一起走:
-全新安装到第一帧从 14.4 秒变成约 0.6 秒。这是尽力而为(它需要构建机上的编译器);
-没有编译器的机器照样产出可用的应用,只是首次运行时再编译,和以前一样。
+全新安装到第一帧从约 10 秒变成约 0.1 秒。
+
+构建机上没有 C 编译器就产不出它,应用会退回到首次运行时现编译:能用,
+但那一次启动会有十秒停在一块被玩家读成「卡死」的画面上。启动记录会说明是哪种情况——
+`SDK bundle: loaded from bytecode shipped with the app`,或者 `bundle: NO bytecode`
+——所以首次启动慢是一个有答案的问题,而不是一桩悬案。
+
+### 真机上出问题时
+
+每次启动都会在游戏旁边写一份记录,所以只在别人手机上出现的故障也能留下东西:
+
+```
+Android   Android/data/<你的包名>/files/estella-boot.log
+iOS       应用的 Documents 目录
+```
+
+上一次运行保留为 `estella-boot.prev.log`——否则应用崩掉后再打开一次,
+死亡的记录就被重试的记录覆盖了。
+
+```
+estella boot record — 2026-07-29 19:07:38
+device: 24129PN74C, Android 16, arm64-v8a
+phase: gpu device
+gpu: qualcomm Adreno (TM) 830 (adreno-8xx) — Adreno Vulkan Driver 512.800.71
+phase: surface
+phase: engine context
+phase: js runtime
+  SDK bundle: loaded from bytecode shipped with the app
+phase: game script
+ready in 105 ms
+```
+
+有用的是那些 **phase**:文件里最后一个 phase,就是这次没能跑完的启动停在哪儿。
+跑完了的会写 `ready in`。原生崩溃会追加信号、崩在哪个阶段、以及返回地址:
+
+```
+FATAL SIGSEGV (bad memory access) during phase: js runtime
+backtrace (symbolize against this version's unstripped libestella_js_host.so):
+  0x7b41e2632c  /data/app/.../libestella_js_host.so+0x1e32c
+```
+
+这些地址要拿**对应引擎版本、没有 strip 过**的 `libestella_js_host.so` 来符号化
+(`llvm-addr2line -e libestella_js_host.so 0x1e32c`);APK 里那份是 strip 过的。
+
+从 Android 设备上取回:
+
+```bash
+adb shell cat /sdcard/Android/data/<你的包名>/files/estella-boot.log
+adb pull /sdcard/Android/data/<你的包名>/files/estella-boot.log
+```
+
+<Aside type="caution">
+  目前 `adb` 是拿到这个文件唯一可靠的办法。Android 11 起,一个应用的 `Android/data`
+  目录不被文件管理器和系统「文件」应用读取——`adb shell` 能读只是因为那个用户恰好在
+  `ext_data_rw` 组里。所以这条路适合你自己和能插数据线的测试同学;
+  报障的玩家目前还没法自己取。
+</Aside>
+
+设备连着的时候,同样的内容也在 `logcat` 里:
+
+```bash
+adb logcat --pid=$(adb shell pidof <你的包名>)
+```
 
 ## 另见
 

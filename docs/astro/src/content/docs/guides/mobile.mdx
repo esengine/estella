@@ -241,9 +241,75 @@ hot path.
 Parsing the SDK bundle on a device takes ~14 s, and a compile cache does not exist
 until one launch has paid for it — which would be the launch right after an
 install. So the **bytecode is built with the app** and rides along in its assets:
-fresh-install-to-first-frame is ~0.6 s rather than 14.4 s. It is best effort (it
-needs a compiler for the build machine); a machine without one still produces a
-working app that compiles on first run.
+fresh-install-to-first-frame is ~0.1 s rather than ~10 s.
+
+A build machine without a C compiler cannot produce it, and the app then compiles
+on first run instead: it still works, but that one launch spends ten seconds on a
+screen that a player reads as a hang. The boot record says which happened —
+`SDK bundle: loaded from bytecode shipped with the app`, or `bundle: NO bytecode`
+— so a slow first launch is a question with an answer rather than a mystery.
+
+### When something goes wrong on a device
+
+Every launch writes a record next to the game, so a failure that only happens on
+someone else's phone leaves something behind:
+
+```
+Android   Android/data/<your.package.id>/files/estella-boot.log
+iOS       the app's Documents directory
+```
+
+The run before it is kept as `estella-boot.prev.log` — an app that dies and is
+opened again would otherwise replace the record of the death with a record of the
+retry.
+
+```
+estella boot record — 2026-07-29 19:07:38
+device: 24129PN74C, Android 16, arm64-v8a
+phase: gpu device
+gpu: qualcomm Adreno (TM) 830 (adreno-8xx) — Adreno Vulkan Driver 512.800.71
+phase: surface
+phase: engine context
+phase: js runtime
+  SDK bundle: loaded from bytecode shipped with the app
+phase: game script
+ready in 105 ms
+```
+
+The **phases** are the useful part: the last one in the file is where a launch
+that never finished stopped. A launch that finished says `ready in`. A native
+crash appends the signal, the phase it happened in, and the return addresses:
+
+```
+FATAL SIGSEGV (bad memory access) during phase: js runtime
+backtrace (symbolize against this version's unstripped libestella_js_host.so):
+  0x7b41e2632c  /data/app/.../libestella_js_host.so+0x1e32c
+```
+
+Those addresses resolve against the **unstripped** `libestella_js_host.so` for
+that engine version (`llvm-addr2line -e libestella_js_host.so 0x1e32c`); the copy
+inside the APK is stripped.
+
+To read it off an Android device:
+
+```bash
+adb shell cat /sdcard/Android/data/<your.package.id>/files/estella-boot.log
+adb pull /sdcard/Android/data/<your.package.id>/files/estella-boot.log
+```
+
+<Aside type="caution">
+  `adb` is currently the only reliable way to get that file. Since Android 11 an
+  app's `Android/data` directory is not readable by a file manager or by the
+  system Files app — `adb shell` can only do it because that user is in the
+  `ext_data_rw` group. So this works for you and for a tester who can plug in a
+  cable; a player reporting a problem cannot fetch it themselves yet.
+</Aside>
+
+While a device is attached, the same lines are in `logcat`:
+
+```bash
+adb logcat --pid=$(adb shell pidof <your.package.id>)
+```
 
 ## See also
 
