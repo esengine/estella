@@ -27,7 +27,7 @@ Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画:骨骼、网�
 | `color` | Color | `{1,1,1,1}` | 着色(RGBA,0..1)。 |
 | `layer` | number | `0` | 决定绘制顺序的排序层。 |
 | `material` | asset | 无 | 可选的自定义材质。 |
-| `enabled` | boolean | `true` | 关掉即冻结并隐藏。 |
+| `enabled` | boolean | `true` | 关掉即冻结并隐藏(与 `Spine.setEnabled` 是同一个开关;世界大纲的眼睛也走这条通道)。 |
 
 **骨骼与图集是 Details 面板里的资产槽位**:从弹出选择器里挑,从内容浏览器拖进来,
 或用槽位的定位 / 清除操作。场景把它们序列化为可移植的 `@uuid:` 引用,移动或重命名

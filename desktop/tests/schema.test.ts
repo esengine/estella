@@ -6,7 +6,7 @@
  *        the JSON-first rewrite (REARCH_SERIALIZATION.md) will lean on.
  */
 import { describe, it, expect } from 'vitest';
-import { prettyLabel, hexToRgba, angleZToQuat, inferField, assetFieldType, spineSlotType } from '@/engine/schema';
+import { prettyLabel, hexToRgba, angleZToQuat, inferField, assetFieldType, spineSlotType, isRenderComponent } from '@/engine/schema';
 
 describe('prettyLabel', () => {
     it('splits camelCase and capitalizes', () => {
@@ -86,5 +86,32 @@ describe('spineSlotType', () => {
         expect(assetFieldType('SpineAnimation', 'skeletonPath')).toBeNull();
         expect(assetFieldType('SpineAnimation', 'atlasPath')).toBeNull();
         expect(assetFieldType('SpineAnimation', 'material')).toBe('material');
+    });
+});
+
+describe('isRenderComponent', () => {
+    // The eye's reach used to be a hand-kept list, and three renderables were
+    // missing from it — so the set is derived from the engine schema (a component
+    // that names a sorting layer is drawn) with only the unmarked ones listed.
+    it('covers every component that names a sorting layer', () => {
+        for (const name of [
+            'Sprite', 'ShapeRenderer', 'SpineAnimation', 'DragonBonesAnimation',
+            'TilemapLayer', 'ParticleEmitter', 'Mesh2D', 'TrailRenderer',
+        ]) {
+            expect(isRenderComponent(name), name).toBe(true);
+        }
+    });
+    it('covers the ones the registry marks no layer on: UI text/visuals and lighting', () => {
+        for (const name of ['BitmapText', 'UIVisual', 'Text', 'Light2D', 'ShadowCaster2D']) {
+            expect(isRenderComponent(name), name).toBe(true);
+        }
+    });
+    it('excludes behaviour components — disabling those is not hiding', () => {
+        for (const name of [
+            'Transform', 'Camera', 'RigidBody', 'BoxCollider', 'CircleCollider',
+            'Interactable', 'UIScroll', 'UIMask', 'ParticleForceField', 'NotAComponent',
+        ]) {
+            expect(isRenderComponent(name), name).toBe(false);
+        }
     });
 });

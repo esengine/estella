@@ -3,3 +3,5 @@
 export { forEachMeshBatch } from './meshBatches';
 export type { MeshBatchSource, MeshBatchVisitor, SkeletalHeap } from './meshBatches';
 export type { SkeletalBounds, SkeletalController } from './types';
+export { SkeletalEnableMirror } from './enableSync';
+export type { SkeletalEnableTarget, SkeletalEnableWorld } from './enableSync';

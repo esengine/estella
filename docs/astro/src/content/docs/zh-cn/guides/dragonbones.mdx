@@ -121,6 +121,10 @@ const control = defineSystem(
 `playing: false` 是冻住姿势但继续画;`setEnabled(false)` 是把骨架从这一帧里拿掉。这是两件事,
 而且两个都有用。
 
+`setEnabled` 和组件自身的 `enabled` 字段驱动的是同一个开关:写字段(在检视器里,或
+`world.set`)在写下的那一刻生效,两次写之间由 `setEnabled` 说话。编辑器世界大纲里的眼睛
+走的也是这条通道——所以隐藏一个骨架实体会在视口里真的隐藏,而不会动你写好的 `enabled`。
+
 ## 查询骨架
 
 ```typescript

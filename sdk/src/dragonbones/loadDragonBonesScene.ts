@@ -235,7 +235,6 @@ export function applyDragonBonesEntities(opts: {
             if (!added) continue;
 
             manager.setEntityProps(entity, props);
-            if (data.enabled === false) manager.setEnabled(entity, false);
 
             const animation = typeof data.animation === 'string' ? data.animation : '';
             if (animation) {

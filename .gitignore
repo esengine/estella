@@ -125,6 +125,9 @@ docs/REARCH_*.md
 **/.esengine/play/
 **/.esengine/sdk/
 **/.esengine/editor/
+# Crash-recovery snapshots (electron/autosave.ts): a copy of unsaved edits, so a
+# committed one is somebody's interrupted session, never the scene of record.
+**/.esengine/autosave/
 # Plugin API typings: written by the editor on project open, always matching the
 # running version. A committed copy would go stale against a different editor.
 **/.esengine/plugins/.types/

@@ -139,7 +139,19 @@ export class DragonBonesManager {
         return this.entities_.has(entity);
     }
 
-    /** A disabled entity keeps its instance but stops advancing and drawing. */
+    /** The entities that currently have an armature bound — what a per-frame pass
+     *  over "everything DragonBones draws" iterates, without asking the World. */
+    boundEntities(): Iterable<Entity> {
+        return this.entities_.keys();
+    }
+
+    /**
+     * A disabled entity keeps its instance but stops advancing and drawing.
+     *
+     * Also driven by `DragonBonesAnimation.enabled` — the plugin carries that field
+     * across on its edges (skeletal/enableSync), so writing the component wins at
+     * the moment it is written and this call holds between such writes.
+     */
     setEnabled(entity: Entity, enabled: boolean): void {
         if (enabled) this.disabled_.delete(entity);
         else this.disabled_.add(entity);

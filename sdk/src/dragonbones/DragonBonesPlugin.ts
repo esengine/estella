@@ -16,6 +16,8 @@ import type { SystemDef } from '../ecs/system';
 import type { Entity } from '../types';
 import { defineResource, Time } from '../ecs/resource';
 import { engineApi } from '../ecs/bridge/engineApi';
+import { DragonBonesAnimation } from '../ecs/component';
+import { SkeletalEnableMirror } from '../skeletal/enableSync';
 import { DragonBonesManager } from './DragonBonesManager';
 import { DragonBonesModuleController } from './DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from './DragonBonesModuleLoader';
@@ -31,6 +33,8 @@ export class DragonBonesPlugin implements Plugin {
     private despawnUnsub_: (() => void) | null = null;
     private acquiring_: Promise<DragonBonesManager | null> | null = null;
     private submitWired_ = false;
+    /** Carries DragonBonesAnimation.enabled into the manager (skeletal/enableSync). */
+    private readonly enableMirror_ = new SkeletalEnableMirror(DragonBonesAnimation);
 
     /** Pass a manager for headless use or tests; otherwise it is built on demand. */
     constructor(manager?: DragonBonesManager) {
@@ -98,13 +102,19 @@ export class DragonBonesPlugin implements Plugin {
             });
         }
 
+        // Carries DragonBonesAnimation.enabled across before advancing — the flag
+        // lives on the component, and nothing else reads it into the manager
+        // (see skeletal/enableSync).
         const updateSystem: SystemDef = {
             _id: Symbol('DragonBonesUpdateSystem'),
             _name: 'DragonBonesUpdateSystem',
             _params: [],
             _fn: () => {
                 const time = app.getResource(Time);
-                this.manager_?.updateAnimations(time?.delta ?? 0);
+                const manager = this.manager_;
+                if (!manager) return;
+                this.enableMirror_.sync(app.world, manager);
+                manager.updateAnimations(time?.delta ?? 0);
             },
         };
         // PreUpdate, like Spine: poses have to be current before anything that

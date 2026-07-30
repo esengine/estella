@@ -224,7 +224,10 @@ export class ModuleBackend {
     }
 
     updateAll(dt: number): void {
-        for (const info of this.entities_.values()) {
+        for (const [entity, info] of this.entities_) {
+            // Disabled means out of the frame entirely, so it costs no posing
+            // either — the same meaning the DragonBones manager gives it.
+            if (this.disabledEntities_.has(entity)) continue;
             // playing=false freezes the pose (skip advance, still submitted);
             // timeScale scales the advance (update() takes an arbitrary dt).
             if (info.playing) this.controller_.update(info.instanceId, dt * info.timeScale);

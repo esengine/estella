@@ -11,6 +11,8 @@ import type { SpineModuleFactory, SpineWasmModule } from './SpineModuleLoader';
 import { SPINE_VERSIONS, spineModuleId } from '../sideModules';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { AnimatorController } from '../animation/Animator';
+import { SpineAnimation } from '../ecs/component';
+import { SkeletalEnableMirror } from '../skeletal/enableSync';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
 
@@ -57,6 +59,8 @@ export class SpinePlugin implements Plugin {
     private app_: App | null = null;
     private despawnUnsub_: (() => void) | null = null;
     private submitWired_ = false;
+    /** Carries SpineAnimation.enabled into the manager (see skeletal/enableSync). */
+    private readonly enableMirror_ = new SkeletalEnableMirror(SpineAnimation);
 
     /** Pass an explicit manager for headless/tests; otherwise the plugin builds
      *  one in {@link build} from the app's {@link App.sideModules} host (the realm
@@ -119,16 +123,21 @@ export class SpinePlugin implements Plugin {
             this.spineManager_?.removeEntity(entity);
         });
 
-        // Per-frame spine tick: advance every loaded side-module backend (one
-        // per version) and publish their events. Each backend advances only its
-        // own entities; there is no native runtime to tick.
+        // Per-frame spine tick: carry SpineAnimation.enabled across into the
+        // manager (see skeletal/enableSync), advance every loaded side-module
+        // backend (one per version), and publish their events. Each backend
+        // advances only its own entities; there is no native runtime to tick.
         const spineUpdateSystem: SystemDef = {
             _id: Symbol('SpineUpdateSystem'),
             _name: 'SpineUpdateSystem',
             _params: [],
             _fn: () => {
                 const time = app.getResource(Time);
-                this.spineManager_?.updateAnimations(time.delta);
+                const manager = this.spineManager_;
+                if (manager) {
+                    this.enableMirror_.sync(app.world, manager);
+                    manager.updateAnimations(time.delta);
+                }
                 this.collectAndPublishEvents_(app);
             },
         };

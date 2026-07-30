@@ -29,7 +29,7 @@ main `esengine` package.
 | `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0..1). |
 | `layer` | number | `0` | Sorting layer for draw order. |
 | `material` | asset | none | Optional custom material. |
-| `enabled` | boolean | `true` | Disable to freeze and hide. |
+| `enabled` | boolean | `true` | Disable to freeze and hide (the same switch `Spine.setEnabled` throws; the Outliner eye rides it too). |
 
 **Skeleton and atlas are asset slots** in the Details panel: pick from the popover,
 drag a file in from the Content Browser, or use the slot's locate / clear actions.

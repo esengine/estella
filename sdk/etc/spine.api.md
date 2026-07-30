@@ -101,6 +101,7 @@ events: readonly SpineEvent[]
 
 ## SpineManager — class
 ```
+boundEntities: () => Iterable<Entity>
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
 enableEvents: (entity: Entity) => void

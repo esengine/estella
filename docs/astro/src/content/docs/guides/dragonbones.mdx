@@ -137,6 +137,12 @@ const control = defineSystem(
 `playing: false` freezes the pose but keeps drawing it; `setEnabled(false)` takes
 the armature out of the frame. They are different things and both are useful.
 
+`setEnabled` and the component's own `enabled` field drive the same switch: writing
+the field (in the inspector, or via `world.set`) wins at the moment it is written,
+and `setEnabled` holds between such writes. The editor's Outliner eye rides the
+same channel, which is why hiding a skeletal entity hides it in the viewport
+without touching the `enabled` you authored.
+
 ## Query an armature
 
 ```typescript

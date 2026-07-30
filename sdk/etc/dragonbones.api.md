@@ -36,6 +36,7 @@ skeletonScale: number | undefined
 ## DragonBonesManager — class
 ```
 addEntity: (entity: Entity, skeletonHandle: number, options: DragonBonesEntityOptions) => boolean
+boundEntities: () => Iterable<Entity>
 controller: DragonBonesModuleController
 dispose: () => void
 fadeIn: (entity: Entity, animation: string, fadeSeconds: number, loop?: boolean) => boolean

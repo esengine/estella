@@ -107,6 +107,12 @@ export class SpineManager {
         }
     }
 
+    /** The entities that currently have a skeleton bound — what a per-frame pass
+     *  over "everything spine draws" iterates, without asking the World. */
+    boundEntities(): Iterable<Entity> {
+        return this.entityVersions_.keys();
+    }
+
     removeEntity(entity: Entity): void {
         const version = this.entityVersions_.get(entity);
         if (!version) {
@@ -258,6 +264,15 @@ export class SpineManager {
         return false;
     }
 
+    /**
+     * Take an entity out of the frame, or put it back: a disabled entity keeps its
+     * instance but stops posing and drawing. Distinct from `playing: false`, which
+     * freezes the pose and keeps showing it.
+     *
+     * Also driven by `SpineAnimation.enabled` — the plugin carries that field
+     * across on its edges (skeletal/enableSync), so writing the component wins at
+     * the moment it is written and this call holds between such writes.
+     */
     setEnabled(entity: Entity, enabled: boolean): void {
         const backend = this.getEntityBackend_(entity);
         if (backend) backend.setEnabled(entity, enabled);
