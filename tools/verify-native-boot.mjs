@@ -205,6 +205,12 @@ function androidDriver(opts) {
         // Counting colors on a SCREEN, not on the game: an emulator that pops
         // "Pixel Launcher isn't responding" over a black app hands the check a
         // dialog full of colors and it calls that a rendered frame.
+        /** Has the launch already died? `am start -W` waits for the launch to
+         *  finish, so by the time this is asked the process either exists or is
+         *  gone for good. */
+        died() {
+            return !trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim();
+        },
         foreground() {
             const out = trySh(adb, ['shell', 'dumpsys', 'activity', 'activities']).stdout ?? '';
             const line = out.split('\n').find((l) => /ResumedActivity/.test(l));
@@ -460,6 +466,13 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         while (Date.now() < deadline) {
             log = driver.readLog();
             if (log.includes(READY)) break;
+            // A launch that is already dead will not report ready in another two
+            // minutes. Sitting out the full timeout twice turned each crashing
+            // version into seven minutes of waiting for nothing, which is what
+            // pushed the slower emulators past the job cap and cost the matrix a
+            // version per run — reported as "no data" on a version that had in
+            // fact crashed, which is the wrong answer twice over.
+            if (driver.died?.()) break;
             await sleep(2000);
         }
         // `ready` is the first frame submitted; presenting it is not instant.

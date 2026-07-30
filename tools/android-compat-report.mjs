@@ -204,6 +204,14 @@ if (renderers.length) {
         out.push('所以上面的帧间隔是 CPU 光栅化的耗时,GPU 占用和功耗在这里根本不存在。');
         out.push('跨版本互相比较仍然有意义,把任何一个数当成真机性能则没有。');
         out.push('');
+        // Now that the row parses, it parses as zero — and a bare 0 invites the
+        // reading "the renderer allocates nothing", which is not what it means.
+        if (runs.some((r) => r.memory && r.memory.graphicsKb === 0)) {
+            out.push('`Graphics` 是 0 也是同一个原因:那一列统计的是 gralloc/GPU 归属的内存,');
+            out.push('软件渲染下不存在这种分配,Dawn 的缓冲全落在 PSS 的其他分类里。');
+            out.push('这一列只有在真机上才有意义。');
+            out.push('');
+        }
     }
 }
 
