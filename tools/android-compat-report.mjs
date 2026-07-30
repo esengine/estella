@@ -102,6 +102,15 @@ const named = apps.filter((a) => a !== '—');
 out.push(`${perApp ? `${named.length} 个包` : '同一个包'}${named.length ? `(${named.join('、')})` : ''},`
     + `在 ${versions.size} 个 Android 版本上各跑一台模拟器,每个版本装的是同一个构建产物。`);
 out.push('');
+// Which template was wrapped changes what a red row means: against the released
+// one it is the binary users installed, against a branch build it is a proposed
+// fix. Stated because the table is read without the workflow next to it.
+if (opts.templateSource === 'release') {
+    out.push('运行时模板取自**最新 release** —— 也就是用户实际装到手机上的那个二进制。');
+} else if (opts.templateSource === 'head') {
+    out.push('运行时模板**从这个分支构建** —— 测的是这里改的代码,不是已发布的版本。');
+}
+out.push('');
 out.push(`| Android | API ${perApp ? '| app ' : ''}| ready | 首帧上屏 | am start | PSS | Graphics | CPU | 帧间隔 中位/p95 | 结果 |`);
 out.push(`|---|---|${perApp ? '---|' : ''}---|---|---|---|---|---|---|---|`);
 out.push(...rows);
