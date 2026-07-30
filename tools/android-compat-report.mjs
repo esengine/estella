@@ -70,6 +70,22 @@ if (!runs.length) {
     process.exit(0);
 }
 
+// A version whose job never filed anything must still get a row. The first real
+// run lost API 29 to a job timeout and the table simply said "7 versions" — an
+// absent row reads as "that version does not exist", which is the one conclusion
+// a compatibility matrix must never imply by accident.
+if (opts.expect) {
+    const seen = new Set(runs.map((r) => r.api));
+    const wanted = String(opts.expect).replace(/[[\]\s]/g, '').split(',').map(Number).filter(Boolean);
+    for (const api of wanted) {
+        if (seen.has(api)) continue;
+        runs.push({
+            api, release: null, label: `api${api}`, ok: false, missing: true,
+            why: '没测到 — 这个 job 没跑完(模拟器没启动起来,或 job 超时)',
+        });
+    }
+}
+
 // API level ascending, so the table reads oldest-first — the direction a
 // compatibility floor is read in.
 runs.sort((a, b) => (a.api ?? 0) - (b.api ?? 0) || String(a.label).localeCompare(String(b.label)));
@@ -82,13 +98,20 @@ const frames = (f) => (!f ? '—' : `${f.medianMs} / ${f.p95Ms} ms`);
 // The label is `api<NN>-<example>`; the app column only appears when more than
 // one was run, because a column with one repeated value is noise.
 const appOf = (r) => String(r.label ?? '').replace(/^api\d+-?/, '') || '—';
-const apps = [...new Set(runs.map(appOf))];
+// Placeholders for versions that filed nothing carry no app name, and counting
+// their '—' as one would flip a single-app run into per-app mode.
+const apps = [...new Set(runs.filter((r) => !r.missing).map(appOf))];
 const perApp = apps.length > 1;
 
+// `am start -W`'s TotalTime and logcat's "Displayed" are the SAME measurement —
+// launch to the activity being fully drawn — and the first run proved it, agreeing
+// to the millisecond on all six versions that produced data. Both are still
+// collected into the JSON as a cross-check, but showing them as two columns
+// claimed two independent clocks where there is one.
 const rows = runs.map((r) => {
     const s = r.startup ?? {};
     return `| ${r.release ?? '?'} | ${r.api ?? '?'} ${perApp ? `| ${appOf(r)} ` : ''}`
-        + `| ${ms(s.readyMs)} | ${ms(s.displayedMs)} | ${ms(s.totalMs)} `
+        + `| ${ms(s.readyMs)} | ${ms(s.totalMs)} `
         + `| ${mb(r.memory?.totalPssKb)} | ${mb(r.memory?.graphicsKb)} | ${pct(r.cpu)} | ${frames(r.frames)} `
         + `| ${r.ok ? '✓' : `✗ ${r.why || 'failed'}`} |`;
 });
@@ -111,22 +134,34 @@ if (opts.templateSource === 'release') {
     out.push('运行时模板**从这个分支构建** —— 测的是这里改的代码,不是已发布的版本。');
 }
 out.push('');
-out.push(`| Android | API ${perApp ? '| app ' : ''}| ready | 首帧上屏 | am start | PSS | Graphics | CPU | 帧间隔 中位/p95 | 结果 |`);
-out.push(`|---|---|${perApp ? '---|' : ''}---|---|---|---|---|---|---|---|`);
+out.push(`| Android | API ${perApp ? '| app ' : ''}| ready | 启动到首帧 | PSS | Graphics | CPU | 帧间隔 中位/p95 | 结果 |`);
+out.push(`|---|---|${perApp ? '---|' : ''}---|---|---|---|---|---|---|`);
 out.push(...rows);
 out.push('');
 
-const broken = runs.filter((r) => !r.ok);
+// "ran and broke" and "never ran" are different findings and must not share a
+// count. The first is a result about Android; the second is a result about this
+// pipeline, and reporting them together lets an untested version pass for a
+// tested one.
+const broken = runs.filter((r) => !r.ok && !r.missing);
+const untested = runs.filter((r) => r.missing);
+
 if (broken.length) {
-    const brokenVersions = new Set(broken.map((r) => r.api));
-    out.push(`**${brokenVersions.size}/${versions.size} 个 Android 版本没跑起来**`
-        + `(${broken.length}/${runs.length} 次运行失败)。`);
+    out.push(`**${new Set(broken.map((r) => r.api)).size}/${versions.size} 个 Android 版本装上了但没跑起来。**`);
     out.push('');
     for (const r of broken) {
         out.push(`- **Android ${r.release ?? '?'} (API ${r.api ?? '?'})**`
             + `${perApp ? ` — ${appOf(r)}` : ''} — ${r.why || 'failed'}`);
         for (const e of (r.errors ?? []).slice(0, 3)) out.push(`  - \`${e.trim()}\``);
     }
+    out.push('');
+}
+
+if (untested.length) {
+    out.push(`**${untested.length} 个版本没有数据 —— 这是关于这条流水线的结论,不是关于 Android 的。**`);
+    out.push('这些版本既没被证明可用,也没被证明有问题。');
+    out.push('');
+    for (const r of untested) out.push(`- **API ${r.api}** — ${r.why}`);
     out.push('');
 }
 

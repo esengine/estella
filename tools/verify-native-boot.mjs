@@ -233,6 +233,16 @@ function androidDriver(opts) {
          */
         async metrics(launchOutput) {
             const notes = [];
+            // The DEVICE first, before anything that depends on the app being
+            // alive. Read after the early return below, the one row that matters
+            // most — the version that crashed — came out labelled "Android ? (API
+            // ?)", which is the row a reader needs the version on.
+            const device = {
+                api: Number(trySh(adb, ['shell', 'getprop', 'ro.build.version.sdk']).stdout.trim()) || null,
+                release: trySh(adb, ['shell', 'getprop', 'ro.build.version.release']).stdout.trim() || null,
+                renderer: /GLES:\s*(.+)/.exec(
+                    trySh(adb, ['shell', 'dumpsys', 'SurfaceFlinger']).stdout ?? '')?.[1]?.trim() ?? null,
+            };
             const pid = trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim().split(/\s+/)[0] || null;
 
             const startup = {
@@ -250,11 +260,16 @@ function androidDriver(opts) {
 
             if (!pid) {
                 notes.push('the process was gone before anything could be sampled');
-                return { startup, memory: null, cpu: null, frames: null, notes };
+                return { ...device, startup, memory: null, cpu: null, frames: null, notes };
             }
 
             const meminfo = trySh(adb, ['shell', 'dumpsys', 'meminfo', APP_ID]).stdout ?? '';
-            const memRow = (label) => firstNumber(new RegExp(`^\\s*${label}\\s+(\\d+)`, 'm'), meminfo);
+            // The colon is optional because the same figure is labelled both ways in
+            // one dumpsys: the per-process table writes "Native Heap    1234" and
+            // the App Summary below it writes "Native Heap:    1234". Requiring
+            // whitespace after the label found neither Graphics nor Native Heap, so
+            // Dawn's Vulkan allocations read as "—" on every version.
+            const memRow = (label) => firstNumber(new RegExp(`^\\s*${label}:?\\s+(\\d+)`, 'm'), meminfo);
             const memory = {
                 // "TOTAL PSS:" is the App Summary line on API 29+; older releases
                 // label the same figure "TOTAL" in the table above it.
@@ -316,19 +331,7 @@ function androidDriver(opts) {
                 if (!frames) notes.push('SurfaceFlinger had too few presented frames to time');
             }
 
-            // Recorded rather than judged. On a runner this is SwiftShader — a CPU
-            // rasteriser — so the frame times above are a software renderer's, and
-            // GPU utilisation and power do not exist to be read at all. Comparing
-            // them across Android versions is still meaningful; reading them as
-            // device performance is not.
-            const renderer = /GLES:\s*(.+)/.exec(
-                trySh(adb, ['shell', 'dumpsys', 'SurfaceFlinger']).stdout ?? '')?.[1]?.trim() ?? null;
-
-            return {
-                api: Number(trySh(adb, ['shell', 'getprop', 'ro.build.version.sdk']).stdout.trim()) || null,
-                release: trySh(adb, ['shell', 'getprop', 'ro.build.version.release']).stdout.trim() || null,
-                startup, memory, cpu, frames, renderer, notes,
-            };
+            return { ...device, startup, memory, cpu, frames, notes };
         },
         diagnostics() {
             return [

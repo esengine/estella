@@ -276,7 +276,11 @@ jobs:
     name: Android API ${{ matrix.api }}
     needs: [versions, apk]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A version that works finishes in about three minutes and one that crashes in
+    # seven. API 29 once failed to boot at all and sat here for the full 45, so the
+    # cap is set near what a real run costs: a stuck emulator should be reported as
+    # "no data" quickly, not held open in case it recovers.
+    timeout-minutes: 20
     strategy:
       # A compatibility matrix whose whole output is "which versions work" must
       # run every version even after one fails. fail-fast here would report the
@@ -404,6 +408,7 @@ jobs:
           node tools/android-compat-report.mjs \
             --dir build/compat \
             --template-source '${{ needs.apk.outputs.template-from }}' \
+            --expect '${{ needs.versions.outputs.matrix }}' \
             ${{ steps.shots.outputs.base && format('--shots-base {0}', steps.shots.outputs.base) || '' }} \
             --out compat-comment.md
           cat compat-comment.md >> "$GITHUB_STEP_SUMMARY"
