@@ -60,6 +60,13 @@ on:
 permissions:
   contents: read
 
+# One matrix per PR at a time. `paths` on a pull_request matches the PR's whole
+# diff, not the latest push, so every push re-runs all eight emulators — three
+# pushes queued twenty-four of them before this was here.
+concurrency:
+  group: android-compat-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   # Android 10. The manifest claims 26, which is a wider promise than anything
   # here checks — raising this floor is a decision about what we support, so it is
@@ -304,27 +311,11 @@ jobs:
           arch: x86_64
           profile: ${{ env.ANDROID_PROFILE }}
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
-          # POSIX sh, not bash: this action runs `script` through /usr/bin/sh, so
-          # `set -o pipefail` aborts the whole thing on its first line — which it
-          # did, on all eight versions, before a single app was installed.
-          script: |
-            set -eu
-            mkdir -p build/compat
-            rc=0
-            for apk in apks/*.apk; do
-              name=$(basename "$apk" .apk)
-              label="api${{ matrix.api }}-$name"
-              echo "::group::$label"
-              # --no-frame-judge: the frame is for a human. The gate here is
-              # install + `ready` + no recorded error.
-              node tools/verify-native-boot.mjs \
-                --platform android --apk "$apk" \
-                --label "$label" --no-frame-judge \
-                --out build/compat \
-                --metrics-out "build/compat/$label.json" || rc=$?
-              echo "::endgroup::"
-            done
-            exit $rc
+          # ONE line, because this action runs `script` as a separate `sh -c` per
+          # line: a loop written here arrives split and dies on its own `do`, and
+          # nothing set on one line is visible on the next. The work lives in a
+          # file that can also be run by hand.
+          script: bash tools/android-compat-run.sh ${{ matrix.api }}
 
       - name: Keep the frame, the record and the numbers
         if: always()
