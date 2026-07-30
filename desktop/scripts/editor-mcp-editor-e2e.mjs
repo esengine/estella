@@ -6,12 +6,13 @@
  * Spawns editor-mcp.mjs --editor (the real editor app with --mcp) against a TEMP
  * COPY of the platformer example and drives the full game-making loop over MCP:
  * open project → open scene → entity-template catalog → create entity → edit a
- * field → verify it reached the live World → screenshot → save → play → stop.
+ * field → verify it reached the live World → screenshot → save → prefab round trip
+ * (instance → Prefab Mode → save the asset → back → revert → unpack) → play → stop.
  * Run from desktop/ after a dist build:  node scripts/editor-mcp-editor-e2e.mjs
  * (ESTELLA_E2E_EXPORT=1 additionally runs a web export to the temp dir.)
  */
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,14 +67,16 @@ child.stderr.on('data', (d) => process.stderr.write(d));
 
 const send = (msg) => child.stdin.write(JSON.stringify(msg) + '\n');
 let nextId = 0;
-const rpc = (method, params, timeoutMs = 60_000) => new Promise((resolve, reject) => {
+const rpc = (method, params, timeoutMs = 60_000, label = method) => new Promise((resolve, reject) => {
   const id = ++nextId;
-  const t = setTimeout(() => reject(new Error(`timeout waiting for ${method}`)), timeoutMs);
+  const t = setTimeout(() => reject(new Error(`timeout waiting for ${label}`)), timeoutMs);
   waiters.set(id, (m) => { clearTimeout(t); resolve(m); });
   send({ jsonrpc: '2.0', id, method, params });
 });
 const call = async (name, args, timeoutMs) => {
-  const res = await rpc('tools/call', { name, arguments: args ?? {} }, timeoutMs);
+  // Labelled with the tool name: a bare "timeout waiting for tools/call" leaves you
+  // counting call sites to work out which step of the run wedged.
+  const res = await rpc('tools/call', { name, arguments: args ?? {} }, timeoutMs, `tools/call ${name}`);
   if (res.result?.isError) throw new Error(`${name}: ${res.result?.content?.[0]?.text}`);
   return res.result?.content?.[0];
 };
@@ -94,7 +97,8 @@ try {
 
   const list = await rpc('tools/list', {});
   const names = (list.result?.tools ?? []).map((t) => t.name);
-  for (const need of ['open_project', 'open_scene', 'list_entity_templates', 'create_entity', 'save_scene', 'screenshot', 'export_game'])
+  for (const need of ['open_project', 'open_scene', 'list_entity_templates', 'create_entity', 'save_scene', 'screenshot', 'export_game',
+    'open_asset', 'get_document', 'exit_prefab_mode', 'edit_prefab', 'apply_prefab', 'revert_prefab', 'unpack_prefab', 'create_prefab_variant'])
     if (!names.includes(need)) await fail(`tools/list missing ${need}`);
   console.log(`tools/list OK — ${names.length} tools`);
 
@@ -172,6 +176,74 @@ try {
   const mtimeAfter = (await stat(scenePath)).mtimeMs;
   if (mtimeAfter <= mtimeBefore) await fail('save_scene did not rewrite the scene file');
   console.log('save_scene OK — scene file rewritten');
+
+  // — Prefabs: the identity surface, end to end (make one → instance it → edit it in
+  //   Prefab Mode → save the ASSET → come back → revert → unpack) —
+  // Every tool result is JSON-encoded, so a string ref comes back quoted.
+  const prefabRef = JSON.parse((await call('create_prefab_from_entity', { entity: created }, 60_000)).text);
+  const prefabAsset = JSON.parse((await call('list_assets', { type: 'prefab' })).text)
+    .assets.find((a) => a.ref === prefabRef);
+  if (!prefabAsset) await fail(`the new prefab ${prefabRef} is not in list_assets`);
+  const instance = Number((await call('create_entity', { template: `prefab:${prefabAsset.path}` })).text);
+  const instanceInfo = JSON.parse((await call('get_entity', { id: instance })).text);
+  if (instanceInfo?.prefab?.ref !== prefabRef)
+    await fail(`get_entity does not report the prefab link (${JSON.stringify(instanceInfo)})`);
+  console.log(`prefab instance OK — get_entity reports ${prefabRef}`);
+
+  await call('save_scene', {}, 60_000); // Prefab Mode refuses to discard unsaved work
+  const prefabDoc = JSON.parse((await call('edit_prefab', { entity: instance }, 60_000)).text);
+  if (prefabDoc.kind !== 'prefab' || prefabDoc.path !== prefabAsset.path)
+    await fail(`edit_prefab did not enter Prefab Mode (${JSON.stringify(prefabDoc)})`);
+  if (JSON.parse((await call('get_document')).text).kind !== 'prefab')
+    await fail('get_document does not report Prefab Mode — a driver cannot tell what it is editing');
+  const prefabTree = JSON.parse((await call('get_scene_tree')).text);
+  if (prefabTree.length !== 1) await fail(`Prefab Mode should show the prefab alone (${JSON.stringify(prefabTree)})`);
+  await call('set_field', { entity: prefabTree[0].id, component: 'Sprite', key: 'layer', type: 'number', value: 3 });
+  await call('save_scene', {}, 60_000); // in Prefab Mode this writes the .esprefab
+  const prefabFile = path.join(project, prefabAsset.path);
+  if (!/"layer":\s*3/.test(await readFile(prefabFile, 'utf8')))
+    await fail('save_scene in Prefab Mode did not write the edit into the .esprefab');
+  const backDoc = JSON.parse((await call('exit_prefab_mode', {}, 60_000)).text);
+  if (backDoc.kind !== 'scene') await fail(`exit_prefab_mode did not return to the scene (${JSON.stringify(backDoc)})`);
+  console.log('prefab mode OK — edit_prefab → set_field → save wrote the asset → exit_prefab_mode');
+
+  // Apply rewrites the shared asset for every instance, so it refuses until the
+  // caller states the intent (a person is shown a diff dialog instead).
+  let refused = false;
+  try { await call('apply_prefab', { entity: instance, confirm: false }); } catch { refused = true; }
+  if (!refused) await fail('apply_prefab committed without confirm');
+  console.log('apply_prefab OK — refuses without confirm');
+
+  // A UI prefab is opened inside an editing-environment Canvas so its percentage
+  // boxes resolve. The environment must be invisible: no Outliner row, and not one
+  // byte of it in the asset.
+  const uiEntity = Number((await call('create_entity', { template: 'ui-image' })).text);
+  const uiRef = JSON.parse((await call('create_prefab_from_entity', { entity: uiEntity }, 60_000)).text);
+  const uiAsset = JSON.parse((await call('list_assets', { type: 'prefab' })).text)
+    .assets.find((a) => a.ref === uiRef);
+  if (!uiAsset) await fail(`the new UI prefab ${uiRef} is not in list_assets`);
+  await call('save_scene', {}, 60_000);
+  const uiFile = path.join(project, uiAsset.path);
+  const uiAssetBefore = await readFile(uiFile, 'utf8');
+  const uiDoc = JSON.parse((await call('open_asset', { path: uiAsset.path }, 60_000)).text);
+  if (uiDoc.kind !== 'prefab') await fail(`open_asset did not enter Prefab Mode (${JSON.stringify(uiDoc)})`);
+  const uiTree = JSON.parse((await call('get_scene_tree')).text);
+  if (uiTree.length !== 1 || /canvas/i.test(uiTree[0].name))
+    await fail(`the editing environment leaked into the Outliner (${JSON.stringify(uiTree)})`);
+  await call('save_scene', {}, 60_000);
+  if ((await readFile(uiFile, 'utf8')) !== uiAssetBefore)
+    await fail('saving a hosted UI prefab changed the asset — the editing environment leaked into it');
+  await call('exit_prefab_mode', {}, 60_000);
+  console.log('ui prefab OK — hosted for layout, absent from the tree and from the asset');
+
+  // The rest of the identity surface: revert re-syncs the instance (fresh ids),
+  // unpack cuts the link for good.
+  const reverted = Number((await call('revert_prefab', { entity: instance }, 60_000)).text);
+  if (!Number.isFinite(reverted)) await fail('revert_prefab returned no fresh instance root');
+  await call('unpack_prefab', { entity: reverted });
+  if (JSON.parse((await call('get_entity', { id: reverted })).text)?.prefab)
+    await fail('unpack_prefab left the prefab link in place');
+  console.log('revert_prefab + unpack_prefab OK — re-synced, then detached');
 
   await call('toggle_play', {}, 60_000);
   let play = null;

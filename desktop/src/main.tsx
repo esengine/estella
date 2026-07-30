@@ -63,7 +63,8 @@ import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
 import { initPlugins } from './plugins/init';
-import { openAssetOfType } from './project/assetOpen';
+import { openAssetOfType, opensInEditor } from './project/assetOpen';
+import { DirtyRegistry } from './document/DirtyRegistry';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
@@ -86,6 +87,38 @@ initPlugins();
 // wire the Details-edit → emitter-restart glue.
 applyFxPreview(useEditorStore.getState().previewFx);
 initFxPreviewEditRestart();
+
+/** The open document: a scene, or the prefab being edited in Prefab Mode. `dirty` is
+ *  the aggregate registry (scene + every open asset editor), the same truth the
+ *  unsaved-changes prompts read. */
+function documentState(): { kind: 'scene' | 'prefab'; path: string | null; name: string | null; dirty: boolean; isVariant?: boolean; returnScene?: string | null } {
+  const st = ProjectStore.getSnapshot();
+  const pe = st?.prefabEdit ?? null;
+  const dirty = DirtyRegistry.isDirty();
+  if (pe) return { kind: 'prefab', path: pe.path, name: pe.name, dirty, isVariant: !!pe.isVariant, returnScene: pe.returnScene };
+  return { kind: 'scene', path: st?.currentScene ?? null, name: st?.name ?? null, dirty };
+}
+
+/** Open a scene and resolve once it is ADOPTED and readable, so a driver never has to
+ *  poll get_scene_tree itself. Shared by the openScene and openAsset doors. */
+async function openSceneAwaited(rel: string): Promise<void> {
+  const v0 = EditorControlSurface.worldVersion();
+  await ProjectStore.openScene(rel);
+  const t0 = Date.now();
+  while (EditorControlSurface.worldVersion() === v0 && Date.now() - t0 < 30_000) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/** Throw unless the entity belongs to a prefab instance — the identity operations
+ *  answer `null` for anything else, which reads to a driver as "it worked". */
+function requireInstance(entity: number): void {
+  const tag = SceneModel.prefabTag(entity);
+  const ref = tag?.prefab ?? (tag ? SceneModel.prefabTag(tag.instanceRoot)?.prefab : undefined);
+  if (!ref) {
+    throw new Error(`entity ${entity} is not part of a prefab instance (get_entity reports the link as \`prefab\`)`);
+  }
+}
 
 // Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
 // minimum to drive the launcher→editor flow from a headless driver. Gated so the normal
@@ -138,12 +171,7 @@ if (new URLSearchParams(location.search).has('automation')) {
           'the open scene has unsaved changes — save_scene first, or pass discardChanges to throw them away',
         );
       }
-      const v0 = EditorControlSurface.worldVersion();
-      await ProjectStore.openScene(rel);
-      const t0 = Date.now();
-      while (EditorControlSurface.worldVersion() === v0 && Date.now() - t0 < 30_000) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      await openSceneAwaited(rel);
     },
     /** Resolves once the project's initial scene is in the tree (call after
      *  open + enterEditor; the boot pipeline loads the last-opened scene). */
@@ -291,10 +319,122 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Patch an asset's `.meta` import settings (dotted keys, e.g. `sliceBorder.left`). */
     setImportSettings: (path: string, patch: Record<string, unknown>) =>
       ProjectStore.setImportSettings(path, patch),
-    /** Double-click-open an asset by project path (FSM/BT/tileset/clip editors…). */
-    openAsset: (path: string) => {
-      const name = path.split('/').pop() ?? path;
-      openAssetOfType(ProjectStore.assetTypeAt(path), path, name);
+    /**
+     * Double-click-open an asset by project path, awaited: a prefab enters PREFAB
+     * MODE, a scene becomes the document, everything else opens its own editor panel
+     * (FSM / BT / tileset / clip / material…). Returns the document afterwards.
+     *
+     * Three things a driver needs that a double-click doesn't. No PROMPT can be left
+     * standing: unsaved work is either refused here or discarded through the door's own
+     * `discardChanges`, never handed to a modal with nobody there to answer it (which
+     * hangs the call for good). Refusals that the UI reports as a toast — a nested
+     * prefab, a variant of a non-flat base — become throws a driver can read. And a
+     * type the editor has no editor for is refused instead of being handed to whatever
+     * program the OS associates with it: "open this `.png`" means to author, not to pop
+     * an image viewer on the user's desktop.
+     */
+    openAsset: async (path: string, discardChanges = false) => {
+      const type = ProjectStore.assetTypeAt(path);
+      if (!opensInEditor(type)) {
+        throw new Error(
+          `the editor has no editor for a '${type}' asset (${path}) — a double-click would hand it to an `
+          + 'external program. Read or write it as text instead (read_project_file / write_project_file).',
+        );
+      }
+      // A scene or prefab REPLACES the document, and both take `discardChanges` all the
+      // way down. An asset editor prompts about ITS OWN document, which nothing here can
+      // answer for — so it opens only from a clean state.
+      const swapsDocument = type === 'scene' || type === 'prefab';
+      if (DirtyRegistry.isDirty() && !(swapsDocument && discardChanges)) {
+        throw new Error(swapsDocument
+          ? `opening ${path} would discard unsaved changes — save first, or pass discardChanges to throw them away`
+          : `save the open documents before opening ${path} — an asset editor asks about its own unsaved changes, `
+            + 'and that prompt has nobody to answer it here',
+        );
+      }
+      if (type === 'prefab') {
+        await ProjectStore.openPrefab(path, { discardChanges: true });
+        const doc = documentState();
+        if (doc.kind !== 'prefab' || doc.path !== path) {
+          throw new Error(
+            `${path} did not open in Prefab Mode: a NESTED prefab, or a variant whose base isn't flat, is refused `
+            + '(the editor logged the reason — get_logs)',
+          );
+        }
+        return doc;
+      }
+      if (type === 'scene') {
+        await openSceneAwaited(path);
+        return documentState();
+      }
+      openAssetOfType(type, path, path.split('/').pop() ?? path);
+      return documentState();
+    },
+    /**
+     * What the editor is editing right now — the document every scene read/write
+     * acts on: a scene, or a prefab when Prefab Mode is open. Without this a driver
+     * that entered Prefab Mode had no way to tell (the tools kept answering, about a
+     * different document), and no way to know whether `save` writes a scene or an asset.
+     */
+    documentState,
+    /** Leave Prefab Mode — the banner's "Back to Scene". Refuses on unsaved prefab
+     *  changes unless `discardChanges` (see openAsset). */
+    exitPrefabMode: async (discardChanges = false) => {
+      if (!ProjectStore.getSnapshot()?.prefabEdit) {
+        throw new Error('not editing a prefab — nothing to leave (see get_document)');
+      }
+      if (!discardChanges && DirtyRegistry.isDirty()) {
+        throw new Error('the prefab has unsaved changes — save first, or pass discardChanges to throw them away');
+      }
+      await ProjectStore.exitPrefabMode({ discardChanges: true });
+      return documentState();
+    },
+    /** Open the prefab an INSTANCE came from, in Prefab Mode (the Outliner's "Edit
+     *  Prefab") — the door that needs no ref→path lookup by the caller. */
+    editPrefab: async (entity: number, discardChanges = false) => {
+      requireInstance(entity);
+      if (!discardChanges && DirtyRegistry.isDirty()) {
+        throw new Error('editing the prefab would discard unsaved changes — save first, or pass discardChanges');
+      }
+      await ProjectStore.editPrefabOfInstance(entity, { discardChanges: true });
+      const doc = documentState();
+      if (doc.kind !== 'prefab') {
+        throw new Error(
+          'the prefab did not open — a NESTED prefab, or a variant whose base is not flat, is refused in Prefab Mode',
+        );
+      }
+      return doc;
+    },
+    /** Push an instance's overrides back into its prefab asset (the Outliner's "Apply
+     *  to Prefab"), rewriting the base for EVERY instance. `confirm` must be true: a
+     *  person sees an itemized diff first, so a driver states the intent instead. */
+    applyPrefab: async (entity: number, confirm: boolean) => {
+      requireInstance(entity);
+      if (confirm !== true) {
+        throw new Error(
+          'apply rewrites the shared prefab for every instance — pass confirm: true to commit. '
+          + 'get_inspector on the instance lists what would be baked in (overridden fields are marked).',
+        );
+      }
+      return ProjectStore.applyPrefabInstance(entity, { skipPreview: true });
+    },
+    /** Discard an instance's overrides and re-sync it to its prefab (the Outliner's
+     *  "Revert to Prefab"). Returns the fresh instance root's source id. */
+    revertPrefab: async (entity: number) => {
+      requireInstance(entity);
+      return ProjectStore.revertPrefabInstance(entity);
+    },
+    /** Detach an instance: its entities become ordinary scene entities and lose every
+     *  prefab link (the Outliner's "Unpack Prefab"). Undoable. */
+    unpackPrefab: (entity: number) => {
+      requireInstance(entity);
+      SceneCommands.unpackPrefabInstance(entity);
+    },
+    /** Save a new `.esprefab` that inherits the instance's prefab and bakes in its
+     *  overrides (the Outliner's "Create Variant"), then re-link the instance to it. */
+    createPrefabVariant: async (entity: number) => {
+      requireInstance(entity);
+      return ProjectStore.createVariantFromInstance(entity);
     },
     reveal: (id: string) => dockApi.revealAndExpand(id),
     /** Open a registered panel by id, docking it where its def says (reveal only

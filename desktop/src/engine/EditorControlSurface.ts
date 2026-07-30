@@ -21,7 +21,6 @@ import type {
   InspectorComponent,
   InspectorFieldType,
   InspectorFieldValue,
-  NodeKind,
   SceneNode,
 } from '@/types';
 import type { SceneData, PrefabData, SubsystemStatus } from 'esengine';
@@ -31,7 +30,7 @@ import { isRequiredEmpty } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
-import type { SceneQueryImpl } from './SceneQuery';
+import type { SceneQueryImpl, EntityInfo } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
 import type { EditorHistoryImpl } from './EditorHistory';
 import type { ReconcilerImpl } from './Reconciler';
@@ -476,7 +475,7 @@ export class EditorControlSurfaceImpl {
   getSceneTree(): SceneNode[] {
     return this.s.query.readSceneTree();
   }
-  getEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
+  getEntity(id: EntityId): EntityInfo | null {
     return this.s.query.readEntity(id);
   }
   getInspector(entity: EntityId): InspectorComponent[] {

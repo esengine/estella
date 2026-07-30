@@ -61,6 +61,16 @@ export function buildSceneTree(data: SceneData | null): SceneNode[] {
   return roots.map(build);
 }
 
+/** One entity's identity: what it is, and (for a prefab instance) what it came from. */
+export interface EntityInfo {
+  name: string;
+  kind: NodeKind;
+  components: string[];
+  /** Present only for an entity inside a prefab instance. `isRoot` marks the instance
+   *  root (the entity Apply / Revert / Unpack resolve to). */
+  prefab?: { ref: string; prefabId: string; instanceRoot: EntityId; isRoot: boolean };
+}
+
 /** Name/kind/components for one entity in a SceneData. */
 export function buildEntityInfo(data: SceneData | null, id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
   const e = data?.entities.find((x) => x.id === id);
@@ -189,9 +199,21 @@ export class SceneQueryImpl {
     return buildSceneTree(this.model.current);
   }
 
-  /** Inspect a single source entity (name, kind, which components it carries). */
-  readEntity(id: EntityId): { name: string; kind: NodeKind; components: string[] } | null {
-    return buildEntityInfo(this.model.current, id);
+  /**
+   * Inspect a single source entity (name, kind, which components it carries) plus its
+   * prefab link when it is part of an instance — the one thing that made an instance
+   * indistinguishable from an ordinary entity to a reader outside the Outliner (whose
+   * warm tint and context menu are the only other place it shows). Resolve `ref`
+   * to a path through the asset registry (MCP: `list_assets`).
+   */
+  readEntity(id: EntityId): EntityInfo | null {
+    const info = buildEntityInfo(this.model.current, id);
+    if (!info) return null;
+    const tag = this.model.prefabTag(id);
+    if (!tag) return info;
+    const ref = tag.prefab ?? this.model.prefabTag(tag.instanceRoot)?.prefab;
+    if (!ref) return info;
+    return { ...info, prefab: { ref, prefabId: tag.prefabId, instanceRoot: tag.instanceRoot, isRoot: !!tag.prefab } };
   }
 
   /** Full editable inspector model for a source entity — fields resolved per component. */

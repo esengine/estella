@@ -96,6 +96,24 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(host.world.has(S.model.runtimeFor(id)!, Sprite)).toBe(true);
   });
 
+  it('getEntity reports the prefab link, so an instance is not indistinguishable from any entity', () => {
+    const prefab = migratePrefabData({
+      version: '1.0', name: 'Coin', rootEntityId: 'root',
+      entities: [
+        { prefabEntityId: 'root', name: 'Coin', parent: null, children: ['art'], components: [{ type: 'Transform', data: {} }], visible: true },
+        { prefabEntityId: 'art', name: 'Art', parent: 'root', children: [], components: [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} }], visible: true },
+      ],
+    }).data as PrefabData;
+    const root = S.surface.create(prefab, { parent: null, linkPrefabRef: '@uuid:coin-uuid' })!;
+    const child = S.surface.getSceneTree()[0].children![0].id;
+
+    // The root carries the asset ref; a member resolves it through its instance root.
+    expect(S.surface.getEntity(root)?.prefab).toMatchObject({ ref: '@uuid:coin-uuid', isRoot: true, instanceRoot: root });
+    expect(S.surface.getEntity(child)?.prefab).toMatchObject({ ref: '@uuid:coin-uuid', isRoot: false, instanceRoot: root });
+    // An ordinary entity says nothing at all — absent, not a false link.
+    expect(S.surface.getEntity(S.surface.addEntity()!)?.prefab).toBeUndefined();
+  });
+
   it('setField writes a component field; surface undo reverts it', () => {
     const id = S.surface.addEntity()!; // source id
     const e = S.model.runtimeFor(id)!; // runtime World entity

@@ -9,7 +9,7 @@ Estella 编辑器支持 **Model Context Protocol (MCP)**。任何支持 MCP 的 
 Claude Code、Cursor，或你自己写的代理——都能驱动真实的编辑器：打开或创建项目、
 打开场景、用与你相同的"创建"菜单目录生成实体、编辑组件字段、在活的引擎 World
 里验证结果、进入 Play 模式、截图*亲眼看到*它搭出来的东西，并把成品游戏导出
-——走的都是 UI 自己的管线，共 54 个工具。
+——走的都是 UI 自己的管线，共 65 个工具。
 
 <Aside type="tip">
 代理做的每件事都经过编辑器自己的命令面——创建可撤销、Play 模式不会弄脏编辑
@@ -89,13 +89,25 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 | --- | --- |
 | 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针） |
 | 编辑场景 | `apply_scene_ops`（批量搭建）、`create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
-| 项目与资产 | `create_project` / `open_project`、`open_scene`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
+| 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（把任意资产在它自己的编辑器里打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
+| 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（Prefab Mode）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
 | 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |
 | 运行与发布 | `toggle_play` + `get_play_state`、`export_game`（web / desktop / wechat / playable） |
 
 典型的代理循环：`open_project` → `open_scene` → `list_entity_templates` →
 `apply_scene_ops` → `get_diagnostics` → `screenshot` 检查成果 → `save_scene` →
 `toggle_play` → 再次 `screenshot` → `export_game`。
+
+### 编辑预制体
+
+对 `.esprefab` 调 `open_asset`（或对实例调 `edit_prefab`）就进入 **Prefab Mode**：
+从此每个场景工具作用的都是**那个预制体**，`save_scene` 写的是资产——每个实例都会跟着变。
+`get_document` 告诉你当前开着哪个文档：打开之后先查它，别默认保存写的是场景。
+`exit_prefab_mode` 回到原来的场景。
+
+人看到对话框的地方，代理拿到的是能据此行动的答复：会丢掉未保存改动的打开一律**被拒绝**，
+除非你传 `discardChanges`；而 `apply_prefab`（它会重写每个实例的基）要求 `confirm: true`
+——人是靠那张逐条 diff 确认的，代理则把意图直接说出来。
 
 ### 规模化搭建场景
 

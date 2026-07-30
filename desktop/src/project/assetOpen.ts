@@ -74,6 +74,16 @@ async function openOutside(type: AssetType, path: string): Promise<void> {
   });
 }
 
+/**
+ * Whether the EDITOR itself opens this type — a built-in editor below, or a
+ * contributed type that brought its own action. False means a double-click ends up
+ * in {@link openOutside}, handing the file to a program outside the editor: fine for
+ * a person who asked for it, not something a driver should be able to trigger.
+ */
+export function opensInEditor(type: AssetType): boolean {
+  return !!ASSET_OPEN[type] || !!assetTypeRegistry.get(type)?.open;
+}
+
 /** Open action per built-in asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
   scene: async (path, name) => {

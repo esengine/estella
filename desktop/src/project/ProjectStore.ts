@@ -1196,13 +1196,13 @@ class ProjectStoreImpl {
    * guard + flat-only refusal. No-op if the entity isn't a prefab instance or its
    * asset can't be resolved.
    */
-  async editPrefabOfInstance(id: number): Promise<void> {
+  async editPrefabOfInstance(id: number, opts?: { discardChanges?: boolean }): Promise<void> {
     const tag = SceneModel.prefabTag(id);
     const ref = tag?.prefab ?? (tag ? SceneModel.prefabTag(tag.instanceRoot)?.prefab : undefined);
     if (!ref) return;
     const info = this.assetInfo(ref);
     if (!info) return;
-    await this.openPrefab(info.path);
+    await this.openPrefab(info.path, opts);
   }
 
   /**
@@ -1244,8 +1244,12 @@ class ProjectStoreImpl {
    * override, and baking them would strip the prefab's own metadata. Live
    * propagation to *other* in-scene instances still isn't immediate; those
    * siblings re-derive from the new base on next load.
+   *
+   * `skipPreview` commits without the diff dialog — for a caller that has already
+   * stated the intent in the call itself (the MCP door makes that explicit) rather
+   * than a click that needs one last look at what it is about to rewrite.
    */
-  async applyPrefabInstance(sourceId: number): Promise<number | null> {
+  async applyPrefabInstance(sourceId: number, opts?: { skipPreview?: boolean }): Promise<number | null> {
     const tag = SceneModel.prefabTag(sourceId);
     const instanceRoot = tag?.instanceRoot ?? sourceId;
     const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
@@ -1296,8 +1300,10 @@ class ProjectStoreImpl {
     const nameByPrefabId = new Map(processed.map((e) => [e.prefabEntityId, e.name]));
     const nameOf = (id: string): string =>
       nameByPrefabId.get(id) ?? oldPrefab.entities.find((e) => e.prefabEntityId === id)?.name ?? id;
-    const ok = await previewApply(name, { overrides, added, removed }, nameOf);
-    if (!ok) return instanceRoot;
+    if (!opts?.skipPreview) {
+      const ok = await previewApply(name, { overrides, added, removed }, nameOf);
+      if (!ok) return instanceRoot;
+    }
 
     const newPrefab = applyDeltaToSource(oldPrefab, { overrides, added, removed });
 
@@ -2257,12 +2263,16 @@ class ProjectStoreImpl {
    * base into a variant delta, preserving basePrefab). Nested prefabs — and
    * variants of a nested / variant base — are still refused (re-nesting on save
    * is unsolved). The caller guards unsaved changes.
+   *
+   * `discardChanges` skips the unsaved-changes prompt — for a caller that already
+   * decided (the automation door says it in the call). Without it a programmatic
+   * open puts up a modal with nobody there to answer, which never resolves.
    */
-  async openPrefab(path: string): Promise<void> {
+  async openPrefab(path: string, opts?: { discardChanges?: boolean }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const leaf = path.split('/').pop() ?? path;
-    if (!(await confirmDiscard(t('discard.openPrefab', { name: leaf })))) return;
+    if (!opts?.discardChanges && !(await confirmDiscard(t('discard.openPrefab', { name: leaf })))) return;
     const uuid = this.pathToUuid.get(path);
     const ref = uuid ? UUID_PREFIX + uuid : null;
     const prefab = ref ? await this.loadPrefabAsset(ref) : null;
@@ -2450,10 +2460,11 @@ class ProjectStoreImpl {
   }
 
   /** Leave Prefab Mode and return to the scene that was open (or a blank one),
-   *  restoring the editor view the user left it at. */
-  async exitPrefabMode(): Promise<void> {
+   *  restoring the editor view the user left it at. `discardChanges` skips the
+   *  unsaved-changes prompt (see {@link openPrefab}). */
+  async exitPrefabMode(opts?: { discardChanges?: boolean }): Promise<void> {
     if (!this.prefabSession) return;
-    if (!(await confirmDiscard(t('discard.exitPrefab')))) return;
+    if (!opts?.discardChanges && !(await confirmDiscard(t('discard.exitPrefab')))) return;
     const { returnScene: back, returnView, returnSelection } = this.prefabSession;
     this.prefabSession = null;
     const st = this.state;

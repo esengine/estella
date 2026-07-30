@@ -10,7 +10,7 @@ tool — Claude Code, Cursor, or your own agent — can drive the real editor: o
 create projects, open scenes, spawn entities from the same Create-menu catalog you
 use, edit component fields, verify the result in the live engine World, enter play
 mode, take screenshots to *see* what it built, and export the finished game — the
-exact pipelines the UI uses, fifty-four tools in all.
+exact pipelines the UI uses, sixty-five tools in all.
 
 <Aside type="tip">
 Everything an agent does goes through the editor's own command surface — creates
@@ -96,13 +96,26 @@ reconnects automatically rather than stranding the agent.
 | --- | --- |
 | Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `get_diagnostics`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe) |
 | Edit scenes | `apply_scene_ops` (batch authoring), `create_entity` (the Create-menu catalog via `list_entity_templates`), `set_field`, `set_entity_xy`, `set_parent`, `duplicate_entity`, `undo` / `redo` |
-| Projects & assets | `create_project` / `open_project`, `open_scene`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets`, `list_assets`, `get_import_settings` / `set_import_settings` |
+| Projects & assets | `create_project` / `open_project`, `open_scene`, `open_asset` (any asset in its own editor), `get_document`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets`, `list_assets`, `get_import_settings` / `set_import_settings` |
+| Prefabs | `create_prefab_from_entity`, `edit_prefab` / `exit_prefab_mode` (Prefab Mode), `apply_prefab`, `revert_prefab`, `unpack_prefab`, `create_prefab_variant` |
 | Game code | `read_project_file`, `write_project_file`, `list_project_files` |
 | Run & ship | `toggle_play` + `get_play_state`, `export_game` (web / desktop / wechat / playable) |
 
 A typical agent loop: `open_project` → `open_scene` → `list_entity_templates` →
 `apply_scene_ops` → `get_diagnostics` → `screenshot` to check its work →
 `save_scene` → `toggle_play` → `screenshot` again → `export_game`.
+
+### Editing a prefab
+
+`open_asset` on a `.esprefab` (or `edit_prefab` on an instance) enters **Prefab Mode**:
+from then on every scene tool acts on the **prefab**, and `save_scene` writes the asset
+for every instance. `get_document` says which document is open — check it after opening,
+and before assuming a save writes a scene. `exit_prefab_mode` goes back.
+
+Where a person gets a dialog, an agent gets an answer it can act on: opening something
+that would discard unsaved work is **refused** unless you pass `discardChanges`, and
+`apply_prefab` — which rewrites the base for every instance — requires `confirm: true`
+instead of the itemized diff a person confirms.
 
 ### Building scenes at scale
 

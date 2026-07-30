@@ -215,3 +215,52 @@ describe('open_scene guards unsaved work', () => {
     expect(res.content[0].text).toMatch(/unsaved changes/);
   });
 });
+
+describe('the prefab-mode doors', () => {
+  const tool = (name: string) => TOOLS.find((t: { name: string }) => t.name === name);
+  const jsDriver = () => {
+    const js = vi.fn().mockResolvedValue(undefined);
+    return Object.assign(vi.fn(), { js });
+  };
+
+  it('open_asset carries the path and the discard flag, refusing by default', async () => {
+    const driver = jsDriver();
+    await runTool(tool('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab' });
+    expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('openAsset("assets/prefabs/Panel.esprefab", false)'));
+
+    driver.js.mockClear();
+    await runTool(tool('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab', discardChanges: true });
+    expect(driver.js).toHaveBeenCalledWith(expect.stringContaining(', true)'));
+  });
+
+  it('apply_prefab cannot be called without saying confirm out loud', async () => {
+    const driver = jsDriver();
+    // `confirm` is required by the schema: an omission never reaches the editor.
+    const res = await runTool(tool('apply_prefab'), driver, { entity: 7 });
+    expect(res.isError).toBe(true);
+    expect(driver.js).not.toHaveBeenCalled();
+
+    // Present but false still reaches the editor, which refuses there (one place
+    // owns the rule) — what must not happen is a silent apply.
+    await runTool(tool('apply_prefab'), driver, { entity: 7, confirm: false });
+    expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('applyPrefab(7, false)'));
+  });
+
+  it('every prefab door that rewrites an asset or the scene is write-gated', () => {
+    for (const name of ['apply_prefab', 'revert_prefab', 'unpack_prefab', 'create_prefab_variant']) {
+      expect(tool(name).write).toBe(true);
+    }
+    // Reading the document and leaving Prefab Mode write nothing.
+    expect(tool('get_document').write).toBeUndefined();
+    expect(tool('exit_prefab_mode').write).toBeUndefined();
+  });
+
+  it('surfaces the "not an instance" refusal instead of a silent no-op', async () => {
+    const driver = Object.assign(vi.fn(), {
+      js: vi.fn().mockRejectedValue(new Error('entity 3 is not part of a prefab instance')),
+    });
+    const res = await runTool(tool('unpack_prefab'), driver, { entity: 3 });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toMatch(/not part of a prefab instance/);
+  });
+});
