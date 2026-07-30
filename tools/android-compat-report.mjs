@@ -229,7 +229,12 @@ if (noted.length) {
 
 mkdirSync(path.dirname(path.resolve(opts.out)), { recursive: true });
 writeFileSync(opts.out, `${out.join('\n')}\n`);
-console.log(`${runs.length} version(s), ${broken.length} broken → ${opts.out}`);
+console.log(`${versions.size} version(s): ${broken.length} broken, ${untested.length} untested → ${opts.out}`);
 
-// The report always writes. Whether the RUN fails is the matrix job's call, not
-// this summariser's — exiting non-zero here would lose the comment that says why.
+// The verdict comes from the DATA, and only after the comment is on disk.
+//
+// It used to come from whether the matrix jobs went green, which put it in two
+// places that could disagree: a version whose emulator never booted failed its
+// job and looked identical to one whose app crashed. The jobs measure; this
+// decides. Writing first means a red check always has the table that explains it.
+if (broken.length || untested.length) process.exit(2);

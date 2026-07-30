@@ -307,7 +307,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Attempted twice, because "the app crashed" and "the emulator never came up"
+      # both fail this step and only one of them is an answer. Older API levels
+      # download their system image and then sometimes never reach
+      # sys.boot_completed at all — API 29 and API 30 traded places across three
+      # runs, costing a version each time, which a matrix built to say "every
+      # version works" cannot afford to do at random.
+      #
+      # `continue-on-error` on the first go, and the retry is conditional on
+      # NOTHING having been filed: a metrics file means the script ran and reached
+      # a verdict, even a crash, and re-running that would only waste an emulator.
       - name: Install, launch and measure on API ${{ matrix.api }}
+        id: attempt1
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
@@ -321,6 +333,28 @@ jobs:
           # file that can also be run by hand.
           script: bash tools/android-compat-run.sh ${{ matrix.api }}
 
+      - name: Did anything get measured
+        id: measured
+        run: |
+          if ls build/compat/*.json >/dev/null 2>&1; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "nothing was filed — the emulator never came up, so this is not yet a result"
+          fi
+
+      - name: Try API ${{ matrix.api }} once more
+        if: steps.measured.outputs.any == 'false'
+        uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ env.ANDROID_PROFILE }}
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          script: bash tools/android-compat-run.sh ${{ matrix.api }}
+
       - name: Keep the frame, the record and the numbers
         if: always()
         uses: actions/upload-artifact@v7
@@ -328,6 +362,20 @@ jobs:
           name: compat-api${{ matrix.api }}
           path: build/compat
           if-no-files-found: warn
+
+      # This job MEASURES; the report JUDGES. So it fails only when it measured
+      # nothing at all — a crashed version is a successful measurement of a broken
+      # platform, and letting that redden the job here would put the verdict in two
+      # places that can disagree.
+      - name: Fail only if this version was never measured
+        if: always()
+        run: |
+          if ls build/compat/*.json >/dev/null 2>&1; then
+            echo "measured API ${{ matrix.api }}"
+          else
+            echo "::error::API ${{ matrix.api }} produced no data after two attempts"
+            exit 1
+          fi
 
   # ---------------------------------------------------------------------------
   report:
@@ -403,7 +451,12 @@ jobs:
           git -C shots push -q origin "$BRANCH"
           echo "base=https://github.com/${{ github.repository }}/raw/$BRANCH/$DEST" >> "$GITHUB_OUTPUT"
 
+      # continue-on-error because a non-zero exit here IS the verdict — it means
+      # some version is broken or untested — and the comment still has to be
+      # posted. The gate at the end of this job reads the outcome.
       - name: Build the table
+        id: table
+        continue-on-error: true
         run: |
           node tools/android-compat-report.mjs \
             --dir build/compat \
@@ -435,9 +488,11 @@ jobs:
           fi
 
       # The gate, after the report rather than before it: a red check with no table
-      # tells a reviewer that something broke but not what.
-      - name: Fail if any version could not run the app
-        if: needs.compat.result != 'success'
+      # tells a reviewer that something broke but not what. It reads the DATA, not
+      # the matrix jobs' conclusions — those cannot tell a crashed app from an
+      # emulator that never booted, and this distinction is the whole point.
+      - name: Fail if any version is broken or untested
+        if: steps.table.outcome == 'failure'
         run: |
-          echo "::error::at least one Android version did not start the app — see the table in the PR comment"
+          echo "::error::some Android version is broken or was never measured — see the table in the PR comment"
           exit 1
