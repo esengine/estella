@@ -1,0 +1,120 @@
+name: Warm the native dependency cache
+
+# Dawn is ~16 minutes per ABI and the pins move a few times a year, so it should
+# be built about as often as the pins move. It was in fact being built on every
+# single release, and on every branch that needed it, because of where the cache
+# was being written from.
+#
+# A GitHub cache is readable from the ref that created it, that ref's descendants,
+# and the default branch. The release pipeline runs on a TAG — so the 937 MB
+# android and 401 MB ios caches it saved (v0.36.0's and v0.37.0's, both still
+# there) are readable by nothing at all. Not by a branch, not by a PR, and not by
+# the next release either, since every new tag is a new scope. Each release paid
+# for a cold Dawn build and then wrote its result somewhere it could never be read
+# from again.
+#
+# Writing it from the default branch instead is the whole fix: a default-branch
+# cache is in scope for every run in the repository.
+#
+# This is restore-first and builds only on a miss, which is what makes the weekly
+# trigger cheap. GitHub evicts a cache untouched for 7 days, and a restore counts
+# as touching it — so on the normal week this job downloads the cache, finds it
+# complete, and stops. It rebuilds only when the pins actually moved.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      # The only thing that invalidates the cache is the pins themselves.
+      - 'toolchain.manifest.json'
+  schedule:
+    # Weekly, purely to keep the 7-day eviction clock from running out.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      force-rebuild:
+        description: 'Build even if the cache already has this pin (for a corrupt entry).'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Dawn for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            os: ubuntu-latest
+          - target: ios
+            os: macos-latest
+    steps:
+      # No submodules: Dawn and QuickJS are fetched into build/native-deps by
+      # --fetch-deps, and third_party is the HOST's dependency, which this never
+      # builds.
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Read the native dependency pins
+        id: pins
+        run: |
+          node -e "const p=require('./toolchain.manifest.json').native;\
+            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+
+      # restore, not the combined action: a hit must end this job rather than
+      # trigger a save of what it just downloaded.
+      - name: Is this pin already built
+        id: restore
+        if: ${{ !inputs.force-rebuild }}
+        uses: actions/cache/restore@v4
+        with:
+          path: build/native-deps
+          key: native-deps-${{ matrix.target }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+
+      - name: Report what the restore found
+        run: |
+          if [ '${{ steps.restore.outputs.cache-hit }}' = 'true' ]; then
+            echo "cache is warm for these pins — the restore refreshed its eviction clock, nothing to build"
+          else
+            echo "no cache for these pins — building Dawn"
+          fi
+
+      - name: Set up the Android NDK
+        if: matrix.target == 'android' && steps.restore.outputs.cache-hit != 'true'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      # Dawn builds with Ninja and a macOS runner has neither it nor CMake; the
+      # Android SDK carries its own pair.
+      - name: Set up CMake + Ninja
+        if: matrix.target == 'ios' && steps.restore.outputs.cache-hit != 'true'
+        run: brew install cmake ninja
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: node build-tools/cli.js native --fetch-deps
+
+      # Every ABI (android) and every sysroot slice (ios) the consumers ask for.
+      # Warming one and leaving the other cold would look like a hit and behave
+      # like a miss.
+      - name: Build Dawn
+        if: steps.restore.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: node build-tools/cli.js native --target ${{ matrix.target }} --build-deps
+
+      - name: Save it for every ref in the repository
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/native-deps
+          key: native-deps-${{ matrix.target }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}

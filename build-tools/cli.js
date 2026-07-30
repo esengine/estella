@@ -162,6 +162,7 @@ program
     .description('Build the native (embedded-Dawn) host for Android or iOS arm64')
     .option('--target <target>', 'android or ios', 'android')
     .option('--fetch-deps', 'Check out Dawn + QuickJS-ng at the pinned commits, then stop', false)
+    .option('--build-deps', 'Build Dawn for every ABI/slice the target needs, then stop (for warming a cache)', false)
     .option('--dawn <dir>', 'Dawn source dir (default: the pinned checkout; or ESTELLA_DAWN_DIR)')
     .option('--dawn-build <dir>', 'Dawn build dir for this target (default: <dawn>/out-<target>, built if absent)')
     .option('--quickjs <dir>', 'QuickJS-ng source dir (default: the pinned checkout; or ESTELLA_QUICKJS_DIR)')

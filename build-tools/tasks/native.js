@@ -18,7 +18,7 @@ import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
 import { fetchNativeDeps, pinnedDep, ensureDawnBuild, dawnLibrary, DAWN_TARGETS } from './nativeDeps.js';
 import {
-    BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
+    ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
@@ -644,8 +644,43 @@ async function emitFromExistingBuild(target, options) {
     });
 }
 
+/**
+ * Build the pinned dependencies for a target and stop.
+ *
+ * For a job that exists only to populate the dependency cache. Dawn is the whole
+ * cost — the host beside it is minutes — so building the host too would only add
+ * ways for a cache warm-up to fail for reasons that have nothing to do with what
+ * it is caching.
+ *
+ * EVERY build tree the consumers look for, not just the default one: Dawn's is
+ * per ABI on Android and per sysroot on iOS, so a warm-up that did one would
+ * leave the release cold in exactly the half it did not do.
+ */
+async function buildNativeDeps(options) {
+    const target = (options.target || 'android').toLowerCase();
+    if (target === 'android') {
+        const sdk = requireSdk();
+        const ndk = requireNdk(sdk);
+        const { cmake, ninja } = sdkCmake(sdk);
+        for (const abi of ANDROID_ABIS) {
+            logger.step(`Dawn for android/${abi}...`);
+            await dawnPaths({ ...options, abi }, 'android', { ndk, cmake, ninja });
+        }
+        logger.success(`Dawn built for ${ANDROID_ABIS.join(', ')}`);
+        return;
+    }
+    const developerDir = await iosDeveloperDir();
+    const env = developerDir ? { DEVELOPER_DIR: developerDir } : undefined;
+    for (const slice of ['ios', 'ios-sim']) {
+        logger.step(`Dawn for ${slice}...`);
+        await dawnPaths(options, slice, { env });
+    }
+    logger.success('Dawn built for ios, ios-sim');
+}
+
 export async function buildNative(options = {}) {
     if (options.fetchDeps) return fetchNativeDeps(options);
+    if (options.buildDeps) return buildNativeDeps(options);
     if (options.templateIndex) {
         return writeTemplateIndex(path.isAbsolute(options.templateIndex)
             ? options.templateIndex : path.join(config.paths.root, options.templateIndex));
