@@ -103,6 +103,18 @@
   box-shadow: 0 0 0 1px var(--srf-2);
   z-index: 1;
 }
+/* This frame anchors itself instead of inheriting the clip anchor. */
+.fb-frame__pin {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 1px var(--srf-2);
+  z-index: 1;
+}
 
 /* Animation events bar: chips of {frame → name}, one per frame event. */
 .fb-events {
@@ -210,7 +222,47 @@
   transform: translate(-50%, -50%);
 }
 .fb-pv__ghost { pointer-events: none; }
-.fb-pv__bar { display: flex; align-items: center; gap: 8px; }
+
+/* Frame anchor handle: a drag surface covering the current frame's box, with the
+   crosshair placed in the frame's own 0–1 space — `bottom` (not `top`) because that
+   is the bottom-up space Sprite.pivot lives in. Hairlines run past the box and get
+   clipped by the stage, giving a full-width guide to line feet up against the
+   onion-skin ghosts. */
+.fb-pv__anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  cursor: crosshair;
+  touch-action: none;
+}
+.fb-pv__anchor-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: 0 0 -4.5px -4.5px; /* centers the dot on (left, bottom) */
+  border-radius: 50%;
+  background: var(--acc-hi);
+  box-shadow: 0 0 0 1.5px #fff, 0 0 4px rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+.fb-pv__anchor-dot::before,
+.fb-pv__anchor-dot::after {
+  content: '';
+  position: absolute;
+  background: var(--acc-hi);
+  opacity: 0.5;
+}
+.fb-pv__anchor-dot::before { left: 4px; top: -400px; width: 1px; height: 800px; }
+.fb-pv__anchor-dot::after { top: 4px; left: -400px; height: 1px; width: 800px; }
+
+/* Wraps once the transport, fps/loop, anchor and onion controls outgrow one row. */
+.fb-pv__bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+/* Wider than the integer grid fields it borrows its styling from: an anchor reads
+   0.276, not 64. */
+.fb-anchor { display: inline-flex; align-items: center; gap: 6px; }
+.fb-anchor .ts-field input[type='number'] { width: 58px; }
 .fb-onion { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .fb-dur {
   width: 40px;

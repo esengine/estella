@@ -11,6 +11,7 @@ import {
     type SpriteAnimatorData,
     type SpriteAnimClip,
 } from '../src/animation/SpriteAnimator';
+import { parseAnimClipAsset, parseAnimClipData } from '../src/animation/AnimClipLoader';
 
 function createAnimTestWorld(): { world: World; registry: CppRegistry } {
     const spriteStore = new Map<Entity, Record<string, unknown>>();
@@ -314,6 +315,95 @@ describe('SpriteAnimator', () => {
             const s2 = world.get(e2, Sprite) as SpriteData;
             expect(s1.texture).toBe(10); // not advanced yet
             expect(s2.texture).toBe(20); // advanced
+        });
+    });
+
+    // =========================================================================
+    // Per-frame anchors
+    // =========================================================================
+
+    describe('per-frame anchors', () => {
+        it('applies the frame anchor to Sprite.pivot as frames advance', () => {
+            anim.registerClip({
+                name: 'anchored', fps: 10, loop: true,
+                frames: [
+                    { texture: 1, pivot: { x: 0.5, y: 0 } },
+                    { texture: 2, pivot: { x: 0.25, y: 0.1 } },
+                ],
+            });
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0 });
+            world.insert(entity, SpriteAnimator, { clip: 'anchored' });
+
+            anim.update(world, 0.001);
+            expect((world.get(entity, Sprite) as SpriteData).pivot).toEqual({ x: 0.5, y: 0 });
+
+            anim.update(world, 0.1);
+            expect((world.get(entity, Sprite) as SpriteData).pivot).toEqual({ x: 0.25, y: 0.1 });
+        });
+
+        it('leaves the entity pivot alone for a clip that authors no anchors', () => {
+            anim.registerClip({
+                name: 'plain', fps: 10, loop: true,
+                frames: [{ texture: 10 }, { texture: 20 }],
+            });
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0, pivot: { x: 0.5, y: 0 } });
+            world.insert(entity, SpriteAnimator, { clip: 'plain' });
+
+            anim.update(world, 0.001);
+            anim.update(world, 0.1);
+
+            // No frame carries a pivot: the entity's own anchor stands.
+            expect((world.get(entity, Sprite) as SpriteData).pivot).toEqual({ x: 0.5, y: 0 });
+        });
+
+        it('copies the anchor instead of aliasing the clip frame', () => {
+            const frame = { texture: 1, pivot: { x: 0.5, y: 0 } };
+            anim.registerClip({ name: 'shared', fps: 10, loop: true, frames: [frame] });
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0 });
+            world.insert(entity, SpriteAnimator, { clip: 'shared' });
+
+            anim.update(world, 0.001);
+            const sprite = world.get(entity, Sprite) as SpriteData;
+            sprite.pivot.x = 0.9;
+
+            expect(frame.pivot.x).toBe(0.5);
+        });
+
+        it('carries an anchor from .esanim TEXT all the way onto the Sprite', () => {
+            // The whole production path in one go: file text → tolerant parse → runtime
+            // bake → animator apply, which is what a shipped clip actually travels.
+            const text = JSON.stringify({
+                version: '1.4',
+                type: 'animation-clip',
+                fps: 10,
+                loop: true,
+                pivot: { x: 0.5, y: 0 },
+                frames: [
+                    { texture: 'walk_0.png' },
+                    { texture: 'walk_1.png', pivot: { x: 0.25, y: 0.75 } },
+                ],
+            });
+            const data = parseAnimClipAsset(JSON.parse(text));
+            anim.registerClip(parseAnimClipData('walk.esanim', data, new Map([
+                ['walk_0.png', 11], ['walk_1.png', 22],
+            ])));
+
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0, pivot: { x: 0.5, y: 0.5 } });
+            world.insert(entity, SpriteAnimator, { clip: 'walk.esanim' });
+
+            anim.update(world, 0.001);
+            let sprite = world.get(entity, Sprite) as SpriteData;
+            expect(sprite.texture).toBe(11);
+            expect(sprite.pivot).toEqual({ x: 0.5, y: 0 }); // clip-wide anchor
+
+            anim.update(world, 0.1);
+            sprite = world.get(entity, Sprite) as SpriteData;
+            expect(sprite.texture).toBe(22);
+            expect(sprite.pivot).toEqual({ x: 0.25, y: 0.75 }); // frame override
         });
     });
 });

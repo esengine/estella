@@ -12,16 +12,17 @@
  * clip is open in the Flipbook editor, the document's live asset is sampled
  * instead of the file, so frame edits animate as you make them.
  *
- * Only sheet-cell frames preview (writing uvOffset/uvScale on the existing
- * sheet texture); legacy per-texture clips would need live handle resolution
- * and keep their panel-only preview. Restores the captured Sprite on deselect,
+ * Only sheet-cell frames preview (writing uvOffset/uvScale — and the frame's
+ * anchor, when the clip authors one — on the existing sheet texture); legacy
+ * per-texture clips would need live handle resolution and keep their panel-only
+ * preview. Restores the captured Sprite on deselect,
  * play-mode entry, or the Preview FX flag going off. The scene saves from the
  * MODEL, never the World, so these transient writes cannot leak into the file.
  */
 
 import {
-  getComponent, parseAnimClipAsset, animClipCellUv,
-  type AnimClipAssetData, type AnimClipFrameData,
+  getComponent, parseAnimClipAsset, animClipCellUv, animClipFramePivot,
+  type AnimClipAssetData, type AnimClipFrameData, type AnimClipPivotData,
 } from 'esengine';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { useSelection } from '@/store/selectionStore';
@@ -174,8 +175,18 @@ export class FlipbookViewportPreviewImpl {
     if (!sheet || !frame || frame.cell === undefined) return;
     if (!world.valid(this.bound.entity) || !world.has(this.bound.entity, Sprite)) return;
     const uv = animClipCellUv(sheet, frame.cell);
+    // The frame's anchor, resolved through the same seam the runtime bakes with. A
+    // clip that authors none falls back to the CAPTURED base pivot, not to whatever
+    // an earlier frame left behind — so unticking Anchor snaps back immediately.
+    const pivot = animClipFramePivot(this.asset, frame)
+      ?? (this.baseSprite as { pivot?: AnimClipPivotData } | null)?.pivot;
     const sprite = world.get(this.bound.entity, Sprite) as { uvOffset: unknown; uvScale: unknown };
-    world.set(this.bound.entity, Sprite, { ...sprite, uvOffset: uv.uvOffset, uvScale: uv.uvScale });
+    world.set(this.bound.entity, Sprite, {
+      ...sprite,
+      uvOffset: uv.uvOffset,
+      uvScale: uv.uvScale,
+      ...(pivot ? { pivot: { x: pivot.x, y: pivot.y } } : {}),
+    });
   }
 }
 

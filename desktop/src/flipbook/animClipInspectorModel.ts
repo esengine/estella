@@ -9,7 +9,7 @@
  *          route through AnimClipCommands (one undo step each). The point is one
  *          inspector, no bespoke property panel.
  */
-import type { AnimClipAssetData } from 'esengine';
+import { animClipDrivesPivot, DEFAULT_ANIM_CLIP_PIVOT, type AnimClipAssetData } from 'esengine';
 import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue, MapValue } from '@/types';
 import { AnimClipCommands } from './AnimClipCommands';
 import { t } from '@/i18n';
@@ -37,6 +37,19 @@ export function buildAnimClipComponents(asset: AnimClipAssetData): InspectorComp
       ],
     },
   ];
+  // Only once the clip drives anchors — the Flipbook editor's Anchor toggle owns
+  // that switch, so the inspector never conjures pivot data into a clip.
+  if (animClipDrivesPivot(asset)) {
+    const p = asset.pivot ?? DEFAULT_ANIM_CLIP_PIVOT;
+    out[0].fields.push({
+      key: 'pivot',
+      label: t('fb.field.pivot'),
+      type: 'vec2',
+      value: [p.x, p.y],
+      defaultValue: [DEFAULT_ANIM_CLIP_PIVOT.x, DEFAULT_ANIM_CLIP_PIVOT.y],
+      tooltip: t('fb.field.pivotTip'),
+    });
+  }
   const s = asset.sheet;
   if (s) {
     out.push({
@@ -63,6 +76,11 @@ export function makeAnimClipWrite() {
       case 'loop':
         AnimClipCommands.setLoop(value === 1 || value === true);
         break;
+      case 'pivot': {
+        const v = value as number[];
+        AnimClipCommands.setClipPivot({ x: v[0], y: v[1] });
+        break;
+      }
       case 'cellWidth':
       case 'cellHeight':
       case 'margin':

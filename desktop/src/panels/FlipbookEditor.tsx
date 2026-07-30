@@ -4,9 +4,9 @@
  * @file    FlipbookEditor.tsx
  * @brief   The .esanim sprite-flipbook editor panel — the sheet texture with a
  *          slicing-grid overlay (click or drag cells to append frames) over a
- *          frame strip with per-frame durations, fps/loop, and a live looping
- *          preview. Subscribes to the reactive AnimClipDocument; mutations go
- *          through AnimClipCommands (one undo step each).
+ *          frame strip with per-frame durations, fps/loop, a draggable frame anchor,
+ *          and a live looping preview. Subscribes to the reactive AnimClipDocument;
+ *          mutations go through AnimClipCommands (one undo step each).
  */
 
 import {
@@ -15,8 +15,8 @@ import {
 } from 'react';
 import { Plus, Trash2, X, Film } from 'lucide-react';
 import {
-  animClipSheetCols, animClipSheetRows,
-  type AnimClipFrameData, type AnimClipSheetData,
+  animClipSheetCols, animClipSheetRows, animClipDrivesPivot, animClipFramePivot,
+  type AnimClipFrameData, type AnimClipPivotData, type AnimClipSheetData,
 } from 'esengine';
 import { EmptyState } from '@/components/EmptyState';
 import { GridField } from '@/components/GridField';
@@ -79,6 +79,9 @@ export function FlipbookEditor() {
   frameIdxRef.current = frameIdx;
   const [onion, setOnion] = useState(true);
   const [onionFrames, setOnionFrames] = useState(1);
+  // Live anchor drag: shown while the pointer is down, committed once on release
+  // (one undo step, same shape as the cell-append stroke above).
+  const [anchorDrag, setAnchorDrag] = useState<AnimClipPivotData | null>(null);
 
   const playFrames = asset?.frames;
   const playFps = asset?.fps ?? 12;
@@ -125,6 +128,22 @@ export function FlipbookEditor() {
   };
 
   const curFrame = Math.min(frameIdx, Math.max(0, asset.frames.length - 1));
+
+  // Anchors: the clip drives Sprite.pivot only once it authors one. The stage
+  // handle edits the CURRENT frame; the clip-wide default lives in the inspector.
+  const anchors = animClipDrivesPivot(asset);
+  const curPivot: AnimClipPivotData =
+    anchorDrag ?? (asset.frames[curFrame] ? animClipFramePivot(asset, asset.frames[curFrame]) : null) ?? { x: 0.5, y: 0.5 };
+  const pivotFromPointer = (e: { clientX: number; clientY: number; currentTarget: HTMLElement }): AnimClipPivotData => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+    const round = (n: number) => Math.round(n * 1000) / 1000;
+    return {
+      x: round(clamp01((e.clientX - r.left) / (r.width || 1))),
+      // Bottom-up, because that is the space Sprite.pivot is in.
+      y: round(clamp01(1 - (e.clientY - r.top) / (r.height || 1))),
+    };
+  };
 
   // Onion skin: ghost the nearest frames behind the current one, fading with
   // distance. Only while paused — during playback the trail is just noise.
@@ -220,6 +239,40 @@ export function FlipbookEditor() {
               />
             ))}
             <span className="fb-thumb fb-pv__cur" style={thumbFor(asset.frames[curFrame], STAGE)} title={t('fb.preview')} />
+            {anchors && (() => {
+              const box = thumbFor(asset.frames[curFrame], STAGE);
+              return (
+                <span
+                  className="fb-pv__anchor"
+                  style={{ width: box.width, height: box.height }}
+                  title={t('fb.anchor.dragTip')}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    // Capture keeps the drag alive past the box edge; a pointer the
+                    // browser no longer considers active throws instead, and losing
+                    // capture must not lose the drag.
+                    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* drag without capture */ }
+                    setPlaying(false);
+                    setAnchorDrag(pivotFromPointer(e));
+                  }}
+                  onPointerMove={(e) => { if (anchorDrag) setAnchorDrag(pivotFromPointer(e)); }}
+                  onPointerUp={(e) => {
+                    if (!anchorDrag) return;
+                    const p = pivotFromPointer(e);
+                    setAnchorDrag(null);
+                    AnimClipCommands.setFramePivot(curFrame, p);
+                  }}
+                  // A cancelled pointer (released off-window, touch interrupted) must
+                  // drop the preview rather than leave the crosshair parked mid-drag.
+                  onPointerCancel={() => setAnchorDrag(null)}
+                >
+                  <span
+                    className="fb-pv__anchor-dot"
+                    style={{ left: `${curPivot.x * 100}%`, bottom: `${curPivot.y * 100}%` }}
+                  />
+                </span>
+              );
+            })()}
           </div>
           <div className="fb-pv__bar">
             <Transport
@@ -242,6 +295,33 @@ export function FlipbookEditor() {
               <input type="checkbox" checked={asset.loop ?? true} onChange={(e) => AnimClipCommands.setLoop(e.target.checked)} />
               <span>{t('fb.loop')}</span>
             </label>
+            <label className="fb-field" title={t('fb.anchor.tip')}>
+              <input
+                type="checkbox" checked={anchors}
+                onChange={(e) => AnimClipCommands.setAnchorsEnabled(e.target.checked)}
+              />
+              <span>{t('fb.anchor')}</span>
+            </label>
+            {anchors && (
+              <span className="fb-anchor" title={t('fb.anchor.frameTip')}>
+                <GridField
+                  label={t('fb.anchor.x')} value={curPivot.x} min={-1} max={2} decimals={3}
+                  onCommit={(n) => AnimClipCommands.setFramePivot(curFrame, { x: n, y: curPivot.y })}
+                />
+                <GridField
+                  label={t('fb.anchor.y')} value={curPivot.y} min={-1} max={2} decimals={3}
+                  onCommit={(n) => AnimClipCommands.setFramePivot(curFrame, { x: curPivot.x, y: n })}
+                />
+                {asset.frames[curFrame]?.pivot && (
+                  <button
+                    type="button" className="fb-fx" title={t('fb.anchor.clearFrame')}
+                    onClick={() => AnimClipCommands.setFramePivot(curFrame, undefined)}
+                  >
+                    <X size={11} strokeWidth={2.2} />
+                  </button>
+                )}
+              </span>
+            )}
             <label className="fb-field fb-onion" title={t('fb.onionTip')}>
               <input type="checkbox" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
               <span>{t('fb.onion')}</span>
@@ -278,6 +358,7 @@ export function FlipbookEditor() {
               title={invalid ? t('fb.frame.invalidTip', { cell: f.cell ?? 0 }) : undefined}
             >
               {asset.events?.some((e) => e.frame === i) && <span className="fb-frame__evt" title={t('fb.event.onFrame')} />}
+              {f.pivot && <span className="fb-frame__pin" title={t('fb.anchor.overridden')} />}
               <span
                 className="fb-thumb fb-frame__thumb" style={thumbFor(f)}
                 title={t('fb.frame.scrubTip')}

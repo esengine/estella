@@ -20,6 +20,13 @@ export interface SpriteAnimFrame {
     duration?: number;
     uvOffset?: { x: number; y: number };
     uvScale?: { x: number; y: number };
+    /**
+     * The anchor this frame renders with, in `Sprite.pivot`'s own space — resolved
+     * at load time from the clip's per-frame/clip-wide anchors. Absent on EVERY
+     * frame of a clip that authors no anchors, which is what keeps playback from
+     * touching a pivot the entity owns.
+     */
+    pivot?: { x: number; y: number };
 }
 
 export interface SpriteAnimEvent {
@@ -218,6 +225,12 @@ export class SpriteAnimationAPI {
                 } else {
                     sprite.uvOffset = { x: 0, y: 0 };
                     sprite.uvScale = { x: 1, y: 1 };
+                }
+                // No reset branch: the loader gives EVERY frame of an anchor-authoring
+                // clip a pivot, so absent here means the clip authors none at all and
+                // the entity's own pivot stands.
+                if (frame.pivot) {
+                    sprite.pivot = { x: frame.pivot.x, y: frame.pivot.y };
                 }
                 world.insert(entity, Sprite, sprite);
             }

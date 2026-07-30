@@ -8,7 +8,9 @@
  *          static pose IS frame 0 (sheet texture + first cell's UV window), and
  *          Play animates with zero code.
  */
-import { parseAnimClipAsset, animClipCellUv, type AnimClipAssetData } from 'esengine';
+import {
+  parseAnimClipAsset, animClipCellUv, animClipFramePivot, type AnimClipAssetData,
+} from 'esengine';
 import { Images } from 'lucide-react';
 import { createFromSource, animatedSpritePrefab, type EntitySource } from '@/engine/entitySources';
 import { useSelection } from '@/store/selectionStore';
@@ -20,6 +22,7 @@ function animClipSource(clipPath: string, clipRef: string, asset: AnimClipAssetD
   const name = (clipPath.split('/').pop() ?? 'Sprite').replace(/\.[^.]+$/, '') || 'Sprite';
   const sheet = asset.sheet;
   const firstCell = asset.frames.find((f) => f.cell !== undefined)?.cell;
+  const first = asset.frames[0];
   return {
     id: `animclip:${clipPath}`,
     label: name,
@@ -30,6 +33,7 @@ function animClipSource(clipPath: string, clipRef: string, asset: AnimClipAssetD
         texture: sheet?.texture ?? asset.frames[0]?.texture,
         size: sheet ? { x: sheet.cellWidth, y: sheet.cellHeight } : undefined,
         uv: sheet && firstCell !== undefined ? animClipCellUv(sheet, firstCell) : undefined,
+        pivot: first ? animClipFramePivot(asset, first) ?? undefined : undefined,
         loop: asset.loop ?? true,
       }),
     afterCreate: (_ctx, rootId) => {

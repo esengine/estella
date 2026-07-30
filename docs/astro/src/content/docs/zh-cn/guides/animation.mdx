@@ -103,6 +103,39 @@ const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
 重新切片时所有帧一致跟随——帧引用的是网格格子,不是像素矩形。
 超出当前网格的帧会在帧条中标红。
 
+### 逐帧锚点
+
+锚点就是精灵的落点、旋转与缩放中心——也就是 `Sprite.pivot`,在帧内归一化,
+`(0,0)` 为左下角、`(0.5,0.5)` 为居中。当画面在格子里逐帧位移时,只有一个
+实体级锚点会让角色跟着滑来滑去;**逐帧**设锚点则能把必须钉住的部位钉住——
+脚踩在地面上、手握在武器上。
+
+在 Flipbook 编辑器预览条勾上**锚点**,当前帧上会出现一个十字准星:拖动它
+(或在旁边直接输入 X / Y)即可为该帧设锚点。准星的辅助线横贯整个预览台,
+配合洋葱皮就能把每一帧的脚与相邻帧对齐。单独设过锚点的帧在帧条上带一个
+琥珀色圆点,**×** 清除该覆盖、让此帧回落到剪辑锚点——剪辑锚点在检视器里
+就是**默认锚点**。
+
+解析顺序:帧自己的锚点 → 剪辑锚点 → 居中。**完全没有**声明锚点的剪辑会
+原封不动地保留实体自己设的 `Sprite.pivot`,所以在你勾上这个开关之前,
+老项目一律不受影响;取消勾选会清除剪辑锚点和所有逐帧覆盖,回到这种
+「不插手」的行为。
+
+```jsonc
+// walk.esanim —— 整段剪辑站在脚上,其中一帧向后仰
+{
+  "version": "1.4",
+  "fps": 10,
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "cell": 0 },
+    { "cell": 1, "pivot": { "x": 0.47, "y": 0 } }
+  ]
+}
+```
+
+锚点只在剪辑播放某一帧时归剪辑管:`Transform` 或补间照常移动实体,互不干扰。
+
 ### 用代码创建剪辑
 
 `.esanim` 文档就是普通数据,所以剪辑也可以在运行时构建:`createAnimClip` 建一个
@@ -135,6 +168,8 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 | `parseAnimClipData(name, data, textureHandles)` | 把资产数据解析成运行时 `SpriteAnimClip`——每个格子帧得到纹理句柄与 UV 窗口。 |
 | `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | 解析 / 写出 `.esanim` JSON 文档(两者可往返)。 |
 | `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | 网格格子的像素矩形 / UV 窗口——即该帧 `Sprite` 显示的内容。 |
+| `animClipFramePivot(data, frame)` | 该帧实际渲染用的锚点——帧自己的 → 剪辑的 → 居中。剪辑没有声明锚点时返回 `null`(表示不要动 `Sprite.pivot`)。 |
+| `animClipDrivesPivot(data)` | 该剪辑是否声明了锚点。 |
 
 ### 用状态机驱动剪辑——零代码
 

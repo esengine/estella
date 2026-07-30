@@ -115,9 +115,13 @@ export {
     animClipSheetRows,
     animClipCellRect,
     animClipCellUv,
+    animClipDrivesPivot,
+    animClipFramePivot,
     ANIM_CLIP_FORMAT_VERSION,
+    DEFAULT_ANIM_CLIP_PIVOT,
     type AnimClipAssetData,
     type AnimClipFrameData,
     type AnimClipSheetData,
     type AnimClipEventData,
+    type AnimClipPivotData,
 } from './AnimClipLoader';

@@ -113,6 +113,42 @@ Re-slicing the grid moves every frame consistently — frames reference grid
 cells, not pixel rectangles. Frames that fall outside the current grid are
 flagged red in the strip.
 
+### Per-frame anchors
+
+An anchor is the point a sprite sits, rotates and scales about — `Sprite.pivot`,
+normalized inside the frame, `(0,0)` bottom-left and `(0.5,0.5)` centered. When the
+artwork shifts inside its cell from frame to frame, one entity-wide anchor makes the
+character slide around; anchoring **per frame** pins whatever has to hold still —
+feet on the ground, a hand on a weapon.
+
+Tick **Anchor** in the Flipbook editor's preview bar and a crosshair appears over the
+current frame. Drag it (or type the X / Y beside it) to anchor that frame. The
+hairlines run the width of the stage, so with onion skin on you can line each frame's
+feet up against its neighbours. A frame anchored on its own gets an amber dot in the
+strip, and **×** clears that override so the frame falls back to the clip's anchor —
+which lives in the Details inspector as **Default Anchor**.
+
+Resolution order: the frame's own anchor, else the clip's, else centered. A clip that
+authors no anchor at all leaves `Sprite.pivot` **exactly** as the entity set it, so
+existing projects are untouched until you tick the box; unticking clears the clip
+anchor and every frame override and returns to that hands-off behaviour.
+
+```jsonc
+// walk.esanim — the clip stands on its feet, one frame leans back
+{
+  "version": "1.4",
+  "fps": 10,
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "cell": 0 },
+    { "cell": 1, "pivot": { "x": 0.47, "y": 0 } }
+  ]
+}
+```
+
+Anchors are the clip's business only while it plays a frame: nothing stops a
+`Transform` or a tween from moving the entity as usual.
+
 ### Clips from code
 
 The `.esanim` document is plain data, so a clip can also be built at runtime:
@@ -146,6 +182,8 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 | `parseAnimClipData(name, data, textureHandles)` | Resolve asset data into a runtime `SpriteAnimClip` — each cell frame gets its texture handle and UV window. |
 | `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | Parse / write the `.esanim` JSON document (the pair round-trips). |
 | `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | Pixel rect / UV window of a grid cell — what a `Sprite` shows for that frame. |
+| `animClipFramePivot(data, frame)` | The anchor a frame renders with — its own, else the clip's, else centered. `null` when the clip authors none (leave `Sprite.pivot` alone). |
+| `animClipDrivesPivot(data)` | Whether the clip authors anchors at all. |
 
 ### Driving clips from a state machine — no code
 

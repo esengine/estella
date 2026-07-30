@@ -7,12 +7,17 @@
  *          step; the panel never mutates the asset directly.
  */
 
-import { serializeAnimClip, type AnimClipSheetData } from 'esengine';
+import {
+  serializeAnimClip, animClipDrivesPivot, DEFAULT_ANIM_CLIP_PIVOT,
+  type AnimClipSheetData, type AnimClipPivotData,
+} from 'esengine';
 import { AnimClipDocument } from './AnimClipDocument';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
 type GridPatch = Partial<Pick<AnimClipSheetData, 'cellWidth' | 'cellHeight' | 'margin' | 'spacing'>>;
+
+const finitePivot = (p: AnimClipPivotData): boolean => Number.isFinite(p.x) && Number.isFinite(p.y);
 
 export const AnimClipCommands = {
   /** Edit the sheet grid geometry; every cell frame follows the new slicing. */
@@ -75,6 +80,44 @@ export const AnimClipCommands = {
       if (!f) return;
       if (seconds !== undefined && Number.isFinite(seconds) && seconds > 0) f.duration = seconds;
       else delete f.duration;
+    });
+  },
+
+  /**
+   * Turn frame anchors on or off for the whole clip. On seeds the clip-wide anchor
+   * (centered, i.e. what `Sprite.pivot` already defaults to); off drops the clip
+   * anchor AND every frame override, which is the only way back to "playback never
+   * touches the entity's pivot".
+   */
+  setAnchorsEnabled(on: boolean): void {
+    const asset = AnimClipDocument.asset;
+    if (!asset || animClipDrivesPivot(asset) === on) return;
+    AnimClipDocument.edit(on ? 'Enable Frame Anchors' : 'Disable Frame Anchors', (a) => {
+      if (on) {
+        a.pivot = { ...DEFAULT_ANIM_CLIP_PIVOT };
+        return;
+      }
+      delete a.pivot;
+      for (const f of a.frames) delete f.pivot;
+    });
+  },
+
+  /** The clip-wide anchor every frame without an override inherits. */
+  setClipPivot(pivot: AnimClipPivotData): void {
+    if (!finitePivot(pivot)) return;
+    AnimClipDocument.edit('Edit Clip Anchor', (a) => {
+      a.pivot = { x: pivot.x, y: pivot.y };
+    });
+  },
+
+  /** Per-frame anchor override; `undefined` falls the frame back to the clip anchor. */
+  setFramePivot(index: number, pivot: AnimClipPivotData | undefined): void {
+    if (pivot && !finitePivot(pivot)) return;
+    AnimClipDocument.edit(pivot ? 'Edit Frame Anchor' : 'Clear Frame Anchor', (a) => {
+      const f = a.frames[index];
+      if (!f) return;
+      if (pivot) f.pivot = { x: pivot.x, y: pivot.y };
+      else delete f.pivot;
     });
   },
 

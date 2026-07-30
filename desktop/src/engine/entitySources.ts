@@ -115,6 +115,8 @@ export function animatedSpritePrefab(
     texture?: string;
     size?: { x: number; y: number };
     uv?: { uvOffset: { x: number; y: number }; uvScale: { x: number; y: number } };
+    /** Frame 0's anchor, when the clip authors anchors (else the Sprite default). */
+    pivot?: { x: number; y: number };
     loop?: boolean;
   },
 ): PrefabData {
@@ -125,6 +127,7 @@ export function animatedSpritePrefab(
     sprite.uvOffset = { ...seed.uv.uvOffset };
     sprite.uvScale = { ...seed.uv.uvScale };
   }
+  if (seed.pivot) sprite.pivot = { x: seed.pivot.x, y: seed.pivot.y };
   return preset(name, [
     ['Transform', {}],
     ['Sprite', sprite],

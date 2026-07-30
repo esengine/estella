@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    AnimClipLoader.ts
- * @brief   .esanim asset format: parsing, serialization, and sheet-grid math
+ * @brief   .esanim asset format: parsing, serialization, sheet-grid math, and
+ *          per-frame anchor resolution
  */
 
 import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
@@ -12,7 +13,22 @@ import { log } from '../util/logger';
 // .esanim File Format
 // =============================================================================
 
-export const ANIM_CLIP_FORMAT_VERSION = '1.3';
+export const ANIM_CLIP_FORMAT_VERSION = '1.4';
+
+/**
+ * A frame's anchor, normalized inside the frame's own rect — EXACTLY the space
+ * `Sprite.pivot` uses: (0,0) = bottom-left, (0.5,0.5) = center, (1,1) = top-right.
+ * The same numbers travel from the file to the component with no conversion, so
+ * "feet on the ground" is `{ x: 0.5, y: 0 }` in both places. Values outside 0–1
+ * are allowed (they anchor outside the frame), matching `Sprite.pivot`.
+ */
+export interface AnimClipPivotData {
+    x: number;
+    y: number;
+}
+
+/** The anchor a clip that authors pivots falls back to — the `Sprite.pivot` default. */
+export const DEFAULT_ANIM_CLIP_PIVOT: AnimClipPivotData = { x: 0.5, y: 0.5 };
 
 /**
  * Sprite-sheet slicing grid. When present, frames may reference grid cells
@@ -36,6 +52,12 @@ export interface AnimClipFrameData {
     /** Sheet cell index (row-major, 0-based); requires a `sheet` section. */
     cell?: number;
     duration?: number;
+    /**
+     * Anchor override for this frame; absent = the clip's `pivot`. Added in format
+     * 1.4 — this is what keeps a character's feet planted when the artwork shifts
+     * inside the cell from frame to frame.
+     */
+    pivot?: AnimClipPivotData;
     atlasFrame?: {
         x: number;
         y: number;
@@ -62,6 +84,13 @@ export interface AnimClipAssetData {
     type: 'animation-clip';
     fps?: number;
     loop?: boolean;
+    /**
+     * Clip-wide anchor every frame inherits (frames override it per frame) — the
+     * same fallback relationship `fps` has with per-frame `duration`. Absent means
+     * the clip does not author anchors at all and playback leaves `Sprite.pivot`
+     * exactly as the entity authored it.
+     */
+    pivot?: AnimClipPivotData;
     sheet?: AnimClipSheetData;
     frames: AnimClipFrameData[];
     events?: AnimClipEventData[];
@@ -120,6 +149,38 @@ export function animClipCellUv(
 }
 
 // =============================================================================
+// Frame anchors
+// =============================================================================
+
+/**
+ * Does this clip author anchors at all? True as soon as the clip OR any single
+ * frame declares one. All-or-nothing on purpose: a clip that anchored only some
+ * frames would leave the last override standing on the plain ones — the same
+ * staleness the UV window has to reset away.
+ */
+export function animClipDrivesPivot(data: AnimClipAssetData): boolean {
+    return data.pivot !== undefined || data.frames.some(f => f.pivot !== undefined);
+}
+
+/**
+ * The anchor a frame actually renders with: its own override, else the clip
+ * default, else centered — or `null` when the clip authors no anchors, which is
+ * the signal to leave `Sprite.pivot` exactly as the entity set it.
+ *
+ * The one place this resolution lives: the runtime bake, the edit-mode viewport
+ * projection, and the editor's drag handle all read it here.
+ */
+export function animClipFramePivot(
+    data: AnimClipAssetData,
+    frame: AnimClipFrameData,
+): AnimClipPivotData | null {
+    if (frame.pivot) return { x: frame.pivot.x, y: frame.pivot.y };
+    if (!animClipDrivesPivot(data)) return null;
+    const p = data.pivot ?? DEFAULT_ANIM_CLIP_PIVOT;
+    return { x: p.x, y: p.y };
+}
+
+// =============================================================================
 // Parsing / serialization
 // =============================================================================
 
@@ -131,6 +192,15 @@ function posInt(v: unknown, fallback: number): number {
 
 function nonNeg(v: unknown, fallback: number): number {
     return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+/** A `{x,y}` anchor, or undefined when the field is missing or not a finite pair.
+ *  Deliberately unclamped: an anchor outside 0–1 is legal on `Sprite.pivot` too. */
+function pivotOf(v: unknown): AnimClipPivotData | undefined {
+    const p = v as { x?: unknown; y?: unknown } | null | undefined;
+    if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') return undefined;
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return undefined;
+    return { x: p.x, y: p.y };
 }
 
 /** Parse arbitrary JSON into a normalized {@link AnimClipAssetData} (tolerant of missing fields). */
@@ -153,11 +223,17 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
     for (const f of Array.isArray(raw?.frames) ? raw.frames : []) {
         if (!f) continue;
         const duration = typeof f.duration === 'number' && f.duration > 0 ? f.duration : undefined;
+        const framePivot = pivotOf(f.pivot);
         if (sheet && typeof f.cell === 'number' && Number.isInteger(f.cell) && f.cell >= 0) {
-            frames.push({ cell: f.cell, ...(duration !== undefined ? { duration } : {}) });
+            frames.push({
+                cell: f.cell,
+                ...(duration !== undefined ? { duration } : {}),
+                ...(framePivot ? { pivot: framePivot } : {}),
+            });
         } else if (typeof f.texture === 'string' && f.texture) {
             const frame: AnimClipFrameData = { texture: f.texture };
             if (duration !== undefined) frame.duration = duration;
+            if (framePivot) frame.pivot = framePivot;
             const af = f.atlasFrame;
             if (af && [af.x, af.y, af.width, af.height, af.pageWidth, af.pageHeight]
                 .every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) {
@@ -176,26 +252,34 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
             events.push({ frame: e.frame, name: e.name, ...(e.data !== undefined ? { data: e.data } : {}) });
         }
     }
+    const clipPivot = pivotOf(raw?.pivot);
     return {
         version: typeof raw?.version === 'string' ? raw.version : ANIM_CLIP_FORMAT_VERSION,
         type: 'animation-clip',
         fps: posInt(raw?.fps, DEFAULT_FPS),
         loop: typeof raw?.loop === 'boolean' ? raw.loop : true,
+        ...(clipPivot ? { pivot: clipPivot } : {}),
         ...(sheet ? { sheet } : {}),
         frames,
         ...(events.length ? { events } : {}),
     };
 }
 
-/** Serialize an {@link AnimClipAssetData} to a plain JSON-ready object (drops empty/undefined). */
+/**
+ * Serialize an {@link AnimClipAssetData} to a plain JSON-ready object (drops
+ * empty/undefined). Stamps the CURRENT format version: whatever the file said when
+ * it was read, this writer produced what is on disk now — a clip that gained 1.4
+ * anchors must not keep claiming 1.3.
+ */
 export function serializeAnimClip(asset: AnimClipAssetData): Record<string, unknown> {
     return {
-        version: asset.version || ANIM_CLIP_FORMAT_VERSION,
+        version: ANIM_CLIP_FORMAT_VERSION,
         type: 'animation-clip',
         fps: asset.fps ?? DEFAULT_FPS,
         loop: asset.loop ?? true,
+        ...(asset.pivot ? { pivot: { ...asset.pivot } } : {}),
         ...(asset.sheet ? { sheet: { ...asset.sheet } } : {}),
-        frames: asset.frames.map(f => ({ ...f })),
+        frames: asset.frames.map(f => ({ ...f, ...(f.pivot ? { pivot: { ...f.pivot } } : {}) })),
         ...(asset.events && asset.events.length ? { events: asset.events.map(e => ({ ...e })) } : {}),
     };
 }
@@ -265,6 +349,9 @@ export function parseAnimClipData(
         loop: data.loop ?? true,
         ...(data.events?.length ? { events: data.events.map(e => ({ frame: e.frame, name: e.name, data: e.data })) } : {}),
         frames: data.frames.map(f => {
+            // Resolved once at load: at runtime a frame either carries the anchor it
+            // renders with, or the clip authors none and playback leaves pivot alone.
+            const pivot = animClipFramePivot(data, f);
             if (sheet && f.cell !== undefined) {
                 if (f.cell >= cellCount) {
                     log.warn('asset', `${clipPath}: frame cell ${f.cell} outside the ${cellCount}-cell sheet grid; clamped`);
@@ -272,6 +359,7 @@ export function parseAnimClipData(
                 const frame: SpriteAnimFrame = {
                     texture: textureHandles.get(sheet.texture) ?? 0,
                     duration: f.duration,
+                    ...(pivot ? { pivot } : {}),
                     ...animClipCellUv(sheet, f.cell),
                 };
                 return frame;
@@ -279,6 +367,7 @@ export function parseAnimClipData(
             const frame: SpriteAnimFrame = {
                 texture: textureHandles.get(f.texture ?? '') ?? 0,
                 duration: f.duration,
+                ...(pivot ? { pivot } : {}),
             };
             if (f.atlasFrame) {
                 const af = f.atlasFrame;

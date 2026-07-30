@@ -72,4 +72,56 @@ describe('AnimClipCommands', () => {
     AnimClipCommands.setLoop(false);
     expect(asset().loop).toBe(false);
   });
+
+  // — Frame anchors —
+
+  it('setAnchorsEnabled seeds a centered clip anchor and is idempotent', () => {
+    expect(asset().pivot).toBeUndefined();
+    AnimClipCommands.setAnchorsEnabled(true);
+    expect(asset().pivot).toEqual({ x: 0.5, y: 0.5 });
+
+    AnimClipCommands.setAnchorsEnabled(true); // already on — no second undo step
+    EditorHistory.undo();
+    expect(asset().pivot).toBeUndefined();
+  });
+
+  it('setAnchorsEnabled(false) clears the clip anchor AND every frame override', () => {
+    AnimClipCommands.appendFrames([0, 1]);
+    AnimClipCommands.setAnchorsEnabled(true);
+    AnimClipCommands.setFramePivot(1, { x: 0.25, y: 0 });
+    expect(asset().frames[1].pivot).toEqual({ x: 0.25, y: 0 });
+
+    AnimClipCommands.setAnchorsEnabled(false);
+    expect(asset().pivot).toBeUndefined();
+    expect(asset().frames.every((f) => f.pivot === undefined)).toBe(true);
+
+    EditorHistory.undo(); // one step back = anchors as they were
+    expect(asset().pivot).toEqual({ x: 0.5, y: 0.5 });
+    expect(asset().frames[1].pivot).toEqual({ x: 0.25, y: 0 });
+  });
+
+  it('setFramePivot writes an override and clears back to the clip anchor', () => {
+    AnimClipCommands.appendFrames([0]);
+    AnimClipCommands.setFramePivot(0, { x: 0.4, y: 0.1 });
+    expect(asset().frames[0].pivot).toEqual({ x: 0.4, y: 0.1 });
+    AnimClipCommands.setFramePivot(0, undefined);
+    expect(asset().frames[0].pivot).toBeUndefined();
+  });
+
+  it('rejects non-finite anchors instead of writing NaN into the clip', () => {
+    AnimClipCommands.appendFrames([0]);
+    AnimClipCommands.setClipPivot({ x: Number.NaN, y: 0 });
+    AnimClipCommands.setFramePivot(0, { x: 0, y: Number.POSITIVE_INFINITY });
+    expect(asset().pivot).toBeUndefined();
+    expect(asset().frames[0].pivot).toBeUndefined();
+    expect(AnimClipDocument.dirty).toBe(true); // appendFrames only
+  });
+
+  it('setClipPivot moves the clip-wide anchor without touching overrides', () => {
+    AnimClipCommands.appendFrames([0, 1]);
+    AnimClipCommands.setFramePivot(1, { x: 0.25, y: 0 });
+    AnimClipCommands.setClipPivot({ x: 0.5, y: 0 });
+    expect(asset().pivot).toEqual({ x: 0.5, y: 0 });
+    expect(asset().frames[1].pivot).toEqual({ x: 0.25, y: 0 });
+  });
 });

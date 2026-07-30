@@ -15,6 +15,10 @@ import {
     animClipSheetCols,
     animClipSheetRows,
     animClipCellRect,
+    animClipDrivesPivot,
+    animClipFramePivot,
+    ANIM_CLIP_FORMAT_VERSION,
+    DEFAULT_ANIM_CLIP_PIVOT,
     type AnimClipAssetData,
     type AnimClipSheetData,
 } from '../src/animation/AnimClipLoader';
@@ -251,6 +255,103 @@ describe('parseAnimClipData with sheet cells', () => {
     });
 });
 
+// =============================================================================
+// Frame anchors (format 1.4)
+// =============================================================================
+
+describe('frame anchor resolution', () => {
+    const base: AnimClipAssetData = {
+        version: ANIM_CLIP_FORMAT_VERSION,
+        type: 'animation-clip',
+        fps: 10,
+        loop: true,
+        sheet: SHEET,
+        frames: [{ cell: 0 }, { cell: 1 }],
+    };
+
+    it('reports a clip with no anchors anywhere as not driving pivot', () => {
+        expect(animClipDrivesPivot(base)).toBe(false);
+        expect(animClipFramePivot(base, base.frames[0])).toBeNull();
+    });
+
+    it('drives pivot from a clip-wide anchor, inherited by every frame', () => {
+        const data = { ...base, pivot: { x: 0.5, y: 0 } };
+        expect(animClipDrivesPivot(data)).toBe(true);
+        expect(animClipFramePivot(data, data.frames[0])).toEqual({ x: 0.5, y: 0 });
+        expect(animClipFramePivot(data, data.frames[1])).toEqual({ x: 0.5, y: 0 });
+    });
+
+    it('prefers a frame override over the clip-wide anchor', () => {
+        const data = {
+            ...base,
+            pivot: { x: 0.5, y: 0 },
+            frames: [{ cell: 0 }, { cell: 1, pivot: { x: 0.3, y: 0.2 } }],
+        };
+        expect(animClipFramePivot(data, data.frames[0])).toEqual({ x: 0.5, y: 0 });
+        expect(animClipFramePivot(data, data.frames[1])).toEqual({ x: 0.3, y: 0.2 });
+    });
+
+    it('centers the frames a partially-anchored clip left unset (no stale override)', () => {
+        // One frame anchored, no clip default: the plain frames must resolve to the
+        // Sprite default rather than keeping the anchored frame's value.
+        const data = { ...base, frames: [{ cell: 0 }, { cell: 1, pivot: { x: 0.3, y: 0.2 } }] };
+        expect(animClipDrivesPivot(data)).toBe(true);
+        expect(animClipFramePivot(data, data.frames[0])).toEqual(DEFAULT_ANIM_CLIP_PIVOT);
+    });
+
+    it('never hands back the authored anchor object', () => {
+        const data = { ...base, pivot: { x: 0.5, y: 0 } };
+        const resolved = animClipFramePivot(data, data.frames[0])!;
+        resolved.x = 0.9;
+        expect(data.pivot.x).toBe(0.5);
+    });
+});
+
+describe('parseAnimClipData anchor bake', () => {
+    const handles = new Map([['@uuid:sheet', 7]]);
+
+    it('bakes a resolved anchor onto every frame of an anchoring clip', () => {
+        const clip = parseAnimClipData('run.esanim', {
+            version: ANIM_CLIP_FORMAT_VERSION,
+            type: 'animation-clip',
+            fps: 10,
+            loop: true,
+            pivot: { x: 0.5, y: 0 },
+            sheet: SHEET,
+            frames: [{ cell: 0 }, { cell: 1, pivot: { x: 0.4, y: 0.1 } }],
+        }, handles);
+
+        expect(clip.frames[0].pivot).toEqual({ x: 0.5, y: 0 });
+        expect(clip.frames[1].pivot).toEqual({ x: 0.4, y: 0.1 });
+    });
+
+    it('bakes anchors on per-texture frames as well', () => {
+        const clip = parseAnimClipData('mix.esanim', {
+            version: ANIM_CLIP_FORMAT_VERSION,
+            type: 'animation-clip',
+            fps: 10,
+            loop: true,
+            frames: [{ texture: 'a.png', pivot: { x: 0.5, y: 0 } }],
+        }, new Map([['a.png', 3]]));
+
+        expect(clip.frames[0].texture).toBe(3);
+        expect(clip.frames[0].pivot).toEqual({ x: 0.5, y: 0 });
+    });
+
+    it('leaves every frame anchor-free when the clip authors none', () => {
+        const clip = parseAnimClipData('run.esanim', {
+            version: ANIM_CLIP_FORMAT_VERSION,
+            type: 'animation-clip',
+            fps: 10,
+            loop: true,
+            sheet: SHEET,
+            frames: [{ cell: 0 }, { cell: 1 }],
+        }, handles);
+
+        expect(clip.frames.every(f => f.pivot === undefined)).toBe(true);
+    });
+});
+
 describe('parseAnimClipAsset (tolerant parse)', () => {
     it('normalizes a well-formed sheet clip round-trip through serializeAnimClip', () => {
         const clip = createAnimClip('@uuid:sheet', 32, 48, 134, 100);
@@ -273,6 +374,45 @@ describe('parseAnimClipAsset (tolerant parse)', () => {
         const af = { x: 1, y: 2, width: 3, height: 4, pageWidth: 10, pageHeight: 20 };
         const parsed = parseAnimClipAsset({ frames: [{ texture: 'a.png', atlasFrame: af }] });
         expect(parsed.frames[0].atlasFrame).toEqual(af);
+    });
+
+    it('round-trips clip-wide and per-frame anchors', () => {
+        const clip = createAnimClip('@uuid:sheet', 32, 48, 134, 100);
+        clip.pivot = { x: 0.5, y: 0 };
+        clip.frames.push({ cell: 0 }, { cell: 1, pivot: { x: 0.4, y: 0.05 } });
+        const parsed = parseAnimClipAsset(JSON.parse(JSON.stringify(serializeAnimClip(clip))));
+        expect(parsed).toEqual(clip);
+    });
+
+    it('keeps anchors on per-texture frames too', () => {
+        const parsed = parseAnimClipAsset({
+            frames: [{ texture: 'a.png', pivot: { x: 0.5, y: 0 } }],
+        });
+        expect(parsed.frames[0].pivot).toEqual({ x: 0.5, y: 0 });
+    });
+
+    it('drops malformed anchors instead of half-applying them', () => {
+        const parsed = parseAnimClipAsset({
+            pivot: { x: 0.5 },
+            frames: [
+                { texture: 'a.png', pivot: { x: 'low', y: 0 } },
+                { texture: 'b.png', pivot: { x: NaN, y: 0 } },
+                { texture: 'c.png', pivot: null },
+            ],
+        });
+        expect(parsed.pivot).toBeUndefined();
+        expect(parsed.frames.every(f => f.pivot === undefined)).toBe(true);
+    });
+
+    it('keeps anchors outside 0–1 (Sprite.pivot allows them)', () => {
+        const parsed = parseAnimClipAsset({ pivot: { x: -0.25, y: 1.5 }, frames: [] });
+        expect(parsed.pivot).toEqual({ x: -0.25, y: 1.5 });
+    });
+
+    it('stamps the current format version on save', () => {
+        const parsed = parseAnimClipAsset({ version: '1.2', frames: [{ texture: 'a.png' }] });
+        expect(parsed.version).toBe('1.2'); // read back as authored
+        expect(serializeAnimClip(parsed).version).toBe(ANIM_CLIP_FORMAT_VERSION);
     });
 
     it('defaults fps/loop and fills sheet defaults', () => {
