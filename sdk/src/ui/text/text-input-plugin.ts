@@ -12,6 +12,7 @@ import { UIMask, MaskMode } from '../core/ui-mask';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
 import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
+import type { FocusableData } from '../input/focusable';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { Transform, type TransformData } from '../../ecs/component';
 import { UIEvents, UIEventQueue } from '../core/events';
@@ -138,6 +139,14 @@ export class TextInputPlugin implements Plugin {
                         ti.focused = false;
                         ti.dirty = true;
                         (app.getResource(FocusManager) as FocusManagerState).blur();
+                        // The manager only holds "who has focus"; the entity holds
+                        // it too. Clearing one and not the other leaves a control
+                        // that believes it is focused while nothing is.
+                        if (world.valid(focused) && world.has(focused, Focusable)) {
+                            const f = world.get(focused, Focusable) as FocusableData;
+                            f.isFocused = false;
+                            world.insert(focused, Focusable, f);
+                        }
                     }
                     break;
             }
@@ -294,8 +303,29 @@ export class TextInputPlugin implements Plugin {
 
                 const currentFocused = getFocusedTextInput();
 
-                if (currentFocused !== prevFocusedTextInput) {
-                    if (prevFocusedTextInput !== null && world.valid(prevFocusedTextInput) && world.has(prevFocusedTextInput, TextInput)) {
+                // `prevFocusedTextInput` shadows the focus manager, and the OS
+                // editing surface can blur out from under both of them — the
+                // browser moving DOM focus, a click that leaves the canvas — by
+                // writing straight to the manager, which this system never sees.
+                // Land that after this system has run for the frame and the shadow
+                // still names the field, so clicking THE SAME FIELD again read as
+                // "no change" and the editor was never re-attached: the field took
+                // focus, showed no caret, and swallowed every keystroke. Only
+                // clicking a different field first got it back.
+                //
+                // So the field's own `focused` flag decides whether its editor is
+                // live, and a focused field that says it has none gets one. One
+                // fact, asked of the thing that holds it, instead of a copy that
+                // can go stale.
+                const missingEditor = currentFocused !== null
+                    && !(world.get(currentFocused, TextInput) as TextInputData).focused;
+
+                if (currentFocused !== prevFocusedTextInput || missingEditor) {
+                    // Only a field that really lost focus is blurred. Re-attaching
+                    // an editor to the field that already has focus must not blur
+                    // the surface on its way in.
+                    if (prevFocusedTextInput !== null && prevFocusedTextInput !== currentFocused
+                        && world.valid(prevFocusedTextInput) && world.has(prevFocusedTextInput, TextInput)) {
                         const ti = world.get(prevFocusedTextInput, TextInput) as TextInputData;
                         ti.focused = false;
                         ti.dirty = true;
