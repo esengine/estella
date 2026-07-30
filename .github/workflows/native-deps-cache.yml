@@ -27,6 +27,11 @@ on:
     paths:
       # The only thing that invalidates the cache is the pins themselves.
       - 'toolchain.manifest.json'
+      # And this file, so that merging it warms the cache once instead of leaving
+      # it cold until the pins next move or the weekly trigger comes round. A
+      # workflow_dispatch cannot stand in for that: dispatch only resolves against
+      # the default branch, so there is no way to run this before it is merged.
+      - '.github/workflows/native-deps-cache.yml'
   schedule:
     # Weekly, purely to keep the 7-day eviction clock from running out.
     - cron: '0 3 * * 1'
