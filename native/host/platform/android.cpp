@@ -14,6 +14,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 #include <android_native_app_glue.h>
+#include <dlfcn.h>
 #include <android/log.h>
 #include <sys/system_properties.h>
 #include <android/input.h>
@@ -22,7 +23,6 @@
 #include <android/font_matcher.h>
 #include <android/native_window.h>
 #include <android/choreographer.h>
-#include <android/performance_hint.h>
 #include <jni.h>
 #include <unistd.h>
 
@@ -499,29 +499,59 @@ void onAppCmd(android_app* app, int32_t cmd) {
 // The loop then reports what each frame actually cost, and the system ramps on
 // that instead of on a guess. Busy-waiting to fake demand is the alternative the
 // platform documentation explicitly warns against.
+//
+// Resolved by hand, through dlsym, rather than called directly.
+//
+// ADPF is API 33 and this host builds against the manifest's floor, so the NDK
+// marks those four symbols `unavailable`: a hard compile error, and no
+// `__builtin_available` guard changes that — the annotation is not "call me
+// under a check", it is "this build cannot see me". Raising the build target is
+// what makes them callable, and that is precisely the mistake being fixed here:
+// at android-33 every availability guard in this file became dead code and every
+// guarded symbol became a load-time requirement, so the released host could not
+// dlopen on Android 10 or 11 at all.
+//
+// The NDK's own answer is ANDROID_WEAK_API_DEFS, which turns such symbols into
+// weak references. Looking them up here instead keeps the decision in the code
+// that depends on it, where it is visible, rather than in a toolchain flag whose
+// absence would silently restore the same class of failure.
 struct PerformanceHints {
-    APerformanceHintSession* session = nullptr;
+    void* session = nullptr;
 
     // One display refresh. The Choreographer is what calls the frame, so the
     // deadline is the panel's cadence, whatever it happens to be.
     static constexpr int64_t kFrameBudgetNanos = 16'666'667;
 
-    // 33, which is what the NDK header declares, not the 31 these guards used to
-    // say. The symbol does resolve on 31 and 32 devices — that is why they ran a
-    // host built against 33, whose guards were compiled out and whose reference
-    // was therefore strong — but the header is the authority at compile time and
-    // refuses a guard below its own introduced version. Building against the
-    // manifest's floor makes these live, so they have to be right: a hint session
-    // is given up on Android 12 in exchange for the app loading at all on 10.
+    // Opaque on purpose: the header's typedefs come with the same availability
+    // annotations, and nothing here needs to know what a session is.
+    using GetManagerFn = void* (*)();
+    using CreateSessionFn = void* (*)(void*, const int32_t*, size_t, int64_t);
+    using ReportFn = int (*)(void*, int64_t);
+    using CloseFn = void (*)(void*);
+
+    ReportFn reportFn = nullptr;
+    CloseFn closeFn = nullptr;
 
     void open() {
-        if (__builtin_available(android 33, *)) {
-            APerformanceHintManager* manager = APerformanceHint_getManager();
-            if (!manager) return;   // no session on a device (or emulator) without one
-            // The frame loop's own thread, and it lives as long as the app does —
-            // the session wants long-lived tids, not ones that come and go.
-            const int32_t tid = static_cast<int32_t>(gettid());
-            session = APerformanceHint_createSession(manager, &tid, 1, kFrameBudgetNanos);
+        // RTLD_DEFAULT: libandroid is already loaded — this asks whether THIS
+        // platform version exports the symbols, which is the actual question.
+        const auto getManager = reinterpret_cast<GetManagerFn>(
+            dlsym(RTLD_DEFAULT, "APerformanceHint_getManager"));
+        const auto createSession = reinterpret_cast<CreateSessionFn>(
+            dlsym(RTLD_DEFAULT, "APerformanceHint_createSession"));
+        reportFn = reinterpret_cast<ReportFn>(
+            dlsym(RTLD_DEFAULT, "APerformanceHint_reportActualWorkDuration"));
+        closeFn = reinterpret_cast<CloseFn>(
+            dlsym(RTLD_DEFAULT, "APerformanceHint_closeSession"));
+
+        if (getManager && createSession && reportFn && closeFn) {
+            if (void* manager = getManager()) {
+                // The frame loop's own thread, and it lives as long as the app
+                // does — the session wants long-lived tids, not ones that come
+                // and go.
+                const int32_t tid = static_cast<int32_t>(gettid());
+                session = createSession(manager, &tid, 1, kFrameBudgetNanos);
+            }
         }
         __android_log_print(session ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, LOG_TAG,
                             "perf hints: %s", session ? "session up (ADPF)" : "unavailable");
@@ -531,14 +561,11 @@ struct PerformanceHints {
         if (!session) return;
         const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(frame).count();
         if (nanos <= 0) return;   // the API rejects a non-positive duration
-        if (__builtin_available(android 33, *)) {
-            APerformanceHint_reportActualWorkDuration(session, nanos);
-        }
+        reportFn(session, nanos);
     }
 
     ~PerformanceHints() {
-        if (!session) return;
-        if (__builtin_available(android 33, *)) APerformanceHint_closeSession(session);
+        if (session) closeFn(session);
     }
 };
 
