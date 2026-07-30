@@ -14,12 +14,12 @@ export const viewportMessages = defineMessages({
 
     // — HUD hint line (active transform tool) —
     'vp.hint.select': {
-        en: 'Click to select · Shift adds · drag empty to box-select',
-        zh: '点击选择 · Shift 加选 · 拖动空白处框选',
+        en: 'Click to select · Shift adds · drag a body to move · drag empty to box-select',
+        zh: '点击选择 · Shift 加选 · 拖动实体移动 · 拖动空白处框选',
     },
     'vp.hint.move': {
-        en: 'Drag a gizmo axis or the body · Alt-drag duplicates · arrows nudge',
-        zh: '拖动 Gizmo 轴或其主体 · Alt 拖动创建副本 · 方向键微移',
+        en: 'Drag a gizmo axis or its center · Alt-drag duplicates · arrows nudge',
+        zh: '拖动 Gizmo 轴或中心方块 · Alt 拖动创建副本 · 方向键微移',
     },
     'vp.hint.rotate': { en: 'Drag the ring to rotate the selection', zh: '拖动圆环旋转所选' },
     'vp.hint.scale': {

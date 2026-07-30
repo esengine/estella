@@ -100,16 +100,44 @@ describe('empty space → marquee box-select', () => {
 });
 
 describe('entity pick → select + move', () => {
-  it('selects the clicked entity and moves it by the world delta', () => {
+  it('selects the clicked entity, and the SELECT tool moves it by the world delta', () => {
     h.pick.entity = 7;
     h.pos.set(7, { x: 100, y: 100 });
-    const t = TRANSFORM_TOOLS.move;
+    const t = TRANSFORM_TOOLS.select;
     expect(t.onPointerDown(ev(100, 100), ctx)).toBe(true);
     expect(useSelection.getState().selectedId).toBe(7);
-    t.onPointerMove(ev(130, 100), ctx); // +30 in x
+    t.onPointerMove(ev(130, 100), ctx); // +30 in x, past the slop
     t.onPointerUp(ev(130, 100), ctx);
     expect(h.calls.setXY.at(-1)).toEqual([7, 130, 100]);
     expect(h.calls.commit).toBe(1);
+  });
+
+  it('a transform tool selects on a body press but does not transform', () => {
+    // The gizmo handles say which axis you meant; the body says nothing. Dragging
+    // it used to transform freely, so any click that wobbled nudged the thing you
+    // were only trying to pick.
+    h.pick.entity = 7;
+    h.pos.set(7, { x: 100, y: 100 });
+    for (const mode of ['move', 'rotate', 'scale'] as const) {
+      h.calls.setXY = [];
+      useSelection.getState().select(null);
+      const t = TRANSFORM_TOOLS[mode];
+      expect(t.onPointerDown(ev(100, 100), ctx)).toBe(true);
+      expect(useSelection.getState().selectedId).toBe(7);
+      t.onPointerMove(ev(160, 140), ctx); // well past the slop
+      t.onPointerUp(ev(160, 140), ctx);
+      expect(h.calls.setXY).toEqual([]);
+    }
+  });
+
+  it('the select tool does not nudge on a click that only wobbles', () => {
+    h.pick.entity = 7;
+    h.pos.set(7, { x: 100, y: 100 });
+    const t = TRANSFORM_TOOLS.select;
+    t.onPointerDown(ev(100, 100), ctx);
+    t.onPointerMove(ev(102, 101), ctx); // inside the click slop
+    t.onPointerUp(ev(102, 101), ctx);
+    expect(h.calls.setXY).toEqual([]);
   });
 
   it('Shift-click toggles selection without starting a drag', () => {
@@ -123,7 +151,7 @@ describe('entity pick → select + move', () => {
   it('Alt-drag duplicates on the first move and moves the copy', () => {
     h.pick.entity = 7;
     h.pos.set(7, { x: 100, y: 100 });
-    const t = TRANSFORM_TOOLS.move;
+    const t = TRANSFORM_TOOLS.select;
     t.onPointerDown(ev(100, 100, { alt: true }), ctx);
     expect(h.calls.dup).toEqual([]); // deferred — no clone until the drag actually moves
     t.onPointerMove(ev(140, 100), ctx); // past the slop → clone NOW, retarget onto the copy
@@ -133,10 +161,22 @@ describe('entity pick → select + move', () => {
     expect(h.calls.setXY.at(-1)).toEqual([107, 140, 100]); // copy tracks the cursor from the original's start
   });
 
+  it('Alt rides the gizmo handle, now that the body does not transform', () => {
+    useSelection.getState().select(7);
+    h.pos.set(7, { x: 100, y: 100 });
+    const t = TRANSFORM_TOOLS.move;
+    // Grab the x arrow: the pivot is the entity, world == client px in this harness.
+    t.onPointerDown(ev(100 + GIZMO.axisLen - 5, 100, { alt: true }), ctx);
+    expect(h.calls.dup).toEqual([]); // still deferred
+    t.onPointerMove(ev(100 + GIZMO.axisLen + 40, 100), ctx);
+    expect(h.calls.dup).toEqual([107]);
+    t.onPointerUp(ev(100 + GIZMO.axisLen + 40, 100), ctx);
+  });
+
   it('a bare Alt-click leaves no duplicate (no drag past the slop)', () => {
     h.pick.entity = 7;
     h.pos.set(7, { x: 100, y: 100 });
-    const t = TRANSFORM_TOOLS.move;
+    const t = TRANSFORM_TOOLS.select;
     t.onPointerDown(ev(100, 100, { alt: true }), ctx);
     t.onPointerUp(ev(100, 100), ctx); // released in place — never a drag
     expect(h.calls.dup).toEqual([]); // the old bug stacked a copy on the original here

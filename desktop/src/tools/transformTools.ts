@@ -53,11 +53,23 @@ interface Drag {
   pivotWorld: Pt;
   pivotClient: Pt; // canvas-relative
   downWorld: Pt;
+  /** Where the press landed, in window-client px — what the slop is measured from. */
+  downClient: Pt;
   startAngle: number; // rotate: cursor screen-angle around the pivot
   startDist: number; // scale: cursor screen-distance from the pivot
   /** Local-frame angle (world radians) for axis-constrained move; 0 = world axes. */
   angleRad: number;
   targets: Target[];
+  /**
+   * Whether this drag may write yet.
+   *
+   * Grabbing a handle is unambiguous, so a handle drag is armed at once. A drag
+   * that started on an entity's BODY is not: the same press is how you select,
+   * and applying from the first pixel meant a click that wobbled moved the thing
+   * you were only trying to pick. It arms when the press clears the click slop —
+   * the same threshold that already decides click-versus-drag.
+   */
+  armed: boolean;
 }
 
 interface MarqueeState {
@@ -232,6 +244,7 @@ function beginDrag(
   p: PointerInput,
   cur: Pt,
   angleRad = 0,
+  armed = true,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
   const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY) ?? { x: 0, y: 0 };
@@ -246,6 +259,7 @@ function beginDrag(
     pivotWorld,
     pivotClient,
     downWorld,
+    downClient: { x: p.clientX, y: p.clientY },
     startAngle: Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
     // The grab point's screen distance from the pivot. Scale is now delta-based off
     // this (not a ratio), so it needs no floor and can't blow up when you grab near
@@ -253,6 +267,7 @@ function beginDrag(
     startDist: Math.hypot(cur.x - pivotClient.x, cur.y - pivotClient.y),
     angleRad,
     targets,
+    armed,
   };
 }
 
@@ -379,6 +394,10 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           if (handle) {
             drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, localAngle);
             ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
+            // Alt-duplicate rides the handle too, now that the body no longer
+            // transforms — otherwise Alt+drag would have nowhere to happen in the
+            // transform tools. Deferred to the first real move, as it always was.
+            altPending = p.alt ? ids : null;
             ctx.capture(p.pointerId);
             return true;
           }
@@ -403,6 +422,20 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         pendingClick = { downX: p.clientX, downY: p.clientY, stack };
         const ids = [...useSelection.getState().selectedIds];
 
+        // A transform tool's gizmo is the drag surface; the body is only for
+        // picking. Dragging the body used to transform freely on both axes at
+        // once, which made every click a potential nudge — press to select,
+        // travel a pixel, and the thing you were aiming at had moved (or, in the
+        // rotate/scale tools, spun or resized). The handles say which axis you
+        // meant; the body says nothing, so it no longer answers.
+        //
+        // The select tool keeps it: it shows no gizmo, so a body drag is the only
+        // move it has, and it arms only past the click slop.
+        if (mode !== 'select') {
+          ctx.capture(p.pointerId);
+          return true;
+        }
+
         // Drag the originals for now; an Alt-drag defers its clone to the first real
         // move (onPointerMove), so a bare Alt-click leaves nothing behind.
         const targets = captureTargets(ids);
@@ -410,7 +443,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         altPending = p.alt ? ids : null;
         if (!targets.length || !pivotWorld) return false;
         const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) ?? cur;
-        drag = beginDrag(kind, 'xy', targets, pivotWorld, pc, p, cur);
+        drag = beginDrag(kind, 'xy', targets, pivotWorld, pc, p, cur, 0, false);
         ctx.capture(p.pointerId);
         return true;
       }
@@ -423,20 +456,30 @@ function makeTransformTool(mode: ToolMode): EditorTool {
     },
 
     onPointerMove(p) {
+      const past = (from: Pt): boolean =>
+        Math.abs(p.clientX - from.x) > CLICK_SLOP || Math.abs(p.clientY - from.y) > CLICK_SLOP;
+
       // A press that travels past the slop is a drag, not a click — disarm the
       // click-through cycle so releasing won't advance the selection.
-      if (pendingClick && (Math.abs(p.clientX - pendingClick.downX) > CLICK_SLOP || Math.abs(p.clientY - pendingClick.downY) > CLICK_SLOP)) {
-        // Past the slop: this is a drag, not a click. If it's a deferred Alt-drag,
-        // clone NOW and retarget the drag onto the fresh copies (the originals stay).
-        if (altPending && drag) {
-          const dup = altDuplicateTargets(altPending);
-          if (dup.targets.length) drag.targets = dup.targets;
-        }
-        altPending = null;
+      if (pendingClick && past({ x: pendingClick.downX, y: pendingClick.downY })) {
         pendingClick = null;
         cycle = null;
       }
-      if (drag) {
+      // Measured from the DRAG's own press, not the pick's: a handle grab sets no
+      // pendingClick (it must not cycle the selection), and Alt-duplicate has to
+      // work when you drag an axis.
+      if (drag && past(drag.downClient)) {
+        // A deferred Alt-drag clones NOW and retargets onto the fresh copies, so a
+        // bare Alt-click leaves nothing behind.
+        if (altPending) {
+          const dup = altDuplicateTargets(altPending);
+          if (dup.targets.length) drag.targets = dup.targets;
+          altPending = null;
+        }
+        // And the intent is a drag, so a body drag may write from here.
+        drag.armed = true;
+      }
+      if (drag?.armed) {
         const origin = canvasOrigin();
         const cur: Pt = origin
           ? { x: p.clientX - origin.left, y: p.clientY - origin.top }
@@ -469,8 +512,12 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         SceneStore.resume();
         drag = null;
         useEditorStore.getState().setActiveGizmoAxis(null);
-        // A bare click (no drag) on overlapping entities walks to the next one down.
-        const stepped = pendingClick && stepCycle(pendingClick.stack, cycle, p.clientX, p.clientY);
+      }
+      // A bare click (no drag) on overlapping entities walks to the next one down.
+      // Outside the `drag` branch: a press on a body in a transform tool no longer
+      // starts one, and click-through has to keep working without it.
+      if (pendingClick) {
+        const stepped = stepCycle(pendingClick.stack, cycle, p.clientX, p.clientY);
         pendingClick = null;
         if (stepped) {
           useSelection.getState().select(stepped.pick);
