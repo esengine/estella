@@ -232,15 +232,21 @@ export const TOOLS = [
   { name: 'create_scene_file', write: true,
     description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path, immediately referenceable (the registry refresh happens before this resolves). '
       + '`name` names it (the `.esscene` extension is added if absent); without one it is `scene.esscene`, which collides the moment you make a second.',
-    schema: obj({ destDir: { type: 'string' }, name: { type: 'string' } }, ['destDir']),
-    js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)})
+    schema: obj({
+      destDir: { type: 'string' }, name: { type: 'string' },
+      overwrite: { type: 'boolean', description: 'a NAMED scene that already exists is emptied and reused (its uuid is kept, so refs survive) instead of the call being refused' },
+    }, ['destDir']),
+    js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)}, ${JSON.stringify({ overwrite: i.overwrite === true })})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
   { name: 'create_prefab_from_entity', write: true,
     description: 'Extract an entity and its subtree into a `.esprefab` asset under assets/prefabs/ (the Outliner\'s Create Prefab), named after the entity; returns its `@uuid:` ref. '
       + 'This is what makes a subtree REUSABLE: afterwards `list_entity_templates` offers it as `prefab:<path>`, and creating with that template makes a real INSTANCE — the scene stores a delta, not a copy, so editing the prefab updates every instance. '
       + 'Without it a driver can build the same panel chrome into twenty scenes but never share it. Refs pointing OUT of the subtree cannot live in a standalone prefab and are cleared.',
-    schema: obj({ entity: { type: 'number' } }, ['entity']),
-    js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)})
+    schema: obj({
+      entity: { type: 'number' },
+      replace: { type: 'boolean', description: 'overwrite the asset this name already maps to, KEEPING its uuid — what re-extracting a prefab means. Without it the name is deduped to "<name>-1.esprefab" and every existing instance keeps pointing at the stale asset.' },
+    }, ['entity']),
+    js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)}, ${JSON.stringify({ replace: i.replace === true })})
       .then((ref) => { if (!ref) throw new Error('could not create a prefab from entity ${Number(i.entity)} — it may not exist'); return ref; })` },
   { name: 'create_asset', write: true,
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
@@ -278,6 +284,10 @@ export const TOOLS = [
           .then((text) => window.__estellaEditor.applyOps(JSON.parse(text), ${JSON.stringify(i.label ?? null)}))`
       : null),
     method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
+  { name: 'refresh_assets', write: true,
+    description: 'Re-scan the project into the asset registry. The editor watches the filesystem, but a batch written from outside (a converter copying twenty sprites in) can outrun the watcher — and until the scan lands those files have no `.meta`, so `set_import_settings` and any @uuid ref to them fail. Cheap and idempotent; call it after writing assets by hand.',
+    schema: obj({}),
+    js: () => 'window.__estellaEditor.refreshAssets().then(() => true)' },
   { name: 'list_assets',
     description: 'Search the open project\'s asset registry. `match` is a case-insensitive SUBSTRING of the project-relative path (not a glob); `type` filters by asset type (texture, scene, prefab, audio, font, material, shader...). '
       + 'Returns { total, assets: [{ ref, path, name, type }] } — `total` is the full match count, `assets` is capped by `limit` (default 200). The `ref` is the stable @uuid: form to write into asset fields.',
@@ -328,7 +338,9 @@ export const TOOLS = [
     description: 'Toggle play mode in the editor (check get_play_state first; play runs the game in an isolated realm and never dirties the edit scene).',
     schema: obj({}), method: 'play', args: () => [], root: 'editor' },
   { name: 'get_play_state',
-    description: 'The play realm state: { playing, ready, error }.',
+    description: 'The play realm state: { playing, ready, error, fps, frameCount }. '
+      + 'CHECK `fps` BEFORE CONCLUDING ANYTHING FROM A PROBE: the realm runs in an out-of-process iframe whose rAF Chromium throttles to ~1/s while the editor window is unfocused, '
+      + 'so a game that looks frozen (an animation that never advances, a tween stuck at its start) is usually a background window, not a bug. `fps` is null until the first heartbeat (~0.5s after Play).',
     schema: obj({}), method: 'playState', args: () => [], root: 'editor' },
   { name: 'screenshot',
     description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',

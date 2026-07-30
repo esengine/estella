@@ -73,6 +73,18 @@ import type { WorkspaceState } from '../src/project/format';
 // switch the headless verify harness sets.
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
 
+// The window sets `backgroundThrottling: false`, but that only reaches ITS renderer —
+// and the game does not run there. The play realm is a cross-origin (estella://) frame,
+// so it lives in its own renderer process, which Chromium still backgrounds when the
+// window loses focus: rAF drops to about 1 Hz and the running game freezes. Nothing in
+// an editor should stop simulating because you alt-tabbed to read something, and it is
+// worse than a slowdown for anything driving the editor from outside — a probe reads
+// the frozen state and reports a broken feature. These are process-wide, so they cover
+// the realm's renderer too.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+
 // Two privileged custom schemes (must be declared before app ready):
 //  • estella:// serves files from the open project root (sandboxed) — lets the
 //    engine fetch project assets (textures via Assets.loadTexture → fetch).

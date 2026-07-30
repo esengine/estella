@@ -47,6 +47,13 @@ export interface PlayRealmSnapshot {
   playing: boolean;
   ready: boolean;
   error: string | null;
+  /** Frames per second the realm is ACTUALLY running, from its own heartbeat. An
+   *  unfocused window has the realm's rAF throttled to about 1 — which looks exactly
+   *  like a frozen game to anything driving the editor from outside. `null` until the
+   *  first heartbeat arrives. */
+  fps: number | null;
+  /** The realm's engine frame counter at that heartbeat. */
+  frameCount: number;
 }
 
 export class PlayRealmInstance {
@@ -59,7 +66,9 @@ export class PlayRealmInstance {
   // (single-player primary only; multiplayer + play-in-window cold-boot as before).
   private warm = false;
   private warmedResolve: (() => void) | null = null;
-  private readonly store = createStore<PlayRealmSnapshot>(() => ({ playing: false, ready: false, error: null }));
+  private readonly store = createStore<PlayRealmSnapshot>(() => ({
+    playing: false, ready: false, error: null, fps: null, frameCount: 0,
+  }));
 
   constructor(readonly id: number) {}
 
@@ -186,7 +195,7 @@ export class PlayRealmInstance {
     if (this.warm && this.id === 0) {
       if (this.iframe) this.iframe.style.visibility = 'hidden';
       this.setPaused(true); // freeze the world so a hidden realm doesn't keep simulating
-      this.set({ playing: false, ready: false, error: null });
+      this.set({ playing: false, ready: false, error: null, fps: null, frameCount: 0 });
       return;
     }
     if (this.iframe) {
@@ -194,7 +203,7 @@ export class PlayRealmInstance {
       this.iframe.src = 'about:blank';
     }
     this.warm = false;
-    this.set({ playing: false, ready: false, error: null });
+    this.set({ playing: false, ready: false, error: null, fps: null, frameCount: 0 });
   }
 
   /** Drop the staged realm but keep the iframe + listener (reusable): cold
@@ -330,6 +339,9 @@ export class PlayRealmInstance {
         else this.post({ type: 'estella:play:warm' });
         break;
       }
+      case 'estella:play:frames':
+        this.set({ fps: data.fps ?? 0, frameCount: data.frameCount ?? 0 });
+        break;
       case 'estella:play:log':
         // The running game's console/wasm output, forwarded from the realm iframe so
         // it lands in the editor's Output Log (it runs in a separate JS realm, so the

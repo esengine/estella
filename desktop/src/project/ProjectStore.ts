@@ -668,13 +668,27 @@ class ProjectStoreImpl {
    * Browser's "New Scene" — writes it to disk WITHOUT switching the editor to it
    * (unlike {@link newScene}). Returns its project-relative path.
    */
-  async createSceneFile(destDir: string, name?: string): Promise<string> {
+  async createSceneFile(destDir: string, name?: string, opts?: { overwrite?: boolean }): Promise<string> {
     const content = JSON.stringify(this.blankScene(), null, 2) + '\n';
     // A bare name takes the extension, so a caller naming scenes in bulk does not
     // have to know it. Nameless keeps the Content Browser's "New Scene" default.
     const base = name?.trim()
       ? (name.trim().endsWith('.esscene') ? name.trim() : `${name.trim()}.esscene`)
       : 'scene.esscene';
+    // Creating over a name that is taken DEDUPES ("main 2.esscene"), which is right for
+    // the Content Browser's New Scene and wrong for anything driving the editor by name:
+    // a re-run gets a second scene nobody opens while the game keeps the first. So a
+    // named collision is answered here — emptied on request (the uuid is kept, so refs
+    // to the scene survive), and otherwise refused with the flag that would allow it.
+    const rel = `${destDir.replace(/\/$/, '')}/${base}`;
+    if (name?.trim() && this.pathToUuid.has(rel)) {
+      if (!opts?.overwrite) {
+        throw new Error(`"${rel}" already exists — pass overwrite to empty it, or use another name`);
+      }
+      await window.estella.fs.write(rel, content);
+      await this.refreshAssets();
+      return rel;
+    }
     return window.estella.project.createAsset(destDir, base, content, 'scene');
   }
 
@@ -905,7 +919,17 @@ class ProjectStoreImpl {
     path: string,
     patch: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const meta = JSON.parse(await window.estella.fs.read(path + '.meta'));
+    // The `.meta` is written by the import scan, so a file that has only just been
+    // copied into the project may not have one yet — the watcher is fast but a batch
+    // (a panel's worth of sprites) outruns it. Scanning once and retrying turns "the
+    // importer settings for the fifth of twenty sprites failed" into a non-event.
+    let raw = await window.estella.fs.readOptional(path + '.meta');
+    if (raw === null) {
+      await this.refreshAssets();
+      raw = await window.estella.fs.readOptional(path + '.meta');
+    }
+    if (raw === null) throw new Error(`no import settings for "${path}" — the file is not in the project`);
+    const meta = JSON.parse(raw);
     let importer = (meta.importer as Record<string, unknown>) ?? {};
     for (const [key, value] of Object.entries(patch)) {
       importer = applyImporterEdit(importer, key, value as never);
@@ -1445,7 +1469,7 @@ class ProjectStoreImpl {
    * DB so the prefab is immediately draggable. Non-destructive: the source
    * entities are left as-is. Returns the new prefab's `@uuid:` ref, or null.
    */
-  async createPrefabFromEntity(rootSourceId: number): Promise<string | null> {
+  async createPrefabFromEntity(rootSourceId: number, opts?: { replace?: boolean }): Promise<string | null> {
     const root = SceneModel.entityBySource(rootSourceId);
     if (!root) return null;
     const entities = SceneModel.collectSubtree(rootSourceId)
@@ -1471,9 +1495,16 @@ class ProjectStoreImpl {
     // A filesystem-safe leaf, deduped against existing assets.
     const base = name.replace(/[^A-Za-z0-9_-]+/g, '_') || 'Prefab';
     let rel = `assets/prefabs/${base}.esprefab`;
-    for (let n = 1; this.pathToUuid.has(rel); n++) rel = `assets/prefabs/${base}-${n}.esprefab`;
+    // `replace` is what re-extracting a prefab means: same asset, new contents. Deduping
+    // instead would write `<name>-1.esprefab` and leave every instance in the project
+    // pointing at the stale one — a silent no-op for the caller who asked for an update.
+    // The uuid is KEPT for the same reason: refs are by uuid, and a new one orphans them.
+    const existingUuid = opts?.replace ? this.pathToUuid.get(rel) : undefined;
+    if (!existingUuid) {
+      for (let n = 1; this.pathToUuid.has(rel); n++) rel = `assets/prefabs/${base}-${n}.esprefab`;
+    }
 
-    const uuid = crypto.randomUUID();
+    const uuid = existingUuid ?? crypto.randomUUID();
     try {
       await window.estella.fs.write(rel, JSON.stringify(prefab, null, 2) + '\n');
       await window.estella.fs.write(

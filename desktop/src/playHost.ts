@@ -185,6 +185,37 @@ function jsonMap(json: string | undefined): Record<string, number> {
  *  initRendererWithContext early-returns once the renderer is live, so the GL +
  *  EstellaContext are reused, not rebuilt — only the App + a fresh ECS Registry
  *  are new. */
+/**
+ * Tell the editor how fast the realm is actually running.
+ *
+ * "Playing" is not the same as "running frames": this realm is an out-of-process
+ * iframe, so Chromium throttles its rAF to about once a second whenever the window is
+ * not focused — and a driver that cannot see that reads the frozen result as a broken
+ * feature. The engine's own frame counter is read on a timer (timers survive that
+ * throttling), so the cost is one message every half second and nothing per frame.
+ */
+function startFrameHeartbeat(): void {
+    if (heartbeat != null) return;
+    let lastFrames = 0;
+    let lastAt = performance.now();
+    heartbeat = setInterval(() => {
+        const time = app?.getResourceByName('Time') as { frameCount?: number } | undefined;
+        const frames = time?.frameCount ?? 0;
+        const now = performance.now();
+        const seconds = (now - lastAt) / 1000;
+        post({
+            type: 'estella:play:frames',
+            frameCount: frames,
+            fps: seconds > 0 ? Math.round(((frames - lastFrames) / seconds) * 10) / 10 : 0,
+        });
+        lastFrames = frames;
+        lastAt = now;
+    }, HEARTBEAT_MS) as unknown as number;
+}
+
+const HEARTBEAT_MS = 500;
+let heartbeat: number | null = null;
+
 async function buildAppAndRun(msg: InitMessage): Promise<void> {
   const module = engineModule!;
   app = createWebApp(module, {
@@ -232,6 +263,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   // main-process frame eval, and the eval needs SOMETHING to query. getComponent
   // lets a probe read component data by name (world.get needs the def).
   (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app, getComponent };
+  startFrameHeartbeat();
 
   // Surface a failed handshake as a boot error rather than a silent
   // half-session (the app keeps running; the role reverted to offline).

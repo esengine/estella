@@ -216,8 +216,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Patch the project's physics feature (Project Settings → Physics). */
     setPhysics: (patch: Record<string, unknown>) => ProjectStore.setPhysics(patch),
     /** Create a blank scene FILE under `destDir` (Content Browser "New Scene"). */
-    createSceneFile: (destDir: string, name?: string | null) =>
-      ProjectStore.createSceneFile(destDir, name ?? undefined),
+    createSceneFile: (destDir: string, name?: string | null, opts?: { overwrite?: boolean }) =>
+      ProjectStore.createSceneFile(destDir, name ?? undefined, opts),
     /**
      * Extract an entity's subtree into a `.esprefab` asset (the Outliner's Create
      * Prefab), returning its `@uuid:` ref.
@@ -228,7 +228,8 @@ if (new URLSearchParams(location.search).has('automation')) {
      * data and asset refs are serialized by the code that owns that format rather
      * than by a caller guessing at it.
      */
-    createPrefabFromEntity: (id: number) => ProjectStore.createPrefabFromEntity(id),
+    createPrefabFromEntity: (id: number, opts?: { replace?: boolean }) =>
+      ProjectStore.createPrefabFromEntity(id, opts),
     /** The Create-popover catalog: every ready-made entity the editor can spawn —
      *  including the open project's own components and prefabs, so automation sees
      *  the same list a person does. */

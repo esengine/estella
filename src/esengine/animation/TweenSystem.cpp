@@ -34,6 +34,13 @@ void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
         if (tween.delay > 0.0f) {
             tween.delay -= deltaTime;
             if (tween.delay > 0.0f) {
+                // HOLD the start value while waiting, rather than leaving the target
+                // wherever it was. `from` is what the caller said the tween starts at,
+                // and a delay is "start later", not "start elsewhere" — without this a
+                // staggered entrance sits in its final place and only then jumps out to
+                // animate in. It also keeps UI layout off the animated axis for the
+                // whole wait, since the override flag is set by the write.
+                applyValue(registry, tween, tween.from_value);
                 continue;
             }
             deltaTime = -tween.delay;
@@ -98,6 +105,11 @@ Entity TweenSystem::createTween(ecs::Registry& registry, Entity targetEntity,
     tween.duration = duration;
     tween.easing = easing;
     tween.state = TweenState::Running;
+    // Take the start value NOW, not on the next update: a tween created after this
+    // frame's tween pass would otherwise leave one frame showing the target where it
+    // was — and for an entrance, where it was IS where the tween is taking it, so the
+    // motion appears to play, stop, and play again.
+    applyValue(registry, tween, from);
     return tweenEntity;
 }
 

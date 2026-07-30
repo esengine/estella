@@ -136,4 +136,8 @@ export type PlayInbound =
   | { type: 'estella:play:ready'; phases?: Record<string, number> }
   | { type: 'estella:play:error'; message: string }
   | { type: 'estella:play:log'; level: PlayLogLevel; line: string }
+  // How fast the realm is actually running. "Playing" and "running frames" are not the
+  // same thing — an unfocused window has its realm's rAF throttled to about 1 Hz — and
+  // a driver reading a frozen game needs to be able to tell those apart.
+  | { type: 'estella:play:frames'; frameCount: number; fps: number }
   | { type: 'estella:play:reply'; reqId: number; data: unknown };

@@ -264,3 +264,35 @@ describe('the prefab-mode doors', () => {
     expect(res.content[0].text).toMatch(/not part of a prefab instance/);
   });
 });
+
+describe('re-running an authoring step is not a new asset', () => {
+  it('create_scene_file passes the overwrite decision down, defaulting to refusing', async () => {
+    const driver = Object.assign(vi.fn(async () => '"assets/scenes/shop.esscene"'), {
+      js: vi.fn(async () => '"assets/scenes/shop.esscene"'),
+    });
+    const tool = TOOLS.find((t: { name: string }) => t.name === 'create_scene_file');
+
+    await runTool(tool, driver, { destDir: 'assets/scenes', name: 'shop' });
+    expect(driver.js.mock.calls[0][0]).toContain('{"overwrite":false}');
+
+    await runTool(tool, driver, { destDir: 'assets/scenes', name: 'shop', overwrite: true });
+    expect(driver.js.mock.calls[1][0]).toContain('{"overwrite":true}');
+  });
+
+  it('create_prefab_from_entity can replace the asset it already named', async () => {
+    const driver = Object.assign(vi.fn(async () => '"@uuid:x"'), { js: vi.fn(async () => '"@uuid:x"') });
+    const tool = TOOLS.find((t: { name: string }) => t.name === 'create_prefab_from_entity');
+
+    await runTool(tool, driver, { entity: 7, replace: true });
+    expect(driver.js.mock.calls[0][0]).toContain('createPrefabFromEntity(7, {"replace":true})');
+  });
+
+  it('refresh_assets is a plain renderer call — the scan a batch import needs', async () => {
+    const driver = Object.assign(vi.fn(async () => 'true'), { js: vi.fn(async () => 'true') });
+    const tool = TOOLS.find((t: { name: string }) => t.name === 'refresh_assets');
+    expect(tool).toBeTruthy();
+
+    await runTool(tool, driver, {});
+    expect(driver.js.mock.calls[0][0]).toContain('refreshAssets()');
+  });
+});
