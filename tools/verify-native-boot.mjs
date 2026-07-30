@@ -24,6 +24,14 @@
  *   node tools/verify-native-boot.mjs --platform android --examples all
  *   node tools/verify-native-boot.mjs --platform android --examples all --shard 1/3
  *
+ * For a compatibility run — the same APK on one emulator per Android version —
+ * `--no-frame-judge` drops the pixel question entirely and `--metrics-out` files
+ * what the launch cost, so the versions can be compared and the frames reviewed
+ * by someone. There, a dark frame is a thing to look at, not a thing to fail on:
+ *
+ *   node tools/verify-native-boot.mjs --platform android --apk game.apk \
+ *       --label api29 --no-frame-judge --metrics-out build/compat/api29.json
+ *
  * `--examples` packages each project the way the editor's Package dialog does and
  * runs the same two questions against every one, on ONE booted device: booting is
  * minutes and each app is seconds, so a device per example would spend the whole
@@ -78,10 +86,15 @@ function parseArgs(argv) {
         minColors: 2,
         out: path.join(ROOT, 'build', 'native-boot'),
         template: path.join(ROOT, 'template'),
+        // Names the artifacts. One compatibility job per Android version writes
+        // into a directory the PR comment reads as a whole, so the version has to
+        // be in the filename or eight runs land on top of each other.
+        label: 'app',
     };
     for (let i = 0; i < argv.length; i++) {
         const key = argv[i].replace(/^--/, '');
         if (key === 'allow-skip') { opts.allowSkip = true; continue; }
+        if (key === 'no-frame-judge') { opts.frameJudge = false; continue; }
         opts[key.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
     }
     opts.timeout = Number(opts.timeout);
@@ -115,10 +128,39 @@ function quietly(what, cmd, args) {
 // Android — adb against whatever emulator or phone is attached
 // =============================================================================
 
+/** `+1s234ms`, `+834ms` — how the platform writes a launch duration. */
+function launchDuration(text) {
+    const m = /\+(?:(\d+)m)?(?:(\d+)s)?(\d+)ms/.exec(text ?? '');
+    if (!m) return null;
+    return Number(m[1] ?? 0) * 60_000 + Number(m[2] ?? 0) * 1000 + Number(m[3]);
+}
+
+const firstNumber = (re, text) => {
+    const m = re.exec(text ?? '');
+    return m ? Number(m[1]) : null;
+};
+
+/**
+ * utime+stime for a pid, in clock ticks.
+ *
+ * `comm` is parenthesised and may itself contain spaces and parentheses, so the
+ * positional fields start after the LAST `)` — splitting the whole line on
+ * whitespace misreads any process whose name has a space in it.
+ */
+function cpuTicks(adb, pid) {
+    const stat = trySh(adb, ['shell', 'cat', `/proc/${pid}/stat`]).stdout ?? '';
+    const fields = stat.slice(stat.lastIndexOf(')') + 1).trim().split(/\s+/);
+    if (fields.length < 13) return null;
+    const utime = Number(fields[11]);
+    const stime = Number(fields[12]);
+    return Number.isFinite(utime + stime) ? utime + stime : null;
+}
+
 function androidDriver(opts) {
     const adb = process.env.ANDROID_HOME
         ? path.join(process.env.ANDROID_HOME, 'platform-tools', 'adb') : 'adb';
     const logFile = `/sdcard/Android/data/${APP_ID}/files/${LOG_NAME}`;
+    let lastReadError = '';
 
     return {
         name: 'android',
@@ -144,6 +186,14 @@ function androidDriver(opts) {
         prepare() {
             trySh(adb, ['shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1']);
             trySh(adb, ['shell', 'settings', 'put', 'global', 'anr_show_background', '0']);
+            // The boot record lives in the app's external files directory, which
+            // scoped storage put out of the shell user's reach — on API 30 the game
+            // ran, drew, and reported "never reported ready", because the reader
+            // could not open a file that was there. An emulator image is userdebug,
+            // so take root ONCE here rather than inside the loop that polls the
+            // file. A device that refuses simply stays unrooted and the read falls
+            // back to saying why it failed.
+            if (trySh(adb, ['root']).status === 0) trySh(adb, ['wait-for-device']);
         },
         install(apk) {
             trySh(adb, ['uninstall', APP_ID]);
@@ -152,8 +202,11 @@ function androidDriver(opts) {
             trySh(adb, ['shell', 'rm', '-f', logFile]);
             trySh(adb, ['logcat', '-c']);
         },
+        // `-W` makes this wait for the launch to finish and print what it cost, so
+        // the timing comes from the platform's own measurement rather than from a
+        // stopwatch around adb — which would also be timing adb.
         launch() {
-            sh(adb, ['shell', 'am', 'start', '-W', '-n', `${APP_ID}/android.app.NativeActivity`]);
+            return sh(adb, ['shell', 'am', 'start', '-W', '-n', `${APP_ID}/android.app.NativeActivity`]);
         },
         stop() {
             trySh(adb, ['shell', 'am', 'force-stop', APP_ID]);
@@ -161,6 +214,12 @@ function androidDriver(opts) {
         // Counting colors on a SCREEN, not on the game: an emulator that pops
         // "Pixel Launcher isn't responding" over a black app hands the check a
         // dialog full of colors and it calls that a rendered frame.
+        /** Has the launch already died? `am start -W` waits for the launch to
+         *  finish, so by the time this is asked the process either exists or is
+         *  gone for good. */
+        died() {
+            return !trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim();
+        },
         foreground() {
             const out = trySh(adb, ['shell', 'dumpsys', 'activity', 'activities']).stdout ?? '';
             const line = out.split('\n').find((l) => /ResumedActivity/.test(l));
@@ -172,13 +231,135 @@ function androidDriver(opts) {
         },
         readLog() {
             const got = trySh(adb, ['shell', 'cat', logFile]);
+            // Why it failed, kept for the diagnostics. "No such file" (the app never
+            // got that far) and "Permission denied" (it did, and this cannot see it)
+            // are opposite conclusions that both arrive here as an empty string, and
+            // one of them spent a run looking like a broken Android version.
+            lastReadError = got.status === 0 ? '' : `${got.stderr ?? ''}`.trim();
             return got.status === 0 ? got.stdout : '';
         },
         screenshot() {
             return execFileSync(adb, ['exec-out', 'screencap', '-p'], { maxBuffer: 64 * 1024 * 1024 });
         },
+        /**
+         * What the run cost on THIS platform version, read while the app is still
+         * up — every number here is gone the moment the process is.
+         *
+         * A field this version cannot answer for is `null`, never 0: the whole
+         * point is comparing one Android release against another, and a zero
+         * would read as "free" rather than "not measurable here". `notes` says
+         * which ones those were, so a gap in the table is explained rather than
+         * looking like a regression.
+         */
+        async metrics(launchOutput) {
+            const notes = [];
+            // The DEVICE first, before anything that depends on the app being
+            // alive. Read after the early return below, the one row that matters
+            // most — the version that crashed — came out labelled "Android ? (API
+            // ?)", which is the row a reader needs the version on.
+            const device = {
+                api: Number(trySh(adb, ['shell', 'getprop', 'ro.build.version.sdk']).stdout.trim()) || null,
+                release: trySh(adb, ['shell', 'getprop', 'ro.build.version.release']).stdout.trim() || null,
+                renderer: /GLES:\s*(.+)/.exec(
+                    trySh(adb, ['shell', 'dumpsys', 'SurfaceFlinger']).stdout ?? '')?.[1]?.trim() ?? null,
+            };
+            const pid = trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim().split(/\s+/)[0] || null;
+
+            const startup = {
+                // TotalTime is the activity reaching drawable; WaitTime adds the
+                // system's own work before it got there.
+                totalMs: firstNumber(/^TotalTime:\s*(\d+)/m, launchOutput),
+                waitMs: firstNumber(/^WaitTime:\s*(\d+)/m, launchOutput),
+                // The tag is ActivityTaskManager from API 29 and ActivityManager
+                // below it, so both are asked for rather than branching on version.
+                displayedMs: launchDuration(
+                    (trySh(adb, ['logcat', '-d', '-s', 'ActivityTaskManager:I', 'ActivityManager:I']).stdout ?? '')
+                        .split('\n').filter((l) => l.includes('Displayed') && l.includes(APP_ID)).pop()),
+                readyMs: null,   // the caller fills this from the boot record
+            };
+
+            if (!pid) {
+                notes.push('the process was gone before anything could be sampled');
+                return { ...device, startup, memory: null, cpu: null, frames: null, notes };
+            }
+
+            const meminfo = trySh(adb, ['shell', 'dumpsys', 'meminfo', APP_ID]).stdout ?? '';
+            // The colon is optional because the same figure is labelled both ways in
+            // one dumpsys: the per-process table writes "Native Heap    1234" and
+            // the App Summary below it writes "Native Heap:    1234". Requiring
+            // whitespace after the label found neither Graphics nor Native Heap, so
+            // Dawn's Vulkan allocations read as "—" on every version.
+            const memRow = (label) => firstNumber(new RegExp(`^\\s*${label}:?\\s+(\\d+)`, 'm'), meminfo);
+            const memory = {
+                // "TOTAL PSS:" is the App Summary line on API 29+; older releases
+                // label the same figure "TOTAL" in the table above it.
+                totalPssKb: firstNumber(/^\s*TOTAL PSS:\s*(\d+)/m, meminfo) ?? memRow('TOTAL'),
+                nativeHeapKb: memRow('Native Heap'),
+                // Dawn's Vulkan allocations land here, not in Native Heap — which is
+                // why a renderer regression is invisible in the heap figure alone.
+                graphicsKb: memRow('Graphics'),
+                vmHwmKb: firstNumber(/^VmHWM:\s*(\d+)/m,
+                    trySh(adb, ['shell', 'cat', `/proc/${pid}/status`]).stdout),
+            };
+            if (memory.totalPssKb === null) notes.push('dumpsys meminfo named no total this version parses');
+
+            const ticksPerSec = Number(trySh(adb, ['shell', 'getconf', 'CLK_TCK']).stdout.trim()) || 100;
+            const before = cpuTicks(adb, pid);
+            const threads = firstNumber(/^Threads:\s*(\d+)/m,
+                trySh(adb, ['shell', 'cat', `/proc/${pid}/status`]).stdout);
+            let cpu = null;
+            if (before === null) {
+                notes.push('/proc is not readable for another uid on this version — no CPU figure');
+            } else {
+                const windowMs = 2000;
+                await sleep(windowMs);
+                const after = cpuTicks(adb, pid);
+                cpu = after === null ? null : {
+                    percent: Math.round(((after - before) / ticksPerSec) / (windowMs / 1000) * 1000) / 10,
+                    threads,
+                    windowMs,
+                };
+            }
+
+            // SurfaceFlinger, not `dumpsys gfxinfo`: gfxinfo reports HWUI, and a
+            // NativeActivity drawing to its own ANativeWindow through Vulkan never
+            // touches HWUI, so gfxinfo's framestats for this app are empty.
+            let frames = null;
+            const layer = (trySh(adb, ['shell', 'dumpsys', 'SurfaceFlinger', '--list']).stdout ?? '')
+                .split('\n').map((l) => l.trim()).filter((l) => l.includes(APP_ID)).pop();
+            if (!layer) {
+                notes.push('SurfaceFlinger listed no layer for the app — no frame timing');
+            } else {
+                const raw = trySh(adb, ['shell', 'dumpsys', 'SurfaceFlinger', '--latency', `'${layer}'`]).stdout ?? '';
+                const lines = raw.trim().split('\n');
+                const refreshNs = Number(lines[0]);
+                // Three timestamps a row; the middle one is actual present. A pending
+                // frame is reported as INT64_MAX and a dropped one as 0 — both are
+                // "no measurement", not a zero-length frame.
+                const present = lines.slice(1)
+                    .map((l) => Number(l.trim().split(/\s+/)[1]))
+                    .filter((n) => Number.isFinite(n) && n > 0 && n < 9.2e18);
+                const gaps = present.slice(1).map((n, i) => (n - present[i]) / 1e6).filter((ms) => ms > 0);
+                gaps.sort((a, b) => a - b);
+                frames = gaps.length < 2 ? null : {
+                    count: gaps.length + 1,
+                    medianMs: Math.round(gaps[Math.floor(gaps.length / 2)] * 100) / 100,
+                    p95Ms: Math.round(gaps[Math.floor(gaps.length * 0.95)] * 100) / 100,
+                    refreshHz: Number.isFinite(refreshNs) && refreshNs > 0
+                        ? Math.round(1e9 / refreshNs) : null,
+                };
+                if (!frames) notes.push('SurfaceFlinger had too few presented frames to time');
+            }
+
+            return { ...device, startup, memory, cpu, frames, notes };
+        },
         diagnostics() {
             return [
+                // First, because an unreadable record is a different failure from an
+                // unwritten one and the report cannot tell them apart on its own.
+                ['reading the boot record', lastReadError
+                    ? `${lastReadError}\n${trySh(adb, ['shell', 'ls', '-l', path.posix.dirname(logFile)]).stdout ?? ''}`
+                    : ''],
                 ['logcat (EstellaSDK)', trySh(adb, ['logcat', '-d', '-s', 'EstellaSDK:*']).stdout],
                 ['logcat (crashes)', trySh(adb, ['logcat', '-d', '-b', 'crash']).stdout],
             ];
@@ -294,15 +475,23 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
 
     let log = '';
     let offScreen = null;
+    let launchOutput = '';
     // One retry, because a system dialog stealing focus is the emulator having a
     // bad minute, not the game being broken — and a gate that reds on that gets
     // ignored within a week.
     for (let attempt = 0; attempt < 2; attempt++) {
-        driver.launch();
+        launchOutput = driver.launch() ?? '';
         const deadline = Date.now() + opts.timeout * 1000;
         while (Date.now() < deadline) {
             log = driver.readLog();
             if (log.includes(READY)) break;
+            // A launch that is already dead will not report ready in another two
+            // minutes. Sitting out the full timeout twice turned each crashing
+            // version into seven minutes of waiting for nothing, which is what
+            // pushed the slower emulators past the job cap and cost the matrix a
+            // version per run — reported as "no data" on a version that had in
+            // fact crashed, which is the wrong answer twice over.
+            if (driver.died?.()) break;
             await sleep(2000);
         }
         // `ready` is the first frame submitted; presenting it is not instant.
@@ -318,24 +507,33 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     const shot = path.join(opts.out, `${driver.name}-${label}.png`);
     writeFileSync(shot, frame);
     writeFileSync(path.join(opts.out, `${driver.name}-${label}.log`), log);
+
+    // Before stop(): a dead process has no memory, no threads and no layer.
+    const metrics = driver.metrics ? await driver.metrics(launchOutput) : null;
     driver.stop();
 
     const image = decodePng(frame);
     const colors = distinctColors(image);
     const ready = log.includes(READY);
     const readyLine = log.split('\n').find((l) => l.includes(READY))?.trim() ?? '';
+    if (metrics) metrics.startup.readyMs = firstNumber(/ready in (\d+) ms/, readyLine);
     // The record already carries structured errors, and they say far more than a
     // pixel count can: drawing-demo drew a black screen because a resize sent
     // es_onNativeVisibility into infinite recursion, and the record said so.
     const errors = log.split('\n').filter((l) => l.startsWith('ERROR ['));
 
+    // `--no-frame-judge` turns the pixel question off entirely: a compatibility
+    // run compares one Android version against another, and the frame is there to
+    // be LOOKED AT, not counted. Counting colors would red the run on a scene that
+    // is legitimately dark and still say nothing about what a reviewer can see.
+    const countColors = judgeFrame && opts.frameJudge !== false;
     const why = !ready ? 'never reported ready'
         : offScreen ? `the game was not on screen — ${offScreen}`
             : errors.length ? errors[0].trim()
-                : (judgeFrame && colors < opts.minColors) ? `the frame is ${colors} flat color` : '';
+                : (countColors && colors < opts.minColors) ? `the frame is ${colors} flat color` : '';
 
     return {
-        ok: !why, ready, colors, readyLine, errors, offScreen,
+        ok: !why, ready, colors, readyLine, errors, offScreen, metrics,
         size: `${image.width}x${image.height}`, log, shot, why,
     };
 }
@@ -421,10 +619,25 @@ if (!opts.examples) {
         console.error(`✗ no ${driver.name} app to verify (pass --${driver.artifactFlag} <path>)`);
         process.exit(2);
     }
-    const r = await verifyApp(driver, artifact, 'app', opts);
+    const r = await verifyApp(driver, artifact, opts.label, opts);
     console.log(`boot record: ${r.ready ? r.readyLine : 'never reached "ready in"'}`);
-    console.log(`frame:       ${r.size}, ${r.colors} distinct colors (need ${opts.minColors})`);
+    console.log(`frame:       ${r.size}${opts.frameJudge === false ? '' : `, ${r.colors} distinct colors (need ${opts.minColors})`}`);
     console.log(`written:     ${r.shot}`);
+    if (r.metrics) console.log(`metrics:\n${JSON.stringify(r.metrics, null, 2)}`);
+
+    // Written whether or not the launch worked. A version that crashes is the
+    // result a compatibility matrix most needs to report, and a run that files
+    // nothing leaves a hole in the table that reads like the job never ran.
+    if (opts.metricsOut) {
+        mkdirSync(path.dirname(opts.metricsOut), { recursive: true });
+        writeFileSync(opts.metricsOut, `${JSON.stringify({
+            label: opts.label, device, ok: r.ok, why: r.why, ready: r.ready,
+            readyLine: r.readyLine, errors: r.errors, shot: path.basename(r.shot),
+            ...r.metrics,
+        }, null, 2)}\n`);
+        console.log(`metrics written: ${opts.metricsOut}`);
+    }
+
     if (r.ok) {
         console.log(`\n✓ ${driver.name}: the packaged game started and drew a frame`);
         process.exit(0);

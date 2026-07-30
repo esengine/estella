@@ -28,7 +28,7 @@ import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
  *  smaller page size also divides. */
 const PAGE_ALIGNMENT = 16384;
 
-/** APK Signature Scheme v2. minSdk 26 is well past the API 24 that introduced it,
+/** APK Signature Scheme v2. minSdk 29 is well past the API 24 that introduced it,
  *  so v1 (JAR signing) would be dead weight — and its PKCS#7 is the only part of
  *  APK signing that is genuinely hard to write. */
 const V2_BLOCK_ID = 0x7109871a;
