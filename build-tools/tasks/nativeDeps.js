@@ -145,7 +145,7 @@ export async function ensureDawnBuild(options) {
         ? [
             `-DCMAKE_TOOLCHAIN_FILE=${path.join(options.ndk, 'build', 'cmake', 'android.toolchain.cmake')}`,
             `-DANDROID_ABI=${options.abi || 'arm64-v8a'}`,
-            `-DANDROID_PLATFORM=${options.androidPlatform || 'android-33'}`,
+            `-DANDROID_PLATFORM=${options.androidPlatform || 'android-29'}`,
             '-DANDROID_STL=c++_shared',
             '-DDAWN_ENABLE_VULKAN=ON', '-DDAWN_ENABLE_METAL=OFF',
             // Shared on Android (the APK ships the .so); static on iOS (an app

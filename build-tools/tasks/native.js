@@ -312,7 +312,14 @@ function quickjsDir(options) {
 const fwd = (p) => p.replace(/\\/g, '/');
 
 async function buildAndroidHost(options) {
-    const { abi = 'arm64-v8a', platform = 'android-33' } = options;
+    // The platform MUST equal the manifest's minSdkVersion. The NDK emits a weak
+    // reference for an API newer than the target and a strong one otherwise, and
+    // `__builtin_available` is compiled out in the second case — so building above
+    // the declared floor turns every guard into dead code and every guarded symbol
+    // into a load-time requirement. At android-33 that shipped a host which could
+    // not dlopen below API 31: `cannot locate symbol APerformanceHint_getManager`,
+    // on Android 10 and 11, before a line of our code ran.
+    const { abi = 'arm64-v8a', platform = 'android-29' } = options;
     const rootDir = config.paths.root;
 
     const sdk = requireSdk();

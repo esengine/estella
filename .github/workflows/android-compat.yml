@@ -167,7 +167,12 @@ jobs:
           if [ -z "$WANT" ] || [ "$WANT" = 'auto' ]; then
             if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
               CHANGED=$(gh pr diff '${{ github.event.pull_request.number }}' --name-only)
-              if echo "$CHANGED" | grep -qE '^(native/|toolchain\.manifest\.json)'; then
+              # build-tools/ counts: the API level the host compiles against is a
+              # DEFAULT in build-tools, not a value in native/. The change that fixed
+              # the Android 10 crash touched nothing under native/, so a rule that
+              # watched only native/ would have tested the old released binary and
+              # reported the fix as not working.
+              if echo "$CHANGED" | grep -qE '^(native/|build-tools/|toolchain\.manifest\.json)'; then
                 WANT=head
                 echo "this PR touches the native host — the template must be built from it"
               else

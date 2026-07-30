@@ -167,7 +167,7 @@ program
     .option('--dawn-build <dir>', 'Dawn build dir for this target (default: <dawn>/out-<target>, built if absent)')
     .option('--quickjs <dir>', 'QuickJS-ng source dir (default: the pinned checkout; or ESTELLA_QUICKJS_DIR)')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
-    .option('--platform <platform>', 'Android platform', 'android-33')
+    .option('--platform <platform>', 'Android platform', 'android-29')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
     .option('--package', 'Assemble the app around --content from the installed runtime template: Android a signed APK, iOS an Xcode project', false)

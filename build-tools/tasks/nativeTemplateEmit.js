@@ -200,7 +200,7 @@ export async function emitNativeTemplate(options) {
         spineVersion: options.spineVersion || '4.2',
         ...(platform === 'ios' ? { deploymentTarget: options.deploymentTarget || '17.0' } : {}),
         ...(platform === 'android'
-            ? { androidPlatform: options.androidPlatform || 'android-33', abis: templateAbis(dir) }
+            ? { androidPlatform: options.androidPlatform || 'android-29', abis: templateAbis(dir) }
             : {}),
     });
 
