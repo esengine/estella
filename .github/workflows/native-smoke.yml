@@ -1,0 +1,211 @@
+name: Native smoke
+
+# Do games packaged from the runtime templates actually start?
+#
+# `verify-template` reads what an archive carries, which is a weaker claim than it
+# sounds: v0.36.0's Android template carried a host that ran, and every game made
+# from it still opened on a black screen. This packages every example around the
+# template the same way the editor's Package dialog does, installs each on a
+# simulator, and asks the two questions a completeness check cannot — did the boot
+# record reach "ready", and is the frame more than one flat color.
+#
+# Booting a device is minutes and each app is seconds, so one device runs many
+# examples and the SET is sharded across jobs. A job per example would spend its
+# whole budget starting emulators.
+#
+# A simulator is not a phone. Real GPU drivers, real compressed textures, thermal
+# throttling and memory pressure are all outside what this can see, and the two
+# Android rendering bugs this project has actually shipped were of that kind. What
+# this catches is the layer under them: templates that cannot produce a launching
+# app at all, on any device.
+
+on:
+  workflow_dispatch:
+    inputs:
+      template-tag:
+        description: "Release tag to take the templates from (blank = this run's own artifacts, or the latest release when run by hand)."
+        required: false
+        type: string
+      examples:
+        description: 'Comma-separated example names, or blank for every one.'
+        required: false
+        default: ''
+        type: string
+  workflow_call:
+    inputs:
+      template-tag:
+        required: false
+        default: ''
+        type: string
+      examples:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # Pinned, because "whatever the runner listed first" is a device nobody chose:
+  # a runner image update would silently move the test to another phone. A name
+  # that stops existing fails loudly, listing what the image does have.
+  IOS_DEVICE: iPhone 17 Pro
+  # The action's default profile is 640x320 — enough to prove a launch, useless
+  # for looking at.
+  ANDROID_PROFILE: pixel_6
+  ANDROID_API: '34'
+
+jobs:
+  android:
+    name: Android ${{ matrix.shard }}/3
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      # Called from the release pipeline the templates are this run's artifacts;
+      # run by hand there are none, so a blank tag means the newest release rather
+      # than a download that fails saying nothing was uploaded.
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.template-tag }}
+        run: |
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "no tag given — taking the templates from the latest release, $TAG"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Take the template from the release
+        if: steps.src.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ steps.src.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-android-*.zip' -D templates
+
+      - name: Take the template from this run
+        if: steps.src.outputs.tag == ''
+        uses: actions/download-artifact@v8
+        with:
+          name: native-template-android
+          path: templates
+
+      # Under release strictness, so this never packages around an archive the
+      # publish gate would reject anyway.
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template templates/*.zip
+          mkdir -p template
+          unzip -q templates/*.zip -d template
+
+      - name: Build the SDK the games are bundled against
+        run: pnpm --filter ./sdk build
+
+      # Without this the emulator falls back to software CPU emulation and the
+      # boot alone outlasts the job.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # The host is Dawn on Vulkan (the manifest requires it), which on a runner
+      # with no GPU means the emulator's bundled SwiftShader Vulkan.
+      - name: Package and boot every example in this shard
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ env.ANDROID_PROFILE }}
+          # Fourteen installs and launches in a row starve a default-sized AVD
+          # until its launcher stops responding, which is noise this has already
+          # had to filter once.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          script: >-
+            node tools/verify-native-boot.mjs --platform android --examples all
+            --shard ${{ matrix.shard }}/3
+            ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
+
+      - name: Keep the frames and the records
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-shots-${{ matrix.shard }}
+          path: build/native-boot
+          if-no-files-found: warn
+
+  ios:
+    name: iOS ${{ matrix.shard }}/3
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.template-tag }}
+        run: |
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "no tag given — taking the templates from the latest release, $TAG"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Take the template from the release
+        if: steps.src.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ steps.src.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-ios-*.zip' -D templates
+
+      - name: Take the template from this run
+        if: steps.src.outputs.tag == ''
+        uses: actions/download-artifact@v8
+        with:
+          name: native-template-ios
+          path: templates
+
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template templates/*.zip
+          mkdir -p template
+          unzip -q templates/*.zip -d template
+
+      - name: Build the SDK the games are bundled against
+        run: pnpm --filter ./sdk build
+
+      # Simulator slices need no signing identity, which is the whole reason this
+      # can run on a hosted runner at all.
+      - name: Package and boot every example in this shard
+        run: >-
+          node tools/verify-native-boot.mjs --platform ios --examples all
+          --device "$IOS_DEVICE" --shard ${{ matrix.shard }}/3
+          ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
+
+      - name: Keep the frames and the records
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-shots-${{ matrix.shard }}
+          path: build/native-boot
+          if-no-files-found: warn

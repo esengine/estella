@@ -1,0 +1,261 @@
+name: Mirror a release
+
+# A copy of a published release on Cloudflare R2, because GitHub's download speed
+# is the editor's download speed for anyone far from it — and a runtime template is
+# hundreds of megabytes.
+#
+# The mirror is a shortcut, never an authority: the editor checks every archive
+# against the size and digest the release's index states and falls back to GitHub
+# when a copy is missing, stale or wrong. That is what lets this run last, fail
+# without failing a release, and be pointed at a version published months ago.
+#
+# Two things at the bucket root are addressed by name rather than by version, so
+# that whoever reads them always gets the newest release without being told which
+# one that is: `latest.json` (the editor's update check, and the website's labels)
+# and `latest/` (the installers the website's download buttons link to).
+#
+# It runs when a release is PUBLISHED, not when a tag is pushed: this project's
+# pipeline uploads into a draft that a maintainer reviews, and a draft cannot be
+# downloaded by tag — the first run of this job found that out by failing with
+# "release not found". Publication is also the honest moment: what gets mirrored is
+# what people can already download.
+#
+# A maintainer can also run it by hand for any existing tag, which is how a release
+# from before the mirror existed gets one.
+#
+# Needs five secrets; without them every step skips and the release stays
+# GitHub-only: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
+# and R2_PUBLIC_BASE — the public URL the bucket is served on, which is what the
+# editor is pointed at (DEFAULT_RELEASE_MIRROR / ESTELLA_RELEASE_MIRROR).
+
+on:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag to mirror.
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to mirror (e.g. v0.33.0).'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Mirror ${{ inputs.tag || github.event.release.tag_name }} to Cloudflare R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check for a configured mirror
+        id: cfg
+        env:
+          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: echo "configured=${{ env.KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download every asset the release published
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          mkdir -p mirror
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir mirror --clobber
+          ls -la mirror
+
+      # `latest.json` is what the editor's update check reads: one small file at the
+      # root, so asking "is there a newer version?" costs one request and no API.
+      # Only the newest release may write it — mirroring an older tag by hand must
+      # not tell every editor to downgrade.
+      - name: Decide whether this tag is the latest
+        id: latest
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          newest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "newest release is $newest, mirroring $TAG"
+          echo "is_latest=$([ "$newest" = "$TAG" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # The same layout the origin uses — v<version>/ holding that release's assets —
+      # so the editor swaps a base and changes nothing else.
+      - name: Sync to R2
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ secrets.R2_BUCKET }}
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          # The site's download section — a real page, unlike the bucket, which
+          # serves objects and has no index to land on.
+          SITE_DOWNLOAD: https://estellaengine.com/#download
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          IS_LATEST: ${{ steps.latest.outputs.is_latest }}
+        run: |
+          shopt -s nullglob
+          version="${TAG#v}"
+          base="${PUBLIC_BASE%/}"
+          aws s3 sync mirror "s3://$BUCKET/v$version/" --endpoint-url "$ENDPOINT" --no-progress
+
+          if [ "$IS_LATEST" != "true" ]; then
+            echo "not the newest release — leaving latest.json and latest/ alone"
+            exit 0
+          fi
+
+          # Stable aliases. The website links to latest/<installer>, which must
+          # keep working across releases without anyone editing a page — so each
+          # installer is copied (server-side, no re-upload) to a name that carries
+          # no version, and Content-Disposition puts the versioned name back on
+          # the file the moment it lands in someone's Downloads folder.
+          alias_to() {
+            src="$1"; dst="$2"
+            aws s3 cp "s3://$BUCKET/v$version/$(basename "$src")" "s3://$BUCKET/latest/$dst" \
+              --endpoint-url "$ENDPOINT" --no-progress \
+              --metadata-directive REPLACE \
+              --content-type application/octet-stream \
+              --content-disposition "attachment; filename=\"$(basename "$src")\"" \
+              --cache-control "max-age=300"
+          }
+
+          win=(mirror/*Setup*.exe)
+          mac=(mirror/*arm64.dmg)
+          downloads='{}'
+          if [ ${#win[@]} -gt 0 ]; then
+            alias_to "${win[0]}" 'Estella-Editor-Setup.exe'
+            downloads=$(jq -n --argjson d "$downloads" \
+              --arg url "$base/latest/Estella-Editor-Setup.exe" \
+              --arg name "$(basename "${win[0]}")" \
+              --argjson size "$(stat -c%s "${win[0]}")" \
+              '$d + {win: {url: $url, name: $name, size: $size}}')
+          fi
+          if [ ${#mac[@]} -gt 0 ]; then
+            alias_to "${mac[0]}" 'Estella-Editor-arm64.dmg'
+            downloads=$(jq -n --argjson d "$downloads" \
+              --arg url "$base/latest/Estella-Editor-arm64.dmg" \
+              --arg name "$(basename "${mac[0]}")" \
+              --argjson size "$(stat -c%s "${mac[0]}")" \
+              '$d + {"mac-arm64": {url: $url, name: $name, size: $size}}')
+          fi
+
+          # The updater's feed. electron-updater reads latest.yml / latest-mac.yml
+          # and then fetches the file each one NAMES, resolved against the same
+          # directory — so the channel files are copied beside the very files they
+          # name, under their real versioned basenames. Nothing is rewritten: the
+          # channel file the release published is the channel file served, sha512s
+          # and all, and a mirror that cannot restate a fact cannot get it wrong.
+          for f in mirror/latest*.yml mirror/*.exe mirror/*.dmg mirror/*.zip mirror/*.blockmap; do
+            aws s3 cp "s3://$BUCKET/v$version/$(basename "$f")" "s3://$BUCKET/latest/$(basename "$f")" \
+              --endpoint-url "$ENDPOINT" --no-progress \
+              --metadata-directive REPLACE --cache-control "max-age=300"
+          done
+
+          # Written last, and only for the newest release: an editor that reads
+          # latest.json must never be pointed at a version whose assets are still
+          # uploading, nor at an older one somebody re-mirrored. `version` and
+          # `url` are the editor's update check; `downloads` is what the website
+          # labels its buttons with, and what a current editor downloads from.
+          #
+          # `url` is the fallback for an editor that finds no installer for its own
+          # platform, so it has to be a PAGE. It used to be "$base/v$version/" —
+          # a bucket directory, which 404s: object storage has no directory index,
+          # so every update notification led to a Cloudflare error page.
+          jq -n --arg version "$version" --arg url "$SITE_DOWNLOAD" --argjson downloads "$downloads" \
+            '{version: $version, url: $url, downloads: $downloads}' > latest.json
+          cat latest.json
+          aws s3 cp latest.json "s3://$BUCKET/latest.json" \
+            --endpoint-url "$ENDPOINT" --cache-control "max-age=300"
+
+      # A feed that names a file nobody can fetch is an update that dies at the
+      # download — the failure the versioned-directory url already taught this
+      # project, one layer down. So every file the channel files name is asked for
+      # over the public base, and a miss fails the job.
+      #
+      # The names come from the copies on disk, not from re-reading the published
+      # channel file: that one is overwritten every release behind a 300s cache, and
+      # a stale body would name the PREVIOUS release's files and fail for a reason
+      # that has nothing to do with what was just uploaded.
+      - name: Prove the updater feed resolves
+        if: steps.cfg.outputs.configured == 'true' && steps.latest.outputs.is_latest == 'true'
+        env:
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+        run: |
+          base="${PUBLIC_BASE%/}"
+          shopt -s nullglob
+          channels=(mirror/latest*.yml)
+          if [ ${#channels[@]} -eq 0 ]; then
+            echo "::error::the release published no channel file — nothing can auto-update"
+            exit 1
+          fi
+          reachable() {
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -I "$1") || code=000
+            [ "$code" = "200" ] || { echo "::error::$1 answers $code"; return 1; }
+          }
+          checked=0
+          for channel in "${channels[@]}"; do
+            reachable "$base/latest/$(basename "$channel")" || exit 1
+            names=$(sed -nE 's/^[[:space:]]*-?[[:space:]]*(url|path):[[:space:]]*"?([^"]+)"?[[:space:]]*$/\2/p' "$channel" | sort -u)
+            if [ -z "$names" ]; then
+              echo "::error::$(basename "$channel") names no file to download"
+              exit 1
+            fi
+            for name in $names; do
+              reachable "$base/latest/$name" || exit 1
+              checked=$((checked + 1))
+            done
+          done
+          echo "updater feed OK — ${#channels[@]} channel file(s), $checked payload url(s) reachable"
+
+      # The website reads latest.json from a different origin than the bucket, so
+      # without this its version and size labels are blocked — the download links
+      # themselves are plain navigations and never were. Re-applied every run
+      # because it is one idempotent call, and never fatal: a mirror is a
+      # shortcut, and a page that cannot label a button still links to it.
+      - name: Allow the site to read latest.json
+        if: steps.cfg.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          aws s3api put-bucket-cors --bucket "$BUCKET" --endpoint-url "$ENDPOINT" \
+            --cors-configuration '{
+              "CORSRules": [{
+                "AllowedOrigins": ["https://estellaengine.com", "https://www.estellaengine.com"],
+                "AllowedMethods": ["GET", "HEAD"],
+                "AllowedHeaders": ["*"],
+                "ExposeHeaders": ["ETag", "Content-Length"],
+                "MaxAgeSeconds": 86400
+              }]
+            }'
+
+      - name: Report
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          echo "### Mirrored \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- assets: ${PUBLIC_BASE%/}/v$version/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- latest.json + latest/ aliases written: ${{ steps.latest.outputs.is_latest }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.latest.outputs.is_latest }}" = "true" ]; then
+            echo "- windows: ${PUBLIC_BASE%/}/latest/Estella-Editor-Setup.exe" >> "$GITHUB_STEP_SUMMARY"
+            echo "- macos:   ${PUBLIC_BASE%/}/latest/Estella-Editor-arm64.dmg" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Say why nothing happened
+        if: steps.cfg.outputs.configured != 'true'
+        run: echo "::notice::No R2 secrets configured — the release stays GitHub-only."

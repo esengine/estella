@@ -1,0 +1,438 @@
+name: Android compatibility
+
+# One APK, every Android version we claim to support.
+#
+# `native-smoke` asks whether the templates can produce a launching app at all,
+# and it asks it on ONE platform version — API 34. That leaves the failure this
+# exists for completely uncovered: a host that runs on the version CI happens to
+# boot and dies on the ones users have. A packaged game is built ONCE here and
+# installed on one emulator per Android release, so a version-specific break is
+# attributed to the version rather than to the build.
+#
+# The frames are collected to be LOOKED AT. There is deliberately no pixel
+# judgement: a scene that is legitimately dark and a renderer that died produce
+# the same dark PNG, and no threshold separates them. What this gates is what can
+# be decided without a human — did it install, did the host reach `ready`, did the
+# boot record name an error. Everything else is measured, tabulated, and left for
+# a reviewer.
+#
+# The version list is DISCOVERED from the runner's own system images rather than
+# written down, so a new Android release is picked up by the next run instead of
+# by whoever remembers to edit this file. Preview releases are named by codename
+# and are skipped on purpose — a matrix that reds on an unreleased platform gets
+# ignored within a week.
+#
+# What a hosted runner cannot see: real GPU drivers, compressed texture support,
+# thermal throttling and memory pressure. Dawn runs on the emulator's SwiftShader,
+# so the frame times are a CPU rasteriser's. Comparing versions against each other
+# is valid; reading any number here as device performance is not. The report says
+# so on every run rather than trusting anyone to remember it.
+
+on:
+  pull_request:
+    paths:
+      - 'native/**'
+      - 'build-tools/**'
+      - 'sdk/**'
+      - 'toolchain.manifest.json'
+      - '.github/workflows/android-compat.yml'
+      - 'tools/verify-native-boot.mjs'
+      - 'tools/android-compat-report.mjs'
+  workflow_dispatch:
+    inputs:
+      examples:
+        description: 'Comma-separated example names to package and run on every version.'
+        required: false
+        default: 'space-shooter'
+        type: string
+      api-floor:
+        description: 'Oldest API level to test (29 = Android 10).'
+        required: false
+        default: '29'
+        type: string
+      template-source:
+        description: 'Which runtime template to wrap: the latest release, this branch (~35 min), or decide from what the PR touches.'
+        required: false
+        default: auto
+        type: choice
+        options: [auto, release, head]
+
+permissions:
+  contents: read
+
+# One matrix per PR at a time. `paths` on a pull_request matches the PR's whole
+# diff, not the latest push, so every push re-runs all eight emulators — three
+# pushes queued twenty-four of them before this was here.
+concurrency:
+  group: android-compat-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Android 10. The manifest claims 26, which is a wider promise than anything
+  # here checks — raising this floor is a decision about what we support, so it is
+  # stated once, in one place, rather than implied by a matrix.
+  ANDROID_API_FLOOR: ${{ inputs.api-floor || '29' }}
+  ANDROID_PROFILE: pixel_6
+  CANARY_EXAMPLES: ${{ inputs.examples || 'space-shooter' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  versions:
+    name: Which Android versions can this runner boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - name: List the system images the SDK actually offers
+        id: find
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # Digits only, so preview platforms (android-Baklava and the like) are
+          # left out rather than reddening the matrix on an unreleased release.
+          AVAILABLE=$("$SDKMANAGER" --list 2>/dev/null \
+            | grep -oE 'system-images;android-[0-9]+;google_apis;x86_64' \
+            | grep -oE 'android-[0-9]+' | grep -oE '[0-9]+' | sort -un || true)
+
+          if [ -z "$AVAILABLE" ]; then
+            echo "::error::sdkmanager listed no google_apis;x86_64 system images at all."
+            exit 1
+          fi
+
+          LEVELS=$(echo "$AVAILABLE" | awk -v floor="$ANDROID_API_FLOOR" '$1 >= floor')
+          if [ -z "$LEVELS" ]; then
+            echo "::error::no system image at or above API $ANDROID_API_FLOOR. This runner has: $(echo $AVAILABLE | tr '\n' ' ')"
+            exit 1
+          fi
+
+          # The floor itself must exist. If the runner image stops carrying the
+          # oldest version we claim to support, that is a silent loss of coverage
+          # unless it fails here and says so.
+          if ! echo "$LEVELS" | grep -qx "$ANDROID_API_FLOOR"; then
+            echo "::error::API $ANDROID_API_FLOOR (the declared floor) has no system image on this runner. Available: $(echo $LEVELS | tr '\n' ' ')"
+            exit 1
+          fi
+
+          MATRIX=$(echo "$LEVELS" | jq -Rsc 'split("\n") | map(select(length > 0) | tonumber)')
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "count=$(echo "$LEVELS" | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "Testing API levels: $(echo $LEVELS | tr '\n' ' ')"
+
+  # ---------------------------------------------------------------------------
+  apk:
+    name: Package the canary example(s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      pull-requests: read   # to see which files the PR touches
+    outputs:
+      # Reported alongside the numbers: "the shipped binary" and "a build of this
+      # branch" are different claims, and a table that does not say which it made
+      # is a table nobody can act on.
+      template-from: ${{ steps.src.outputs.from }}
+    steps:
+      # Submodules only matter to a from-source build; the released template
+      # carries its libraries already. Fetched unconditionally because a
+      # conditional checkout is a second way for the two paths to diverge.
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, so a template built here
+      # needs it — and the export bundles the game against it either way.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      # Building the host takes ~35 minutes (Dawn, once per ABI) and produces
+      # something byte-for-byte irrelevant unless the host source actually changed.
+      # A released template was already built, on a machine that did nothing else,
+      # and it has the stronger claim besides: it is the binary users installed, so
+      # a crash reproduced against it is THE crash rather than a rebuild of it.
+      #
+      # So: from source only when this PR touches the host, and from the release
+      # otherwise. Getting this backwards is silent — a native fix "verified"
+      # against a template that predates it — hence the decision is logged.
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          WANT='${{ inputs.template-source }}'
+          if [ -z "$WANT" ] || [ "$WANT" = 'auto' ]; then
+            if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+              CHANGED=$(gh pr diff '${{ github.event.pull_request.number }}' --name-only)
+              if echo "$CHANGED" | grep -qE '^(native/|toolchain\.manifest\.json)'; then
+                WANT=head
+                echo "this PR touches the native host — the template must be built from it"
+              else
+                WANT=release
+                echo "this PR touches no native host source — using the released template"
+              fi
+            else
+              WANT=release
+            fi
+          fi
+          echo "from=$WANT" >> "$GITHUB_OUTPUT"
+
+      - name: Take the template from the latest release
+        if: steps.src.outputs.from == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "template from $TAG"
+          mkdir -p artifacts
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-android-*.zip' -D artifacts
+
+      - name: Read the native dependency pins
+        if: steps.src.outputs.from == 'head'
+        id: pins
+        run: |
+          node -e "const p=require('./toolchain.manifest.json').native;\
+            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+
+      # restore-keys without the pins, because a Dawn build for a DIFFERENT pin is
+      # still most of this one's object files. Note the release pipeline's own cache
+      # is written from a tag ref and is therefore unreachable from any branch —
+      # see the PR discussion; warming this from master is separate work.
+      - name: Cache the pinned checkouts + Dawn builds
+        if: steps.src.outputs.from == 'head'
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: native-deps-android-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+          restore-keys: native-deps-android-
+
+      - name: Set up the Android NDK
+        if: steps.src.outputs.from == 'head'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        if: steps.src.outputs.from == 'head'
+        run: node build-tools/cli.js native --fetch-deps
+
+      # BOTH ABIs, even though every emulator here is x86_64: ANDROID_ABIS names
+      # arm64-v8a and x86_64 as what a template must carry, and the emitter refuses
+      # an incomplete one. An x86_64-only build fails at the emit step, not at the
+      # compile — which is exactly how this was found.
+      - name: Build the Android runtime template from this branch
+        if: steps.src.outputs.from == 'head'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          node build-tools/cli.js native --abi arm64-v8a
+          node build-tools/cli.js native --abi x86_64 --template-out artifacts
+
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template artifacts/*.zip
+          mkdir -p template
+          unzip -q artifacts/*.zip -d template
+
+      # Packaged the way the editor's Package dialog does it, once: every version
+      # in the matrix installs the identical file, so a difference between two rows
+      # cannot be a difference between two builds.
+      - name: Package the canary example(s)
+        run: |
+          set -euo pipefail
+          mkdir -p apks
+          IFS=',' read -ra NAMES <<< "$CANARY_EXAMPLES"
+          for name in "${NAMES[@]}"; do
+            name=$(echo "$name" | xargs)
+            [ -z "$name" ] && continue
+            echo "::group::packaging $name"
+            node desktop/scripts/export-project.mjs "examples/$name" \
+              --platform android --template template \
+              --out "build/pkg/$name" --json "build/pkg/$name.json"
+            APK=$(node -e "process.stdout.write(require('./build/pkg/$name.json').apkFile || '')")
+            if [ -z "$APK" ]; then
+              echo "::error::the export of $name wrote no APK"
+              exit 1
+            fi
+            cp "$APK" "apks/$name.apk"
+            echo "::endgroup::"
+          done
+          ls -la apks
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: compat-apks
+          path: apks/*.apk
+          retention-days: 3
+
+  # ---------------------------------------------------------------------------
+  compat:
+    name: Android API ${{ matrix.api }}
+    needs: [versions, apk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # A compatibility matrix whose whole output is "which versions work" must
+      # run every version even after one fails. fail-fast here would report the
+      # oldest break and hide everything above it.
+      fail-fast: false
+      matrix:
+        api: ${{ fromJSON(needs.versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: compat-apks
+          path: apks
+
+      # Without KVM the emulator falls back to software CPU emulation and the boot
+      # alone outlasts the job.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install, launch and measure on API ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ env.ANDROID_PROFILE }}
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          # ONE line, because this action runs `script` as a separate `sh -c` per
+          # line: a loop written here arrives split and dies on its own `do`, and
+          # nothing set on one line is visible on the next. The work lives in a
+          # file that can also be run by hand.
+          script: bash tools/android-compat-run.sh ${{ matrix.api }}
+
+      - name: Keep the frame, the record and the numbers
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compat-api${{ matrix.api }}
+          path: build/compat
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  report:
+    name: Report into the PR
+    needs: [versions, apk, compat]
+    # always(): the versions that FAILED are the rows this report exists to show.
+    # A summariser that only runs on success reports exactly the case nobody needs.
+    if: always() && needs.versions.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write        # publishes the frames to a branch the PR can render
+      pull-requests: write   # posts the table
+    steps:
+      - uses: actions/checkout@v7
+
+      # The report itself is node builtins only, but the toolchain version it runs
+      # under is this action's to decide, not the runner image's.
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: compat-api*
+          path: build/compat
+
+      # A fork's token is read-only, so neither the push nor the comment can work.
+      # Say that in the log and still build the report, rather than failing with a
+      # permissions error that looks like a broken workflow.
+      - name: Can this run write to the repo
+        id: writable
+        run: |
+          if [ "${{ github.event_name }}" = 'pull_request' ] \
+             && [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "same-repo=false" >> "$GITHUB_OUTPUT"
+            echo "PR is from a fork — the token cannot push frames or comment."
+          else
+            echo "same-repo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # GitHub renders an image in a comment only from a URL. Artifacts have none,
+      # so the frames go to an orphan branch and are referenced from there. The
+      # github.com/raw form (not raw.githubusercontent) is used because it resolves
+      # for a signed-in reviewer even when the repository is private.
+      - name: Publish the frames where the PR can show them
+        id: shots
+        if: steps.writable.outputs.same-repo == 'true'
+        env:
+          BRANCH: ci-android-shots
+          DEST: pr-${{ github.event.pull_request.number || 'dispatch' }}/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob globstar
+          FRAMES=(build/compat/**/*.png)
+          if [ ${#FRAMES[@]} -eq 0 ]; then
+            echo "no frames were captured — nothing to publish"
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$BRANCH:$BRANCH"
+            git worktree add shots "$BRANCH"
+          else
+            git worktree add --detach shots
+            git -C shots checkout --orphan "$BRANCH"
+            git -C shots rm -rf --cached . >/dev/null 2>&1 || true
+            rm -rf shots/* 2>/dev/null || true
+          fi
+          mkdir -p "shots/$DEST"
+          cp "${FRAMES[@]}" "shots/$DEST/"
+          git -C shots add -A
+          git -C shots commit -q -m "ci: android compat frames for ${DEST}"
+          git -C shots push -q origin "$BRANCH"
+          echo "base=https://github.com/${{ github.repository }}/raw/$BRANCH/$DEST" >> "$GITHUB_OUTPUT"
+
+      - name: Build the table
+        run: |
+          node tools/android-compat-report.mjs \
+            --dir build/compat \
+            --template-source '${{ needs.apk.outputs.template-from }}' \
+            ${{ steps.shots.outputs.base && format('--shots-base {0}', steps.shots.outputs.base) || '' }} \
+            --out compat-comment.md
+          cat compat-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Edited in place on re-runs: a PR that pushes six times should carry one
+      # current table, not six stale ones.
+      - name: Post it on the PR
+        if: github.event_name == 'pull_request' && steps.writable.outputs.same-repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- android-compat -->")) | .id' | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$EXISTING" \
+              -F body=@compat-comment.md >/dev/null
+            echo "updated comment $EXISTING"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/$PR/comments" \
+              -F body=@compat-comment.md >/dev/null
+            echo "posted a new comment"
+          fi
+
+      # The gate, after the report rather than before it: a red check with no table
+      # tells a reviewer that something broke but not what.
+      - name: Fail if any version could not run the app
+        if: needs.compat.result != 'success'
+        run: |
+          echo "::error::at least one Android version did not start the app — see the table in the PR comment"
+          exit 1

@@ -1,0 +1,11 @@
+# Generated API-surface snapshots are written with LF by tools/api-surface.mjs.
+# Pin the line ending so a CRLF checkout on Windows can't masquerade as API drift
+# and fail the CI api-surface guard on a Linux runner.
+sdk/etc/*.api.md text eol=lf
+
+# The built-in UI widget prefabs and the data module beside them are rewritten
+# with LF by tests/ui-widget-prefabs.gen.test.ts every time the suite runs. Left
+# unpinned they check out as CRLF, so the index's cached size never matches what
+# the generator just wrote and git reports ten modified files with no diff in
+# them — for as long as anyone runs the tests.
+sdk/src/ui/widgets/prefabs/* text eol=lf

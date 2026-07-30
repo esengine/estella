@@ -1,0 +1,446 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Dry run: exercises the full pipeline (engine build + both platform
+  # packagers) but never touches a GitHub release — installers upload as
+  # workflow artifacts instead. Use to validate workflow changes without
+  # burning a tag.
+  workflow_dispatch:
+
+# Signing the macOS build is optional, and everything degrades when it is absent:
+# five secrets — MAC_CSC_LINK (base64 of the Developer ID Application .p12),
+# MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+# Unset, electron-builder logs that it skipped signing and notarization and still
+# produces installers, and the editor keeps handing macOS users a download link
+# instead of updating in place (electron/autoUpdate.ts settles that by reading the
+# running bundle's own signature). Windows needs no certificate to auto-update; one
+# would buy a quiet SmartScreen, not the capability.
+#
+# Those secrets are macOS's alone, and the packager step scopes them to that leg on
+# purpose. `CSC_LINK` is electron-builder's PLATFORM-NEUTRAL certificate variable:
+# exported to the Windows leg it signs the installer with the Apple certificate,
+# which Windows cannot chain to a trusted root — and electron-updater refuses to
+# install any update whose signature is not Valid. v0.36.0 shipped that way, so every
+# Windows install from it is stuck on the download link until it is reinstalled once.
+
+# Read by default; the two jobs that touch the release raise it to contents:write.
+permissions:
+  contents: read
+
+jobs:
+  # The single writer that creates the draft release. electron-builder's GitHub
+  # publisher creates a draft lazily when none exists, so parallel platform
+  # jobs used to race and produce duplicate drafts with the artifacts split
+  # between them (it even recurred under max-parallel: 1). With the draft
+  # pre-created here, every platform finds it and uploads into it — safe to
+  # run in parallel.
+  draft:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The release body is the tag's own section of CHANGELOG.md (the release
+      # commit lands the section before the tag, so it is always present here).
+      - name: Create the draft release with this version's changelog section
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v ver="$v" 'index($0, "## [" ver "]") == 1 {f=1; next} /^## \[/ {if (f) exit} f' CHANGELOG.md > /tmp/notes.md
+          grep -q '[^[:space:]]' /tmp/notes.md || echo "See CHANGELOG.md for this release's notes." > /tmp/notes.md
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/notes.md
+
+  # The engine wasm is platform-independent, so it is compiled ONCE here and
+  # shared with the platform packagers as an artifact. This is what the
+  # installers ship — both platforms package byte-identical engine binaries.
+  # Linux gets ccache (same key as build.yml, so every master push keeps this
+  # cache warm); the old per-platform scheme compiled the engine cold on
+  # Windows every release (~10 min of the ~19 min job).
+  engine:
+    name: Build engine (wasm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.0
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: ${{ runner.os }}-emscripten
+          max-size: 500M
+
+      - name: Build engine and sync to desktop
+        run: node build-tools/cli.js build -t all
+
+      - name: Upload engine artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-wasm
+          path: |
+            desktop/public/wasm
+            desktop/public/wasm-wechat
+          retention-days: 3
+
+  # The native app's compiled half — the engine, Dawn, QuickJS, the linked-in
+  # runtimes — carries no project data, so it is built ONCE per release and
+  # published as a runtime template the editor installs. This is what frees a
+  # developer from cloning the engine and building Dawn to ship to a phone.
+  #
+  # Dawn is the expensive part (gigabytes to fetch, minutes to build, three
+  # targets), and it is pinned in toolchain.manifest.json — so the fetch AND the
+  # build cache on that commit, and a release that does not move the pin pays for
+  # neither.
+  native-templates:
+    name: Build runtime template (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ios
+            os: macos-latest
+          - name: android
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      # With submodules: the host links box2d, spine and glm from third_party, and
+      # a checkout without them fails at configure with a directory that has no
+      # CMakeLists.txt — which is exactly how this job failed the first time it ran.
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, which is why a template
+      # is matched exactly against the editor version that ships with it.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        shell: bash
+        run: |
+          node -e "const p=require('./toolchain.manifest.json').native;\
+            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the pins and the target: the checkout and the Dawn builds are
+      # reproducible for a given commit, so this is warm on every release that
+      # does not move it.
+      - name: Cache the pinned checkouts + Dawn builds
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: native-deps-${{ matrix.name }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+
+      # Dawn and the host both build with Ninja; neither tool is guaranteed on a
+      # macOS runner (the Android SDK carries its own pair).
+      - name: Set up CMake + Ninja
+        if: matrix.name == 'ios'
+        run: brew install cmake ninja
+
+      - name: Set up the Android NDK
+        if: matrix.name == 'android'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      # `native` builds Dawn for the target if the cache did not carry it, then
+      # the host, then emits the template — the same command a contributor runs.
+      - name: Build the iOS template (device + simulator)
+        if: matrix.name == 'ios'
+        run: |
+          node build-tools/cli.js native --target ios --simulator --no-template
+          node build-tools/cli.js native --target ios --template-out artifacts
+
+      # Both architectures into ONE template: arm64 is every real device, x86_64 is
+      # the emulator — which is how anyone without a phone tries the game at all.
+      # The emitter keeps the architecture the previous run built.
+      - name: Build the Android template (arm64 + x86_64)
+        if: matrix.name == 'android'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          node build-tools/cli.js native --abi arm64-v8a
+          node build-tools/cli.js native --abi x86_64 --template-out artifacts
+
+      - name: Upload template artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-template-${{ matrix.name }}
+          path: artifacts/*.zip
+          retention-days: 3
+
+  # One job holds every archive, so only it can describe the set: the index
+  # carries a digest per template, and the editor refuses a download that does not
+  # match it.
+  publish-templates:
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The index is written by the repo's own tooling, which needs the repo's own
+      # dependencies — this job ran `cli.js` without them and got as far as
+      # "Cannot find package 'commander'".
+      - uses: ./.github/actions/setup
+
+      - name: Download every template archive
+        uses: actions/download-artifact@v8
+        with:
+          pattern: native-template-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Write native-templates.json
+        run: node build-tools/cli.js native --template-index artifacts
+
+      - name: Upload the templates to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  # Completeness is not the same as working. The archives this run just built are
+  # packaged around a real example and started on an emulator and a simulator, so
+  # a template that produces an app which dies — or draws nothing, which is how
+  # v0.36.0 reached players — cannot become a release.
+  smoke:
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.native-templates.result == 'success'
+    uses: ./.github/workflows/native-smoke.yml
+    secrets: inherit
+
+  release:
+    # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
+    # and electron-builder needs the native OS. No emsdk, no C++ here.
+    needs: [draft, engine]
+    # Run on dry runs too, where draft is skipped by design.
+    if: >-
+      always() && needs.engine.result == 'success' &&
+      (github.event_name != 'push' || needs.draft.result == 'success')
+    strategy:
+      fail-fast: false
+      # Windows + macOS only — the Linux AppImage is dropped from releases
+      # until there is real demand for it.
+      matrix:
+        platform:
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 40
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Download engine artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: engine-wasm
+          path: desktop/public
+
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Build desktop renderer + main
+        run: pnpm --filter ./desktop build
+
+      - name: Package and publish desktop app
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS ONLY. CSC_LINK is electron-builder's platform-NEUTRAL certificate
+          # variable: handed to the Windows leg it signs the NSIS installer with the
+          # Apple Developer ID .p12 (windowsSignToolManager falls back to CSC_LINK
+          # when WIN_CSC_LINK is unset), producing an installer whose chain Windows
+          # cannot build to a trusted root — and stamping that identity into
+          # app-update.yml as `publisherName`. electron-updater then demands an
+          # Authenticode status of Valid before installing, so every Windows
+          # auto-update is refused AFTER downloading the whole installer. An empty
+          # value reads as absent (getCscLink treats "" as null), so the Windows leg
+          # ships unsigned, which is what this project intends.
+          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          # An app-specific password, NOT the Apple ID's own.
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        # electron-builder's GitHub publisher dedups assets on re-upload, so the
+        # whole command is idempotent — retry it to ride out GitHub API 5xx
+        # blips (a 503 on GET /releases has failed an otherwise-finished build
+        # mid-upload). Backs off 30s, 60s between attempts.
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter ./desktop exec electron-builder --publish always; then
+              exit 0
+            fi
+            echo "::warning::electron-builder publish attempt $attempt failed"
+            [ "$attempt" -lt 3 ] && sleep "$((attempt * 30))"
+          done
+          echo "::error::electron-builder publish failed after 3 attempts"
+          exit 1
+
+      # Signed and notarized like the real thing, because a dry run that skips the
+      # half most likely to break is not a rehearsal. Signing is where a release
+      # fails for reasons no earlier job can see — an expired certificate, a
+      # revoked app-specific password, a .p12 exported without its private key —
+      # and finding that out on a tag means finding it out in front of everyone.
+      - name: Package desktop app (dry run, no publish)
+        if: github.event_name != 'push'
+        env:
+          # macOS only — see the publish step above for why the Windows leg must
+          # never see a certificate meant for the other platform.
+          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        run: pnpm --filter ./desktop exec electron-builder --publish never
+
+      # The invariant an update depends on, checked where it is cheap to check.
+      # electron-updater installs a Windows update only when Get-AuthenticodeSignature
+      # reports Valid, so an installer carrying a signature Windows will not accept is
+      # strictly worse than an unsigned one: it poisons `publisherName` in
+      # app-update.yml and every future update from that install is refused. Unsigned
+      # is fine (nothing to verify) and properly signed is fine; the state between
+      # them is the one that has already shipped once, so fail the release on it.
+      #
+      # It runs after publish rather than before because electron-builder packages and
+      # uploads in one command — which is enough, since releases are created as DRAFTS
+      # and a maintainer publishes them: a red job is seen before anyone can download.
+      - name: Windows installer must be unsigned or validly signed
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bad = @()
+          foreach ($exe in Get-ChildItem desktop/release/*.exe) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $exe.FullName
+            Write-Host "$($exe.Name): $($sig.Status)"
+            if ($sig.Status -ne 'NotSigned' -and $sig.Status -ne 'Valid') {
+              $bad += "$($exe.Name) is signed but Windows reports '$($sig.Status)' ($($sig.StatusMessage)); signer: $($sig.SignerCertificate.Subject)"
+            }
+          }
+          if ($bad) {
+            Write-Error ("Windows auto-update would be refused by every installed editor:`n" + ($bad -join "`n"))
+            exit 1
+          }
+
+      - name: Upload installer artifact (dry run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-${{ matrix.platform }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.zip
+          retention-days: 3
+
+  # Publishing is the last step, and the one that has to be sure. A release missing
+  # a runtime template is a Download button that 404s — which is what 0.33.0
+  # shipped, because the templates were not built yet and nothing checked. So the
+  # draft is only flipped public once it carries everything this pipeline produces,
+  # and the check names what is missing rather than failing blank.
+  #
+  # Publishing is also what starts the mirror: mirror-release.yml runs on
+  # `release: published`, when the assets are final and downloadable by tag.
+  publish:
+    name: Publish the release
+    needs: [draft, release, publish-templates, smoke]
+    if: >-
+      github.event_name == 'push' &&
+      needs.release.result == 'success' &&
+      needs.publish-templates.result == 'success' &&
+      needs.smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check the release carries everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          echo "$assets"
+          missing=""
+          for want in 'Estella-Editor-Setup-.*[.]exe' 'Estella-Editor-.*[.]dmg' 'latest[.]yml' 'latest-mac[.]yml' 'native-templates[.]json' 'estella-native-android-.*[.]zip' 'estella-native-ios-.*[.]zip'; do
+            printf '%s\n' "$assets" | grep -qE "^$want$" || missing="$missing $want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the draft is missing:$missing"
+            exit 1
+          fi
+
+      # Names on a release say nothing about what is inside the archives, and the
+      # thing that goes wrong is inside: v0.36.0 published an Android template with
+      # no precompiled bytecode, so every game packaged from it opened on a black
+      # screen the first time and nothing here noticed. Check the contents against
+      # the same table the emitter writes from, under release strictness.
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Check the templates carry everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-*.zip' -D templates
+          node build-tools/cli.js verify-template templates/*.zip
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "### Published $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+  # The mirror runs from here, after the publish above, because the assets it
+  # copies live in a draft until then and a draft cannot be downloaded by tag.
+  #
+  # It used to follow the `release: published` event instead, which worked for
+  # exactly as long as a human clicked Publish: an event raised by a job holding
+  # GITHUB_TOKEN starts no workflow, so the moment publishing became automatic
+  # the mirror stopped following releases and nothing said so. v0.34.1 published
+  # with no mirrored copy at all. Calling the workflow is not an event, so this
+  # cannot go quiet the same way; mirror-release.yml keeps its `release` trigger
+  # for a release published by hand, and its dispatch for re-mirroring old tags.
+  mirror:
+    needs: publish
+    uses: ./.github/workflows/mirror-release.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.ref_name }}
