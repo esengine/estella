@@ -39,6 +39,7 @@ API 31.
   `__builtin_available` in the host to dead code and turns each guarded symbol into a
   load-time requirement. ADPF is one of those. It is now resolved through `dlsym`, so a
   device that exports it gets a hint session and a device that does not gets none.
+
 ### Added
 
 - **Every supported Android version is tested on pull requests that touch the host.** One
