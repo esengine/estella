@@ -14,75 +14,47 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Dawn dependency cache is written from the default branch.** It had been written
+  from the release pipeline, which runs on a tag — and a GitHub cache is readable only
+  from the ref that created it, its descendants, and the default branch. No tag is any of
+  those for the next tag, so every release paid for a cold Dawn build and then wrote the
+  result where nothing could read it. Whether a tag run can read the default branch's
+  cache is not yet proven; the next release is what settles it.
+
 ## [0.38.0] - 2026-07-30
 
-A packaged game could not be installed on Android 10 or 11. Not slow, not blank — the
-dynamic linker refused the library and the process was gone before a line of engine code
-ran, which a player reports as "it crashes when I open it". Every release since native
-Android shipped has had this, and every one of them tested green, because the one
-emulator CI booted was API 34 and the failure only exists below API 31.
-
-The cause is a single mismatch. The manifest declared a minimum of API 26; the NDK was
-told to build against 33. That is not a harmless inconsistency: the NDK decides how to
-reference an API by comparing it against the *build target*, so a target above the
-declared floor turns every `__builtin_available` guard in the host into dead code and
-every guarded symbol into something the loader must find on the device. The host asks
-for ADPF, which the NDK declares at API 33 and devices have exported since 31, so on
-Android 10 and 11 the loader looked for `APerformanceHint_getManager`, did not find it,
-and refused the library whole.
-
-So the build target follows the manifest now, and both say 29 — because 26 was never
-true either. The font path calls `AFontMatcher_create` unguarded and that is API 29, so
-Android 8 and 9 could only ever have failed differently. Declaring what the code
-actually supports costs nothing and stops promising three releases nobody has run.
-
-And the reason this could go unnoticed for four releases now has a test. One packaged
-game is built once and installed on one emulator per Android version, 10 through 16, and
-each reports whether it started, what the launch cost, and what it was using while it
-ran. There is deliberately no pixel judgement in it: a scene that is legitimately dark
-and a renderer that died produce the same dark screenshot, so the frames are published
-for a person to look at and the gate is limited to what a machine can actually decide.
-
-### Added
-
-- **Every Android version we support is tested, on every pull request that touches the
-  host.** `native-smoke` asks whether the templates can produce a launching app, and asks
-  it on one platform version — which left the entire class of failure above uncovered. The
-  compatibility matrix builds a game once and installs that same binary on one emulator per
-  Android release, so a difference between two versions cannot be a difference between two
-  builds. The version list is discovered from the runner's own system images rather than
-  written down, so a new Android release is picked up by the next run instead of by whoever
-  remembers to edit the file, and a floor that stops existing fails loudly instead of
-  quietly shrinking the matrix. Each version reports launch time from the platform and from
-  the host's own clock, PSS with graphics memory broken out, CPU, and frame intervals read
-  from SurfaceFlinger — `dumpsys gfxinfo` measures HWUI, which a NativeActivity drawing
-  through Vulkan never touches. The report states on every run that a hosted runner has no
-  GPU, so its frame times are a software rasteriser's and its GPU figures do not exist,
-  rather than trusting a reader to remember it.
+Games built with v0.33.0 through v0.37.0 install on Android 10 and 11 and then fail to
+start: the dynamic linker cannot resolve `APerformanceHint_getManager`, so it refuses
+`libestella_js_host.so` and the process dies before any engine code runs. Six releases
+shipped with it because CI booted one emulator, API 34, and the fault only exists below
+API 31.
 
 ### Fixed
 
-- **Android 10 and 11 can run a packaged game.** Described above. The ADPF entry points
-  are resolved through `dlsym` rather than called directly, because the NDK marks an API
-  newer than the build target *unavailable* — a hard compile error that no availability
-  guard unlocks — and the alternatives are to raise the build target, which is the bug, or
-  to opt the whole build into weak references with a toolchain flag whose silent absence
-  would restore exactly this failure with nothing in the source to show it. A device that
-  exports ADPF gets a hint session; a device that does not gets none and says so in the
-  boot record.
-- **A release stops rebuilding Dawn from scratch every time.** The dependency cache was
-  written from the release pipeline, which runs on a tag — and a GitHub cache is readable
-  only from the ref that created it, its descendants, and the default branch. A tag is none
-  of those for the next tag, so every release paid for a cold sixteen-minute-per-ABI Dawn
-  build and then wrote the result somewhere nothing could ever read it, including the
-  release after it. It is warmed from the default branch now, restore-first so the weekly
-  trigger that keeps it from being evicted costs a download and nothing else.
+- **Android 10 and 11 can run a packaged game.** The manifest declared minSdk 26 while
+  the NDK was told to build against 33. The NDK decides how to reference an API by
+  comparing it with the build target, so a target above the declared floor compiles every
+  `__builtin_available` in the host to dead code and turns each guarded symbol into a
+  load-time requirement. ADPF is one of those. It is now resolved through `dlsym`, so a
+  device that exports it gets a hint session and a device that does not gets none.
+### Added
+
+- **Every supported Android version is tested on pull requests that touch the host.** One
+  game is built once and installed on one emulator per release, 10 through 16, so a
+  difference between two versions cannot be a difference between two builds. Each reports
+  launch time, PSS, CPU and frame intervals. The version list comes from the runner's own
+  system images rather than a written-down list. There is no pixel judgement in it — a
+  legitimately dark scene and a dead renderer produce the same screenshot — so frames are
+  published for a person to look at and the gate is limited to install, reaching `ready`,
+  and recording no error.
 
 ### Changed
 
-- **Android's declared minimum is API 29 (Android 10), raised from 26.** The code has
-  required 29 since the font matcher landed; 26 was a claim, not a capability. Nothing that
-  ran before stops running.
+- **Android's declared minimum is API 29 (Android 10), raised from 26.** The font path
+  calls `AFontMatcher_create`, which is API 29, so 26 was a claim rather than a capability.
+  Nothing that ran before stops running.
 
 ## [0.37.0] - 2026-07-29
 
