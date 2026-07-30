@@ -84,6 +84,11 @@ app.commandLine.appendSwitch('enable-unsafe-webgpu');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// And the one that actually does it on Windows: Chromium asks the OS whether the window
+// is covered, and a window merely BEHIND another counts — so the moment you click on
+// anything else the game drops to about one frame a second. The switches above do not
+// turn that calculation off; this does.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // Two privileged custom schemes (must be declared before app ready):
 //  • estella:// serves files from the open project root (sandboxed) — lets the
