@@ -304,8 +304,11 @@ jobs:
           arch: x86_64
           profile: ${{ env.ANDROID_PROFILE }}
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          # POSIX sh, not bash: this action runs `script` through /usr/bin/sh, so
+          # `set -o pipefail` aborts the whole thing on its first line — which it
+          # did, on all eight versions, before a single app was installed.
           script: |
-            set -euo pipefail
+            set -eu
             mkdir -p build/compat
             rc=0
             for apk in apks/*.apk; do
