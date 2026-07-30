@@ -506,8 +506,16 @@ struct PerformanceHints {
     // deadline is the panel's cadence, whatever it happens to be.
     static constexpr int64_t kFrameBudgetNanos = 16'666'667;
 
+    // 33, which is what the NDK header declares, not the 31 these guards used to
+    // say. The symbol does resolve on 31 and 32 devices — that is why they ran a
+    // host built against 33, whose guards were compiled out and whose reference
+    // was therefore strong — but the header is the authority at compile time and
+    // refuses a guard below its own introduced version. Building against the
+    // manifest's floor makes these live, so they have to be right: a hint session
+    // is given up on Android 12 in exchange for the app loading at all on 10.
+
     void open() {
-        if (__builtin_available(android 31, *)) {
+        if (__builtin_available(android 33, *)) {
             APerformanceHintManager* manager = APerformanceHint_getManager();
             if (!manager) return;   // no session on a device (or emulator) without one
             // The frame loop's own thread, and it lives as long as the app does —
@@ -523,14 +531,14 @@ struct PerformanceHints {
         if (!session) return;
         const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(frame).count();
         if (nanos <= 0) return;   // the API rejects a non-positive duration
-        if (__builtin_available(android 31, *)) {
+        if (__builtin_available(android 33, *)) {
             APerformanceHint_reportActualWorkDuration(session, nanos);
         }
     }
 
     ~PerformanceHints() {
         if (!session) return;
-        if (__builtin_available(android 31, *)) APerformanceHint_closeSession(session);
+        if (__builtin_available(android 33, *)) APerformanceHint_closeSession(session);
     }
 };
 
