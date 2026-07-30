@@ -92,7 +92,38 @@ initFxPreviewEditRestart();
 // editor never carries it; mirrors the headless render host's `window.__estellaHeadless`.
 if (new URLSearchParams(location.search).has('automation')) {
   (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = {
-    open: (root: string) => ProjectStore.open(root),
+    /**
+     * The whole launcher → editor → scene-ready sequence, or a throw saying
+     * which step failed.
+     *
+     * It used to be the three calls below, chained by the tool definition, with
+     * the boolean from the open DISCARDED: a project that failed to open still
+     * got `enterEditor()`, so the shell left the launcher with nothing loaded,
+     * the driver waited out the scene timeout, and every later call answered
+     * "no project open" — with the reason only ever shown as a toast nobody was
+     * looking at. Sequencing belongs next to the code that knows the order.
+     */
+    open: async (root: string) => {
+      if (!(await ProjectStore.open(root))) {
+        throw new Error(
+          `could not open the project at ${root} — it is still closed. `
+          + 'The editor logged the reason (check the Output Log); a bad path and an '
+          + 'unreadable project manifest are the usual ones.',
+        );
+      }
+      useEditorStore.getState().enterEditor();
+      const t0 = Date.now();
+      while (EditorControlSurface.getSceneTree().length === 0 && Date.now() - t0 < 30_000) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (EditorControlSurface.getSceneTree().length === 0) {
+        throw new Error(
+          `the project at ${root} opened but no scene loaded — it may have none yet. `
+          + 'Name one with open_scene, or create one with create_scene_file.',
+        );
+      }
+      return true;
+    },
     enterEditor: () => useEditorStore.getState().enterEditor(),
     /** Resolves once the scene is ADOPTED and readable (drivers must not need
      *  their own get_scene_tree polling): waits out the model-version bump the

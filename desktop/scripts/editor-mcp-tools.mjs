@@ -171,10 +171,9 @@ export const TOOLS = [
       ['templateDir', 'location', 'name']),
     js: (i) => `window.estella.project.createFromTemplate(${JSON.stringify(i.templateDir)}, ${JSON.stringify(i.location)}, ${JSON.stringify(i.name)})` },
   { name: 'open_project',
-    description: 'Open a project by absolute root path and enter the editor. Resolves once the initial scene is loaded and readable — call before any scene/asset work on the editor host.',
+    description: 'Open a project by absolute root path and enter the editor. Resolves TRUE once the initial scene is loaded and readable — call before any scene/asset work on the editor host. Throws, naming the step that failed, if the project cannot be opened or no scene loads; it never reports a failure as a plain false, because a caller that keeps going against a project that never opened just collects "no project open" from every later tool.',
     schema: obj({ root: { type: 'string' } }, ['root']),
-    js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)})
-      .then((ok) => { window.__estellaEditor.enterEditor(); return window.__estellaEditor.sceneReady().then(() => ok); })` },
+    js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)})` },
   { name: 'open_scene',
     description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor. Resolves once the scene is adopted — get_scene_tree is immediately valid. '
       + 'REFUSES while the open scene has unsaved changes (opening reloads from disk, so anything just authored would be gone): save_scene first, or pass discardChanges to throw the edits away on purpose.',

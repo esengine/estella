@@ -461,6 +461,46 @@ class ProjectStoreImpl {
     useEditorMode.setState({ orientation: resolveOrientation(opened.manifest) });
   }
 
+  /**
+   * The first of `candidates` that is actually there, plus its contents.
+   *
+   * Tried in order, then any `.esscene` sitting in the project's scenes folder —
+   * a project that still has scenes should open on one of them rather than on the
+   * name it happens to remember. The asset registry is not built yet at this
+   * point, so the folder is read directly. Undefined entries are skipped; the
+   * same path is not read twice.
+   */
+  private async firstReadableScene(
+    candidates: Array<string | undefined>,
+  ): Promise<{ rel: string; text: string } | null> {
+    const tried = new Set<string>();
+    const dir = this.state?.layout.scenes;
+    let inFolder: string[] = [];
+    if (dir) {
+      try {
+        inFolder = (await window.estella.fs.readDir(dir))
+          .filter((e) => !e.isDir && e.name.endsWith('.esscene'))
+          .map((e) => `${dir}/${e.name}`);
+      } catch {
+        // No scenes folder is a legitimate shape; the candidates still apply.
+      }
+    }
+    for (const rel of [...candidates, ...inFolder]) {
+      if (!rel || tried.has(rel)) continue;
+      tried.add(rel);
+      try {
+        const text = await window.estella.fs.read(rel);
+        if (rel !== candidates[0] && candidates[0]) {
+          console.warn(`[project] "${candidates[0]}" is missing — opened "${rel}" instead.`);
+        }
+        return { rel, text };
+      } catch {
+        // Not there (or unreadable): try the next candidate.
+      }
+    }
+    return null;
+  }
+
   /** Load the project's last-opened scene (or `<scenes>/main.esscene`) into the world. */
   async loadCurrentScene(): Promise<void> {
     const st = this.state;
@@ -468,9 +508,24 @@ class ProjectStoreImpl {
     // Project-level render config (WYSIWYG in the edit viewport). Applied here —
     // the one path that runs both on project open and once the engine is ready.
     Renderer.setYSortLayers(this.ySortMask());
-    const rel =
-      st.workspace.lastOpenedScene ?? st.defaultScene ?? `${st.layout.scenes}/main.esscene`;
-    const text = await window.estella.fs.read(rel);
+    const found = await this.firstReadableScene([
+      st.workspace.lastOpenedScene,
+      st.defaultScene,
+      `${st.layout.scenes}/main.esscene`,
+    ]);
+    // A project whose remembered scene is gone still opens. It was fatal: the
+    // read threw, the open failed, and the editor stayed on the launcher behind
+    // a toast — so deleting a scene file outside the editor bricked the project
+    // until someone knew to hand-edit .esengine/workspace.json.
+    if (!found) {
+      console.warn(
+        '[project] no scene could be loaded — the remembered scene is missing and ' +
+        'no fallback exists. The project is open with an empty world; open a scene ' +
+        'from the Content Browser.',
+      );
+      return;
+    }
+    const { rel, text } = found;
     const raw = JSON.parse(text) as SceneData;
     const retired = stripRetiredComponents(raw);
     if (retired.length > 0) {
