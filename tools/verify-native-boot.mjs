@@ -160,6 +160,7 @@ function androidDriver(opts) {
     const adb = process.env.ANDROID_HOME
         ? path.join(process.env.ANDROID_HOME, 'platform-tools', 'adb') : 'adb';
     const logFile = `/sdcard/Android/data/${APP_ID}/files/${LOG_NAME}`;
+    let lastReadError = '';
 
     return {
         name: 'android',
@@ -185,6 +186,14 @@ function androidDriver(opts) {
         prepare() {
             trySh(adb, ['shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1']);
             trySh(adb, ['shell', 'settings', 'put', 'global', 'anr_show_background', '0']);
+            // The boot record lives in the app's external files directory, which
+            // scoped storage put out of the shell user's reach — on API 30 the game
+            // ran, drew, and reported "never reported ready", because the reader
+            // could not open a file that was there. An emulator image is userdebug,
+            // so take root ONCE here rather than inside the loop that polls the
+            // file. A device that refuses simply stays unrooted and the read falls
+            // back to saying why it failed.
+            if (trySh(adb, ['root']).status === 0) trySh(adb, ['wait-for-device']);
         },
         install(apk) {
             trySh(adb, ['uninstall', APP_ID]);
@@ -222,6 +231,11 @@ function androidDriver(opts) {
         },
         readLog() {
             const got = trySh(adb, ['shell', 'cat', logFile]);
+            // Why it failed, kept for the diagnostics. "No such file" (the app never
+            // got that far) and "Permission denied" (it did, and this cannot see it)
+            // are opposite conclusions that both arrive here as an empty string, and
+            // one of them spent a run looking like a broken Android version.
+            lastReadError = got.status === 0 ? '' : `${got.stderr ?? ''}`.trim();
             return got.status === 0 ? got.stdout : '';
         },
         screenshot() {
@@ -341,6 +355,11 @@ function androidDriver(opts) {
         },
         diagnostics() {
             return [
+                // First, because an unreadable record is a different failure from an
+                // unwritten one and the report cannot tell them apart on its own.
+                ['reading the boot record', lastReadError
+                    ? `${lastReadError}\n${trySh(adb, ['shell', 'ls', '-l', path.posix.dirname(logFile)]).stdout ?? ''}`
+                    : ''],
                 ['logcat (EstellaSDK)', trySh(adb, ['logcat', '-d', '-s', 'EstellaSDK:*']).stdout],
                 ['logcat (crashes)', trySh(adb, ['logcat', '-d', '-b', 'crash']).stdout],
             ];
