@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getComponent, SpineAnimation } from '../ecs/component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
+// Straight from the generated enum module (the C++ ES_ENUM is the single source), not
+// via the UI barrel: this file is core runtime and must not pull the UI module in.
+import { UIDisplay } from '../wasm/wasm.generated';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
@@ -126,6 +129,17 @@ export function applyTimelineEvent(
                 const current = world.get(entity, Sprite);
                 if (current.enabled !== active) {
                     world.set(entity, Sprite, { ...current, enabled: active });
+                }
+            }
+            // A UI node has no `enabled`: `display` is its show/hide, and the only one
+            // that takes the subtree with it — which is what an activation track means
+            // when it switches a whole widget off (a closed chest, an idle badge).
+            const UINode = getComponent('UINode');
+            if (UINode && world.has(entity, UINode)) {
+                const current = world.get(entity, UINode);
+                const display = active ? UIDisplay.Flex : UIDisplay.None;
+                if (current.display !== display) {
+                    world.insert(entity, UINode, { ...current, display });
                 }
             }
             break;
