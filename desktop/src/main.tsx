@@ -190,6 +190,17 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Create a blank scene FILE under `destDir` (Content Browser "New Scene"). */
     createSceneFile: (destDir: string, name?: string | null) =>
       ProjectStore.createSceneFile(destDir, name ?? undefined),
+    /**
+     * Extract an entity's subtree into a `.esprefab` asset (the Outliner's Create
+     * Prefab), returning its `@uuid:` ref.
+     *
+     * The one authoring step automation could not take: a driver could build a
+     * subtree but never turn it into a reusable one, so anything shared had to be
+     * duplicated per scene. Goes through the editor's own extractor, so component
+     * data and asset refs are serialized by the code that owns that format rather
+     * than by a caller guessing at it.
+     */
+    createPrefabFromEntity: (id: number) => ProjectStore.createPrefabFromEntity(id),
     /** The Create-popover catalog: every ready-made entity the editor can spawn —
      *  including the open project's own components and prefabs, so automation sees
      *  the same list a person does. */

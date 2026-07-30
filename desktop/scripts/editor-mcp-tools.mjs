@@ -188,6 +188,13 @@ export const TOOLS = [
     schema: obj({ destDir: { type: 'string' }, name: { type: 'string' } }, ['destDir']),
     js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
+  { name: 'create_prefab_from_entity', write: true,
+    description: 'Extract an entity and its subtree into a `.esprefab` asset under assets/prefabs/ (the Outliner\'s Create Prefab), named after the entity; returns its `@uuid:` ref. '
+      + 'This is what makes a subtree REUSABLE: afterwards `list_entity_templates` offers it as `prefab:<path>`, and creating with that template makes a real INSTANCE — the scene stores a delta, not a copy, so editing the prefab updates every instance. '
+      + 'Without it a driver can build the same panel chrome into twenty scenes but never share it. Refs pointing OUT of the subtree cannot live in a standalone prefab and are cleared.',
+    schema: obj({ entity: { type: 'number' } }, ['entity']),
+    js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)})
+      .then((ref) => { if (!ref) throw new Error('could not create a prefab from entity ${Number(i.entity)} — it may not exist'); return ref; })` },
   { name: 'create_asset', write: true,
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({
