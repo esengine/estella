@@ -379,13 +379,27 @@ export class SceneModelImpl {
     return !!e && isEnvironmentEntity(e);
   }
 
-  /** Whether the viewport may grab an entity: not locked, not editor-hidden, and not
-   *  environment. One predicate so click, marquee, and UI picking cannot drift apart.
-   *  An id the model doesn't know (an engine-owned helper entity) stays grabbable. */
-  isPickable(sourceId: number): boolean {
-    const e = this.entityBySource(sourceId) as (SceneEntity & { hidden?: boolean; locked?: boolean }) | undefined;
+  /**
+   * Whether the viewport may WRITE an entity: not locked, not environment. The
+   * gate for every viewport gesture that edits — the transform gizmo and the
+   * free body drag — so a lock means what it says however the entity got
+   * selected (a viewport click, the outliner, a marquee, Select All).
+   *
+   * Visibility deliberately does NOT gate this: hiding is about the eye, and a
+   * hidden entity's gizmo is still where the user put it. Locking is the "don't
+   * touch this" flag, and it is the one that stops a write.
+   */
+  isEditable(sourceId: number): boolean {
+    const e = this.entityBySource(sourceId) as (SceneEntity & { locked?: boolean }) | undefined;
     if (!e) return true;
-    return !e.locked && !e.hidden && !isEnvironmentEntity(e);
+    return !e.locked && !isEnvironmentEntity(e);
+  }
+
+  /** Whether the viewport may grab an entity: editable AND not editor-hidden. One
+   *  predicate so click, marquee, and UI picking cannot drift apart. An id the
+   *  model doesn't know (an engine-owned helper entity) stays grabbable. */
+  isPickable(sourceId: number): boolean {
+    return this.isEditable(sourceId) && !this.isHidden(sourceId);
   }
 
   // ── Sibling order (outliner drag-reorder; render order = `data.entities` order) ──

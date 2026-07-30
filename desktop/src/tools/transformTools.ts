@@ -136,9 +136,34 @@ export function isOrphanUINode(sourceId: EntityId): boolean {
 
 let flowHintAt = 0;
 let canvasHintAt = 0;
+let lockHintAt = 0;
+
+/**
+ * The subset of a selection the viewport may transform: locked (and environment)
+ * entities are dropped.
+ *
+ * This is the whole of what a lock does to a gesture, and it sits here because
+ * both halves of the gizmo read it — the tool, to decide what a drag writes, and
+ * the viewport, to place (or hide) the gizmo. Picking already refuses a locked
+ * entity, but the outliner selects one happily, and until this existed the gizmo
+ * that appeared for it dragged like any other: the lock stopped the click and
+ * nothing else. A locked entity can still be selected and inspected (that is how
+ * you unlock it) — it just has no handles, so the viewport reads the space it
+ * occupies as empty.
+ */
+export function transformableIds(ids: readonly EntityId[]): EntityId[] {
+  return ids.filter((id) => SceneModel.isEditable(id));
+}
 
 function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[] {
-  let kept = pruneDescendants(ids);
+  const pruned = pruneDescendants(ids);
+  let kept = transformableIds(pruned);
+  // Say so once per burst when a lock is what swallowed part of the gesture —
+  // otherwise dragging a mixed selection looks like the editor lost some of it.
+  if (kept.length < pruned.length && Date.now() - lockHintAt > 4000) {
+    lockHintAt = Date.now();
+    Toasts.push(t('vp.lockedHint'), 'info');
+  }
   if (kind === 'move') {
     // A UI element with no Canvas has no layout box — it can't be positioned at all.
     // Exclude it and point to the fix (the inspector's "Place under a Canvas").
@@ -193,34 +218,41 @@ function primaryRotationRad(ids: readonly EntityId[]): number {
 /**
  * The gizmo pivot for the current `pivotMode`: the active entity's own position
  * ('pivot'), else the selection centroid ('center'). Shared by the tool and the
- * viewport's gizmo placement so both agree.
+ * viewport's gizmo placement so both agree — including on there being no gizmo at
+ * all when nothing in the selection may be transformed (an all-locked selection
+ * returns null, which reads as "no handles" at both ends).
  */
 export function selectionPivot(ids: readonly EntityId[]): Pt | null {
+  const editable = transformableIds(ids);
+  if (editable.length === 0) return null;
   if (useEditorStore.getState().pivotMode === 'pivot') {
-    const id = primaryOf(ids);
+    const id = primaryOf(editable);
     const rt = id != null ? SceneModel.runtimeFor(id) : null;
     const pos = rt != null ? ViewportController.getEntityWorldXY(rt) : null;
     if (pos) return pos;
   }
-  return pivotOf(ids);
+  return pivotOf(editable);
 }
 
 /** The gizmo's on-screen rotation (radians): the negated active rotation in local
  *  space (screen y is down), else 0. Shared with the viewport's gizmo render. */
 export function gizmoScreenAngleRad(ids: readonly EntityId[]): number {
-  return useEditorStore.getState().coordSpace === 'local' ? -primaryRotationRad(ids) : 0;
+  return useEditorStore.getState().coordSpace === 'local'
+    ? -primaryRotationRad(transformableIds(ids))
+    : 0;
 }
 
 /**
  * Alt-drag: clone each id and return targets that drag from the *originals'* start
  * transforms (so the copies track the cursor exactly, the clone offset overwritten
  * on the first move). Selects the new copies. Each clone is its own undo step,
- * preceding the move gesture.
+ * preceding the move gesture. Locked members are left out, like every other
+ * viewport write — an Alt-drag over a mixed selection clones what it can move.
  */
 function altDuplicateTargets(ids: readonly EntityId[]): { targets: Target[]; pivot: Pt | null } {
   const targets: Target[] = [];
   const pts: Pt[] = [];
-  for (const sid of pruneDescendants(ids)) {
+  for (const sid of transformableIds(pruneDescendants(ids))) {
     const t = readTarget(sid);
     if (!t) continue;
     const copy = SceneCommands.duplicateEntity(sid);

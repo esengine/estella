@@ -158,4 +158,8 @@ export const viewportMessages = defineMessages({
         en: 'This UI node is Relative (flow-positioned) — set Position to Absolute to move it freely.',
         zh: '此 UI 节点为相对定位（随布局流动）——将“位置”设为“绝对定位”后才能自由移动。',
     },
+    'vp.lockedHint': {
+        en: 'Locked entities aren’t moved by the viewport — unlock them in the World Outliner.',
+        zh: '锁定的实体不会被视口移动——请在世界大纲中解锁。',
+    },
 });

@@ -13,6 +13,7 @@ import { GIZMO } from '@/tools/gizmo';
 const h = vi.hoisted(() => ({
   pick: { entity: null as number | null, rect: [] as number[], stack: undefined as number[] | undefined },
   pos: new Map<number, { x: number; y: number }>(),
+  locked: new Set<number>(),
   calls: { setXY: [] as Array<[number, number, number]>, dup: [] as number[], commit: 0, abort: 0 },
 }));
 
@@ -48,11 +49,12 @@ vi.mock('@/engine/SceneModel', () => ({
     runtimeFor: (s: number) => s,
     sourceFor: (r: number) => r,
     entityBySource: () => undefined, // no hierarchy in these tests
+    isEditable: (s: number) => !h.locked.has(s),
     subscribe: () => {},
   },
 }));
 
-import { TRANSFORM_TOOLS } from '@/tools/transformTools';
+import { TRANSFORM_TOOLS, selectionPivot } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
@@ -67,6 +69,7 @@ beforeEach(() => {
   h.pick.rect = [];
   h.pick.stack = undefined;
   h.pos.clear();
+  h.locked.clear();
   h.calls.setXY = [];
   h.calls.dup = [];
   h.calls.commit = 0;
@@ -232,5 +235,48 @@ describe('gizmo handle → axis-constrained group transform', () => {
     t.onPointerMove(ev(225, 215), ctx);
     t.onPointerUp(ev(225, 215), ctx);
     expect(h.calls.setXY.at(-1)).toEqual([7, 225, 215]);
+  });
+});
+
+describe('locked entities are not transformed by the viewport', () => {
+  // Picking already refuses a locked entity, but the OUTLINER selects one happily —
+  // and until selectionPivot answered for the editable subset, the gizmo that
+  // appeared for it dragged like any other, so a lock stopped the click and nothing
+  // else. This is the whole of what a lock does to a gesture.
+  it('a locked selection has no gizmo pivot, so the drag writes nothing and marquees', () => {
+    useSelection.getState().select(7);
+    h.pos.set(7, { x: 200, y: 200 });
+    h.locked.add(7);
+    expect(selectionPivot([7])).toBeNull(); // no pivot → the viewport draws no gizmo
+    const t = TRANSFORM_TOOLS.move;
+    const downX = 200 + GIZMO.axisLen - 4;
+    t.onPointerDown(ev(downX, 200), ctx);
+    t.onPointerMove(ev(downX + 40, 240), ctx);
+    // No handle and (picking already refuses it) no body: the spot is empty space,
+    // so the gesture is a box-select — the same thing it is over bare grid.
+    expect(Marquee.get()).not.toBeNull();
+    t.onPointerUp(ev(downX + 40, 240), ctx);
+    expect(h.calls.setXY).toEqual([]);
+  });
+
+  it('a mixed selection transforms only its unlocked members', () => {
+    useSelection.getState().selectMany([7, 8], 7);
+    h.pos.set(7, { x: 200, y: 200 });
+    h.pos.set(8, { x: 200, y: 200 });
+    h.locked.add(8);
+    const t = TRANSFORM_TOOLS.move;
+    const downX = 200 + GIZMO.axisLen - 4;
+    expect(t.onPointerDown(ev(downX, 200), ctx)).toBe(true); // 7 still has handles
+    t.onPointerMove(ev(downX + 40, 200), ctx);
+    t.onPointerUp(ev(downX + 40, 200), ctx);
+    expect(h.calls.setXY.map(([id]) => id)).toEqual([7]);
+  });
+
+  it('unlocking restores the pivot', () => {
+    h.pos.set(7, { x: 200, y: 200 });
+    h.locked.add(7);
+    expect(selectionPivot([7])).toBeNull();
+    h.locked.delete(7);
+    expect(selectionPivot([7])).toEqual({ x: 200, y: 200 });
   });
 });

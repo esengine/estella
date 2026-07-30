@@ -206,7 +206,10 @@ The Outliner is the scene's hierarchy. You can:
   jump to the matching entity.
 - **Rename** with `F2`, **Duplicate** with Ctrl/⌘ + D, **Delete** with Delete.
 - **Hide/Show** and **Lock/Unlock** entities (independent of whether the component is
-  enabled at runtime).
+  enabled at runtime). Hiding takes the entity out of the edit viewport — sprites,
+  skeletons, tilemaps, particles, lights and all — without editing the scene the game
+  loads. Locking leaves it visible and selectable but gives it no handles: the
+  viewport won't pick it, and the transform gizmo won't appear for it.
 - **Create Prefab** from a selection, then drop instances back into the scene.
 
 ### The Details panel

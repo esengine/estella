@@ -1076,7 +1076,12 @@ export function Viewport() {
       const uig = uiGizmoRef.current;
       if (uig) {
         const pid = useSelection.getState().selectedId;
-        const prt = ready && pid != null && selIds.length === 1 ? SceneModel.runtimeFor(pid) : undefined;
+        // A locked node gets no resize handles either — same gate as the transform
+        // gizmo, so one lock silences every viewport handle the selection has.
+        const editable = pid != null && SceneModel.isEditable(pid);
+        const prt = ready && pid != null && editable && selIds.length === 1
+          ? SceneModel.runtimeFor(pid)
+          : undefined;
         const uir = prt != null && EngineHost.world?.has(prt, UINode) ? ViewportController.getEntityScreenRect(prt) : null;
         if (uir && showG) {
           uig.style.transform = `translate(${uir.x}px, ${uir.y}px)`;
