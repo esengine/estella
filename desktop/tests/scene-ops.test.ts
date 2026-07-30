@@ -31,8 +31,12 @@ vi.mock('@/engine/EditorSession', () => ({
       }
       calls.push(['transact:commit']);
     },
-    create: (prefab: { name: string }, opts: { parent: number | null }) => {
+    create: (prefab: { name: string }, opts: { parent: number | null; linkPrefabRef?: string }) => {
       calls.push(['create', prefab.name, opts.parent]);
+      // Recorded separately so the `create` tuple keeps its shape: a prefab link
+      // is a distinct fact about the create, not another positional argument every
+      // existing assertion has to know about.
+      if (opts.linkPrefabRef) calls.push(['link', opts.linkPrefabRef]);
       return state.createReturnsNull ? null : state.nextId++;
     },
     setField: (entity: number, component: string, key: string, _t: string, value: unknown) => {
@@ -49,8 +53,15 @@ vi.mock('@/engine/EditorSession', () => ({
 
 vi.mock('@/engine/entitySources', () => ({
   prefabFromSpecs: (name: string, specs: { type: string }[]) => ({ name, specs }),
-  sourceById: (id: string) =>
-    id === 'ui-image' ? { build: async () => ({ name: 'Image', specs: [] }) } : null,
+  sourceById: (id: string) => {
+    if (id === 'ui-image') return { build: async () => ({ name: 'Image', specs: [] }) };
+    // A project prefab source: it carries the ref that makes the result an
+    // instance instead of a copy.
+    if (id === 'prefab:assets/prefabs/Bar.esprefab') {
+      return { build: async () => ({ name: 'Bar', specs: [] }), linkPrefabRef: () => '@uuid:bar-1' };
+    }
+    return null;
+  },
 }));
 
 const { applySceneOps } = await import('@/engine/sceneOps');
@@ -167,5 +178,22 @@ describe('applySceneOps', () => {
 
   it('rejects a non-array program', async () => {
     await expect(applySceneOps('nope' as never)).rejects.toThrow(/must be an array/);
+  });
+});
+
+describe('a prefab template creates an INSTANCE, not a copy', () => {
+  it('passes the linkPrefabRef its source carries through to create', async () => {
+    await applySceneOps([
+      { op: 'create', ref: 'bar', template: 'prefab:assets/prefabs/Bar.esprefab' },
+    ]);
+    // Without the ref the subtree lands as ordinary entities: the tree looks
+    // right, the batch reports success, and the scene holds a copy that no
+    // longer tracks the prefab.
+    expect(calls).toContainEqual(['link', '@uuid:bar-1']);
+  });
+
+  it('leaves a plain template unlinked', async () => {
+    await applySceneOps([{ op: 'create', ref: 'i', template: 'ui-image' }]);
+    expect(calls.some((c) => c[0] === 'link')).toBe(false);
   });
 });

@@ -89,13 +89,16 @@ export async function applySceneOps(
 ): Promise<SceneOpsResult> {
   if (!Array.isArray(ops)) throw new Error('applySceneOps: `ops` must be an array');
 
-  // Phase 1 (async, no mutation): resolve every template to its PrefabData.
+  // Phase 1 (async, no mutation): resolve every template to its PrefabData, and
+  // to the prefab ref that makes it an INSTANCE rather than a copy.
   const prefabs = new Map<string, PrefabData>();
+  const links = new Map<string, string | undefined>();
   for (const op of ops) {
     if (op.op !== 'create' || !op.template || prefabs.has(op.template)) continue;
     const source = sourceById(op.template);
     if (!source?.build) throw new Error(`unknown entity template: ${op.template} (see listEntityTemplates)`);
     prefabs.set(op.template, await source.build({ parent: null }));
+    links.set(op.template, source.linkPrefabRef?.({ parent: null }));
   }
 
   const refs: Record<string, EntityId> = {};
@@ -135,7 +138,16 @@ export async function applySceneOps(
                 specs.map((c) => (typeof c === 'string' ? { type: c } : c)),
               );
             const position = op.x != null && op.y != null ? { x: op.x, y: op.y } : undefined;
-            const id = EditorControlSurface.create(prefab, { parent, position });
+            // A prefab template must arrive as an INSTANCE — the same thing the
+            // Create menu makes. Without this ref the subtree is created as
+            // ordinary entities: the tree looks right, the batch reports success,
+            // and the scene silently holds a COPY. A driver porting twenty panels
+            // through op programs got twenty copies and no way to notice, while
+            // the identical template through `create_entity` linked correctly.
+            const id = EditorControlSurface.create(prefab, {
+              parent, position,
+              linkPrefabRef: op.template ? links.get(op.template) : undefined,
+            });
             if (id == null) throw new Error('entity creation returned no id');
             created.push(id);
             if (op.ref) refs[op.ref] = id;
