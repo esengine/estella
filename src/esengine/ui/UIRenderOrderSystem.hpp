@@ -8,6 +8,7 @@
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Canvas.hpp"
+#include "../ecs/components/ParticleEmitter.hpp"
 
 namespace esengine::ecs {
 
@@ -21,6 +22,15 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
             auto& sprite = registry.get<Sprite>(entity);
             if (sprite.layer != counter) {
                 sprite.layer = counter;
+            }
+            counter++;
+        } else if (auto* emitter = registry.tryGet<ParticleEmitter>(entity)) {
+            // An emitter in the UI tree draws where the tree says it does, like the
+            // Sprite above: without this it keeps its authored layer and a UI effect
+            // lands under (or over) the whole panel instead of between two of its
+            // elements — the reason Unity needs a UIParticle extension at all.
+            if (emitter->layer != counter) {
+                emitter->layer = counter;
             }
             counter++;
         }
