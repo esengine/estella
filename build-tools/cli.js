@@ -188,6 +188,7 @@ program
             await buildNative({
                 target: options.target,
                 fetchDeps: options.fetchDeps,
+                buildDeps: options.buildDeps,
                 template: options.template,
                 templateOnly: options.templateOnly,
                 templateOut: options.templateOut,
