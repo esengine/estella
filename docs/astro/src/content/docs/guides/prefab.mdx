@@ -37,6 +37,13 @@ framed in a warm accent under an **Editing Prefab** banner. Add, remove, rename,
 and tune components exactly as in a scene, then **Save Prefab** — every instance in every
 scene picks up the change. **Back to Scene** returns you where you were.
 
+A **UI prefab** opens inside a canvas. UI boxes are authored relative to their parent, so on
+its own a UI prefab would have nothing for its percentages to resolve against and the whole
+tree would collapse onto the origin. Prefab Mode therefore hosts it in a canvas at the
+project's reference resolution — the layout, selection outlines, and gizmos read exactly as
+they do in a scene. The host isn't part of the prefab: it never appears in the Outliner and
+never reaches the saved asset.
+
 Not yet supported in Prefab Mode: editing a **nested** prefab in place, or a variant whose
 base isn't flat. Play and *Save As* are disabled while you're editing a prefab.
 

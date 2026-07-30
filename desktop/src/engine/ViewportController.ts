@@ -201,7 +201,7 @@ export const ViewportController = {
     };
   },
 
-  /** UI entities under the pointer, most specific first; locked/hidden dropped. */
+  /** UI entities under the pointer, most specific first; unpickable ones dropped. */
   pickUIEntities(clientX: number, clientY: number): EntityId[] {
     const world = EngineHost.world;
     const module = EngineHost.module;
@@ -214,7 +214,7 @@ export const ViewportController = {
     const wp = screenToUiWorld(cam, s.sx, s.sy);
     return uiPickAllWorld(module, reg, wp.x, wp.y).filter((hit) => {
       const src = SceneModel.sourceFor(hit);
-      return src == null || (!SceneModel.isLocked(src) && !SceneModel.isHidden(src));
+      return src == null || SceneModel.isPickable(src);
     });
   },
 
@@ -235,9 +235,9 @@ export const ViewportController = {
       const hits: { e: EntityId; layer: number; i: number }[] = [];
       for (const e of world.getAllEntities()) {
         if (!world.has(e, Transform)) continue;
-        // Locked / editor-hidden entities aren't click-selectable in the viewport.
+        // Locked / editor-hidden / environment entities aren't click-selectable.
         const src = SceneModel.sourceFor(e);
-        if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
+        if (src != null && !SceneModel.isPickable(src)) continue;
         const b = this.entityBounds(e);
         if (!b || !pointInOBB(wp.x, wp.y, b)) continue;
         const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
@@ -262,7 +262,7 @@ export const ViewportController = {
     for (const e of world.getAllEntities()) {
       if (!world.has(e, Transform)) continue;
       const src = SceneModel.sourceFor(e);
-      if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) continue;
+      if (src != null && !SceneModel.isPickable(src)) continue;
       const r = this.getEntityScreenRect(e);
       if (r && rectsIntersect(rect, r)) out.push(e);
     }

@@ -31,6 +31,10 @@ import { Aside } from '@astrojs/starlight/components';
 像编辑场景一样增删、改名、重设父级、调组件,然后 **Save Prefab**——每个场景里的每个实例都会拿到这次
 改动。**Back to Scene** 把你带回原处。
 
+**UI 预制体**会在一张画布里打开。UI 的盒子是相对父级书写的,单独打开时那些百分比没有东西可解析,
+整棵树会塌到原点上。所以 Prefab Mode 会用项目参考分辨率的画布把它托住——布局、选择框、gizmo 都和在
+场景里读起来完全一致。这个宿主不属于预制体:它不出现在 Outliner 里,也永远不会进到存下来的资产。
+
 Prefab Mode 暂不支持:就地编辑**嵌套**预制体,或基不是扁平的变体。编辑预制体时 Play 与 *Save As* 被禁用。
 
 ![编辑器处于 Prefab Mode,单独编辑一个 Coin 预制体](../../../../assets/guides/zh/prefab-mode.png)

@@ -4,6 +4,7 @@ import type { SceneData } from 'esengine';
 import type { SceneNode, NodeKind, EntityId, InspectorComponent, InspectorFieldValue } from '@/types';
 import { SceneStore, SceneStoreImpl } from './SceneStore';
 import { SceneModel, SceneModelImpl } from './SceneModel';
+import { isEnvironmentEntity } from './prefabEnvironment';
 import {
   inspectorFields,
   inferField,
@@ -26,10 +27,14 @@ type SceneEntity = SceneData['entities'][number];
 /** Outliner tree from a SceneData; nesting derived from each entity's `parent`. */
 export function buildSceneTree(data: SceneData | null): SceneNode[] {
   if (!data) return [];
-  const ids = new Set(data.entities.map((e) => e.id));
+  // The editing environment hosts the document without being part of it (Prefab Mode's
+  // Canvas host), so it never gets a row and what it parents reads as a root — the tree
+  // shows exactly what will be saved.
+  const authored = data.entities.filter((e) => !isEnvironmentEntity(e));
+  const ids = new Set(authored.map((e) => e.id));
   const childrenOf = new Map<number, SceneEntity[]>();
   const roots: SceneEntity[] = [];
-  for (const e of data.entities) {
+  for (const e of authored) {
     if (e.parent != null && ids.has(e.parent)) {
       const arr = childrenOf.get(e.parent);
       if (arr) arr.push(e);

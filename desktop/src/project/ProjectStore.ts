@@ -16,7 +16,8 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, sourceById, type EntitySource } from '@/engine/entitySources';
+import { needsUIHost, hostPrefab, authoredEntities, type DocumentEntity } from '@/engine/prefabEnvironment';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { installDragonBonesEnumSources, clearDragonBonesNameCache } from '@/engine/dragonBonesNames';
@@ -76,6 +77,11 @@ function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): bo
   // Slots named in the SDK's editorType vocabulary rather than the
   // Content-Browser type name (anim-clip for .esanim, timeline for .estimeline).
   return getEditorType(path) === fieldType;
+}
+
+/** A flattened prefab entity as a document entity (the fields a scene document keeps). */
+function toDocumentEntity(e: ProcessedEntity): DocumentEntity {
+  return { id: e.id, name: e.name, parent: e.parent, children: e.children, components: e.components, visible: e.visible };
 }
 
 /** A pickable asset for the inspector's asset picker. */
@@ -2244,7 +2250,9 @@ class ProjectStoreImpl {
    * same outliner / inspector / viewport used for scenes. The asset is flattened
    * into ordinary entities (each remembered by its prefabEntityId so save-back
    * preserves identity), the current scene is swapped out, and a banner offers
-   * "Back to Scene". A FLAT prefab extracts back to a flat asset on save; a
+   * "Back to Scene". A UI prefab additionally gets an editing environment — a Canvas
+   * to lay out in, which save strips back out (see engine/prefabEnvironment.ts).
+   * A FLAT prefab extracts back to a flat asset on save; a
    * VARIANT of a flat base is editable too (save collapses the edits against the
    * base into a variant delta, preserving basePrefab). Nested prefabs — and
    * variants of a nested / variant base — are still refused (re-nesting on save
@@ -2291,16 +2299,17 @@ class ProjectStoreImpl {
     // A variant resolves its base through the warm-cache resolver (loadPrefabAsset
     // above warmed it), yielding base entities + the variant's own overrides/adds.
     let nid = 0;
-    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab: this.prefabResolverSync });
+    const allocateId = (): number => nid++;
+    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId, loadPrefab: this.prefabResolverSync });
     const idBySource = new Map(entities.map((e) => [e.id, e.prefabEntityId]));
-    const sceneData = {
-      version: '1.0',
-      name: prefab.name,
-      entities: entities.map((e) => ({
-        id: e.id, name: e.name, parent: e.parent, children: e.children,
-        components: e.components, visible: e.visible,
-      })),
-    } as unknown as SceneData;
+    let docEntities = entities.map(toDocumentEntity);
+    // A UI prefab's boxes are fractions of a parent it no longer has, so open it inside
+    // the editing environment's Canvas or the whole tree collapses (prefabEnvironment.ts).
+    if (needsUIHost(docEntities)) {
+      const host = await this.buildUIHost(allocateId);
+      if (host) docEntities = hostPrefab({ entities: docEntities, rootId }, host);
+    }
+    const sceneData = { version: '1.0', name: prefab.name, entities: docEntities } as unknown as SceneData;
 
     await this.adoptDocument(sceneData);
     // A prefab carries no camera, so syncEditorViewToScene left the scene's view —
@@ -2311,7 +2320,14 @@ class ProjectStoreImpl {
     // position override would otherwise frame at the origin and sit off-screen.
     const frameContent = (): void => {
       const world = EngineHost.world;
-      if (world) ViewportController.frameSelection([...world.getAllEntities()]);
+      if (!world) return;
+      // Frame the prefab, not the environment hosting it: a Canvas host spans the whole
+      // design resolution, which would zoom a button-sized prefab down to a speck.
+      const content = [...world.getAllEntities()].filter((e) => {
+        const src = SceneModel.sourceFor(e);
+        return src == null || !SceneModel.isEnvironment(src);
+      });
+      ViewportController.frameSelection(content);
     };
     requestAnimationFrame(() => requestAnimationFrame(frameContent));
     const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
@@ -2319,6 +2335,25 @@ class ProjectStoreImpl {
     this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView, returnSelection, base, baseRef };
     this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path, returnScene: returnLeaf, isVariant: !!baseRef } } });
     Toasts.push(t('proj.openedPrefab', { name: prefab.name }), 'info', 1600);
+  }
+
+  /**
+   * The Canvas that hosts a UI prefab in Prefab Mode, as document entities. Built
+   * through the Create-entity source, so the host IS the Canvas the user would get in
+   * a scene — the project's design resolution and scale mode included — rather than a
+   * second definition of "a Canvas" that can drift from it. Null if it can't be built
+   * (then the prefab opens unhosted, as before).
+   */
+  private async buildUIHost(allocateId: () => number): Promise<{ entities: DocumentEntity[]; rootId: number } | null> {
+    const source = sourceById('canvas');
+    if (!source?.build) return null;
+    try {
+      const canvas = await source.build({ parent: null });
+      const flat = flattenPrefab(canvas, [], { allocateId, loadPrefab: this.prefabResolverSync });
+      return { entities: flat.entities.map(toDocumentEntity), rootId: flat.rootId };
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -2363,13 +2398,16 @@ class ProjectStoreImpl {
   ): { prefab: PrefabData; idBySource: Map<number, string>; removedCount: number } | null {
     const model = SceneModel.serialize();
     if (!model) return null;
+    // The environment hosting the edit is not part of the asset: drop it (and re-root
+    // what it parented) before anything mints identities or diffs against the base.
+    const entities = authoredEntities(model.entities);
     const idBySource = new Map(pe.idBySource);
-    for (const e of model.entities) if (!idBySource.has(e.id)) idBySource.set(e.id, crypto.randomUUID());
+    for (const e of entities) if (!idBySource.has(e.id)) idBySource.set(e.id, crypto.randomUUID());
 
     if (pe.base && pe.baseRef) {
       // VARIANT: diff the edited tree against the flat base → the variant's own
       // overrides + additions, then rebuild the variant (basePrefab preserved).
-      const processed: ProcessedEntity[] = model.entities.map((e) => ({
+      const processed: ProcessedEntity[] = entities.map((e) => ({
         id: e.id,
         prefabEntityId: idBySource.get(e.id) ?? crypto.randomUUID(),
         name: e.name,
@@ -2384,7 +2422,7 @@ class ProjectStoreImpl {
       return { prefab, idBySource, removedCount: delta.removed.length };
     }
     const prefab = extractPrefab(
-      model.entities as unknown as ExtractEntity[],
+      entities as unknown as ExtractEntity[],
       pe.rootSource,
       pe.name,
       (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),

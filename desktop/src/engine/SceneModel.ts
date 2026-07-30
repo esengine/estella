@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
+import { isEnvironmentEntity } from './prefabEnvironment';
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
@@ -368,6 +369,23 @@ export class SceneModelImpl {
     if (locked) e.locked = true;
     else delete e.locked;
     this.emit({ kind: 'lockChanged', sourceId });
+  }
+
+  /** Whether an entity is part of the editing ENVIRONMENT — in the document so it can
+   *  host what's being edited, but not part of it (see engine/prefabEnvironment.ts).
+   *  Baked in when the document is adopted, so there is no setter. */
+  isEnvironment(sourceId: number): boolean {
+    const e = this.entityBySource(sourceId);
+    return !!e && isEnvironmentEntity(e);
+  }
+
+  /** Whether the viewport may grab an entity: not locked, not editor-hidden, and not
+   *  environment. One predicate so click, marquee, and UI picking cannot drift apart.
+   *  An id the model doesn't know (an engine-owned helper entity) stays grabbable. */
+  isPickable(sourceId: number): boolean {
+    const e = this.entityBySource(sourceId) as (SceneEntity & { hidden?: boolean; locked?: boolean }) | undefined;
+    if (!e) return true;
+    return !e.locked && !e.hidden && !isEnvironmentEntity(e);
   }
 
   // ── Sibling order (outliner drag-reorder; render order = `data.entities` order) ──

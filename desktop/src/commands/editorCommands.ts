@@ -240,7 +240,8 @@ commands.register({
   keybinding: 'mod+a',
   isEnabled: () => SceneModel.entityOrder().length > 0,
   run: () => {
-    const ids = SceneModel.entityOrder();
+    // Everything in the document — the editing environment isn't part of it.
+    const ids = SceneModel.entityOrder().filter((id) => !SceneModel.isEnvironment(id));
     if (ids.length) sel().selectMany(ids, ids[ids.length - 1]);
   },
 });
