@@ -45,7 +45,9 @@ export {
 // ─── Layer 1: Primitives ────────────────────────────────────────────────────
 
 export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core/dimension';
-export { UINode, UIPositionType, UIDisplay, AlignSelf, type UINodeData } from './core/ui-node';
+// `UIPointerEvents` rides along with the rest: it is the enum of a public UINode field,
+// and without it a game turning a closing panel click-through has to write the raw 1.
+export { UINode, UIPositionType, UIDisplay, UIPointerEvents, AlignSelf, type UINodeData } from './core/ui-node';
 
 export {
     UIVisual,

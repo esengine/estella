@@ -149,6 +149,7 @@ export {
     // UINode layout enums
     UIPositionType,
     UIDisplay,
+    UIPointerEvents,
     AlignSelf,
     // Flex container
     FlexContainer,
