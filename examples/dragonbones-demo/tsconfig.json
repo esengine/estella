@@ -10,13 +10,11 @@
     "declaration": false,
     "outDir": "./dist",
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
       "esengine": ["./.esengine/sdk/index.d.ts"],
       "esengine/wasm": ["./.esengine/sdk/wasm.d.ts"],
       "esengine/dragonbones": ["./.esengine/sdk/dragonbones/index.d.ts"],
-      "esengine/spine": ["./.esengine/sdk/spine/index.d.ts"],
-      "@esengine/editor": ["./.esengine/editor/index.d.ts"]
+      "esengine/spine": ["./.esengine/sdk/spine/index.d.ts"]
     }
   },
   "include": ["src/**/*"],

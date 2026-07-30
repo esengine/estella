@@ -10,12 +10,10 @@
     "declaration": false,
     "outDir": "./dist",
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
       "esengine": ["./.esengine/sdk/index.d.ts"],
       "esengine/wasm": ["./.esengine/sdk/wasm.d.ts"],
-      "esengine/physics": ["./.esengine/sdk/physics/index.d.ts"],
-      "@esengine/editor": ["./.esengine/editor/index.d.ts"]
+      "esengine/physics": ["./.esengine/sdk/physics/index.d.ts"]
     }
   },
   "include": ["src/**/*"],
