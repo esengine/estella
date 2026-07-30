@@ -104,6 +104,16 @@ export const TOOLS = [
     description: 'Remove a component from an entity by schema name. Undoable.',
     schema: obj({ entity: { type: 'number' }, component: { type: 'string' } }, ['entity', 'component']),
     method: 'removeComponent', args: (i) => [i.entity, i.component] },
+  { name: 'get_event_bindings',
+    description: "An entity's authored event wires: rows of { event, action, arg?, params?, target?, guard?, once?, enabled? } — the data form of \"when this button is clicked, run that action\".",
+    schema: obj({ entity: { type: 'number' } }, ['entity']),
+    method: 'getEventBindings', args: (i) => [i.entity] },
+  { name: 'set_event_bindings', write: true,
+    description: 'Replace an entity\'s authored event wires in ONE undo step (an empty list unwires it). This is how a button gets behaviour without code: `[{"event":"click","action":"panel.open","params":{"prefab":"assets/prefabs/Shop.esprefab"}}]`. '
+      + '`action` is any name in the action registry — the engine\'s built-ins (property.set, ui.setVisible, fsm.fire…) or one the project registered — and `target` names another entity to run it on (nearest-first from this one). '
+      + 'EventBinding has no Add Component entry; this is its door.',
+    schema: obj({ entity: { type: 'number' }, rows: { type: 'object', description: 'array of wire rows' } }, ['entity', 'rows']),
+    method: 'setEventBindings', args: (i) => [i.entity, i.rows] },
   { name: 'set_entity_xy', write: true,
     description: 'Move an entity to a world position (x, y) — converts to parent-local under the hood (undoable).',
     schema: obj({ id: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' } }, ['id', 'x', 'y']),

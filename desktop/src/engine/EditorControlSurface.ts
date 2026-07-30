@@ -23,10 +23,10 @@ import type {
   InspectorFieldValue,
   SceneNode,
 } from '@/types';
-import type { SceneData, PrefabData, SubsystemStatus } from 'esengine';
+import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { isRequiredEmpty } from './schema';
+import { isRequiredEmpty, componentByName, userSchema } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -373,9 +373,34 @@ export class EditorControlSurfaceImpl {
     }
     this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field?.options));
   }
-  /** Add a component (by schema name) to an entity — the Details "Add Component" door. */
+  /**
+   * Add a component (by schema name) to an entity — the Details "Add Component" door.
+   *
+   * A name with no schema is REFUSED rather than skipped: the add already needs the
+   * schema for its default data, so an unknown name simply produced nothing, and a
+   * caller that then wrote a field got "component X is not on entity" about a
+   * component it believed it had just added.
+   */
   addComponent(entity: EntityId, component: string): void {
+    if (!componentByName(component) && !userSchema(component)) {
+      throw new Error(
+        `no component schema named "${component}" — the editor cannot add it. `
+        + 'Authored-wire components (EventBinding) have their own doors: setEventBindings.',
+      );
+    }
     this.s.commands.addComponent(entity, component);
+  }
+  /** An entity's authored event wires (EventBinding rows). */
+  getEventBindings(entity: EntityId): EventBindingRow[] {
+    return this.s.commands.eventBindings(entity);
+  }
+  /**
+   * Replace an entity's authored event wires in one undo step — the data form of
+   * "when this button is clicked, run that action". The Details Events section adds
+   * them one at a time; an importer converting a whole panel's wiring wants the list.
+   */
+  setEventBindings(entity: EntityId, rows: readonly EventBindingRow[]): void {
+    this.s.commands.setEventBindings(entity, rows);
   }
   /** Remove a component from an entity. */
   removeComponent(entity: EntityId, component: string): void {

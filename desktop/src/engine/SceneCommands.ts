@@ -1800,6 +1800,19 @@ export class SceneCommandsImpl {
     this.writeEventRows(id, 'Remove Event Wire', this.eventRowsOf(id).filter((_, i) => i !== index));
   }
 
+  /** Replace an entity's whole wire list in ONE undo step — for a caller that
+   *  authored the rows elsewhere (an importer converting another engine's button
+   *  wiring), where appending them one at a time would be N undo steps of a thing
+   *  the user did once. An empty list drops the component. */
+  setEventBindings(id: EntityId, rows: readonly EventBindingRow[]): void {
+    this.writeEventRows(id, 'Set Event Wires', rows.map((r) => ({ ...r })));
+  }
+
+  /** An entity's authored wires (a copy). */
+  eventBindings(id: EntityId): EventBindingRow[] {
+    return this.eventRowsOf(id).map((r) => ({ ...r }));
+  }
+
   /** Set (or clear, with undefined) one gear binding's page-change transition. Undoable. */
   setGearTween(id: EntityId, controller: string, component: string, property: string, tween?: GearTween): void {
     const cur = this.gearBindingsOf(id);
