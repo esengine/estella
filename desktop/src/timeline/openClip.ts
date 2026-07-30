@@ -13,8 +13,8 @@
 import { parseAnimationClip } from 'esengine';
 import { t } from '@/i18n';
 import { TimelineDocument } from './TimelineDocument';
+import { previewRootFor } from './previewRoot';
 import { useSequencerStore } from '@/store/sequencerStore';
-import { useSelection } from '@/store/selectionStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -25,7 +25,7 @@ export async function openAnimationClip(path: string): Promise<void> {
   // Already-open file: front the Sequencer and rebind the preview root — a
   // reload would clobber unsaved edits.
   if (TimelineDocument.isOpen && TimelineDocument.filePath === path) {
-    TimelineDocument.setRootEntity(useSelection.getState().selectedId);
+    TimelineDocument.setRootEntity(previewRootFor(path));
     dockApi.revealAndExpand('sequencer');
     return;
   }
@@ -33,11 +33,16 @@ export async function openAnimationClip(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     const asset = parseAnimationClip(JSON.parse(text));
-    // Bind the preview to the current selection (if any) so scrubbing animates it.
-    const rootEntity = useSelection.getState().selectedId;
+    // Bind the preview to the entity that PLAYS this clip (else the selection) so
+    // scrubbing animates something: opened from the Content Browser the selection is
+    // an asset, and binding to that bound to nothing at all.
+    const rootEntity = previewRootFor(path);
     TimelineDocument.open({ asset, filePath: path, rootEntity });
     useSequencerStore.getState().resetForClip();
     dockApi.revealAndExpand('sequencer');
+    if (rootEntity == null) {
+      Toasts.push(t('seq.toast.unbound', { name: baseName(path) }), 'info', 5000);
+    }
   } catch (e) {
     Toasts.push(t('seq.toast.openFailed', { error: String(e) }), 'error');
   }

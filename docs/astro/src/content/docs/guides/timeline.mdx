@@ -113,6 +113,22 @@ curves and their tangent handles for eases the dope sheet can't express:
 
 *The curve editor: each keyframed channel becomes an editable curve (here `position.x` easing in, `position.y` bobbing), with per-key tangent handles.*
 
+### What the preview animates
+
+Scrubbing or playing in the Sequencer animates the **live viewport**, not a separate
+preview window — the sampled pose is written to the open document and restored the
+moment you unbind, close, or enter Play, so it can never leak into the saved scene.
+
+It animates one entity: the **preview root**, named on the link button in the
+Sequencer's header. That root is derived, not asked for — it is the entity whose
+`TimelinePlayer` plays this timeline, so double-clicking a clip in the Content Browser
+binds to the thing that plays it. Selecting a node *inside* an effect still previews
+the whole effect (the root is found by walking up), and when several entities play the
+same timeline the header says so and previews the selected one. With no player anywhere
+and nothing selected there is nothing to animate: the button reads **Unbound**, and the
+link button binds it to your selection — which is how you author a new clip onto an
+entity that does not play it yet.
+
 ## Timelines from code
 
 An `.estimeline` document is plain data — the `TimelineAsset` type plus the

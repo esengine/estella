@@ -29,8 +29,12 @@ export const sequencerMessages = defineMessages({
     // — transport bar —
     'seq.unnamed': { en: 'Unnamed', zh: '未命名' },
     'seq.metaSummary': { en: '· {frames} frames · {fps}fps · {wrap}', zh: '· {frames} 帧 · {fps}fps · {wrap}' },
-    'seq.bindTitle': { en: 'Bind preview to the selected entity', zh: '将预览绑定到所选实体' },
+    'seq.bindTitle': {
+      en: 'Preview against the entity that plays this timeline (or the selected one)',
+      zh: '预览绑定到播放这条时间轴的实体（否则用所选实体）',
+    },
     'seq.unbound': { en: 'Unbound', zh: '未绑定' },
+    'seq.instances': { en: '{count} entities play this — previewing one', zh: '有 {count} 个实体在播它——预览其中一个' },
     'seq.recordTitle': { en: 'Record: property edits auto-key', zh: '录制：编辑属性时自动打关键帧' },
     'seq.jumpStart': { en: 'Jump to start', zh: '跳到开头' },
     'seq.prevKeyframe': { en: 'Previous keyframe', zh: '上一个关键帧' },
@@ -98,6 +102,10 @@ export const sequencerMessages = defineMessages({
     'seq.toast.noFile': {
         en: 'Animation has no file (sample clips cannot be saved)',
         zh: '动画没有对应的文件（示例剪辑无法保存）',
+    },
+    'seq.toast.unbound': {
+      en: '{name} has nothing to preview against: no entity in this document plays it, and nothing is selected. Select the entity to animate, then press the link button.',
+      zh: '{name} 没有可预览的对象：这个文档里没有实体在播它，也没有选中任何实体。选中要动的实体，再点链接按钮。',
     },
     'seq.toast.saved': { en: 'Animation saved', zh: '动画已保存' },
     'seq.toast.saveFailed': { en: 'Failed to save: {error}', zh: '保存失败：{error}' },

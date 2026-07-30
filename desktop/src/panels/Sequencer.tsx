@@ -20,6 +20,7 @@ import { evaluateChannel, InterpType, WrapMode } from 'esengine';
 import { t } from '@/i18n';
 import { animatableFieldsFor } from '@/engine/schema';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
+import { previewRootFor, playerCountFor } from '@/timeline/previewRoot';
 import { createAnimationClip } from '@/timeline/openClip';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { buildTimelineComponents, makeTimelineWrite } from '@/timeline/timelineInspectorModel';
@@ -163,6 +164,9 @@ function SequencerBody() {
 
   const root = TimelineDocument.rootEntity;
   const rootName = root != null ? (SceneModel.entityBySource(root)?.name || `#${root}`) : null;
+  // A scene can hold several instances of one effect (the pack's twinkle is in four
+  // panels); the preview animates ONE, so say which count it picked from.
+  const players = playerCountFor(TimelineDocument.filePath);
 
   const tlRef = useRef<HTMLDivElement>(null);
 
@@ -390,10 +394,11 @@ function SequencerBody() {
           type="button"
           className={`seq-btn seq-btn--text${rootName ? ' on' : ''}`}
           title={t('seq.bindTitle')}
-          onClick={() => TimelineDocument.setRootEntity(useSelection.getState().selectedId)}
+          onClick={() => TimelineDocument.setRootEntity(previewRootFor(TimelineDocument.filePath))}
         >
           <Link2 size={13} /><span>{rootName ?? t('seq.unbound')}</span>
         </button>
+        {players > 1 && <span className="seq-meta__dim">{t('seq.instances', { count: players })}</span>}
         <span className="seq-div" />
         <button
           type="button"
