@@ -152,3 +152,22 @@ export function lineSelections(value: string, lo: number, hi: number): Array<{ l
     }
     return out;
 }
+
+/**
+ * How far into the inner box a line of `textW` starts, for `align` in `innerW`.
+ *
+ * A single-line field realizes its alignment through this offset rather than
+ * through its child Text's own `align`, because the text layout aligns WITHOUT a
+ * clamp: a value wider than the box would be centred and overflow both edges,
+ * fighting the horizontal scroll that exists to keep the caret in view. Clamped
+ * at zero, a field holds its alignment while the value is short and behaves
+ * exactly as a left-aligned one once the value fills the box.
+ *
+ * It lives here because three things have to agree about it — where the glyphs
+ * are drawn, where the caret and selection rect go, and which character a click
+ * lands on. Align is 0 left / 1 center / 2 right, matching TextAlign.
+ */
+export function alignOffset(align: number, innerW: number, textW: number): number {
+    const slack = Math.max(0, innerW - textW);
+    return align === 1 ? slack / 2 : align === 2 ? slack : 0;
+}

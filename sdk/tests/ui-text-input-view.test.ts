@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
+    textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex, alignOffset,
     splitLines, caretLineCol, lineSelections, imeAnchorCss,
 } from '../src/ui/text/text-input-view';
 
@@ -188,5 +188,30 @@ describe('imeAnchorCss', () => {
 
     it('guards a zero dpr', () => {
         expect(imeAnchorCss(200, 100, 600, 0)).toEqual({ left: 200, top: 500 });
+    });
+});
+
+describe('alignOffset', () => {
+    it('leaves a left-aligned line at the start of the box', () => {
+        expect(alignOffset(0, 200, 40)).toBe(0);
+        expect(alignOffset(0, 200, 400)).toBe(0);
+    });
+
+    it('splits the slack for center and hands it all over for right', () => {
+        expect(alignOffset(1, 200, 40)).toBe(80);
+        expect(alignOffset(2, 200, 40)).toBe(160);
+    });
+
+    it('collapses to zero once the line fills the box, so the scroll takes over', () => {
+        // The caret has to stay reachable: past the box width the field scrolls,
+        // and an offset that kept centring would drag the text off both edges.
+        expect(alignOffset(1, 200, 200)).toBe(0);
+        expect(alignOffset(1, 200, 500)).toBe(0);
+        expect(alignOffset(2, 200, 500)).toBe(0);
+    });
+
+    it('survives a degenerate box', () => {
+        expect(alignOffset(1, 0, 40)).toBe(0);
+        expect(alignOffset(2, -10, 40)).toBe(0);
     });
 });

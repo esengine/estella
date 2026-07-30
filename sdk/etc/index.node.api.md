@@ -6776,6 +6776,7 @@ color: Color
 cursorPos: number
 dirty: boolean
 focused: boolean
+font: number
 fontFamily: string
 fontSize: number
 maxLength: number
@@ -6786,6 +6787,7 @@ placeholder: string
 placeholderColor: Color
 readOnly: boolean
 renderMode: TextRenderMode
+textAlign: TextAlign
 value: string
 ```
 

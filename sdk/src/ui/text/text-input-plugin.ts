@@ -23,9 +23,11 @@ import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import type { ESEngineModule } from '../../wasm';
 import { measureWidth } from './layout';
+import { resolveTextFamily } from './font-registry';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
-    splitLines, caretLineCol, lineSelections, imeAnchorCss, type TextFieldDisplay,
+    splitLines, caretLineCol, lineSelections, imeAnchorCss, alignOffset,
+    type TextFieldDisplay,
 } from './text-input-view';
 import { uiWorldToScreen } from '../util/ui-pick';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
@@ -82,6 +84,10 @@ export class TextInputPlugin implements Plugin {
         // The render system's horizontal scroll per field, read by click-to-caret
         // (Update) to map a pointer x back to a character index under the scroll.
         const scrollXOf = new Map<Entity, number>();
+        // And the alignment offset it drew at, for the same reason: a click in a
+        // centred field lands on the glyph that is there, not on the one that
+        // would have been there had the value been left-aligned.
+        const alignOffsetOf = new Map<Entity, number>();
         let measureRenderer: SdfTextRenderer | null = null;
         const ensureMeasure = (): SdfTextRenderer => {
             if (!measureRenderer) measureRenderer = new SdfTextRenderer(module);
@@ -189,7 +195,13 @@ export class TextInputPlugin implements Plugin {
             const fieldLeft = tr.worldPosition.x - width / 2;
             const val = editor!.read().value;   // focused ⇒ the surface is the value source
             const atlas = ensureMeasure().atlas;
-            const mw = (s: string): number => measureWidth(s, atlas, ti.fontFamily, ti.fontSize, 0);
+            // The family the child Text will actually rasterize with. The caret is
+            // placed by measuring, so measuring with a different font than the one on
+            // screen puts it between the wrong glyphs.
+            const family = resolveTextFamily(ti.font, ti.fontFamily);
+            const mw = (s: string): number => measureWidth(s, atlas, family, ti.fontSize, 0);
+
+            const innerW = Math.max(0, width - 2 * ti.padding);
 
             if (ti.multiline) {
                 const height = getUINodeHeight(entity);
@@ -199,14 +211,20 @@ export class TextInputPlugin implements Plugin {
                 const lines = splitLines(val);
                 const li = Math.max(0, Math.min(Math.floor(localY / lineH), lines.length - 1));
                 const line = lines[li];
-                const textX = cam.worldMouseX - fieldLeft - ti.padding;
+                // Each line carries its own alignment offset, so undo THIS line's.
+                const textX = cam.worldMouseX - fieldLeft - ti.padding
+                    - alignOffset(ti.textAlign, innerW, mw(line.text));
                 const prefixes: number[] = [];
                 for (let i = 0; i <= line.text.length; i++) prefixes.push(mw(line.text.slice(0, i)));
                 return line.start + nearestCaretIndex(prefixes, textX);
             }
 
             const scrollX = scrollXOf.get(entity) ?? 0;
-            const textX = cam.worldMouseX - fieldLeft - ti.padding + scrollX;
+            // The offset the render pass actually drew at, not one recomputed here:
+            // a focused field's value can differ from what was last drawn, and a
+            // guess about the offset lands the caret on the wrong glyph.
+            const ao = alignOffsetOf.get(entity) ?? 0;
+            const textX = cam.worldMouseX - fieldLeft - ti.padding - ao + scrollX;
             const prefixes: number[] = [];
             for (let i = 0; i <= val.length; i++) {
                 prefixes.push(mw(maskedPrefix(val, i, ti.password, PASSWORD_CHAR)));
@@ -340,6 +358,8 @@ export class TextInputPlugin implements Plugin {
                         if (world.valid(ch.text)) world.despawn(ch.text);
                         if (world.valid(ch.caret)) world.despawn(ch.caret);
                         childrenOf.delete(e);
+                        scrollXOf.delete(e);
+                        alignOffsetOf.delete(e);
                     }
                 }
 
@@ -368,7 +388,8 @@ export class TextInputPlugin implements Plugin {
 
                     const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR);
                     const atlas = ensureMeasure().atlas;
-                    const mw = (s: string): number => measureWidth(s, atlas, ti.fontFamily, ti.fontSize, 0);
+                    const family = resolveTextFamily(ti.font, ti.fontFamily);
+                    const mw = (s: string): number => measureWidth(s, atlas, family, ti.fontSize, 0);
                     const innerW = Math.max(0, w - 2 * ti.padding);
                     const vCenter = Math.max(0, (h - ti.fontSize) / 2);
 
@@ -377,20 +398,26 @@ export class TextInputPlugin implements Plugin {
                     // vertically; multiline stacks lines from the top (no h-scroll)
                     // and positions the caret on its \n-broken line. A selection that
                     // spans multiple visual lines shows the caret only for now.
-                    let caretX: number, caretTop: number, scrollX: number;
+                    let caretX: number, caretTop: number, scrollX: number, ao: number;
                     let sshow = false, sx = 0, stop = 0, sw = 0;
                     if (ti.multiline) {
                         const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
                         scrollX = 0;
+                        // Every line aligns in the box on its own, so the child Text
+                        // does it and there is nothing to shift the whole block by.
+                        // The caret follows its own line's offset.
+                        ao = 0;
                         const lc = caretLineCol(val, sel.caret);
-                        caretX = ti.padding + mw(val.slice(lc.lineStart, sel.caret));
+                        const lineOf = (i: number): string => splitLines(val)[i]?.text ?? '';
+                        const lineAo = (i: number): number => alignOffset(ti.textAlign, innerW, mw(lineOf(i)));
+                        caretX = ti.padding + lineAo(lc.line) + mw(val.slice(lc.lineStart, sel.caret));
                         caretTop = lc.line * lineH;
                         // Highlight a selection that stays on one visual line; a
                         // multi-line range shows the caret only for now.
                         const rows = sel.hasRange ? lineSelections(val, sel.lo, sel.hi) : [];
                         if (rows.length === 1) {
                             const line = splitLines(val)[rows[0].line];
-                            sx = ti.padding + mw(line.text.slice(0, rows[0].from));
+                            sx = ti.padding + lineAo(rows[0].line) + mw(line.text.slice(0, rows[0].from));
                             sw = mw(line.text.slice(rows[0].from, rows[0].to));
                             stop = rows[0].line * lineH;
                             sshow = true;
@@ -398,20 +425,22 @@ export class TextInputPlugin implements Plugin {
                     } else {
                         const caretRaw = mw(maskedPrefix(val, sel.caret, ti.password, PASSWORD_CHAR));
                         scrollX = Math.max(0, caretRaw - innerW);
-                        caretX = ti.padding + caretRaw - scrollX;
+                        ao = alignOffset(ti.textAlign, innerW, mw(disp.text));
+                        caretX = ti.padding + ao + caretRaw - scrollX;
                         caretTop = vCenter;
                         if (sel.hasRange) {
                             const lo = mw(maskedPrefix(val, sel.lo, ti.password, PASSWORD_CHAR));
-                            sx = ti.padding + lo - scrollX;
+                            sx = ti.padding + ao + lo - scrollX;
                             sw = mw(maskedPrefix(val, sel.hi, ti.password, PASSWORD_CHAR)) - lo;
                             stop = vCenter;
                             sshow = true;
                         }
                     }
                     scrollXOf.set(entity, scrollX);
+                    alignOffsetOf.set(entity, ao);
 
                     syncSelChild(ch.sel, ti, sshow, sx, stop, sw);
-                    syncTextChild(ch.text, ti, disp, innerW, scrollX);
+                    syncTextChild(ch.text, ti, disp, innerW, scrollX, ao);
                     // The blinking caret hides while a highlight is drawn.
                     syncCaretChild(ch.caret, ti, caretX, caretTop, ti.focused && cursorVisible && !sshow);
 
@@ -442,10 +471,15 @@ export class TextInputPlugin implements Plugin {
                 return;
             }
             const bg = world.get(entity, UIVisual) as UIVisualData;
+            // A visual that is not a plain fill was put there on purpose — the
+            // 9-sliced frame every skinned input field in every UI pack is drawn
+            // with. `backgroundColor` is the fallback for a field nobody skinned,
+            // so it stops at the fill it owns instead of flattening the art every
+            // frame. A field authored with a frame keeps its frame.
+            if (bg.visualType !== UIVisualType.SolidColor) return;
             const c = ti.backgroundColor;
-            if (bg.visualType !== UIVisualType.SolidColor || !bg.enabled
+            if (!bg.enabled
                 || bg.color.r !== c.r || bg.color.g !== c.g || bg.color.b !== c.b || bg.color.a !== c.a) {
-                bg.visualType = UIVisualType.SolidColor;
                 bg.color = { ...c };
                 bg.enabled = true;
                 world.insert(entity, UIVisual, bg);
@@ -469,7 +503,7 @@ export class TextInputPlugin implements Plugin {
                 // under the Scissor mask instead of being pinned to the box.
                 node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetBottom: px(0), width: px(0) },
                 text: {
-                    content: '', fontFamily: ti.fontFamily, fontSize: ti.fontSize,
+                    content: '', font: ti.font, fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                     align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
                     renderMode: ti.renderMode,
                 },
@@ -502,29 +536,37 @@ export class TextInputPlugin implements Plugin {
             }
         }
 
-        function syncTextChild(textEntity: Entity, ti: TextInputData, disp: TextFieldDisplay, innerW: number, scrollX: number): void {
+        function syncTextChild(textEntity: Entity, ti: TextInputData, disp: TextFieldDisplay, innerW: number, scrollX: number, ao: number): void {
             const t = world.get(textEntity, Text) as TextData;
             const show = disp.text;
             const col = disp.isPlaceholder ? ti.placeholderColor : ti.color;
             // Multiline stacks lines from the top so caret line math lines up;
             // single-line centers the one line in the box.
             const vAlign = ti.multiline ? TextVerticalAlign.Top : TextVerticalAlign.Middle;
-            if (t.content !== show || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
+            // Multiline aligns per line, which only the text layout can do, so it
+            // owns the alignment there. A single line is aligned by the offset the
+            // caret and the hit-test share, so its box stays Left.
+            const hAlign = ti.multiline ? ti.textAlign : TextAlign.Left;
+            if (t.content !== show || t.font !== ti.font || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
                 || t.wordWrap !== ti.multiline || t.renderMode !== ti.renderMode || t.verticalAlign !== vAlign
+                || t.align !== hAlign
                 || t.color.r !== col.r || t.color.g !== col.g || t.color.b !== col.b || t.color.a !== col.a) {
                 t.content = show;
+                t.font = ti.font;
                 t.fontFamily = ti.fontFamily;
                 t.fontSize = ti.fontSize;
                 t.wordWrap = ti.multiline;
                 t.verticalAlign = vAlign;
+                t.align = hAlign;
                 t.renderMode = ti.renderMode;
                 t.color = { ...col };
                 world.insert(textEntity, Text, t);
             }
-            // Slide the text box by the scroll offset; width = the inner box (a
-            // single line overflows it rightward and the Scissor mask clips).
+            // Slide the text box by the alignment offset and the scroll; width = the
+            // inner box (a single line overflows it rightward and the Scissor mask
+            // clips).
             const node = world.get(textEntity, UINode) as UINodeData;
-            const left = ti.padding - scrollX;
+            const left = ti.padding + ao - scrollX;
             if (node.insetLeft.value !== left || node.width.value !== innerW) {
                 node.insetLeft = px(left);
                 node.width = px(innerW);
