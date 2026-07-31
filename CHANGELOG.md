@@ -29,16 +29,9 @@ Games built with v0.33.0 through v0.37.0 install on Android 10 and 11 and then f
 start: the dynamic linker cannot resolve `APerformanceHint_getManager`, so it refuses
 `libestella_js_host.so` and the process dies before any engine code runs. Six releases
 shipped with it because CI booted one emulator, API 34, and the fault only exists below
-API 31.
-
-### Fixed
-
-- **Android 10 and 11 can run a packaged game.** The manifest declared minSdk 26 while
-  the NDK was told to build against 33. The NDK decides how to reference an API by
-  comparing it with the build target, so a target above the declared floor compiles every
-  `__builtin_available` in the host to dead code and turns each guarded symbol into a
-  load-time requirement. ADPF is one of those. It is now resolved through `dlsym`, so a
-  device that exports it gets a hint session and a device that does not gets none.
+API 31. The rest of this release is a UI port's worth of things that were silently
+almost-right — a tween that started at its destination, a text field that could only
+look like itself, a skeleton the eye icon did not hide.
 
 ### Added
 
@@ -50,6 +43,83 @@ API 31.
   legitimately dark scene and a dead renderer produce the same screenshot — so frames are
   published for a person to look at and the gate is limited to install, reaching `ready`,
   and recording no error.
+- **A text field can be skinned, aligned, and drawn in the game's font.** `TextInput`
+  forced its entity's `UIVisual` to a solid fill every frame, flattening the 9-sliced
+  frame a UI pack draws input boxes with; its text was always left-aligned; and it took a
+  font *family*, so a field on a panel in the project's own typeface rendered in Arial.
+- **A clip anchors each frame, so shifting artwork keeps its feet planted.** `.esanim` 1.4
+  adds a clip-wide `pivot` and a per-frame override, both normalized in the frame's own
+  space — the space `Sprite.pivot` already uses. A clip that authors no anchor leaves
+  `Sprite.pivot` as the entity set it, so existing projects see no change.
+- **An activation track can switch a UI node off.** It drove `enabled` on sprites, spine
+  skeletons and sprite animators — every renderer except the one whose whole vocabulary is
+  show and hide. A UI node has no `enabled`; `display` is its show/hide, and the only one
+  that takes the subtree with it, which is what an activation range means.
+- **`UIPointerEvents` is exported.** `UINode.pointerEvents` is public and documented, but
+  its enum never left the UI module, so the only way to write it was the raw `1`.
+- **MCP can create, enter, edit and leave Prefab Mode.** Automation could extract a prefab
+  and instance it and then had nothing: no way into Prefab Mode, no way to tell it was in
+  one, no Apply / Revert / Unpack / Create Variant, and `get_entity` did not report that an
+  entity was an instance at all.
+- **MCP can wire a button.** `EventBinding` has no Add Component entry — the Details panel
+  adds it implicitly — so `add_component` with that name did nothing. An unknown component
+  name is now refused rather than silently accepted.
+
+### Fixed
+
+- **Android 10 and 11 can run a packaged game.** The manifest declared minSdk 26 while the
+  NDK was told to build against 33. The NDK decides how to reference an API by comparing it
+  with the build target, so a target above the declared floor compiles every
+  `__builtin_available` in the host to dead code and turns each guarded symbol into a
+  load-time requirement. ADPF is one of those. It is resolved through `dlsym` now, so a
+  device that exports it gets a hint session and a device that does not gets none.
+- **A game called "Save & Load" builds for iOS.** The app's title goes into `Info.plist`
+  verbatim, so a title containing `&`, `<` or `>` wrote XML Xcode could not parse. The
+  error named neither the character nor the name it came from. Two of this repo's own
+  examples were unbuildable.
+- **A tween starts where it says it starts.** `tween.to(...)` left the target at its
+  destination until the tween system next ran, so a node created with an entrance showed
+  up at its final place for a frame and then jumped off-stage to travel back. The start
+  value is taken at creation and held through `delay` — a delay is "start later", not
+  "start somewhere else".
+- **The eye icon hides a skeleton.** A spine or DragonBones instance lives in a side
+  module's table that the renderer submits from, so `SpineAnimation.enabled` was read by
+  nobody: the Outliner, the component checkbox and gameplay were all writing into a hole.
+- **A particle emitter in the UI tree draws where the tree puts it.** The UI render-order
+  pass hands a `UIVisual` its `uiOrder` and a `Sprite` its layer; a `ParticleEmitter` got
+  nothing and kept whatever layer it was authored with, landing under or over the whole
+  panel instead of between the two elements it belongs between.
+- **A text field you blurred by clicking away takes focus again.** Clicking beside a field
+  and back into it left it focused with no caret, swallowing every keystroke; only clicking
+  a different field first recovered it.
+- **The editor keeps the game running when its window is behind another one.** Chromium
+  counts "behind another window" as occluded, so clicking anything else dropped the play
+  realm to 1-2 fps — indistinguishable from a frozen game, and worse for anything driving
+  the editor, which then reads a stalled world. 60 fps unfocused now, the same as focused.
+- **The gizmo moves things, not every pixel of the thing.** A press anywhere on a selected
+  entity began a free two-axis transform from the first pixel of travel, so a click that
+  wobbled slid, spun or resized what you were only trying to pick.
+- **A locked entity has no handles.** `setEntityLocked` blocked viewport picking and
+  nothing else, so an entity selected from the Outliner — the only way to select a skeleton,
+  which has no renderable bounds — still dragged like any other.
+- **A timeline previews the thing that plays it.** The Sequencer bound its preview root to
+  whatever was selected when the file opened, and opening a clip from the Content Browser
+  selects an *asset*, so the root was null: it played correctly and animated nothing.
+- **A UI prefab opens in a canvas.** Prefab Mode built its document from the prefab's own
+  entities only, and a UI node's box is authored relative to its parent — so every node
+  landed at the origin with a degenerate box and nine-sliced art stopped drawing.
+- **A missing remembered scene no longer bricks the project.** Deleting a scene file
+  outside the editor made `lastOpenedScene` throw on open, leaving the launcher behind a
+  toast and no way back in short of hand-editing `.esengine/workspace.json`.
+- **A prefab template in an MCP op program makes an instance, not a copy.**
+  `apply_scene_ops` created from the prefab's data without the ref that links the result to
+  the asset, so the subtree landed as ordinary entities that no longer tracked it.
+- **A project's tsconfig opens clean under TypeScript 6.** VSCode 1.130 bundles TS 6.0.3,
+  where `baseUrl` is deprecated, so every project stamped from the blank template opened
+  with a red TS5101. The `paths` values were already tsconfig-relative, so dropping it
+  changes no resolution.
+- **The release publish gate installs the tooling it runs.** It could not execute, which is
+  why the smoke check has never actually gated a release before this one.
 
 ### Changed
 
