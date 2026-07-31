@@ -73,6 +73,13 @@ const KNOWN_FAILURES = {};
  */
 const FRAME_NOT_JUDGED = {
     cutscene: 'a timeline that is legitimately dark when the frame is taken (4 colors on iOS, 1 on Android)',
+    // Nothing is on screen until 1.5 s of SIMULATED time has passed — that is when
+    // the first collectible spawns — and simulated time is not wall time: delta is
+    // clamped (0.25 s), so a starved runner advances the world slower than the
+    // clock this waits on. Two runs of identical code, one booting in 344 ms with
+    // two squares on screen and one booting in 2956 ms with none, is the same
+    // example on a busier machine, not a regression.
+    'event-system': 'its first sprite needs 1.5 s of simulated time, which a loaded runner reaches later than the wall clock does',
 };
 
 function parseArgs(argv) {
