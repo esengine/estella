@@ -563,9 +563,14 @@ commands.register({
   label: t('menu.extractSchemas'),
   category: t('cat.file'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  // Extracts user component schemas AND reloads them into the editor.
+  // Extracts user component schemas AND reloads them into the editor. A refused
+  // extract resolves like any other — report ITS verdict, not merely whether the
+  // call threw (the console carries the reason).
   run: () => void ProjectStore.refreshUserSchemas()
-    .then(() => Toasts.push(t('toast.extractedSchemas'), 'success'))
+    .then((ok) => Toasts.push(
+      ok ? t('toast.extractedSchemas') : t('toast.extractFailed'),
+      ok ? 'success' : 'error',
+    ))
     .catch(() => Toasts.push(t('toast.extractFailed'), 'error')),
 });
 

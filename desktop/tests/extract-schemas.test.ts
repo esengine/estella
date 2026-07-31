@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { extractProjectSchemas, type ComponentSchema, type SchemasArtifact } from '../electron/extractSchemas';
 
 let root: string;
@@ -145,6 +146,33 @@ describe('extractProjectSchemas (P2)', () => {
         } finally {
             rmSync(proj, { recursive: true, force: true });
         }
+    });
+
+    // The extractor INLINES the SDK, so esbuild — a NATIVE subprocess — has to
+    // READ esengine's dist. Packaged, extractSchemas.ts lives inside app.asar,
+    // which Node reads through a patched fs but that subprocess cannot see into
+    // at all: walking up from there resolved nothing, so EVERY shipped build
+    // failed to resolve `esengine` and silently wrote no artifact — a project's
+    // own components never reached Add Component. main.ts passes SDK_DIST (the
+    // app.asar.unpacked twin) instead, the same alias the export pipelines use.
+    describe('the SDK dist it inlines from', () => {
+        const SDK_DIST = fileURLToPath(new URL('../node_modules/esengine/dist', import.meta.url));
+
+        it('inlines esengine from an explicitly-given dist', async () => {
+            const res = await extractProjectSchemas(root, { sdkDir: SDK_DIST });
+            expect(res.errors).toEqual([]);
+            expect(res.ok).toBe(true);
+            expect(res.schemas.map((s) => s.name)).toEqual(['Marker', 'Wave']);
+        });
+
+        // The teeth: if the alias stops being wired in, resolution silently falls
+        // back to walking up from this package — which works HERE and nowhere a
+        // user runs the editor, which is exactly how the packaged break hid.
+        it('resolves through that dist rather than walking up, so a bogus one fails', async () => {
+            const res = await extractProjectSchemas(root, { sdkDir: path.join(root, 'no-such-sdk') });
+            expect(res.ok).toBe(false);
+            expect(res.errors.join(' ')).toMatch(/esengine|no-such-sdk/);
+        });
     });
 
     // The palettes can only offer a game's own action names if they reach the

@@ -388,14 +388,30 @@ class ProjectStoreImpl {
    * round-trips it losslessly) WITHOUT the editor realm ever running project code.
    * Call on open + whenever the declaration entry changes. Best-effort — a failure
    * leaves the previous schemas (or builtins-only) and never blocks opening.
+   *
+   * Returns whether the extract itself succeeded. A failed one used to be
+   * indistinguishable from "this project declares no components": the result was
+   * discarded, nothing is written on failure, so the stale (usually empty)
+   * artifact was simply reloaded and Add Component came up short with not one
+   * word anywhere about why. Report it — the caller decides how loudly.
    */
-  async refreshUserSchemas(): Promise<void> {
+  async refreshUserSchemas(): Promise<boolean> {
+    let ok = false;
     try {
-      await window.estella.project.extractSchemas();
+      const res = await window.estella.project.extractSchemas();
+      ok = res.ok;
+      if (!res.ok) {
+        console.error(
+          '[project] component schema extract FAILED — the project\'s own components ' +
+          'cannot appear in Add Component (their scene data still round-trips ' +
+          `losslessly): ${res.errors.join('; ')}`,
+        );
+      }
     } catch (err) {
       console.warn('[project] schema extract failed (custom components fall back to lossless-only)', err);
     }
     await this.loadUserSchemas();
+    return ok;
   }
 
   /**

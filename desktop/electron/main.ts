@@ -866,11 +866,22 @@ ipcMain.handle('project:buildScripts', async () => {
 // realm can inspect unknown components without executing project code. An
 // explicitly-declared register that's missing is an error; the default merely
 // being absent means the project has no custom components (REARCH_EDITOR_REALM P2/P3).
+//
+// SDK_DIST, like every other esbuild consumer here: the extractor INLINES the SDK,
+// and a packaged app's node_modules is inside app.asar, which the esbuild
+// subprocess cannot read. Left to walk up from its own location the bundle failed
+// to resolve `esengine` in every shipped build — silently, since a failed extract
+// writes nothing and the last artifact stands, so a project's own components
+// simply never reached Add Component.
 ipcMain.handle('project:extractSchemas', async () => {
   const root = requireRoot();
   const manifest = await readManifest(root);
   const { register } = resolveScripts(manifest);
-  return extractProjectSchemas(root, { entry: register, required: manifest.scripts?.register !== undefined });
+  return extractProjectSchemas(root, {
+    entry: register,
+    required: manifest.scripts?.register !== undefined,
+    sdkDir: SDK_DIST,
+  });
 });
 
 // Write a new project script and wire it into the entry its kind belongs to —

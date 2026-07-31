@@ -22,6 +22,7 @@
  */
 import type { Plugin } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
+import { esengineAlias } from './esengineResolve';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -34,10 +35,17 @@ const CACHE_DIR = '.esengine/cache';
 const OUTPUT = 'schemas.json';
 
 /**
- * Anchor for resolving the bare `esengine` specifier. This file lives inside the
- * desktop package (which depends on `esengine`), so esbuild walks up from here to
- * `desktop/node_modules/esengine` no matter where the project itself lives — a
- * project under /tmp has no esengine in its own node_modules (cf. build-scripts).
+ * Anchor for resolving the bare `esengine` specifier when no `sdkDir` is given.
+ * This file lives inside the desktop package (which depends on `esengine`), so
+ * esbuild walks up from here to `desktop/node_modules/esengine` no matter where
+ * the project itself lives — a project under /tmp has no esengine in its own
+ * node_modules (cf. build-scripts).
+ *
+ * Walking up only works when this file sits on the REAL filesystem. Once packaged
+ * it does not: it lives inside app.asar, which Node reads through a patched fs but
+ * esbuild — a native subprocess — cannot see into at all. That is why callers in
+ * the app pass `sdkDir` (main.ts SDK_DIST, retargeted to the app.asar.unpacked
+ * twin); the walk-up stays for tests and any consumer running from source.
  */
 const ANCHOR_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -158,10 +166,15 @@ const EMPTY: SchemasArtifact = { components: [], actions: [], conditions: [] };
  * A missing entry: if `required` (the manifest explicitly named it) it's an
  * error; otherwise the project simply has no custom components → an empty
  * artifact is written and `ok:true` returned.
+ *
+ * `sdkDir` is the SDK dist esbuild inlines `esengine` from — the same alias every
+ * inlined export pipeline uses (esengineResolve.ts). Pass it whenever the caller
+ * knows a real-filesystem dist: without it resolution walks up from
+ * {@link ANCHOR_DIR}, which a packaged app cannot do.
  */
 export async function extractProjectSchemas(
   root: string,
-  opts?: { entry?: string; required?: boolean },
+  opts?: { entry?: string; required?: boolean; sdkDir?: string },
 ): Promise<ExtractSchemasResult> {
   const declPath = path.join(root, opts?.entry ?? DEFAULT_DECL_ENTRY);
   if (!existsSync(declPath)) {
@@ -215,7 +228,12 @@ export async function extractProjectSchemas(
       write: true,
       sourcemap: false,
       logLevel: 'silent',
-      plugins: [esengineAnchor()],
+      // One strategy or the other, never both: an alias names the SDK's files
+      // outright (and so still yields the SINGLE instance the anchor plugin was
+      // there to guarantee — every importer lands on the same absolute path).
+      ...(opts?.sdkDir
+        ? { alias: esengineAlias(opts.sdkDir) }
+        : { plugins: [esengineAnchor()] }),
     });
     warnings.push(...result.warnings.map((w) => w.text));
 
