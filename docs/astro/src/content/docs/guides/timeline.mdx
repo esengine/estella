@@ -90,10 +90,27 @@ A timeline is a set of tracks evaluated together each frame:
 | Sprite frames | `AnimFrames` | Swap sprite-sheet frames over time. |
 | Sprite clip | `SpriteAnim` | Start a named `anim-clip` at a time. |
 | Audio | `Audio` | Fire one-shot sounds at keyframes. |
-| Activation | `Activation` | Toggle entities on/off over ranges. |
+| Activation | `Activation` | Toggle entities on/off over ranges — `enabled` on a renderer, `UINode.display` on a UI node (see [below](#activation-ranges)). |
 | Spine | `Spine` | Play Spine animations as clips. |
 | Marker | `Marker` | Named time markers. |
 | Custom event | `CustomEvent` | Named events with a payload, for your own systems. |
+
+### Activation ranges
+
+An activation track says *this child is on for these spans* — which is how a chest
+opens (a closed image hands over to an open one partway through, along with its glow),
+how a badge appears at the end of a flourish, how any two-state widget is animated.
+
+What it writes depends on what the target is:
+
+- **A renderer** — `Sprite`, `SpineAnimation`, `SpriteAnimator` — gets its `enabled`
+  field flipped.
+- **A UI node** gets `UINode.display`. A UI node has no `enabled`; `display` is its
+  show/hide, and the only one that **takes the subtree with it**, which is exactly
+  what an activation range means.
+
+Either way the write only happens when the state actually flips, so a track that is
+not moving does not dirty change detection every frame.
 
 ## Author in the Sequencer
 

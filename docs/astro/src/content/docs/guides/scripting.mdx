@@ -88,6 +88,36 @@ moment after you save. If a component never shows up, look at
 `.esengine/cache/schemas.json`: absent there means it was never reached; present there
 but missing in the inspector is a different problem.
 
+### The New Script dialog
+
+Because reachability is the rule, a hand-created `.ts` file is dead until an entry
+imports it. **Content Browser → create menu → New Script…** writes both halves.
+
+Pick what the module **is**, and the editor knows which entry to wire it into — the
+distinction is your project's architecture, not a menu convenience:
+
+| Kind | What it is | Where it lands |
+|---|---|---|
+| **Component** | a declaration the editor reads without running the game | re-exported from the declaration entry — `export * from './Health';` |
+| **System** | behavior the play realm bundles and runs | imported by the startup entry for its registration side effect — `import './Patrol';` |
+
+The dialog shows the module path it will write and the exact line the entry gains,
+before the file exists. A few things worth knowing:
+
+- **The name is asked for up front**, not left to inline rename, because a script's
+  name is not only its file name — it is the exported identifier and the string every
+  scene serializes. It must be a plain JS identifier.
+- **The entries come from the manifest** (`scripts.register` / `scripts.main`), so a
+  project that moved them is wired at its own pair, not at the conventional one.
+- **The file lands in the folder you're browsing** when that folder is inside the
+  source root, and in the source root otherwise — creating "here" under `assets/`
+  would hand back a module neither entry can reach, which is the failure this exists
+  to prevent.
+- **A component is in Add Component the moment the dialog closes** — creating
+  re-extracts the schemas rather than waiting on the file watcher. The new file is
+  revealed in the Content Browser, not opened: the editor has no code editor of its
+  own.
+
 ## The lifecycle
 
 Each hook is optional; define only the ones you need.

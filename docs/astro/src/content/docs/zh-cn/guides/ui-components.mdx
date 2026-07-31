@@ -309,7 +309,7 @@ const name = createTextInput({
 | `onSubmit(value, entity)` | — | Enter 触发(单行)。 |
 
 工厂是 `TextInput` **组件**之上的语法糖——直接把组件插到任意 UI 实体上可获得完全的
-手动控制(字段同上,外加实时的 `focused` / `cursorPos` 状态):
+手动控制(上表所有字段,外加实时的 `focused` / `cursorPos` 状态):
 
 ```typescript
 import { spawnUIEntity, TextInput, px } from 'esengine';
@@ -319,6 +319,29 @@ world.insert(field, TextInput, { placeholder: 'Your name', maxLength: 20 });
 
 events.on(field, 'change', () => { /* value edited */ });
 events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
+```
+
+组件上还有三个字段是工厂不收的——恰是场景里创作的输入框想摆脱"千框一面"所需的:
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `font` | `0` | **本项目自带**的字体资源(`.ttf` / `.otf`),与 [`Text.font`](/docs/zh-cn/guides/ui-text/#自定义字体) 是同一个槽位。设了它就压过 `fontFamily`——于是画在游戏自有字体面板上的输入框也用那套字,而不是 Arial。 |
+| `textAlign` | `Left` | 值在框内的位置:`Left` / `Center` / `Right`。单行**在放得下时**保持该对齐;放不下之后改为跟随光标横向滚动,与一向左对齐时的行为一致。多行按行对齐。 |
+| `renderMode` | `Auto` | 框内文本的字形管线——与 `Text.renderMode` 对应。 |
+
+**已换皮的输入框会保住它的皮。** 输入框画在实体自己的 `UIVisual` 上,而它**只**在
+这个 visual 是**纯色填充**时才去管它——`backgroundColor` 是给没人换皮的框兜底用的。
+给实体一个九宫格 `UIVisual`(所有 UI 素材包画输入框用的那种边框),它就不会被动,
+美术得以保全;此时 `backgroundColor` 不起作用。
+
+```typescript
+// 换皮的输入框:边框是实体自己的 visual,TextInput 往里画。
+const field = spawnUIEntity({
+  world, parent,
+  node: { width: px(240), height: px(40) },
+  visual: { visualType: UIVisualType.NineSlice, texture: frameTex, sliceBorder: { x: 12, y: 12, z: 12, w: 12 } },
+});
+world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign: TextAlign.Center });
 ```
 
 点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行框 **Enter** 触发 `submit`。

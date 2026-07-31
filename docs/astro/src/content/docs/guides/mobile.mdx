@@ -49,6 +49,30 @@ project under **Output** in the Android section when the game needs to add an SD
 permission or an Activity of its own — that is the same shape iOS has always had,
 where Xcode does the assembling.
 
+## What a packaged game runs on
+
+| | Android | iOS |
+|---|---|---|
+| Minimum OS | **Android 10** (API 29) | **iOS 17.0** |
+| Declared target | API 33 | — |
+| CPU | `arm64-v8a` (every real device) + `x86_64` (the emulator) | arm64 device + simulator slice |
+| GPU | **Vulkan 1.0.3 required** — declared `required="true"`, so a device without it does not see the app on Play | Metal |
+
+Android's floor is 29 because the engine's font path calls `AFontMatcher_create`,
+which is API 29 — below that there is nothing to fall back to. It was **declared** as
+26 through v0.37.0, which was a claim rather than a capability: those builds install
+on Android 10 and 11 and then fail to start, because the NDK was told to build against
+a higher API and turned every guarded symbol into a load-time requirement. Nothing
+that ran on v0.37.0 stops running on v0.38.0 — the number now says what was always
+true.
+
+<Aside type="note">
+  The Vulkan requirement follows from the runtime: the engine renders through Dawn,
+  and Dawn's Android backend is Vulkan. There is no GLES fallback path in a packaged
+  game. It is declared in the manifest, so Play filters on it rather than letting an
+  incapable device install and fail.
+</Aside>
+
 ## Prerequisites
 
 The Package dialog distinguishes **two kinds** of missing prerequisite, and they

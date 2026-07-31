@@ -86,10 +86,24 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 | 精灵帧 | `AnimFrames` | 随时间切换精灵表帧。 |
 | 精灵剪辑 | `SpriteAnim` | 在某时刻启动一个命名 `anim-clip`。 |
 | 音频 | `Audio` | 在关键帧触发一次性声音。 |
-| 激活 | `Activation` | 按区间开关实体。 |
+| 激活 | `Activation` | 按区间开关实体——渲染器写 `enabled`,UI 节点写 `UINode.display`([见下文](#激活区间))。 |
 | Spine | `Spine` | 把 Spine 动画作为片段播放。 |
 | 标记 | `Marker` | 命名时间标记。 |
 | 自定义事件 | `CustomEvent` | 带 payload 的命名事件,供你自己的系统消费。 |
+
+### 激活区间
+
+激活轨道说的是*这个子对象在这些区间里是开着的*——宝箱就是这么开的(关着的图在某一刻
+交给开着的图,连同它的辉光一起),徽章就是这么在一段华彩末尾冒出来的,任何双态控件的
+动画都是这么做的。
+
+它写什么,取决于目标是什么:
+
+- **渲染器**——`Sprite`、`SpineAnimation`、`SpriteAnimator`——翻的是它的 `enabled` 字段。
+- **UI 节点**写的是 `UINode.display`。UI 节点没有 `enabled`;`display` 才是它的显示/隐藏,
+  而且是唯一**会把整棵子树一起带走**的那个——这正是一个激活区间的含义。
+
+两种情况下都只在状态真的翻转时才写,所以一条不动的轨道不会每帧把变更检测弄脏。
 
 ## 在 Sequencer 里创作
 

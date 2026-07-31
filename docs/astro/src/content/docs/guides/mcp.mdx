@@ -98,6 +98,7 @@ reconnects automatically rather than stranding the agent.
 | Edit scenes | `apply_scene_ops` (batch authoring), `create_entity` (the Create-menu catalog via `list_entity_templates`), `set_field`, `set_entity_xy`, `set_parent`, `duplicate_entity`, `undo` / `redo` |
 | Projects & assets | `create_project` / `open_project`, `open_scene`, `open_asset` (any asset in its own editor), `get_document`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets`, `list_assets`, `get_import_settings` / `set_import_settings` |
 | Prefabs | `create_prefab_from_entity`, `edit_prefab` / `exit_prefab_mode` (Prefab Mode), `apply_prefab`, `revert_prefab`, `unpack_prefab`, `create_prefab_variant` |
+| Behaviour without code | `get_event_bindings` / `set_event_bindings` (wire a button), `add_component` / `remove_component` |
 | Game code | `read_project_file`, `write_project_file`, `list_project_files` |
 | Run & ship | `toggle_play` + `get_play_state`, `export_game` (web / desktop / wechat / playable) |
 
@@ -151,6 +152,31 @@ hundreds of KB of JSON, which does not belong in a chat message. Write it with
 ```json
 { "opsPath": "assets/scenes/shop.ops.json", "label": "Build the shop" }
 ```
+
+### Wiring a button
+
+A scene can give a button behaviour without any game code — an
+[Event Binding](/docs/guides/events/) row says *when this event fires, run that
+named action*. `set_event_bindings` replaces an entity's rows in **one undo step**
+(an empty list unwires it), and `get_event_bindings` reads them back:
+
+```json
+{ "entity": 42, "rows": [
+  { "event": "click", "action": "panel.open",
+    "params": { "prefab": "assets/prefabs/Shop.esprefab" } }
+] }
+```
+
+`action` is any name in the action registry — an engine built-in (`property.set`,
+`ui.setVisible`, `fsm.fire`, …) or one the project registered — and `target` names
+another entity to run it on, resolved nearest-first from this one.
+
+<Aside type="caution">
+`EventBinding` has **no Add Component entry** (the Details panel adds it implicitly
+when you add the first wire), so `add_component` with that name will not create one —
+`set_event_bindings` is its door. `add_component` refuses an unknown component name
+rather than silently accepting it, so a typo fails loudly.
+</Aside>
 
 <Aside type="note">
 Some things live in **import settings**, not on a component — a texture's 9-slice

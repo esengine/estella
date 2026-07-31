@@ -78,7 +78,7 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `lineHeight` | number | `1.2` | 行距,为 **`fontSize` 的比率**(基线间距 = `lineHeight × fontSize`)。 |
 | `bold` / `italic` | boolean | `false` | 基础字体样式(富文本 `<b>`/`<i>` 在其上叠加)。 |
 | `strokeColor` | Color | `{0,0,0,1}` | 描边颜色。 |
-| `strokeWidth` | number | `0` | 描边宽度(px);`0` 关闭。以 8 方向扇形展开的换色字形副本绘制。 |
+| `strokeWidth` | number | `0` | 描边宽度(px);`0` 关闭。SDF 图集上是把字形自己的边缘向外推,所以任意宽度下描出来的仍是这个字的形状([见下文](#描边))。 |
 | `shadowColor` | Color | `{0,0,0,1}` | 投影颜色。 |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | 投影偏移(px)。 |
 | `shadowBlur` | number | `0` | 投影柔度(px)。`0` 是硬边偏移副本;大于 0 时投影摊成一圈,读起来是字下面一团柔和的暗,而不是又盖了一遍字。只给柔度不给偏移就是一圈光晕。 |
@@ -109,6 +109,24 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
   落在原点,`Center` 以原点居中,`Right` 结束于原点;`verticalAlign` 同理锚定
   顶/中/底缘。世界空间标签——伤害数字、名牌——"以实体为中心"就是一个字段,
   不用算。
+
+## 描边
+
+`strokeWidth` + `strokeColor` 给字形描边,`shadow*` 在其后投影。两者都从填充所用的
+同一张图集绘制,所以带样式的标签仍与不带样式的合批。
+
+**描边是把字形的边缘推出去,不是围一圈副本。** SDF 字形自带到自身边缘的距离,
+描边就是把这条边缘向外推:同样的四边形画出同一个形状,只是长大了。你给的宽度会
+经图集的 spread 与渲染尺寸换算,因此在任何 `fontSize`、任何相机缩放下含义一致;
+要得比图集能膨胀的更宽时,退化为最宽的那圈真实描边,而不是糊满字形的格子。
+
+**Bitmap** 字形没有距离可推,仍走旧的 8 方向字形拓印。那在发丝宽时读起来像描边,
+超过几个像素就糊成一团——要更粗的描边,请强制
+[`renderMode: Sdf`](#双字形管线)。
+
+`shadowBlur` 大于 0 时,投影在中心加外围一圈共九次拓印,每次的 alpha 从合成方程里
+反解出来,使叠起来正好是你要的 alpha。与描边不同,它是把边缘**变柔**而不是挪动,
+这也是两者分成两个字段的原因。
 
 ## 富文本
 

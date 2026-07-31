@@ -91,6 +91,7 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 | 编辑场景 | `apply_scene_ops`（批量搭建）、`create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
 | 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（把任意资产在它自己的编辑器里打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
 | 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（Prefab Mode）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
+| 零代码行为 | `get_event_bindings` / `set_event_bindings`（给按钮接线）、`add_component` / `remove_component` |
 | 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |
 | 运行与发布 | `toggle_play` + `get_play_state`、`export_game`（web / desktop / wechat / playable） |
 
@@ -140,6 +141,29 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 ```json
 { "opsPath": "assets/scenes/shop.ops.json", "label": "搭建商店" }
 ```
+
+### 给按钮接线
+
+场景不写一行游戏代码也能给按钮行为——一行[事件绑定](/docs/zh-cn/guides/events/)
+说的是*当这个事件发生，就跑那个具名动作*。`set_event_bindings` 在**一个撤销步骤**
+里整体替换某实体的绑定行（传空列表即拆线），`get_event_bindings` 读回来：
+
+```json
+{ "entity": 42, "rows": [
+  { "event": "click", "action": "panel.open",
+    "params": { "prefab": "assets/prefabs/Shop.esprefab" } }
+] }
+```
+
+`action` 是动作注册表里的任意名字——引擎内置的（`property.set`、`ui.setVisible`、
+`fsm.fire`……）或项目自己注册的——而 `target` 点名要在哪个实体上跑，从当前实体
+就近解析。
+
+<Aside type="caution">
+`EventBinding` **没有 Add Component 入口**（你加第一条线时细节面板会隐式加上它），
+所以拿这个名字调 `add_component` 建不出来——`set_event_bindings` 才是它的门。
+另外 `add_component` 现在会拒绝不认识的组件名而不是默默接受，所以打错字会当场报错。
+</Aside>
 
 <Aside type="note">
 有些东西在**导入设置**里，不在组件上——最容易踩的是纹理的九宫格边框：

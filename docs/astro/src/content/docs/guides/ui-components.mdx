@@ -323,7 +323,7 @@ const name = createTextInput({
 | `onSubmit(value, entity)` | — | Fires on Enter (single-line). |
 
 The factory is sugar over the `TextInput` **component** — insert that directly on any
-UI entity for full manual control (same fields as above, plus the live `focused` /
+UI entity for full manual control (every field above, plus the live `focused` /
 `cursorPos` state):
 
 ```typescript
@@ -334,6 +334,31 @@ world.insert(field, TextInput, { placeholder: 'Your name', maxLength: 20 });
 
 events.on(field, 'change', () => { /* value edited */ });
 events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
+```
+
+The component carries three fields the factory doesn't take — the ones a field
+authored in a scene needs to stop looking generic:
+
+| Field | Default | Description |
+|---|---|---|
+| `font` | `0` | A font asset **this project ships** (`.ttf` / `.otf`), the same slot [`Text.font`](/docs/guides/ui-text/#custom-fonts) uses. Set, it wins over `fontFamily` — so a field on a panel drawn in the game's typeface is drawn in it too, rather than in Arial. |
+| `textAlign` | `Left` | Where the value sits in the field: `Left` / `Center` / `Right`. A single line holds the alignment **while the value fits**; past that the field scrolls to follow the caret, exactly as a left-aligned one always has. Multiline aligns per line. |
+| `renderMode` | `Auto` | Glyph pipeline for the field text — mirrors `Text.renderMode`. |
+
+**A skinned field keeps its skin.** The field draws over the entity's own
+`UIVisual`, and it only manages that visual when it is a **plain fill** —
+`backgroundColor` is the fallback for a field nobody skinned. Give the entity a
+9-sliced `UIVisual` (the frame every UI pack draws its input boxes with) and it is
+left alone, so the art survives; `backgroundColor` then does nothing.
+
+```typescript
+// A skinned field: the frame is the entity's own visual, and TextInput draws into it.
+const field = spawnUIEntity({
+  world, parent,
+  node: { width: px(240), height: px(40) },
+  visual: { visualType: UIVisualType.NineSlice, texture: frameTex, sliceBorder: { x: 12, y: 12, z: 12, w: 12 } },
+});
+world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign: TextAlign.Center });
 ```
 
 Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires

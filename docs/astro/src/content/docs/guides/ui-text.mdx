@@ -84,7 +84,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `lineHeight` | number | `1.2` | Line spacing as a **ratio of `fontSize`** (baseline-to-baseline = `lineHeight × fontSize`). |
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
-| `strokeWidth` | number | `0` | Outline width in px; `0` disables. Drawn as recolored glyph copies fanned out in 8 directions. |
+| `strokeWidth` | number | `0` | Outline width in px; `0` disables. On an SDF atlas the glyph's own edge is pushed outward, so it stays the glyph's shape at any width (see [below](#outlines)). |
 | `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. |
 | `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
@@ -120,6 +120,29 @@ nothing.
   block on it, `Right` ends at it; `verticalAlign` anchors top/middle/bottom
   edge the same way. This is what you want for world-space labels — damage
   numbers, nameplates — where "center on the entity" is one field, not math.
+
+## Outlines
+
+`strokeWidth` + `strokeColor` outline the glyphs, `shadow*` drops a shadow behind
+them. Both are drawn from the same atlas as the fill, so a styled label still
+batches with an unstyled one.
+
+**An outline moves the glyph's edge — it is not a fan of copies.** SDF glyphs
+carry a distance to their own edge, so the outline is that edge pushed outward:
+the same quads draw the same shape, grown. The width you ask for is converted
+through the atlas's spread and render size, so it means the same thing at every
+`fontSize` and every camera zoom, and asking for more than the atlas can dilate
+degrades to the widest real outline instead of flooding the glyph's cell.
+
+**Bitmap** glyphs have no distance to push, so they keep the old eight-direction
+stamp of the glyph. That reads as an outline while it is a hairline and merges
+into a blob past a few pixels — force [`renderMode: Sdf`](#the-two-glyph-pipelines)
+for anything thicker than about a pixel.
+
+A `shadowBlur` above 0 stamps the shadow at the centre plus a ring of eight
+around it, with each tap's alpha inverted out of the compositing equation so the
+stack lands at the alpha you asked for. Unlike the outline it *softens* the edge
+rather than moving it, which is why the two are separate fields.
 
 ## Rich text
 

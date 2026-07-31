@@ -268,9 +268,15 @@ The Content Browser is your project's asset explorer. Its **create** menu makes 
 assets in place:
 
 - New Scene, New Animation, New Input Map, New Material, New Material Graph,
-  **New Shader**, New State Machine, New Behavior Tree, New Folder.
+  **New Shader**, New State Machine, New Behavior Tree, **New Script…**, New Folder.
 - Context actions per asset type: **Create Tileset** (from a texture), **Create
   Tilemap** (from a tileset), **Create Material Instance** (from a material).
+
+**New Script…** is the one that writes more than a file: a module nothing imports is
+never bundled and its component never reaches Add Component, so the dialog also adds
+the one line in your project's script entry that pulls it in — which entry depending
+on whether you're making a component or a system. See
+[Scripting](/docs/guides/scripting/#the-new-script-dialog).
 
 **Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
 a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
