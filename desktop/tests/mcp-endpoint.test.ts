@@ -31,7 +31,7 @@ vi.mock('electron', () => ({
 
 // The loopback seam itself is covered by its own host tests; here it stands in as
 // "a listener that bound (or didn't)", which is all this file's logic turns on.
-vi.mock('../scripts/mcp-exec-endpoint.mjs', () => ({
+vi.mock('../shared/execEndpoint.mjs', () => ({
   createExecEndpoint: async (opts: { token: string }) => {
     created(opts.token);
     if (bindError) throw bindError;

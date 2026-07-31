@@ -4,7 +4,7 @@
  * @file  editor-mcp.mjs — the editor MCP server (stdio front, plain node).
  *
  * An MCP client (an AI agent) spawns this with node; it stands up an Estella
- * host and serves the MCP tool registry (editor-mcp-tools.mjs) over stdio,
+ * host and serves the shared tool catalog (shared/toolCatalog.mjs) over stdio,
  * forwarding each call to the host's loopback /exec endpoint. Three host modes:
  *
  *   (default)          spawn the headless render host (fixtures; scene tools only;
@@ -47,7 +47,7 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { TOOLS, RESOURCES, listTools, runTool } from './editor-mcp-tools.mjs';
+import { TOOLS, RESOURCES, listTools, runTool } from '../shared/toolCatalog.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // The desktop package root, for dev spawns (`electron .`). This file runs from

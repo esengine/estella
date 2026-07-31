@@ -39,7 +39,7 @@ import type { Server } from 'node:http';
 // Plain .mjs, shared with the headless host (scripts/editor-mcp-host.mjs) —
 // esbuild bundles it into the main bundle.
 // @ts-expect-error untyped shared module
-import { createExecEndpoint } from '../scripts/mcp-exec-endpoint.mjs';
+import { createExecEndpoint } from '../shared/execEndpoint.mjs';
 import { createSurfaceDriver } from './surfaceDriver';
 
 const log = (...a: unknown[]) => process.stderr.write(`[editor-mcp-endpoint] ${a.join(' ')}\n`);

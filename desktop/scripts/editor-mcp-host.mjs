@@ -22,7 +22,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createExecEndpoint } from './mcp-exec-endpoint.mjs';
+import { createExecEndpoint } from '../shared/execEndpoint.mjs';
 import { onRendererConsole } from './rendererConsole.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');

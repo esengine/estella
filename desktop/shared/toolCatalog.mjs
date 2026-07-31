@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  editor-mcp-tools.mjs
- *        The editor MCP tool registry — the ONE catalog every MCP entry serves.
- *        Each tool maps 1:1 to an EditorControlSurface method, so the MCP server
- *        adds NO new editor truth — it is a transport over the surface (exactly
- *        what EditorControlSurface.ts:7-9 anticipated). Kept dependency-free
- *        (JSON-Schema + light manual validation, no zod import) so the dispatch
- *        unit-tests without Electron and resolves under vite/vitest; the Electron
- *        entry (editor-mcp.mjs) supplies the executeJavaScript driver and the
- *        MCP SDK wiring. See docs/REARCH_EDITOR_ARCH.md §11.
+ * @file  toolCatalog.mjs
+ *        The editor's tool registry — the ONE catalog every agent front serves:
+ *        the MCP stdio front, the headless fixtures host, and the editor's own
+ *        built-in agent. Each tool maps 1:1 to an EditorControlSurface method, so
+ *        no front adds editor truth — each is a transport over the surface
+ *        (exactly what EditorControlSurface.ts:7-9 anticipated).
+ *
+ *        Lives in shared/ rather than scripts/ because three processes import it,
+ *        and stays plain .mjs because one of them is plain node: `node
+ *        scripts/editor-mcp.mjs` is a documented dev entry, and the shipped
+ *        integration point is the esbuild bundle of that same file. Kept
+ *        dependency-free (JSON-Schema + light manual validation, no zod import)
+ *        so the dispatch unit-tests without Electron and resolves under
+ *        vite/vitest. See docs/REARCH_EDITOR_ARCH.md §11.
  *
  * Tool shapes:
  *   - method tools: `{ method, args(input) }` → driver(method, args, root) — a
@@ -21,12 +26,36 @@
  *     composited-window screenshot (the only way to see the play realm's OOPIF).
  *
  * Editor-host tools fail with a pointer when called on the headless fixtures
- * host. Mutating tools carry `write: true` and are hidden + refused unless the
- * host enables writes (ESTELLA_MCP_ALLOW_WRITES=1) — an agent can observe by
- * default but cannot silently rewrite a scene or a project.
+ * host.
+ *
+ * Every tool declares an `effect`, and the tiers are drawn where UNDO STOPS
+ * WORKING — which is what makes them actionable rather than decorative:
+ *
+ *   read          observes only. Never gated, never confirmed.
+ *   undoable      mutates the document through EditorHistory. A built-in agent
+ *                 runs these freely: the turn is bracketed by a history
+ *                 checkpoint, so one Undo is the whole approval mechanism.
+ *   irreversible  escapes the undo stack — writes a file, rewrites a project,
+ *                 builds an export, or dispatches an arbitrary command. A
+ *                 built-in agent must get explicit confirmation; undo cannot
+ *                 rescue the user afterwards.
+ *
+ * A remote MCP client has no one to confirm with, so it keeps the coarser door
+ * it always had: anything past `read` is hidden AND refused unless the host sets
+ * ESTELLA_MCP_ALLOW_WRITES=1. An agent can observe by default but cannot
+ * silently rewrite a scene or a project.
  */
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
+
+/** Whether `tool` mutates anything — the remote gate's question. Absent `effect`
+ *  reads as 'read', so a tool that declares nothing is treated as harmless only
+ *  when it genuinely is; every mutating entry below states its tier. */
+export const mutates = (tool) => (tool.effect ?? 'read') !== 'read';
+
+/** Whether `tool` is past what an undo can revert — the in-editor agent's
+ *  confirmation gate. */
+export const irreversible = (tool) => tool.effect === 'irreversible';
 
 // Render the viewport to a base64 PNG. Runs in the renderer (needs document):
 // captureViewport returns bottom-up GL rows, so flip Y into a 2D canvas first.
@@ -69,20 +98,20 @@ export const TOOLS = [
   { name: 'serialize_scene',
     description: 'The full lossless scene JSON (the model truth).',
     schema: obj({}), method: 'serializeScene', args: () => [] },
-  { name: 'add_entity', write: true,
+  { name: 'add_entity', effect: 'undoable',
     description: 'Create a new empty entity (with a Transform); returns its id.',
     schema: obj({}), method: 'addEntity', args: () => [] },
-  { name: 'delete_entity', write: true,
+  { name: 'delete_entity', effect: 'undoable',
     description: 'Delete an entity.',
     schema: obj({ id: { type: 'number' } }, ['id']), method: 'deleteEntity', args: (i) => [i.id] },
-  { name: 'duplicate_entity', write: true,
+  { name: 'duplicate_entity', effect: 'undoable',
     description: 'Duplicate an entity (subtree); returns the new id.',
     schema: obj({ id: { type: 'number' } }, ['id']), method: 'duplicateEntity', args: (i) => [i.id] },
-  { name: 'rename_entity', write: true,
+  { name: 'rename_entity', effect: 'undoable',
     description: 'Rename an entity.',
     schema: obj({ id: { type: 'number' }, name: { type: 'string' } }, ['id', 'name']),
     method: 'renameEntity', args: (i) => [i.id, i.name] },
-  { name: 'set_field', write: true,
+  { name: 'set_field', effect: 'undoable',
     description: 'Set a component field (undoable). The field\'s DECLARED inspector type wins (see get_inspector: number, bool, string, vec2, vec3, angle, color, enum, select, flags, gradient, curve, dimension, asset) — `type` is advisory. Vecs take [x, y(, z)] number arrays, colors "#rrggbbaa" hex or {r,g,b,a} 0..1, assets a project-relative path or @uuid ref. '
       + '`key` may name one MEMBER of a structural field — "position.x" / "position.z" (vec2/vec3), "gap.y", "padding.left" (sides), "width.value" / "width.unit" (dimension) — which reads and writes back the rest, so one number does not cost a read-modify-write. '
       + 'Unknown components/fields and malformed values are errors, never silent writes.',
@@ -96,11 +125,11 @@ export const TOOLS = [
       value: { type: ['number', 'string', 'boolean', 'array', 'object', 'null'] },
     }, ['entity', 'component', 'key', 'type', 'value']),
     method: 'setField', args: (i) => [i.entity, i.component, i.key, i.type, i.value] },
-  { name: 'add_component', write: true,
+  { name: 'add_component', effect: 'undoable',
     description: 'Add a component to an entity by schema name (what the Details "Add Component" button does; see get_inspector for current components). Undoable.',
     schema: obj({ entity: { type: 'number' }, component: { type: 'string' } }, ['entity', 'component']),
     method: 'addComponent', args: (i) => [i.entity, i.component] },
-  { name: 'remove_component', write: true,
+  { name: 'remove_component', effect: 'undoable',
     description: 'Remove a component from an entity by schema name. Undoable.',
     schema: obj({ entity: { type: 'number' }, component: { type: 'string' } }, ['entity', 'component']),
     method: 'removeComponent', args: (i) => [i.entity, i.component] },
@@ -108,17 +137,17 @@ export const TOOLS = [
     description: "An entity's authored event wires: rows of { event, action, arg?, params?, target?, guard?, once?, enabled? } — the data form of \"when this button is clicked, run that action\".",
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     method: 'getEventBindings', args: (i) => [i.entity] },
-  { name: 'set_event_bindings', write: true,
+  { name: 'set_event_bindings', effect: 'undoable',
     description: 'Replace an entity\'s authored event wires in ONE undo step (an empty list unwires it). This is how a button gets behaviour without code: `[{"event":"click","action":"panel.open","params":{"prefab":"assets/prefabs/Shop.esprefab"}}]`. '
       + '`action` is any name in the action registry — the engine\'s built-ins (property.set, ui.setVisible, fsm.fire…) or one the project registered — and `target` names another entity to run it on (nearest-first from this one). '
       + 'EventBinding has no Add Component entry; this is its door.',
     schema: obj({ entity: { type: 'number' }, rows: { type: 'object', description: 'array of wire rows' } }, ['entity', 'rows']),
     method: 'setEventBindings', args: (i) => [i.entity, i.rows] },
-  { name: 'set_entity_xy', write: true,
+  { name: 'set_entity_xy', effect: 'undoable',
     description: 'Move an entity to a world position (x, y) — converts to parent-local under the hood (undoable).',
     schema: obj({ id: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' } }, ['id', 'x', 'y']),
     method: 'setEntityXY', args: (i) => [i.id, i.x, i.y] },
-  { name: 'set_parent', write: true,
+  { name: 'set_parent', effect: 'undoable',
     description: 'Re-parent an entity in the transform hierarchy (parent=null → scene root).',
     schema: obj({ id: { type: 'number' }, parent: { type: ['number', 'null'] } }, ['id', 'parent']),
     method: 'setParent', args: (i) => [i.id, i.parent] },
@@ -149,7 +178,7 @@ export const TOOLS = [
       + 'In the LIVE editor the canvas is laid out by its panel, so the next layout pass re-derives this from the panel size; to size the live viewport, use set_panel_size instead.',
     schema: obj({ width: { type: 'number' }, height: { type: 'number' } }, ['width', 'height']),
     method: 'resizeViewport', args: (i) => [i.width, i.height] },
-  { name: 'set_panel_size', write: true,
+  { name: 'set_panel_size',
     description: "Resize a docked panel (id: viewport, log, outliner, details, content...) — the live editor's real sizing door. The viewport canvas follows layout, so this is how you give the LIVE viewport a chosen size before a screenshot.",
     schema: obj({
       id: { type: 'string' }, width: { type: 'number' }, height: { type: 'number' },
@@ -167,8 +196,8 @@ export const TOOLS = [
   { name: 'get_subsystems',
     description: 'Lifecycle + liveness of every engine subsystem (physics, audio, …): phase and activity.',
     schema: obj({}), method: 'getSubsystems', args: () => [] },
-  { name: 'undo', write: true, description: 'Undo the last edit.', schema: obj({}), method: 'undo', args: () => [] },
-  { name: 'redo', write: true, description: 'Redo the last undone edit.', schema: obj({}), method: 'redo', args: () => [] },
+  { name: 'undo', effect: 'undoable', description: 'Undo the last edit.', schema: obj({}), method: 'undo', args: () => [] },
+  { name: 'redo', effect: 'undoable', description: 'Redo the last undone edit.', schema: obj({}), method: 'redo', args: () => [] },
 
   // — Editor-host tools (root: 'editor'): the project/asset/play doors of the LIVE
   //   editor app. On the headless fixtures host these fail with a pointer to
@@ -176,7 +205,7 @@ export const TOOLS = [
   { name: 'list_project_templates',
     description: "New-project templates the editor ships. Each entry: { name, dir, kind: 'starter' | 'example', description?, tag? } — the blank starter has kind 'starter'. Use an entry's dir with create_project.",
     schema: obj({}), js: () => `window.estella.templates.list()` },
-  { name: 'create_project', write: true,
+  { name: 'create_project', effect: 'irreversible',
     description: 'Create a new project from a template directory (see list_project_templates) at <location>/<name>; returns the new project root. Follow with open_project.',
     schema: obj({ templateDir: { type: 'string' }, location: { type: 'string' }, name: { type: 'string' } },
       ['templateDir', 'location', 'name']),
@@ -190,7 +219,7 @@ export const TOOLS = [
       + 'REFUSES while the open scene has unsaved changes (opening reloads from disk, so anything just authored would be gone): save_scene first, or pass discardChanges to throw the edits away on purpose.',
     schema: obj({ path: { type: 'string' }, discardChanges: { type: 'boolean' } }, ['path']),
     method: 'openScene', args: (i) => [i.path, i.discardChanges === true], root: 'editor' },
-  { name: 'save_scene', write: true,
+  { name: 'save_scene', effect: 'irreversible',
     description: 'Save the open DOCUMENT to disk (the toolbar Save) — the scene, or, in Prefab Mode, the prefab being edited (see get_document).',
     schema: obj({}), method: 'save', args: () => [], root: 'editor' },
   { name: 'open_asset',
@@ -211,25 +240,25 @@ export const TOOLS = [
     description: 'Open the prefab an INSTANCE came from, in Prefab Mode (the Outliner\'s "Edit Prefab") — no ref→path lookup needed. Same refusals as open_asset.',
     schema: obj({ entity: { type: 'number' }, discardChanges: { type: 'boolean' } }, ['entity']),
     js: (i) => `window.__estellaEditor.editPrefab(${Number(i.entity)}, ${i.discardChanges === true})` },
-  { name: 'apply_prefab', write: true,
+  { name: 'apply_prefab', effect: 'irreversible',
     description: 'Push an instance\'s overrides back into its prefab asset (the Outliner\'s "Apply to Prefab") — the base for EVERY instance is rewritten, and this instance\'s overrides clear. '
       + 'Property, name, visibility and component overrides plus structural add/remove. `confirm` must be true: a person is shown an itemized diff first, so a driver says it out loud instead (get_inspector marks the overridden fields).',
     schema: obj({ entity: { type: 'number' }, confirm: { type: 'boolean' } }, ['entity', 'confirm']),
     js: (i) => `window.__estellaEditor.applyPrefab(${Number(i.entity)}, ${i.confirm === true})` },
-  { name: 'revert_prefab', write: true,
+  { name: 'revert_prefab', effect: 'undoable',
     description: 'Discard an instance\'s overrides and re-sync it to its prefab (the Outliner\'s "Revert to Prefab"), keeping its placement. Returns the fresh instance root\'s id — the old ids are gone (it is a delete + re-instantiate).',
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     js: (i) => `window.__estellaEditor.revertPrefab(${Number(i.entity)})` },
-  { name: 'unpack_prefab', write: true,
+  { name: 'unpack_prefab', effect: 'undoable',
     description: 'Detach an instance (the Outliner\'s "Unpack Prefab"): its entities become ordinary scene entities and lose every prefab link, so later prefab edits no longer reach them. Undoable.',
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     js: (i) => `window.__estellaEditor.unpackPrefab(${Number(i.entity)})` },
-  { name: 'create_prefab_variant', write: true,
+  { name: 'create_prefab_variant', effect: 'irreversible',
     description: 'Save a new `.esprefab` that INHERITS the instance\'s prefab and bakes in its current overrides (the Outliner\'s "Create Variant" — a prefab of a prefab), then re-link the instance to the variant. '
       + 'Written beside the base as "<base> Variant.esprefab"; returns the re-linked root\'s id. Deletions are not representable in a variant and are skipped.',
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     js: (i) => `window.__estellaEditor.createPrefabVariant(${Number(i.entity)})` },
-  { name: 'create_scene_file', write: true,
+  { name: 'create_scene_file', effect: 'irreversible',
     description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path, immediately referenceable (the registry refresh happens before this resolves). '
       + '`name` names it (the `.esscene` extension is added if absent); without one it is `scene.esscene`, which collides the moment you make a second.',
     schema: obj({
@@ -238,7 +267,7 @@ export const TOOLS = [
     }, ['destDir']),
     js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)}, ${JSON.stringify({ overwrite: i.overwrite === true })})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
-  { name: 'create_prefab_from_entity', write: true,
+  { name: 'create_prefab_from_entity', effect: 'irreversible',
     description: 'Extract an entity and its subtree into a `.esprefab` asset under assets/prefabs/ (the Outliner\'s Create Prefab), named after the entity; returns its `@uuid:` ref. '
       + 'This is what makes a subtree REUSABLE: afterwards `list_entity_templates` offers it as `prefab:<path>`, and creating with that template makes a real INSTANCE — the scene stores a delta, not a copy, so editing the prefab updates every instance. '
       + 'Without it a driver can build the same panel chrome into twenty scenes but never share it. Refs pointing OUT of the subtree cannot live in a standalone prefab and are cleared.',
@@ -248,7 +277,7 @@ export const TOOLS = [
     }, ['entity']),
     js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)}, ${JSON.stringify({ replace: i.replace === true })})
       .then((ref) => { if (!ref) throw new Error('could not create a prefab from entity ${Number(i.entity)} — it may not exist'); return ref; })` },
-  { name: 'create_asset', write: true,
+  { name: 'create_asset', effect: 'irreversible',
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({
       destDir: { type: 'string' }, baseName: { type: 'string' },
@@ -256,13 +285,13 @@ export const TOOLS = [
     }, ['destDir', 'baseName', 'content', 'type']),
     js: (i) => `window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, ${JSON.stringify(i.content)}, ${JSON.stringify(i.type)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
-  { name: 'import_assets', write: true,
+  { name: 'import_assets', effect: 'irreversible',
     description: 'Import files into the asset registry (textures, audio, fonts, spine, tilemaps...). External absolute paths are copied into project-relative destDir; paths already INSIDE the project are registered in place (no copy, no rename). Returns { imported, skipped }; imported paths are immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({ destDir: { type: 'string' }, sources: { type: 'object', description: 'array of absolute file paths' } },
       ['destDir', 'sources']),
     js: (i) => `window.estella.project.importFiles(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.sources)})
       .then((r) => window.__estellaEditor.refreshAssets().then(() => r))` },
-  { name: 'apply_scene_ops', write: true,
+  { name: 'apply_scene_ops', effect: 'undoable',
     description: 'Author a whole subtree in ONE undoable batch — the tool to build scenes with (set_field one field per call does not scale past a few dozen nodes). '
       + '`ops` is an array executed in order, atomically: a throw anywhere rolls the WHOLE batch back. Op shapes: '
       + '{op:"create", ref?, name?, parent?, template?, components?, fields?, x?, y?} — `template` is an entity-template id (list_entity_templates, e.g. "ui-image"), '
@@ -284,7 +313,7 @@ export const TOOLS = [
           .then((text) => window.__estellaEditor.applyOps(JSON.parse(text), ${JSON.stringify(i.label ?? null)}))`
       : null),
     method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
-  { name: 'refresh_assets', write: true,
+  { name: 'refresh_assets',
     description: 'Re-scan the project into the asset registry. The editor watches the filesystem, but a batch written from outside (a converter copying twenty sprites in) can outrun the watcher — and until the scan lands those files have no `.meta`, so `set_import_settings` and any @uuid ref to them fail. Cheap and idempotent; call it after writing assets by hand.',
     schema: obj({}),
     js: () => 'window.__estellaEditor.refreshAssets().then(() => true)' },
@@ -299,7 +328,7 @@ export const TOOLS = [
     description: "An asset's .meta import settings, layered over its type's defaults — the Import Settings panel's data. Returns { type, settings }.",
     schema: obj({ path: { type: 'string' } }, ['path']),
     method: 'getImportSettings', args: (i) => [i.path], root: 'editor' },
-  { name: 'set_import_settings', write: true,
+  { name: 'set_import_settings', effect: 'irreversible',
     description: 'Patch an asset\'s .meta import settings and persist. Keys are DOTTED paths into the importer block, matching the inspector field keys — a texture\'s 9-slice border is '
       + '{"sliceBorder.left":12,"sliceBorder.right":12,"sliceBorder.top":12,"sliceBorder.bottom":12}; filter/wrap are {"filterMode":"nearest","wrapMode":"clamp"}. '
       + 'These live in IMPORT, not on a component: a UIVisual set to NineSlice takes its border from texture metadata, so this is what makes frames and buttons stretch correctly. '
@@ -310,7 +339,7 @@ export const TOOLS = [
     description: 'Read a text file by project-relative path — game scripts (src/*.ts), project.esproject, .meta files, any project text. Complements get_inspector: scenes are model state, behaviour is code.',
     schema: obj({ path: { type: 'string' } }, ['path']),
     js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)})` },
-  { name: 'write_project_file', write: true,
+  { name: 'write_project_file', effect: 'irreversible',
     description: 'Write a text file by project-relative path, CREATING or OVERWRITING it. This is how game scripts (src/*.ts) are authored — create_asset only makes .meta-carrying asset types and refuses to overwrite (it uniquifies to "name 2"). '
       + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher.',
     schema: obj({ path: { type: 'string' }, content: { type: 'string' } }, ['path', 'content']),
@@ -319,14 +348,14 @@ export const TOOLS = [
     description: 'Project-relative paths of every file under a project-relative directory (recursive). Use for source trees (src/) where list_assets — which only knows registered assets — sees nothing.',
     schema: obj({ dir: { type: 'string' } }, ['dir']),
     js: (i) => `window.estella.fs.listFiles(${JSON.stringify(i.dir)})` },
-  { name: 'set_project_physics', write: true,
+  { name: 'set_project_physics', effect: 'irreversible',
     description: 'Patch the project physics feature (Project Settings → Physics), e.g. { "enabled": true }. Persists to the manifest; Play and exports boot it.',
     schema: obj({ patch: { type: 'object' } }, ['patch']),
     method: 'setPhysics', args: (i) => [i.patch], root: 'editor' },
   { name: 'list_entity_templates',
     description: "The Create-popover catalog: every ready-made entity the editor can spawn (id, label, category). Use an id with create_entity.",
     schema: obj({}), method: 'listEntityTemplates', args: () => [], root: 'editor' },
-  { name: 'create_entity', write: true,
+  { name: 'create_entity', effect: 'undoable',
     description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position and parent.',
     schema: obj({
       template: { type: 'string' }, parent: { type: ['number', 'null'] },
@@ -345,7 +374,7 @@ export const TOOLS = [
   { name: 'screenshot',
     description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',
     schema: obj({}), op: 'screenshot', image: true },
-  { name: 'play_probe', write: true,
+  { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. window.__estellaPlay = { app, getComponent } for state reads; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
     op: 'play_probe' },
@@ -361,11 +390,11 @@ export const TOOLS = [
     description: "Reveal a dock panel by id (viewport, log, sequencer, profiler, audiomixer...) — useful before a screenshot.",
     schema: obj({ id: { type: 'string' } }, ['id']),
     method: 'reveal', args: (i) => [i.id], root: 'editor' },
-  { name: 'run_editor_command', write: true,
+  { name: 'run_editor_command', effect: 'irreversible',
     description: 'Dispatch any registered editor command by id (the UI\'s own channel) — the escape hatch for operations without a dedicated tool.',
     schema: obj({ id: { type: 'string' } }, ['id']),
     method: 'runCommand', args: (i) => [i.id], root: 'editor' },
-  { name: 'export_game', write: true,
+  { name: 'export_game', effect: 'irreversible',
     description: 'Build + export the open project. platform: web | desktop | wechat | playable. Returns the export result (outDir, files...).',
     schema: obj({
       platform: { type: 'string' }, outDir: { type: 'string' },
@@ -387,7 +416,7 @@ export const RESOURCES = [
 /** The MCP `tools/list` payload — name, description, JSON-Schema inputSchema.
  *  Without `allowWrites`, mutating tools are omitted entirely (not just refused). */
 export function listTools(allowWrites = false) {
-  return TOOLS.filter((t) => !t.write || allowWrites)
+  return TOOLS.filter((t) => !mutates(t) || allowWrites)
     .map((t) => ({ name: t.name, description: t.description, inputSchema: t.schema }));
 }
 
@@ -425,7 +454,7 @@ function validate(schema, raw) {
  */
 export async function runTool(tool, driver, rawInput, allowWrites = true) {
   try {
-    if (tool.write && !allowWrites) {
+    if (mutates(tool) && !allowWrites) {
       throw new Error(`tool ${tool.name} mutates the scene — start the server with ESTELLA_MCP_ALLOW_WRITES=1`);
     }
     const input = validate(tool.schema, rawInput);

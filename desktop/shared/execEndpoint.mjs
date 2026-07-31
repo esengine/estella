@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  mcp-exec-endpoint.mjs — the loopback /exec seam every MCP host shares.
+ * @file  execEndpoint.mjs — the loopback /exec seam every MCP host shares.
  *
  * One tiny HTTP server on 127.0.0.1: POST /exec with the host token executes one
  * marshalled call and returns `{ ok, hasResult, result }` (or `{ ok:false, error }`).

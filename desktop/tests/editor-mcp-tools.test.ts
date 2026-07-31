@@ -2,11 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
 // @ts-expect-error — plain-.mjs tool registry shared with the Electron MCP entry.
-import { TOOLS, RESOURCES, runTool, listTools } from '../scripts/editor-mcp-tools.mjs';
+import { TOOLS, RESOURCES, runTool, listTools, mutates, irreversible } from '../shared/toolCatalog.mjs';
 
 // The editor MCP server is a transport over EditorControlSurface: each tool maps to one
 // surface method. These cover the pure dispatch layer (no Electron) — the Electron entry
 // only supplies the executeJavaScript driver.
+const toolNamed = (name: string) => TOOLS.find((t: { name: string }) => t.name === name);
+
 describe('editor MCP tool registry', () => {
   it('every tool has a unique name and a surface method, renderer code, or host op', () => {
     const names = new Set<string>();
@@ -87,6 +89,26 @@ describe('editor MCP tool registry', () => {
     }
   });
 
+  // The tiers are only worth having if they are exhaustive and honest, so assert
+  // both halves: nothing declares a tier the gates do not understand, and every
+  // tool that reaches the FILESYSTEM is on the side undo cannot rescue.
+  it('every tool declares a tier the gates understand', () => {
+    for (const t of TOOLS as Array<{ name: string; effect?: string }>) {
+      expect(['read', 'undoable', 'irreversible', undefined]).toContain(t.effect);
+    }
+  });
+
+  it('anything that touches disk or an external target is irreversible', () => {
+    const onDisk = ['save_scene', 'write_project_file', 'create_asset', 'create_scene_file',
+      'import_assets', 'set_import_settings', 'set_project_physics', 'create_project',
+      'create_prefab_from_entity', 'export_game'];
+    for (const name of onDisk) expect(irreversible(toolNamed(name))).toBe(true);
+    // The arbitrary-code doors belong here too: their effect is whatever the
+    // caller wrote, which no undo step can be assumed to cover.
+    expect(irreversible(toolNamed('run_editor_command'))).toBe(true);
+    expect(irreversible(toolNamed('play_probe'))).toBe(true);
+  });
+
   it('listTools without write permission omits mutating tools but keeps reads', () => {
     const readOnly = listTools(false).map((t: { name: string }) => t.name);
     expect(readOnly).toContain('get_scene_tree');
@@ -128,7 +150,7 @@ describe('editor MCP tool registry', () => {
   it('apply_scene_ops is a write tool and rejects a non-array program', async () => {
     const driver = vi.fn();
     const apply = TOOLS.find((t: { name: string }) => t.name === 'apply_scene_ops');
-    expect(apply.write).toBe(true);
+    expect(mutates(apply)).toBe(true);
     const res = await runTool(apply, driver, { ops: 'create everything' });
     expect(res.isError).toBe(true);
     expect(driver).not.toHaveBeenCalled();
@@ -217,7 +239,6 @@ describe('open_scene guards unsaved work', () => {
 });
 
 describe('the prefab-mode doors', () => {
-  const tool = (name: string) => TOOLS.find((t: { name: string }) => t.name === name);
   const jsDriver = () => {
     const js = vi.fn().mockResolvedValue(undefined);
     return Object.assign(vi.fn(), { js });
@@ -225,41 +246,51 @@ describe('the prefab-mode doors', () => {
 
   it('open_asset carries the path and the discard flag, refusing by default', async () => {
     const driver = jsDriver();
-    await runTool(tool('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab' });
+    await runTool(toolNamed('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab' });
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('openAsset("assets/prefabs/Panel.esprefab", false)'));
 
     driver.js.mockClear();
-    await runTool(tool('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab', discardChanges: true });
+    await runTool(toolNamed('open_asset'), driver, { path: 'assets/prefabs/Panel.esprefab', discardChanges: true });
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining(', true)'));
   });
 
   it('apply_prefab cannot be called without saying confirm out loud', async () => {
     const driver = jsDriver();
     // `confirm` is required by the schema: an omission never reaches the editor.
-    const res = await runTool(tool('apply_prefab'), driver, { entity: 7 });
+    const res = await runTool(toolNamed('apply_prefab'), driver, { entity: 7 });
     expect(res.isError).toBe(true);
     expect(driver.js).not.toHaveBeenCalled();
 
     // Present but false still reaches the editor, which refuses there (one place
     // owns the rule) — what must not happen is a silent apply.
-    await runTool(tool('apply_prefab'), driver, { entity: 7, confirm: false });
+    await runTool(toolNamed('apply_prefab'), driver, { entity: 7, confirm: false });
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('applyPrefab(7, false)'));
   });
 
   it('every prefab door that rewrites an asset or the scene is write-gated', () => {
     for (const name of ['apply_prefab', 'revert_prefab', 'unpack_prefab', 'create_prefab_variant']) {
-      expect(tool(name).write).toBe(true);
+      expect(mutates(toolNamed(name))).toBe(true);
     }
     // Reading the document and leaving Prefab Mode write nothing.
-    expect(tool('get_document').write).toBeUndefined();
-    expect(tool('exit_prefab_mode').write).toBeUndefined();
+    expect(mutates(toolNamed('get_document'))).toBe(false);
+    expect(mutates(toolNamed('exit_prefab_mode'))).toBe(false);
+  });
+
+  // The tier is what an in-editor agent gates on, so it has to survive the split
+  // that matters: rewriting the PREFAB ASSET reaches every instance and outlives
+  // undo, while re-syncing or detaching THIS instance is an ordinary scene edit.
+  it('separates the prefab doors that outlive undo from the ones that do not', () => {
+    expect(toolNamed('apply_prefab').effect).toBe('irreversible');
+    expect(toolNamed('create_prefab_variant').effect).toBe('irreversible');
+    expect(toolNamed('revert_prefab').effect).toBe('undoable');
+    expect(toolNamed('unpack_prefab').effect).toBe('undoable');
   });
 
   it('surfaces the "not an instance" refusal instead of a silent no-op', async () => {
     const driver = Object.assign(vi.fn(), {
       js: vi.fn().mockRejectedValue(new Error('entity 3 is not part of a prefab instance')),
     });
-    const res = await runTool(tool('unpack_prefab'), driver, { entity: 3 });
+    const res = await runTool(toolNamed('unpack_prefab'), driver, { entity: 3 });
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toMatch(/not part of a prefab instance/);
   });

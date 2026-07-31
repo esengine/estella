@@ -3,9 +3,9 @@
 /**
  * @file  surfaceDriver.ts — main-side calls INTO the live editor window.
  *
- * The tool registry (scripts/editor-mcp-tools.mjs) dispatches through an
- * injected `driver`, and this is the one that targets the real editor app:
- * surface calls resolve on `window.__estellaEditor.surface` (the same
+ * The tool catalog (shared/toolCatalog.mjs) dispatches through an injected
+ * `driver`, and this is the one that targets the real editor app: surface
+ * calls resolve on `window.__estellaEditor.surface` (the same
  * EditorControlSurface the UI uses), `root: 'editor'` calls on
  * `window.__estellaEditor` (project / asset / play doors), renderer-code
  * snippets run verbatim, and the two main-process ops reach what the renderer
