@@ -66,6 +66,8 @@ import { initPlugins } from './plugins/init';
 import { openAssetOfType, opensInEditor } from './project/assetOpen';
 import { DirtyRegistry } from './document/DirtyRegistry';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
+import { mcpStatus, subscribeMcp } from './store/McpStore';
+import { guardAutomationHook } from './engine/automationGate';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
 import { applySettings } from './store/settingsStore';
@@ -120,11 +122,14 @@ function requireInstance(entity: number): void {
   }
 }
 
-// Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
-// minimum to drive the launcher→editor flow from a headless driver. Gated so the normal
-// editor never carries it; mirrors the headless render host's `window.__estellaHeadless`.
-if (new URLSearchParams(location.search).has('automation')) {
-  (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = {
+/**
+ * The automation hook's contents — the project / asset / play / document doors a
+ * driver reaches through surfaceDriver, alongside the scene surface. Mirrors the
+ * headless render host's `window.__estellaHeadless`. When it may be published is
+ * automationGate.ts's decision, not this function's.
+ */
+function buildEditorAutomation(): unknown {
+  return {
     /**
      * The whole launcher → editor → scene-ready sequence, or a throw saying
      * which step failed.
@@ -476,6 +481,18 @@ if (new URLSearchParams(location.search).has('automation')) {
     frame: (ids: number[]) => ViewportController.frameSelection(ids),
   };
 }
+
+// The launch flag holds for the session; the setting can open and close the
+// endpoint at any moment, including a boot replay that lands after this module
+// ran. McpStore already mirrors what main is doing, so watching it is enough —
+// this needs no channel of its own.
+const LAUNCH_AUTOMATION = new URLSearchParams(location.search).has('automation');
+guardAutomationHook(
+  () => LAUNCH_AUTOMATION || mcpStatus().running,
+  subscribeMcp,
+  () => { (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = buildEditorAutomation(); },
+  () => { delete (window as unknown as { __estellaEditor?: unknown }).__estellaEditor; },
+);
 
 // Tag the OS so the title bar renders the right chrome on first paint (macOS
 // reserves space for the native traffic lights; Windows/Linux draw our controls).
