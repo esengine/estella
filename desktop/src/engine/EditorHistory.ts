@@ -32,6 +32,21 @@ interface HistoryEntry {
   ops: HistoryOp[];
 }
 
+/**
+ * A point the stack can be rolled back to in one action — an agent turn's
+ * "before", so the user reverts a whole conversation turn with one gesture
+ * while each tool call it made stays its own ordinary undo step.
+ *
+ * It records the SEQUENCE COUNTER, not the head entry or a depth. Ids only ever
+ * increase, so "recorded after this mark" is exactly `id > seq` — which needs no
+ * lookup, cannot be invalidated by a purge or by scrolling past HISTORY_LIMIT,
+ * and stays correct when the stack was empty at mark time. A mark holding the
+ * head entry instead would have all three problems.
+ */
+export interface HistoryMark {
+  readonly seq: number;
+}
+
 export class EditorHistoryImpl {
   private readonly undoStack: HistoryEntry[] = [];
   private readonly redoStack: HistoryEntry[] = [];
@@ -165,6 +180,45 @@ export class EditorHistoryImpl {
         }
       }
     }
+  }
+
+  /** Take a checkpoint here — see {@link HistoryMark}. Records nothing. */
+  mark(): HistoryMark {
+    return { seq: this.seq };
+  }
+
+  /**
+   * Steps still on the stack that were recorded after `mark`. Zero means the
+   * turn changed nothing (or its steps were already undone), which is what the
+   * caller checks before offering a revert.
+   */
+  stepsSince(mark: HistoryMark): number {
+    let n = 0;
+    for (let i = this.undoStack.length - 1; i >= 0 && this.undoStack[i].id > mark.seq; i--) n++;
+    return n;
+  }
+
+  /**
+   * Undo every step recorded after `mark`, newest first, and return how many.
+   * They land on the redo stack as usual, so the whole turn can be brought back.
+   *
+   * The stack is linear, so this also reverts anything the USER did after the
+   * mark — there is no out-of-order undo to offer instead. The caller is
+   * expected to stop offering the revert once its own steps are no longer the
+   * newest, which {@link stepsSince} plus a version bump is enough to detect.
+   */
+  undoToMark(mark: HistoryMark): number {
+    let n = 0;
+    while (this.undoStack.length && this.undoStack[this.undoStack.length - 1].id > mark.seq) {
+      const entry = this.undoStack.pop()!;
+      EditorHistoryImpl.apply(entry, 'undo');
+      this.redoStack.push(entry);
+      n++;
+    }
+    // One notification for the whole rollback: this is a single user gesture,
+    // and bumping per entry would re-render every panel N times.
+    if (n) this.bump();
+    return n;
   }
 
   undo() {

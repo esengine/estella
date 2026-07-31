@@ -32,7 +32,7 @@ import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture }
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl, EntityInfo } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
-import type { EditorHistoryImpl } from './EditorHistory';
+import type { EditorHistoryImpl, HistoryMark } from './EditorHistory';
 import type { ReconcilerImpl } from './Reconciler';
 import type { SelectionStore } from '@/store/selectionStore';
 
@@ -287,6 +287,28 @@ export class EditorControlSurfaceImpl {
    *  Project Settings, which owns it in the interactive editor. */
   setYSortLayers(mask: number): void {
     Renderer.setYSortLayers(mask >>> 0);
+  }
+
+  /**
+   * Take an undo checkpoint — the "before" of an agent turn, so a whole turn
+   * reverts in one gesture while each edit it made stays an ordinary undo step.
+   *
+   * Deliberately NOT in the tool catalog: the checkpoint belongs to whoever is
+   * driving the turn (the agent kernel, and the UI that offers the revert), not
+   * to the model running inside it. A model that could roll itself back could
+   * also undo the user's own work and call it a correction.
+   */
+  mark(): HistoryMark {
+    return this.s.history.mark();
+  }
+  /** Edits recorded since `mark` that are still undoable — 0 means the turn
+   *  changed nothing, or its work is no longer the newest thing on the stack. */
+  stepsSince(mark: HistoryMark): number {
+    return this.s.history.stepsSince(mark);
+  }
+  /** Revert everything recorded since `mark`; returns how many steps were undone. */
+  undoToMark(mark: HistoryMark): number {
+    return this.s.history.undoToMark(mark);
   }
 
   undo(): void {
