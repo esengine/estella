@@ -66,6 +66,7 @@
     "verify:render:postprocess:lut": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/lut-grade.esscene ESTELLA_VERIFY_MANIFEST=/scenes/lut-grade.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.292,\\\"y\\\":0.5,\\\"rgb\\\":[0,0,255],\\\"tol\\\":40},{\\\"x\\\":0.708,\\\"y\\\":0.5,\\\"rgb\\\":[255,0,0],\\\"tol\\\":40}]\" electron scripts/headless-verify.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dockview": "^6.6.1",
     "electron-updater": "^6.8.9",
