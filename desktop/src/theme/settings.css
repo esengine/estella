@@ -121,6 +121,16 @@
 }
 .set-row .sn { font-size: var(--fs-sm); color: var(--text); }
 .set-row .sd { font-size: var(--fs-xs); color: var(--text-mute); margin-top: 2px; line-height: 1.4; }
+/* What the setting's backing is actually doing (a port that opened, an error that
+   came back) — distinguished from the static description by the accent rule, so a
+   glance separates "what this does" from "what it is doing". */
+.set-row .set-status {
+  margin-top: 4px;
+  padding-left: 7px;
+  border-left: 2px solid var(--star-line, var(--acc));
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
 .set-row.changed .sn::after {
   content: '';
   display: inline-block;

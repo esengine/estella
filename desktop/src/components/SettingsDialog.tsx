@@ -7,7 +7,7 @@
  *        registered descriptors, picking a control by `type`. Search filters across
  *        sections; a reset arrow shows when a value differs from its default.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
@@ -527,6 +527,16 @@ function Control({ setting }: { setting: Setting }) {
   }
 }
 
+// What the setting's backing is actually doing right now, under the description.
+// Subscribed rather than read once: the state it reports (a port that opened, an
+// error that came back) lands after the click that asked for it.
+const NEVER_CHANGES = () => () => {};
+
+function StatusLine({ status }: { status: NonNullable<Setting['status']> }) {
+  const text = useSyncExternalStore(status.subscribe ?? NEVER_CHANGES, status.read, status.read);
+  return text ? <div className="sd set-status">{text}</div> : null;
+}
+
 function Row({ setting }: { setting: Setting }) {
   const isChanged = useSettings((s) => s.isChanged(setting.id));
   const reset = useSettings((s) => s.reset);
@@ -535,6 +545,7 @@ function Row({ setting }: { setting: Setting }) {
       <div>
         <div className="sn">{setting.label}</div>
         {setting.description && <div className="sd">{setting.description}</div>}
+        {setting.status && <StatusLine status={setting.status} />}
       </div>
       <div className="set-ctrl">
         <Control setting={setting} />

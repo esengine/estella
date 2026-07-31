@@ -77,9 +77,14 @@ instead of `--editor`:
    "args": ["<path-to>/editor-mcp.mjs", "--attach"]
    ```
 
-2. Launch the editor with `--mcp` (from a terminal: `estella-editor --mcp`). It
-   writes a discovery file `mcp-endpoint.json` into its user-data folder, which
-   `--attach` finds on its own — pass an explicit path only if you moved it.
+2. Turn on **Settings → AI Agents → Allow AI agents to connect**. The editor opens
+   a local-only port and writes a discovery file `mcp-endpoint.json` into its
+   user-data folder, which `--attach` finds on its own — pass an explicit path only
+   if you moved it. The row reports the port it is listening on, and the setting is
+   remembered, so an editor you start by double-clicking it is ready from then on.
+
+   Launching from a terminal with `--mcp` (`estella-editor --mcp`) does the same
+   thing for one session, and outranks the setting while it lasts.
 
 3. The agent now drives the same window you see — selections, edits, play mode and
    all — while you watch and intervene.

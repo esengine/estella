@@ -43,7 +43,7 @@ import { buildPlayRealm } from './buildPlayRealm';
 import { ensureSdkTypes } from './syncSdkTypes';
 import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
-import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
+import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from './mcpEndpoint';
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
   PROJECT_PLUGIN_DIR, USER_PLUGIN_DIR,
@@ -631,6 +631,13 @@ ipcMain.handle('app:installUpdate', async () => {
 });
 ipcMain.handle('diagnostics:openLogs', () => shell.openPath(logsDir()));
 ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', status));
+
+// — The MCP endpoint an external agent attaches to (mcpEndpoint.ts) —
+// Driven by the editor setting, so an editor started by double-clicking it can
+// serve `--attach` at all; `--mcp` keeps its own way in and outranks the setting.
+ipcMain.handle('mcp:status', () => mcpEndpointStatus());
+ipcMain.handle('mcp:setEnabled', (_e, on: boolean) =>
+  on ? startMcpEndpoint(() => win) : stopMcpEndpoint());
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
 ipcMain.handle('window:minimize', () => win?.minimize());

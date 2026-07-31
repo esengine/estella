@@ -1,111 +1,173 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  mcpEndpoint.ts — the live editor's MCP exec endpoint (`--mcp` mode).
+ * @file  mcpEndpoint.ts — the live editor's MCP exec endpoint.
  *
  * Starts the shared loopback /exec seam against the REAL editor window, so the
- * MCP front (scripts/editor-mcp.mjs --editor / --attach) can drive the full app:
- * scene calls resolve on `window.__estellaEditor.surface` (the same
- * EditorControlSurface the UI uses), editor-level calls (project open, scenes,
- * play, entity templates) on `window.__estellaEditor`, renderer-code snippets run
- * verbatim, and `op: screenshot` captures the composited window main-side — the
- * only way to see into the play realm's OOPIF.
+ * MCP front (scripts/editor-mcp.mjs --editor / --attach) can drive the full app.
+ * The calls themselves land through createSurfaceDriver (surfaceDriver.ts), which
+ * every consumer shares; this file owns only the transport around it — token,
+ * discovery file, and the ready line.
  *
  * The token comes from the spawning front (ESTELLA_MCP_TOKEN) or is generated for
  * a user-launched editor; either way the endpoint is advertised in a discovery
  * file under userData (mcp-endpoint.json) that `--attach` reads, and a
  * `MCP_HOST_READY {"port":N}` line on stdout for the spawn flow.
+ *
+ * TWO ways in, and the difference is who may close it:
+ *
+ *   FORCED   `--mcp` / ESTELLA_MCP=1 — the spawn flow (`editor-mcp.mjs --editor`)
+ *            launches the editor this way and then talks to the port it reads off
+ *            stdout. That conversation is the reason this process exists, so a
+ *            forced endpoint stays up for the session; {@link stopMcpEndpoint} is
+ *            a no-op against it rather than a way to hang up on your own caller.
+ *   OPT-IN   the editor setting (agents.mcpEnabled), for the ordinary case: an
+ *            editor started by double-clicking it. `--attach` needs a discovery
+ *            file, and a user who never passes command-line flags had no way to
+ *            produce one — the endpoint existed but only for people who launched
+ *            the app from a terminal.
+ *
+ * Start/stop are therefore idempotent and re-entrant: a setting toggled twice, or
+ * toggled in an editor already forced open, must not double-listen or double-write
+ * the discovery file.
  */
 import { app, BrowserWindow } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import type { Server } from 'node:http';
 // Plain .mjs, shared with the headless host (scripts/editor-mcp-host.mjs) —
 // esbuild bundles it into the main bundle.
 // @ts-expect-error untyped shared module
 import { createExecEndpoint } from '../scripts/mcp-exec-endpoint.mjs';
+import { createSurfaceDriver } from './surfaceDriver';
 
 const log = (...a: unknown[]) => process.stderr.write(`[editor-mcp-endpoint] ${a.join(' ')}\n`);
 
-/** True when this editor process should expose the MCP exec endpoint. */
+/** What the endpoint is doing right now — the whole of what the UI renders. */
+export interface McpEndpointStatus {
+  running: boolean;
+  /** Loopback port, once listening. */
+  port: number | null;
+  /** The discovery file `--attach` reads, once advertised. */
+  discoveryFile: string | null;
+  /** Opened by `--mcp`/ESTELLA_MCP: on for the session, not the setting's to close. */
+  forced: boolean;
+  /** Why the last start failed, if it did (cleared by a start that works). */
+  error: string | null;
+}
+
+/** True when this editor process was LAUNCHED to expose the endpoint. */
 export function mcpMode(): boolean {
   return process.argv.includes('--mcp') || process.env.ESTELLA_MCP === '1';
 }
 
+// One token per process, not per start: the spawning front passes it in the
+// environment and holds it for the session, so regenerating it on a restart
+// would lock out the very client that launched us.
+const TOKEN = process.env.ESTELLA_MCP_TOKEN || randomBytes(24).toString('hex');
+
+let server: Server | null = null;
+let starting: Promise<McpEndpointStatus> | null = null;
+let port: number | null = null;
+let discoveryFile: string | null = null;
+let lastError: string | null = null;
+let cleanupHooked = false;
+
+/** The discovery file's path — same for every start, so a stale one is overwritten. */
+function discoveryPath(): string {
+  return path.join(app.getPath('userData'), 'mcp-endpoint.json');
+}
+
+export function mcpEndpointStatus(): McpEndpointStatus {
+  return { running: server !== null, port, discoveryFile, forced: mcpMode(), error: lastError };
+}
+
 /**
- * Start the endpoint against the editor window. `getWin` re-resolves per call so
- * a recreated window keeps working. Idempotent-ish: call once after the first
- * window exists.
+ * Start the endpoint against the editor window and advertise it. `getWin`
+ * re-resolves per call so a recreated window keeps working.
+ *
+ * Idempotent: already listening (or mid-start) hands back the same endpoint
+ * rather than a second listener. Never throws — a failure to bind is reported
+ * through {@link McpEndpointStatus.error}, because the caller is a settings
+ * toggle and an unhandled rejection there would take the toggle with it.
  */
-export async function startMcpEndpoint(getWin: () => BrowserWindow | null): Promise<void> {
-  const token = process.env.ESTELLA_MCP_TOKEN || randomBytes(24).toString('hex');
+export async function startMcpEndpoint(
+  getWin: () => BrowserWindow | null,
+): Promise<McpEndpointStatus> {
+  if (server) return mcpEndpointStatus();
+  if (starting) return starting;
 
-  // executeJavaScript rejects a thrown error with an opaque "Script failed to
-  // execute" — wrap the expression so the real message crosses the boundary
-  // (surface errors like `component "X" is not on entity 5` are the automation
-  // client's actual feedback, not a debugging detail).
-  const carryError = (expr: string) =>
-    `(async () => { try { return { v: await (${expr}) }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
-  const unwrap = (res: unknown) => {
-    const r = res as { v?: unknown; __estellaExecError?: string } | null;
-    if (r && typeof r === 'object' && r.__estellaExecError !== undefined) throw new Error(r.__estellaExecError);
-    return r?.v;
-  };
-
-  const exec = async (code: string) => {
-    const win = getWin();
-    if (!win) throw new Error('no editor window');
-    // A call can arrive before the renderer finished booting (the endpoint comes
-    // up with the window) — wait out the initial load instead of failing it.
-    if (win.webContents.isLoading()) {
-      await new Promise<void>((resolve) => win.webContents.once('did-finish-load', () => resolve()));
+  starting = (async (): Promise<McpEndpointStatus> => {
+    const driver = createSurfaceDriver(getWin);
+    try {
+      server = await createExecEndpoint({
+        token: TOKEN,
+        run: async ({ method, args, root, js, op, code, frame }: {
+          method?: string; args?: unknown[]; root?: string; js?: string; op?: string;
+          code?: string; frame?: number;
+        }) => {
+          if (op) return driver.op(op, { code, frame });
+          if (js) return driver.js(js);
+          return driver(method as string, args ?? [], root);
+        },
+      });
+      port = (server!.address() as { port: number }).port;
+      lastError = null;
+    } catch (e) {
+      server = null;
+      port = null;
+      lastError = String((e as Error)?.message ?? e);
+      log('could not start the exec endpoint:', lastError);
+      return mcpEndpointStatus();
     }
-    return unwrap(await win.webContents.executeJavaScript(carryError(code), true));
-  };
 
-  const server = await createExecEndpoint({
-    token,
-    run: async ({ method, args, root, js, op, code, frame }: {
-      method?: string; args?: unknown[]; root?: string; js?: string; op?: string;
-      code?: string; frame?: number;
-    }) => {
-      if (op === 'screenshot') {
-        const win = getWin();
-        if (!win) throw new Error('no editor window');
-        const image = await win.webContents.capturePage();
-        return image.toPNG().toString('base64');
+    // Advertise for --attach; the token in the file is what authorizes a local
+    // client, so the file lives in userData (per-user, not world-readable temp).
+    const file = discoveryPath();
+    try {
+      writeFileSync(file, JSON.stringify({ port, token: TOKEN, pid: process.pid }) + '\n');
+      discoveryFile = file;
+      // Once per process: a toggled setting can start/stop many times, and one
+      // will-quit listener per start would leak them onto the app.
+      if (!cleanupHooked) {
+        cleanupHooked = true;
+        app.on('will-quit', removeDiscoveryFile);
       }
-      if (op === 'play_probe') {
-        // The play realm is an estella:// OOPIF — only a main-process frame eval
-        // reaches it (the SHOT_PLAY_EVAL idiom; window.__estellaPlay is the probe).
-        const win = getWin();
-        if (!win) throw new Error('no editor window');
-        const playFrames = win.webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
-        const playFrame = playFrames[frame ?? 0];
-        if (!playFrame) throw new Error(`no play realm at index ${frame ?? 0} (${playFrames.length} running — enter play first)`);
-        return unwrap(await playFrame.executeJavaScript(carryError(code ?? 'true')));
-      }
-      if (js) return exec(js);
-      const target = root === 'editor' ? 'window.__estellaEditor' : 'window.__estellaEditor.surface';
-      return exec(`${target}.${method}(${(args ?? [])
-        .map((a) => (a === undefined ? 'undefined' : JSON.stringify(a)))
-        .join(',')})`);
-    },
-  });
+    } catch (e) {
+      // A live endpoint nobody can discover still serves --editor (which reads the
+      // port off stdout), so this degrades rather than fails.
+      log('could not write discovery file:', String(e));
+      discoveryFile = null;
+    }
 
-  const port = (server.address() as { port: number }).port;
+    // The spawn flow (editor-mcp.mjs --editor) reads this exact line.
+    process.stdout.write(`MCP_HOST_READY ${JSON.stringify({ port })}\n`);
+    log(`exec endpoint on 127.0.0.1:${port} (discovery: ${discoveryFile ?? 'unavailable'})`);
+    return mcpEndpointStatus();
+  })().finally(() => { starting = null; });
 
-  // Advertise for --attach; the token in the file is what authorizes a local
-  // client, so the file lives in userData (per-user, not world-readable temp).
-  const discovery = path.join(app.getPath('userData'), 'mcp-endpoint.json');
+  return starting;
+}
+
+function removeDiscoveryFile(): void {
   try {
-    writeFileSync(discovery, JSON.stringify({ port, token, pid: process.pid }) + '\n');
-    app.on('will-quit', () => { try { rmSync(discovery); } catch { /* already gone */ } });
-  } catch (e) {
-    log('could not write discovery file:', String(e));
-  }
+    rmSync(discoveryPath());
+  } catch { /* already gone */ }
+  discoveryFile = null;
+}
 
-  // The spawn flow (editor-mcp.mjs --editor) reads this exact line.
-  process.stdout.write(`MCP_HOST_READY ${JSON.stringify({ port })}\n`);
-  log(`exec endpoint on 127.0.0.1:${port} (discovery: ${discovery})`);
+/**
+ * Close the endpoint and retract its discovery file, so `--attach` stops finding
+ * a port nobody is listening on. A FORCED endpoint is left alone — see the file
+ * header: the process was launched to serve it.
+ */
+export function stopMcpEndpoint(): McpEndpointStatus {
+  if (mcpMode() || !server) return mcpEndpointStatus();
+  server.close();
+  server = null;
+  port = null;
+  removeDiscoveryFile();
+  log('exec endpoint closed');
+  return mcpEndpointStatus();
 }

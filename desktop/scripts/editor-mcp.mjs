@@ -20,6 +20,9 @@
  *                      standard userData locations are probed. Resolution is
  *                      LAZY and re-done per call, so this server starts before
  *                      the editor does and survives an editor restart.
+ *                      That editor has to be serving one: Settings > AI Agents >
+ *                      "Allow AI agents to connect" (remembered), or a `--mcp`
+ *                      launch (that session only).
  *
  * Split on purpose: an Electron main process never receives piped stdin on
  * Windows, so the MCP protocol must live in a plain-node process. The surface
@@ -192,7 +195,8 @@ function currentEndpoint() {
   if (!endpoint && MODE === 'attach') endpoint = readEndpoint();
   if (!endpoint) {
     throw new Error(
-      'no running editor to attach to — start the Estella editor with --mcp '
+      'no running editor to attach to — in the Estella editor, turn on '
+      + 'Settings > AI Agents > "Allow AI agents to connect" (or launch it with --mcp) '
       + `(looked for ${attachCandidates().join(' | ')})`,
     );
   }

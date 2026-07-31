@@ -38,11 +38,16 @@ export const settingsMessages = defineMessages({
     'set.section.console': { en: 'Console', zh: '控制台' },
     'set.section.renderer': { en: 'Renderer', zh: '渲染器' },
     'set.section.externalTools': { en: 'External Tools', zh: '外部工具' },
+    'set.section.agents': { en: 'AI Agents', zh: 'AI 代理' },
     'toast.programMissing': {
       en: 'Could not find {program} — it may have been moved or uninstalled',
       zh: '找不到 {program}，可能已被移动或卸载',
     },
     'toast.programFailed': { en: 'Could not start {program}', zh: '无法启动 {program}' },
+    'toast.mcpFailed': {
+      en: 'Could not open the port for AI agents: {message}',
+      zh: '无法为 AI 代理开启端口：{message}',
+    },
     'toast.openFailed': { en: 'No program is set up to open this file', zh: '没有可打开该文件的程序' },
     'set.externalTools.placeholder': { en: 'Automatic — the system default', zh: '自动 — 使用系统默认程序' },
     'set.externalTools.autoNamed': { en: 'Automatic ({program})', zh: '自动（{program}）' },
@@ -88,6 +93,23 @@ export const settingsMessages = defineMessages({
     'set.group.background': { en: 'Background', zh: '后台' },
     'set.group.console': { en: 'Console', zh: '控制台' },
     'set.group.renderer': { en: 'Renderer', zh: '渲染器' },
+    'set.group.agents': { en: 'External Agents', zh: '外部代理' },
+
+    // — AI Agents —
+    'set.agents.mcpEnabled': { en: 'Allow AI agents to connect', zh: '允许 AI 代理连接' },
+    'set.agents.mcpEnabled.desc': {
+        en: 'Serve this editor over MCP on a local-only port, so an agent set up with --attach can drive the project you have open. Off means nothing is listening.',
+        zh: '通过 MCP 在仅限本机的端口上开放此编辑器，让配置了 --attach 的代理能够操作你正打开的项目。关闭时不会有任何监听。',
+    },
+    'set.agents.mcp.listening': {
+        en: 'Listening on 127.0.0.1:{port} — agents configured with --attach will find it.',
+        zh: '正在监听 127.0.0.1:{port}——配置了 --attach 的代理即可找到它。',
+    },
+    'set.agents.mcp.forced': {
+        en: 'Listening on 127.0.0.1:{port}, opened by the --mcp launch flag. It stays open for this session.',
+        zh: '正在监听 127.0.0.1:{port}，由启动参数 --mcp 开启。本次会话期间将保持开启。',
+    },
+    'set.agents.mcp.error': { en: 'Could not open the port: {message}', zh: '无法开启端口：{message}' },
     'set.project.display.screenPresets': { en: 'Screen presets', zh: '屏幕预设' },
     'set.project.display.screenPresets.desc': {
         en: 'Extra screens the viewport and Game view can simulate, on top of the built-in devices. Reusing a built-in id (iphone, ipad, 1080p, 720p) replaces it.',

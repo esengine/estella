@@ -47,6 +47,19 @@ interface BaseSetting<T> {
   bind?: { get: () => T; set: (value: T) => void };
   /** One-way push to runtime for store-owned settings (on set + on hydrate). */
   effect?: (value: T) => void;
+  /**
+   * A live line under the description reporting what the setting's backing is
+   * ACTUALLY doing — "listening on 127.0.0.1:51234", "no encoder found". For
+   * settings whose effect can fail or resolve asynchronously, where the checkbox
+   * alone says what was asked for and not what happened.
+   *
+   * `read` must return an equal string for an unchanged state (the row reads it
+   * through useSyncExternalStore, which compares with Object.is — a plain string
+   * satisfies that, an object rebuilt per call would loop). `subscribe` re-renders
+   * the row when the backing changes; omit it for a value that only moves when
+   * some other setting does.
+   */
+  status?: { read: () => string | null; subscribe?: (fn: () => void) => () => void };
 }
 
 export interface BooleanSetting extends BaseSetting<boolean> {

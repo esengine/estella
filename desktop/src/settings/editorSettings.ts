@@ -17,6 +17,7 @@ import { commands } from '@/commands';
 import { setUseLessCpuInBackground } from '@/engine/backgroundThrottle';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
+import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
@@ -31,6 +32,7 @@ settingsRegistry.registerSection({ id: 'renderer', label: t('set.section.rendere
 // The rows under it are registered by externalPrograms.ts — one per program slot,
 // so a contributed slot appears here without this file knowing it exists.
 settingsRegistry.registerSection({ id: 'externalTools', label: t('set.section.externalTools'), category: 'editor', order: 7 });
+settingsRegistry.registerSection({ id: 'agents', label: t('set.section.agents'), category: 'editor', order: 8 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
 // The session renders in the locale resolved at boot from this same persisted
@@ -227,6 +229,46 @@ settingsRegistry.register({
   max: 10000,
   step: 100,
   effect: (v) => LogStore.setCap(v),
+});
+
+// ── AI Agents (main-owned endpoint, driven from here) ───────────────────────
+// An external agent reaches this editor through the MCP endpoint main can expose,
+// and `--attach` finds it through the discovery file the endpoint writes. An
+// editor launched the ordinary way — by double-clicking it — wrote no such file,
+// so the only way to let an agent in was a command-line flag, which is not
+// something a GUI user has any reason to know exists. This is that flag, as a
+// setting: persisted per user and replayed at boot, so it survives a restart the
+// way `--mcp` never could.
+//
+// Reports rather than assumes: the effect resolves with what main actually did,
+// and the status line renders THAT — an editor started with `--mcp` shows itself
+// already open (and stays open, the toggle notwithstanding), a port that could
+// not bind shows why. Only failures toast; success is the line right there, and
+// the boot replay would otherwise greet every launch with a notification.
+function mcpStatusLine(): string | null {
+  const s = mcpStatus();
+  if (s.error) return t('set.agents.mcp.error', { message: s.error });
+  if (!s.running || s.port === null) return null;
+  return s.forced
+    ? t('set.agents.mcp.forced', { port: String(s.port) })
+    : t('set.agents.mcp.listening', { port: String(s.port) });
+}
+
+settingsRegistry.register({
+  id: 'agents.mcpEnabled',
+  type: 'boolean',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.agents'),
+  label: t('set.agents.mcpEnabled'),
+  description: t('set.agents.mcpEnabled.desc'),
+  default: false,
+  effect: (on) => {
+    void setMcpEnabled(on).then((s) => {
+      if (s.error) Toasts.push(t('toast.mcpFailed', { message: s.error }), 'error');
+    });
+  },
+  status: { read: mcpStatusLine, subscribe: subscribeMcp },
 });
 
 // ── Keyboard Shortcuts (editable, bound to the command registry overrides) ───

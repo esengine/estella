@@ -19,6 +19,7 @@ import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
 import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
+import type { McpEndpointStatus } from './mcpEndpoint';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -79,6 +80,17 @@ const api = {
     },
     /** Open the local diagnostics log folder (main-process errors, crash dumps). */
     openLogs: (): Promise<void> => ipcRenderer.invoke('diagnostics:openLogs'),
+  },
+
+  // — The MCP endpoint an external AI agent attaches to. Off unless asked for:
+  // the setting drives it (persisted per user, replayed at boot), and `--mcp`
+  // opens it for the whole session regardless (mcpEndpoint.ts). —
+  mcp: {
+    /** What the endpoint is doing now — port, discovery file, why it failed. */
+    status: (): Promise<McpEndpointStatus> => ipcRenderer.invoke('mcp:status'),
+    /** Open/close it; resolves with the resulting status (never throws on a bind
+     *  failure — the reason comes back in `error`). */
+    setEnabled: (on: boolean): Promise<McpEndpointStatus> => ipcRenderer.invoke('mcp:setEnabled', on),
   },
 
   // — Project / workspace (RC12 §E7) —

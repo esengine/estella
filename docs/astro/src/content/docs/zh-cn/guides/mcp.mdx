@@ -71,9 +71,13 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
    "args": ["<path-to>/editor-mcp.mjs", "--attach"]
    ```
 
-2. 用 `--mcp` 启动编辑器（终端里：`estella-editor --mcp`）。它会往自己的
-   user-data 目录写一个发现文件 `mcp-endpoint.json`，`--attach` 会自己找到它
-   ——只有你把它挪了位置，才需要显式传路径。
+2. 打开**设置 → AI 代理 → 允许 AI 代理连接**。编辑器会开启一个仅限本机的端口，
+   并往自己的 user-data 目录写一个发现文件 `mcp-endpoint.json`，`--attach` 会自己
+   找到它——只有你把它挪了位置，才需要显式传路径。那一行会显示当前监听的端口；
+   这个开关会被记住，所以此后你双击图标启动的编辑器同样是就绪状态。
+
+   在终端里用 `--mcp` 启动（`estella-editor --mcp`）效果相同，只对当次会话生效，
+   且在该会话内优先于这个设置。
 
 3. 代理现在驱动的就是你眼前的这个窗口——选择、编辑、Play 全部同步——你可以
    一边看一边随时介入。
