@@ -142,6 +142,52 @@ export function toolResultContent(
   ];
 }
 
+/**
+ * What went wrong, said to the person who has to decide what to do about it.
+ *
+ * The SDK's own message is written for whoever is reading a stack trace — it
+ * names a status code and a URL. In the transcript the only useful content is
+ * which of four situations this is, because each has a different answer: wait,
+ * fix the key, check the address, or nothing (it already retried).
+ *
+ * Exported so the phrasing is pinned by a test rather than by whichever error
+ * happens to occur first in production.
+ */
+/** The SDK hands back a `Headers` on some paths and a plain object on others;
+ *  reading only one shape is how the useful half of a 429 goes missing. */
+function headerOf(error: unknown, name: string): string | undefined {
+  const headers = (error as { headers?: unknown })?.headers;
+  if (!headers) return undefined;
+  const get = (headers as Headers).get;
+  if (typeof get === 'function') return (headers as Headers).get(name) ?? undefined;
+  return (headers as Record<string, string>)[name];
+}
+
+export function describeApiError(error: unknown): string {
+  const status = (error as { status?: number })?.status;
+  const raw = (error as Error)?.message ?? String(error);
+  const retryAfter = Number(headerOf(error, 'retry-after'));
+
+  if (status === 429) {
+    // The SDK has already retried this with backoff by the time it reaches us,
+    // so "try again" is not advice — how long to wait is.
+    return Number.isFinite(retryAfter) && retryAfter > 0
+      ? `Rate limited, and the automatic retries did not clear it. The endpoint asks for ${retryAfter}s.`
+      : 'Rate limited, and the automatic retries did not clear it. Wait a moment and send again.';
+  }
+  if (status === 401 || status === 403) {
+    return 'The endpoint rejected the API key. Check it in Settings › AI Agents.';
+  }
+  if (status === 404) {
+    return 'The endpoint has no such model, or the address is wrong. Check both in Settings › AI Agents.';
+  }
+  if (status === 400) return `The endpoint refused the request: ${raw}`;
+  if (status && status >= 500) return 'The endpoint is having trouble. Nothing is wrong on this side — try again shortly.';
+  // Not an HTTP failure at all: DNS, offline, a gateway that is not running.
+  if (!status) return `Could not reach the endpoint: ${raw}`;
+  return raw;
+}
+
 class AnthropicSession implements AgentSession {
   private readonly messages: Message[] = [];
   /** Context waiting for a legal spot — see {@link flushContext}. */
@@ -248,6 +294,20 @@ class AnthropicSession implements AgentSession {
     // only the block's start carries the id the rest of the system speaks in.
     const toolAt = new Map<number, string>();
 
+    try {
+      yield* this.consume(stream, toolAt);
+    } catch (e) {
+      // Rethrown, not swallowed — the kernel still has to end the turn. Only the
+      // wording changes, and it changes HERE because this is the layer that
+      // knows what an SDK error means.
+      throw new Error(describeApiError(e));
+    }
+  }
+
+  private async *consume(
+    stream: ReturnType<Anthropic['messages']['stream']> | ReturnType<Anthropic['beta']['messages']['stream']>,
+    toolAt: Map<number, string>,
+  ): AsyncIterable<StepEvent> {
     for await (const event of stream) {
       if (event.type === 'content_block_start') {
         const block = event.content_block;

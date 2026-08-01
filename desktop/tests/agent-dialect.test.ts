@@ -13,7 +13,9 @@
  *        rejected or silently dropped, taking the editor's context with it.
  */
 import { describe, it, expect } from 'vitest';
-import { buildStepRequest, createAnthropicProvider, toolResultContent } from '../electron/agent/anthropic';
+import {
+  buildStepRequest, createAnthropicProvider, toolResultContent, describeApiError,
+} from '../electron/agent/anthropic';
 import { DEFAULT_MODEL } from '../src/settings/agentIds';
 import type { CatalogTool } from '../electron/agent/types';
 
@@ -159,5 +161,54 @@ describe('a tool result carrying a rendered frame', () => {
     const plain = { id: 'c2', content: '7 created', isError: false };
     expect(toolResultContent(plain, 'anthropic')).toBe('7 created');
     expect(toolResultContent(plain, 'compatible')).toBe('7 created');
+  });
+});
+
+// The SDK's message is written for someone reading a stack trace. In the
+// transcript the only useful content is WHICH situation this is, because each
+// one has a different answer.
+describe('what a failed request says', () => {
+  const err = (status: number | undefined, message = 'boom', headers?: Record<string, string>) =>
+    Object.assign(new Error(message), { status, headers });
+
+  it('names the wait, not "try again", when rate limited', () => {
+    // By the time this surfaces the SDK has already retried with backoff, so
+    // "try again" is not advice — how long is.
+    expect(describeApiError(err(429, 'x', { 'retry-after': '30' }))).toContain('30s');
+    expect(describeApiError(err(429))).toContain('Rate limited');
+  });
+
+  // The SDK returns a Headers on some paths and a plain object on others.
+  // Reading one shape is how the useful half of a 429 goes missing.
+  it('reads retry-after from either header shape', () => {
+    const withHeaders = Object.assign(new Error('x'), {
+      status: 429,
+      headers: new Headers({ 'retry-after': '12' }),
+    });
+    expect(describeApiError(withHeaders)).toContain('12s');
+  });
+
+  it('sends a rejected key to the place it is fixed', () => {
+    expect(describeApiError(err(401))).toContain('Settings');
+    expect(describeApiError(err(403))).toContain('Settings');
+  });
+
+  // The two are indistinguishable from a 404 and have the same fix, so say both
+  // rather than guessing one.
+  it('treats an unknown model and a wrong address as the same question', () => {
+    const text = describeApiError(err(404));
+    expect(text).toContain('model');
+    expect(text).toContain('address');
+  });
+
+  it('says an outage is not your fault', () => {
+    expect(describeApiError(err(503))).toContain('Nothing is wrong on this side');
+  });
+
+  // No status at all is not an HTTP failure: DNS, offline, a gateway that is
+  // not running. "Rate limited" would be a lie and "500" would be a guess.
+  it('separates never-reached from refused', () => {
+    expect(describeApiError(err(undefined, 'ECONNREFUSED'))).toContain('Could not reach');
+    expect(describeApiError(err(400, 'max_tokens too large'))).toContain('max_tokens too large');
   });
 });
