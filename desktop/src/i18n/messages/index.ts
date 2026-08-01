@@ -38,6 +38,7 @@ import { materialMessages } from './material';
 import { projectMessages } from './project';
 import { controllerMessages } from './controllers';
 import { animatorMessages } from './animator';
+import { agentMessages } from './agent';
 import { eventMessages } from './events';
 import { pluginMessages } from './plugins';
 
@@ -65,6 +66,7 @@ export const messageModules = {
     animator: animatorMessages,
     events: eventMessages,
     plugins: pluginMessages,
+    agent: agentMessages,
 } as const;
 
 export const editorMessages = {
@@ -90,4 +92,5 @@ export const editorMessages = {
     ...animatorMessages,
     ...eventMessages,
     ...pluginMessages,
+    ...agentMessages,
 } as const;

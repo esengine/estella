@@ -1,0 +1,357 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+ *
+ * The built-in agent's drawer. Near-monochrome and completely flat: hierarchy
+ * comes from size, weight and tracking, never from a box. Colour is reserved
+ * for meaning — green added, red failed, amber needs a decision — so nothing is
+ * tinted merely for belonging to the agent.
+ *
+ * Hairlines DIVIDE; they never ENCLOSE. A rule between two rows is structure; a
+ * rule around a thing is a box. That is why tool rows are separated by lines but
+ * have no border of their own, and why a confirmation is a rule above and below
+ * plus a coloured leading edge rather than a card dropped onto the transcript.
+ */
+
+/* Floating: it covers the right-hand panels rather than squeezing the viewport.
+   You look at properties or you talk to the agent — the two naturally alternate,
+   and a viewport that resizes under a conversation is the worse trade. */
+.ag-scrim {
+  /* Absolute, not fixed: bounded to the workspace row, so the menubar, toolbar
+     and status bar stay live. The status bar in particular is where the agent
+     reports progress — dimming it would hide the thing that says work is
+     happening. */
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  justify-content: flex-end;
+}
+/* Pinned: an ordinary flex child of the workspace row — a real fourth column,
+   no scrim, nothing dimmed, for when you do want both at once. */
+.ag-column { display: contents; }
+
+.ag-drawer {
+  width: 384px;
+  max-width: 100vw;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--panel);
+  border-left: 1px solid var(--line-strong);
+}
+
+.ag-head {
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 13px;
+  border-bottom: 1px solid var(--line);
+}
+.ag-ttl { font-size: var(--fs-md); font-weight: 500; color: var(--text-hi); letter-spacing: -0.008em; }
+.ag-sp { flex: 1; }
+.ag-model {
+  font: var(--fs-2xs) var(--font-mono);
+  color: var(--text-faint);
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-head button {
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-head button:hover { color: var(--text-hi); background: var(--hover); }
+.ag-head button.on { color: var(--text-hi); background: var(--pressed); }
+
+.ag-log { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; padding-bottom: 12px; }
+
+/* ── A run ─────────────────────────────────────────────────────────────────
+   The unit of work, so it gets a header: what was asked plus the numbers that
+   get checked afterwards. Only the CURRENT run sticks — every past header
+   sticking would stack into a pile as soon as there are three of them. */
+.ag-turn { border-bottom: 1px solid var(--line); }
+.ag-th {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 14px 11px;
+  background: var(--panel);
+  transition: background var(--t-fast);
+}
+.ag-turn.current > .ag-th { position: sticky; top: 0; z-index: 3; }
+.ag-th:hover { background: var(--elevated); }
+.ag-hrow { display: flex; align-items: flex-start; gap: 9px; }
+.ag-fold { color: var(--text-faint); margin-top: 3px; flex: none; transition: transform 0.18s var(--ease, ease); }
+.ag-turn:not(.folded) .ag-fold { transform: rotate(90deg); }
+.ag-req {
+  flex: 1; min-width: 0;
+  font-size: var(--fs-lg);
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--text-hi);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.ag-stat {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 8px 0 0 21px;
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--text-faint);
+}
+.ag-stat .ag-sp { flex: 1; }
+.ag-add { color: var(--run); }
+.ag-warn { color: var(--warn); }
+
+.ag-tb { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); }
+/* A flex column shrinks its children by default, so one expanded tool detail
+   would squash every row above it. */
+.ag-tb > * { flex: 0 0 auto; }
+
+/* ── Prose ───────────────────────────────────────────────────────────────── */
+.ag-say {
+  position: relative;
+  font-size: var(--fs-md);
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ag-say-copy {
+  position: absolute; top: -10px; right: 0;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--t-fast), color var(--t-fast);
+}
+.ag-say:hover .ag-say-copy, .ag-say-copy:focus-visible { opacity: 1; }
+.ag-say-copy:hover { color: var(--text-hi); }
+
+.ag-think { padding-left: 12px; border-left: 1px solid var(--line); }
+.ag-think-t {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  transition: color var(--t-fast);
+}
+.ag-think-t:hover { color: var(--text-dim); }
+.ag-car { transition: transform 0.18s var(--ease, ease); }
+.ag-think.open .ag-car { transform: rotate(90deg); }
+.ag-think-body {
+  padding-top: 7px;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
+/* ── Tool steps: rows divided by hairlines, never enclosed by one. ───────── */
+.ag-steps { display: flex; flex-direction: column; }
+.ag-call + .ag-call, .ag-ask + .ag-call { border-top: 1px solid var(--line); }
+.ag-call-top {
+  display: grid;
+  grid-template-columns: 15px auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 7px 2px;
+  transition: background var(--t-fast);
+}
+.ag-call-top:hover { background: var(--hover); }
+.ag-call-g { display: grid; place-items: center; color: var(--text-faint); }
+.ag-call-nm { font: 500 var(--fs-xs) / 1 var(--font-mono); color: var(--text); white-space: nowrap; letter-spacing: -0.015em; }
+.ag-call-arg {
+  min-width: 0;
+  font: var(--fs-xs) / 1 var(--font-mono);
+  color: var(--text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-call-out {
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--text-faint);
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+  max-width: 130px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ag-spin { animation: ag-spin 0.9s linear infinite; }
+@keyframes ag-spin { to { transform: rotate(360deg); } }
+/* Asked for but not started: greyed, not a third spinner. */
+.ag-call--queued { opacity: 0.45; }
+.ag-call--stopped, .ag-call--declined { opacity: 0.5; }
+.ag-call--running .ag-call-nm { color: var(--text-hi); }
+.ag-call--ok .ag-call-g { color: var(--run); }
+.ag-call--error .ag-call-g, .ag-call--error .ag-call-out { color: var(--error); }
+.ag-call--awaiting .ag-call-g, .ag-call--awaiting .ag-call-out { color: var(--warn); }
+.ag-call-detail {
+  margin: 2px 0 9px 25px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  font: var(--fs-xs) / 1.75 var(--font-mono);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow: auto;
+  max-height: 220px;
+  overscroll-behavior: contain;
+  user-select: text;
+}
+
+/* ── A decision, as a passage rather than a dialog ───────────────────────── */
+.ag-ask {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  padding: 13px 0 13px 12px;
+  margin: 2px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid var(--ag-tone);
+}
+.ag-ask--confirm { --ag-tone: var(--warn); }
+.ag-ask--fail { --ag-tone: var(--error); }
+.ag-ask-g { color: var(--ag-tone); margin-top: 1px; }
+.ag-ask-hd { font-size: var(--fs-md); font-weight: 500; color: var(--text-hi); letter-spacing: -0.01em; line-height: 1.4; }
+.ag-ask-d { grid-column: 2; font-size: var(--fs-sm); color: var(--text-dim); margin-top: 5px; line-height: 1.65; }
+/* Wraps rather than scrolls or truncates: this is the whole basis on which
+   someone says yes, and a hidden filename is the one thing to never ship. */
+.ag-ask-tgt {
+  grid-column: 2;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  font: var(--fs-xs) / 1.6 var(--font-mono);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ag-ask-acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.ag-ask-acts button {
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--hover);
+  transition: background var(--t-fast);
+}
+.ag-ask-acts button:hover { background: var(--pressed); }
+.ag-ask-acts .ag-go { background: var(--text-hi); color: var(--srf-0); font-weight: 500; }
+.ag-ask-acts .ag-go:hover { background: #fff; }
+
+/* ── Waiting on the first token ──────────────────────────────────────────── */
+.ag-wait { display: flex; flex-direction: column; gap: 8px; }
+.ag-wait-t { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-faint); }
+.ag-dots { display: inline-flex; gap: 3px; align-items: center; }
+.ag-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: ag-hop 1.2s ease infinite; }
+.ag-dots i:nth-child(2) { animation-delay: 0.15s; }
+.ag-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ag-hop { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+.ag-skel {
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--hover) 24%, var(--pressed) 46%, var(--hover) 68%);
+  background-size: 220% 100%;
+  animation: ag-shimmer 1.6s linear infinite;
+}
+.ag-skel.s2 { width: 84%; }
+.ag-skel.s3 { width: 56%; }
+@keyframes ag-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* ── Empty states ────────────────────────────────────────────────────────── */
+.ag-empty { padding: 40px 14px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.ag-empty-mark { color: var(--text-faint); opacity: 0.5; }
+.ag-empty h4 { margin: 14px 0 6px; font-size: var(--fs-lg); color: var(--text-hi); font-weight: 600; letter-spacing: -0.016em; }
+.ag-empty p { margin: 0 0 18px; font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.7; }
+.ag-sugs { display: flex; flex-direction: column; align-self: stretch; text-align: left; border-top: 1px solid var(--line); }
+.ag-sug {
+  display: grid;
+  grid-template-columns: 15px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 11px 4px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--t-fast);
+}
+.ag-sug svg { color: var(--text-faint); margin-top: 2px; }
+.ag-sug:hover { background: var(--hover); }
+.ag-sug:hover svg { color: var(--text); }
+.ag-sug-h { display: block; font-size: var(--fs-2xs); color: var(--text-faint); margin-top: 3px; }
+.ag-setup {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px;
+  border-radius: var(--r-sm);
+  background: var(--text-hi);
+  color: var(--srf-0);
+  font-weight: 500;
+  font-size: var(--fs-sm);
+}
+
+/* Refusals and endpoint failures — what main could not do, above the box you
+   would otherwise retype into. */
+.ag-banner {
+  flex: none;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+  border-left: 2px solid var(--error);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+/* ── Compose ─────────────────────────────────────────────────────────────── */
+.ag-compose { flex: none; padding: 11px 13px 12px; border-top: 1px solid var(--line); }
+.ag-cbox {
+  display: flex; align-items: flex-end; gap: 7px;
+  padding: 6px 6px 6px 11px;
+  border-radius: var(--r-md, 6px);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  transition: border-color var(--t-fast);
+}
+.ag-cbox:focus-within { border-color: var(--line-strong); }
+.ag-cbox textarea {
+  flex: 1; min-width: 0;
+  background: none; border: 0; outline: 0;
+  color: var(--text);
+  font: var(--fs-md) / 1.55 var(--font-ui);
+  padding: 4px 0;
+  resize: none;
+  max-height: 112px;
+  overflow-y: auto;
+}
+.ag-cbox textarea::placeholder { color: var(--text-faint); }
+.ag-send {
+  width: 27px; height: 27px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--text-hi);
+  color: var(--srf-0);
+  transition: background var(--t-fast);
+}
+.ag-send:hover { background: #fff; }
+.ag-compose.busy .ag-send { background: var(--pressed); color: var(--text-hi); }
+.ag-chint { display: flex; gap: 13px; padding: 8px 2px 0; font-size: var(--fs-2xs); color: var(--text-faint); }
+.ag-chint b { color: var(--text-dim); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-spin, .ag-skel, .ag-dots i { animation: none; }
+}

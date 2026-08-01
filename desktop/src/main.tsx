@@ -36,6 +36,7 @@ import './theme/nodegraph.css';
 import './theme/chrome.css';
 import './theme/menus.css';
 import './theme/settings.css';
+import './theme/agent.css';
 import './theme/launcher.css';
 import './theme/plugins.css';
 import { App } from './App';

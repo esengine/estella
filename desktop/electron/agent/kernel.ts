@@ -13,7 +13,7 @@
  * two would drift; there is one.
  */
 import type {
-  AgentEvent, CatalogTool, KernelDeps, ToolCall, ToolOutcome,
+  AgentEvent, CatalogTool, ConfirmReason, KernelDeps, ToolCall, ToolOutcome,
 } from './types';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
@@ -27,11 +27,12 @@ const byName = new Map(catalog.map((t) => [t.name, t]));
  *  ask, and this one has the user right there (see the confirm gate below). */
 export const agentTools = (): readonly CatalogTool[] => catalog;
 
-/** Why `tool` needs saying out loud, phrased for the person who will read it. */
-function confirmReason(tool: CatalogTool): string {
+/** Why `tool` needs saying out loud. A code — the editor renders the sentence,
+ *  because it is the side that knows the reader's language. */
+function confirmReason(tool: CatalogTool): ConfirmReason {
   return tool.name === 'run_editor_command' || tool.name === 'play_probe'
-    ? 'runs code the agent wrote, so its effect is whatever that code does'
-    : 'writes outside the scene, and Undo cannot take it back';
+    ? 'arbitrary_code'
+    : 'irreversible';
 }
 
 /** Short enough to render as one transcript row; the model gets the full text. */

@@ -488,6 +488,14 @@ commands.register({
   keybinding: 'mod+,',
   run: () => editor().setSettingsOpen(true),
 });
+// No chord of its own: the palette already takes a sentence, and the design's
+// "zero new pixels of entry" means one more overlay is one too many.
+commands.register({
+  id: 'agent.open',
+  label: t('agent.open'),
+  category: t('cat.editor'),
+  run: () => editor().setAgentDrawer(true),
+});
 commands.register({
   id: 'palette.open',
   label: t('cmd.palette.open'),

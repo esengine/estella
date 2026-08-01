@@ -74,12 +74,22 @@ export interface AgentProvider {
   createSession(opts: { system: string; tools: readonly CatalogTool[] }): AgentSession;
 }
 
+/**
+ * Why a call needs saying out loud. A code rather than a sentence: the person
+ * who reads it is in the editor, and the editor is the only side that knows
+ * their language.
+ */
+export type ConfirmReason =
+  /** Escapes the undo stack — a file, a project setting, an export. */
+  | 'irreversible'
+  /** Runs code the agent wrote, so its effect is whatever that code does. */
+  | 'arbitrary_code';
+
 /** A tool the user has to say yes to before it runs (see `effect`). */
 export interface ConfirmRequest {
   callId: string;
   tool: string;
-  /** Why it needs asking, already phrased for a person. */
-  reason: string;
+  reason: ConfirmReason;
   input: Record<string, unknown>;
 }
 

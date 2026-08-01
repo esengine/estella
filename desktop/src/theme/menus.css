@@ -390,3 +390,10 @@
 /* "compression lives in Import Settings" pointer + footer scene/target summary. */
 .build__hint { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-mute); }
 .build__footsum { margin-right: auto; align-self: center; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }
+
+/* The palette's agent branch: a separator between "hand this sentence over" and
+   the commands, so the two readings of the same text stay visibly distinct. */
+.cp-sep { height: 1px; margin: 5px 8px; background: var(--line); }
+.cp-agent .an { display: flex; align-items: center; gap: 8px; }
+.cp-agent .an svg { color: var(--text-faint); flex: none; }
+.cp-agent.sel .an svg { color: var(--star-hi); }

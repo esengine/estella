@@ -50,6 +50,25 @@ export function fuzzyScore(query: string, text: string): number | null {
 }
 
 /**
+ * Whether a query reads as something SAID rather than something named — the
+ * palette's one branch between running a command and handing the text to the
+ * agent.
+ *
+ * Two signals, because commands are terse identifiers and sentences are not: a
+ * space, or a CJK character (which needs no spaces to be a sentence). Length
+ * rules out "up", "ui " and a half-typed word.
+ *
+ * Deliberately generous, because it only decides whether the row is OFFERED.
+ * Whether it is also SELECTED is the caller's business, and the rule there is
+ * the strict one — a query matching a real command keeps that command under
+ * Enter, so "save scene" still saves the scene.
+ */
+export function readsAsSentence(query: string): boolean {
+  const q = query.trim();
+  return q.length > 3 && (/\s/.test(q) || /[㐀-鿿぀-ヿ]/.test(q));
+}
+
+/**
  * Filter + rank items for a query. Empty query preserves registration order
  * (commands group naturally by category); otherwise best score first, ties
  * broken by label so the order is stable.

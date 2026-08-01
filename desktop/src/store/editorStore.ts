@@ -114,6 +114,16 @@ interface EditorState {
   paletteOpen: boolean;
   setPaletteOpen: (open: boolean) => void;
 
+  // The built-in agent's conversation. Slides in over the right-hand panels
+  // rather than squeezing the viewport: you look at properties or you talk to
+  // the agent, and pinning turns the overlay into a fourth column for the times
+  // you want both. The conversation itself lives in AgentStore.
+  agentDrawer: boolean;
+  toggleAgentDrawer: () => void;
+  setAgentDrawer: (open: boolean) => void;
+  agentDrawerPinned: boolean;
+  setAgentDrawerPinned: (pinned: boolean) => void;
+
   // "New Tilemap" tileset chooser (Entity → New Tilemap): picks the .estileset
   // palette for a fresh map, then createTilemapFromTileset does the rest.
   tilemapPickerOpen: boolean;
@@ -218,6 +228,12 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   paletteOpen: false,
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+
+  agentDrawer: false,
+  toggleAgentDrawer: () => set((s) => ({ agentDrawer: !s.agentDrawer })),
+  setAgentDrawer: (agentDrawer) => set({ agentDrawer }),
+  agentDrawerPinned: false,
+  setAgentDrawerPinned: (agentDrawerPinned) => set({ agentDrawerPinned }),
 
   tilemapPickerOpen: false,
   setTilemapPickerOpen: (tilemapPickerOpen) => set({ tilemapPickerOpen }),

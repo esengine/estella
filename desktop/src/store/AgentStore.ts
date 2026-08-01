@@ -18,7 +18,7 @@
  */
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
-import type { AgentEvent, ConfirmRequest } from '../../electron/agent/types';
+import type { AgentEvent, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
 
 export type { AgentStatus, AgentEvent };
 
@@ -45,7 +45,7 @@ export interface AgentToolEntry {
   /** The result, shortened for one row. */
   summary: string | null;
   /** Why it needs saying out loud, while it is awaiting an answer. */
-  reason: string | null;
+  reason: ConfirmReason | null;
 }
 
 export interface AgentProseEntry {
@@ -290,4 +290,4 @@ export async function resetAgentSession(): Promise<void> {
 export const agentDriving = (): boolean => useAgent.getState().driving;
 export const subscribeAgent = (fn: () => void): (() => void) => useAgent.subscribe(fn);
 
-export type { ConfirmRequest };
+export type { ConfirmRequest, ConfirmReason };
