@@ -19,13 +19,15 @@ export const agentMessages = defineMessages({
     'agent.newConversation': { en: 'New conversation', zh: '新对话' },
     'agent.dock': { en: 'Move it into the layout', zh: '放进布局里' },
     'agent.close': { en: 'Close (Esc)', zh: '关闭 (Esc)' },
-    'agent.compose': { en: 'Say something…', zh: '说点什么…' },
+    'agent.compose': { en: 'Say something…  @ to reference an entity', zh: '说点什么…  用 @ 引用实体' },
     'agent.compose.busy': { en: 'It is working — this will be the next message…', zh: '正在干活,这条会排到下一轮…' },
     'agent.send': { en: 'Send', zh: '发送' },
     'agent.stop': { en: 'Stop', zh: '停止' },
     'agent.hint.send': { en: 'send', zh: '发送' },
     'agent.hint.newline': { en: 'new line', zh: '换行' },
     'agent.hint.close': { en: 'close', zh: '关闭' },
+    'agent.hint.mention': { en: 'reference', zh: '引用' },
+    'agent.mention': { en: 'Reference', zh: '引用' },
 
     // — Which model the next message runs on —
     'agent.picker.none': { en: 'Pick a model', zh: '选择模型' },

@@ -665,3 +665,53 @@
   letter-spacing: -0.01em;
 }
 .md-ent:hover { border-bottom-color: var(--nebula); background: var(--hover); }
+
+/* ── Referencing something in the scene ─────────────────────────────────────
+   Above the box rather than inside it: the text you are writing stays the
+   subject, and the picker is a thing that happens to it. */
+.ag-mention {
+  position: absolute;
+  left: 13px; right: 13px;
+  bottom: calc(100% - 8px);
+  z-index: 6;
+  border-radius: var(--r-md, 6px);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+}
+.ag-compose { position: relative; }
+.ag-mention-h {
+  padding: 6px 11px;
+  font: 500 var(--fs-2xs) var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+.ag-mention-l { max-height: 176px; overflow: auto; padding: 4px; }
+.ag-mention-i {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  font: var(--fs-sm) var(--font-ui);
+  color: var(--text);
+  text-align: left;
+}
+.ag-mention-i svg { color: var(--text-faint); flex: none; }
+.ag-mention-i.on { background: var(--hover); color: var(--text-hi); }
+.ag-mention-id { margin-left: auto; font: var(--fs-2xs) var(--font-mono); color: var(--text-faint); }
+
+.ag-selchip {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 7px;
+  padding: 4px 9px;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  color: var(--text);
+  font: var(--fs-xs) var(--font-mono);
+  width: fit-content;
+}
+.ag-selchip:hover { background: var(--pressed); color: var(--text-hi); }
+.ag-selchip svg { color: var(--text-faint); }

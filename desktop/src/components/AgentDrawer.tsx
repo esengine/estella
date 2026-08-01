@@ -492,11 +492,49 @@ function resolveProviderModels(id: string): { label: string; models: readonly st
   return { label: def.label, models: def.models };
 }
 
+/** Entities the `@` picker offers for `query`, best-first. */
+function mentionMatches(query: string): { id: number; name: string }[] {
+  const q = query.toLowerCase();
+  return EditorControlSurface.getSceneTree()
+    .filter((n) => !q || n.name.toLowerCase().includes(q))
+    .slice(0, 40)
+    .map((n) => ({ id: n.id, name: n.name }));
+}
+
 function Compose() {
   const status = useAgent((s) => s.status);
   const [draft, setDraft] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
   const busy = status.phase !== 'idle';
+  // `@` opens a picker over the scene tree. Read at open time rather than
+  // subscribed: it is a menu, and a list reordering under the arrow keys is a
+  // menu that picks something other than what was highlighted.
+  const [mention, setMention] = useState<{ query: string; items: { id: number; name: string }[]; at: number } | null>(null);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const selected = useSelection((s) => s.selectedId);
+  const selectedName = selected == null ? null : EditorControlSurface.getEntity(selected)?.name ?? null;
+
+  const openMention = (value: string, caret: number) => {
+    const m = /@([^\s@]*)$/.exec(value.slice(0, caret));
+    if (!m) { setMention(null); return; }
+    setMention({ query: m[1], items: mentionMatches(m[1]), at: caret - m[0].length });
+    setMentionIdx(0);
+  };
+
+  const insertMention = (name: string) => {
+    const el = ref.current;
+    const at = mention?.at ?? draft.length;
+    const caret = el?.selectionStart ?? draft.length;
+    const next = `${draft.slice(0, at)}@${name} ${draft.slice(caret)}`;
+    setMention(null);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      const pos = at + name.length + 2;
+      el?.setSelectionRange(pos, pos);
+      autosize();
+    });
+  };
 
   const autosize = () => {
     const el = ref.current;
@@ -515,6 +553,35 @@ function Compose() {
 
   return (
     <div className={`ag-compose${busy ? ' busy' : ''}`}>
+      {mention && mention.items.length > 0 && (
+        <div className="ag-mention">
+          <div className="ag-mention-h">{t('agent.mention')}</div>
+          <div className="ag-mention-l">
+            {mention.items.map((item, i) => (
+              <button
+                type="button"
+                key={item.id}
+                className={`ag-mention-i${i === mentionIdx ? ' on' : ''}`}
+                onMouseEnter={() => { setMentionIdx(i); peekEntities([item.id]); }}
+                onMouseLeave={() => peekEntities([])}
+                onMouseDown={(e) => { e.preventDefault(); insertMention(item.name); }}
+              >
+                <Boxes size={12} strokeWidth={1.8} />
+                {item.name}
+                <span className="ag-mention-id">{item.id}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* What you have selected, offered rather than assumed: the editor knows
+          what you are looking at, and typing its name again is the editor
+          making you repeat yourself. */}
+      {selectedName && !draft.includes(`@${selectedName}`) && (
+        <button type="button" className="ag-selchip" onClick={() => insertMention(selectedName)}>
+          <Boxes size={12} strokeWidth={1.8} />@{selectedName}
+        </button>
+      )}
       <div className="ag-cbox">
         <textarea
           ref={ref}
@@ -522,8 +589,20 @@ function Compose() {
           value={draft}
           placeholder={busy ? t('agent.compose.busy') : t('agent.compose')}
           aria-label={t('agent.compose')}
-          onChange={(e) => { setDraft(e.target.value); autosize(); }}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            autosize();
+            openMention(e.target.value, e.target.selectionStart ?? 0);
+          }}
+          onBlur={() => setMention(null)}
           onKeyDown={(e) => {
+            if (mention && mention.items.length > 0) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % mention.items.length); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + mention.items.length) % mention.items.length); return; }
+              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mention.items[mentionIdx].name); return; }
+              // Esc dismisses the picker without closing the drawer behind it.
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null); return; }
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               submit();
@@ -544,6 +623,7 @@ function Compose() {
       <div className="ag-chint">
         <span><b>⏎</b> {t('agent.hint.send')}</span>
         <span><b>⇧⏎</b> {t('agent.hint.newline')}</span>
+        <span><b>@</b> {t('agent.hint.mention')}</span>
         <span><b>Esc</b> {t('agent.hint.close')}</span>
       </div>
     </div>
