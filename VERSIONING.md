@@ -41,10 +41,12 @@ private fields, and anything marked `@internal` or `experimental`.
 Estella is currently in the `0.x` series. Plain SemVer allows anything to change in
 `0.x`, but we commit to a stricter, predictable rule while we get to 1.0:
 
-- **Breaking changes** bump the **MINOR** (`0.13.x` → `0.14.0`).
-- **Features and fixes** bump the **PATCH** (`0.14.0` → `0.14.1`).
-- Every breaking change is called out in the CHANGELOG under **Changed/Removed**,
-  with a migration note where one is needed.
+- **Breaking changes and new functionality** bump the **MINOR** (`0.38.x` → `0.39.0`).
+- **Fix-only releases** bump the **PATCH** (`0.34.0` → `0.34.1`).
+- Because MINOR carries both, a MINOR bump on its own does **not** mean something
+  broke. Every breaking change is called out in the CHANGELOG under
+  **Changed/Removed**, with a migration note where one is needed — that entry, not
+  the version number, is the signal to read before upgrading.
 
 We will release **1.0.0** when the SDK API and the project format are stable enough
 to promise full MAJOR-line compatibility. From 1.0.0 onward, standard SemVer applies
