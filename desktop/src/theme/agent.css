@@ -564,3 +564,5 @@
   border: 1px solid var(--line);
   background: var(--inset);
 }
+/* The one number still moving. */
+.ag-stat .ag-live { color: var(--text); }

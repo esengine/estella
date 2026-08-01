@@ -82,6 +82,10 @@ export interface AgentTurn {
   mark: unknown | null;
   /** null while the turn is still running. */
   reason: TurnReason | null;
+  /** Wall clock, stamped here rather than in main: it is what the person waited,
+   *  and the person is on this side of the IPC. */
+  startedAt: number;
+  endedAt: number | null;
 }
 
 const IDLE: AgentStatus = {
@@ -245,6 +249,8 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       steps: 0,
       mark: null,
       reason: null,
+      startedAt: Date.now(),
+      endedAt: null,
     }];
   }
 
@@ -303,6 +309,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         reason: event.reason,
         steps: event.steps,
         mark: event.mark,
+        endedAt: Date.now(),
         // Nothing will report on these now. Neither failed nor succeeded.
         entries: open.entries.map((e) =>
           (e.kind === 'tool' && !TERMINAL.has(e.state) ? { ...e, state: 'stopped' as const } : e)),

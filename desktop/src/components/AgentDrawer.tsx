@@ -220,6 +220,20 @@ function Skeleton() {
   );
 }
 
+/** Ticks while the turn runs, then freezes at what it took. A turn that takes
+ *  two minutes should say so as it happens, not only afterwards. */
+function Elapsed({ turn }: { turn: AgentTurn }) {
+  const [now, setNow] = useState(() => Date.now());
+  const live = turn.endedAt === null;
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(id);
+  }, [live]);
+  const ms = (turn.endedAt ?? now) - turn.startedAt;
+  return <span className={live ? 'ag-live' : undefined}>{formatElapsed(ms)}</span>;
+}
+
 function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; running: boolean }) {
   // Past runs arrive folded; the one you are in stays open. Local state so the
   // user's own fold survives the next event landing in the store.
@@ -238,6 +252,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
           <span className="ag-req">{turn.prompt}</span>
         </span>
         <span className="ag-stat">
+          <Elapsed turn={turn} />
           {tokens > 0 && <span>↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}</span>}
           <span className="ag-sp" />
           {turn.reason === 'aborted' && <span className="ag-warn">{t('agent.turn.aborted')}</span>}
@@ -536,6 +551,15 @@ export function AgentDrawer() {
       </div>
     </div>
   );
+}
+
+/** Seconds under a minute, m:ss above — a long turn read as "184.2s" is a number
+ *  you have to divide before it means anything. */
+function formatElapsed(ms: number): string {
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m${String(Math.floor(s % 60)).padStart(2, '0')}s`;
 }
 
 const compact = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));

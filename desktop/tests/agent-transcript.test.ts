@@ -126,6 +126,15 @@ describe('the transcript projection', () => {
     expect(turn).toMatchObject({ inputTokens: 2600, outputTokens: 110 });
   });
 
+  // Stamped on this side of the IPC because it is what the PERSON waited.
+  it('stamps when the run started and when it stopped', () => {
+    const [running] = fold(started());
+    expect(running.startedAt).toBeGreaterThan(0);
+    expect(running.endedAt).toBeNull();
+    const [done] = fold(started(), ended());
+    expect(done.endedAt).toBeGreaterThanOrEqual(done.startedAt);
+  });
+
   it('records what one Undo would take back, and where to', () => {
     const [turn] = fold(started(), ended({ steps: 7, mark: { seq: 12 } }));
     expect(turn).toMatchObject({ steps: 7, mark: { seq: 12 }, reason: 'end_turn' });
@@ -173,7 +182,8 @@ describe('which entities a turn touched', () => {
     state: 'ok', summary: 'ok', image: null, reason: null, ...over,
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
-    id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 }, reason: 'end_turn',
+    id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 },
+    reason: 'end_turn', startedAt: 0, endedAt: 1,
   });
 
   it('reads the ids out of the argument names the catalog uses', () => {
