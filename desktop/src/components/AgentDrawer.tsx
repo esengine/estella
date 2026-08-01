@@ -473,6 +473,20 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
   const status = useAgent((s) => s.status);
   const logRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
+  // A question that has scrolled away is a turn that looks hung. Watched per
+  // instance rather than through shared state: the dock tab and the drawer can
+  // both be mounted, and each has its own scroller.
+  const awaiting = status.phase === 'awaiting_confirm';
+  const [askOffscreen, setAskOffscreen] = useState(false);
+  useEffect(() => {
+    if (!awaiting) { setAskOffscreen(false); return; }
+    const log = logRef.current;
+    const ask = log?.querySelector('.ag-ask--confirm');
+    if (!log || !ask) return;
+    const io = new IntersectionObserver(([e]) => setAskOffscreen(!e.isIntersecting), { root: log, threshold: 0.5 });
+    io.observe(ask);
+    return () => io.disconnect();
+  }, [awaiting, turns]);
 
   // Follow the tail only while the reader is already at it — yanking someone
   // back down while they read an earlier tool result is the classic log-view bug.
@@ -526,6 +540,16 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
           ))}
       </div>
 
+      {askOffscreen && (
+        <button
+          type="button"
+          className="ag-jump"
+          onClick={() => logRef.current?.querySelector('.ag-ask--confirm')
+            ?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+        >
+          <ChevronDown size={12} strokeWidth={2.2} />{t('agent.jump')}
+        </button>
+      )}
       {status.error && <div className="ag-banner">{status.error}</div>}
       <Compose />
     </div>

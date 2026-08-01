@@ -575,3 +575,18 @@
   background: var(--text-dim);
   animation: ag-blink 1s steps(2) infinite;
 }
+
+/* A question that scrolled away. Amber, because it is the same "needs you" the
+   passage itself carries — and it sits above the composer, where the eye
+   already goes to reply. */
+.ag-jump {
+  flex: none;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 0 13px 8px;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  background: var(--warn);
+  color: var(--srf-0);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
