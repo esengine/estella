@@ -3,8 +3,9 @@
  *
  * The built-in agent's drawer. Near-monochrome and completely flat: hierarchy
  * comes from size, weight and tracking, never from a box. Colour is reserved
- * for meaning — green added, red failed, amber needs a decision — so nothing is
- * tinted merely for belonging to the agent.
+ * for meaning — the shared azure for the one primary action, green added, red
+ * failed, amber needs a decision, violet for the echo of what the agent touched
+ * — so nothing is tinted merely for belonging to the agent.
  *
  * Hairlines DIVIDE; they never ENCLOSE. A rule between two rows is structure; a
  * rule around a thing is a box. That is why tool rows are separated by lines but
@@ -22,8 +23,8 @@
      happening. */
   position: absolute;
   inset: 0;
-  z-index: 60;
-  background: rgba(0, 0, 0, 0.42);
+  z-index: var(--z-drawer);
+  background: var(--overlay);
   display: flex;
   justify-content: flex-end;
 }
@@ -34,7 +35,8 @@
   min-height: 0;
   height: 100%;
   background: var(--panel);
-  border-left: 1px solid var(--line-strong);
+  /* The accent edge every summoned surface leads with (cf. the Content Drawer). */
+  border-left: 2px solid var(--acc);
 }
 
 .ag-head {
@@ -86,7 +88,7 @@
 .ag-turn.current > .ag-th { position: sticky; top: 0; z-index: 3; }
 .ag-th:hover { background: var(--elevated); }
 .ag-hrow { display: flex; align-items: flex-start; gap: 9px; }
-.ag-fold { color: var(--text-faint); margin-top: 3px; flex: none; transition: transform 0.18s var(--ease, ease); }
+.ag-fold { color: var(--text-faint); margin-top: 3px; flex: none; transition: transform var(--t) var(--e-out); }
 .ag-turn:not(.folded) .ag-fold { transform: rotate(90deg); }
 .ag-req {
   flex: 1; min-width: 0;
@@ -143,7 +145,7 @@
   transition: color var(--t-fast);
 }
 .ag-think-t:hover { color: var(--text-dim); }
-.ag-car { transition: transform 0.18s var(--ease, ease); }
+.ag-car { transition: transform var(--t) var(--e-out); }
 .ag-think.open .ag-car { transform: rotate(90deg); }
 .ag-think-body {
   padding-top: 7px;
@@ -246,8 +248,8 @@
   transition: background var(--t-fast);
 }
 .ag-ask-acts button:hover { background: var(--pressed); }
-.ag-ask-acts .ag-go { background: var(--text-hi); color: var(--srf-0); font-weight: 500; }
-.ag-ask-acts .ag-go:hover { background: #fff; }
+.ag-ask-acts .ag-go { background: var(--star); color: var(--on-accent); font-weight: 500; }
+.ag-ask-acts .ag-go:hover { background: var(--star-hi); }
 
 /* ── Waiting on the first token ──────────────────────────────────────────── */
 .ag-wait { display: flex; flex-direction: column; gap: 8px; }
@@ -259,7 +261,7 @@
 @keyframes ag-hop { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
 .ag-skel {
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: linear-gradient(90deg, var(--hover) 24%, var(--pressed) 46%, var(--hover) 68%);
   background-size: 220% 100%;
   animation: ag-shimmer 1.6s linear infinite;
@@ -293,11 +295,12 @@
   display: flex; align-items: center; gap: 7px;
   padding: 8px 16px;
   border-radius: var(--r-sm);
-  background: var(--text-hi);
-  color: var(--srf-0);
+  background: var(--star);
+  color: var(--on-accent);
   font-weight: 500;
   font-size: var(--fs-sm);
 }
+.ag-setup:hover { background: var(--star-hi); }
 
 /* Refusals and endpoint failures — what main could not do, above the box you
    would otherwise retype into. */
@@ -315,7 +318,7 @@
 .ag-cbox {
   display: flex; align-items: flex-end; gap: 7px;
   padding: 6px 6px 6px 11px;
-  border-radius: var(--r-md, 6px);
+  border-radius: var(--r-md);
   background: var(--inset);
   border: 1px solid var(--line);
   transition: border-color var(--t-fast);
@@ -337,11 +340,11 @@
   flex: none;
   display: grid; place-items: center;
   border-radius: var(--r-sm);
-  background: var(--text-hi);
-  color: var(--srf-0);
+  background: var(--star);
+  color: var(--on-accent);
   transition: background var(--t-fast);
 }
-.ag-send:hover { background: #fff; }
+.ag-send:hover { background: var(--star-hi); }
 .ag-compose.busy .ag-send { background: var(--pressed); color: var(--text-hi); }
 .ag-chint { display: flex; gap: 13px; padding: 8px 2px 0; font-size: var(--fs-2xs); color: var(--text-faint); }
 .ag-chint b { color: var(--text-dim); font-weight: 500; }
@@ -357,16 +360,16 @@
   position: absolute;
   left: 50%;
   bottom: 14px;
-  z-index: 39;
+  z-index: calc(var(--z-toolbar) - 1);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 13px;
   padding: 7px 8px 7px 13px;
-  border-radius: var(--r-md, 6px);
+  border-radius: var(--r-md);
   background: var(--raised);
   border: 1px solid var(--line-strong);
-  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-pop);
   font-size: var(--fs-sm);
   white-space: nowrap;
   max-width: min(720px, 70%);
@@ -460,10 +463,10 @@
   max-height: 300px;
   overflow: auto;
   padding: 5px;
-  border-radius: var(--r-md, 6px);
+  border-radius: var(--r-md);
   background: var(--raised);
   border: 1px solid var(--line-strong);
-  box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-pop);
 }
 .ag-picker-h {
   display: flex; align-items: center; gap: 7px;
@@ -505,7 +508,7 @@
 .md-code {
   font: var(--fs-xs) var(--font-mono);
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: var(--inset);
   color: var(--text-hi);
   overflow-wrap: anywhere;
@@ -525,7 +528,7 @@
 .md-pre-bar button {
   width: 22px; height: 20px;
   display: grid; place-items: center;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   color: var(--text-faint);
   transition: color var(--t-fast), background var(--t-fast);
 }
@@ -615,7 +618,7 @@
   font: var(--fs-xs) var(--font-mono);
 }
 .ag-changes-t { font: 500 var(--fs-sm) var(--font-ui); color: var(--text-hi); }
-.ag-changes .ag-car { color: var(--text-faint); transition: transform 0.18s ease; }
+.ag-changes .ag-car { color: var(--text-faint); transition: transform var(--t) var(--e-out); }
 .ag-changes.open .ag-car { transform: rotate(90deg); }
 .ag-changes-l { padding: 4px 0 2px; }
 .ag-chg {
@@ -649,7 +652,7 @@
   opacity: 0;
   border: 1px solid var(--nebula);
   border-radius: 2px;
-  box-shadow: 0 0 0 3px rgba(178, 114, 214, 0.2);
+  box-shadow: 0 0 0 3px var(--nebula-soft);
   transition: opacity var(--t-fast);
   z-index: 3;
 }
@@ -659,7 +662,7 @@
   font: 500 var(--fs-xs) var(--font-mono);
   color: var(--text-hi);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: var(--inset);
   border-bottom: 1px solid var(--line-strong);
   letter-spacing: -0.01em;
@@ -674,10 +677,10 @@
   left: 13px; right: 13px;
   bottom: calc(100% - 8px);
   z-index: 6;
-  border-radius: var(--r-md, 6px);
+  border-radius: var(--r-md);
   background: var(--raised);
   border: 1px solid var(--line-strong);
-  box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 .ag-compose { position: relative; }

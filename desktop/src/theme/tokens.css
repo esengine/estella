@@ -61,6 +61,7 @@
   --star-glow: 0 0 0 1px var(--star-line);
   --on-accent: #f3f7fc; /* text / icon on a filled accent surface */
   --nebula: #b272d6; /* secondary accent, used sparingly */
+  --nebula-soft: rgba(178, 114, 214, 0.2); /* its halo, as --star-dim is the accent's */
 
   /* — Viewport selection: the iconic orange. Reserved for selected entities. — */
   --sel: #f0871f;
