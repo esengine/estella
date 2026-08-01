@@ -16,15 +16,16 @@ describe('the automation hook gate', () => {
   let listeners: Array<() => void>;
   let running: boolean;
   let launchFlag: boolean;
+  let driving: boolean;
 
-  /** Stands in for McpStore: notify, and the gate re-reads. */
+  /** Stands in for McpStore / AgentStore: notify, and the gate re-reads. */
   const subscribe = (fn: () => void) => {
     listeners.push(fn);
     return () => { listeners = listeners.filter((l) => l !== fn); };
   };
   const notify = () => listeners.forEach((l) => l());
   const guard = () => guardAutomationHook(
-    () => launchFlag || running, subscribe, publish, retract,
+    () => launchFlag || running || driving, subscribe, publish, retract,
   );
 
   beforeEach(() => {
@@ -33,6 +34,7 @@ describe('the automation hook gate', () => {
     listeners = [];
     running = false;
     launchFlag = false;
+    driving = false;
   });
 
   it('publishes nothing for an ordinary editor', () => {
@@ -85,6 +87,30 @@ describe('the automation hook gate', () => {
     notify();
     expect(publish).toHaveBeenCalledTimes(1);
     expect(retract).not.toHaveBeenCalled();
+  });
+
+  // The built-in agent reaches this window through the same hook. A conversation
+  // that cannot see it is an agent whose every tool call fails with a TypeError —
+  // the exact regression this file exists for, arriving by a third door.
+  it('publishes for the built-in agent, with no endpoint listening', () => {
+    guard();
+    driving = true;
+    notify();
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the hook while EITHER a client or the built-in agent is driving', () => {
+    running = true;
+    guard();
+    driving = true;
+    notify();
+    running = false; // the setting went off mid-conversation
+    notify();
+    expect(retract).not.toHaveBeenCalled();
+
+    driving = false;
+    notify();
+    expect(retract).toHaveBeenCalledTimes(1);
   });
 
   it('stops watching when the realm is torn down', () => {

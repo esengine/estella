@@ -44,7 +44,11 @@ import { ensureSdkTypes } from './syncSdkTypes';
 import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from './mcpEndpoint';
-import { secretStatus, setSecret, clearSecret } from './secrets';
+import { secretStatus, setSecret, clearSecret, readSecret } from './secrets';
+import { createSurfaceDriver } from './surfaceDriver';
+import { createAgentHost } from './agent/host';
+import { createAnthropicProvider } from './agent/anthropic';
+import { AGENT_API_KEY } from '../src/settings/secretIds';
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
   PROJECT_PLUGIN_DIR, USER_PLUGIN_DIR,
@@ -647,6 +651,28 @@ ipcMain.handle('mcp:setEnabled', (_e, on: boolean) =>
 ipcMain.handle('secret:status', (_e, id: string) => secretStatus(id));
 ipcMain.handle('secret:set', (_e, id: string, value: string) => setSecret(id, value));
 ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
+
+// — The built-in agent (agent/host.ts) —
+// Main owns the conversation because it owns the key, and because a renderer
+// reload mid-turn must not take the turn with it. It drives the editor through
+// the SAME surface driver the MCP endpoint uses; the window keeps a mirror.
+const agentHost = createAgentHost({
+  driver: createSurfaceDriver(() => win),
+  push: (message) => win?.webContents.send('agent:message', message),
+  ready: () => secretStatus(AGENT_API_KEY).configured,
+  provider: () => {
+    const apiKey = readSecret(AGENT_API_KEY);
+    // Phrased for the person who will read it in the transcript, and it names
+    // where to fix it — a bare "401" or "missing apiKey" does neither.
+    if (!apiKey) throw new Error('No API key is configured. Add one in Settings › AI Agents.');
+    return createAnthropicProvider({ apiKey });
+  },
+});
+ipcMain.handle('agent:status', () => agentHost.status());
+ipcMain.handle('agent:send', (_e, text: string) => agentHost.send(text));
+ipcMain.handle('agent:stop', () => agentHost.stop());
+ipcMain.handle('agent:confirm', (_e, callId: string, allow: boolean) => agentHost.confirm(callId, allow));
+ipcMain.handle('agent:reset', () => agentHost.reset());
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
 ipcMain.handle('window:minimize', () => win?.minimize());

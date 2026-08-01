@@ -83,16 +83,24 @@ export interface ConfirmRequest {
   input: Record<string, unknown>;
 }
 
-/** What the editor renders. A superset of what the provider emitted. */
+/**
+ * What the editor renders. A superset of what the provider emitted.
+ *
+ * Self-describing on purpose: the editor's read model is rebuilt from this
+ * stream alone (store/AgentStore.ts), across an IPC boundary where "the sender
+ * also knows the prompt" stops being true. Hence `turn_start` carrying what was
+ * asked and `turn_end` carrying the checkpoint, rather than the receiver pairing
+ * events with state it kept on the side.
+ */
 export type AgentEvent =
   | StepEvent
-  | { type: 'turn_start' }
+  | { type: 'turn_start'; prompt: string }
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
   | { type: 'tool_end'; id: string; ok: boolean; summary: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }
-  /** The turn is over. `steps` is what a single Undo would take back, and 0 is
-   *  the signal not to offer one. */
-  | { type: 'turn_end'; steps: number; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }
+  /** The turn is over. `steps` is what a single Undo would take back — 0 is the
+   *  signal not to offer one — and `mark` is where it would take it back to. */
+  | { type: 'turn_end'; steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }
   | { type: 'error'; message: string };
 
 /** Everything the kernel needs from outside, so it runs under a test with none

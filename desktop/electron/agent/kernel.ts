@@ -72,7 +72,7 @@ export async function runTurn(
 ): Promise<{ mark: unknown; steps: number }> {
   const { driver, session, emit } = deps;
   const mark = await driver('mark', []);
-  emit({ type: 'turn_start' });
+  emit({ type: 'turn_start', prompt: text });
 
   let reason: Extract<AgentEvent, { type: 'turn_end' }>['reason'] = 'end_turn';
   try {
@@ -122,7 +122,7 @@ export async function runTurn(
   if (signal.aborted) reason = 'aborted';
 
   const steps = Number(await driver('stepsSince', [mark]).catch(() => 0)) || 0;
-  emit({ type: 'turn_end', steps, reason });
+  emit({ type: 'turn_end', steps, mark, reason });
   return { mark, steps };
 }
 

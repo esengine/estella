@@ -67,6 +67,7 @@ import { openAssetOfType, opensInEditor } from './project/assetOpen';
 import { DirtyRegistry } from './document/DirtyRegistry';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 import { mcpStatus, subscribeMcp } from './store/McpStore';
+import { attachAgentBridge, agentDriving, subscribeAgent } from './store/AgentStore';
 import { guardAutomationHook } from './engine/automationGate';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
@@ -482,14 +483,21 @@ function buildEditorAutomation(): unknown {
   };
 }
 
-// The launch flag holds for the session; the setting can open and close the
-// endpoint at any moment, including a boot replay that lands after this module
-// ran. McpStore already mirrors what main is doing, so watching it is enough —
-// this needs no channel of its own.
+// Three ways a driver is authorized. The launch flag holds for the session; the
+// MCP setting can open and close the endpoint at any moment, including a boot
+// replay that lands after this module ran; and the BUILT-IN agent is a driver
+// too — it reaches this window through the same `window.__estellaEditor`, so a
+// conversation that cannot see the hook is an agent whose every tool call fails.
+// Both stores already mirror what main is doing, so watching them is enough.
 const LAUNCH_AUTOMATION = new URLSearchParams(location.search).has('automation');
+attachAgentBridge();
 guardAutomationHook(
-  () => LAUNCH_AUTOMATION || mcpStatus().running,
-  subscribeMcp,
+  () => LAUNCH_AUTOMATION || mcpStatus().running || agentDriving(),
+  (fn) => {
+    const offMcp = subscribeMcp(fn);
+    const offAgent = subscribeAgent(fn);
+    return () => { offMcp(); offAgent(); };
+  },
   () => { (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = buildEditorAutomation(); },
   () => { delete (window as unknown as { __estellaEditor?: unknown }).__estellaEditor; },
 );

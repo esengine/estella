@@ -21,6 +21,7 @@ import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
 import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
+import type { AgentStatus, AgentMessage } from './agent/host';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -104,6 +105,27 @@ const api = {
     /** Store it; resolves with the resulting status, including a refusal. */
     set: (id: string, value: string): Promise<SecretStatus> => ipcRenderer.invoke('secret:set', id, value),
     clear: (id: string): Promise<SecretStatus> => ipcRenderer.invoke('secret:clear', id),
+  },
+
+  // — The built-in agent. Main owns the conversation (electron/agent/host.ts);
+  // this is the window's way to talk to it and to hear what it is doing. —
+  agent: {
+    status: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:status'),
+    /** Start a turn; resolves with the resulting status, refusals included. */
+    send: (text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:send', text),
+    stop: (): Promise<void> => ipcRenderer.invoke('agent:stop'),
+    /** Answer the pending confirmation for an irreversible tool. */
+    confirm: (callId: string, allow: boolean): Promise<void> =>
+      ipcRenderer.invoke('agent:confirm', callId, allow),
+    /** Drop the conversation and start a new one. */
+    reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
+    /** Transcript events + status changes, in the order they happened; returns
+     *  an unsubscribe. One channel because the two must not be reordered. */
+    onMessage: (cb: (message: AgentMessage) => void): (() => void) => {
+      const h = (_e: unknown, message: AgentMessage) => cb(message);
+      ipcRenderer.on('agent:message', h);
+      return () => ipcRenderer.removeListener('agent:message', h);
+    },
   },
 
   // — Project / workspace (RC12 §E7) —

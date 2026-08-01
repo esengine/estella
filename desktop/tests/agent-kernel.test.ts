@@ -71,8 +71,10 @@ describe('the agent turn', () => {
     const out = await runTurn(deps(s), 'hi', null, new AbortController().signal);
     expect(out.mark).toEqual({ seq: 7 });
     expect(out.steps).toBe(3);
-    expect(events.at(0)).toEqual({ type: 'turn_start' });
-    expect(events.at(-1)).toEqual({ type: 'turn_end', steps: 3, reason: 'end_turn' });
+    // Both carry what the editor's read model needs and cannot infer across IPC:
+    // what was asked, and the point an Undo would go back to.
+    expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi' });
+    expect(events.at(-1)).toEqual({ type: 'turn_end', steps: 3, mark: { seq: 7 }, reason: 'end_turn' });
   });
 
   it('runs an undoable edit without asking — the checkpoint is the approval', async () => {
