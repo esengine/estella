@@ -104,6 +104,20 @@ export interface PathSetting extends BaseSetting<string> {
   detect?: boolean;
 }
 
+/**
+ * A credential the editor holds but can never show. The value goes to main,
+ * which seals it with the OS keychain (electron/secrets.ts); nothing reads it
+ * back — not this process, not localStorage, not the project — so the only
+ * "value" here is the one bit main reports, and it lives there rather than in
+ * the settings store. The row is therefore set-or-forget, and `status` is where
+ * a machine with no keychain to seal with gets to say so.
+ */
+export interface SecretSetting extends BaseSetting<boolean> {
+  type: 'secret';
+  /** Shape of the expected credential, e.g. `sk-ant-…`. */
+  placeholder?: string;
+}
+
 export interface ColorSetting extends BaseSetting<string> {
   type: 'color';
   /** Preset swatches (hex). */
@@ -207,6 +221,7 @@ export type Setting =
   | EnumSetting
   | StringSetting
   | PathSetting
+  | SecretSetting
   | ColorSetting
   | ColorPickerSetting
   | KeybindingSetting

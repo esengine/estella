@@ -93,9 +93,32 @@ export const settingsMessages = defineMessages({
     'set.group.background': { en: 'Background', zh: '后台' },
     'set.group.console': { en: 'Console', zh: '控制台' },
     'set.group.renderer': { en: 'Renderer', zh: '渲染器' },
+    'set.group.builtinAgent': { en: 'Built-in Agent', zh: '内置 Agent' },
     'set.group.agents': { en: 'External Agents', zh: '外部代理' },
 
+    // — A credential the editor holds but never shows —
+    'set.secret.stored': { en: 'Stored', zh: '已配置' },
+    'set.secret.store': { en: 'Store it', zh: '保存' },
+    'set.secret.forget': { en: 'Forget it', zh: '清除' },
+    'set.secret.noKeychain': {
+        en: 'This machine has no keychain to encrypt with, so nothing can be stored here. On Linux, install GNOME Keyring or KWallet, or start the editor with --password-store=gnome-libsecret.',
+        zh: '这台机器没有可用于加密的密钥库，因此无法保存。Linux 上请安装 GNOME Keyring 或 KWallet，或以 --password-store=gnome-libsecret 启动编辑器。',
+    },
+    'set.secret.obfuscated': {
+        en: 'No system keychain was found, so this is only obfuscated on disk — anyone with your files can read it back. Installing GNOME Keyring or KWallet upgrades it.',
+        zh: '没有找到系统密钥库，因此只是在磁盘上做了混淆——拿到你文件的人即可还原。安装 GNOME Keyring 或 KWallet 后会自动改用它。',
+    },
+    'set.secret.damaged': {
+        en: 'The stored value cannot be decrypted on this machine ({message}) — it was most likely sealed by another one. Enter it again.',
+        zh: '已保存的值在这台机器上无法解密（{message}），多半是在另一台机器上加密的。请重新输入。',
+    },
+
     // — AI Agents —
+    'set.agents.apiKey': { en: 'Anthropic API key', zh: 'Anthropic API 密钥' },
+    'set.agents.apiKey.desc': {
+        en: 'What the built-in agent authenticates with. Held by the system keychain — never written to the project or the settings file, and never handed back to this window.',
+        zh: '内置 Agent 用它调用模型。密钥存在系统钥匙串里——不写进项目、不写进设置文件，也不会交回给这个窗口。',
+    },
     'set.agents.mcpEnabled': { en: 'Allow AI agents to connect', zh: '允许 AI 代理连接' },
     'set.agents.mcpEnabled.desc': {
         en: 'Serve this editor over MCP on a local-only port, so an agent set up with --attach can drive the project you have open. Off means nothing is listening.',

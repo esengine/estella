@@ -18,6 +18,8 @@ import { setUseLessCpuInBackground } from '@/engine/backgroundThrottle';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
+import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
+import { AGENT_API_KEY } from './secretIds';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
@@ -231,7 +233,28 @@ settingsRegistry.register({
   effect: (v) => LogStore.setCap(v),
 });
 
-// ── AI Agents (main-owned endpoint, driven from here) ───────────────────────
+// ── AI Agents ───────────────────────────────────────────────────────────────
+// The built-in agent's credential. Registered before the MCP row because it is
+// the one an ordinary user needs; the endpoint below is for agents that live
+// outside the editor.
+//
+// The value is never here: this descriptor carries no more than its id, and the
+// key itself lives in main behind the OS keychain (electron/secrets.ts). That is
+// what keeps it out of localStorage, which is where every OTHER setting is.
+settingsRegistry.register({
+  id: AGENT_API_KEY,
+  type: 'secret',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.builtinAgent'),
+  label: t('set.agents.apiKey'),
+  description: t('set.agents.apiKey.desc'),
+  placeholder: 'sk-ant-…',
+  default: false,
+  status: { read: () => secretStatusLine(AGENT_API_KEY), subscribe: subscribeSecrets },
+});
+
+// ── External agents (main-owned endpoint, driven from here) ─────────────────
 // An external agent reaches this editor through the MCP endpoint main can expose,
 // and `--attach` finds it through the discovery file the endpoint writes. An
 // editor launched the ordinary way — by double-clicking it — wrote no such file,

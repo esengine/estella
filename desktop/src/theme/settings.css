@@ -166,6 +166,14 @@
    Cocos-style field hard to read at a glance. */
 .set-path { display: flex; align-items: center; gap: 4px; }
 .set-path .set-str { width: 300px; }
+/* A credential: an entry field until one is held, then a statement that one is.
+   Uncolored on purpose — "configured" is a fact, not a warning or a success. */
+.set-secret { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 100%; }
+/* Fills the row's control column rather than naming a width: the field plus its
+   button has to stay inside it, and one that spills lands on the description. */
+.set-secret .set-str { flex: 1; min-width: 0; }
+.set-secret .set-str:disabled { color: var(--text-mute); cursor: not-allowed; }
+.set-secret-on { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: var(--fs-xs); }
 .set-reset { width: 16px; height: 16px; display: grid; place-items: center; color: var(--warn); opacity: 0; }
 .set-row:hover .set-reset.show, .set-row.changed .set-reset.show { opacity: 0.85; }
 .set-reset.show { cursor: pointer; }

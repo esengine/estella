@@ -20,6 +20,7 @@ import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffo
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
 import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
+import type { SecretStatus } from './secrets';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -91,6 +92,18 @@ const api = {
     /** Open/close it; resolves with the resulting status (never throws on a bind
      *  failure — the reason comes back in `error`). */
     setEnabled: (on: boolean): Promise<McpEndpointStatus> => ipcRenderer.invoke('mcp:setEnabled', on),
+  },
+
+  // — Credentials a setting holds (the built-in agent's API key). The value
+  // crosses this bridge ONCE, inbound, when the user types it: main seals it with
+  // the OS keychain and hands it only to the client that must send it, and there
+  // is no way to read it back (electron/secrets.ts). —
+  secrets: {
+    /** Whether one is stored under `id`, and what this machine can store it with. */
+    status: (id: string): Promise<SecretStatus> => ipcRenderer.invoke('secret:status', id),
+    /** Store it; resolves with the resulting status, including a refusal. */
+    set: (id: string, value: string): Promise<SecretStatus> => ipcRenderer.invoke('secret:set', id, value),
+    clear: (id: string): Promise<SecretStatus> => ipcRenderer.invoke('secret:clear', id),
   },
 
   // — Project / workspace (RC12 §E7) —

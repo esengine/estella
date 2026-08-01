@@ -44,6 +44,7 @@ import { ensureSdkTypes } from './syncSdkTypes';
 import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from './mcpEndpoint';
+import { secretStatus, setSecret, clearSecret } from './secrets';
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
   PROJECT_PLUGIN_DIR, USER_PLUGIN_DIR,
@@ -638,6 +639,14 @@ ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', stat
 ipcMain.handle('mcp:status', () => mcpEndpointStatus());
 ipcMain.handle('mcp:setEnabled', (_e, on: boolean) =>
   on ? startMcpEndpoint(() => win) : stopMcpEndpoint());
+
+// — Credentials a setting holds (secrets.ts) —
+// Three handlers and deliberately no `get`: a secret crosses from the renderer
+// once and never comes back, so the only thing the window can learn is whether
+// one is stored.
+ipcMain.handle('secret:status', (_e, id: string) => secretStatus(id));
+ipcMain.handle('secret:set', (_e, id: string, value: string) => setSecret(id, value));
+ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
 ipcMain.handle('window:minimize', () => win?.minimize());

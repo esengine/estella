@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2, ChevronRight, Check } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
@@ -24,7 +24,8 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { ColorControl } from '@/components/ColorControl';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, MatrixSetting, FlagListSetting, ObjectListSetting, ObjectListColumn } from '@/settings/types';
+import { refreshSecret, secretStatus, storeSecret, forgetSecret, subscribeSecrets } from '@/store/SecretStore';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, SecretSetting, MatrixSetting, FlagListSetting, ObjectListSetting, ObjectListColumn } from '@/settings/types';
 import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -206,6 +207,69 @@ function PathControl({ setting }: { setting: PathSetting }) {
 }
 
 const basename = (p: string): string => p.split(/[\\/]/).pop() || p;
+
+/**
+ * A credential: type it once, and from then on the row can only say that one is
+ * held, or forget it. There is no reveal affordance because there is nothing to
+ * reveal — main never hands the value back (see settings/types.ts) — and a row
+ * that could show it would have to keep it here, which is the thing being
+ * avoided. The draft survives a refused store so a paste is never lost.
+ */
+function SecretControl({ setting }: { setting: SecretSetting }) {
+  const status = useSyncExternalStore(subscribeSecrets, () => secretStatus(setting.id));
+  const [draft, setDraft] = useState('');
+  useEffect(() => {
+    void refreshSecret(setting.id);
+  }, [setting.id]);
+
+  // Main has not answered yet. Rendering either state would be a guess, and one
+  // of the two guesses reads as "your key is gone".
+  if (!status) return null;
+
+  if (status.configured) {
+    return (
+      <div className="set-secret">
+        <span className="set-secret-on">
+          <Check size={12} strokeWidth={2} />
+          {t('set.secret.stored')}
+        </span>
+        <IconButton title={t('set.secret.forget')} onClick={() => void forgetSecret(setting.id)}>
+          <Trash2 size={13} />
+        </IconButton>
+      </div>
+    );
+  }
+
+  // Nothing can be sealed on this machine, so the field is shown refused rather
+  // than accepting a key it would have to drop. The row's status line says why.
+  const blocked = status.storage === 'unavailable';
+  const submit = () => {
+    if (!draft.trim() || blocked) return;
+    void storeSecret(setting.id, draft).then((s) => {
+      if (s?.configured) setDraft('');
+    });
+  };
+  return (
+    <div className="set-secret">
+      <input
+        className="set-str"
+        type="password"
+        value={draft}
+        disabled={blocked}
+        placeholder={setting.placeholder ?? ''}
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+        }}
+      />
+      <IconButton title={t('set.secret.store')} disabled={blocked || !draft.trim()} onClick={submit}>
+        <Check size={13} />
+      </IconButton>
+    </div>
+  );
+}
 
 function StringListControl({ setting }: { setting: StringListSetting }) {
   const setValue = useSettings((s) => s.setValue);
@@ -516,6 +580,8 @@ function Control({ setting }: { setting: Setting }) {
       );
     case 'path':
       return <PathControl setting={setting} />;
+    case 'secret':
+      return <SecretControl setting={setting} />;
     case 'stringList':
       return <StringListControl setting={setting} />;
     case 'matrix':
