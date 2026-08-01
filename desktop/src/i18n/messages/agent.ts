@@ -17,7 +17,7 @@ export const agentMessages = defineMessages({
 
     // — Drawer chrome —
     'agent.newConversation': { en: 'New conversation', zh: '新对话' },
-    'agent.pin': { en: 'Pin as a column', zh: '固定成常驻列' },
+    'agent.dock': { en: 'Move it into the layout', zh: '放进布局里' },
     'agent.close': { en: 'Close (Esc)', zh: '关闭 (Esc)' },
     'agent.compose': { en: 'Say something…', zh: '说点什么…' },
     'agent.compose.busy': { en: 'It is working — this will be the next message…', zh: '正在干活,这条会排到下一轮…' },

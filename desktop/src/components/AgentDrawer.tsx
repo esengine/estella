@@ -39,6 +39,8 @@ import {
 } from '@/agent/providers';
 import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
+import { MarkdownView } from '@/components/MarkdownView';
+import { dockApi } from '@/layout/dockApi';
 import { t } from '@/i18n';
 
 const TOOL_ICON: Record<string, typeof Eye> = {
@@ -124,11 +126,14 @@ function Thinking({ text }: { text: string }) {
   );
 }
 
-function Prose({ text }: { text: string }) {
+function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="ag-say">
-      {text}
+      <MarkdownView text={text} />
+      {/* The caret rides the last paragraph while tokens are still arriving —
+          the difference between "thinking" and "finished" at a glance. */}
+      {streaming && <span className="ag-caret" />}
       <button
         type="button"
         className="ag-say-copy"
@@ -146,9 +151,11 @@ function Prose({ text }: { text: string }) {
 }
 
 /** Consecutive tool rows are one hairline-divided block; prose breaks the run. */
-function Entries({ entries, onConfirm }: {
+function Entries({ entries, onConfirm, streaming }: {
   entries: readonly AgentEntry[];
   onConfirm: (callId: string, allow: boolean) => void;
+  /** The run is still taking events, so the last entry is mid-write. */
+  streaming?: boolean;
 }) {
   const out: React.ReactNode[] = [];
   let run: AgentToolEntry[] = [];
@@ -178,10 +185,25 @@ function Entries({ entries, onConfirm }: {
         </div>,
       );
     } else if (entry.kind === 'thinking') out.push(<Thinking key={i} text={entry.text} />);
-    else out.push(<Prose key={i} text={entry.text} />);
+    else out.push(<Prose key={i} text={entry.text} streaming={streaming && i === entries.length - 1} />);
   });
   flush();
   return <>{out}</>;
+}
+
+/** Every row has reported; nothing is in flight but the next model call. */
+const lastIsSettled = (entries: readonly AgentEntry[]): boolean => {
+  const last = entries[entries.length - 1];
+  return last?.kind === 'tool' && (last.state === 'ok' || last.state === 'error' || last.state === 'declined');
+};
+
+function Waiting() {
+  return (
+    <div className="ag-wait-t">
+      <span className="ag-dots"><i /><i /><i /></span>
+      {t('agent.waiting')}
+    </div>
+  );
 }
 
 /** Waiting on the first token: a shimmer, not a spinner — it says how much is
@@ -223,8 +245,12 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
       {!folded && (
         <div className="ag-tb">
           {empty && running && isLast ? <Skeleton /> : (
-            <Entries entries={turn.entries} onConfirm={confirmAgentCall} />
+            <Entries entries={turn.entries} onConfirm={confirmAgentCall} streaming={running && isLast} />
           )}
+          {/* Between rounds: the last thing that happened was a tool result and
+              the model is being asked again. Without this the transcript looks
+              finished while a request is in flight. */}
+          {running && isLast && turn.entries.length > 0 && lastIsSettled(turn.entries) && <Waiting />}
         </div>
       )}
     </div>
@@ -413,24 +439,18 @@ function Compose() {
   );
 }
 
-export function AgentDrawer() {
-  const open = useEditorStore((s) => s.agentDrawer);
-  const pinned = useEditorStore((s) => s.agentDrawerPinned);
+/**
+ * The conversation itself. Rendered BOTH as a dock panel and as the summoned
+ * drawer — the same arrangement the Content Browser has, because "a surface you
+ * can dock wherever you like" and "a surface you can summon over your work
+ * without rearranging anything" are both wanted, and they are not two features.
+ */
+export function AgentPanel({ docked }: { docked?: boolean }) {
   const setOpen = useEditorStore((s) => s.setAgentDrawer);
-  const setPinned = useEditorStore((s) => s.setAgentDrawerPinned);
   const turns = useAgent((s) => s.turns);
   const status = useAgent((s) => s.status);
   const logRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
-
-  useEffect(() => {
-    if (!open || pinned) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, pinned, setOpen]);
 
   // Follow the tail only while the reader is already at it — yanking someone
   // back down while they read an earlier tool result is the classic log-view bug.
@@ -439,27 +459,32 @@ export function AgentDrawer() {
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
   }, [turns]);
 
-  if (!open) return null;
-
-  const body = (
-    <div className="ag-drawer" onMouseDown={(e) => e.stopPropagation()}>
-      <div className="ag-head">
-        <span className="ag-ttl">{t('agent.title')}</span>
+  return (
+    <div className="ag-panel">
+      <div className={`ag-head${docked ? ' docked' : ''}`}>
+        {/* Docked, the tab already says Agent — a second title under it is the
+            same word twice and 40px of nothing. */}
+        {!docked && <span className="ag-ttl">{t('agent.title')}</span>}
         <span className="ag-sp" />
         <button type="button" title={t('agent.newConversation')} onClick={() => void resetAgentSession()}>
           <Plus size={14} strokeWidth={2} />
         </button>
-        <button
-          type="button"
-          className={pinned ? 'on' : undefined}
-          title={t('agent.pin')}
-          onClick={() => setPinned(!pinned)}
-        >
-          <PanelRight size={14} strokeWidth={1.9} />
-        </button>
-        <button type="button" title={t('agent.close')} onClick={() => setOpen(false)}>
-          <X size={14} strokeWidth={2} />
-        </button>
+        {!docked && (
+          <>
+            {/* Not a bespoke "pinned" mode any more: it hands the conversation to
+                the dock, where it is an ordinary panel the user can put anywhere. */}
+            <button
+              type="button"
+              title={t('agent.dock')}
+              onClick={() => { setOpen(false); dockApi.openPanel('agent'); }}
+            >
+              <PanelRight size={14} strokeWidth={1.9} />
+            </button>
+            <button type="button" title={t('agent.close')} onClick={() => setOpen(false)}>
+              <X size={14} strokeWidth={2} />
+            </button>
+          </>
+        )}
       </div>
 
       <div
@@ -483,13 +508,29 @@ export function AgentDrawer() {
       <Compose />
     </div>
   );
+}
 
-  // Pinned it is a fourth column; floating it dims what is behind, because then
-  // it is the thing you are doing.
-  if (pinned) return <div className="ag-column">{body}</div>;
+/** The summoned overlay: covers the right-hand panels rather than squeezing the
+ *  viewport, and dismisses on Esc or an outside click. */
+export function AgentDrawer() {
+  const open = useEditorStore((s) => s.agentDrawer);
+  const setOpen = useEditorStore((s) => s.setAgentDrawer);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
+
+  if (!open) return null;
   return (
     <div className="ag-scrim open" onMouseDown={() => setOpen(false)}>
-      {body}
+      <div className="ag-drawer" onMouseDown={(e) => e.stopPropagation()}>
+        <AgentPanel />
+      </div>
     </div>
   );
 }

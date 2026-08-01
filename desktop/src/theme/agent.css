@@ -27,16 +27,10 @@
   display: flex;
   justify-content: flex-end;
 }
-/* Pinned: an ordinary flex child of the workspace row — a real fourth column,
-   no scrim, nothing dimmed, for when you do want both at once. */
-.ag-column { display: contents; }
-
 .ag-drawer {
   width: 384px;
   max-width: 100vw;
   flex: none;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
   height: 100%;
   background: var(--panel);
@@ -496,3 +490,64 @@
 .ag-picker-it:hover { background: var(--hover); }
 .ag-picker-it.on { color: var(--text-hi); }
 .ag-picker-it.locked, .ag-picker-it.empty { color: var(--text-faint); font-family: var(--font-ui); }
+
+/* ── Markdown ───────────────────────────────────────────────────────────────
+   The model writes it; hierarchy still comes from type rather than boxes, so
+   headings are size and weight and a code block is the editor's own inset. */
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md-p { margin: 0 0 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.md-h { margin: 14px 0 7px; font-size: var(--fs-md); font-weight: 600; color: var(--text-hi); letter-spacing: -0.01em; }
+.md-list { margin: 0 0 9px; padding-left: 19px; }
+.md-list li { margin: 3px 0; }
+.md-list li::marker { color: var(--text-faint); }
+.md-rule { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+.md-code {
+  font: var(--fs-xs) var(--font-mono);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--inset);
+  color: var(--text-hi);
+  overflow-wrap: anywhere;
+}
+.md-link { color: var(--star-hi); text-decoration: none; border-bottom: 1px solid var(--star-soft); }
+.md-link:hover { border-bottom-color: var(--star-hi); }
+.md-pre { margin: 0 0 10px; border-radius: var(--r-sm); background: var(--inset); overflow: hidden; }
+.md-pre-bar {
+  display: flex; align-items: center;
+  height: 24px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--line);
+  font: var(--fs-2xs) var(--font-mono);
+  color: var(--text-faint);
+}
+.md-lang { flex: 1; }
+.md-pre-bar button {
+  width: 22px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: 3px;
+  color: var(--text-faint);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.md-pre-bar button:hover { color: var(--text-hi); background: var(--hover); }
+.md-pre pre { margin: 0; padding: 9px 10px; overflow-x: auto; }
+.md-pre code { font: var(--fs-xs) / 1.7 var(--font-mono); color: var(--text); }
+/* Still being written — the closing fence has not arrived. */
+.md-pre.open { box-shadow: inset 2px 0 0 var(--nebula); }
+
+/* The caret that rides the tail of the text while tokens arrive. */
+.ag-caret {
+  display: inline-block;
+  width: 6px; height: 13px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--text);
+  animation: ag-blink 1.1s steps(2) infinite;
+}
+@keyframes ag-blink { 50% { opacity: 0; } }
+
+/* Docked, it is an ordinary panel: the shell owns the frame. */
+.ag-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--panel); }
+.ag-drawer .ag-panel { height: 100%; }
+/* Docked, the dock tab carries the title, so the head is just its actions. */
+.ag-head.docked { height: 30px; border-bottom: 1px solid var(--line-soft); }
