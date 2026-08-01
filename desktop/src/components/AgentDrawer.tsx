@@ -31,6 +31,7 @@ import {
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
+  peekEntities, entitiesInInput,
   type AgentTurn, type AgentEntry, type AgentToolEntry,
 } from '@/store/AgentStore';
 import { t } from '@/i18n';
@@ -45,9 +46,14 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
   const [open, setOpen] = useState(false);
   const Icon = TOOL_ICON[entry.effect ?? 'read'] ?? Eye;
   const arg = summarizeInput(entry.input);
+  const touches = entitiesInInput(entry.input);
   return (
     <>
-      <div className={`ag-call ag-call--${entry.state}`}>
+      <div
+        className={`ag-call ag-call--${entry.state}`}
+        onMouseEnter={() => touches.length && peekEntities(touches)}
+        onMouseLeave={() => touches.length && peekEntities([])}
+      >
         <button type="button" className="ag-call-top" onClick={() => setOpen((o) => !o)}>
           <span className="ag-call-g"><Icon size={13} strokeWidth={1.8} /></span>
           <span className="ag-call-nm">{entry.name}</span>

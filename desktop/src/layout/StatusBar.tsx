@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
-import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu } from 'lucide-react';
+import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu, Sparkles, Square } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
+import { useAgent, stopAgentTurn } from '@/store/AgentStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SubsystemIndicator } from './SubsystemIndicator';
@@ -57,6 +58,33 @@ function CursorReadout() {
   return <>{cursor ? `${cursor.x}, ${cursor.y}` : '—'}</>;
 }
 
+/**
+ * What the agent is doing, where "what is happening right now" already lives.
+ *
+ * It reports here rather than only in the drawer because the two minutes an
+ * agent works are two minutes you spend watching the VIEWPORT — so progress has
+ * to be somewhere you can see with the drawer closed, and Stop has to be within
+ * reach without reopening it.
+ */
+function AgentSegment() {
+  const phase = useAgent((s) => s.status.phase);
+  const setDrawer = useEditorStore((s) => s.setAgentDrawer);
+  if (phase === 'idle') return null;
+  const waiting = phase === 'awaiting_confirm';
+  return (
+    <span className={`sitem ag-seg${waiting ? ' waiting' : ''}`}>
+      <button type="button" className="ag-seg-open" onClick={() => setDrawer(true)}>
+        <Sparkles size={11} strokeWidth={1.9} />
+        {waiting ? t('agent.status.awaiting') : t('agent.status.running')}
+      </button>
+      <button type="button" className="ag-seg-stop" title={t('agent.stop')} onClick={stopAgentTurn}>
+        <Square size={9} strokeWidth={2.6} />
+        {t('agent.stop')}
+      </button>
+    </span>
+  );
+}
+
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face. Anchors the Content Drawer.
 export function StatusBar() {
@@ -87,6 +115,7 @@ export function StatusBar() {
           {selectedIds.size ? t('layout.status.selected', { count: selectedIds.size }) : t('layout.status.noSelection')}
         </span>
         <SelectionReadout />
+        <AgentSegment />
       </div>
 
       <span className="sp" />

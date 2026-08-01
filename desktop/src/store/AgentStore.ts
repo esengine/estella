@@ -90,9 +90,22 @@ interface AgentState {
    * has to be up before main can call back in — see {@link sendAgentMessage}.
    */
   driving: boolean;
+  /**
+   * Entities under the pointer in the transcript, echoed into the Outliner and
+   * the viewport. The link a general-purpose chat UI cannot make: a tool row
+   * naming `id: 7` means nothing until 7 lights up where you already look.
+   */
+  peeked: readonly number[];
+  /** The turn whose checkpoint bar has been answered — see AgentCheckpoint. */
+  checkpointDone: number | null;
 }
 
-export const useAgent = create<AgentState>(() => ({ status: IDLE, turns: [], driving: false }));
+export const useAgent = create<AgentState>(() => ({
+  status: IDLE, turns: [], driving: false, peeked: [], checkpointDone: null,
+}));
+
+export const peekEntities = (ids: readonly number[]): void => useAgent.setState({ peeked: ids });
+export const dismissCheckpoint = (turnId: number): void => useAgent.setState({ checkpointDone: turnId });
 
 /** The run still taking events, if any. Only the last one can be open. */
 const openTurn = (turns: readonly AgentTurn[]): AgentTurn | null => {
@@ -284,6 +297,50 @@ export async function resetAgentSession(): Promise<void> {
   useAgent.setState({ turns: [], driving: false });
   const status = await window.estella?.agent?.reset();
   if (status) useAgent.setState({ status });   // not adoptStatus: reset just ended it
+}
+
+/**
+ * The entity ids a call's arguments name.
+ *
+ * Read off the catalog's own naming convention — `entity`, `id`, `ids` — rather
+ * than a per-tool table, because a table of "which argument of which tool is an
+ * entity" is a second definition of the catalog that would drift from it. The
+ * convention misses a tool that names its argument something else, and that is
+ * the right way to be wrong here: a badge that appears late is a smaller lie
+ * than one that points at the wrong entity.
+ */
+export function entitiesInInput(input: Record<string, unknown>): number[] {
+  const out: number[] = [];
+  for (const key of ['entity', 'id', 'ids', 'entities']) {
+    const value = input[key];
+    if (typeof value === 'number') out.push(value);
+    else if (Array.isArray(value)) out.push(...value.filter((v): v is number => typeof v === 'number'));
+  }
+  return out;
+}
+
+/**
+ * What the conversation has changed and you have not acknowledged yet.
+ *
+ * Answering the checkpoint — Undo or Keep — clears the badges for that turn and
+ * everything before it. The transcript still says what happened; the badge is
+ * about what still wants your eye, and after Undo it did not happen at all.
+ */
+export function touchedEntities(
+  turns: readonly AgentTurn[],
+  acknowledgedUpTo: number | null,
+): ReadonlySet<number> {
+  const touched = new Set<number>();
+  for (const turn of turns) {
+    if (acknowledgedUpTo !== null && turn.id <= acknowledgedUpTo) continue;
+    for (const entry of turn.entries) {
+      // Only calls that ran and changed something: a queued or failed call
+      // touched nothing, and a read never does.
+      if (entry.kind !== 'tool' || entry.state !== 'ok' || entry.effect === 'read') continue;
+      for (const id of entitiesInInput(entry.input)) touched.add(id);
+    }
+  }
+  return touched;
 }
 
 /** Whether an agent conversation authorizes the automation hook (main.tsx). */

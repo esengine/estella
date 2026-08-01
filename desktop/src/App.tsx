@@ -8,6 +8,7 @@ import { DockLayout } from '@/layout/DockLayout';
 import { ActivityBar } from '@/layout/ActivityBar';
 import { ContentDrawer } from '@/layout/ContentDrawer';
 import { AgentDrawer } from '@/components/AgentDrawer';
+import { AgentCheckpoint } from '@/components/AgentCheckpoint';
 import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
 import '@/document/dirtyDocs'; // side effect: registers scene + asset docs on the DirtyRegistry
 import { Launcher } from '@/launcher/Launcher';
@@ -297,6 +298,7 @@ export function App() {
       <main className="shell__workspace">
         <ErrorBoundary label="activitybar"><Perf id="activitybar"><ActivityBar /></Perf></ErrorBoundary>
         <DockLayout />
+        <ErrorBoundary label="agentcheckpoint"><AgentCheckpoint /></ErrorBoundary>
         <ErrorBoundary label="agentdrawer"><Perf id="agentdrawer"><AgentDrawer /></Perf></ErrorBoundary>
       </main>
       <ErrorBoundary label="statusbar"><Perf id="statusbar"><StatusBar /></Perf></ErrorBoundary>

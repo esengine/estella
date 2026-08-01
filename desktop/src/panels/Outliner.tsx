@@ -20,6 +20,7 @@ import { t } from '@/i18n';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem, type SortMode } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
+import { useAgent, touchedEntities } from '@/store/AgentStore';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
@@ -164,6 +165,13 @@ export function Outliner() {
   );
   const flatIds = useMemo(() => entityIds(items), [items]);
   const highlight = useMemo(() => parseQuery(query).text, [query]);
+  // What the agent changed, and what the pointer is over in its transcript. The
+  // link the drawer alone cannot make: a tool row naming `id: 7` means nothing
+  // until 7 lights up in the tree you were already looking at.
+  const agentTurns = useAgent((s) => s.turns);
+  const agentPeeked = useAgent((s) => s.peeked);
+  const agentAcked = useAgent((s) => s.checkpointDone);
+  const agentTouched = useMemo(() => touchedEntities(agentTurns, agentAcked), [agentTurns, agentAcked]);
   const activeColumns = useMemo(() => OUTLINER_COLUMNS.filter((c) => !hiddenColumns.has(c.id)), [hiddenColumns]);
   const columnCtx = useMemo<OutlinerColumnContext>(
     () => ({
@@ -656,6 +664,8 @@ export function Outliner() {
       selected={it.kind === 'folder' ? selectedFolder === it.path : selectedIds.has(it.id)}
       cursored={cursor === it.key}
       highlight={highlight}
+      agentTouched={it.kind === 'entity' && agentTouched.has(it.id)}
+      agentPeeked={it.kind === 'entity' && agentPeeked.includes(it.id)}
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefabRole={

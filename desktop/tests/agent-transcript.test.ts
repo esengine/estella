@@ -8,7 +8,10 @@
  *        claiming they are still running.
  */
 import { describe, it, expect } from 'vitest';
-import { applyAgentEvent, type AgentTurn, type AgentToolEntry } from '../src/store/AgentStore';
+import {
+  applyAgentEvent, entitiesInInput, touchedEntities,
+  type AgentTurn, type AgentToolEntry,
+} from '../src/store/AgentStore';
 import type { AgentEvent, ToolCall } from '../electron/agent/types';
 
 const fold = (...events: AgentEvent[]): AgentTurn[] =>
@@ -83,10 +86,10 @@ describe('the transcript projection', () => {
       { type: 'tool_start', call: call('save_scene'), effect: 'irreversible' },
       {
         type: 'awaiting_confirm',
-        request: { callId: 'c-save_scene', tool: 'save_scene', reason: 'writes outside the scene', input: {} },
+        request: { callId: 'c-save_scene', tool: 'save_scene', reason: 'irreversible', input: {} },
       },
     );
-    expect(tools(turn)[0]).toMatchObject({ state: 'awaiting', reason: 'writes outside the scene' });
+    expect(tools(turn)[0]).toMatchObject({ state: 'awaiting', reason: 'irreversible' });
   });
 
   // The kernel reports a decline as an ordinary failed call, because that is what
@@ -148,5 +151,45 @@ describe('the transcript projection', () => {
   it('leaves the runs alone for a raw stop — the outcome arrives with turn_end', () => {
     const before = fold(started());
     expect(applyAgentEvent(before, { type: 'stop', reason: 'tool_use' })).toEqual(before);
+  });
+});
+
+// The Outliner echo. Read off the catalog's own argument names rather than a
+// per-tool table, which would be a second definition of the catalog.
+describe('which entities a turn touched', () => {
+  const toolEntry = (over: Partial<AgentToolEntry>): AgentToolEntry => ({
+    kind: 'tool', id: 'c1', name: 'set_field', input: {}, effect: 'undoable',
+    state: 'ok', summary: 'ok', reason: null, ...over,
+  });
+  const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
+    id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 }, reason: 'end_turn',
+  });
+
+  it('reads the ids out of the argument names the catalog uses', () => {
+    expect(entitiesInInput({ entity: 7, component: 'Transform' })).toEqual([7]);
+    expect(entitiesInInput({ id: 3 })).toEqual([3]);
+    expect(entitiesInInput({ ids: [4, 5], path: 'x' })).toEqual([4, 5]);
+    expect(entitiesInInput({ name: 'PauseRoot' })).toEqual([]);
+  });
+
+  it('counts only calls that ran and changed something', () => {
+    expect([...touchedEntities([turn([
+      toolEntry({ id: 'a', input: { entity: 1 } }),
+      toolEntry({ id: 'b', input: { entity: 2 }, state: 'error' }),
+      toolEntry({ id: 'c', input: { entity: 3 }, effect: 'read' }),
+      toolEntry({ id: 'd', input: { entity: 4 }, state: 'queued' }),
+    ])], null)]).toEqual([1]);
+  });
+
+  // The transcript still says what happened; the badge is about what still wants
+  // your eye, and after Undo it did not happen at all.
+  it('forgets a turn once its checkpoint has been answered', () => {
+    const turns = [
+      turn([toolEntry({ id: 'a', input: { entity: 1 } })], 0),
+      turn([toolEntry({ id: 'b', input: { entity: 2 } })], 1),
+    ];
+    expect([...touchedEntities(turns, null)]).toEqual([1, 2]);
+    expect([...touchedEntities(turns, 0)]).toEqual([2]);
+    expect([...touchedEntities(turns, 1)]).toEqual([]);
   });
 });

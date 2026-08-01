@@ -355,3 +355,69 @@
 @media (prefers-reduced-motion: reduce) {
   .ag-spin, .ag-skel, .ag-dots i { animation: none; }
 }
+
+/* ── The checkpoint a finished turn leaves behind ────────────────────────────
+   Over the viewport, where the result of the turn is — not in the drawer, which
+   is the place you are NOT looking while you check the work. */
+.ag-cp {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 39;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 7px 8px 7px 13px;
+  border-radius: var(--r-md, 6px);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.85);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  max-width: min(720px, 70%);
+}
+.ag-cp-what { overflow: hidden; text-overflow: ellipsis; color: var(--text-hi); }
+.ag-cp-stat { font: var(--fs-xs) var(--font-mono); color: var(--text-faint); flex: none; }
+.ag-cp-stale { font-size: var(--fs-xs); color: var(--warn); flex: none; }
+.ag-cp-acts { display: flex; gap: 2px; flex: none; }
+.ag-cp button {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-cp button:hover { background: var(--hover); color: var(--text-hi); }
+.ag-cp button.keep { color: var(--text-hi); background: var(--hover); }
+.ag-cp button.keep:hover { background: var(--pressed); }
+
+/* ── The status-bar segment ─────────────────────────────────────────────── */
+.ag-seg { display: inline-flex; align-items: center; gap: 8px; }
+.ag-seg-open { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+.ag-seg-open:hover { color: var(--text-hi); }
+.ag-seg.waiting .ag-seg-open { color: var(--warn); }
+.ag-seg-stop {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  color: var(--text-dim);
+  font-size: var(--fs-2xs);
+}
+.ag-seg-stop:hover { color: var(--text-hi); background: var(--pressed); }
+
+/* ── Outliner echo ──────────────────────────────────────────────────────────
+   A dot, not a tint: the row already uses background for selection and for the
+   drop target, and a third meaning on the same channel reads as none of them. */
+.row.agent-touched .rname::after {
+  content: '';
+  display: inline-block;
+  width: 4px; height: 4px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--nebula);
+  vertical-align: middle;
+}
+.row.agent-peek { box-shadow: inset 2px 0 0 var(--nebula); }

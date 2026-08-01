@@ -37,6 +37,10 @@ export interface OutlinerRowProps {
   item: OutlinerItem;
   /** Entity selection highlight (folders highlight via the folder selection). */
   selected: boolean;
+  /** The built-in agent changed this entity in the open conversation. */
+  agentTouched?: boolean;
+  /** The pointer is over a transcript row that names this entity. */
+  agentPeeked?: boolean;
   /** Keyboard-focus row (shows a focus ring; distinct from selection). */
   cursored?: boolean;
   /** Lowercased substring to highlight in the name (the search bare text). */
@@ -95,7 +99,9 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${isFolder ? ' folder' : ''}` +
         `${dropPos === 'on' ? ' drop' : ''}` +
         `${dropPos === 'before' ? ' drop-before' : ''}` +
-        `${dropPos === 'after' ? ' drop-after' : ''}`
+        `${dropPos === 'after' ? ' drop-after' : ''}` +
+        `${props.agentTouched ? ' agent-touched' : ''}` +
+        `${props.agentPeeked ? ' agent-peek' : ''}`
       }
       style={{ paddingLeft: depth * 14 }}
       role="treeitem"
