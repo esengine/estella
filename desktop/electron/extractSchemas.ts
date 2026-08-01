@@ -46,6 +46,9 @@ const OUTPUT = 'schemas.json';
  * esbuild — a native subprocess — cannot see into at all. That is why callers in
  * the app pass `sdkDir` (main.ts SDK_DIST, retargeted to the app.asar.unpacked
  * twin); the walk-up stays for tests and any consumer running from source.
+ *
+ * It is the plugin's anchor and nothing else's — never the generated entry's
+ * `resolveDir`, which must be a directory esbuild can actually see (see below).
  */
 const ANCHOR_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -191,19 +194,29 @@ export async function extractProjectSchemas(
   // any project code), then defer the declaration's side effects to a dynamic
   // import inside __extract() and hand back what it declared.
   //
+  // It imports the declaration RELATIVE to the project root, and is bundled with
+  // `resolveDir` there — like every other generated entry here (exportPlayable /
+  // exportMiniGame). esbuild resolves an import against the importer's directory
+  // and REFUSES it — an absolute one included — when that directory does not
+  // exist; the entry used to sit at ANCHOR_DIR, which packaged is inside
+  // app.asar, so no shipped build could resolve the declaration entry at all.
+  // A relative specifier also keeps the wrong resolveDir from ever passing
+  // silently again: it resolves from the project or not at all.
+  //
   // Actions come from the SAME module for the same reason components do: a
   // `registerAction` IS a declaration, and this is the one project module the
   // editor may evaluate. The registry is diffed around the import so only the
   // project's own names are reported — the engine's builtins register when their
   // plugins build, which never happens here, but a diff keeps that an invariant
   // rather than a coincidence.
+  const declSpecifier = `./${path.relative(root, declPath).split(path.sep).join('/')}`;
   const entry =
     `import { AppContext, setDefaultContext, getUserComponents, aiRegistry } from 'esengine';\n` +
     `setDefaultContext(new AppContext());\n` +
     `export async function __extract() {\n` +
     `  const before = new Set(aiRegistry.actionNames());\n` +
     `  const beforeConds = new Set(aiRegistry.conditionNames());\n` +
-    `  await import(${JSON.stringify(declPath)});\n` +
+    `  await import(${JSON.stringify(declSpecifier)});\n` +
     `  const actions = aiRegistry.actionNames().filter((n) => !before.has(n)).map((name) => ({\n` +
     `    name,\n` +
     `    params: aiRegistry.getActionParams(name),\n` +
@@ -219,7 +232,7 @@ export async function extractProjectSchemas(
   try {
     const { build } = await loadEsbuild();
     const result = await build({
-      stdin: { contents: entry, resolveDir: ANCHOR_DIR, loader: 'ts', sourcefile: 'extract-entry.ts' },
+      stdin: { contents: entry, resolveDir: root, loader: 'ts', sourcefile: 'extract-entry.ts' },
       bundle: true,
       format: 'esm',
       platform: 'node',

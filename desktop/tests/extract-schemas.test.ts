@@ -175,6 +175,34 @@ describe('extractProjectSchemas (P2)', () => {
         });
     });
 
+    // esbuild resolves an import against the IMPORTER's directory, and refuses it
+    // — an absolute one included — when that directory does not exist. The
+    // generated entry used to be bundled at this package's own location, which
+    // packaged is inside app.asar: invisible to the esbuild subprocess, so no
+    // shipped build could resolve the declaration entry, and Add Component was
+    // missing the project's components with the extractor reporting only
+    // `Could not resolve <project>/src/components.ts`.
+    describe('the directory it resolves the declaration from', () => {
+        // The teeth: the specifier is relative to the PROJECT, so an entry rooted
+        // anywhere else resolves nothing — here as much as in a shipped build.
+        it('resolves an entry nested under the project root, from the project root', async () => {
+            const proj = mkdtempSync(path.join(tmpdir(), 'estella-schema-nested-'));
+            try {
+                mkdirSync(path.join(proj, 'a', 'b'), { recursive: true });
+                writeFileSync(
+                    path.join(proj, 'a', 'b', 'decls.ts'),
+                    `import { defineComponent } from 'esengine';\n` +
+                        `export const Deep = defineComponent('Deep', { n: 1 });\n`,
+                );
+                const res = await extractProjectSchemas(proj, { entry: 'a/b/decls.ts' });
+                expect(res.errors).toEqual([]);
+                expect(res.schemas.map((s) => s.name)).toEqual(['Deep']);
+            } finally {
+                rmSync(proj, { recursive: true, force: true });
+            }
+        });
+    });
+
     // The palettes can only offer a game's own action names if they reach the
     // editor as data — the main realm never runs project code.
     describe('the project\'s registered actions', () => {
