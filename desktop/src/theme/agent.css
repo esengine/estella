@@ -440,3 +440,59 @@
   .act-agent.asking::after { animation: ag-pulse 1.6s ease-in-out infinite; }
 }
 @keyframes ag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ── Which model the next message runs on ───────────────────────────────────
+   In the composer, because it is a per-message decision — cheap and quick to
+   rename a thing, strong to build one — and not a preference. */
+.ag-picker { position: relative; flex: none; }
+.ag-picker-btn {
+  display: flex; align-items: center; gap: 4px;
+  height: 27px;
+  padding: 0 6px 0 8px;
+  border-radius: var(--r-sm);
+  font: var(--fs-2xs) var(--font-mono);
+  color: var(--text-faint);
+  max-width: 150px;
+  white-space: nowrap; overflow: hidden;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-picker-btn:hover { color: var(--text); background: var(--hover); }
+.ag-picker-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 8;
+  min-width: 210px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 5px;
+  border-radius: var(--r-md, 6px);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85);
+}
+.ag-picker-h {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 8px 4px;
+  font: 500 var(--fs-2xs) var(--font-ui);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* Listed but not offered: "you could use this, and here is what is missing"
+   beats hiding it and leaving the user to wonder if we support their provider. */
+.ag-picker-nokey { text-transform: none; letter-spacing: 0; color: var(--warn); font-family: var(--font-mono); }
+.ag-picker-grp + .ag-picker-grp { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 2px; }
+.ag-picker-it {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--text);
+  text-align: left;
+}
+.ag-picker-it svg { margin-left: auto; color: var(--star-hi); }
+.ag-picker-it:hover { background: var(--hover); }
+.ag-picker-it.on { color: var(--text-hi); }
+.ag-picker-it.locked, .ag-picker-it.empty { color: var(--text-faint); font-family: var(--font-ui); }

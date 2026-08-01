@@ -27,6 +27,12 @@ export const agentMessages = defineMessages({
     'agent.hint.newline': { en: 'new line', zh: '换行' },
     'agent.hint.close': { en: 'close', zh: '关闭' },
 
+    // — Which model the next message runs on —
+    'agent.picker.none': { en: 'Pick a model', zh: '选择模型' },
+    'agent.picker.noKey': { en: 'no key', zh: '未配置密钥' },
+    'agent.picker.configure': { en: 'Set it up in Settings…', zh: '去设置里配置…' },
+    'agent.picker.custom': { en: 'Custom', zh: '自定义' },
+
     // — Empty states —
     'agent.empty.title': { en: 'Ask the agent to do something', zh: '让 Agent 帮你做点什么' },
     'agent.empty.body': {

@@ -23,17 +23,22 @@
  *   COLOUR MEANS SOMETHING.  Green added, red failed, amber needs you. Nothing
  *   is tinted for belonging to the agent.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  X, Plus, PanelRight, ArrowUp, Square, ChevronRight, Check, TriangleAlert,
+  X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
-  peekEntities, entitiesInInput,
+  peekEntities, entitiesInInput, effectiveSelection, selectAgentModel,
   type AgentTurn, type AgentEntry, type AgentToolEntry,
 } from '@/store/AgentStore';
+import {
+  agentProviders, agentProvider, agentKeyId, parseModelList, subscribeProviders, providersRevision,
+} from '@/agent/providers';
+import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretStore';
+import { useSettings } from '@/store/settingsStore';
 import { t } from '@/i18n';
 
 const TOOL_ICON: Record<string, typeof Eye> = {
@@ -262,6 +267,94 @@ function EmptyState() {
   );
 }
 
+/**
+ * Which model the next message runs on, next to the box you type it in — a
+ * per-message decision (cheap and quick to rename a thing, strong to build one),
+ * not a preference buried two dialogs away.
+ *
+ * Providers with no key are still listed, greyed, and lead to Settings: "you
+ * could use this, here is what is missing" beats hiding it and leaving the user
+ * to wonder whether the editor supports their provider at all.
+ */
+function ModelPicker() {
+  const [open, setOpen] = useState(false);
+  const picked = useAgent((s) => s.selection);
+  useAgent((s) => s.status.ready);
+  useSyncExternalStore(subscribeSecrets, () => secretRevision());
+  useSyncExternalStore(subscribeProviders, providersRevision);
+  const providers = agentProviders();
+  const current = effectiveSelection();
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [open]);
+  void picked;
+
+  return (
+    <div className="ag-picker" onMouseDown={(e) => e.stopPropagation()}>
+      <button type="button" className="ag-picker-btn" onClick={() => setOpen((o) => !o)}>
+        {current?.model ?? t('agent.picker.none')}
+        <ChevronDown size={11} strokeWidth={2} />
+      </button>
+      {open && (
+        <div className="ag-picker-menu">
+          {providers.map((p) => {
+            const def = resolveProviderModels(p.id);
+            const keyed = secretStatus(agentKeyId(p.id))?.configured === true;
+            if (def.models.length === 0 && !def.label) return null;
+            return (
+              <div className="ag-picker-grp" key={p.id}>
+                <div className="ag-picker-h">
+                  {def.label}
+                  {!keyed && <span className="ag-picker-nokey">{t('agent.picker.noKey')}</span>}
+                </div>
+                {def.models.length === 0 && (
+                  <button type="button" className="ag-picker-it empty" onClick={() => openAgentSettings()}>
+                    {t('agent.picker.configure')}
+                  </button>
+                )}
+                {def.models.map((m) => (
+                  <button
+                    type="button"
+                    key={m}
+                    className={`ag-picker-it${current?.model === m && current.providerId === p.id ? ' on' : ''}${keyed ? '' : ' locked'}`}
+                    onClick={() => {
+                      setOpen(false);
+                      if (keyed) selectAgentModel(p.id, m);
+                      else openAgentSettings();
+                    }}
+                  >
+                    {m}
+                    {current?.model === m && current.providerId === p.id && <Check size={12} strokeWidth={2.2} />}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const openAgentSettings = () => useEditorStore.getState().openSettings('agents');
+
+/** The custom provider's list comes from settings; the rest ship theirs. */
+function resolveProviderModels(id: string): { label: string; models: readonly string[] } {
+  const def = agentProvider(id);
+  if (!def) return { label: '', models: [] };
+  if (def.userDefined) {
+    return {
+      label: t('agent.picker.custom'),
+      models: parseModelList(String(useSettings.getState().getValue('agents.customModels') ?? '')),
+    };
+  }
+  return { label: def.label, models: def.models };
+}
+
 function Compose() {
   const status = useAgent((s) => s.status);
   const [draft, setDraft] = useState('');
@@ -300,6 +393,7 @@ function Compose() {
             }
           }}
         />
+        <ModelPicker />
         <button
           type="button"
           className="ag-send"
@@ -352,7 +446,6 @@ export function AgentDrawer() {
       <div className="ag-head">
         <span className="ag-ttl">{t('agent.title')}</span>
         <span className="ag-sp" />
-        {status.model && <span className="ag-model">{status.model}</span>}
         <button type="button" title={t('agent.newConversation')} onClick={() => void resetAgentSession()}>
           <Plus size={14} strokeWidth={2} />
         </button>

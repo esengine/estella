@@ -19,8 +19,8 @@ import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
-import { setAgentEndpoint } from '@/store/AgentStore';
-import { AGENT_API_KEY, DEFAULT_MODEL } from './agentIds';
+import { syncAgentEndpoint } from '@/store/AgentStore';
+import { agentProviders, agentKeyId, CUSTOM_PROVIDER } from '@/agent/providers';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
@@ -235,58 +235,63 @@ settingsRegistry.register({
 });
 
 // ── AI Agents ───────────────────────────────────────────────────────────────
-// The built-in agent's credential. Registered before the MCP row because it is
-// the one an ordinary user needs; the endpoint below is for agents that live
-// outside the editor.
-//
-// The value is never here: this descriptor carries no more than its id, and the
-// key itself lives in main behind the OS keychain (electron/secrets.ts). That is
-// what keeps it out of localStorage, which is where every OTHER setting is.
+// The unit of configuration is a PROVIDER, and every one keeps its own key —
+// switching back to one you used last week must not mean finding its key again.
+// Which model runs is picked in the composer instead, because that is a
+// per-message decision, not a preference (src/agent/providers.ts).
+for (const provider of agentProviders()) {
+  if (provider.userDefined) continue;
+  settingsRegistry.register({
+    id: agentKeyId(provider.id),
+    type: 'secret',
+    scope: 'editor',
+    section: 'agents',
+    group: t('set.group.builtinAgent'),
+    label: t('set.agents.providerKey', { provider: provider.label }),
+    description: t('set.agents.providerKey.desc', { provider: provider.label }),
+    placeholder: 'sk-…',
+    default: false,
+    status: { read: () => secretStatusLine(agentKeyId(provider.id)), subscribe: subscribeSecrets },
+  });
+}
+
+// The escape hatch, for a provider we have not heard of — which is exactly the
+// one we cannot ship an endpoint or a model list for.
 settingsRegistry.register({
-  id: AGENT_API_KEY,
+  id: 'agents.customBaseUrl',
+  type: 'string',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.customProvider'),
+  label: t('set.agents.customBaseUrl'),
+  description: t('set.agents.customBaseUrl.desc'),
+  placeholder: 'https://example.com/anthropic',
+  default: '',
+  effect: () => syncAgentEndpoint(),
+});
+
+settingsRegistry.register({
+  id: 'agents.customModels',
+  type: 'string',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.customProvider'),
+  label: t('set.agents.customModels'),
+  description: t('set.agents.customModels.desc'),
+  placeholder: 'model-a, model-b',
+  default: '',
+  effect: () => syncAgentEndpoint(),
+});
+
+settingsRegistry.register({
+  id: agentKeyId(CUSTOM_PROVIDER),
   type: 'secret',
   scope: 'editor',
   section: 'agents',
-  group: t('set.group.builtinAgent'),
-  label: t('set.agents.apiKey'),
-  description: t('set.agents.apiKey.desc'),
-  placeholder: 'sk-ant-…',
+  group: t('set.group.customProvider'),
+  label: t('set.agents.customKey'),
   default: false,
-  status: { read: () => secretStatusLine(AGENT_API_KEY), subscribe: subscribeSecrets },
-});
-
-// The endpoint and model are pushed to main rather than read by it: settings
-// live in this window's localStorage, and main owns the session. Same path as
-// the MCP toggle — one setter, replayed at boot by applySettings(), so the two
-// processes cannot hold different answers.
-//
-// They take effect on the NEXT conversation. Rebuilding a live session on a
-// keystroke would throw away the transcript the user is reading, and a string
-// field commits on every keystroke.
-settingsRegistry.register({
-  id: 'agents.baseUrl',
-  type: 'string',
-  scope: 'editor',
-  section: 'agents',
-  group: t('set.group.builtinAgent'),
-  label: t('set.agents.baseUrl'),
-  description: t('set.agents.baseUrl.desc'),
-  placeholder: 'https://api.anthropic.com',
-  default: '',
-  effect: (v) => setAgentEndpoint({ baseUrl: v }),
-});
-
-settingsRegistry.register({
-  id: 'agents.model',
-  type: 'string',
-  scope: 'editor',
-  section: 'agents',
-  group: t('set.group.builtinAgent'),
-  label: t('set.agents.model'),
-  description: t('set.agents.model.desc'),
-  placeholder: DEFAULT_MODEL,
-  default: '',
-  effect: (v) => setAgentEndpoint({ model: v }),
+  status: { read: () => secretStatusLine(agentKeyId(CUSTOM_PROVIDER)), subscribe: subscribeSecrets },
 });
 
 // ── External agents (main-owned endpoint, driven from here) ─────────────────

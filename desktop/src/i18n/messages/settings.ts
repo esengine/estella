@@ -114,21 +114,23 @@ export const settingsMessages = defineMessages({
     },
 
     // — AI Agents —
-    'set.agents.apiKey': { en: 'Anthropic API key', zh: 'Anthropic API 密钥' },
-    'set.agents.apiKey.desc': {
-        en: 'What the built-in agent authenticates with. Held by the system keychain — never written to the project or the settings file, and never handed back to this window.',
-        zh: '内置 Agent 用它调用模型。密钥存在系统钥匙串里——不写进项目、不写进设置文件，也不会交回给这个窗口。',
+    'set.agents.providerKey': { en: '{provider} API key', zh: '{provider} API 密钥' },
+    'set.agents.providerKey.desc': {
+        en: 'Held by the system keychain — never written to the project or the settings file, and never handed back to this window. Every provider keeps its own, so switching back to one costs nothing.',
+        zh: '存在系统钥匙串里——不写进项目、不写进设置文件,也不会交回给这个窗口。每个提供方各存各的,切回来不用重输。',
     },
-    'set.agents.baseUrl': { en: 'API endpoint', zh: 'API 地址' },
-    'set.agents.baseUrl.desc': {
-        en: 'Leave empty for the Anthropic API. Point it at an Anthropic-compatible gateway (for example https://api.deepseek.com/anthropic) to run another vendor’s models — the agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
-        zh: '留空则使用 Anthropic API。填入兼容 Anthropic 的网关地址（例如 https://api.deepseek.com/anthropic）即可换用其他厂商的模型——此时 Agent 只发送基础 Messages 格式，不带扩展思考、提示缓存和自动回退。',
+    'set.group.customProvider': { en: 'Custom Provider', zh: '自定义提供方' },
+    'set.agents.customBaseUrl': { en: 'Endpoint', zh: 'API 地址' },
+    'set.agents.customBaseUrl.desc': {
+        en: 'An Anthropic-compatible endpoint. Only needed for a provider not in the list — the built-in ones already know their address. The agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
+        zh: '兼容 Anthropic 的接口地址。只有列表里没有的提供方才需要填——内置的那些自己知道地址。此时 Agent 只发送基础 Messages 格式,不带扩展思考、提示缓存和自动回退。',
     },
-    'set.agents.model': { en: 'Model', zh: '模型' },
-    'set.agents.model.desc': {
-        en: 'Leave empty to use the default. Name the model when using a gateway — some map an unrecognised name to their smallest model instead of refusing it.',
-        zh: '留空则使用默认模型。使用网关时请写明模型名——有些网关遇到无法识别的名字不会报错，而是改用它们最小的模型。',
+    'set.agents.customModels': { en: 'Models', zh: '模型' },
+    'set.agents.customModels.desc': {
+        en: 'The model names this endpoint offers, comma- or newline-separated. They become choices in the composer.',
+        zh: '这个接口提供的模型名,用逗号或换行分隔。它们会出现在输入框的模型选择器里。',
     },
+    'set.agents.customKey': { en: 'Custom API key', zh: '自定义提供方密钥' },
     'set.agents.mcpEnabled': { en: 'Allow AI agents to connect', zh: '允许 AI 代理连接' },
     'set.agents.mcpEnabled.desc': {
         en: 'Serve this editor over MCP on a local-only port, so an agent set up with --attach can drive the project you have open. Off means nothing is listening.',

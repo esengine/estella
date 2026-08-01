@@ -19,6 +19,11 @@
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
 import type { AgentEvent, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
+import {
+  agentProviders, agentProvider, agentKeyId, parseModelList, CUSTOM_PROVIDER,
+} from '@/agent/providers';
+import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
+import { useSettings } from '@/store/settingsStore';
 
 export type { AgentStatus, AgentEvent };
 
@@ -98,13 +103,98 @@ interface AgentState {
   peeked: readonly number[];
   /** The turn whose checkpoint bar has been answered — see AgentCheckpoint. */
   checkpointDone: number | null;
+  /** What the user picked, or null for "whichever provider has a key". */
+  selection: AgentSelection | null;
 }
 
 export const useAgent = create<AgentState>(() => ({
   status: IDLE, turns: [], driving: false, peeked: [], checkpointDone: null,
+  selection: loadSelection(),
 }));
 
 export const peekEntities = (ids: readonly number[]): void => useAgent.setState({ peeked: ids });
+
+// ── Which provider and model the next conversation runs on ──────────────────
+// Persisted here rather than as a registered setting: it is picked from the
+// composer, and a settings row for it would be a second control for one choice.
+
+const SELECTION_KEY = 'estella.agent.selection';
+
+export interface AgentSelection {
+  providerId: string;
+  model: string;
+}
+
+function loadSelection(): AgentSelection | null {
+  try {
+    const raw = localStorage.getItem(SELECTION_KEY);
+    return raw ? (JSON.parse(raw) as AgentSelection) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The custom provider's endpoint and models come from settings — it is the one
+ *  we cannot ship a list for. */
+function resolveProvider(id: string) {
+  const def = agentProvider(id);
+  if (!def) return undefined;
+  if (id !== CUSTOM_PROVIDER) return def;
+  const settings = useSettings.getState();
+  return {
+    ...def,
+    baseUrl: String(settings.getValue('agents.customBaseUrl') ?? ''),
+    models: parseModelList(String(settings.getValue('agents.customModels') ?? '')),
+  };
+}
+
+const hasKey = (providerId: string): boolean =>
+  secretStatus(agentKeyId(providerId))?.configured === true;
+
+/**
+ * What the next conversation will use.
+ *
+ * With nothing picked, the first provider that has a key IS the answer — so
+ * configuring a key is the whole setup, and a person who only ever uses one
+ * provider never opens the picker at all.
+ */
+export function effectiveSelection(): AgentSelection | null {
+  const picked = useAgent.getState().selection;
+  if (picked && resolveProvider(picked.providerId)) return picked;
+  for (const p of agentProviders()) {
+    const def = resolveProvider(p.id);
+    if (def && def.models.length > 0 && hasKey(p.id)) return { providerId: p.id, model: def.models[0] };
+  }
+  return null;
+}
+
+/** Tell main what to build the next session against. Called on every input to
+ *  that answer: the pick, a key appearing, a custom endpoint being typed. */
+export function syncAgentEndpoint(): void {
+  const selection = effectiveSelection();
+  const def = selection ? resolveProvider(selection.providerId) : undefined;
+  void window.estella?.agent?.setEndpoint({
+    baseUrl: def?.baseUrl ?? '',
+    model: selection?.model ?? '',
+    keyId: selection ? agentKeyId(selection.providerId) : '',
+  });
+}
+
+/**
+ * Pick a provider + model. A conversation already under way is ENDED rather
+ * than continued: a session is built for one model, thinking blocks have to
+ * come back to the model that produced them, and the cached prefix is a byte
+ * match — so "same conversation, different model" is not a thing that exists.
+ */
+export function selectAgentModel(providerId: string, model: string): void {
+  const selection: AgentSelection = { providerId, model };
+  useAgent.setState({ selection });
+  try {
+    localStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
+  } catch { /* private mode — it just will not persist */ }
+  syncAgentEndpoint();
+  if (useAgent.getState().turns.length > 0) void resetAgentSession();
+}
 export const dismissCheckpoint = (turnId: number): void => useAgent.setState({ checkpointDone: turnId });
 
 /** The run still taking events, if any. Only the last one can be open. */
@@ -243,7 +333,12 @@ export function applyAgentMessage(message: AgentMessage): void {
 export function attachAgentBridge(): () => void {
   const off = window.estella?.agent?.onMessage(applyAgentMessage) ?? (() => {});
   void window.estella?.agent?.status().then(adoptStatus);
-  return off;
+  // Which keys exist decides which provider runs when nothing is picked, so ask
+  // once at boot rather than the first time a settings row happens to render.
+  for (const p of agentProviders()) void refreshSecret(agentKeyId(p.id)).then(syncAgentEndpoint);
+  const offSecrets = subscribeSecrets(syncAgentEndpoint);
+  syncAgentEndpoint();
+  return () => { off(); offSecrets(); };
 }
 
 export async function sendAgentMessage(text: string): Promise<void> {
@@ -261,18 +356,7 @@ export function stopAgentTurn(): void {
   void window.estella?.agent?.stop();
 }
 
-/**
- * Tell main which endpoint and model to build the next session against.
- *
- * Pushed rather than read: settings live in this window's localStorage and main
- * owns the session, so this is the same one-way path the MCP toggle uses. The
- * settings' `effect` calls it — including the boot replay — and a partial patch
- * is merged in main, because the two rows are separate settings that each fire
- * on their own.
- */
-export function setAgentEndpoint(patch: { baseUrl?: string; model?: string }): void {
-  void window.estella?.agent?.setEndpoint(patch);
-}
+
 
 /**
  * Answer a pending confirmation. The row moves on the click rather than on

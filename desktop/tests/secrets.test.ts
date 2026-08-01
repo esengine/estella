@@ -14,7 +14,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, statSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { AGENT_API_KEY } from '../src/settings/agentIds';
+/** Any id — this file is about the store, not about who happens to use it. */
+const KEY = 'agents.key.anthropic';
 
 let userData: string;
 let available = true;
@@ -63,78 +64,78 @@ afterEach(() => {
 describe('storing a secret', () => {
   it('reports nothing configured before anything is stored, and writes no file', async () => {
     const { secretStatus } = await load();
-    expect(secretStatus(AGENT_API_KEY)).toEqual({
-      id: AGENT_API_KEY, configured: false, storage: 'keychain', error: null,
+    expect(secretStatus(KEY)).toEqual({
+      id: KEY, configured: false, storage: 'keychain', error: null,
     });
     expect(existsSync(file())).toBe(false);
   });
 
   it('hands the value back to main and never writes it in the clear', async () => {
     const { setSecret, readSecret } = await load();
-    expect(setSecret(AGENT_API_KEY, 'sk-ant-secret')).toMatchObject({ configured: true, error: null });
-    expect(readSecret(AGENT_API_KEY)).toBe('sk-ant-secret');
+    expect(setSecret(KEY, 'sk-ant-secret')).toMatchObject({ configured: true, error: null });
+    expect(readSecret(KEY)).toBe('sk-ant-secret');
     expect(onDisk()).not.toContain('sk-ant-secret');
   });
 
   it('keeps the file to this account', async () => {
     const { setSecret } = await load();
-    setSecret(AGENT_API_KEY, 'sk-ant-secret');
+    setSecret(KEY, 'sk-ant-secret');
     if (process.platform === 'win32') return; // POSIX modes only
     expect(statSync(file()).mode & 0o777).toBe(0o600);
   });
 
   it('survives a restart', async () => {
     const first = await load();
-    first.setSecret(AGENT_API_KEY, 'sk-ant-secret');
+    first.setSecret(KEY, 'sk-ant-secret');
 
     const restarted = await load();
-    expect(restarted.secretStatus(AGENT_API_KEY)).toMatchObject({ configured: true });
-    expect(restarted.readSecret(AGENT_API_KEY)).toBe('sk-ant-secret');
+    expect(restarted.secretStatus(KEY)).toMatchObject({ configured: true });
+    expect(restarted.readSecret(KEY)).toBe('sk-ant-secret');
   });
 
   it('replaces rather than accumulates', async () => {
     const { setSecret, readSecret } = await load();
-    setSecret(AGENT_API_KEY, 'first');
-    setSecret(AGENT_API_KEY, 'second');
-    expect(readSecret(AGENT_API_KEY)).toBe('second');
-    expect(Object.keys(JSON.parse(onDisk()) as object)).toEqual([AGENT_API_KEY]);
+    setSecret(KEY, 'first');
+    setSecret(KEY, 'second');
+    expect(readSecret(KEY)).toBe('second');
+    expect(Object.keys(JSON.parse(onDisk()) as object)).toEqual([KEY]);
   });
 
   it('trims what was pasted', async () => {
     const { setSecret, readSecret } = await load();
-    setSecret(AGENT_API_KEY, '  sk-ant-secret\n');
-    expect(readSecret(AGENT_API_KEY)).toBe('sk-ant-secret');
+    setSecret(KEY, '  sk-ant-secret\n');
+    expect(readSecret(KEY)).toBe('sk-ant-secret');
   });
 
   // A blank submission is a mistake, and reading it as "forget my key" is not the
   // helpful interpretation of one.
   it('ignores a blank instead of taking the stored one away', async () => {
     const { setSecret, readSecret } = await load();
-    setSecret(AGENT_API_KEY, 'sk-ant-secret');
-    expect(setSecret(AGENT_API_KEY, '   ')).toMatchObject({ configured: true });
-    expect(readSecret(AGENT_API_KEY)).toBe('sk-ant-secret');
+    setSecret(KEY, 'sk-ant-secret');
+    expect(setSecret(KEY, '   ')).toMatchObject({ configured: true });
+    expect(readSecret(KEY)).toBe('sk-ant-secret');
   });
 
   // The file on disk still holds the old one, so dropping it in memory would only
   // make the two disagree until the next restart.
   it('keeps the working key when replacing it fails', async () => {
     const { setSecret, readSecret, secretStatus } = await load();
-    setSecret(AGENT_API_KEY, 'sk-ant-works');
+    setSecret(KEY, 'sk-ant-works');
 
     sealFails = true; // the keychain refuses mid-session
-    const failed = setSecret(AGENT_API_KEY, 'sk-ant-new');
+    const failed = setSecret(KEY, 'sk-ant-new');
     sealFails = false;
 
     expect(failed.error).toContain('refused');
-    expect(secretStatus(AGENT_API_KEY)).toMatchObject({ configured: true });
-    expect(readSecret(AGENT_API_KEY)).toBe('sk-ant-works');
+    expect(secretStatus(KEY)).toMatchObject({ configured: true });
+    expect(readSecret(KEY)).toBe('sk-ant-works');
   });
 
   it('forgets one on request, on disk too', async () => {
     const { setSecret, clearSecret, readSecret } = await load();
-    setSecret(AGENT_API_KEY, 'sk-ant-secret');
-    expect(clearSecret(AGENT_API_KEY)).toMatchObject({ configured: false });
-    expect(readSecret(AGENT_API_KEY)).toBeNull();
+    setSecret(KEY, 'sk-ant-secret');
+    expect(clearSecret(KEY)).toMatchObject({ configured: false });
+    expect(readSecret(KEY)).toBeNull();
     expect(JSON.parse(onDisk())).toEqual({});
   });
 });
@@ -143,11 +144,11 @@ describe('a machine that cannot encrypt', () => {
   it('refuses to store rather than falling back to plaintext', async () => {
     available = false;
     const { setSecret, secretStatus } = await load();
-    expect(setSecret(AGENT_API_KEY, 'sk-ant-secret')).toEqual({
-      id: AGENT_API_KEY, configured: false, storage: 'unavailable', error: null,
+    expect(setSecret(KEY, 'sk-ant-secret')).toEqual({
+      id: KEY, configured: false, storage: 'unavailable', error: null,
     });
     expect(existsSync(file())).toBe(false);
-    expect(secretStatus(AGENT_API_KEY).storage).toBe('unavailable');
+    expect(secretStatus(KEY).storage).toBe('unavailable');
   });
 
   // Linux's basic_text backend encrypts with a hardcoded password. safeStorage
@@ -159,7 +160,7 @@ describe('a machine that cannot encrypt', () => {
     backend = 'basic_text';
     try {
       const { setSecret } = await load();
-      expect(setSecret(AGENT_API_KEY, 'sk-ant-secret')).toMatchObject({
+      expect(setSecret(KEY, 'sk-ant-secret')).toMatchObject({
         configured: true, storage: 'obfuscated',
       });
     } finally {
@@ -171,31 +172,31 @@ describe('a machine that cannot encrypt', () => {
 describe('a stored secret this machine cannot open', () => {
   it('reads as not configured, and says why', async () => {
     const first = await load();
-    first.setSecret(AGENT_API_KEY, 'sk-ant-secret');
+    first.setSecret(KEY, 'sk-ant-secret');
 
     keyring = 'another-machine'; // restored from a backup / a rotated keychain
     const restarted = await load();
-    const status = restarted.secretStatus(AGENT_API_KEY);
+    const status = restarted.secretStatus(KEY);
     expect(status.configured).toBe(false);
     expect(status.error).toContain('decrypt');
-    expect(restarted.readSecret(AGENT_API_KEY)).toBeNull();
+    expect(restarted.readSecret(KEY)).toBeNull();
   });
 
   it('is replaced by simply entering it again', async () => {
     const first = await load();
-    first.setSecret(AGENT_API_KEY, 'sk-ant-secret');
+    first.setSecret(KEY, 'sk-ant-secret');
 
     keyring = 'another-machine';
     const restarted = await load();
-    expect(restarted.setSecret(AGENT_API_KEY, 'sk-ant-new')).toMatchObject({ configured: true, error: null });
-    expect(restarted.readSecret(AGENT_API_KEY)).toBe('sk-ant-new');
+    expect(restarted.setSecret(KEY, 'sk-ant-new')).toMatchObject({ configured: true, error: null });
+    expect(restarted.readSecret(KEY)).toBe('sk-ant-new');
   });
 
   it('treats an unparseable file as nothing stored rather than throwing', async () => {
     writeFileSync(file(), '{ this is not json');
     const { secretStatus, setSecret } = await load();
-    expect(secretStatus(AGENT_API_KEY)).toMatchObject({ configured: false, error: null });
-    expect(setSecret(AGENT_API_KEY, 'sk-ant-secret')).toMatchObject({ configured: true });
+    expect(secretStatus(KEY)).toMatchObject({ configured: false, error: null });
+    expect(setSecret(KEY, 'sk-ant-secret')).toMatchObject({ configured: true });
   });
 });
 

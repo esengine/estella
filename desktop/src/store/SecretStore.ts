@@ -36,6 +36,11 @@ export const secretStatus = (id: string): SecretStatus | undefined => store.getS
 /** Re-render on any change (useSyncExternalStore / plain subscriber). */
 export const subscribeSecrets = (fn: () => void): (() => void) => store.subscribe(fn);
 
+/** A scalar snapshot for useSyncExternalStore — the map itself is rebuilt on
+ *  every adopt, so a component reading it directly would loop. */
+export const secretRevision = (): number => Object.keys(store.getState().byId).length
+  + Object.values(store.getState().byId).filter((s) => s.configured).length * 1000;
+
 export async function refreshSecret(id: string): Promise<SecretStatus | undefined> {
   const status = await window.estella?.secrets?.status(id);
   return status && adopt(status);

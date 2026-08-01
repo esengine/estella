@@ -69,6 +69,13 @@ export interface AgentHost {
   confirm(callId: string, allow: boolean): void;
   /** Drop the conversation and start over; the next turn re-reads the key. */
   reset(): AgentStatus;
+  /**
+   * Re-push the status because something OUTSIDE changed it — the window picked
+   * a different provider, so `ready` now answers differently. Without this the
+   * mirror only learns on the next transition, and the drawer keeps saying
+   * "no model configured" at a user who just configured one.
+   */
+  announce(): void;
 }
 
 export function createAgentHost(deps: AgentHostDeps): AgentHost {
@@ -181,6 +188,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         pushStatus();
       }
     },
+    announce: pushStatus,
     reset: () => {
       running?.abort();
       running = null;
