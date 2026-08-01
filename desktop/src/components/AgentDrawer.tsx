@@ -41,6 +41,8 @@ import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretSt
 import { useSettings } from '@/store/settingsStore';
 import { MarkdownView } from '@/components/MarkdownView';
 import { dockApi } from '@/layout/dockApi';
+import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
+import { useSelection } from '@/store/selectionStore';
 import { t } from '@/i18n';
 
 const TOOL_ICON: Record<string, typeof Eye> = {
@@ -224,6 +226,77 @@ function Skeleton() {
   );
 }
 
+/**
+ * What the turn actually changed — the work product of a run, so it gets
+ * first-class presentation rather than a popover hung off the undo bar.
+ *
+ * Read from EditorHistory rather than from the tool calls: the calls say what
+ * was ASKED for, and the history says what the scene now differs by. Steps that
+ * declared nothing contribute nothing, so this is a floor — which is why an
+ * empty one renders nothing at all rather than "no changes".
+ */
+function ChangeSet({ turn }: { turn: AgentTurn }) {
+  const [open, setOpen] = useState(true);
+  useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
+  const mark = turn.mark as HistoryMark | null;
+  const changes = mark ? EditorHistory.changesSince(mark) : [];
+  if (changes.length === 0) return null;
+
+  const counts = {
+    add: changes.filter((c) => c.kind === 'add').length,
+    modify: changes.filter((c) => c.kind === 'modify').length,
+    remove: changes.filter((c) => c.kind === 'remove').length,
+  };
+  return (
+    <div className={`ag-changes${open ? ' open' : ''}`}>
+      <button type="button" className="ag-changes-h" onClick={() => setOpen((o) => !o)}>
+        <ChevronRight size={11} strokeWidth={2} className="ag-car" />
+        <span className="ag-changes-t">{t('agent.changes')}</span>
+        <span className="ag-sp" />
+        {counts.add > 0 && <span className="ag-add">+{counts.add}</span>}
+        {counts.modify > 0 && <span className="ag-mod">~{counts.modify}</span>}
+        {counts.remove > 0 && <span className="ag-del">−{counts.remove}</span>}
+      </button>
+      {open && (
+        <div className="ag-changes-l">
+          {changes.map((c, i) => (
+            <div
+              className={`ag-chg ag-chg--${c.kind}`}
+              key={i}
+              onMouseEnter={() => peekEntities([c.entity])}
+              onMouseLeave={() => peekEntities([])}
+              onClick={() => useSelection.getState().select(c.entity)}
+            >
+              <span className="ag-chg-s">{c.kind === 'add' ? '+' : c.kind === 'remove' ? '−' : '~'}</span>
+              <span className="ag-chg-p">
+                {c.name}
+                {c.component && <span className="ag-chg-d"> · {c.component}</span>}
+                {c.field && <span className="ag-chg-d">{c.component ? '.' : ' · '}{c.field}</span>}
+              </span>
+              {c.kind === 'modify' && (c.before !== undefined || c.after !== undefined) && (
+                <span className="ag-chg-v">
+                  <span className="ag-del">{brief(c.before)}</span>
+                  <span className="ag-chg-arrow">→</span>
+                  <span className="ag-add">{brief(c.after)}</span>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A field value in one cell. Long values are cut — the row is a summary, and
+ *  the field itself is one click away in Details. */
+function brief(value: unknown): string {
+  if (value === undefined) return '—';
+  if (value === null) return 'null';
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return text.length > 22 ? `${text.slice(0, 21)}…` : text;
+}
+
 /** Ticks while the turn runs, then freezes at what it took. A turn that takes
  *  two minutes should say so as it happens, not only afterwards. */
 function Elapsed({ turn }: { turn: AgentTurn }) {
@@ -287,6 +360,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
               the model is being asked again. Without this the transcript looks
               finished while a request is in flight. */}
           {running && isLast && turn.entries.length > 0 && lastIsSettled(turn.entries) && <Waiting />}
+          {turn.reason !== null && <ChangeSet turn={turn} />}
         </div>
       )}
     </div>

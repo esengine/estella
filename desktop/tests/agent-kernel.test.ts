@@ -77,6 +77,21 @@ describe('the agent turn', () => {
     expect(events.at(-1)).toEqual({ type: 'turn_end', steps: 3, mark: { seq: 7 }, reason: 'end_turn' });
   });
 
+  // The provider announces a call while the model writes its arguments, and
+  // again when they parse. Only the second is a call — collecting both would
+  // run every tool the model asks for twice.
+  it('runs a call once, however many times the provider mentions it', async () => {
+    const s = fakeSession([[
+      { type: 'tool_pending', id: 'cadd_entity', name: 'add_entity' },
+      { type: 'tool_args', id: 'cadd_entity', delta: '{}' },
+      { type: 'tool_call', call: call('add_entity') },
+      { type: 'stop', reason: 'tool_use' },
+    ], ends()]);
+    await runTurn(deps(s), 'add one', null, new AbortController().signal);
+    expect(events.filter((e) => e.type === 'tool_start')).toHaveLength(1);
+    expect(s.results[0]).toHaveLength(1);
+  });
+
   it('runs an undoable edit without asking — the checkpoint is the approval', async () => {
     const s = fakeSession([asks(call('add_entity')), ends()]);
     await runTurn(deps(s), 'add one', null, new AbortController().signal);

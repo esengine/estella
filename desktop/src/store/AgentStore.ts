@@ -265,19 +265,21 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
     case 'thinking':
       return withEntries(turns, appendProse(open.entries, event.type, event.delta));
 
-    // Twice per call: once when the model commits to it (no arguments yet), and
-    // again with the parsed ones. The second is an UPDATE — a second row for the
-    // same call would double every tool the model uses.
+    // The row opens on the announcement and is completed by the call, so
+    // arguments are watched being written rather than appearing whole.
+    case 'tool_pending':
     case 'tool_call': {
-      const known = open.entries.some((e) => e.kind === 'tool' && e.id === event.call.id);
-      if (known) {
-        return withEntries(turns, patchTool(open.entries, event.call.id, { input: event.call.input }));
+      const id = event.type === 'tool_call' ? event.call.id : event.id;
+      const name = event.type === 'tool_call' ? event.call.name : event.name;
+      const input = event.type === 'tool_call' ? event.call.input : {};
+      if (open.entries.some((e) => e.kind === 'tool' && e.id === id)) {
+        return withEntries(turns, patchTool(open.entries, id, { input }));
       }
       return withEntries(turns, [...open.entries, {
         kind: 'tool',
-        id: event.call.id,
-        name: event.call.name,
-        input: event.call.input,
+        id,
+        name,
+        input,
         effect: null,
         state: 'queued',
         summary: null,

@@ -62,6 +62,7 @@ export const agentMessages = defineMessages({
     'agent.turn.refusal': { en: 'The model declined this one.', zh: '模型拒绝了这个请求。' },
     'agent.turn.queuedMessage': { en: 'Queued: {text}', zh: '已排队:{text}' },
     'agent.copy': { en: 'Copy', zh: '复制' },
+    'agent.changes': { en: 'What changed', zh: '改动集' },
     'agent.rerun': { en: 'Ask this again, discarding what followed', zh: '从这里重跑(丢弃之后的内容)' },
 
     // — The decision it needs from you —

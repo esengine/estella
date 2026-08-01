@@ -253,9 +253,9 @@ class AnthropicSession implements AgentSession {
         const block = event.content_block;
         if (block.type === 'tool_use') {
           toolAt.set(event.index, block.id);
-          // The row exists from the moment the model commits to the call, so
-          // arguments are watched being written instead of appearing whole.
-          yield { type: 'tool_call', call: { id: block.id, name: block.name, input: {} } };
+          // An announcement, not a call: the kernel dispatches `tool_call`, and
+          // sharing the type here would run every tool twice.
+          yield { type: 'tool_pending', id: block.id, name: block.name };
         }
         continue;
       }

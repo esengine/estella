@@ -30,6 +30,29 @@ interface HistoryEntry {
   /** Owning document: null = the scene, else an AssetDocument docId. */
   doc: string | null;
   ops: HistoryOp[];
+  changes: readonly HistoryChange[];
+}
+
+/**
+ * What a recorded step did, in terms someone can read back.
+ *
+ * The ops themselves are opaque closures — they can undo an edit but cannot say
+ * what it was — so a step that wants to be reviewable declares it. Optional by
+ * design: a gesture with nothing worth naming records none, and the stack still
+ * works exactly as before.
+ *
+ * `name` is captured AT RECORD TIME because the point of reading this back is
+ * often that the entity is gone.
+ */
+export interface HistoryChange {
+  kind: 'add' | 'remove' | 'modify';
+  /** Scene-source entity id (the id the Outliner and tools speak in). */
+  entity: number;
+  name: string;
+  component?: string;
+  field?: string;
+  before?: unknown;
+  after?: unknown;
 }
 
 /**
@@ -70,9 +93,27 @@ export class EditorHistoryImpl {
   // the whole gesture lands as ONE entry when the group closes.
   private groupOps: HistoryOp[] | null = null;
 
+  // Declared by the gesture's owner before it commits; a group accumulates them
+  // across its inner records, since those do not commit on their own.
+  private pendingChanges: HistoryChange[] = [];
+
+  /**
+   * Say what the step about to be recorded actually did. Call before the
+   * `record`/`run` that commits it; inside a `group`, calls accumulate until the
+   * group closes.
+   */
+  describe(...changes: HistoryChange[]): void {
+    this.pendingChanges.push(...changes);
+  }
+
   private commit(label: string, ops: HistoryOp[], doc: string | null): void {
-    if (ops.length === 0) return;
-    this.undoStack.push({ id: ++this.seq, label, doc, ops });
+    if (ops.length === 0) {
+      this.pendingChanges.length = 0;
+      return;
+    }
+    const changes = this.pendingChanges;
+    this.pendingChanges = [];
+    this.undoStack.push({ id: ++this.seq, label, doc, ops, changes });
     if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
     this.redoStack.length = 0;
     this.bump();
@@ -207,6 +248,20 @@ export class EditorHistoryImpl {
    * expected to stop offering the revert once its own steps are no longer the
    * newest, which {@link stepsSince} plus a version bump is enough to detect.
    */
+  /**
+   * What every step since `mark` declared, oldest first — the review of an agent
+   * turn. Steps that declared nothing contribute nothing, so this is a FLOOR on
+   * what happened rather than a claim to be the whole of it. Reads the undo
+   * stack, so an undone step stops being listed.
+   */
+  changesSince(mark: HistoryMark): HistoryChange[] {
+    const out: HistoryChange[] = [];
+    for (const entry of this.undoStack) {
+      if (entry.id > mark.seq) out.push(...entry.changes);
+    }
+    return out;
+  }
+
   undoToMark(mark: HistoryMark): number {
     let n = 0;
     while (this.undoStack.length && this.undoStack[this.undoStack.length - 1].id > mark.seq) {

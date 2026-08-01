@@ -270,6 +270,15 @@ export class SceneCommandsImpl {
   }
 
   /**
+   * The entity's name as it stands NOW, for a change record. Captured at record
+   * time on purpose: half the value of reading these back is that the entity is
+   * gone by then.
+   */
+  private nameOf(sourceId: EntityId): string {
+    return this.model.entityBySource(sourceId)?.name || `Entity ${sourceId}`;
+  }
+
+  /**
    * Open a coalescing edit gesture. Every `setField` until {@link endGesture}
    * folds into one undo step. Idempotent-safe: a dangling gesture is committed
    * before a new one opens.
@@ -288,6 +297,15 @@ export class SceneCommandsImpl {
       .map((e) => ({ ...e, after: structuredClone(this.modelFieldValue(e.sourceId, e.comp, e.key)) }))
       .filter((e) => !valueEqual(e.before, e.after));
     if (edits.length === 0) return;
+    this.history.describe(...edits.map((e) => ({
+      kind: 'modify' as const,
+      entity: e.sourceId,
+      name: this.nameOf(e.sourceId),
+      component: e.comp,
+      field: e.key,
+      before: e.before,
+      after: e.after,
+    })));
     this.history.record(
       g.label,
       () => edits.forEach((e) => this.model.setField(e.sourceId, e.comp, e.key, e.after)),
@@ -721,6 +739,7 @@ export class SceneCommandsImpl {
       { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) } as SceneComponent,
     ], parent);
     let record: SceneEntity | undefined;
+    this.history.describe({ kind: 'add', entity: sourceId, name: this.nameOf(sourceId) });
     this.history.record(
       'Add Entity',
       () => {
@@ -751,6 +770,9 @@ export class SceneCommandsImpl {
 
     let records = remove();
     if (records.length === 0) return;
+    this.history.describe(...records.map((r) => ({
+      kind: 'remove' as const, entity: r.id, name: r.name || `Entity ${r.id}`,
+    })));
     this.history.record(
       `Delete ${name}`,
       () => {
@@ -936,6 +958,11 @@ export class SceneCommandsImpl {
       }
     };
     apply();
+    // The whole subtree is new, and each of its entities is what a reviewer
+    // wants listed — "created 1 thing" is not what building a menu looks like.
+    this.history.describe(...this.model.collectSubtree(rootId).map((id) => ({
+      kind: 'add' as const, entity: id, name: this.nameOf(id),
+    })));
     this.history.record(
       linked ? `Instantiate ${prefab.name || 'Prefab'}` : `Create ${prefab.name || 'Entity'}`,
       apply,
@@ -1009,6 +1036,9 @@ export class SceneCommandsImpl {
     const before = this.model.entityBySource(sourceId)?.name;
     if (before === undefined || before === name) return;
     this.model.setName(sourceId, name);
+    this.history.describe({
+      kind: 'modify', entity: sourceId, name, field: 'name', before, after: name,
+    });
     this.history.record(
       `Rename ${name || 'Entity'}`,
       () => this.model.setName(sourceId, name),
@@ -1273,7 +1303,11 @@ export class SceneCommandsImpl {
 
   addComponent(sourceId: EntityId, compName: string): void {
     const ops = this.addComponentOpsWithDeps(sourceId, compName);
-    if (ops.length) this.history.batch(`Add ${prettyLabel(compName)}`, ops);
+    if (!ops.length) return;
+    this.history.describe({
+      kind: 'modify', entity: sourceId, name: this.nameOf(sourceId), component: compName, after: 'added',
+    });
+    this.history.batch(`Add ${prettyLabel(compName)}`, ops);
   }
 
   /**
@@ -1304,7 +1338,11 @@ export class SceneCommandsImpl {
   /** Remove a component from an entity (Transform / Name are protected). Undoable. */
   removeComponent(sourceId: EntityId, compName: string): void {
     const op = this.removeComponentOp(sourceId, compName);
-    if (op) this.history.record(`Remove ${prettyLabel(compName)}`, op.forward, op.reverse);
+    if (!op) return;
+    this.history.describe({
+      kind: 'modify', entity: sourceId, name: this.nameOf(sourceId), component: compName, before: 'present',
+    });
+    this.history.record(`Remove ${prettyLabel(compName)}`, op.forward, op.reverse);
   }
 
   /** Add a component to many entities (multi-select) as ONE undo step. */

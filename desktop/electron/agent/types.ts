@@ -50,10 +50,17 @@ export interface ToolOutcome {
 export type StepEvent =
   | { type: 'text'; delta: string }
   | { type: 'thinking'; delta: string }
+  /** A call to MAKE. Exactly one per call — the kernel dispatches these. */
   | { type: 'tool_call'; call: ToolCall }
-  /** The model is still WRITING a call's arguments. Emitted before the call is
-   *  complete, so the editor can show it being composed rather than appearing
-   *  finished out of a silence. */
+  /**
+   * The model has committed to a call but is still writing its arguments.
+   *
+   * Deliberately NOT a `tool_call`: the kernel executes those, and an
+   * announcement that shared the type would run every tool twice. This one is
+   * for the editor, so a row can appear and fill in rather than arriving
+   * finished out of a silence.
+   */
+  | { type: 'tool_pending'; id: string; name: string }
   | { type: 'tool_args'; id: string; delta: string }
   /** Why the model stopped. `refusal` is a provider-level decline, not an error. */
   | { type: 'stop'; reason: 'end_turn' | 'tool_use' | 'refusal' | 'max_tokens' }

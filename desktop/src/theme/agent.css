@@ -602,3 +602,40 @@
 }
 .ag-th:hover .ag-rerun, .ag-rerun:focus-visible { opacity: 1; }
 .ag-rerun:hover { color: var(--text-hi); background: var(--hover); }
+
+/* ── The change set ─────────────────────────────────────────────────────────
+   The work product of a run, so it gets real +/~/− semantics and a field-level
+   before→after inline — not a popover hung off the undo bar. */
+.ag-changes { margin: 2px 0; }
+.ag-changes-h {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font: var(--fs-xs) var(--font-mono);
+}
+.ag-changes-t { font: 500 var(--fs-sm) var(--font-ui); color: var(--text-hi); }
+.ag-changes .ag-car { color: var(--text-faint); transition: transform 0.18s ease; }
+.ag-changes.open .ag-car { transform: rotate(90deg); }
+.ag-changes-l { padding: 4px 0 2px; }
+.ag-chg {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  font: var(--fs-xs) var(--font-mono);
+  cursor: pointer;
+}
+.ag-chg:hover { background: var(--hover); }
+.ag-chg-s { text-align: center; font-weight: 600; }
+.ag-chg--add .ag-chg-s { color: var(--run); }
+.ag-chg--modify .ag-chg-s { color: var(--warn); }
+.ag-chg--remove .ag-chg-s { color: var(--error); }
+.ag-chg-p { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chg-d { color: var(--text-faint); }
+.ag-chg-v { display: flex; align-items: center; gap: 6px; font-size: var(--fs-2xs); white-space: nowrap; }
+.ag-chg-arrow { color: var(--text-faint); }
+.ag-mod { color: var(--warn); }
+.ag-del { color: var(--error); }
