@@ -42,16 +42,22 @@ function summarize(text: string): string {
 }
 
 /**
- * MCP wraps a result as content blocks because that is its wire format. The
- * provider wants text, and an image block wants to stay an image — flatten,
- * keeping the distinction the model actually acts on.
+ * MCP wraps a result as content blocks because that is its wire format. Text
+ * flattens; an image stays an image — a tool whose whole purpose is letting the
+ * model SEE is not served by being handed the word "[image]".
  */
 function toOutcome(id: string, result: {
-  content: Array<{ type: string; text?: string; data?: string }>;
+  content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
   isError?: boolean;
 }): ToolOutcome {
-  const parts = result.content.map((c) => (c.type === 'image' ? '[image]' : c.text ?? ''));
-  return { id, content: parts.join('\n') || 'ok', isError: result.isError === true };
+  const image = result.content.find((c) => c.type === 'image' && c.data);
+  const text = result.content.filter((c) => c.type !== 'image').map((c) => c.text ?? '').join('\n');
+  return {
+    id,
+    content: text || (image ? 'screenshot attached' : 'ok'),
+    isError: result.isError === true,
+    ...(image ? { image: { data: image.data!, mediaType: image.mimeType ?? 'image/png' } } : {}),
+  };
 }
 
 /**
@@ -166,7 +172,13 @@ async function execute(
     isError?: boolean;
   };
   const outcome = toOutcome(call.id, result);
-  emit({ type: 'tool_end', id: call.id, ok: !outcome.isError, summary: summarize(outcome.content) });
+  emit({
+    type: 'tool_end',
+    id: call.id,
+    ok: !outcome.isError,
+    summary: summarize(outcome.content),
+    ...(outcome.image ? { image: `data:${outcome.image.mediaType};base64,${outcome.image.data}` } : {}),
+  });
   // A failed call changed nothing worth re-verifying.
   return { outcome, mutated: mutates(tool) && !outcome.isError };
 }

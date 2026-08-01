@@ -49,6 +49,8 @@ export interface AgentToolEntry {
   state: ToolState;
   /** The result, shortened for one row. */
   summary: string | null;
+  /** A frame the call rendered — the transcript shows what the agent looked at. */
+  image: string | null;
   /** Why it needs saying out loud, while it is awaiting an answer. */
   reason: ConfirmReason | null;
 }
@@ -263,6 +265,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         effect: null,
         state: 'queued',
         summary: null,
+        image: null,
         reason: null,
       }]);
 
@@ -283,7 +286,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         // decline as an ordinary failed call, and painting it as an error would
         // blame the tool for the user's answer.
         const state: ToolState = e.state === 'declined' ? 'declined' : event.ok ? 'ok' : 'error';
-        return { ...e, state, summary: event.summary };
+        return { ...e, state, summary: event.summary, image: event.image ?? null };
       }));
 
     case 'usage':

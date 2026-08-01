@@ -13,7 +13,7 @@
  *        rejected or silently dropped, taking the editor's context with it.
  */
 import { describe, it, expect } from 'vitest';
-import { buildStepRequest, createAnthropicProvider } from '../electron/agent/anthropic';
+import { buildStepRequest, createAnthropicProvider, toolResultContent } from '../electron/agent/anthropic';
 import { DEFAULT_MODEL } from '../src/settings/agentIds';
 import type { CatalogTool } from '../electron/agent/types';
 
@@ -126,5 +126,38 @@ describe('where per-turn editor context lands', () => {
     session.pushContext('orphan');
     (session as unknown as { flushContext(): void }).flushContext();
     expect((session as unknown as { messages: unknown[] }).messages).toHaveLength(0);
+  });
+});
+
+// capture_viewport exists so the model can SEE. Where the endpoint cannot carry
+// an image the substitution has to SAY so — a model handed a silently dropped
+// screenshot concludes the editor is broken.
+describe('a tool result carrying a rendered frame', () => {
+  const shot = {
+    id: 'c1',
+    content: 'screenshot attached',
+    isError: false,
+    image: { data: 'BASE64PNG', mediaType: 'image/png' },
+  };
+
+  it('sends the image itself to Anthropic', () => {
+    const content = toolResultContent(shot, 'anthropic');
+    expect(Array.isArray(content)).toBe(true);
+    expect((content as { type: string }[])[0]).toMatchObject({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: 'BASE64PNG' },
+    });
+  });
+
+  it('tells a gateway why there is no image rather than dropping it in silence', () => {
+    const content = toolResultContent(shot, 'compatible');
+    expect(typeof content).toBe('string');
+    expect(content).toContain('does not accept images');
+  });
+
+  it('leaves an ordinary result a plain string on both', () => {
+    const plain = { id: 'c2', content: '7 created', isError: false };
+    expect(toolResultContent(plain, 'anthropic')).toBe('7 created');
+    expect(toolResultContent(plain, 'compatible')).toBe('7 created');
   });
 });

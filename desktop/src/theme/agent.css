@@ -551,3 +551,16 @@
 .ag-drawer .ag-panel { height: 100%; }
 /* Docked, the dock tab carries the title, so the head is just its actions. */
 .ag-head.docked { height: 30px; border-bottom: 1px solid var(--line-soft); }
+
+/* A frame the agent looked at. Shown expanded rather than behind a disclosure:
+   a screenshot row that hides its screenshot is a row you must click to learn
+   anything from, and the whole point of the tool is seeing. */
+.ag-shot {
+  display: block;
+  width: 100%;
+  margin: 2px 0 9px 25px;
+  max-width: calc(100% - 25px);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--inset);
+}

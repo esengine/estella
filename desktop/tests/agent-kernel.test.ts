@@ -171,4 +171,19 @@ describe('the agent turn', () => {
     expect(s.context[0]).toContain('main.esscene');
     expect(s.user).toEqual(['hi']);
   });
+
+  // The tool exists so the model can SEE. Handing it the word "[image]" is a
+  // capability quietly removed — and the provider, not the kernel, is the side
+  // that knows whether the endpoint can carry one.
+  it('passes a rendered frame through instead of flattening it to text', async () => {
+    (driver as { op: unknown }).op = vi.fn(async () => 'BASE64PNG');
+    const s = fakeSession([asks(call('screenshot')), ends()]);
+    await runTurn(deps(s), 'show me', null, new AbortController().signal);
+
+    const outcome = s.results[0][0];
+    expect(outcome.image).toEqual({ data: 'BASE64PNG', mediaType: 'image/png' });
+    expect(outcome.content).not.toContain('[image]');
+    const ended = events.find((e) => e.type === 'tool_end');
+    expect(ended).toMatchObject({ image: 'data:image/png;base64,BASE64PNG' });
+  });
 });

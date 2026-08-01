@@ -33,9 +33,17 @@ export interface ToolCall {
 /** Its outcome, in the shape a provider appends to its history. */
 export interface ToolOutcome {
   id: string;
-  /** Text or an image the model reads back. */
   content: string;
   isError: boolean;
+  /**
+   * A rendered frame the model is meant to LOOK at (capture_viewport,
+   * screenshot). Kept as data rather than flattened to "[image]": a tool whose
+   * entire purpose is sight is not served by being told it happened.
+   *
+   * The PROVIDER decides what becomes of it, because whether images cross the
+   * wire is a property of the endpoint, not of the editor.
+   */
+  image?: { data: string; mediaType: string };
 }
 
 /** What a provider emits while ONE model call runs. */
@@ -106,7 +114,7 @@ export type AgentEvent =
   | StepEvent
   | { type: 'turn_start'; prompt: string }
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
-  | { type: 'tool_end'; id: string; ok: boolean; summary: string }
+  | { type: 'tool_end'; id: string; ok: boolean; summary: string; image?: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }
   /** The turn is over. `steps` is what a single Undo would take back — 0 is the
    *  signal not to offer one — and `mark` is where it would take it back to. */

@@ -109,6 +109,39 @@ export function buildStepRequest(opts: {
   return request;
 }
 
+/**
+ * What a tool result looks like on the wire.
+ *
+ * A screenshot reaches the model only where the endpoint takes images, and
+ * whether it does is a property of the ENDPOINT, not of the editor — so the
+ * substitution belongs to the provider rather than the kernel. It also SAYS what
+ * happened: a model handed a silently dropped screenshot concludes the editor is
+ * broken, while one told the endpoint cannot carry it asks a different way.
+ *
+ * Exported because the native branch cannot be exercised against a local
+ * stand-in gateway — pointing at one is exactly what selects the other dialect.
+ */
+export function toolResultContent(
+  outcome: ToolOutcome,
+  dialect: Dialect,
+): Anthropic.Beta.BetaToolResultBlockParam['content'] {
+  if (!outcome.image) return outcome.content;
+  if (dialect !== 'anthropic') {
+    return `${outcome.content}\n[the screenshot could not be sent: this endpoint does not accept images]`;
+  }
+  return [
+    {
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: outcome.image.mediaType as 'image/png',
+        data: outcome.image.data,
+      },
+    },
+    ...(outcome.content ? [{ type: 'text' as const, text: outcome.content }] : []),
+  ];
+}
+
 class AnthropicSession implements AgentSession {
   private readonly messages: Message[] = [];
   /** Context waiting for a legal spot — see {@link flushContext}. */
@@ -137,7 +170,7 @@ class AnthropicSession implements AgentSession {
       content: outcomes.map((o) => ({
         type: 'tool_result' as const,
         tool_use_id: o.id,
-        content: o.content,
+        content: toolResultContent(o, this.opts.dialect),
         is_error: o.isError,
       })),
     });

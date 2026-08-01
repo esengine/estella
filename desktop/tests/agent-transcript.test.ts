@@ -60,6 +60,17 @@ describe('the transcript projection', () => {
     expect(tools(running[0])[0]).toMatchObject({ state: 'running', effect: 'undoable' });
   });
 
+  // A screenshot is the point of the tool that produced it, so it rides the row
+  // rather than being something the reader has to expand to find.
+  it('keeps a rendered frame on the row that produced it', () => {
+    const [turn] = fold(
+      started(),
+      { type: 'tool_call', call: call('capture_viewport') },
+      { type: 'tool_end', id: 'c-capture_viewport', ok: true, summary: 'ok', image: 'data:image/png;base64,AAA' },
+    );
+    expect(tools(turn)[0].image).toBe('data:image/png;base64,AAA');
+  });
+
   it('carries a call through to its result', () => {
     const [turn] = fold(
       started(),
@@ -159,7 +170,7 @@ describe('the transcript projection', () => {
 describe('which entities a turn touched', () => {
   const toolEntry = (over: Partial<AgentToolEntry>): AgentToolEntry => ({
     kind: 'tool', id: 'c1', name: 'set_field', input: {}, effect: 'undoable',
-    state: 'ok', summary: 'ok', reason: null, ...over,
+    state: 'ok', summary: 'ok', image: null, reason: null, ...over,
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
     id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 }, reason: 'end_turn',

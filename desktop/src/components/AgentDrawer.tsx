@@ -74,6 +74,9 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
             {(entry.state === 'ok' || entry.state === 'error') && entry.summary}
           </span>
         </button>
+        {/* What the agent looked at, shown without asking: a screenshot row that
+            hides its screenshot is a row you have to click to learn anything from. */}
+        {entry.image && <img className="ag-shot" src={entry.image} alt={entry.name} />}
         {open && entry.summary && <div className="ag-call-detail">{entry.summary}</div>}
       </div>
       {entry.state === 'awaiting' && <ConfirmPassage entry={entry} onConfirm={onConfirm} />}
