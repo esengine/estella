@@ -48,7 +48,7 @@ import { secretStatus, setSecret, clearSecret, readSecret } from './secrets';
 import { createSurfaceDriver } from './surfaceDriver';
 import { createAgentHost } from './agent/host';
 import { createAnthropicProvider } from './agent/anthropic';
-import { AGENT_API_KEY } from '../src/settings/secretIds';
+import { AGENT_API_KEY } from '../src/settings/agentIds';
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
   PROJECT_PLUGIN_DIR, USER_PLUGIN_DIR,
@@ -656,6 +656,12 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // Main owns the conversation because it owns the key, and because a renderer
 // reload mid-turn must not take the turn with it. It drives the editor through
 // the SAME surface driver the MCP endpoint uses; the window keeps a mirror.
+// Which endpoint the next session talks to. Pushed from the renderer (the
+// settings live in its localStorage) and merged, since the two rows fire
+// separately; read at session creation, so a change lands on the next
+// conversation rather than under the one being read.
+let agentEndpoint: { baseUrl?: string; model?: string } = {};
+
 const agentHost = createAgentHost({
   driver: createSurfaceDriver(() => win),
   push: (message) => win?.webContents.send('agent:message', message),
@@ -665,7 +671,11 @@ const agentHost = createAgentHost({
     // Phrased for the person who will read it in the transcript, and it names
     // where to fix it — a bare "401" or "missing apiKey" does neither.
     if (!apiKey) throw new Error('No API key is configured. Add one in Settings › AI Agents.');
-    return createAnthropicProvider({ apiKey });
+    return createAnthropicProvider({
+      apiKey,
+      baseURL: agentEndpoint.baseUrl,
+      model: agentEndpoint.model,
+    });
   },
 });
 ipcMain.handle('agent:status', () => agentHost.status());
@@ -673,6 +683,9 @@ ipcMain.handle('agent:send', (_e, text: string) => agentHost.send(text));
 ipcMain.handle('agent:stop', () => agentHost.stop());
 ipcMain.handle('agent:confirm', (_e, callId: string, allow: boolean) => agentHost.confirm(callId, allow));
 ipcMain.handle('agent:reset', () => agentHost.reset());
+ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string }) => {
+  agentEndpoint = { ...agentEndpoint, ...patch };
+});
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
 ipcMain.handle('window:minimize', () => win?.minimize());

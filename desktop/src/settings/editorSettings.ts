@@ -19,7 +19,8 @@ import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
-import { AGENT_API_KEY } from './secretIds';
+import { setAgentEndpoint } from '@/store/AgentStore';
+import { AGENT_API_KEY, DEFAULT_MODEL } from './agentIds';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
@@ -252,6 +253,40 @@ settingsRegistry.register({
   placeholder: 'sk-ant-…',
   default: false,
   status: { read: () => secretStatusLine(AGENT_API_KEY), subscribe: subscribeSecrets },
+});
+
+// The endpoint and model are pushed to main rather than read by it: settings
+// live in this window's localStorage, and main owns the session. Same path as
+// the MCP toggle — one setter, replayed at boot by applySettings(), so the two
+// processes cannot hold different answers.
+//
+// They take effect on the NEXT conversation. Rebuilding a live session on a
+// keystroke would throw away the transcript the user is reading, and a string
+// field commits on every keystroke.
+settingsRegistry.register({
+  id: 'agents.baseUrl',
+  type: 'string',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.builtinAgent'),
+  label: t('set.agents.baseUrl'),
+  description: t('set.agents.baseUrl.desc'),
+  placeholder: 'https://api.anthropic.com',
+  default: '',
+  effect: (v) => setAgentEndpoint({ baseUrl: v }),
+});
+
+settingsRegistry.register({
+  id: 'agents.model',
+  type: 'string',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.builtinAgent'),
+  label: t('set.agents.model'),
+  description: t('set.agents.model.desc'),
+  placeholder: DEFAULT_MODEL,
+  default: '',
+  effect: (v) => setAgentEndpoint({ model: v }),
 });
 
 // ── External agents (main-owned endpoint, driven from here) ─────────────────

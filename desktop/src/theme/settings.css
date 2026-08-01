@@ -161,6 +161,9 @@
 .set-str { width: 200px; height: 24px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 7px; color: var(--text); font-size: var(--fs-xs); font-family: var(--mono); outline: none; }
 .set-str:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .set-str::placeholder { color: var(--text-mute); font-family: var(--sans, inherit); }
+/* A plain string row fills its column rather than sitting 30px short of it: the
+   values are URLs and identifiers, where the truncated end is the telling one. */
+.set-ctrl > .set-str { width: 100%; }
 /* A path row is wider than a plain string: an absolute program path is long, and
    truncating the interesting end of it (the executable's name) is what makes the
    Cocos-style field hard to read at a glance. */

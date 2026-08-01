@@ -249,6 +249,19 @@ export function stopAgentTurn(): void {
 }
 
 /**
+ * Tell main which endpoint and model to build the next session against.
+ *
+ * Pushed rather than read: settings live in this window's localStorage and main
+ * owns the session, so this is the same one-way path the MCP toggle uses. The
+ * settings' `effect` calls it — including the boot replay — and a partial patch
+ * is merged in main, because the two rows are separate settings that each fire
+ * on their own.
+ */
+export function setAgentEndpoint(patch: { baseUrl?: string; model?: string }): void {
+  void window.estella?.agent?.setEndpoint(patch);
+}
+
+/**
  * Answer a pending confirmation. The row moves on the click rather than on
  * main's echo — the person just decided, and a row that sits on "waiting for
  * you" afterwards reads as a click that did not land.

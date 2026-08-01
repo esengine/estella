@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, statSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { AGENT_API_KEY } from '../src/settings/secretIds';
+import { AGENT_API_KEY } from '../src/settings/agentIds';
 
 let userData: string;
 let available = true;

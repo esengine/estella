@@ -119,6 +119,16 @@ export const settingsMessages = defineMessages({
         en: 'What the built-in agent authenticates with. Held by the system keychain — never written to the project or the settings file, and never handed back to this window.',
         zh: '内置 Agent 用它调用模型。密钥存在系统钥匙串里——不写进项目、不写进设置文件，也不会交回给这个窗口。',
     },
+    'set.agents.baseUrl': { en: 'API endpoint', zh: 'API 地址' },
+    'set.agents.baseUrl.desc': {
+        en: 'Leave empty for the Anthropic API. Point it at an Anthropic-compatible gateway (for example https://api.deepseek.com/anthropic) to run another vendor’s models — the agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
+        zh: '留空则使用 Anthropic API。填入兼容 Anthropic 的网关地址（例如 https://api.deepseek.com/anthropic）即可换用其他厂商的模型——此时 Agent 只发送基础 Messages 格式，不带扩展思考、提示缓存和自动回退。',
+    },
+    'set.agents.model': { en: 'Model', zh: '模型' },
+    'set.agents.model.desc': {
+        en: 'Leave empty to use the default. Name the model when using a gateway — some map an unrecognised name to their smallest model instead of refusing it.',
+        zh: '留空则使用默认模型。使用网关时请写明模型名——有些网关遇到无法识别的名字不会报错，而是改用它们最小的模型。',
+    },
     'set.agents.mcpEnabled': { en: 'Allow AI agents to connect', zh: '允许 AI 代理连接' },
     'set.agents.mcpEnabled.desc': {
         en: 'Serve this editor over MCP on a local-only port, so an agent set up with --attach can drive the project you have open. Off means nothing is listening.',
