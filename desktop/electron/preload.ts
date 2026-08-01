@@ -119,6 +119,8 @@ const api = {
       ipcRenderer.invoke('agent:confirm', callId, allow),
     /** Drop the conversation and start a new one. */
     reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
+    /** Ask the n-th turn again, discarding it and everything after it. */
+    retry: (n: number, text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:retry', n, text),
     /** Point the NEXT session at an endpoint/model. Merged, so each settings row
      *  can push its own field. */
     setEndpoint: (patch: { baseUrl?: string; model?: string; keyId?: string }): Promise<void> =>

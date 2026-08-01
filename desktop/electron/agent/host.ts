@@ -70,6 +70,12 @@ export interface AgentHost {
   /** Drop the conversation and start over; the next turn re-reads the key. */
   reset(): AgentStatus;
   /**
+   * Ask the `n`-th turn again, discarding it and everything after. The point of
+   * having it: a bad answer three turns in should cost you that answer, not the
+   * whole conversation leading up to it.
+   */
+  retry(n: number, text: string): AgentStatus;
+  /**
    * Re-push the status because something OUTSIDE changed it — the window picked
    * a different provider, so `ready` now answers differently. Without this the
    * mirror only learns on the next transition, and the drawer keeps saying
@@ -110,7 +116,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       pushStatus();
     });
 
-  const send = (text: string): AgentStatus => {
+  const send = (text: string, rewindTo?: number): AgentStatus => {
     if (phase !== 'idle') {
       error = 'the agent is still working on the previous message';
       pushStatus();
@@ -127,6 +133,8 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         return status();
       }
     }
+
+    if (rewindTo !== undefined) session.rewindTo(rewindTo);
 
     error = null;
     phase = 'running';
@@ -171,7 +179,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
 
   return {
     status,
-    send,
+    send: (text: string) => send(text),
+    // A retry with no session yet is just a first message — nothing to rewind to.
+    retry: (n, text) => send(text, session ? n : undefined),
     stop: () => {
       running?.abort();
       // The kernel may be parked on a confirmation, which an aborted signal does

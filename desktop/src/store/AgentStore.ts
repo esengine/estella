@@ -378,6 +378,19 @@ export async function sendAgentMessage(text: string): Promise<void> {
   if (status) adoptStatus(status);
 }
 
+/**
+ * Ask a turn again, discarding it and everything after it — on both sides. The
+ * store truncates first so the transcript never shows runs the session has
+ * already forgotten.
+ */
+export async function retryAgentTurn(turnId: number): Promise<void> {
+  const turn = useAgent.getState().turns[turnId];
+  if (!turn) return;
+  useAgent.setState((s) => ({ turns: s.turns.slice(0, turnId), checkpointDone: null }));
+  const status = await window.estella?.agent?.retry(turnId, turn.prompt);
+  if (status) adoptStatus(status);
+}
+
 export function stopAgentTurn(): void {
   void window.estella?.agent?.stop();
 }

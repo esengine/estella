@@ -18,18 +18,21 @@ const asks = (...calls: ToolCall[]): StepEvent[] =>
 const ends = (): StepEvent[] => [{ type: 'stop', reason: 'end_turn' }];
 
 /** A provider that replays scripted steps and counts how often it was built. */
-function fakeProvider(steps: StepEvent[][]): AgentProvider {
+function fakeProvider(steps: StepEvent[][]): AgentProvider & { session: AgentSession & { asked: string[]; rewinds: number[] } } {
   let at = 0;
-  const session: AgentSession = {
-    pushUser: () => {},
+  const session: AgentSession & { asked: string[]; rewinds: number[] } = {
+    asked: [],
+    rewinds: [],
+    pushUser: (t) => { session.asked.push(t); },
     pushContext: () => {},
     pushToolResults: () => {},
+    rewindTo: (n) => { session.rewinds.push(n); },
     step: async function* () {
       for (const ev of steps[at] ?? [{ type: 'stop', reason: 'end_turn' }]) yield ev;
       at++;
     },
   };
-  return { id: 'fake', model: 'fake-model', createSession: () => session };
+  return { id: 'fake', model: 'fake-model', session, createSession: () => session };
 }
 
 describe('the agent host', () => {
@@ -44,6 +47,7 @@ describe('the agent host', () => {
   const settled = (h: AgentHost): Promise<void> =>
     vi.waitFor(() => expect(h.status().phase).toBe('idle'));
 
+  let provider: ReturnType<typeof fakeProvider> | null = null;
   const host = (steps: StepEvent[][] = [ends()]): AgentHost => createAgentHost({
     driver: driver as never,
     push: (m) => messages.push(m),
@@ -51,7 +55,8 @@ describe('the agent host', () => {
     provider: () => {
       built++;
       if (!keyed) throw new Error('No API key is configured. Add one in Settings › AI Agents.');
-      return fakeProvider(steps);
+      provider = fakeProvider(steps);
+      return provider;
     },
   });
 
@@ -64,6 +69,7 @@ describe('the agent host', () => {
     built = 0;
     keyed = true;
     markFails = null;
+    provider = null;
     driver = vi.fn(async (method: string) => {
       if (method === 'mark') {
         if (markFails) throw new Error(markFails);
@@ -187,5 +193,28 @@ describe('the agent host', () => {
     h.send('hi');
     await settled(h);
     expect(statuses().map((s) => s.phase)).toEqual(['running', 'idle']);
+  });
+
+  // A bad answer three turns in should cost you that answer, not the whole
+  // conversation that led to it.
+  it('rewinds the session to the turn being asked again', async () => {
+    const h = host([ends(), ends(), ends()]);
+    h.send('first');
+    await settled(h);
+    h.send('second');
+    await settled(h);
+
+    h.retry(1, 'second, but better');
+    await settled(h);
+    expect(provider!.session.rewinds).toEqual([1]);
+    expect(provider!.session.asked.at(-1)).toBe('second, but better');
+  });
+
+  it('has nothing to rewind before the first message', async () => {
+    const h = host();
+    h.retry(0, 'hello');
+    await settled(h);
+    expect(provider!.session.rewinds).toEqual([]);
+    expect(provider!.session.asked).toEqual(['hello']);
   });
 });

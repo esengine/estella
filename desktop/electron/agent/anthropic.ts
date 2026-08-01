@@ -146,6 +146,9 @@ class AnthropicSession implements AgentSession {
   private readonly messages: Message[] = [];
   /** Context waiting for a legal spot — see {@link flushContext}. */
   private readonly pending: string[] = [];
+  /** Where each person's turn starts. A tool result is a `user` message too, so
+   *  counting roles would not find them. */
+  private readonly turnStarts: number[] = [];
 
   constructor(
     private readonly client: Anthropic,
@@ -155,7 +158,17 @@ class AnthropicSession implements AgentSession {
   ) {}
 
   pushUser(text: string): void {
+    this.turnStarts.push(this.messages.length);
     this.messages.push({ role: 'user', content: text });
+  }
+
+  rewindTo(n: number): void {
+    const at = this.turnStarts[n];
+    if (at === undefined) return;
+    this.messages.length = at;
+    this.turnStarts.length = n;
+    // Context buffered for a turn that is no longer going to happen.
+    this.pending.length = 0;
   }
 
   pushContext(text: string): void {

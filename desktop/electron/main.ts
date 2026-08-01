@@ -685,6 +685,7 @@ ipcMain.handle('agent:send', (_e, text: string) => agentHost.send(text));
 ipcMain.handle('agent:stop', () => agentHost.stop());
 ipcMain.handle('agent:confirm', (_e, callId: string, allow: boolean) => agentHost.confirm(callId, allow));
 ipcMain.handle('agent:reset', () => agentHost.reset());
+ipcMain.handle('agent:retry', (_e, n: number, text: string) => agentHost.retry(n, text));
 ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.

@@ -26,12 +26,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
-  Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon,
+  Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
-  peekEntities, entitiesInInput, effectiveSelection, selectAgentModel,
+  peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn,
   type AgentTurn, type AgentEntry, type AgentToolEntry,
 } from '@/store/AgentStore';
 import {
@@ -254,6 +254,20 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
         <span className="ag-hrow">
           <ChevronRight size={12} strokeWidth={2} className="ag-fold" />
           <span className="ag-req">{turn.prompt}</span>
+          {/* A bad answer three turns in should cost you that answer, not the
+              whole conversation that led to it. */}
+          {!running && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="ag-rerun"
+              title={t('agent.rerun')}
+              onClick={(e) => { e.stopPropagation(); void retryAgentTurn(turn.id); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); void retryAgentTurn(turn.id); } }}
+            >
+              <RotateCcw size={12} strokeWidth={1.9} />
+            </span>
+          )}
         </span>
         <span className="ag-stat">
           <Elapsed turn={turn} />

@@ -590,3 +590,15 @@
   font-size: var(--fs-sm);
   font-weight: 500;
 }
+/* Re-ask this turn. Quiet until the header is hovered — it discards work. */
+.ag-rerun {
+  flex: none;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.ag-th:hover .ag-rerun, .ag-rerun:focus-visible { opacity: 1; }
+.ag-rerun:hover { color: var(--text-hi); background: var(--hover); }

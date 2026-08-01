@@ -75,6 +75,16 @@ export interface AgentSession {
   pushContext(text: string): void;
   /** Results for the calls the last step asked for, all of them, in one go. */
   pushToolResults(outcomes: readonly ToolOutcome[]): void;
+  /**
+   * Drop everything from the `n`-th person's turn onward, so it can be asked
+   * again from there.
+   *
+   * Counted in PERSON's turns, not messages: a tool result is also a `user`
+   * message, and a caller that knew that would be reasoning about the
+   * provider's wire format — which is the one thing this contract exists to
+   * keep out of the kernel.
+   */
+  rewindTo(n: number): void;
   /** Run one model call. */
   step(signal: AbortSignal): AsyncIterable<StepEvent>;
 }
