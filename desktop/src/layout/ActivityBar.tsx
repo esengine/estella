@@ -3,10 +3,11 @@
 // Far-left icon rail (activity bar). Switches the editing mode, reveals docked
 // panels, and toggles the Content Drawer — the summoned quick-access surface.
 import { useSyncExternalStore } from 'react';
-import { ListTree, SlidersHorizontal, SlidersVertical, FolderOpen, Terminal, Clapperboard, Gauge, Settings } from 'lucide-react';
+import { ListTree, SlidersHorizontal, SlidersVertical, FolderOpen, Terminal, Clapperboard, Gauge, Settings, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
 import { useSelection } from '@/store/selectionStore';
+import { useAgent } from '@/store/AgentStore';
 import { editorModes, editorModeRegistry } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
 import { dockApi } from '@/layout/dockApi';
@@ -16,6 +17,11 @@ import { t } from '@/i18n';
 export function ActivityBar() {
   const contentDrawer = useEditorStore((s) => s.contentDrawer);
   const toggleContentDrawer = useEditorStore((s) => s.toggleContentDrawer);
+  const agentDrawer = useEditorStore((s) => s.agentDrawer);
+  const toggleAgentDrawer = useEditorStore((s) => s.toggleAgentDrawer);
+  // Working, or waiting on you — the rail is visible with the drawer closed, so
+  // it is where "it still needs something from me" has to be legible.
+  const agentPhase = useAgent((s) => s.status.phase);
   // The active mode is derived from the pin + selection; subscribe to both so the
   // highlighted mode button tracks selection-driven changes, not just explicit pins.
   useEditorMode((s) => s.pinned);
@@ -103,6 +109,17 @@ export function ActivityBar() {
 
       <span className="act-spacer" />
 
+      {/* Above Settings, below the panels: the agent is a thing you summon, not
+          a panel you dock. The palette also takes a sentence — this is the entry
+          for people who have not learned that yet, which is everyone at first. */}
+      <button
+        type="button"
+        className={`act act-agent${agentDrawer ? ' active' : ''}${agentPhase !== 'idle' ? ' busy' : ''}${agentPhase === 'awaiting_confirm' ? ' asking' : ''}`}
+        title={t('agent.open')}
+        onClick={toggleAgentDrawer}
+      >
+        <Sparkles size={19} strokeWidth={1.7} />
+      </button>
       <button
         type="button"
         className="act"

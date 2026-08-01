@@ -48,8 +48,10 @@ describe('menu registry', () => {
     ]);
     expect(layout('build')).toEqual(['project.export', null, 'build.scripts', 'project.extractSchemas']);
     // `plugins.open` joined the layout group after the migration — the Plugins panel
-    // is opened on demand, so a menu row is how it's reached.
-    expect(layout('window')).toEqual(['view.resetLayout', 'plugins.open', null, 'project.close']);
+    // is opened on demand, so a menu row is how it's reached. `agent.open` is
+    // there for the same reason, and leads: it is the one surface here with no
+    // dock tab and no chord of its own.
+    expect(layout('window')).toEqual(['agent.open', 'view.resetLayout', 'plugins.open', null, 'project.close']);
     expect(layout('help')).toEqual([
       'help.about', 'help.checkUpdates', null, 'palette.open', 'help.shortcuts', null, 'help.openLogs',
     ]);

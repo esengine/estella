@@ -421,3 +421,22 @@
   vertical-align: middle;
 }
 .row.agent-peek { box-shadow: inset 2px 0 0 var(--nebula); }
+
+/* ── The rail button ────────────────────────────────────────────────────────
+   A dot, because the rail is visible with the drawer closed and "it is still
+   working" / "it is waiting on me" have to be legible from across the window.
+   Amber outranks the neutral working dot: one of the two states blocks. */
+.act-agent { position: relative; }
+.act-agent.busy::after {
+  content: '';
+  position: absolute;
+  top: 5px; right: 4px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--nebula);
+}
+.act-agent.asking::after { background: var(--warn); }
+@media (prefers-reduced-motion: no-preference) {
+  .act-agent.asking::after { animation: ag-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes ag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
