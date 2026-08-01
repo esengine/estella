@@ -10,13 +10,23 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { parseBlocks, type Block, type Inline } from './markdown';
+import { peekEntities } from '@/store/AgentStore';
+import { useSelection } from '@/store/selectionStore';
 import { t } from '@/i18n';
 
-function Spans({ spans }: { spans: readonly Inline[] }) {
+function Spans({ spans, entity }: { spans: readonly Inline[]; entity?: (name: string) => number | null }) {
   return (
     <>
       {spans.map((s, i) => {
-        if (s.kind === 'code') return <code className="md-code" key={i}>{s.text}</code>;
+        if (s.kind === 'code') {
+          // A code span naming an entity becomes a way into the scene. Keyed on
+          // code rather than prose because models write identifiers as code and
+          // English writes "the camera" — matching bare words would turn half a
+          // sentence into links and send the reader somewhere they did not point.
+          const id = entity?.(s.text) ?? null;
+          if (id !== null) return <EntityRef key={i} id={id} name={s.text} />;
+          return <code className="md-code" key={i}>{s.text}</code>;
+        }
         if (s.kind === 'strong') return <strong key={i}>{s.text}</strong>;
         if (s.kind === 'em') return <em key={i}>{s.text}</em>;
         // `_blank` rather than in-app navigation: main's window-open handler
@@ -32,6 +42,22 @@ function Spans({ spans }: { spans: readonly Inline[] }) {
         return <span key={i}>{s.text}</span>;
       })}
     </>
+  );
+}
+
+/** An entity named in the answer: hovering echoes it where the work is, clicking
+ *  selects it. The same two gestures the transcript's tool rows already have. */
+function EntityRef({ id, name }: { id: number; name: string }) {
+  return (
+    <button
+      type="button"
+      className="md-ent"
+      onMouseEnter={() => peekEntities([id])}
+      onMouseLeave={() => peekEntities([])}
+      onClick={() => useSelection.getState().select(id)}
+    >
+      {name}
+    </button>
   );
 }
 
@@ -58,7 +84,11 @@ function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }) {
   );
 }
 
-export function MarkdownView({ text }: { text: string }) {
+export function MarkdownView({ text, entity }: {
+  text: string;
+  /** Resolve a code span to a scene entity, making it clickable. */
+  entity?: (name: string) => number | null;
+}) {
   const blocks = useMemo(() => parseBlocks(text), [text]);
   return (
     <div className="md">
@@ -68,22 +98,22 @@ export function MarkdownView({ text }: { text: string }) {
             return <CodeBlock key={i} block={b} />;
           case 'h': {
             const Tag = (`h${Math.min(b.level + 2, 6)}`) as 'h3';
-            return <Tag className="md-h" key={i}><Spans spans={b.spans} /></Tag>;
+            return <Tag className="md-h" key={i}><Spans spans={b.spans} entity={entity} /></Tag>;
           }
           case 'list':
             return b.ordered ? (
               <ol className="md-list" key={i}>
-                {b.items.map((item, j) => <li key={j}><Spans spans={item} /></li>)}
+                {b.items.map((item, j) => <li key={j}><Spans spans={item} entity={entity} /></li>)}
               </ol>
             ) : (
               <ul className="md-list" key={i}>
-                {b.items.map((item, j) => <li key={j}><Spans spans={item} /></li>)}
+                {b.items.map((item, j) => <li key={j}><Spans spans={item} entity={entity} /></li>)}
               </ul>
             );
           case 'rule':
             return <hr className="md-rule" key={i} />;
           default:
-            return <p className="md-p" key={i}><Spans spans={b.spans} /></p>;
+            return <p className="md-p" key={i}><Spans spans={b.spans} entity={entity} /></p>;
         }
       })}
     </div>

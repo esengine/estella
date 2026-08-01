@@ -653,3 +653,15 @@
   transition: opacity var(--t-fast);
   z-index: 3;
 }
+/* An entity named in the answer. A hairline under it, not a colour: it is a
+   thing in the scene, not a hyperlink out of the editor. */
+.md-ent {
+  font: 500 var(--fs-xs) var(--font-mono);
+  color: var(--text-hi);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--inset);
+  border-bottom: 1px solid var(--line-strong);
+  letter-spacing: -0.01em;
+}
+.md-ent:hover { border-bottom-color: var(--nebula); background: var(--hover); }

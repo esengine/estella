@@ -43,6 +43,7 @@ import { MarkdownView } from '@/components/MarkdownView';
 import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
+import { EditorControlSurface } from '@/engine/EditorSession';
 import { t } from '@/i18n';
 
 const TOOL_ICON: Record<string, typeof Eye> = {
@@ -139,7 +140,7 @@ function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="ag-say">
-      <MarkdownView text={text} />
+      <MarkdownView text={text} entity={entityByName} />
       {/* The caret rides the last paragraph while tokens are still arriving —
           the difference between "thinking" and "finished" at a glance. */}
       {streaming && <span className="ag-caret" />}
@@ -679,6 +680,20 @@ function formatElapsed(ms: number): string {
 }
 
 const hasInput = (input: Record<string, unknown>): boolean => Object.keys(input).length > 0;
+
+/**
+ * An entity by the name the model wrote, or null.
+ *
+ * Read live rather than cached: the tree changes under the conversation — often
+ * BECAUSE of it — and a name that resolved when the paragraph streamed may not
+ * be the same entity a minute later. Ambiguous names resolve to nothing: two
+ * entities called "Panel" make a link that is right half the time, which is
+ * worse than no link.
+ */
+function entityByName(name: string): number | null {
+  const hits = EditorControlSurface.getSceneTree().filter((n) => n.name === name);
+  return hits.length === 1 ? hits[0].id : null;
+}
 
 const compact = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
