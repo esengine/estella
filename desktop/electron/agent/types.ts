@@ -51,6 +51,10 @@ export type StepEvent =
   | { type: 'text'; delta: string }
   | { type: 'thinking'; delta: string }
   | { type: 'tool_call'; call: ToolCall }
+  /** The model is still WRITING a call's arguments. Emitted before the call is
+   *  complete, so the editor can show it being composed rather than appearing
+   *  finished out of a silence. */
+  | { type: 'tool_args'; id: string; delta: string }
   /** Why the model stopped. `refusal` is a provider-level decline, not an error. */
   | { type: 'stop'; reason: 'end_turn' | 'tool_use' | 'refusal' | 'max_tokens' }
   | { type: 'usage'; inputTokens: number; outputTokens: number };

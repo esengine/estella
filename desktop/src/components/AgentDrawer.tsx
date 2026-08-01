@@ -52,7 +52,11 @@ const TOOL_ICON: Record<string, typeof Eye> = {
 function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allow: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const Icon = TOOL_ICON[entry.effect ?? 'read'] ?? Eye;
-  const arg = summarizeInput(entry.input);
+  // While the model is writing them, show the raw text arriving; once the call
+  // is complete, the tidied summary. The switch is the point at which there is
+  // something better to show, not a timer.
+  const composing = entry.state === 'queued' && entry.argText !== '' && !hasInput(entry.input);
+  const arg = composing ? entry.argText : summarizeInput(entry.input);
   const touches = entitiesInInput(entry.input);
   return (
     <>
@@ -64,7 +68,7 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
         <button type="button" className="ag-call-top" onClick={() => setOpen((o) => !o)}>
           <span className="ag-call-g"><Icon size={13} strokeWidth={1.8} /></span>
           <span className="ag-call-nm">{entry.name}</span>
-          <span className="ag-call-arg">{arg}</span>
+          <span className="ag-call-arg">{arg}{composing && <span className="ag-arg-caret" />}</span>
           <span className="ag-call-out">
             {entry.state === 'queued' && t('agent.queued')}
             {entry.state === 'running' && <Loader size={11} className="ag-spin" />}
@@ -561,6 +565,8 @@ function formatElapsed(ms: number): string {
   const m = Math.floor(s / 60);
   return `${m}m${String(Math.floor(s % 60)).padStart(2, '0')}s`;
 }
+
+const hasInput = (input: Record<string, unknown>): boolean => Object.keys(input).length > 0;
 
 const compact = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 

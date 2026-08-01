@@ -231,10 +231,28 @@ class AnthropicSession implements AgentSession {
       ? this.client.beta.messages.stream(request as never, { signal })
       : this.client.messages.stream(request as never, { signal });
 
+    // Block index → tool id: argument deltas identify their block by index, and
+    // only the block's start carries the id the rest of the system speaks in.
+    const toolAt = new Map<number, string>();
+
     for await (const event of stream) {
+      if (event.type === 'content_block_start') {
+        const block = event.content_block;
+        if (block.type === 'tool_use') {
+          toolAt.set(event.index, block.id);
+          // The row exists from the moment the model commits to the call, so
+          // arguments are watched being written instead of appearing whole.
+          yield { type: 'tool_call', call: { id: block.id, name: block.name, input: {} } };
+        }
+        continue;
+      }
       if (event.type !== 'content_block_delta') continue;
       if (event.delta.type === 'text_delta') yield { type: 'text', delta: event.delta.text };
       else if (event.delta.type === 'thinking_delta') yield { type: 'thinking', delta: event.delta.thinking };
+      else if (event.delta.type === 'input_json_delta') {
+        const id = toolAt.get(event.index);
+        if (id) yield { type: 'tool_args', id, delta: event.delta.partial_json };
+      }
     }
 
     const message = await stream.finalMessage();
@@ -249,6 +267,9 @@ class AnthropicSession implements AgentSession {
       };
     }
 
+    // Again, now with the PARSED arguments — the streamed deltas are display
+    // text, and the kernel needs a real object to dispatch. The editor treats a
+    // second call for a known id as an update, not a second row.
     for (const block of message.content) {
       if (block.type !== 'tool_use') continue;
       yield {

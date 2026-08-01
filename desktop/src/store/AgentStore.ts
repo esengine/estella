@@ -51,6 +51,9 @@ export interface AgentToolEntry {
   summary: string | null;
   /** A frame the call rendered — the transcript shows what the agent looked at. */
   image: string | null;
+  /** The arguments as the model is WRITING them: raw JSON text, incomplete
+   *  until it stops. Display only — the kernel dispatches the parsed object. */
+  argText: string;
   /** Why it needs saying out loud, while it is awaiting an answer. */
   reason: ConfirmReason | null;
 }
@@ -262,7 +265,14 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
     case 'thinking':
       return withEntries(turns, appendProse(open.entries, event.type, event.delta));
 
-    case 'tool_call':
+    // Twice per call: once when the model commits to it (no arguments yet), and
+    // again with the parsed ones. The second is an UPDATE — a second row for the
+    // same call would double every tool the model uses.
+    case 'tool_call': {
+      const known = open.entries.some((e) => e.kind === 'tool' && e.id === event.call.id);
+      if (known) {
+        return withEntries(turns, patchTool(open.entries, event.call.id, { input: event.call.input }));
+      }
       return withEntries(turns, [...open.entries, {
         kind: 'tool',
         id: event.call.id,
@@ -272,8 +282,14 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         state: 'queued',
         summary: null,
         image: null,
+        argText: '',
         reason: null,
       }]);
+    }
+
+    case 'tool_args':
+      return withEntries(turns, open.entries.map((e) =>
+        (e.kind === 'tool' && e.id === event.id ? { ...e, argText: e.argText + event.delta } : e)));
 
     case 'tool_start':
       return withEntries(turns, patchTool(open.entries, event.call.id, {

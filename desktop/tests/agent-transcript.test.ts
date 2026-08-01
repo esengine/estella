@@ -71,6 +71,21 @@ describe('the transcript projection', () => {
     expect(tools(turn)[0].image).toBe('data:image/png;base64,AAA');
   });
 
+  // The provider announces the call when the model commits to it, then again
+  // with the parsed arguments. Two rows for one call would double every tool.
+  it('treats the second announcement of a call as an update, not a new row', () => {
+    const turns = fold(
+      started(),
+      { type: 'tool_call', call: { id: 'c1', name: 'set_field', input: {} } },
+      { type: 'tool_args', id: 'c1', delta: '{"entity"' },
+      { type: 'tool_args', id: 'c1', delta: ':7}' },
+      { type: 'tool_call', call: { id: 'c1', name: 'set_field', input: { entity: 7 } } },
+    );
+    expect(tools(turns[0])).toHaveLength(1);
+    expect(tools(turns[0])[0].argText).toBe('{"entity":7}');
+    expect(tools(turns[0])[0].input).toEqual({ entity: 7 });
+  });
+
   it('carries a call through to its result', () => {
     const [turn] = fold(
       started(),
@@ -179,7 +194,7 @@ describe('the transcript projection', () => {
 describe('which entities a turn touched', () => {
   const toolEntry = (over: Partial<AgentToolEntry>): AgentToolEntry => ({
     kind: 'tool', id: 'c1', name: 'set_field', input: {}, effect: 'undoable',
-    state: 'ok', summary: 'ok', image: null, reason: null, ...over,
+    state: 'ok', summary: 'ok', image: null, argText: '', reason: null, ...over,
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
     id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 },

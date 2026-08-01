@@ -566,3 +566,12 @@
 }
 /* The one number still moving. */
 .ag-stat .ag-live { color: var(--text); }
+/* Arguments being written. Narrower than the prose caret — it rides a mono line. */
+.ag-arg-caret {
+  display: inline-block;
+  width: 4px; height: 9px;
+  margin-left: 1px;
+  vertical-align: -1px;
+  background: var(--text-dim);
+  animation: ag-blink 1s steps(2) infinite;
+}
