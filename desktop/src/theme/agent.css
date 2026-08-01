@@ -639,3 +639,17 @@
 .ag-chg-arrow { color: var(--text-faint); }
 .ag-mod { color: var(--warn); }
 .ag-del { color: var(--error); }
+
+/* The same echo as the Outliner row, in the viewport — projected from world
+   each frame, so it tracks pan and zoom rather than sitting where it was drawn. */
+.viewport__agentpeek {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  opacity: 0;
+  border: 1px solid var(--nebula);
+  border-radius: 2px;
+  box-shadow: 0 0 0 3px rgba(178, 114, 214, 0.2);
+  transition: opacity var(--t-fast);
+  z-index: 3;
+}

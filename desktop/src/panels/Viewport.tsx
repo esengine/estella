@@ -12,6 +12,7 @@ import {
 import { t } from '@/i18n';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
+import { useAgent } from '@/store/AgentStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
 import { activeMode, activeModeOverlays } from '@/mode/activeMode';
@@ -758,6 +759,10 @@ export function Viewport() {
   const designLabelRef = useRef<HTMLDivElement>(null);
   // One outline div per selected entity, keyed by source id and positioned by the rAF.
   const selRefs = useRef(new Map<number, HTMLDivElement | null>());
+  // Entities under the pointer in the agent's transcript. A tool row naming
+  // `id: 7` means nothing until 7 lights up where the work actually is.
+  const agentPeeked = useAgent((s) => s.peeked);
+  const peekRefs = useRef(new Map<number, HTMLDivElement | null>());
   // The single merged-selection box shown instead, above the merge threshold.
   const mergedSelRef = useRef<HTMLDivElement>(null);
   const marqueeRef = useRef<HTMLDivElement>(null);
@@ -1068,6 +1073,23 @@ export function Viewport() {
           } else {
             el.style.opacity = '0';
           }
+        }
+      }
+
+      // Agent peek outlines, positioned the same way selection is — they follow
+      // pan and zoom because they are projected from world every frame, not
+      // placed once.
+      for (const [sid, el] of peekRefs.current) {
+        if (!el) continue;
+        const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
+        const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
+        if (rect) {
+          el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
+          el.style.width = `${rect.w}px`;
+          el.style.height = `${rect.h}px`;
+          el.style.opacity = '1';
+        } else {
+          el.style.opacity = '0';
         }
       }
 
@@ -2443,6 +2465,17 @@ export function Viewport() {
             aria-hidden="true"
           />
         ))}
+      {agentPeeked.map((id) => (
+        <div
+          key={`peek-${id}`}
+          ref={(el) => {
+            if (el) peekRefs.current.set(id, el);
+            else peekRefs.current.delete(id);
+          }}
+          className="viewport__agentpeek"
+          aria-hidden="true"
+        />
+      ))}
       {/* The merged selection box (shown only above the threshold; rAF-positioned). */}
       <div ref={mergedSelRef} className="viewport__selection" style={{ opacity: 0 }} aria-hidden="true" />
       <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
