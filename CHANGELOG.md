@@ -14,14 +14,85 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-08-01
+
+The editor has an agent in it. You describe what you want done to the scene and it does
+it through the same command layer your own clicks go through — so every turn is one undo
+away from never having happened, and the tools that cannot be undone ask first. The key
+it needs does not go where the other settings go: it is sealed by the OS keychain, and
+the bridge it crosses has no way back.
+
+The other half of this release is a bug that made shipped editors quietly worse than the
+one we develop in: a project's own components never appeared in Add Component, in every
+build anyone downloaded, for as long as the feature has existed.
+
+### Added
+
+- **A built-in agent, docked or in a drawer.** It holds a conversation in main rather
+  than in the window, so a popped-out panel or a reload does not end the turn, and every
+  window mirrors the same transcript. The transcript shows the work rather than
+  summarizing it: what it is thinking, each tool call with its arguments as they are
+  written, how long the turn has taken while it is taking it, and the failure — rate
+  limit, bad key, wrong address, no answer at all — as which situation it is rather than
+  as a status code.
+- **The key is held by the operating system.** A `secret` setting type seals it with
+  Electron's safeStorage (macOS Keychain, Windows DPAPI, libsecret/kwallet) instead of
+  the plaintext localStorage every other setting persists to. There are three IPC
+  channels — status, set, clear — and deliberately no `get`: the value crosses the bridge
+  once, inbound, and main hands the plaintext only to the client that sends it. What a
+  window can learn is one bit, which is why the row has no reveal affordance.
+- **It can point at any Anthropic-compatible gateway.** A base URL and a model name, so a
+  self-hosted or third-party endpoint speaking that dialect works without the editor
+  knowing anything about it.
+- **A whole turn reverts in one gesture.** The turn opens an undo checkpoint and the
+  checkpoint bar over the viewport says what changed and offers to keep it or undo it —
+  all of it, not the last edit of it. Tools are tiered by whether undo can reach them,
+  and the tier where it cannot is the tier that asks before acting.
+- **`@` refers to what you are pointing at.** A picker over the scene tree, filtered as
+  you type, ids next to names because two things can share one; hovering an item echoes
+  it in the Outliner and the viewport, so you can tell which "Panel" you are about to
+  name. The current selection is offered as a chip rather than assumed.
+- **Entity names in the answer are ways into the scene.** Resolved from code spans only —
+  models write identifiers as code, English writes "the camera" — and live rather than
+  cached, because the tree changes under the conversation and often because of it. An
+  ambiguous name resolves to nothing, since a link that is right half the time is worse
+  than no link.
+- **The agent can see what it drew.** A viewport screenshot is a tool it can call, shown
+  expanded in the transcript rather than behind a disclosure.
+- **A run's change set, from a history that can say what it did.** Undo entries carried
+  opaque closures that could reverse an edit but not describe one; they now describe it,
+  so "what changed since this mark" is answerable with real add / modify / remove
+  semantics and a field-level before → after.
+- **MCP connects from Settings.** It had been reachable only through a launch flag, which
+  meant restarting the editor with an argument to let a tool talk to it.
+
 ### Fixed
 
+- **A shipped editor can see a project's own components.** Creating a script that defines
+  a component and then looking for it in Add Component found nothing — in every build
+  anyone has downloaded, and never once while developing. The extractor bundles the
+  project's declaration entry with esbuild, which runs as a native subprocess: it cannot
+  read inside app.asar, and both paths it was given pointed there — the SDK it inlines,
+  and the directory it resolves the declaration from. esbuild refuses an import when the
+  importer's directory does not exist, an absolute one included, so the entry never
+  resolved. It failed silently on top of that: a refused extract writes no artifact, so
+  the last one — usually the empty one — was reloaded and read exactly like "this project
+  declares no components", with nothing in any log. The extract now reports its verdict,
+  and Extract Component Schemas says so when it fails.
 - **The Dawn dependency cache is written from the default branch.** It had been written
   from the release pipeline, which runs on a tag — and a GitHub cache is readable only
   from the ref that created it, its descendants, and the default branch. No tag is any of
   those for the next tag, so every release paid for a cold Dawn build and then wrote the
   result where nothing could read it. Whether a tag run can read the default branch's
   cache is not yet proven; the next release is what settles it.
+- **The MCP endpoint has the driver it imports.** A refactor left it importing a surface
+  driver that was no longer there, so the endpoint failed to load rather than failing to
+  connect — a difference nothing in the UI could tell you.
+- **Turning the agent endpoint on from Settings finds a window to talk to.** The setting
+  opened it against a window that had never published the automation hook, so the
+  endpoint listened and every call answered that there was nothing there.
+- **`--build-deps` reaches the builder.** The flag was accepted and then dropped, so
+  asking for dependencies to be built did nothing.
 
 ## [0.38.0] - 2026-07-30
 
@@ -2326,7 +2397,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/esengine/estella/compare/v0.38.0...v0.39.0
+[0.38.0]: https://github.com/esengine/estella/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/esengine/estella/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/esengine/estella/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/esengine/estella/compare/v0.34.1...v0.35.0
