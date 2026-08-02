@@ -92,7 +92,7 @@ describe('AutosaveService scheduler (renderer)', () => {
     sync: vi.fn(async () => {}),
     clear: vi.fn(async () => {}),
     ...over,
-  });
+  } as AutosaveEnv & { sync: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> });
 
   it('gates snapshotting on dirty AND not playing', () => {
     expect(new AutosaveService(env({})).shouldSnapshot()).toBe(true);

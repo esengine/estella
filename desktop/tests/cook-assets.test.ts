@@ -354,7 +354,7 @@ describe('cookAssets (A4)', () => {
         entries: Array<{ uuid: string; path: string; sourcePath: string }>;
       };
       const mat = m.entries.find((e) => e.uuid === MAT)!;
-      expect(mat.sourcePath).toBe('assets/materials/m.esmaterial');
+      expect((mat as { sourcePath?: string }).sourcePath).toBe('assets/materials/m.esmaterial');
       expect(mat.path).toMatch(/^assets\/[0-9a-f]{16}\.esmaterial$/);
 
       // The staged material's RELATIVE refs were rewritten to logical project

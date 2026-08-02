@@ -59,7 +59,7 @@ describe('listPlatforms — built-in readiness is probed', () => {
     expect(byId.web.ready).toBe(false);
     expect(byId.desktop.ready).toBe(false);
     expect(byId.playable.ready).toBe(false);
-    expect(byId.web.prereq?.command).toContain('build -t web');
+    expect((byId.web.prereq as { command?: string } | undefined)?.command).toContain('build -t web');
   });
 
   it('the web glue makes playable ready too — it inlines the WEB runtime, not a -t playable one', async () => {
@@ -72,7 +72,7 @@ describe('listPlatforms — built-in readiness is probed', () => {
     expect(byId.playable.prereq).toBeUndefined();
     // WeChat has its own runtime and is unaffected by the web one.
     expect(byId.wechat.ready).toBe(false);
-    expect(byId.wechat.prereq?.command).toContain('build -t wechat');
+    expect((byId.wechat.prereq as { command?: string } | undefined)?.command).toContain('build -t wechat');
   });
 
   it('WeChat accepts either its own glue or a web-aligned one', async () => {
@@ -86,7 +86,7 @@ describe('listPlatforms — built-in readiness is probed', () => {
 
   it('reports paths with forward slashes, whatever the platform separator', async () => {
     const wx = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'wechat');
-    expect(wx?.prereq?.dir).not.toContain('\\');
+    expect((wx?.prereq as { dir?: string } | undefined)?.dir).not.toContain('\\');
   });
 });
 
@@ -117,10 +117,10 @@ describe('listPlatforms — platforms the project defines', () => {
 
     const acme = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'acme');
     expect(acme!.ready).toBe(false);
-    expect(acme!.prereq?.dir).toBe('build/wasm/acme');
+    expect((acme!.prereq as { dir?: string } | undefined)?.dir).toBe('build/wasm/acme');
     // The editor does not know how a project builds its own runtime, so it
     // reports where it looked and offers no command.
-    expect(acme!.prereq?.command).toBeUndefined();
+    expect((acme!.prereq as { command?: string } | undefined)?.command).toBeUndefined();
   });
 
   it('a broken profile is listed with its error, not silently dropped', async () => {

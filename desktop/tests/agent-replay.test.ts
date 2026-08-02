@@ -9,7 +9,7 @@
  *        made "re-ask this one" name a different turn on each side. Runs carry
  *        the session's own coordinate now, and the stream is replayed on attach.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useAgent, attachAgentBridge } from '@/store/AgentStore';
 import type { AgentEvent } from '../electron/agent/types';
 import type { AgentStatus } from '../electron/agent/host';

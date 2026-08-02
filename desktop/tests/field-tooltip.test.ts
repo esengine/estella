@@ -12,6 +12,7 @@ beforeEach(() => {
   setUserSchemas([
     {
       name: 'Mover',
+      isTag: false,
       default: { speed: 5, hp: 100 },
       colorKeys: [],
       fields: {

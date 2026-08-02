@@ -14,7 +14,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 
 async function canvasDesign(): Promise<{ x: number; y: number }> {
   const src = ENTITY_SOURCES.find((s) => s.id === 'canvas')!;
-  const prefab = await src.build({ parent: null });
+  const prefab = await src.build!({ parent: null });
   const canvas = prefab.entities[0].components.find((c) => c.type === 'Canvas')!.data as Record<string, unknown>;
   return canvas.designResolution as { x: number; y: number };
 }

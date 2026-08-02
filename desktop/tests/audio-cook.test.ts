@@ -46,7 +46,7 @@ function makeWav(opts: {
 
 describe('parseWav', () => {
   it('parses PCM16 stereo', () => {
-    const wav = makeWav({ channels: 2, frames: 50, sample: (f, c) => (c === 0 ? 0.5 : -0.5) });
+    const wav = makeWav({ channels: 2, frames: 50, sample: (_f, c) => (c === 0 ? 0.5 : -0.5) });
     const parsed = parseWav(wav)!;
     expect(parsed.sampleRate).toBe(44100);
     expect(parsed.channels).toHaveLength(2);

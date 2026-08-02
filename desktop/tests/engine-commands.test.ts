@@ -265,7 +265,7 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
     it('a non-UI catalog preset (Sprite) instantiates into the World', async () => {
         const sprite = ENTITY_SOURCES.find((s) => s.label === 'Sprite')!;
-        const id = S.commands.createFromTemplate(await sprite.build({ parent: null }), null)!;
+        const id = S.commands.createFromTemplate(await sprite.build!({ parent: null }), null)!;
         expect(id).not.toBeNull();
         expect(host.world.has(rt(id), Sprite)).toBe(true);
     });

@@ -20,7 +20,7 @@ describe('stepCycle', () => {
     let c: CycleState | null = null;
     const picks: number[] = [];
     for (let i = 0; i < 4; i++) {
-      const r = stepCycle(STACK, c, 100, 100)!;
+      const r: { pick: number; cycle: CycleState } = stepCycle(STACK, c, 100, 100)!;
       picks.push(r.pick);
       c = r.cycle;
     }

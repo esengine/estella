@@ -29,7 +29,7 @@ describe('entitySources registry (Create-entity E2)', () => {
     for (const comp of ['SpineAnimation', 'AudioSource', 'Text', 'BitmapText', 'ShapeRenderer', 'Mesh2D', 'TrailRenderer']) {
       const src = ENTITY_SOURCES.find((s) => s.id === `anchor:${comp}`);
       expect(src, `no create source for anchor ${comp}`).toBeDefined();
-      const p = await src!.build({ parent: null });
+      const p = await src!.build!({ parent: null });
       expect(p.entities[0].components.map((c) => c.type)).toContain(comp);
     }
   });

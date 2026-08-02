@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { toModelValue } from '@/engine/SceneCommands';
 import { coerceFieldValue, splitFieldMember, patchFieldMember } from '@/engine/EditorControlSurface';
+import type { InspectorFieldValue } from '@/types';
 
 describe('toModelValue', () => {
     it('keeps a name-valued enum as the name', () => {
@@ -90,7 +91,7 @@ describe('structural field members (the "position.x" door)', () => {
     });
 
     it('fills a short or missing value rather than writing past its end', () => {
-        expect(patchFieldMember('vec3', [], 'z', 7)).toEqual([0, 0, 7]);
+        expect(patchFieldMember('vec3', [] as unknown as InspectorFieldValue, 'z', 7)).toEqual([0, 0, 7]);
         expect(patchFieldMember('dimension', null as never, 'value', 3)).toEqual({ value: 3 });
     });
 

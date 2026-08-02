@@ -63,7 +63,6 @@ describe.skipIf(!HAS_WASM)('SceneCommands.instantiatePrefab (headless World)', (
     // Model: the subtree (root + barrel) is present.
     const entities = S.model.current!.entities;
     expect(entities).toHaveLength(2);
-    const root = S.model.entityBySource(rootId!)!;
     const barrel = entities.find((e) => e.name === 'Barrel')!;
     expect(barrel.parent).toBe(rootId);
 

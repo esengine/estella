@@ -254,11 +254,11 @@ describe('the transcript projection', () => {
 describe('which entities a turn touched', () => {
   const toolEntry = (over: Partial<AgentToolEntry>): AgentToolEntry => ({
     kind: 'tool', id: 'c1', name: 'set_field', input: {}, effect: 'undoable',
-    state: 'ok', summary: 'ok', image: null, argText: '', reason: null, ...over,
+    state: 'ok', summary: 'ok', brief: 'ok', image: null, argText: '', reason: null, ...over,
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
-    id, prompt: 'p', entries, inputTokens: 0, outputTokens: 0, steps: 1, mark: { seq: 1 },
-    reason: 'end_turn', startedAt: 0, endedAt: 1,
+    id, prompt: 'p', model: 'opus-5', entries, inputTokens: 0, outputTokens: 0, steps: 1,
+    mark: { seq: 1 }, reason: 'end_turn', startedAt: 0, endedAt: 1,
   });
 
   it('reads the ids out of the argument names the catalog uses', () => {

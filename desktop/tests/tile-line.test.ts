@@ -9,7 +9,6 @@
 import { describe, it, expect } from 'vitest';
 import { lineCells } from '@/tools/tileTools';
 
-const key = (c: { x: number; y: number }) => `${c.x},${c.y}`;
 
 describe('lineCells (Bresenham)', () => {
   it('a zero-length line is the single start cell', () => {

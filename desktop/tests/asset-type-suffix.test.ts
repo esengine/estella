@@ -40,7 +40,7 @@ describe('assetTypeOf — suffixes', () => {
     });
 
     it('lets a contributed type claim a suffix too', () => {
-        const disposable = assetTypeRegistry.register('test-owner', {
+        const disposable = assetTypeRegistry.register('plugin:test-owner', {
             id: 'testcfg',
             suffixes: ['.config.yaml'],
             badge: 'CFG',

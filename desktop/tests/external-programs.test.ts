@@ -27,7 +27,7 @@ describe('the external program registry', () => {
 
   it('registers and retracts a slot and its setting together', () => {
     const id = 'test.diff';
-    const disposable = externalPrograms.register({ id, label: 'Diff tool' }, 'test-owner');
+    const disposable = externalPrograms.register({ id, label: 'Diff tool' }, 'plugin:test-owner');
     expect(externalPrograms.get(id)).toBeDefined();
     expect(settingsRegistry.get(programSettingId(id))).toBeDefined();
 

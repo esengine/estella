@@ -157,7 +157,8 @@ describe('exportGame (playable)', () => {
     expect(unpacked).toBe(readFileSync(path.join(o, 'index.html'), 'utf8'));
     // `bytes` is the upload, not the page — they differ, and the compressed one is smaller.
     expect(res.zipFile).toBe(zip);
-    expect(res.bytes).toBeLessThan(res.htmlBytes!);
+    const sized = res as unknown as { bytes: number; htmlBytes: number };
+    expect(sized.bytes).toBeLessThan(sized.htmlBytes);
   }, 60_000);
 
   it('injects nothing and keeps the default cap with no network selected', async () => {

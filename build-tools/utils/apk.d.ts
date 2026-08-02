@@ -21,6 +21,8 @@ export function assembleApk(options: {
     contentDir: string;
     app: ApkAppIdentity;
     key: SigningKey;
+    /** The launcher icon; the template's default when absent. */
+    icon?: Buffer;
 }): Buffer;
 
 export function signApkV2(zip: Buffer, key: SigningKey): Buffer;

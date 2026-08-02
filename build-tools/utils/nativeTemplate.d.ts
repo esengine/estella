@@ -56,6 +56,17 @@ export interface TemplateEntry {
 export function templateLayout(platform: NativePlatform, options?: { abis?: readonly string[] }): TemplateEntry[];
 export function requiredTemplateFiles(platform: NativePlatform, options?: { abis?: readonly string[] }): string[];
 export function missingTemplateFiles(dir: string, platform: NativePlatform, options?: { abis?: readonly string[] }): string[];
+/** The same question asked of a NAME LIST rather than a directory — what a zip
+ *  is missing, checked before it is unpacked. */
+export function missingTemplateEntries(
+  names: readonly string[],
+  platform: NativePlatform,
+  options?: { abis?: readonly string[]; release?: boolean },
+): string[];
+export function writeTemplateManifest(
+  dir: string,
+  meta: { platform: NativePlatform; engineVersion: string; abi?: string } & Record<string, unknown>,
+): NativeTemplateManifest;
 export function readTemplateManifest(dir: string): NativeTemplateManifest | null;
 export function templateMatches(manifest: NativeTemplateManifest | null, want: TemplateWant): boolean;
 export function templateZipName(platform: NativePlatform, engineVersion: string): string;

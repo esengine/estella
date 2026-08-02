@@ -192,7 +192,7 @@ describe('editor MCP tool registry', () => {
 });
 
 describe('apply_scene_ops program sources', () => {
-  const apply = () => TOOLS.find((t) => t.name === 'apply_scene_ops');
+  const apply = () => TOOLS.find((t: { name: string }) => t.name === 'apply_scene_ops');
 
   it('reads the program from a file when one is named, so a big panel need not fit in a message', async () => {
     const js = vi.fn().mockResolvedValue({ refs: {}, created: [], applied: 3 });
@@ -218,7 +218,7 @@ describe('apply_scene_ops program sources', () => {
 });
 
 describe('open_scene guards unsaved work', () => {
-  const openScene = () => TOOLS.find((t) => t.name === 'open_scene');
+  const openScene = () => TOOLS.find((t: { name: string }) => t.name === 'open_scene');
 
   it('passes the discard flag through, defaulting to refusing', async () => {
     const driver = vi.fn().mockResolvedValue(undefined);
@@ -299,7 +299,7 @@ describe('the prefab-mode doors', () => {
 describe('re-running an authoring step is not a new asset', () => {
   it('create_scene_file passes the overwrite decision down, defaulting to refusing', async () => {
     const driver = Object.assign(vi.fn(async () => '"assets/scenes/shop.esscene"'), {
-      js: vi.fn(async () => '"assets/scenes/shop.esscene"'),
+      js: vi.fn(async (_code: string) => '"assets/scenes/shop.esscene"'),
     });
     const tool = TOOLS.find((t: { name: string }) => t.name === 'create_scene_file');
 
@@ -311,7 +311,7 @@ describe('re-running an authoring step is not a new asset', () => {
   });
 
   it('create_prefab_from_entity can replace the asset it already named', async () => {
-    const driver = Object.assign(vi.fn(async () => '"@uuid:x"'), { js: vi.fn(async () => '"@uuid:x"') });
+    const driver = Object.assign(vi.fn(async () => '"@uuid:x"'), { js: vi.fn(async (_code: string) => '"@uuid:x"') });
     const tool = TOOLS.find((t: { name: string }) => t.name === 'create_prefab_from_entity');
 
     await runTool(tool, driver, { entity: 7, replace: true });
@@ -319,7 +319,7 @@ describe('re-running an authoring step is not a new asset', () => {
   });
 
   it('refresh_assets is a plain renderer call — the scan a batch import needs', async () => {
-    const driver = Object.assign(vi.fn(async () => 'true'), { js: vi.fn(async () => 'true') });
+    const driver = Object.assign(vi.fn(async () => 'true'), { js: vi.fn(async (_code: string) => 'true') });
     const tool = TOOLS.find((t: { name: string }) => t.name === 'refresh_assets');
     expect(tool).toBeTruthy();
 

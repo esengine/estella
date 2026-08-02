@@ -12,12 +12,12 @@ describe('Create catalog (searchable source registry)', () => {
   });
 
   it('builds one-entity presets from the registered component defaults', async () => {
-    const camera = (await ENTITY_SOURCES.find((s) => s.label === 'Camera')!.build({ parent: null })).entities[0];
+    const camera = (await ENTITY_SOURCES.find((s) => s.label === 'Camera')!.build!({ parent: null })).entities[0];
     expect(camera.components.map((c) => c.type)).toEqual(['Transform', 'Camera']);
     const cam = camera.components.find((c) => c.type === 'Camera')!.data as Record<string, unknown>;
     expect(cam.isActive).toBe(true); // orthographic + active come from Camera's defaults
 
-    const empty = (await ENTITY_SOURCES.find((s) => s.label === 'Empty')!.build({ parent: null })).entities[0];
+    const empty = (await ENTITY_SOURCES.find((s) => s.label === 'Empty')!.build!({ parent: null })).entities[0];
     expect(empty.components.map((c) => c.type)).toEqual(['Transform']);
   });
 
@@ -48,7 +48,7 @@ describe('Create catalog (searchable source registry)', () => {
 
     const text = ENTITY_SOURCES.find((s) => s.id === 'ui-text')!;
     expect(text.placement).toBe('under-canvas');
-    const built = (await text.build({ parent: null })).entities[0];
+    const built = (await text.build!({ parent: null })).entities[0];
     expect(built.components.map((c) => c.type)).toEqual(['Transform', 'UINode', 'Text']);
     // Seeded so a freshly-dropped label reads, not an empty invisible node.
     expect((built.components.find((c) => c.type === 'Text')!.data as { content: string }).content).toBe('Text');

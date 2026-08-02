@@ -5,7 +5,7 @@
  *        constraint (the Local/World coordinate-space toggle).
  */
 import { describe, it, expect } from 'vitest';
-import { hitTestGizmo, constrainLocalDelta, constrainWorldDelta, GIZMO } from '@/tools/gizmo';
+import { hitTestGizmo, constrainLocalDelta, GIZMO } from '@/tools/gizmo';
 
 const pivot = { x: 100, y: 100 };
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThanOrEqual(eps);

@@ -111,7 +111,7 @@ describe('project.open guard (Ctrl+O)', () => {
     const open = vi.spyOn(ProjectStore, 'openViaDialog').mockResolvedValue(false);
     DirtyRegistry.register(doc('a', true));
 
-    const run = commands.get('project.open')!.run() as Promise<void>;
+    const run = commands.get('project.open')!.run() as unknown as Promise<void>;
     await Promise.resolve(); // let confirmDiscard queue the dialog
     const pending = ConfirmService.getSnapshot();
     expect(pending).toHaveLength(1);
@@ -129,7 +129,7 @@ describe('project.open guard (Ctrl+O)', () => {
     expect(open).toHaveBeenCalledTimes(1); // clean → straight through
 
     DirtyRegistry.register(doc('a', true));
-    const run = commands.get('project.open')!.run() as Promise<void>;
+    const run = commands.get('project.open')!.run() as unknown as Promise<void>;
     await Promise.resolve();
     ConfirmService.settle(ConfirmService.getSnapshot()[0].id, true); // Discard
     await run;

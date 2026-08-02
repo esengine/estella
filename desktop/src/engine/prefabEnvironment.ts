@@ -31,7 +31,9 @@ export interface DocumentEntity {
   name: string;
   parent: number | null;
   children: number[];
-  components: readonly { type: string }[];
+  /** `data` is carried but not read here — this module only asks WHICH components
+   *  an entity has. Declared so authored scene data types as itself. */
+  components: readonly { type: string; data?: unknown }[];
   visible?: boolean;
   /** Marks an environment entity. Set by {@link hostPrefab}; never on authored data. */
   env?: boolean;

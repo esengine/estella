@@ -116,7 +116,7 @@ describe('PlayInspect gating', () => {
     const unsub = PlayInspect.subscribe(() => {});
     await advance(200);
     const first = PlayInspect.getTree();
-    snapshotMock.mockImplementation((sel, opts) =>
+    snapshotMock.mockImplementation((_sel, opts) =>
       Promise.resolve({ tree: opts?.tree === false ? null : tree([1, 2, 3]), selected: null }),
     );
     await advance(300);

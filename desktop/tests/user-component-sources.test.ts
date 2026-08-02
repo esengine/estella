@@ -36,7 +36,7 @@ describe('userComponentSources (Create-entity E4 dynamic sources)', () => {
   it('build() yields a plain entity carrying Transform + the component', async () => {
     setUserSchemas([schema('Health', { hp: 100 })]);
     const health = userComponentSources().find((s) => s.label === 'Health')!;
-    const p = await health.build({ parent: null });
+    const p = await health.build!({ parent: null });
     expect(p.entities[0].components.map((c) => c.type)).toEqual(['Transform', 'Health']);
   });
 
