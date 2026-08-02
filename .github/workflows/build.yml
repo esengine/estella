@@ -174,7 +174,9 @@ jobs:
     name: Tests (engine-coupled)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 25
+    # Room for the benchmark sweep at the end: ~3 min on a fast laptop, and this
+    # runner has two cores.
+    timeout-minutes: 40
 
     steps:
     - uses: actions/checkout@v7
@@ -199,6 +201,15 @@ jobs:
       env:
         ESTELLA_REQUIRE_WASM: '1'
       run: pnpm --filter @estella/editor exec vitest run
+
+    # The performance counterpart of the API-surface snapshot, and it belongs in
+    # this job for the same reason the job exists: it needs the built wasm, and
+    # its own failure mode is a benchmark that quietly stops measuring. Asserts
+    # ratios between benchmarks in one run, so the runner's speed cancels out.
+    - name: Check performance snapshot
+      env:
+        ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
+      run: node tools/perf-guard.mjs --check
 
   # Headless pixel verification: real scenes rendered by the editor's electron
   # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel.
