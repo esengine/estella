@@ -212,3 +212,56 @@ describe('what a failed request says', () => {
     expect(describeApiError(err(400, 'max_tokens too large'))).toContain('max_tokens too large');
   });
 });
+
+/**
+ * An image the person attached, on its way to the model.
+ *
+ * The judgement worth testing is what happens where it CANNOT go: a model handed
+ * the text alone answers confidently about a picture it was never shown, and the
+ * person watching has every reason to think it looked.
+ */
+describe('an image on the person\'s turn', () => {
+    const shot = [{ mediaType: 'image/png', data: 'AAAA' }];
+    /** The session's messages — what the request would carry. */
+    const messagesOf = (baseURL?: string, images = shot, text = 'like this') => {
+        const provider = createAnthropicProvider({ apiKey: 'k', baseURL });
+        const session = provider.createSession({ system: 's', tools: TOOLS });
+        session.pushUser(text, images);
+        return (session.serialize() as { messages: Array<{ role: string; content: unknown }> }).messages;
+    };
+
+    it('rides the turn as an image block, ahead of the question about it', () => {
+        const [msg] = messagesOf();
+        expect(Array.isArray(msg.content)).toBe(true);
+        const blocks = msg.content as Array<{ type: string }>;
+        expect(blocks.map((b) => b.type)).toEqual(['image', 'text']);
+        expect(blocks[0]).toMatchObject({
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: 'AAAA' },
+        });
+    });
+
+    it('is a complete message on its own — an image needs no caption', () => {
+        const blocks = messagesOf(undefined, shot, '')[0].content as Array<{ type: string }>;
+        expect(blocks.map((b) => b.type)).toEqual(['image']);
+    });
+
+    // The gateway dialect speaks the core format and may refuse image blocks.
+    it('an endpoint that cannot carry it says so IN the turn', () => {
+        const [msg] = messagesOf('https://gateway.example/anthropic');
+        expect(typeof msg.content).toBe('string');
+        expect(msg.content as string).toContain('like this');
+        expect(msg.content as string).toMatch(/cannot receive images|have not seen/);
+    });
+
+    it('counts them when there are several', () => {
+        const two = [shot[0], { mediaType: 'image/jpeg', data: 'BBBB' }];
+        const [msg] = messagesOf('https://gateway.example/anthropic', two);
+        expect(msg.content as string).toContain('2 images');
+    });
+
+    it('a turn with no image is still a plain string', () => {
+        const [msg] = messagesOf(undefined, []);
+        expect(msg.content).toBe('like this');
+    });
+});

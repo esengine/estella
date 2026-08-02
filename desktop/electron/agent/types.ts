@@ -82,8 +82,8 @@ export interface AgentSession {
    * conversation nobody asked to end.
    */
   readonly turnIndex: number;
-  /** The person's turn. */
-  pushUser(text: string): void;
+  /** The person's turn, and anything they attached to it. */
+  pushUser(text: string, images?: readonly UserImage[]): void;
   /**
    * Operator context for the turns from here on — what the editor is showing,
    * what the diagnostics say. Kept OUT of the system prompt: that sits at the
@@ -115,6 +115,20 @@ export interface AgentSession {
    * contract exists to keep out of them. They hand it back and ask no questions.
    */
   serialize(): unknown;
+}
+
+/**
+ * An image the person attached to their turn.
+ *
+ * Already sized down by the window that read it — the editor is where the
+ * canvas is, and a full-resolution screenshot costs the same tokens as a
+ * legible one while also having to be carried and stored.
+ */
+export interface UserImage {
+  /** `image/png`, `image/jpeg`, `image/gif` or `image/webp`. */
+  mediaType: string;
+  /** Base64, without the `data:` prefix. */
+  data: string;
 }
 
 export interface AgentProvider {

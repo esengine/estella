@@ -29,6 +29,10 @@ export const agentMessages = defineMessages({
     'agent.hint.mention': { en: 'reference', zh: '引用' },
     'agent.mention': { en: 'Reference', zh: '引用' },
 
+    // — Images the person attaches —
+    'agent.attach.remove': { en: 'Remove', zh: '移除' },
+    'agent.attach.hint': { en: 'drop or paste an image', zh: '拖入或粘贴图片' },
+
     // — Conversations this project has had —
     'agent.history.open': { en: 'Earlier conversations', zh: '历史对话' },
     'agent.history.title': { en: 'Earlier conversations', zh: '历史对话' },

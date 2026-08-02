@@ -13,7 +13,7 @@
  * two would drift; there is one.
  */
 import type {
-  AgentEvent, CatalogTool, ConfirmReason, KernelDeps, ToolCall, ToolOutcome,
+  AgentEvent, CatalogTool, ConfirmReason, KernelDeps, ToolCall, ToolOutcome, UserImage,
 } from './types';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
@@ -116,6 +116,7 @@ export async function runTurn(
   text: string,
   context: string | null,
   signal: AbortSignal,
+  images?: readonly UserImage[],
 ): Promise<{ mark: unknown; steps: number }> {
   const { driver, session, emit, model, acceptsImages } = deps;
   const mark = await driver('mark', []);
@@ -138,7 +139,7 @@ export async function runTurn(
         + 'get_diagnostics and by reading fields back instead of by looking.',
       );
     }
-    session.pushUser(text);
+    session.pushUser(text, images);
 
     // Bounded so a model that keeps calling tools cannot spin forever.
     let round = 0;

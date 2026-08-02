@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useAgent, sendAgentMessage, stopAgentTurn, applyAgentMessage } from '@/store/AgentStore';
 import type { AgentStatus } from '../electron/agent/host';
 
-const send = vi.fn(async (_text: string) => undefined);
+const send = vi.fn(async (_text: string, _images?: unknown) => undefined);
 const stop = vi.fn();
 
 const status = (phase: AgentStatus['phase']): AgentStatus =>
@@ -34,7 +34,7 @@ afterEach(() => { delete (globalThis as { window?: unknown }).window; });
 describe('messages typed while a turn runs', () => {
   it('sends straight through when nothing is running', async () => {
     await sendAgentMessage('add a pause menu');
-    expect(send).toHaveBeenCalledWith('add a pause menu');
+    expect(send).toHaveBeenCalledWith('add a pause menu', undefined);
     expect(useAgent.getState().queued).toEqual([]);
   });
 
@@ -42,14 +42,27 @@ describe('messages typed while a turn runs', () => {
     useAgent.setState({ status: status('running') });
     await sendAgentMessage('and make the buttons bigger');
     expect(send).not.toHaveBeenCalled();
-    expect(useAgent.getState().queued).toEqual(['and make the buttons bigger']);
+    expect(useAgent.getState().queued.map((q) => q.text)).toEqual(['and make the buttons bigger']);
   });
 
   it('holds one per message, in the order they were typed', async () => {
     useAgent.setState({ status: status('running') });
     await sendAgentMessage('first');
     await sendAgentMessage('second');
-    expect(useAgent.getState().queued).toEqual(['first', 'second']);
+    expect(useAgent.getState().queued.map((q) => q.text)).toEqual(['first', 'second']);
+  });
+
+  // Attachments are part of the message, so they wait with it — losing the
+  // picture you dragged in would be worse than losing the sentence.
+  it('holds what was attached along with the message', async () => {
+    useAgent.setState({ status: status('running') });
+    const shot = [{ id: 'a1', name: 'mock.png', mediaType: 'image/png', data: 'AAA', url: 'data:,', bytes: 3 }];
+    await sendAgentMessage('like this', shot);
+    expect(useAgent.getState().queued[0]?.images).toEqual(shot);
+
+    pushStatus('idle');
+    await Promise.resolve();
+    expect(send).toHaveBeenCalledWith('like this', [{ mediaType: 'image/png', data: 'AAA' }]);
   });
 
   // A confirmation is not the turn ending — the run still owns the session.
@@ -57,7 +70,7 @@ describe('messages typed while a turn runs', () => {
     useAgent.setState({ status: status('awaiting_confirm') });
     await sendAgentMessage('meanwhile, rename it');
     expect(send).not.toHaveBeenCalled();
-    expect(useAgent.getState().queued).toEqual(['meanwhile, rename it']);
+    expect(useAgent.getState().queued.map((q) => q.text)).toEqual(['meanwhile, rename it']);
   });
 
   it('releases the oldest one when the turn ends', async () => {
@@ -68,8 +81,8 @@ describe('messages typed while a turn runs', () => {
     pushStatus('idle');
     await Promise.resolve();
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith('first');
-    expect(useAgent.getState().queued).toEqual(['second']);
+    expect(send).toHaveBeenCalledWith('first', undefined);
+    expect(useAgent.getState().queued.map((q) => q.text)).toEqual(['second']);
   });
 
   // Stopping means stop: a queue that drained itself afterwards would start a

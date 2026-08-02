@@ -22,7 +22,7 @@ import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
-import type { AgentEvent, ConfirmAnswer } from './agent/types';
+import type { AgentEvent, ConfirmAnswer, UserImage } from './agent/types';
 import type { ConversationSummary } from './agent/store';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
@@ -117,8 +117,10 @@ const api = {
     status: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:status'),
     /** The open conversation's events, for a window that was not there for them. */
     transcript: (): Promise<AgentEvent[]> => ipcRenderer.invoke('agent:transcript'),
-    /** Start a turn; resolves with the resulting status, refusals included. */
-    send: (text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:send', text),
+    /** Start a turn, with any images the person attached; resolves with the
+     *  resulting status, refusals included. */
+    send: (text: string, images?: readonly UserImage[]): Promise<AgentStatus> =>
+      ipcRenderer.invoke('agent:send', text, images),
     stop: (): Promise<void> => ipcRenderer.invoke('agent:stop'),
     /** Answer the pending confirmation for an irreversible tool. */
     confirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]): Promise<void> =>

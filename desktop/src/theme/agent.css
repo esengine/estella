@@ -930,6 +930,33 @@
 .ag-mention-i.on { background: var(--hover); color: var(--text-hi); }
 .ag-mention-id { margin-left: auto; font: var(--fs-2xs) var(--font-mono); color: var(--text-faint); }
 
+/* What is going along with the message. Shown as the pictures themselves —
+   a row of filenames is a list of things you cannot check you picked. */
+.ag-atts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 7px; }
+.ag-att { position: relative; width: 56px; height: 56px; flex: none; }
+.ag-att img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--inset);
+}
+.ag-att-x {
+  position: absolute;
+  top: -5px; right: -5px;
+  width: 17px; height: 17px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-att-x:hover { color: var(--text-hi); background: var(--pressed); }
+/* A drag is over the composer: the whole box says so, since the whole box takes
+   it — aiming at a one-line textarea is a precision task nobody should be set. */
+.ag-compose.dropping .ag-cbox { border-color: var(--acc); background: var(--hover); }
+
 .ag-selchip {
   display: flex; align-items: center; gap: 6px;
   margin: 0 0 7px;

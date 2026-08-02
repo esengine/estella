@@ -24,6 +24,7 @@ import {
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
+import type { Attachment } from '@/agent/attachments';
 import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
 
@@ -128,7 +129,7 @@ interface AgentState {
    */
   peeked: readonly number[];
   /** Typed while a turn was running, waiting for it to end. See sendAgentMessage. */
-  queued: readonly string[];
+  queued: readonly { text: string; images?: readonly Attachment[] }[];
   /**
    * What is typed and not yet sent.
    *
@@ -138,6 +139,12 @@ interface AgentState {
    * should not disagree about what you were writing.
    */
   draft: string;
+  /**
+   * Images attached to the draft. Beside it rather than in it for the same
+   * reason: the drawer's composer unmounts every time it closes, and a picture
+   * you dragged in is worse to lose than a sentence you typed.
+   */
+  attachments: readonly Attachment[];
   /** The turn whose checkpoint bar has been answered — see AgentCheckpoint. */
   checkpointDone: number | null;
   /** What the user picked, or null for "whichever provider has a key". */
@@ -163,7 +170,7 @@ export interface ConversationSummary {
 
 export const useAgent = create<AgentState>(() => ({
   status: IDLE, turns: [], driving: false, peeked: [], queued: [], checkpointDone: null,
-  draft: '', selection: loadSelection(), conversations: [], historyOpen: false,
+  draft: '', attachments: [], selection: loadSelection(), conversations: [], historyOpen: false,
 }));
 
 // ── Conversations kept with the project ─────────────────────────────────────
@@ -201,6 +208,12 @@ export async function forgetConversation(id: string): Promise<void> {
 export const peekEntities = (ids: readonly number[]): void => useAgent.setState({ peeked: ids });
 
 export const setAgentDraft = (draft: string): void => useAgent.setState({ draft });
+
+export const addAgentAttachments = (added: readonly Attachment[]): void =>
+    useAgent.setState((s) => ({ attachments: [...s.attachments, ...added] }));
+
+export const removeAgentAttachment = (id: string): void =>
+    useAgent.setState((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }));
 
 // ── Which provider and model the next conversation runs on ──────────────────
 // Persisted here rather than as a registered setting: it is picked from the
@@ -539,13 +552,16 @@ export function attachAgentBridge(): () => void {
   return () => { off(); offSecrets(); };
 }
 
-export async function sendAgentMessage(text: string): Promise<void> {
+export async function sendAgentMessage(
+  text: string,
+  images?: readonly Attachment[],
+): Promise<void> {
   // The host REFUSES a send while a turn runs, so holding the message is this
   // side's job. Without it the composer's own promise ("this will be the next
   // message") was a lie that cost the person what they had typed: the box was
   // already cleared, and all they got back was a red banner.
   if (useAgent.getState().status.phase !== 'idle') {
-    useAgent.setState((s) => ({ queued: [...s.queued, text] }));
+    useAgent.setState((s) => ({ queued: [...s.queued, { text, images }] }));
     return;
   }
   // Before the IPC, not after: main drives this window through
@@ -554,7 +570,12 @@ export async function sendAgentMessage(text: string): Promise<void> {
   // built-in agent. Waiting for main's status to come back would race the first
   // tool call of the turn we are starting.
   useAgent.setState({ driving: true });
-  const status = await window.estella?.agent?.send(text);
+  // Only what the model needs crosses the bridge: the thumbnail url and the
+  // file's name are this side's business.
+  const payload = images?.length
+    ? images.map((a) => ({ mediaType: a.mediaType, data: a.data }))
+    : undefined;
+  const status = await window.estella?.agent?.send(text, payload);
   if (status) adoptStatus(status);
 }
 
@@ -563,7 +584,7 @@ function drainQueue(): void {
   const [next, ...rest] = useAgent.getState().queued;
   if (next === undefined) return;
   useAgent.setState({ queued: rest });
-  void sendAgentMessage(next);
+  void sendAgentMessage(next.text, next.images);
 }
 
 /** Nothing queued survives the turn being stopped: stopping means stop. */

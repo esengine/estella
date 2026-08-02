@@ -24,7 +24,7 @@
 import { runTurn, agentTools } from './kernel';
 import { SYSTEM_PROMPT, editorContext } from './prompt';
 import type {
-  AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmDecision, ConfirmRequest,
+  AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmDecision, ConfirmRequest, UserImage,
 } from './types';
 import type { SurfaceDriver } from '../surfaceDriver';
 
@@ -77,9 +77,10 @@ export interface PersistedConversation {
 
 export interface AgentHost {
   status(): AgentStatus;
-  /** Start a turn. Returns the resulting status — including a refusal, which is
-   *  an `error` on it rather than a rejection. Does not wait for the turn. */
-  send(text: string): AgentStatus;
+  /** Start a turn, optionally with images the person attached. Returns the
+   *  resulting status — including a refusal, which is an `error` on it rather
+   *  than a rejection. Does not wait for the turn. */
+  send(text: string, images?: readonly UserImage[]): AgentStatus;
   /** Abort the running turn. Idempotent, and a no-op when nothing runs. */
   stop(): void;
   /** Answer a pending confirmation. Unknown ids are ignored — the turn it
@@ -202,7 +203,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       pushStatus();
     });
 
-  const send = (text: string, rewindTo?: number): AgentStatus => {
+  const send = (text: string, rewindTo?: number, images?: readonly UserImage[]): AgentStatus => {
     if (phase !== 'idle') {
       error = 'the agent is still working on the previous message';
       pushStatus();
@@ -246,6 +247,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
           text,
           context,
           controller.signal,
+          images,
         );
       } catch (e) {
         // Invariant 1: runTurn rejected, so it emitted no turn_end of its own.
@@ -275,7 +277,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
 
   return {
     status,
-    send: (text: string) => send(text),
+    send: (text: string, images?: readonly UserImage[]) => send(text, undefined, images),
     // A retry with no session yet is just a first message — nothing to rewind to.
     retry: (n, text) => send(text, session ? n : undefined),
     stop: () => {

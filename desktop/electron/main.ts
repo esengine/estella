@@ -50,7 +50,7 @@ import { createAgentHost } from './agent/host';
 import {
   saveConversation, loadConversation, listConversations, deleteConversation,
 } from './agent/store';
-import type { ConfirmAnswer } from './agent/types';
+import type { ConfirmAnswer, UserImage } from './agent/types';
 import { createAnthropicProvider } from './agent/anthropic';
 
 import {
@@ -711,7 +711,7 @@ const agentHost = createAgentHost({
 });
 ipcMain.handle('agent:status', () => agentHost.status());
 ipcMain.handle('agent:transcript', () => agentHost.transcript());
-ipcMain.handle('agent:send', (_e, text: string) => agentHost.send(text));
+ipcMain.handle('agent:send', (_e, text: string, images?: UserImage[]) => agentHost.send(text, images));
 ipcMain.handle('agent:stop', () => agentHost.stop());
 ipcMain.handle(
   'agent:confirm',

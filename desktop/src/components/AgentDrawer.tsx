@@ -34,6 +34,7 @@ import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
+  addAgentAttachments, removeAgentAttachment,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import type { ConfirmAnswer } from '../../electron/agent/types';
@@ -45,6 +46,7 @@ import { useSettings } from '@/store/settingsStore';
 import { MarkdownView } from '@/components/MarkdownView';
 import { AgentMark } from '@/components/AgentMark';
 import { OverlayDrawer } from '@/components/OverlayDrawer';
+import { readImageItems } from '@/agent/attachments';
 import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
@@ -936,6 +938,8 @@ function mentionMatches(query: string): Mention[] {
 function Compose({ autoFocus }: { autoFocus?: boolean }) {
   const status = useAgent((s) => s.status);
   const draft = useAgent((s) => s.draft);
+  const attachments = useAgent((s) => s.attachments);
+  const [dropping, setDropping] = useState(false);
   const setDraft = setAgentDraft;
   const ref = useRef<HTMLTextAreaElement>(null);
   const busy = status.phase !== 'idle';
@@ -978,15 +982,41 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
     el.style.height = `${Math.min(112, el.scrollHeight)}px`;
   }, [draft]);
 
+  // An image on its own is a complete message — "what do you think of this?"
+  // does not need the words to be typed as well.
   const submit = () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text && attachments.length === 0) return;
     setDraft('');
-    void sendAgentMessage(text);
+    void sendAgentMessage(text, attachments.length ? attachments : undefined);
+    for (const a of attachments) removeAgentAttachment(a.id);
+  };
+
+  const take = async (items: DataTransferItemList | null): Promise<boolean> => {
+    if (!items) return false;
+    const read = await readImageItems(items);
+    if (read.length) addAgentAttachments(read);
+    return read.length > 0;
   };
 
   return (
-    <div className={`ag-compose${busy ? ' busy' : ''}`}>
+    <div
+      className={`ag-compose${busy ? ' busy' : ''}${dropping ? ' dropping' : ''}`}
+      // Anywhere in the composer, not just on the box: aiming a drag at a
+      // one-line textarea is a precision task nobody should be set.
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false); }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDropping(false);
+        void take(e.dataTransfer.items);
+      }}
+    >
       {mention && mention.items.length > 0 && (
         <div className="ag-mention">
           <div className="ag-mention-h">{t('agent.mention')}</div>
@@ -1018,6 +1048,25 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
           <Boxes size={12} strokeWidth={1.8} />@{selectedName}
         </button>
       )}
+      {/* What is going along with the message, as the picture itself: a row of
+          filenames would be a list of things you cannot check you picked. */}
+      {attachments.length > 0 && (
+        <div className="ag-atts">
+          {attachments.map((a) => (
+            <div className="ag-att" key={a.id}>
+              <img src={a.url} alt={a.name} title={`${a.name} · ${Math.round(a.bytes / 1024)}KB`} />
+              <button
+                type="button"
+                className="ag-att-x"
+                title={t('agent.attach.remove')}
+                onClick={() => removeAgentAttachment(a.id)}
+              >
+                <X size={11} strokeWidth={2.4} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="ag-cbox">
         <textarea
           ref={ref}
@@ -1029,6 +1078,14 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
           autoFocus={autoFocus}
           placeholder={busy ? t('agent.compose.busy') : t('agent.compose')}
           aria-label={t('agent.compose')}
+          onPaste={(e) => {
+            // Only when the clipboard actually carries one — otherwise this is
+            // an ordinary paste and the field should do what it always does.
+            if (![...e.clipboardData.items].some((i) => i.kind === 'file'
+              && i.type.startsWith('image/'))) return;
+            e.preventDefault();
+            void take(e.clipboardData.items);
+          }}
           onChange={(e) => {
             setDraft(e.target.value);
             openMention(e.target.value, e.target.selectionStart ?? 0);
@@ -1173,8 +1230,8 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
           ))}
         {/* Held until the run ends. Shown rather than merely promised: a message
             that vanished into a queue nobody can see is one you retype. */}
-        {queued.map((text, i) => (
-          <div className="ag-sys" key={i}>{t('agent.queued.msg', { text })}</div>
+        {queued.map((q, i) => (
+          <div className="ag-sys" key={i}>{t('agent.queued.msg', { text: q.text })}</div>
         ))}
       </div>
 

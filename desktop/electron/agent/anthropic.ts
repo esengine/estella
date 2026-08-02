@@ -21,7 +21,9 @@
  * sends the core format and nothing else.
  */
 import Anthropic from '@anthropic-ai/sdk';
-import type { AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome } from './types';
+import type {
+  AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome, UserImage,
+} from './types';
 import { DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, COMPACT_AT, KEEP_WHOLE_RUNS } from '../../src/settings/agentIds';
 
 /** Agentic work is what `xhigh` is for; it is also the depth Claude Code runs at. */
@@ -350,9 +352,38 @@ class AnthropicSession implements AgentSession {
     this.lastInputTokens = memory.lastInputTokens ?? 0;
   }
 
-  pushUser(text: string): void {
+  pushUser(text: string, images?: readonly UserImage[]): void {
     this.turnStarts.push(this.messages.length);
-    this.messages.push({ role: 'user', content: text });
+    if (!images?.length) {
+      this.messages.push({ role: 'user', content: text });
+      return;
+    }
+    // An endpoint that cannot carry images is TOLD, in the turn itself, rather
+    // than quietly handed the text alone: a model that never learns a picture
+    // was attached answers confidently about something it was not shown, and
+    // the person watching has every reason to think it looked.
+    if (this.opts.dialect !== 'anthropic') {
+      const note = images.length === 1
+        ? '[the user attached an image; this endpoint cannot receive images, so you have not seen it]'
+        : `[the user attached ${images.length} images; this endpoint cannot receive images, so you have not seen them]`;
+      this.messages.push({ role: 'user', content: `${text}\n\n${note}` });
+      return;
+    }
+    // Images first: the question after them reads as being about them.
+    this.messages.push({
+      role: 'user',
+      content: [
+        ...images.map((im) => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: im.mediaType as 'image/png',
+            data: im.data,
+          },
+        })),
+        ...(text ? [{ type: 'text' as const, text }] : []),
+      ],
+    });
   }
 
   rewindTo(n: number): void {
