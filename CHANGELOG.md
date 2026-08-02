@@ -84,6 +84,15 @@ published separately; it ships inside the editor.
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
 
+- **A batch of scene edits can be read before it lands, and cut down.** The change set
+  under a finished run says what happened and only offers to revert the whole run; this
+  says what is *about* to happen, while declining part of it is still free. Lines read in
+  the scene's own terms (`rename entity 1` shows as "Sprite0 → Backdrop"), and striking a
+  new entity strikes what refers to it — declining a create while keeping the write that
+  names it is not a smaller edit but a failed batch. Since authoring is one undo step, the
+  gate is neutral rather than a warning, and "Allow for this run" turns it off for the
+  rest of a long build.
+
 ### Fixed
 
 - **A reloaded window rejoins the agent conversation instead of coming back to an empty
