@@ -83,6 +83,20 @@ published separately; it ships inside the editor.
 - **Reasoning shows how long it took**, a stopped or refused run explains itself in the
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
+- **There is one way to be a summoned drawer.** There were two of them (the Content
+  Browser from the bottom, the agent from the right) and one implementation and a half:
+  the second wrote the scrim and the Esc key again, and got the slide and the focus
+  handling by not having them — it cut in and out instead of moving, and Tab walked out of
+  it into the panels its own scrim had just made unclickable. What differs between them is
+  an edge and a size, which is now all either one states. Both are bounded to the
+  workspace, so the menu bar and toolbar stay live and undimmed under a summoned surface,
+  the way the status bar already did.
+- **A streaming reply costs the run it belongs to, not the whole transcript.** Every token
+  re-rendered every finished run in the conversation, and each of those re-read the undo
+  stack twice in a full linear pass — so a long conversation over a long undo stack paid
+  all of that per token. Runs and tool rows memoise, the change set counts from the list
+  it already read, and a run's window in the history is found by binary search rather than
+  scanned for.
 
 - **The agent can edit the asset editors, not just the scene.** Animation clips, timelines,
   tilesets, materials, material graphs and the animator/state/behaviour graphs were
@@ -109,6 +123,20 @@ published separately; it ships inside the editor.
   names it is not a smaller edit but a failed batch. Since authoring is one undo step, the
   gate is neutral rather than a warning, and "Allow for this run" turns it off for the
   rest of a long build.
+- **The agent can be answered from the keyboard.** A passage that stops a run takes focus
+  when it arrives — that is where the keyboard belongs while a run waits on it — and Enter
+  is its primary action, Shift+Enter the for-this-run one, both labelled on the buttons
+  rather than left to be found. The batch preview also shows the *values* it wants to
+  write, as the same `before → after` the change set uses, where it used to say "3 fields"
+  — which is exactly the part a preview exists to show. Strike-all takes a batch apart in
+  one gesture, and an emptied one disables Apply instead of offering "Apply 0", which the
+  kernel would have treated as a decline anyway.
+- **A run that was cut off says so, and can be carried on.** The turn loop is bounded so a
+  model that keeps calling tools cannot spin forever, and reaching that bound was reported
+  as an ordinary end of turn — on screen, a run cut off mid-task looked exactly like one
+  that had finished, and the sentence that would have said otherwise is the one it never
+  got to write. Both endings a run could have gone further from, that and Stop, now offer
+  to carry on from where it stopped.
 
 ### Fixed
 
@@ -132,6 +160,26 @@ published separately; it ships inside the editor.
   the fresh one looked like a duplicate of the old — the reset travels in the event stream
   now); and folding a second time ate what the first fold had saved, so the earliest thing
   you asked disappeared one compaction at a time.
+- **A conversation no longer disappears on a click aimed at the model name.** A session is
+  built for one model, so switching has to end it — but that is the *cost* of the switch,
+  not what was asked for, and doing it silently read as having lost the transcript rather
+  than as having chosen to. Both it and New conversation ask first, and declining a switch
+  now leaves the pick alone too: a selection saved for "next time" while the running
+  conversation still answers on the old model is a picker that lies about what is running.
+- **Pressing Esc no longer costs you the message you were writing.** The draft lived in
+  the composer, and the drawer's composer unmounts when the drawer closes — so Esc, or a
+  click on the viewport to check something before sending, threw away what had been typed;
+  the docked panel and the drawer also disagreed about it. It is one draft now, restored
+  at the height it was, and a summoned drawer puts the caret in it.
+- **The one question most likely to scroll away was the one with nothing to say so.** The
+  "waiting on you" notice and the arrival flash were written against the irreversible gate
+  alone, so a batch preview — `apply_scene_ops` being the write the agent is *told* to
+  prefer, and the only one it asks about by default — could scroll out of the transcript
+  with nothing on screen to say the run was blocked on you.
+- **A call that failed says why without being asked.** The result cell beside a tool row
+  is clipped to a couple of dozen characters, which is enough to tell two successes apart
+  and never enough to carry a reason — so the one row in a run worth reading was folded
+  like all the rest. It opens itself now.
 
 ## [0.39.0] - 2026-08-01
 
