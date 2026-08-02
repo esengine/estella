@@ -43,6 +43,7 @@ import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretSt
 import { useSettings } from '@/store/settingsStore';
 import { MarkdownView } from '@/components/MarkdownView';
 import { AgentMark } from '@/components/AgentMark';
+import { OverlayDrawer } from '@/components/OverlayDrawer';
 import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
@@ -1000,27 +1001,21 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
 }
 
 /** The summoned overlay: covers the right-hand panels rather than squeezing the
- *  viewport, and dismisses on Esc or an outside click. */
+ *  viewport. Everything about being a drawer — the slide, Esc, the outside
+ *  click, keeping focus inside — is the shared paradigm's (OverlayDrawer). */
 export function AgentDrawer() {
   const open = useEditorStore((s) => s.agentDrawer);
   const setOpen = useEditorStore((s) => s.setAgentDrawer);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, setOpen]);
-
-  if (!open) return null;
   return (
-    <div className="ag-scrim open" onMouseDown={() => setOpen(false)}>
-      <div className="ag-drawer" onMouseDown={(e) => e.stopPropagation()}>
-        <AgentPanel />
-      </div>
-    </div>
+    <OverlayDrawer
+      open={open}
+      onClose={() => setOpen(false)}
+      side="right"
+      className="drawer--agent"
+      label={t('agent.title')}
+    >
+      <AgentPanel />
+    </OverlayDrawer>
   );
 }
 

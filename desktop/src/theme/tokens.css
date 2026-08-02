@@ -153,7 +153,7 @@
        stacking (z 1–20) stays literal. Same-tier surfaces resolve by DOM
        order (a menu summoned from a dialog mounts later, so it wins). — */
   --z-toolbar: 40; /* sticky shell chrome above panel content */
-  --z-drawer: 100; /* content-drawer scrim; drawer +1; statusbar +3 */
+  --z-drawer: 100; /* summoned-drawer scrim (its panel is a child); statusbar +3 */
   --z-dialog: 124; /* dialog/palette scrims + windows (Settings, Modal, pickers) */
   --z-tooltip: 135; /* hover cards — above dialogs, below interactive floats */
   --z-popover: 150; /* anchored popovers/dropdowns */

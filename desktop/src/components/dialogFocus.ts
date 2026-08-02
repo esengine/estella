@@ -23,11 +23,15 @@ function focusables(container: HTMLElement): HTMLElement[] {
  * Modal focus management for the container behind `ref` (give it tabIndex={-1}
  * so it can take the seed focus). Runs for the container's whole mount — mount
  * a dialog only while it is open.
+ *
+ * `active` is for the shells that CANNOT do that: a drawer keeps its frame
+ * mounted so it has something to animate out, and passing `open` here is how it
+ * still gets the same trap for exactly as long as it is a dialog.
  */
-export function useDialogFocus(ref: RefObject<HTMLElement | null>): void {
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true): void {
   useEffect(() => {
     const container = ref.current;
-    if (!container) return;
+    if (!container || !active) return;
     // Resolve the container's own document/window — the popout window's when the
     // dialog was summoned from a popped-out panel, not the main editor window's.
     const doc = container.ownerDocument;
@@ -66,5 +70,5 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>): void {
       if (opener?.isConnected) opener.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 }

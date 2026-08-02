@@ -252,37 +252,44 @@
 .act-spacer { flex: 1; }
 .act-sep { width: 20px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
 
-/* ── Content Drawer (slides up over the workspace) ── */
+/* ── Summoned drawers (components/OverlayDrawer.tsx) ─────────────────────────
+   Bounded to the workspace rather than to the window: the menu bar, toolbar and
+   status bar stay live underneath a summoned surface. The status bar in
+   particular is where a running agent reports progress, and dimming it would
+   hide the thing that says work is happening.
+
+   Every one of them leads with the accent edge and slides from the side it
+   belongs to. Its SIZE and surface are its own (.drawer--content, --agent). */
 .scrim {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: var(--h-status);
+  position: absolute;
+  inset: 0;
   z-index: var(--z-drawer);
+  display: flex;
   background: var(--overlay);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t) var(--e-out);
 }
 .scrim.open { opacity: 1; pointer-events: auto; }
+.scrim--bottom { align-items: flex-end; }
+.scrim--right { justify-content: flex-end; }
 .drawer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--h-status);
-  z-index: calc(var(--z-drawer) + 1);
-  height: 46vh;
-  min-height: 320px;
-  background: var(--srf-2);
-  border-top: 2px solid var(--acc);
-  box-shadow: var(--shadow-3);
+  flex: none;
+  min-height: 0;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
-  transform: translateY(calc(100% + var(--h-status)));
+  background: var(--srf-2);
+  box-shadow: var(--shadow-3);
   transition: transform var(--t-slow) var(--e-spring);
 }
-.scrim.open .drawer { transform: translateY(0); }
+.scrim--bottom > .drawer { width: 100%; border-top: 2px solid var(--acc); transform: translateY(100%); }
+.scrim--right > .drawer { height: 100%; border-left: 2px solid var(--acc); transform: translateX(100%); }
+.scrim.open > .drawer { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .scrim, .drawer { transition: none; }
+}
+.drawer--content { height: 46%; min-height: min(320px, 100%); }
 .drawer-head {
   height: 42px;
   flex-shrink: 0;

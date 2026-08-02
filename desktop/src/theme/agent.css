@@ -15,28 +15,13 @@
 
 /* Floating: it covers the right-hand panels rather than squeezing the viewport.
    You look at properties or you talk to the agent — the two naturally alternate,
-   and a viewport that resizes under a conversation is the worse trade. */
-.ag-scrim {
-  /* Absolute, not fixed: bounded to the workspace row, so the menubar, toolbar
-     and status bar stay live. The status bar in particular is where the agent
-     reports progress — dimming it would hide the thing that says work is
-     happening. */
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-drawer);
-  background: var(--overlay);
-  display: flex;
-  justify-content: flex-end;
-}
-.ag-drawer {
+   and a viewport that resizes under a conversation is the worse trade. The
+   drawer itself is the shared paradigm's (chrome.css); this is only its width
+   and its surface. */
+.drawer--agent {
   width: 384px;
-  max-width: 100vw;
-  flex: none;
-  min-height: 0;
-  height: 100%;
+  max-width: 100%;
   background: var(--panel);
-  /* The accent edge every summoned surface leads with (cf. the Content Drawer). */
-  border-left: 2px solid var(--acc);
 }
 
 .ag-head {
@@ -661,7 +646,7 @@
 
 /* Docked, it is an ordinary panel: the shell owns the frame. */
 .ag-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--panel); }
-.ag-drawer .ag-panel { height: 100%; }
+.drawer--agent .ag-panel { height: 100%; }
 /* Docked, the dock tab carries the title, so the head is just its actions. */
 .ag-head.docked { height: 30px; border-bottom: 1px solid var(--line-soft); }
 

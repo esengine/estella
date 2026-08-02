@@ -299,10 +299,12 @@ export function App() {
         <ErrorBoundary label="activitybar"><Perf id="activitybar"><ActivityBar /></Perf></ErrorBoundary>
         <DockLayout />
         <ErrorBoundary label="agentcheckpoint"><AgentCheckpoint /></ErrorBoundary>
+        {/* Both summoned drawers live INSIDE the workspace: they cover the
+            panels and leave the chrome around them live. */}
+        <ErrorBoundary label="contentdrawer"><Perf id="contentdrawer"><ContentDrawer /></Perf></ErrorBoundary>
         <ErrorBoundary label="agentdrawer"><Perf id="agentdrawer"><AgentDrawer /></Perf></ErrorBoundary>
       </main>
       <ErrorBoundary label="statusbar"><Perf id="statusbar"><StatusBar /></Perf></ErrorBoundary>
-      <ErrorBoundary label="contentdrawer"><Perf id="contentdrawer"><ContentDrawer /></Perf></ErrorBoundary>
       <PerfRealmBridge />
       {buildOpen && <BuildDialog />}
       {settingsOpen && <SettingsDialog />}
