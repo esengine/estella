@@ -83,6 +83,23 @@ published separately; it ships inside the editor.
 - **Reasoning shows how long it took**, a stopped or refused run explains itself in the
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
+- **Performance has a snapshot now, guarded the way the API surface is.** This repo gated
+  correctness hard — thousands of tests, pixel regressions, an API-surface snapshot, cycle
+  and layer checks — and performance not at all: fifteen benchmark files, no CI job running
+  any of them, no baseline anywhere. The UI layout re-derived every node's box every frame
+  for months inside exactly that gap. `tools/perf-guard.mjs --check` asserts two things
+  chosen to survive running on a different machine: **ratios** between benchmarks in the
+  same run (the CPU cancels out, and each ratio states an architectural invariant — "editing
+  a field is far cheaper than adding a node" *is* the incremental layout working), and
+  **coverage**, how many cases produced a number at all. Tolerance is 30% deliberately: it
+  cannot see a 5% slowdown, it is there for the 2×-and-up kind. Accept a change with
+  `--update`, the same as the API snapshot.
+- **The benchmarks had not run since the ECS moved.** Eleven of the fifteen files still
+  imported `../src/world` / `../src/query` / `../src/component` — the paths from before
+  `src/ecs/` existed. `vitest bench` skips a file it cannot resolve and still exits 0, so
+  the suite reported success while measuring nothing: 27 cases produced a number, 147 did
+  not. Repointed, it is 174. The wasm-backed ones also hard-coded the editor's wasm
+  directory, which is not where CI puts the artifact.
 - **The UI layout keeps Yoga's work, not just its allocations.** Yoga already tracks what
   changed — every style setter is `if (old != new) { set; markDirtyAndPropagate(); }`, and
   a solve skips the subtrees still clean — but the layout pass reset every node and rebuilt
