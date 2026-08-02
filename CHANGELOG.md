@@ -70,6 +70,34 @@ published separately; it ships inside the editor.
 - **A tool row's glyph says what kind of call it is** — reading, writing, or the one that
   cannot be taken back — instead of turning green on success. Tinting every finished row
   green made the rows that matter harder to find.
+- **The agent reads in parallel.** A run of consecutive read-only calls goes out together
+  instead of one after another, so three lookups the model asked for in one breath are one
+  wait. Writes stay strictly ordered, including against the reads around them — a read
+  asked for after a write means "tell me what that did".
+- **The confirmation gate asks once per run, not once per call.** An answer is now *Run it*,
+  *Allow for this run*, or *Skip*; the middle one covers later calls of the same tool and
+  expires when the run ends. A task that saves eleven files was eleven identical questions,
+  which is the shape of gate people learn to click through without reading. Deliberately
+  not persisted — an "always" that outlives the run is a permission switch nobody
+  remembers flipping.
+- **Reasoning shows how long it took**, a stopped or refused run explains itself in the
+  transcript rather than only in its header badge, `@` offers project assets alongside
+  entities, and re-ask is on the answer as well as on the run header.
+
+### Fixed
+
+- **A reloaded window rejoins the agent conversation instead of coming back to an empty
+  drawer.** main owns the session, so it survives a reload; the transcript did not, and
+  nothing could ask for what it had missed. Worse and silent: re-asking a run passed the
+  renderer's array index while the session counted in its own turns, so after a reload
+  those disagreed — re-asking the first visible run rewound the session to the start and
+  discarded a conversation nobody asked to end. A run is now identified by the session's
+  own coordinate, and the open conversation's event stream can be replayed on attach.
+- **A long conversation no longer fails outright.** Nothing bounded how far one could
+  grow. It now folds its oldest runs into a note at three quarters of the model's context
+  window — keeping what *you* said verbatim, since intent governs the ninth run as much as
+  the first — and a single tool result is capped and says so, naming the fix, because a
+  silently truncated scene tree is one the model believes it saw in full.
 
 ## [0.39.0] - 2026-08-01
 
