@@ -58,6 +58,7 @@ export const agentMessages = defineMessages({
     'agent.waiting': { en: 'Waiting for the model', zh: '等待模型响应' },
     'agent.thinking': { en: 'Thinking', zh: '正在思考' },
     'agent.queued': { en: 'queued', zh: '排队中' },
+    'agent.queued.msg': { en: 'Queued: {text}', zh: '已排队:{text}' },
     'agent.stopped': { en: 'stopped', zh: '已中止' },
     'agent.declined': { en: 'skipped', zh: '已跳过' },
     'agent.turn.aborted': { en: 'Stopped part-way.', zh: '中途停止。' },

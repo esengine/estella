@@ -39,6 +39,37 @@ published separately; it ships inside the editor.
   lands under the cursor.
 - **The viewport canvas is sized from its own layout box**, not `floor(clientWidth × dpr)`
   — which lost up to a pixel at fractional dpr, the case UI zoom makes ordinary.
+- **A message typed while the agent was working is no longer lost.** The composer said
+  "this will be the next message"; the host refuses a send mid-turn, and nobody held it —
+  so the box cleared, the send was rejected, and what you typed was gone, replaced by a
+  red banner. It is queued now, shown in the transcript while it waits, and sent when the
+  turn ends. Stopping the turn drops the queue, because stopping means stop.
+- **The agent's typing caret sits after the last character** instead of on its own line
+  below the paragraph — it was rendered after the whole markdown block rather than inside
+  it, which read as a stray blinking box rather than as text being written.
+- **A tool row's result column says what came back.** It showed the first ~20 characters
+  of the raw result, which for a JSON answer is `[{"id` — and the disclosure under it was
+  the *same* string, flattened and cut at 160 characters, so expanding a row taught you
+  nothing. The row now carries a one-cell summary (a list is its length, an object leads
+  with its first named string) and the disclosure keeps the full result with its line
+  structure intact.
+
+### Changed
+
+- **The agent transcript animates the way the prototype does.** Runs, reasoning, tool
+  details and the change set all fold on a grid row rather than being unmounted, so
+  nothing appears as a jump cut and an expanded detail keeps its scroll; a finished run
+  folds itself to its header when the next one starts; new blocks rise in as they arrive;
+  and a confirmation flashes once on arrival so it is not read past.
+- **The agent has a mark.** Four facets that light in turn while it works — in the drawer
+  head, the empty state and the status bar, so "still working" is legible with the drawer
+  shut. It wears the editor's own violet, not a palette of its own.
+- **A run's header says which model answered it** and what it left in the scene (`+7 ~1`).
+  The composer's picker only ever says what the *next* message will use, and a
+  conversation can switch models between runs.
+- **A tool row's glyph says what kind of call it is** — reading, writing, or the one that
+  cannot be taken back — instead of turning green on success. Tinting every finished row
+  green made the rows that matter harder to find.
 
 ## [0.39.0] - 2026-08-01
 

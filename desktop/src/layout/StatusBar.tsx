@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
-import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu, Sparkles, Square, Scaling } from 'lucide-react';
+import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu, Square, Scaling } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
+import { AgentMark } from '@/components/AgentMark';
 import { UI_SCALE_SETTING, ZOOM_DEFAULT, setUiZoom } from './uiZoom';
 import { useSelection } from '@/store/selectionStore';
 import { useAgent, stopAgentTurn } from '@/store/AgentStore';
@@ -76,7 +77,9 @@ function AgentSegment() {
   return (
     <span className={`sitem ag-seg${waiting ? ' waiting' : ''}`}>
       <button type="button" className="ag-seg-open" onClick={() => setDrawer(true)}>
-        <Sparkles size={11} strokeWidth={1.9} />
+        {/* The same mark the drawer wears, lit while it works — this strip is
+            what you can see with the drawer closed. */}
+        <AgentMark size={11} live={!waiting} />
         {waiting ? t('agent.status.awaiting') : t('agent.status.running')}
       </button>
       <button type="button" className="ag-seg-stop" title={t('agent.stop')} onClick={stopAgentTurn}>

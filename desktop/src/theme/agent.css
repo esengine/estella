@@ -72,6 +72,52 @@
 
 .ag-log { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; padding-bottom: 12px; }
 
+/* ── The mark ───────────────────────────────────────────────────────────────
+   Four facets around a centre, in the same violet the Outliner dot and the
+   viewport echo use. Lit in turn while a turn runs: a transcript row can only
+   say "working" to someone already reading it, and this has to say it from the
+   status bar with the drawer shut. */
+.ag-mark { display: block; flex: none; color: var(--nebula); }
+.ag-mark path { fill: currentColor; }
+.ag-p-n { opacity: 1; }
+.ag-p-e { opacity: 0.78; }
+.ag-p-s { opacity: 0.45; }
+.ag-p-w { opacity: 0.62; }
+@media (prefers-reduced-motion: no-preference) {
+  .ag-mark.live path { animation: ag-facet 1.8s var(--e-out) infinite; }
+  .ag-mark.live .ag-p-e { animation-delay: 0.45s; }
+  .ag-mark.live .ag-p-s { animation-delay: 0.9s; }
+  .ag-mark.live .ag-p-w { animation-delay: 1.35s; }
+}
+@keyframes ag-facet { 0%, 62%, 100% { opacity: 0.45; } 22% { opacity: 1; } }
+
+/* ── Folding ────────────────────────────────────────────────────────────────
+   0fr→1fr on a grid row: the one way to animate to a height nobody measured.
+   Content stays mounted (see the Fold component) — an expanded tool detail that
+   was scrolled keeps its scroll, and nothing appears as a jump cut. */
+.ag-fold-w { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--t-slow) var(--e-out); }
+.ag-fold-w.open { grid-template-rows: 1fr; }
+.ag-fold-i { overflow: hidden; min-height: 0; }
+@media (prefers-reduced-motion: reduce) { .ag-fold-w { transition: none; } }
+
+/* Each block arrives rather than appears — the transcript is being written, and
+   a row that pops in at full opacity reads as a repaint. */
+@media (prefers-reduced-motion: no-preference) {
+  .ag-tb > * { animation: ag-rise 0.24s var(--e-out) both; }
+}
+@keyframes ag-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* A note from the editor rather than from either party: queued, stopped,
+   reverted. Centred between two hairlines so it reads as a break in the
+   conversation, not as a message in it. */
+.ag-sys {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+.ag-sys::before, .ag-sys::after { content: ''; height: 1px; background: var(--line); flex: 1; }
+
 /* ── A run ─────────────────────────────────────────────────────────────────
    The unit of work, so it gets a header: what was asked plus the numbers that
    get checked afterwards. Only the CURRENT run sticks — every past header
@@ -106,6 +152,8 @@
   color: var(--text-faint);
 }
 .ag-stat .ag-sp { flex: 1; }
+.ag-stat-model { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-stat-chg { display: flex; gap: 7px; }
 .ag-add { color: var(--run); }
 .ag-warn { color: var(--warn); }
 
@@ -191,7 +239,11 @@
 .ag-call--queued { opacity: 0.45; }
 .ag-call--stopped, .ag-call--declined { opacity: 0.5; }
 .ag-call--running .ag-call-nm { color: var(--text-hi); }
-.ag-call--ok .ag-call-g { color: var(--run); }
+/* The glyph says what KIND of call it is — reading, writing, or the one that
+   cannot be taken back. Success is not a colour: it is the result in `out`, and
+   tinting every finished row green makes the rows that matter harder to find. */
+.ag-call-e--undoable .ag-call-g { color: var(--text-dim); }
+.ag-call-e--irreversible .ag-call-g { color: var(--warn); }
 .ag-call--error .ag-call-g, .ag-call--error .ag-call-out { color: var(--error); }
 .ag-call--awaiting .ag-call-g, .ag-call--awaiting .ag-call-out { color: var(--warn); }
 .ag-call-detail {
@@ -221,6 +273,12 @@
 }
 .ag-ask--confirm { --ag-tone: var(--warn); }
 .ag-ask--fail { --ag-tone: var(--error); }
+/* Arriving in a transcript that has been scrolling on its own, a question that
+   merely appeared is one you read past. It flashes ONCE, on arrival. */
+@media (prefers-reduced-motion: no-preference) {
+  .ag-ask--confirm { animation: ag-flash 1.1s var(--e-out); }
+}
+@keyframes ag-flash { 0%, 100% { background: transparent; } 40% { background: var(--hover); } }
 .ag-ask-g { color: var(--ag-tone); margin-top: 1px; }
 .ag-ask-hd { font-size: var(--fs-md); font-weight: 500; color: var(--text-hi); letter-spacing: -0.01em; line-height: 1.4; }
 .ag-ask-d { grid-column: 2; font-size: var(--fs-sm); color: var(--text-dim); margin-top: 5px; line-height: 1.65; }
@@ -538,8 +596,9 @@
 /* Still being written — the closing fence has not arrived. */
 .md-pre.open { box-shadow: inset 2px 0 0 var(--nebula); }
 
-/* The caret that rides the tail of the text while tokens arrive. */
-.ag-caret {
+/* The caret that rides the tail of the text while tokens arrive — inside the
+   last block, so it sits after the last character rather than under it. */
+.md-caret {
   display: inline-block;
   width: 6px; height: 13px;
   margin-left: 2px;

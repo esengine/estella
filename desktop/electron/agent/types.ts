@@ -133,7 +133,9 @@ export interface ConfirmRequest {
  */
 export type AgentEvent =
   | StepEvent
-  | { type: 'turn_start'; prompt: string }
+  /** `model` because a conversation can change models between runs, and the
+   *  header of a past run has to say which one actually answered it. */
+  | { type: 'turn_start'; prompt: string; model: string }
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
   | { type: 'tool_end'; id: string; ok: boolean; summary: string; image?: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }
@@ -152,6 +154,9 @@ export interface KernelDeps {
     op(op: string, input?: Record<string, unknown>): Promise<unknown>;
   };
   session: AgentSession;
+  /** What is behind `session`, for the transcript. The session abstraction has
+   *  no name for itself, and the host is where that name is known. */
+  model: string;
   /** Ask the person. Resolving false means "declined", which the model is told. */
   confirm(request: ConfirmRequest): Promise<boolean>;
   emit(event: AgentEvent): void;

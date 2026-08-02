@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  applyAgentEvent, entitiesInInput, touchedEntities,
+  applyAgentEvent, entitiesInInput, touchedEntities, briefResult,
   type AgentTurn, type AgentToolEntry,
 } from '../src/store/AgentStore';
 import type { AgentEvent, ToolCall } from '../electron/agent/types';
@@ -17,7 +17,8 @@ import type { AgentEvent, ToolCall } from '../electron/agent/types';
 const fold = (...events: AgentEvent[]): AgentTurn[] =>
   events.reduce<AgentTurn[]>((turns, e) => applyAgentEvent(turns, e), []);
 
-const started = (prompt = 'add a pause menu'): AgentEvent => ({ type: 'turn_start', prompt });
+const started = (prompt = 'add a pause menu', model = 'opus-5'): AgentEvent =>
+  ({ type: 'turn_start', prompt, model });
 const ended = (over: Partial<{ steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }> = {}): AgentEvent =>
   ({ type: 'turn_end', steps: 0, mark: null, reason: 'end_turn', ...over });
 const call = (name: string): ToolCall => ({ id: `c-${name}`, name, input: { a: 1 } });
@@ -28,6 +29,13 @@ describe('the transcript projection', () => {
     const turns = fold(started('one'), ended(), started('two'));
     expect(turns.map((t) => t.prompt)).toEqual(['one', 'two']);
     expect(turns.map((t) => t.reason)).toEqual(['end_turn', null]);
+  });
+
+  // The header of a past run has to say which model answered IT — the picker in
+  // the composer only ever says what the NEXT message will use.
+  it('records the model that answered each run, not just the current one', () => {
+    const turns = fold(started('one', 'opus-5'), ended(), started('two', 'haiku-4-5'));
+    expect(turns.map((t) => t.model)).toEqual(['opus-5', 'haiku-4-5']);
   });
 
   it('gathers a streamed answer into one paragraph', () => {
@@ -227,5 +235,30 @@ describe('which entities a turn touched', () => {
     expect([...touchedEntities(turns, null)]).toEqual([1, 2]);
     expect([...touchedEntities(turns, 0)]).toEqual([2]);
     expect([...touchedEntities(turns, 1)]).toEqual([]);
+  });
+});
+
+// The row's result column is one cell wide. It used to hold the first 20
+// characters of whatever the tool returned — for a JSON answer that is `[{"id`,
+// which tells you nothing and hides the count that would have.
+describe('a result as one cell', () => {
+  it('counts a list', () => {
+    expect(briefResult('[{"id":0,"name":"Camera"},{"id":1,"name":"Sprite0"}]')).toBe('2');
+  });
+
+  it('leads an object with its first named string', () => {
+    expect(briefResult('{"kind":"scene","dirty":false,"path":"main.esscene"}')).toBe('scene');
+  });
+
+  it('falls back to the first line of prose', () => {
+    expect(briefResult('ok\nnothing else to report')).toBe('ok');
+  });
+
+  it('clips a long line rather than letting it push the row', () => {
+    expect(briefResult('x'.repeat(80))).toHaveLength(26);
+  });
+
+  it('says nothing for an empty result', () => {
+    expect(briefResult('   ')).toBe('');
   });
 });

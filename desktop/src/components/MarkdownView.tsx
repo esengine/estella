@@ -84,12 +84,23 @@ function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }) {
   );
 }
 
-export function MarkdownView({ text, entity }: {
+export function MarkdownView({ text, entity, caret }: {
   text: string;
   /** Resolve a code span to a scene entity, making it clickable. */
   entity?: (name: string) => number | null;
+  /**
+   * Tokens are still arriving, so ride the tail with a caret.
+   *
+   * It is rendered INSIDE the last block, after the last span, because the whole
+   * effect is "the text is being typed": a caret placed after the markdown sits
+   * on its own line under the paragraph, which reads as a stray blinking box
+   * rather than as a cursor. A fenced block that is still open says so with its
+   * own edge (.md-pre.open), so it takes no caret.
+   */
+  caret?: boolean;
 }) {
   const blocks = useMemo(() => parseBlocks(text), [text]);
+  const tail = (i: number) => (caret && i === blocks.length - 1 ? <span className="md-caret" /> : null);
   return (
     <div className="md">
       {blocks.map((b, i) => {
@@ -98,22 +109,23 @@ export function MarkdownView({ text, entity }: {
             return <CodeBlock key={i} block={b} />;
           case 'h': {
             const Tag = (`h${Math.min(b.level + 2, 6)}`) as 'h3';
-            return <Tag className="md-h" key={i}><Spans spans={b.spans} entity={entity} /></Tag>;
+            return <Tag className="md-h" key={i}><Spans spans={b.spans} entity={entity} />{tail(i)}</Tag>;
           }
-          case 'list':
-            return b.ordered ? (
-              <ol className="md-list" key={i}>
-                {b.items.map((item, j) => <li key={j}><Spans spans={item} entity={entity} /></li>)}
-              </ol>
-            ) : (
-              <ul className="md-list" key={i}>
-                {b.items.map((item, j) => <li key={j}><Spans spans={item} entity={entity} /></li>)}
-              </ul>
-            );
+          case 'list': {
+            const items = b.items.map((item, j) => (
+              <li key={j}>
+                <Spans spans={item} entity={entity} />
+                {j === b.items.length - 1 && tail(i)}
+              </li>
+            ));
+            return b.ordered
+              ? <ol className="md-list" key={i}>{items}</ol>
+              : <ul className="md-list" key={i}>{items}</ul>;
+          }
           case 'rule':
             return <hr className="md-rule" key={i} />;
           default:
-            return <p className="md-p" key={i}><Spans spans={b.spans} entity={entity} /></p>;
+            return <p className="md-p" key={i}><Spans spans={b.spans} entity={entity} />{tail(i)}</p>;
         }
       })}
     </div>

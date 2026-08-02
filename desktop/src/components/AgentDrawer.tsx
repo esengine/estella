@@ -40,6 +40,7 @@ import {
 import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
 import { MarkdownView } from '@/components/MarkdownView';
+import { AgentMark } from '@/components/AgentMark';
 import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
@@ -64,7 +65,7 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
   return (
     <>
       <div
-        className={`ag-call ag-call--${entry.state}`}
+        className={`ag-call ag-call--${entry.state} ag-call-e--${entry.effect ?? 'read'}`}
         onMouseEnter={() => touches.length && peekEntities(touches)}
         onMouseLeave={() => touches.length && peekEntities([])}
       >
@@ -78,13 +79,15 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
             {entry.state === 'awaiting' && <TriangleAlert size={11} />}
             {entry.state === 'stopped' && t('agent.stopped')}
             {entry.state === 'declined' && t('agent.declined')}
-            {(entry.state === 'ok' || entry.state === 'error') && entry.summary}
+            {(entry.state === 'ok' || entry.state === 'error') && entry.brief}
           </span>
         </button>
         {/* What the agent looked at, shown without asking: a screenshot row that
             hides its screenshot is a row you have to click to learn anything from. */}
         {entry.image && <img className="ag-shot" src={entry.image} alt={entry.name} />}
-        {open && entry.summary && <div className="ag-call-detail">{entry.summary}</div>}
+        {entry.summary && (
+          <Fold open={open}><div className="ag-call-detail">{entry.summary}</div></Fold>
+        )}
       </div>
       {entry.state === 'awaiting' && <ConfirmPassage entry={entry} onConfirm={onConfirm} />}
     </>
@@ -123,6 +126,21 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
   );
 }
 
+/**
+ * Everything that folds does it by animating a grid row from 0fr to 1fr, and
+ * therefore keeps its content MOUNTED. Unmounting is the cheaper thing to write
+ * and the wrong thing to see: a panel that appears instantly reads as a jump
+ * cut, and one that has been scrolled or selected inside loses that on every
+ * toggle.
+ */
+function Fold({ open, children }: { open: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`ag-fold-w${open ? ' open' : ''}`}>
+      <div className="ag-fold-i">{children}</div>
+    </div>
+  );
+}
+
 function Thinking({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -131,7 +149,7 @@ function Thinking({ text }: { text: string }) {
         <ChevronRight size={10} strokeWidth={2} className="ag-car" />
         <span>{t('agent.thinking')}</span>
       </button>
-      {open && <div className="ag-think-body">{text}</div>}
+      <Fold open={open}><div className="ag-think-body">{text}</div></Fold>
     </div>
   );
 }
@@ -140,10 +158,8 @@ function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="ag-say">
-      <MarkdownView text={text} entity={entityByName} />
-      {/* The caret rides the last paragraph while tokens are still arriving —
-          the difference between "thinking" and "finished" at a glance. */}
-      {streaming && <span className="ag-caret" />}
+      {/* The caret rides the tail of the text itself — see MarkdownView. */}
+      <MarkdownView text={text} entity={entityByName} caret={streaming} />
       <button
         type="button"
         className="ag-say-copy"
@@ -241,13 +257,8 @@ function ChangeSet({ turn }: { turn: AgentTurn }) {
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const mark = turn.mark as HistoryMark | null;
   const changes = mark ? EditorHistory.changesSince(mark) : [];
-  if (changes.length === 0) return null;
-
-  const counts = {
-    add: changes.filter((c) => c.kind === 'add').length,
-    modify: changes.filter((c) => c.kind === 'modify').length,
-    remove: changes.filter((c) => c.kind === 'remove').length,
-  };
+  const counts = changeCounts(turn);
+  if (!counts) return null;
   return (
     <div className={`ag-changes${open ? ' open' : ''}`}>
       <button type="button" className="ag-changes-h" onClick={() => setOpen((o) => !o)}>
@@ -258,7 +269,7 @@ function ChangeSet({ turn }: { turn: AgentTurn }) {
         {counts.modify > 0 && <span className="ag-mod">~{counts.modify}</span>}
         {counts.remove > 0 && <span className="ag-del">−{counts.remove}</span>}
       </button>
-      {open && (
+      <Fold open={open}>
         <div className="ag-changes-l">
           {changes.map((c, i) => (
             <div
@@ -284,9 +295,21 @@ function ChangeSet({ turn }: { turn: AgentTurn }) {
             </div>
           ))}
         </div>
-      )}
+      </Fold>
     </div>
   );
+}
+
+/** Counts for the turn header: what the run left behind, in one glance. */
+function changeCounts(turn: AgentTurn): { add: number; modify: number; remove: number } | null {
+  const mark = turn.mark as HistoryMark | null;
+  const changes = mark ? EditorHistory.changesSince(mark) : [];
+  if (changes.length === 0) return null;
+  return {
+    add: changes.filter((c) => c.kind === 'add').length,
+    modify: changes.filter((c) => c.kind === 'modify').length,
+    remove: changes.filter((c) => c.kind === 'remove').length,
+  };
 }
 
 /** A field value in one cell. Long values are cut — the row is a summary, and
@@ -313,14 +336,16 @@ function Elapsed({ turn }: { turn: AgentTurn }) {
 }
 
 function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; running: boolean }) {
-  // Past runs arrive folded; the one you are in stays open. Local state so the
-  // user's own fold survives the next event landing in the store.
+  // A finished run folds to its header: the stat line already IS the summary, so
+  // the body becomes detail you ask for rather than detail you scroll past.
+  // Keyed on isLast changing, which is the moment a run becomes history — after
+  // that the fold is the user's, and re-opening one stays open.
   const [folded, setFolded] = useState(!isLast);
-  useEffect(() => {
-    if (isLast) setFolded(false);
-  }, [isLast]);
+  useEffect(() => { setFolded(!isLast); }, [isLast]);
 
+  useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const tokens = turn.inputTokens + turn.outputTokens;
+  const counts = changeCounts(turn);
   const empty = turn.entries.length === 0;
   return (
     <div className={`ag-turn${folded ? ' folded' : ''}${isLast ? ' current' : ''}`}>
@@ -344,15 +369,26 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
           )}
         </span>
         <span className="ag-stat">
+          {/* Which model answered THIS run. A conversation can switch between
+              them, and the composer's picker only ever says what is next. */}
+          {turn.model && <span className="ag-stat-model">{turn.model}</span>}
+          <span className="ag-sp" />
           <Elapsed turn={turn} />
           {tokens > 0 && <span>↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}</span>}
-          <span className="ag-sp" />
           {turn.reason === 'aborted' && <span className="ag-warn">{t('agent.turn.aborted')}</span>}
           {turn.reason === 'refusal' && <span className="ag-warn">{t('agent.turn.refusal')}</span>}
-          {turn.steps > 0 && <span className="ag-add">{t('agent.checkpoint.steps', { count: turn.steps })}</span>}
+          {/* What the run left in the scene — the number the summary is actually
+              about, which is why it reads here and not only inside the fold. */}
+          {counts && (
+            <span className="ag-stat-chg">
+              {counts.add > 0 && <span className="ag-add">+{counts.add}</span>}
+              {counts.modify > 0 && <span className="ag-mod">~{counts.modify}</span>}
+              {counts.remove > 0 && <span className="ag-del">−{counts.remove}</span>}
+            </span>
+          )}
         </span>
       </button>
-      {!folded && (
+      <Fold open={!folded}>
         <div className="ag-tb">
           {empty && running && isLast ? <Skeleton /> : (
             <Entries entries={turn.entries} onConfirm={confirmAgentCall} streaming={running && isLast} />
@@ -363,7 +399,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
           {running && isLast && turn.entries.length > 0 && lastIsSettled(turn.entries) && <Waiting />}
           {turn.reason !== null && <ChangeSet turn={turn} />}
         </div>
-      )}
+      </Fold>
     </div>
   );
 }
@@ -390,6 +426,7 @@ function EmptyState() {
   ];
   return (
     <div className="ag-empty">
+      <AgentMark size={34} />
       <h4>{t('agent.empty.title')}</h4>
       <p>{t('agent.empty.body')}</p>
       <div className="ag-sugs">
@@ -640,6 +677,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
   const setOpen = useEditorStore((s) => s.setAgentDrawer);
   const turns = useAgent((s) => s.turns);
   const status = useAgent((s) => s.status);
+  const queued = useAgent((s) => s.queued);
   const logRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
   // A question that has scrolled away is a turn that looks hung. Watched per
@@ -662,13 +700,15 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
   useLayoutEffect(() => {
     const el = logRef.current;
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
-  }, [turns]);
+  }, [turns, queued]);
 
   return (
     <div className="ag-panel">
       <div className={`ag-head${docked ? ' docked' : ''}`}>
-        {/* Docked, the tab already says Agent — a second title under it is the
-            same word twice and 40px of nothing. */}
+        {/* The mark carries "working" even when the transcript is scrolled away
+            from the row that would say so. Docked, the tab already says Agent —
+            a second title under it is the same word twice and 40px of nothing. */}
+        <AgentMark size={docked ? 13 : 15} live={status.phase !== 'idle'} />
         {!docked && <span className="ag-ttl">{t('agent.title')}</span>}
         <span className="ag-sp" />
         <button type="button" title={t('agent.newConversation')} onClick={() => void resetAgentSession()}>
@@ -707,6 +747,11 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
           : turns.map((turn, i) => (
             <Turn key={turn.id} turn={turn} isLast={i === turns.length - 1} running={status.phase !== 'idle'} />
           ))}
+        {/* Held until the run ends. Shown rather than merely promised: a message
+            that vanished into a queue nobody can see is one you retype. */}
+        {queued.map((text, i) => (
+          <div className="ag-sys" key={i}>{t('agent.queued.msg', { text })}</div>
+        ))}
       </div>
 
       {askOffscreen && (

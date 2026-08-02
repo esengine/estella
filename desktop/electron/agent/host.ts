@@ -149,7 +149,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         // would be a second definition of "what the agent knows".
         const context = await editorContext(deps.driver).catch(() => null);
         await runTurn(
-          { driver: deps.driver, session: session!, confirm, emit },
+          { driver: deps.driver, session: session!, model: model ?? '', confirm, emit },
           text,
           context,
           controller.signal,

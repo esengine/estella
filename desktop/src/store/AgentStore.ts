@@ -47,8 +47,10 @@ export interface AgentToolEntry {
   /** Known once it actually starts; the model's request does not say. */
   effect: AgentEffect | null;
   state: ToolState;
-  /** The result, shortened for one row. */
+  /** The result in full, for the disclosure. */
   summary: string | null;
+  /** The same result as one cell beside the row — see {@link briefResult}. */
+  brief: string | null;
   /** A frame the call rendered — the transcript shows what the agent looked at. */
   image: string | null;
   /** The arguments as the model is WRITING them: raw JSON text, incomplete
@@ -76,6 +78,8 @@ export interface AgentTurn {
   /** Position in the conversation; stable, so React keys are too. */
   id: number;
   prompt: string;
+  /** Which model answered THIS run — the conversation can switch between them. */
+  model: string;
   entries: AgentEntry[];
   inputTokens: number;
   outputTokens: number;
@@ -110,6 +114,8 @@ interface AgentState {
    * naming `id: 7` means nothing until 7 lights up where you already look.
    */
   peeked: readonly number[];
+  /** Typed while a turn was running, waiting for it to end. See sendAgentMessage. */
+  queued: readonly string[];
   /** The turn whose checkpoint bar has been answered — see AgentCheckpoint. */
   checkpointDone: number | null;
   /** What the user picked, or null for "whichever provider has a key". */
@@ -117,7 +123,7 @@ interface AgentState {
 }
 
 export const useAgent = create<AgentState>(() => ({
-  status: IDLE, turns: [], driving: false, peeked: [], checkpointDone: null,
+  status: IDLE, turns: [], driving: false, peeked: [], queued: [], checkpointDone: null,
   selection: loadSelection(),
 }));
 
@@ -246,6 +252,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
     return [...turns, {
       id: turns.length,
       prompt: event.prompt,
+      model: event.model,
       entries: [],
       inputTokens: 0,
       outputTokens: 0,
@@ -283,6 +290,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         effect: null,
         state: 'queued',
         summary: null,
+        brief: null,
         image: null,
         argText: '',
         reason: null,
@@ -310,7 +318,9 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         // decline as an ordinary failed call, and painting it as an error would
         // blame the tool for the user's answer.
         const state: ToolState = e.state === 'declined' ? 'declined' : event.ok ? 'ok' : 'error';
-        return { ...e, state, summary: event.summary, image: event.image ?? null };
+        return {
+          ...e, state, summary: event.summary, brief: briefResult(event.summary), image: event.image ?? null,
+        };
       }));
 
     case 'usage':
@@ -341,12 +351,44 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
 }
 
 /**
+ * A tool's result as the ONE cell beside its row: the "58" next to
+ * `get_scene_tree`, not the tree. The full text stays in `summary`, one click
+ * away — a row whose result column holds the first 20 characters of a JSON
+ * blob tells you nothing and hides the count that would have.
+ *
+ * Three rules, because a fourth would be guessing at a catalog that keeps
+ * growing: a list is its length, an object leads with its first named string
+ * (`kind: "scene"` reads as "scene"), and anything else is its first line.
+ */
+export function briefResult(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  try {
+    const value: unknown = JSON.parse(trimmed);
+    if (Array.isArray(value)) return String(value.length);
+    if (value && typeof value === 'object') {
+      const first = Object.values(value).find((v) => typeof v === 'string' && v);
+      if (typeof first === 'string') return clip(first);
+      return clip(String(Object.keys(value).length));
+    }
+    return clip(String(value));
+  } catch {
+    /* not JSON — the tool answered in prose */
+  }
+  return clip(trimmed.split('\n')[0]);
+}
+
+const clip = (s: string): string => (s.length > 26 ? `${s.slice(0, 25)}…` : s);
+
+/**
  * A conversation main still holds means this window is driving, whatever it
  * remembers — a renderer that reloaded mid-conversation would otherwise leave
  * the automation hook down under a session that is still alive.
  */
 function adoptStatus(status: AgentStatus): void {
   useAgent.setState((s) => ({ status, driving: s.driving || status.conversation }));
+  // The turn that was refusing sends has ended — release what was held for it.
+  if (status.phase === 'idle') drainQueue();
 }
 
 export function applyAgentMessage(message: AgentMessage): void {
@@ -370,6 +412,14 @@ export function attachAgentBridge(): () => void {
 }
 
 export async function sendAgentMessage(text: string): Promise<void> {
+  // The host REFUSES a send while a turn runs, so holding the message is this
+  // side's job. Without it the composer's own promise ("this will be the next
+  // message") was a lie that cost the person what they had typed: the box was
+  // already cleared, and all they got back was a red banner.
+  if (useAgent.getState().status.phase !== 'idle') {
+    useAgent.setState((s) => ({ queued: [...s.queued, text] }));
+    return;
+  }
   // Before the IPC, not after: main drives this window through
   // `window.__estellaEditor`, which is published only while a driver is
   // authorized (engine/automationGate.ts) and this store is what says so for the
@@ -379,6 +429,17 @@ export async function sendAgentMessage(text: string): Promise<void> {
   const status = await window.estella?.agent?.send(text);
   if (status) adoptStatus(status);
 }
+
+/** Send what was held while the last turn ran, oldest first. */
+function drainQueue(): void {
+  const [next, ...rest] = useAgent.getState().queued;
+  if (next === undefined) return;
+  useAgent.setState({ queued: rest });
+  void sendAgentMessage(next);
+}
+
+/** Nothing queued survives the turn being stopped: stopping means stop. */
+export const clearAgentQueue = (): void => useAgent.setState({ queued: [] });
 
 /**
  * Ask a turn again, discarding it and everything after it — on both sides. The
@@ -394,6 +455,7 @@ export async function retryAgentTurn(turnId: number): Promise<void> {
 }
 
 export function stopAgentTurn(): void {
+  clearAgentQueue();
   void window.estella?.agent?.stop();
 }
 
@@ -419,7 +481,7 @@ export function confirmAgentCall(callId: string, allow: boolean): void {
 
 /** Drop the conversation — a new one starts with the next message. */
 export async function resetAgentSession(): Promise<void> {
-  useAgent.setState({ turns: [], driving: false });
+  useAgent.setState({ turns: [], driving: false, queued: [] });
   const status = await window.estella?.agent?.reset();
   if (status) useAgent.setState({ status });   // not adoptStatus: reset just ended it
 }

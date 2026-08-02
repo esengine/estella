@@ -35,10 +35,17 @@ function confirmReason(tool: CatalogTool): ConfirmReason {
     : 'irreversible';
 }
 
-/** Short enough to render as one transcript row; the model gets the full text. */
+/**
+ * The result as the transcript's disclosure shows it: bounded so a tool that
+ * returns a megabyte cannot cost the renderer that much, but NOT flattened —
+ * the shape of a scene tree or a diagnostics list is most of what makes it
+ * readable, and squeezing it onto one line threw that away. The one-line
+ * version beside the row is a rendering decision, made in the editor
+ * (AgentStore's briefResult).
+ */
 function summarize(text: string): string {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > 160 ? `${flat.slice(0, 157)}…` : flat;
+  const trimmed = text.trim();
+  return trimmed.length > 4000 ? `${trimmed.slice(0, 3997)}…` : trimmed;
 }
 
 /**
@@ -77,9 +84,9 @@ export async function runTurn(
   context: string | null,
   signal: AbortSignal,
 ): Promise<{ mark: unknown; steps: number }> {
-  const { driver, session, emit } = deps;
+  const { driver, session, emit, model } = deps;
   const mark = await driver('mark', []);
-  emit({ type: 'turn_start', prompt: text });
+  emit({ type: 'turn_start', prompt: text, model });
 
   let reason: Extract<AgentEvent, { type: 'turn_end' }>['reason'] = 'end_turn';
   try {
