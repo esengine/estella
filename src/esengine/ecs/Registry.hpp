@@ -73,6 +73,20 @@ public:
     Registry(Registry&&) noexcept = default;
     Registry& operator=(Registry&&) noexcept = default;
 
+    /**
+     * @brief Which registry this is — unique for the process, never reused.
+     *
+     * @details Entity ids are only meaningful WITHIN a registry: a fresh one
+     *          hands out 1, 2, 3 again, so anything caching per entity across
+     *          registries (a scene reload, an editor play/stop) would silently
+     *          serve the previous world's data for the new world's entities.
+     *          Comparing addresses cannot answer this — a destroyed registry's
+     *          storage is routinely reused by the next one. Systems that keep
+     *          per-entity state hold this alongside it and drop the lot when it
+     *          changes; see UISystem's retained Yoga nodes.
+     */
+    u64 instanceId() const { return instance_id_; }
+
     // =========================================================================
     // Entity Management
     // =========================================================================
@@ -601,6 +615,11 @@ public:
     }
 
 private:
+    // Handed out once per registry and never recycled, so it survives one being
+    // destroyed and the next taking its address. See instanceId().
+    static inline u64 next_instance_id_{0};
+    u64 instance_id_{++next_instance_id_};
+
     // =========================================================================
     // Private Helpers
     // =========================================================================

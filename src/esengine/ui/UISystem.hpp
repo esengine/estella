@@ -115,6 +115,9 @@ private:
     f32 lastCamL_{0}, lastCamB_{0}, lastCamR_{0}, lastCamT_{0};
     bool lastAnimActive_{false};
     bool layoutPrimed_{false};  // force a solve on the very first pass
+    // Which registry the retained Yoga nodes belong to — entity ids restart with
+    // each one, so they mean nothing across registries (Registry::instanceId).
+    u64 lastRegistryId_{0};
 };
 
 }  // namespace esengine::ecs

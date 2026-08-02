@@ -206,6 +206,12 @@ void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
     applyMargin(yg, YGEdgeBottom, n.marginBottom);
 
     // Container properties still come from FlexContainer (folded into UILayout in F4).
+    //
+    // The absent case is written out rather than skipped: this runs against a
+    // node that KEEPS its style between frames, so "no FlexContainer" has to
+    // actively say Yoga's defaults. Leaving them alone would let a removed
+    // FlexContainer's padding and justify go on laying the node out forever —
+    // the one thing a total style application must not do.
     if (auto* fc = registry.tryGet<FlexContainer>(entity)) {
         YGNodeStyleSetFlexDirection(yg, toYGFlexDirection(fc->direction));
         YGNodeStyleSetFlexWrap(yg, toYGWrap(fc->wrap));
@@ -218,6 +224,18 @@ void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
         YGNodeStyleSetPadding(yg, YGEdgeTop, fc->padding.top);
         YGNodeStyleSetPadding(yg, YGEdgeRight, fc->padding.right);
         YGNodeStyleSetPadding(yg, YGEdgeBottom, fc->padding.bottom);
+    } else {
+        YGNodeStyleSetFlexDirection(yg, YGFlexDirectionColumn);
+        YGNodeStyleSetFlexWrap(yg, YGWrapNoWrap);
+        YGNodeStyleSetJustifyContent(yg, YGJustifyFlexStart);
+        YGNodeStyleSetAlignItems(yg, YGAlignStretch);
+        YGNodeStyleSetAlignContent(yg, YGAlignFlexStart);
+        YGNodeStyleSetGap(yg, YGGutterColumn, 0.0f);
+        YGNodeStyleSetGap(yg, YGGutterRow, 0.0f);
+        YGNodeStyleSetPadding(yg, YGEdgeLeft, 0.0f);
+        YGNodeStyleSetPadding(yg, YGEdgeTop, 0.0f);
+        YGNodeStyleSetPadding(yg, YGEdgeRight, 0.0f);
+        YGNodeStyleSetPadding(yg, YGEdgeBottom, 0.0f);
     }
 }
 
@@ -225,21 +243,24 @@ void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
 // `availW/H` + `parentPivot*` describe the available box the root sits in.
 void layoutUINodeSubtree(
     Registry& registry, UITree& tree, LayoutCache& cache, i32 rootIdx,
-    f32 availW, f32 availH, f32 parentPivotX, f32 parentPivotY
+    f32 availW, f32 availH, f32 parentPivotX, f32 parentPivotY,
+    bool structureChanged, bool forceWriteback
 ) {
     i32 begin = rootIdx;
     i32 end = rootIdx + tree.nodes_[rootIdx].subtree_size;
 
     std::vector<YGNodeRef> yg(static_cast<usize>(end - begin), nullptr);
     std::unordered_map<Entity, i32> slotOf;  // entity → local slot index
-    // Reuse the retained YGNode per entity. layoutUpdate orphaned the whole
-    // forest first, so every node here is childless + owner-less; resetting it
-    // to Yoga defaults makes reuse identical to a fresh YGNodeNew.
+    // The retained YGNode KEEPS its style between frames, and re-applying it is
+    // how Yoga is told what moved: every YGNodeStyleSet* is `if (old != new)
+    // { set; markDirtyAndPropagate(); }`, so a field that did not change costs
+    // one comparison and dirties nothing. Resetting first (as this used to) made
+    // every field look changed, which dirtied every node and threw away the
+    // incremental solve the retained nodes exist for.
     for (i32 k = begin; k < end; ++k) {
         Entity e = tree.nodes_[k].entity;
         if (!registry.has<UINode>(e)) continue;  // tree is homogeneously UINode
         YGNodeRef node = cache.getOrCreate(e);
-        YGNodeReset(node);
         applyUINodeStyle(registry, e, node);
         yg[static_cast<usize>(k - begin)] = node;
         slotOf[e] = k - begin;
@@ -247,13 +268,22 @@ void layoutUINodeSubtree(
     YGNodeRef rootYG = yg[0];
     if (!rootYG) return;
 
-    for (i32 k = begin + 1; k < end; ++k) {
-        YGNodeRef child = yg[static_cast<usize>(k - begin)];
-        if (!child) continue;
-        auto it = slotOf.find(tree.nodes_[k].parent);
-        if (it == slotOf.end()) continue;
-        YGNodeRef parentYG = yg[static_cast<usize>(it->second)];
-        YGNodeInsertChild(parentYG, child, YGNodeGetChildCount(parentYG));
+    // Parenting is rebuilt only when the tree's shape actually changed. Yoga's
+    // own child list is the retained hierarchy the rest of the time — and
+    // re-inserting an unchanged child would dirty it for nothing.
+    if (structureChanged) {
+        for (i32 k = begin; k < end; ++k) {
+            YGNodeRef node = yg[static_cast<usize>(k - begin)];
+            if (node) YGNodeRemoveAllChildren(node);
+        }
+        for (i32 k = begin + 1; k < end; ++k) {
+            YGNodeRef child = yg[static_cast<usize>(k - begin)];
+            if (!child) continue;
+            auto it = slotOf.find(tree.nodes_[k].parent);
+            if (it == slotOf.end()) continue;
+            YGNodeRef parentYG = yg[static_cast<usize>(it->second)];
+            YGNodeInsertChild(parentYG, child, YGNodeGetChildCount(parentYG));
+        }
     }
 
     // The root fills the available box on axes it leaves auto.
@@ -263,13 +293,36 @@ void layoutUINodeSubtree(
 
     YGNodeCalculateLayout(rootYG, availW, availH, YGDirectionLTR);
 
+    // Which nodes' own box changed, by local slot. A node whose PARENT resized
+    // has to be written even when Yoga left its own box alone: the local
+    // position below is expressed against the parent's computed size, so the
+    // same Yoga offset inside a resized parent is a different world position.
+    // DFS order guarantees a parent's entry is filled before its children read it.
+    std::vector<u8> resized(static_cast<usize>(end - begin), 0);
+
     for (i32 k = begin; k < end; ++k) {
         YGNodeRef node = yg[static_cast<usize>(k - begin)];
         if (!node) continue;
         Entity e = tree.nodes_[k].entity;
+
+        bool parentResized = false;
+        if (k != begin) {
+            auto it = slotOf.find(tree.nodes_[k].parent);
+            if (it != slotOf.end()) parentResized = resized[static_cast<usize>(it->second)] != 0;
+        }
+        // Yoga tells us what it recomputed; everything else still holds the
+        // output of the last solve, which is still correct.
+        if (!forceWriteback && !YGNodeGetHasNewLayout(node) && !parentResized) {
+            tree.nodes_[k].flags &= ~(LAYOUT_DIRTY | HAS_DIRTY_CHILD);
+            continue;
+        }
+        YGNodeSetHasNewLayout(node, false);
+
         auto& un = registry.get<UINode>(e);
         f32 fw = YGNodeLayoutGetWidth(node);
         f32 fh = YGNodeLayoutGetHeight(node);
+        resized[static_cast<usize>(k - begin)] =
+            (un.computed_size_.x != fw || un.computed_size_.y != fh) ? 1 : 0;
         un.computed_size_.x = fw;
         un.computed_size_.y = fh;
 
@@ -387,7 +440,9 @@ bool anyUIAnimActive(Registry& registry) {
     return active;
 }
 
-void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache, const LayoutRect& cameraRect) {
+void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
+                       const LayoutRect& cameraRect, bool structureChanged,
+                       bool forceWriteback) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
 
@@ -403,7 +458,8 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache, con
         if (!parentIsUINode) {
             f32 availW = cameraRect.right - cameraRect.left;
             f32 availH = cameraRect.top - cameraRect.bottom;
-            layoutUINodeSubtree(registry, tree, cache, i, availW, availH, 0.5f, 0.5f);
+            layoutUINodeSubtree(registry, tree, cache, i, availW, availH, 0.5f, 0.5f,
+                                structureChanged, forceWriteback);
         }
         i += node.subtree_size;
     }
@@ -420,7 +476,17 @@ void UISystem::layoutUpdate(
     f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
     bool tsPropertyDirty
 ) {
-    if (!layoutCache_) layoutCache_ = std::make_unique<LayoutCache>();
+    // The retained nodes are keyed by entity, and entity ids restart with each
+    // registry — so a scene reload or an editor play/stop would otherwise hand
+    // the new world the previous world's layout. This is only load-bearing now
+    // that styles persist between frames: the old pass reset every node it
+    // touched, which hid the aliasing by throwing the stale state away.
+    if (layoutCache_ && lastRegistryId_ != registry.instanceId()) layoutCache_.reset();
+    lastRegistryId_ = registry.instanceId();
+    if (!layoutCache_) {
+        layoutCache_ = std::make_unique<LayoutCache>();
+        layoutPrimed_ = false;  // a fresh cache has no hierarchy to reuse
+    }
 
     // Rebuild the DFS node list every pass: it is O(N) pointer-walking (no Yoga)
     // and yields the structure signature that detects spawn/despawn/reparent —
@@ -442,30 +508,38 @@ void UISystem::layoutUpdate(
     // the last solve — leaves the retained YGNodes and every UINode's computed
     // output valid, so the whole solve is safely skipped. `wasAnimActive` forces
     // one more solve on the frame a tween just ended (see anyUIAnimActive).
-    bool dirty = !layoutPrimed_ || sigChanged || rectChanged || tsPropertyDirty
+    bool first = !layoutPrimed_;
+    bool dirty = first || sigChanged || rectChanged || tsPropertyDirty
               || animNow || wasAnimActive;
     layoutPrimed_ = true;
     if (!dirty) return;
 
-    // Orphan the entire retained forest up front. Each subtree then rebuilds its
-    // own hierarchy from childless nodes, so an entity that moved between Canvas
-    // roots since last frame is never still owned by its old parent on re-insert.
-    for (auto& node : tree.nodes_) {
-        if (registry.has<UINode>(node.entity)) {
-            YGNodeRemoveAllChildren(layoutCache_->getOrCreate(node.entity));
-        }
-    }
+    // Two signals, because they answer different questions. The hierarchy has to
+    // be rebuilt when the tree's SHAPE changed. Output has to be written for
+    // every node when the ROOT'S FRAME changed — a subtree root positions itself
+    // against the camera box, so the same Yoga result inside a resized box is a
+    // different world position, and Yoga would rightly report no new layout.
+    bool structureChanged = first || sigChanged;
+    bool forceWriteback = structureChanged || rectChanged;
 
+    // The retained hierarchy is rebuilt only when the tree's shape changed —
+    // which is exactly when an entity may still be owned by the parent it had
+    // last frame. Orphaning unconditionally (as this used to) dirtied every
+    // Yoga node on every pass, so no solve could ever be partial.
     propagateHiddenInTree(registry, tree);
     propagateInheritedUIState(registry, tree);
     LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
-    unifiedLayoutPass(registry, tree, *layoutCache_, cameraRect);
+    unifiedLayoutPass(registry, tree, *layoutCache_, cameraRect, structureChanged, forceWriteback);
 
-    // Reap YGNodes whose entity left the tree this frame.
-    std::unordered_set<Entity> live;
-    live.reserve(tree.nodes_.size());
-    for (auto& node : tree.nodes_) live.insert(node.entity);
-    layoutCache_->reap(live);
+    // Reaping is likewise a structural concern: with the same set of entities in
+    // the tree there is nothing to free, and building the live set is a hash
+    // insert per node.
+    if (structureChanged) {
+        std::unordered_set<Entity> live;
+        live.reserve(tree.nodes_.size());
+        for (auto& node : tree.nodes_) live.insert(node.entity);
+        layoutCache_->reap(live);
+    }
 }
 
 // Out-of-line so LayoutCache is complete here (it holds Yoga types kept out of
