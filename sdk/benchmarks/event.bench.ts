@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
-import { defineEvent, EventBus, EventRegistry, EventWriterInstance, EventReaderInstance } from '../src/event';
+import { defineEvent, EventBus, EventRegistry, EventWriterInstance, EventReaderInstance } from '../src/ecs/event';
 
 interface DamageEvent {
     target: number;

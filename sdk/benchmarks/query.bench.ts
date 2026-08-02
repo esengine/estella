@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent } from '../src/component';
-import { QueryInstance, Query, Mut } from '../src/query';
+import { World } from '../src/ecs/world';
+import { defineComponent } from '../src/ecs/component';
+import { QueryInstance, Query, Mut } from '../src/ecs/query';
 import { Entity } from '../src/types';
 
 const Position = defineComponent('QBenchPosition', { x: 0, y: 0 });

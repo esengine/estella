@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
-import { defineComponent, getComponent, getComponentRegistry, clearUserComponents } from '../src/component';
-import { computeQueryCacheKey } from '../src/world';
+import { defineComponent, getComponent, getComponentRegistry, clearUserComponents } from '../src/ecs/component';
+import { computeQueryCacheKey } from '../src/ecs/world';
 
 describe('Component - Definition', () => {
     bench('defineComponent (simple)', () => {

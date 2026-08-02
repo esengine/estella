@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent } from '../src/component';
+import { World } from '../src/ecs/world';
+import { defineComponent } from '../src/ecs/component';
 
 const Position = defineComponent('BenchWIPos', { x: 0, y: 0 });
 const Velocity = defineComponent('BenchWIVel', { dx: 0, dy: 0 });

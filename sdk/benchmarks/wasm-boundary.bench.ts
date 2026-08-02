@@ -3,14 +3,18 @@
 import { describe, bench, beforeAll } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Transform, Sprite } from '../src/component';
+import { Transform, Sprite } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
-import { convertForWasm } from '../src/ecs/BuiltinBridge';
+import { convertForWasm } from '../src/ecs/bridge/BuiltinBridge';
+import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 
 let module: any;
 let Registry: any;
 
-const WASM_DIR = path.resolve(__dirname, '../../desktop/public/wasm');
+// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
+// in-repo build output, then the editor's copy. Hard-coding the last of
+// those is why these never found a wasm in CI.
+const WASM_DIR = WASM_DIR_SHARED;
 
 // Build the embind value_object payloads from the authoritative component
 // defaults (the same source BuiltinBridge inserts from), so these stay valid as

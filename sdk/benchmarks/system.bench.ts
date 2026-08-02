@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent } from '../src/component';
-import { defineSystem, SystemRunner, Schedule } from '../src/system';
-import { ResourceStorage } from '../src/resource';
-import { EventRegistry } from '../src/event';
-import { Query, Mut } from '../src/query';
-import { Commands } from '../src/commands';
-import { Res, defineResource, ResMut } from '../src/resource';
-import { EventWriter, EventReader, defineEvent } from '../src/event';
+import { World } from '../src/ecs/world';
+import { defineComponent } from '../src/ecs/component';
+import { defineSystem, SystemRunner, Schedule } from '../src/ecs/system';
+import { ResourceStorage } from '../src/ecs/resource';
+import { EventRegistry } from '../src/ecs/event';
+import { Query, Mut } from '../src/ecs/query';
+import { Commands } from '../src/ecs/commands';
+import { Res, defineResource, ResMut } from '../src/ecs/resource';
+import { EventWriter, EventReader, defineEvent } from '../src/ecs/event';
 
 const Position = defineComponent('BenchSysPos', { x: 0, y: 0 });
 const Velocity = defineComponent('BenchSysVel', { dx: 0, dy: 0 });

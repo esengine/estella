@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent } from '../src/component';
+import { World } from '../src/ecs/world';
+import { defineComponent } from '../src/ecs/component';
 
 const A = defineComponent('CMA', { v: 0 });
 const B = defineComponent('CMB', { v: 0 });

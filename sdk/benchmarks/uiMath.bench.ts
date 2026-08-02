@@ -9,7 +9,7 @@ import {
     pointInOBB,
     intersectRects,
     createInvVPCache,
-} from '../src/ui/uiMath';
+} from '../src/ui/util/math';
 
 const identityMatrix = new Float32Array([
     1, 0, 0, 0,

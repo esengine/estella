@@ -7,8 +7,12 @@ import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { SpineModuleController } from '../src/spine/SpineController';
 import type { ESEngineModule } from '../src/wasm';
+import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 
-const WASM_DIR = path.resolve(__dirname, '../../desktop/public/wasm');
+// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
+// in-repo build output, then the editor's copy. Hard-coding the last of
+// those is why these never found a wasm in CI.
+const WASM_DIR = WASM_DIR_SHARED;
 const SPINE_ASSETS = path.resolve(__dirname, 'fixtures/spine');
 
 let raw: SpineWasmModule;

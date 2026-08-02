@@ -19,10 +19,14 @@
 import { describe, bench, beforeAll } from 'vitest';
 import path from 'path';
 import type { ESEngineModule, Registry, Entity } from '../src/wasm/wasm.generated';
+import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 
 let wasm: ESEngineModule;
 
-const WASM_DIR = path.resolve(__dirname, '../../desktop/public/wasm');
+// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
+// in-repo build output, then the editor's copy. Hard-coding the last of
+// those is why these never found a wasm in CI.
+const WASM_DIR = WASM_DIR_SHARED;
 
 beforeAll(async () => {
     const engineMod = await import(path.join(WASM_DIR, 'esengine.js'));

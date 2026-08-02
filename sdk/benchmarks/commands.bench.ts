@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
-import { World } from '../src/world';
-import { defineComponent } from '../src/component';
-import { CommandsInstance } from '../src/commands';
-import { ResourceStorage } from '../src/resource';
+import { World } from '../src/ecs/world';
+import { defineComponent } from '../src/ecs/component';
+import { CommandsInstance } from '../src/ecs/commands';
+import { ResourceStorage } from '../src/ecs/resource';
 import { Entity } from '../src/types';
 
 const Position = defineComponent('CmdBenchPosition', { x: 0, y: 0 });

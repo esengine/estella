@@ -2,17 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench, beforeAll } from 'vitest';
 import path from 'path';
-import { World } from '../src/world';
-import { defineBuiltin } from '../src/component';
+import { World } from '../src/ecs/world';
+import { defineBuiltin } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import { syncDynamicTransforms } from '../src/physics/PhysicsSystem';
 import type { Entity } from '../src/types';
+import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 
 let wasmModule: ESEngineModule;
 let physicsMod: PhysicsWasmModule;
 
-const WASM_DIR = path.resolve(__dirname, '../../desktop/public/wasm');
+// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
+// in-repo build output, then the editor's copy. Hard-coding the last of
+// those is why these never found a wasm in CI.
+const WASM_DIR = WASM_DIR_SHARED;
 
 beforeAll(async () => {
     const engineJs = path.join(WASM_DIR, 'esengine.js');

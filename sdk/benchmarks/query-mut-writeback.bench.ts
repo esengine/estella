@@ -11,9 +11,9 @@
  *          Map.set that only runs when someone is actually listening) is small.
  */
 import { bench, describe } from 'vitest';
-import { World } from '../src/world';
-import { Query, QueryInstance, Mut } from '../src/query';
-import { Transform, type TransformData } from '../src/component';
+import { World } from '../src/ecs/world';
+import { Query, QueryInstance, Mut } from '../src/ecs/query';
+import { Transform, type TransformData } from '../src/ecs/component';
 import { createMockModule } from '../tests/mocks/wasm';
 
 const N = 5000;
