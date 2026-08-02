@@ -232,6 +232,21 @@ describe('the transcript projection', () => {
     const before = fold(started());
     expect(applyAgentEvent(before, { type: 'stop', reason: 'tool_use' })).toEqual(before);
   });
+
+  // main's log trims by whole runs at its own ceiling; a mirror that grew
+  // without one would be the side of this that leaks. Dropping from the front
+  // is only safe because identity is the session's index, not the position.
+  it('keeps a bounded number of runs, oldest out first', () => {
+    let turns: AgentTurn[] = [];
+    for (let i = 0; i < 130; i++) {
+      turns = applyAgentEvent(turns, started(`run ${i}`, i));
+      turns = applyAgentEvent(turns, ended());
+    }
+    expect(turns).toHaveLength(100);
+    // What is left still names itself the way the session does.
+    expect(turns[0].id).toBe(30);
+    expect(turns.at(-1)!.id).toBe(129);
+  });
 });
 
 // The Outliner echo. Read off the catalog's own argument names rather than a

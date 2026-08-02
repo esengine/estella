@@ -59,6 +59,10 @@ export const agentMessages = defineMessages({
     'agent.thinking': { en: 'Thinking', zh: '正在思考' },
     'agent.queued': { en: 'queued', zh: '排队中' },
     'agent.queued.msg': { en: 'Queued: {text}', zh: '已排队:{text}' },
+    'agent.earlier': {
+        en: '{count} earlier runs are no longer shown here',
+        zh: '更早的 {count} 轮已不在此窗口',
+    },
     'agent.stopped': { en: 'stopped', zh: '已中止' },
     'agent.declined': { en: 'skipped', zh: '已跳过' },
     'agent.turn.aborted': { en: 'Stopped part-way.', zh: '中途停止。' },

@@ -140,16 +140,22 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
 }
 
 /**
- * Everything that folds does it by animating a grid row from 0fr to 1fr, and
- * therefore keeps its content MOUNTED. Unmounting is the cheaper thing to write
- * and the wrong thing to see: a panel that appears instantly reads as a jump
- * cut, and one that has been scrolled or selected inside loses that on every
- * toggle.
+ * Everything that folds does it by animating a grid row from 0fr to 1fr.
+ *
+ * Once opened it stays MOUNTED, because unmounting is the cheaper thing to write
+ * and the wrong thing to see: a panel that reappears instantly reads as a jump
+ * cut, and one that had been scrolled inside loses that on every toggle.
+ *
+ * Until then it holds nothing. A conversation carries every run it ever had, and
+ * mounting the body of each so it could animate open — when most are folded and
+ * will never be opened — is paying for all of them to get the animation on one.
  */
 function Fold({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [everOpen, setEverOpen] = useState(open);
+  useEffect(() => { if (open) setEverOpen(true); }, [open]);
   return (
     <div className={`ag-fold-w${open ? ' open' : ''}`}>
-      <div className="ag-fold-i">{children}</div>
+      <div className="ag-fold-i">{everOpen ? children : null}</div>
     </div>
   );
 }
@@ -818,6 +824,13 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         }}
       >
+        {/* Runs the window no longer holds. Absolute ids make this free to know:
+            the first one it has says how many came before it. Said out loud
+            because a transcript that starts mid-conversation, silently, reads as
+            one that lost something. */}
+        {turns.length > 0 && turns[0].id > 0 && (
+          <div className="ag-sys">{t('agent.earlier', { count: turns[0].id })}</div>
+        )}
         {turns.length === 0
           ? <EmptyState />
           : turns.map((turn, i) => (

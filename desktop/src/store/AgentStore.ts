@@ -100,6 +100,9 @@ export interface AgentTurn {
   endedAt: number | null;
 }
 
+/** Runs this window keeps. Past it the oldest go, the way main's log does. */
+const MAX_TURNS = 100;
+
 const IDLE: AgentStatus = {
   ready: false, conversation: false, phase: 'idle', model: null, error: null,
 };
@@ -274,7 +277,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
     // Idempotent, so replaying the stream over a transcript that already has
     // some of it cannot double a run (see attachAgentBridge).
     if (turns.some((t) => t.id === event.index)) return turns as AgentTurn[];
-    return [...turns, {
+    const opened: AgentTurn[] = [...turns, {
       // The SESSION's coordinate, not this array's position. They agree while a
       // window sees every run, and stop agreeing the moment one reloads — after
       // which numbering here would aim "re-ask run 0" at the wrong turn.
@@ -290,6 +293,11 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       startedAt: Date.now(),
       endedAt: null,
     }];
+    // Bounded the way main's own log is (it trims by whole runs at 4000 events);
+    // a mirror that grew forever would be the one side of this that does. Safe
+    // to drop from the front only because a run's identity is its session index
+    // and not its position here, so what is left still names itself correctly.
+    return opened.length > MAX_TURNS ? opened.slice(-MAX_TURNS) : opened;
   }
 
   const open = openTurn(turns);
