@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
-import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu, Sparkles, Square } from 'lucide-react';
+import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu, Sparkles, Square, Scaling } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useSettings } from '@/store/settingsStore';
+import { UI_SCALE_SETTING, ZOOM_DEFAULT, setUiZoom } from './uiZoom';
 import { useSelection } from '@/store/selectionStore';
 import { useAgent, stopAgentTurn } from '@/store/AgentStore';
 import { StatsStore } from '@/engine/StatsStore';
@@ -85,6 +87,25 @@ function AgentSegment() {
   );
 }
 
+// A zoom other than 100% silently changes how much fits on screen, so it has to be
+// visible somewhere — else a stray Ctrl+= reads as the editor's layout having broken,
+// with nothing on screen to attribute it to. Click to return to 100%.
+function ZoomReadout() {
+  const zoom = useSettings((s) => s.getValue<number>(UI_SCALE_SETTING));
+  if (zoom === ZOOM_DEFAULT) return null;
+  return (
+    <button
+      type="button"
+      className="sitem click mono"
+      title={t('layout.status.zoomTooltip')}
+      onClick={() => setUiZoom(ZOOM_DEFAULT)}
+    >
+      <Scaling size={11} strokeWidth={1.85} />
+      {zoom}%
+    </button>
+  );
+}
+
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face. Anchors the Content Drawer.
 export function StatusBar() {
@@ -131,6 +152,7 @@ export function StatusBar() {
         <Boxes size={11} strokeWidth={1.85} /> <EntitiesValue />
       </span>
       <VramReadout />
+      <ZoomReadout />
       <span
         className="sitem mono"
         title={t('layout.status.backendTooltip')}

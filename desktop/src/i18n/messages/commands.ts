@@ -60,6 +60,9 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleMinimap': { en: 'Minimap', zh: '小地图' },
     'cmd.view.toggleStats': { en: 'Stats HUD', zh: '统计信息' },
     'cmd.view.toggleCoords': { en: 'Coordinates HUD', zh: '坐标信息' },
+    'cmd.view.zoomIn': { en: 'Zoom In', zh: '放大界面' },
+    'cmd.view.zoomOut': { en: 'Zoom Out', zh: '缩小界面' },
+    'cmd.view.zoomReset': { en: 'Reset Zoom', zh: '重置界面缩放' },
 
     // — Editor / play / build —
     'cmd.settings.open': { en: 'Settings…', zh: '设置…' },

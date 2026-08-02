@@ -60,7 +60,7 @@ const MENUS: MenuBarMenu[] = [
   { id: 'file', title: () => t('menu.file'), order: 10, groups: ['new', 'open', 'save', 'close'] },
   { id: 'edit', title: () => t('menu.edit'), order: 20, groups: ['history', 'clipboard', 'selection'] },
   { id: 'entity', title: () => t('menu.entity'), order: 30, groups: ['create', 'modify', 'selection'] },
-  { id: 'view', title: () => t('menu.view'), order: 40, groups: ['show', 'overlays', 'gizmo'] },
+  { id: 'view', title: () => t('menu.view'), order: 40, groups: ['show', 'overlays', 'gizmo', 'zoom'] },
   { id: 'build', title: () => t('menu.build'), order: 50, groups: ['package', 'scripts'] },
   // Where contributed commands land by default. Rendered only once something is in
   // it — an empty dropdown is broken UI, so the strip hides a menu with no rows.
@@ -112,6 +112,9 @@ const BUILTIN_ITEMS: MenuContribution[] = [
   cmd('view', 'gizmo', 'view.toggleCoordSpace'),
   cmd('view', 'gizmo', 'view.togglePivotMode'),
   cmd('view', 'gizmo', 'view.toggleSnapping'),
+  cmd('view', 'zoom', 'view.zoomIn'),
+  cmd('view', 'zoom', 'view.zoomOut'),
+  cmd('view', 'zoom', 'view.zoomReset'),
 
   cmd('build', 'package', 'project.export'),
   cmd('build', 'scripts', 'build.scripts'),

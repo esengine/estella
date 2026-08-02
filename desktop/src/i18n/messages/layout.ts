@@ -67,6 +67,10 @@ export const layoutMessages = defineMessages({
         en: 'Resident texture memory / budget · {count} cached (evictable) texture(s)',
         zh: '驻留纹理内存 / 预算 · {count} 个已缓存（可逐出）纹理',
     },
+    'layout.status.zoomTooltip': {
+        en: 'UI zoom. Click to reset to 100% (Ctrl/Cmd 0).',
+        zh: '界面缩放。点击恢复 100%（Ctrl/Cmd 0）。',
+    },
     'layout.status.backendTooltip': {
         en: 'Active GPU backend — the device actually rendering (reflects any WebGL2 fallback). Change it in Settings → Renderer.',
         zh: '当前使用的 GPU 后端——实际执行渲染的设备（反映 WebGL2 回退情况）。可在设置 → 渲染器中更改。',

@@ -20,6 +20,7 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
 import { resetLayout } from '@/layout/DockLayout';
+import { stepUiZoom, setUiZoom, uiZoom, canZoomIn, canZoomOut, ZOOM_DEFAULT } from '@/layout/uiZoom';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
 import { MaterialDocument } from '@/material/MaterialDocument';
@@ -391,6 +392,32 @@ commands.register({
   // Rebuild the default dock arrangement in place (keeps scene/engine/undo). A real
   // command so it reaches the palette + is rebindable, not a one-off menu handler.
   run: () => void confirmDiscard(t('discard.resetLayout')).then((ok) => ok && resetLayout()),
+});
+// — UI zoom. Three chords reach zoom-in because "the + key" is three different
+//   events: unshifted `=` (what the hint shows), the numpad's `+`, and shift-`=`.
+commands.register({
+  id: 'view.zoomIn',
+  label: t('cmd.view.zoomIn'),
+  category: t('cat.view'),
+  keybinding: ['mod+=', 'mod+plus', 'mod+shift+plus'],
+  isEnabled: canZoomIn,
+  run: () => stepUiZoom(1),
+});
+commands.register({
+  id: 'view.zoomOut',
+  label: t('cmd.view.zoomOut'),
+  category: t('cat.view'),
+  keybinding: 'mod+-',
+  isEnabled: canZoomOut,
+  run: () => stepUiZoom(-1),
+});
+commands.register({
+  id: 'view.zoomReset',
+  label: t('cmd.view.zoomReset'),
+  category: t('cat.view'),
+  keybinding: 'mod+0',
+  isEnabled: () => uiZoom() !== ZOOM_DEFAULT,
+  run: () => setUiZoom(ZOOM_DEFAULT),
 });
 commands.register({
   id: 'view.toggleGrid',

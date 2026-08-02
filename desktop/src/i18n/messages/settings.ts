@@ -193,8 +193,8 @@ export const settingsMessages = defineMessages({
     },
     'set.appearance.uiScale': { en: 'UI scale', zh: '界面缩放' },
     'set.appearance.uiScale.desc': {
-        en: 'Scales every panel — fonts and controls.',
-        zh: '缩放所有面板——字体与控件。',
+        en: 'Scales the whole editor — panels, fonts, controls, and popped-out panel windows. Also on Ctrl/Cmd +, − and 0.',
+        zh: '缩放整个编辑器——面板、字体、控件，以及弹出的面板窗口。也可用 Ctrl/Cmd +、− 和 0 调节。',
     },
     'set.renderer.backend': { en: 'Graphics backend', zh: '图形后端' },
     'set.renderer.backend.desc': {

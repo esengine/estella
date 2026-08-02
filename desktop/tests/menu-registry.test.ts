@@ -44,7 +44,8 @@ describe('menu registry', () => {
     expect(layout('view')).toEqual([
       'view.toggleGrid', 'view.toggleGizmos', 'view.toggleColliders', 'view.toggleTileCollision', 'view.togglePreviewFx', null,
       'view.toggleMinimap', 'view.toggleStats', 'view.toggleCoords', 'view.togglePerf', null,
-      'view.toggleCoordSpace', 'view.togglePivotMode', 'view.toggleSnapping',
+      'view.toggleCoordSpace', 'view.togglePivotMode', 'view.toggleSnapping', null,
+      'view.zoomIn', 'view.zoomOut', 'view.zoomReset',
     ]);
     expect(layout('build')).toEqual(['project.export', null, 'build.scripts', 'project.extractSchemas']);
     // `plugins.open` joined the layout group after the migration — the Plugins panel

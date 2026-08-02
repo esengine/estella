@@ -21,6 +21,7 @@ import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
 import { syncAgentEndpoint } from '@/store/AgentStore';
 import { agentProviders, agentKeyId, CUSTOM_PROVIDER } from '@/agent/providers';
+import { applyUiZoom, UI_SCALE_SETTING, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from '@/layout/uiZoom';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
@@ -103,22 +104,20 @@ settingsRegistry.register({
 });
 
 settingsRegistry.register({
-  id: 'appearance.uiScale',
+  id: UI_SCALE_SETTING,
   type: 'number',
   scope: 'editor',
   section: 'appearance',
   group: t('set.group.appearance'),
   label: t('set.appearance.uiScale'),
   description: t('set.appearance.uiScale.desc'),
-  default: 100,
-  min: 80,
-  max: 150,
+  default: ZOOM_DEFAULT,
+  min: ZOOM_MIN,
+  max: ZOOM_MAX,
   step: 5,
   slider: true,
   suffix: '%',
-  effect: (v) => {
-    document.body.style.setProperty('zoom', String(v / 100));
-  },
+  effect: (v) => applyUiZoom(v),
 });
 
 // ── Renderer (read at engine boot; the GfxDevice backend seam) ──────────────

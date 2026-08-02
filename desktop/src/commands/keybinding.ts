@@ -18,6 +18,9 @@ const IS_MAC =
 const SPECIAL_KEYS: Record<string, string> = {
   ' ': 'space',
   spacebar: 'space',
+  // The chord grammar joins on '+', so a literal '+' key can only be spelled by
+  // name — both sides normalize to it (numpad + and shifted = both report '+').
+  '+': 'plus',
   esc: 'escape',
   del: 'delete',
   arrowup: 'up',
@@ -80,6 +83,7 @@ function displayKey(key: string): string {
     backspace: IS_MAC ? '⌫' : 'Backspace',
     escape: 'Esc',
     space: 'Space',
+    plus: '+',
     up: '↑',
     down: '↓',
     left: '←',

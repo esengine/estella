@@ -40,6 +40,8 @@ const api = {
     toggleMaximize: (): Promise<void> => ipcRenderer.invoke('window:toggleMaximize'),
     close: (): Promise<void> => ipcRenderer.invoke('window:close'),
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized'),
+    /** UI zoom, as a factor (1 = 100%). Applied in main so popped-out panels follow. */
+    setZoom: (factor: number): Promise<void> => ipcRenderer.invoke('window:setZoom', factor),
     /** Subscribe to maximize/restore; returns an unsubscribe. */
     onMaximizeChange: (cb: (maximized: boolean) => void): (() => void) => {
       const h = (_e: unknown, maximized: boolean) => cb(maximized);

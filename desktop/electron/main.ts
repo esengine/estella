@@ -213,6 +213,9 @@ let win: BrowserWindow | null = null;
  * ESTELLA_SHOT_SAVE_FILE script what the user would have chosen (see shotDialogs.ts).
  * Unscripted, a dialog cancels rather than opening — a modal in a headless run is a
  * hang, not a failure.
+ *
+ * The run pins UI zoom (100%, or ESTELLA_SHOT_ZOOM=<percent>) so a zoom left behind
+ * by an ordinary session can't rebase a capture — see the window:setZoom handler.
  */
 async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
   const exec = (code: string): Promise<unknown> =>
@@ -433,8 +436,14 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       if (!at) {
         console.log('[editorDrag] selector not found:', spec.selector);
       } else {
-        const x0 = Math.round(at.x + (spec.ox ?? 0)), y0 = Math.round(at.y + (spec.oy ?? 0));
-        const x1 = x0 + Math.round(spec.dx ?? 0), y1 = y0 + Math.round(spec.dy ?? 0);
+        // The spec (and getBoundingClientRect) speak page CSS pixels; sendInputEvent
+        // speaks window DIPs. Under UI zoom those differ by exactly the zoom factor,
+        // and aiming CSS coordinates at a zoomed window simply misses the target.
+        const z = w.webContents.getZoomFactor();
+        const dip = (v: number) => Math.round(v * z);
+        const cx0 = at.x + (spec.ox ?? 0), cy0 = at.y + (spec.oy ?? 0);
+        const x0 = dip(cx0), y0 = dip(cy0);
+        const x1 = dip(cx0 + (spec.dx ?? 0)), y1 = dip(cy0 + (spec.dy ?? 0));
         const steps = Math.max(1, spec.steps ?? 8);
         w.webContents.sendInputEvent({ type: 'mouseDown', x: x0, y: y0, button: 'left', clickCount: 1 });
         for (let i = 1; i <= steps; i++) {
@@ -563,6 +572,12 @@ function createWindow() {
     // same-origin http child window. Falls back to app:// if the server didn't start.
     win.loadURL(`${appBaseUrl}index.html${automation}`);
   }
+
+  // Chromium restores this origin's persisted zoom on navigation, so an automation
+  // run inherits whatever the last ordinary session left. Stamp the pin back after
+  // the page lands, where that restore has already happened.
+  const pin = pinnedZoom();
+  if (pin !== null) win.webContents.on('did-finish-load', () => win?.webContents.setZoomFactor(pin));
 
   if (shotOut) void runScreenshot(win, shotOut);
   if (mcpMode()) void startMcpEndpoint(() => win);
@@ -701,6 +716,28 @@ ipcMain.handle('window:toggleMaximize', () => {
 });
 ipcMain.handle('window:close', () => win?.close());
 ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false);
+
+// — UI zoom. Lives in main because Chromium keys zoom by ORIGIN, not by frame:
+//   setting it on the main window's webContents carries every same-origin popped-out
+//   panel with it — including ones opened later, which are born at the current zoom.
+//   (The renderer-side `webFrame` API is per-frame and would leave popouts behind.)
+//
+//   Screenshot / MCP runs pin a zoom and refuse writes: Chromium PERSISTS per-origin
+//   zoom across restarts, so one set in an ordinary session would otherwise silently
+//   rebase every later capture — the kind of drift that never fails loudly. The pin
+//   is 100% unless ESTELLA_SHOT_ZOOM asks for a percentage (mirrors SHOT_LOCALE /
+//   SHOT_BACKEND), which is what makes the zoomed shell itself capturable.
+const clampZoom = (f: number): number => Math.min(2, Math.max(0.8, Number.isFinite(f) ? f : 1));
+
+function pinnedZoom(): number | null {
+  if (!process.env.ESTELLA_SHOT && !mcpMode()) return null;
+  const pct = Number(process.env.ESTELLA_SHOT_ZOOM);
+  return pct > 0 ? clampZoom(pct / 100) : 1;
+}
+
+ipcMain.handle('window:setZoom', (_e, factor: number) => {
+  win?.webContents.setZoomFactor(pinnedZoom() ?? clampZoom(factor));
+});
 
 // — Project / filesystem (RC12 §E7). The open project root lives here in main;
 //   every fs op is sandboxed to it (projectFs.resolveInRoot), so the renderer

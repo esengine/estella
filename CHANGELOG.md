@@ -14,6 +14,32 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **UI zoom, on Ctrl/Cmd +, − and 0.** On a 2K display the editor's numbers were too
+  small to read, and the one setting that could fix it sat in a dialog with no menu row,
+  no shortcut, and nothing on screen to say it existed. It is now a View-menu group and
+  three rebindable commands walking a set of stops (80–200%), plus a status-bar chip that
+  appears whenever the zoom is not 100% — click it to go back. Popped-out panel windows
+  follow: Chromium keys zoom by origin, so they are born at the current one and change
+  with it. Screenshot and MCP runs pin the zoom instead (`ESTELLA_SHOT_ZOOM=<percent>`
+  to capture a zoomed shell), because Chromium persists per-origin zoom across restarts
+  and one left behind by an ordinary session would silently rebase every later capture.
+
+### Fixed
+
+- **UI zoom no longer blurs the viewport or misplaces what you click.** It was applied as
+  a CSS `zoom` on the body, which leaves `devicePixelRatio` at 1: every canvas — the
+  viewport, the profiler graphs, the waveforms, the node graphs — kept its backing store
+  at the unzoomed size and was upscaled to fit, and `getBoundingClientRect` drifted a
+  whole zoom factor away from `clientWidth`, so viewport picking and gizmo dragging
+  missed by more the further right and down you aimed (at 150% the right third of the
+  viewport could not be hit at all). Chromium applies the zoom now, and raises the dpr
+  with it: measured at 80/100/125/150/200%, canvases stay pixel-exact and a dragged gizmo
+  lands under the cursor.
+- **The viewport canvas is sized from its own layout box**, not `floor(clientWidth × dpr)`
+  — which lost up to a pixel at fractional dpr, the case UI zoom makes ordinary.
+
 ## [0.39.0] - 2026-08-01
 
 The editor has an agent in it. You describe what you want done to the scene and it does

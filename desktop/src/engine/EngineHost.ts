@@ -420,9 +420,14 @@ class EngineHostImpl {
     const canvas = this.canvas_;
     const parent = canvas?.parentElement;
     if (!canvas || !parent) return;
+    // Measure the canvas' own layout box rather than `clientWidth * dpr`: UI zoom
+    // makes the dpr fractional, and scaling an already-rounded integer CSS width
+    // lands up to a pixel off what the compositor paints — enough to resample the
+    // whole viewport, which is exactly the sharpness the zoom exists to preserve.
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(1, Math.floor(parent.clientWidth * dpr));
-    const h = Math.max(1, Math.floor(parent.clientHeight * dpr));
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
   }
