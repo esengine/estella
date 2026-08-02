@@ -234,9 +234,26 @@ export class EditorHistoryImpl {
    * caller checks before offering a revert.
    */
   stepsSince(mark: HistoryMark): number {
-    let n = 0;
-    for (let i = this.undoStack.length - 1; i >= 0 && this.undoStack[i].id > mark.seq; i--) n++;
-    return n;
+    return this.undoStack.length - this.after(mark.seq);
+  }
+
+  /**
+   * First index on the stack recorded after `seq`.
+   *
+   * Ids only ever grow (push assigns `++seq`, undo pops the newest, the limit
+   * drops the oldest), so a run's window is FOUND rather than scanned for.
+   * Worth the binary search because the transcript reads this for every run it
+   * shows, on every render — which, while a reply streams, is once per token.
+   */
+  private after(seq: number): number {
+    let lo = 0;
+    let hi = this.undoStack.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.undoStack[mid].id > seq) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
   }
 
   /**
@@ -260,8 +277,10 @@ export class EditorHistoryImpl {
    */
   changesSince(mark: HistoryMark, until?: HistoryMark | null): HistoryChange[] {
     const out: HistoryChange[] = [];
-    for (const entry of this.undoStack) {
-      if (entry.id > mark.seq && (!until || entry.id <= until.seq)) out.push(...entry.changes);
+    for (let i = this.after(mark.seq); i < this.undoStack.length; i++) {
+      const entry = this.undoStack[i];
+      if (until && entry.id > until.seq) break;
+      out.push(...entry.changes);
     }
     return out;
   }

@@ -23,7 +23,7 @@
  *   COLOUR MEANS SOMETHING.  Green added, red failed, amber needs you. Nothing
  *   is tinted for belonging to the agent.
  */
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
@@ -96,10 +96,17 @@ const TOOL_ICON: Record<string, typeof Eye> = {
   irreversible: TriangleAlert,
 };
 
-function ToolRow({ entry, onConfirm }: {
-  entry: AgentToolEntry;
-  onConfirm: (answer: ConfirmAnswer, declined?: readonly number[]) => void;
-}) {
+/**
+ * Memoised on the entry, which is what makes a streaming reply cost one row
+ * rather than all of them: the projection replaces only the entry it touched
+ * (AgentStore's patchTool / appendProse), so every settled row above keeps its
+ * identity and skips.
+ */
+const ToolRow = memo(function ToolRow({ entry }: { entry: AgentToolEntry }) {
+  const onConfirm = useCallback(
+    (answer: ConfirmAnswer, declined?: readonly number[]) => confirmAgentCall(entry.id, answer, declined),
+    [entry.id],
+  );
   // A call that FAILED opens itself. The cell beside the row is clipped to a
   // couple of dozen characters (AgentStore's briefResult) and a reason never
   // fits in that, so the one row you actually have to read is the one that used
@@ -147,7 +154,7 @@ function ToolRow({ entry, onConfirm }: {
         : <ConfirmPassage entry={entry} onConfirm={onConfirm} />)}
     </>
   );
-}
+});
 
 /**
  * The one thing the agent cannot do without you. Scrolled into view
@@ -420,9 +427,8 @@ function Prose({ text, streaming, onRerun }: { text: string; streaming?: boolean
 }
 
 /** Consecutive tool rows are one hairline-divided block; prose breaks the run. */
-function Entries({ entries, onConfirm, streaming, onRerun }: {
+function Entries({ entries, streaming, onRerun }: {
   entries: readonly AgentEntry[];
-  onConfirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]) => void;
   /** The run is still taking events, so the last entry is mid-write. */
   streaming?: boolean;
   /** Ask this run again. Absent while one is running — see Turn. */
@@ -436,9 +442,7 @@ function Entries({ entries, onConfirm, streaming, onRerun }: {
     run = [];
     out.push(
       <div className="ag-steps" key={`steps-${group[0].id}`}>
-        {group.map((tool) => (
-          <ToolRow key={tool.id} entry={tool} onConfirm={(answer, declined) => onConfirm(tool.id, answer, declined)} />
-        ))}
+        {group.map((tool) => <ToolRow key={tool.id} entry={tool} />)}
       </div>,
     );
   };
@@ -502,7 +506,9 @@ function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const mark = turn.mark as HistoryMark | null;
   const changes = mark ? EditorHistory.changesSince(mark, until) : [];
-  const counts = changeCounts(turn, until);
+  // Counted from the list already read rather than by walking the stack a
+  // second time for the same window.
+  const counts = countKinds(changes);
   if (!counts) return null;
   return (
     <div className={`ag-changes${open ? ' open' : ''}`}>
@@ -553,15 +559,20 @@ function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null
  * edits the person made in between — so its header would keep growing while it
  * sat there finished.
  */
-function changeCounts(turn: AgentTurn, until: HistoryMark | null): { add: number; modify: number; remove: number } | null {
+function changeCounts(turn: AgentTurn, until: HistoryMark | null): ChangeCounts | null {
   const mark = turn.mark as HistoryMark | null;
-  const changes = mark ? EditorHistory.changesSince(mark, until) : [];
+  return mark ? countKinds(EditorHistory.changesSince(mark, until)) : null;
+}
+
+interface ChangeCounts { add: number; modify: number; remove: number }
+
+/** Null for nothing, so an empty change set renders nothing at all rather than
+ *  the words "no changes". */
+function countKinds(changes: readonly { kind: 'add' | 'modify' | 'remove' }[]): ChangeCounts | null {
   if (changes.length === 0) return null;
-  return {
-    add: changes.filter((c) => c.kind === 'add').length,
-    modify: changes.filter((c) => c.kind === 'modify').length,
-    remove: changes.filter((c) => c.kind === 'remove').length,
-  };
+  const counts: ChangeCounts = { add: 0, modify: 0, remove: 0 };
+  for (const c of changes) counts[c.kind]++;
+  return counts;
 }
 
 /** A field value in one cell. Long values are cut — the row is a summary, and
@@ -587,7 +598,13 @@ function Elapsed({ from, to, className }: { from: number; to: number | null; cla
   return <span className={`${className ?? ''}${live ? ' ag-live' : ''}`.trim()}>{formatElapsed(ms)}</span>;
 }
 
-function Turn({ turn, isLast, running, until }: {
+/**
+ * Memoised for the same reason the tool rows are: a reply arrives one token at
+ * a time, and each one replaces only the run it belongs to. Without this, every
+ * finished run in the conversation re-rendered — and re-read the undo stack —
+ * on every token of the newest one.
+ */
+const Turn = memo(function Turn({ turn, isLast, running, until }: {
   turn: AgentTurn;
   isLast: boolean;
   running: boolean;
@@ -652,7 +669,6 @@ function Turn({ turn, isLast, running, until }: {
           {empty && running && isLast ? <Skeleton /> : (
             <Entries
               entries={turn.entries}
-              onConfirm={confirmAgentCall}
               streaming={running && isLast}
               onRerun={running ? undefined : () => void retryAgentTurn(turn.id)}
             />
@@ -685,7 +701,7 @@ function Turn({ turn, isLast, running, until }: {
       </Fold>
     </div>
   );
-}
+});
 
 function EmptyState() {
   const ready = useAgent((s) => s.status.ready);

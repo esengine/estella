@@ -107,4 +107,48 @@ describe('describing a step', () => {
 
     expect(history.changesSince(run, after).map((c) => c.name)).toEqual(['ByTheAgent']);
   });
+
+  // The window is FOUND by binary search rather than scanned for, which is only
+  // sound while ids stay ordered. These are the edges that search gets wrong if
+  // it is wrong at all — and getting it wrong shows up as a change set quietly
+  // missing its first or last step, not as a crash.
+  describe('locating a run in a long stack', () => {
+    const marks: ReturnType<EditorHistoryImpl['mark']>[] = [];
+
+    beforeEach(() => {
+      marks.length = 0;
+      for (let i = 0; i < 50; i++) {
+        marks.push(history.mark());
+        history.describe({ kind: 'modify', entity: i, name: `step${i}` });
+        history.record(`step ${i}`, noop, noop);
+      }
+    });
+
+    it('takes the very first step and the very last', () => {
+      expect(history.changesSince(marks[0]).map((c) => c.name)[0]).toBe('step0');
+      expect(history.changesSince(marks[49]).map((c) => c.name)).toEqual(['step49']);
+    });
+
+    it('takes a window from the middle, both ends included exactly once', () => {
+      expect(history.changesSince(marks[20], marks[23]).map((c) => c.name))
+        .toEqual(['step20', 'step21', 'step22']);
+    });
+
+    it('reports nothing for a mark taken after the newest step', () => {
+      expect(history.changesSince(history.mark())).toEqual([]);
+    });
+
+    it('counts the steps in a window the same way it lists them', () => {
+      expect(history.stepsSince(marks[47])).toBe(3);
+      expect(history.stepsSince(marks[0])).toBe(50);
+      expect(history.stepsSince(history.mark())).toBe(0);
+    });
+
+    it('follows the stack back down as steps are undone', () => {
+      history.undo();
+      history.undo();
+      expect(history.stepsSince(marks[47])).toBe(1);
+      expect(history.changesSince(marks[47]).map((c) => c.name)).toEqual(['step47']);
+    });
+  });
 });
