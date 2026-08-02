@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
-import { mkdir, cp, readdir, stat, readFile, writeFile } from 'fs/promises';
+import { mkdir, cp, readdir, rm, stat, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import config from '../build.config.js';
@@ -35,6 +35,10 @@ export async function syncToDesktop(options = {}) {
             const destPath = path.join(rootDir, dest);
 
             if (existsSync(srcPath)) {
+                // Mirror rather than merge: the shared chunk filenames are the
+                // bundler's to choose, so a merge leaves the previous build's
+                // chunks behind forever and ships them to the editor.
+                await rm(destPath, { recursive: true, force: true });
                 synced += await copyDirectory(srcPath, destPath);
             }
         }

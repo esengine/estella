@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
-import { mkdir, cp, readFile, writeFile, readdir } from 'fs/promises';
+import { mkdir, cp, readFile, writeFile, readdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -103,6 +103,7 @@ async function copyDistOutputs(sdkDir, outputDir) {
     const esmDir = path.join(outputDir, 'esm');
     const cjsDir = path.join(outputDir, 'cjs');
 
+    await rm(esmDir, { recursive: true, force: true });
     await mkdir(esmDir, { recursive: true });
     await mkdir(cjsDir, { recursive: true });
 
@@ -153,8 +154,6 @@ async function copyDistOutputs(sdkDir, outputDir) {
 export async function cleanSdk() {
     const sdkDistDir = path.join(config.paths.sdk, 'dist');
     const outputSdkDir = path.join(config.paths.output, 'sdk');
-
-    const { rm } = await import('fs/promises');
 
     if (existsSync(sdkDistDir)) {
         await rm(sdkDistDir, { recursive: true, force: true });
