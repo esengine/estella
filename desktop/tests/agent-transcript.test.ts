@@ -207,8 +207,8 @@ describe('the transcript projection', () => {
       { type: 'compacted', runs: 4 },
       { type: 'text', delta: 'Carrying on.' },
     );
-    expect(turn.entries.map((e) => e.kind)).toEqual(['thinking', 'folded', 'text']);
-    expect(turn.entries[1]).toEqual({ kind: 'folded', runs: 4 });
+    expect(turn.entries.map((e) => e.kind)).toEqual(['thinking', 'compacted', 'text']);
+    expect(turn.entries[1]).toEqual({ kind: 'compacted', runs: 4 });
     // The block above it is over: a fold is something else beginning.
     expect((turn.entries[0] as AgentProseEntry).endedAt).not.toBeNull();
   });

@@ -125,11 +125,13 @@
 }
 .ag-sys::before, .ag-sys::after { content: ''; height: 1px; background: var(--line); flex: 1; }
 
-/* Where the model stopped remembering its earliest runs. Not one of the
-   hairline notes above: those are asides about a message, and this one is about
-   the conversation itself — it needs a second sentence, because "folded away"
-   without "your questions are kept" reads as the agent having lost the plot. */
-.ag-folded {
+/* Where the model stopped remembering its earliest runs.
+   Deliberately UNLIKE the hairline note above, which says the opposite thing
+   about the opposite side ("this window is not showing every run"). They are the
+   two ways a transcript and a conversation come apart, and the whole risk is
+   reading one as the other — so the quiet aside stays an aside, and the one
+   about the model's own memory gets a block and a second sentence. */
+.ag-compacted {
   display: flex; gap: 9px;
   padding: 10px 14px;
   border-top: 1px solid var(--line);
@@ -137,8 +139,8 @@
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }
-.ag-folded > svg { flex: none; margin-top: 2px; color: var(--text-faint); }
-.ag-folded-w { display: block; margin-top: 3px; color: var(--text-faint); }
+.ag-compacted > svg { flex: none; margin-top: 2px; color: var(--text-faint); }
+.ag-compacted-w { display: block; margin-top: 3px; color: var(--text-faint); }
 
 /* ── A run ─────────────────────────────────────────────────────────────────
    The unit of work, so it gets a header: what was asked plus the numbers that

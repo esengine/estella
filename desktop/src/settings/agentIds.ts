@@ -32,3 +32,15 @@ export const DEFAULT_CONTEXT_WINDOW = 128_000;
  */
 export const COMPACT_AT = 0.75;
 export const KEEP_WHOLE_RUNS = 3;
+
+/**
+ * Whether a conversation this full is past that line.
+ *
+ * The rule lives with the number because two sides ask it and they must not
+ * drift apart: the session, deciding whether to fold before its next call, and
+ * the editor's meter, saying that the next run is where the folding starts. A
+ * comparison written out twice is one edit away from a gauge that promises what
+ * the session is not about to do.
+ */
+export const shouldCompact = (used: number, contextWindow: number): boolean =>
+  used > contextWindow * COMPACT_AT;

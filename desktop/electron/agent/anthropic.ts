@@ -24,7 +24,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import type {
   AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome, UserImage,
 } from './types';
-import { DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, COMPACT_AT, KEEP_WHOLE_RUNS } from '../../src/settings/agentIds';
+import {
+  DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, KEEP_WHOLE_RUNS, shouldCompact,
+} from '../../src/settings/agentIds';
 
 /** Agentic work is what `xhigh` is for; it is also the depth Claude Code runs at. */
 export const DEFAULT_EFFORT = 'xhigh';
@@ -432,7 +434,7 @@ class AnthropicSession implements AgentSession {
    *          show for it is the thing this number exists to end.
    */
   private compactIfNeeded(): number {
-    if (this.contextUsed() <= this.opts.contextWindow * COMPACT_AT) return 0;
+    if (!shouldCompact(this.contextUsed(), this.opts.contextWindow)) return 0;
     const next = compactHistory(
       this.messages, this.turnStarts, this.dropped, KEEP_WHOLE_RUNS, this.folded,
     );

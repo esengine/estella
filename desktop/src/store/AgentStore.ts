@@ -85,13 +85,19 @@ export interface AgentErrorEntry {
  * mid-run, between two tool calls — and the runs it took away are still on
  * screen above it. Reading the transcript afterwards, this is the line that
  * explains why the model cannot answer about them.
+ *
+ * Named for the event it comes from, like every other entry here, and NOT for
+ * the fold that produced it: "folded" is already what a collapsed run and a
+ * collapsed disclosure are called in the drawer, and a third meaning in the
+ * same file is one that has to be worked out from context every time.
  */
-export interface AgentFoldEntry {
-  kind: 'folded';
+export interface AgentCompactedEntry {
+  kind: 'compacted';
   runs: number;
 }
 
-export type AgentEntry = AgentProseEntry | AgentToolEntry | AgentErrorEntry | AgentFoldEntry;
+export type AgentEntry =
+  AgentProseEntry | AgentToolEntry | AgentErrorEntry | AgentCompactedEntry;
 
 export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
 
@@ -490,7 +496,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       return patchLast(turns, { context: { used: event.used, window: event.window } });
 
     case 'compacted':
-      return withEntries(turns, [...closeProse(open.entries), { kind: 'folded', runs: event.runs }]);
+      return withEntries(turns, [...closeProse(open.entries), { kind: 'compacted', runs: event.runs }]);
 
     case 'error':
       return withEntries(turns, [...closeProse(open.entries), { kind: 'error', message: event.message }]);

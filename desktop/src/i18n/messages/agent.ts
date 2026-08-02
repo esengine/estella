@@ -95,23 +95,27 @@ export const agentMessages = defineMessages({
     'agent.thinking': { en: 'Thinking', zh: '正在思考' },
     'agent.queued': { en: 'queued', zh: '排队中' },
     'agent.queued.msg': { en: 'Queued: {text}', zh: '已排队:{text}' },
+    // The two ways a transcript and a conversation come apart, and they are
+    // OPPOSITES: this one is on screen and remembered, that one is remembered
+    // and not on screen. Each names the side that lost it, because the risk is
+    // reading either as the other.
     'agent.earlier': {
-        en: '{count} earlier runs are no longer shown here',
-        zh: '更早的 {count} 轮已不在此窗口',
+        en: '{count} earlier runs are not shown in this window',
+        zh: '更早的 {count} 轮不在此窗口显示',
     },
     // Once a conversation is past the threshold every further run folds exactly
     // one, so the singular is the COMMON case rather than the edge one.
-    'agent.folded.one': {
+    'agent.compacted.one': {
         en: 'The earliest run was folded out of the model’s memory',
         zh: '最早的一轮已折叠出模型的记忆',
     },
-    'agent.folded': {
+    'agent.compacted': {
         en: 'The earliest {count} runs were folded out of the model’s memory',
         zh: '最早的 {count} 轮已折叠出模型的记忆',
     },
-    'agent.folded.why': {
-        en: 'The conversation outgrew the context window. What you asked is kept word for word; the tool calls and their results are gone — have it re-read the scene rather than trusting what it said about them.',
-        zh: '对话超出了上下文窗口。你问过的话原样保留,工具调用和结果已丢弃 —— 让它重新读一遍场景,别信它对那些内容的转述。',
+    'agent.compacted.why': {
+        en: 'Still on screen above, but out of the model’s reach. What you asked is kept word for word; the tool calls and their results are gone — have it re-read the scene rather than trusting what it said about them.',
+        zh: '内容仍显示在上方,但模型已经读不到了。你问过的话原样保留,工具调用和结果已丢弃 —— 让它重新读一遍场景,别信它对那些内容的转述。',
     },
     'agent.context': { en: '{pct}% context', zh: '上下文 {pct}%' },
     'agent.context.why': {

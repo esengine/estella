@@ -37,7 +37,7 @@ import {
   addAgentAttachments, removeAgentAttachment, latestContext,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
-import { COMPACT_AT } from '@/settings/agentIds';
+import { COMPACT_AT, shouldCompact } from '@/settings/agentIds';
 import type { ConfirmAnswer } from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, subscribeProviders, providersRevision,
@@ -462,17 +462,17 @@ function Entries({ entries, streaming, onRerun }: {
           <span className="ag-ask-hd">{entry.message}</span>
         </div>,
       );
-    } else if (entry.kind === 'folded') {
+    } else if (entry.kind === 'compacted') {
       // Where the model stopped remembering. The runs it lost are still on
       // screen above this line, which is exactly why the line has to be here:
       // a transcript that shows them and a model that cannot answer about them
       // otherwise disagree with nothing to explain it.
       out.push(
-        <div className="ag-folded" key={i}>
+        <div className="ag-compacted" key={i}>
           <FoldVertical size={13} strokeWidth={1.8} />
           <span>
-            {entry.runs === 1 ? t('agent.folded.one') : t('agent.folded', { count: entry.runs })}
-            <span className="ag-folded-w">{t('agent.folded.why')}</span>
+            {entry.runs === 1 ? t('agent.compacted.one') : t('agent.compacted', { count: entry.runs })}
+            <span className="ag-compacted-w">{t('agent.compacted.why')}</span>
           </span>
         </div>,
       );
@@ -1039,7 +1039,7 @@ function ContextMeter() {
   const pct = Math.min(100, Math.round((context.used / context.window) * 100));
   return (
     <span
-      className={`ag-ctx${context.used > context.window * COMPACT_AT ? ' near' : ''}`}
+      className={`ag-ctx${shouldCompact(context.used, context.window) ? ' near' : ''}`}
       title={t('agent.context.why', {
         used: compact(context.used),
         window: compact(context.window),
@@ -1328,10 +1328,11 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         }}
       >
-        {/* Runs the window no longer holds. Absolute ids make this free to know:
-            the first one it has says how many came before it. Said out loud
-            because a transcript that starts mid-conversation, silently, reads as
-            one that lost something. */}
+        {/* Runs this WINDOW no longer holds — the opposite of the compaction
+            note inside a run, which is about runs the model no longer holds.
+            Absolute ids make this free to know: the first one it has says how
+            many came before it. Said out loud because a transcript that starts
+            mid-conversation, silently, reads as one that lost something. */}
         {turns.length > 0 && turns[0].id > 0 && (
           <div className="ag-sys">{t('agent.earlier', { count: turns[0].id })}</div>
         )}
@@ -1413,7 +1414,10 @@ function entityByName(name: string): number | null {
   return hits.length === 1 ? hits[0].id : null;
 }
 
-const compact = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+/** Thousands as `1.2k`, and as `200k` where the tenth would be a zero — a
+ *  context window written "200.0k" claims a precision it does not have. */
+const compact = (n: number): string =>
+  (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n));
 
 /** One line of the call's arguments — enough to tell two calls apart. */
 function summarizeInput(input: Record<string, unknown>): string {
