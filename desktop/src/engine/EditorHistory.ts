@@ -249,15 +249,19 @@ export class EditorHistoryImpl {
    * newest, which {@link stepsSince} plus a version bump is enough to detect.
    */
   /**
-   * What every step since `mark` declared, oldest first — the review of an agent
-   * turn. Steps that declared nothing contribute nothing, so this is a FLOOR on
-   * what happened rather than a claim to be the whole of it. Reads the undo
-   * stack, so an undone step stops being listed.
+   * What every step in `(from, until]` declared, oldest first — the review of an
+   * agent turn. Steps that declared nothing contribute nothing, so this is a
+   * FLOOR on what happened rather than a claim to be the whole of it. Reads the
+   * undo stack, so an undone step stops being listed.
+   *
+   * `until` is what makes it a RUN's changes rather than "everything since": for
+   * any run but the newest, the steps after it belong to the runs that followed
+   * and to whatever the user did in between. Omit it only for the newest.
    */
-  changesSince(mark: HistoryMark): HistoryChange[] {
+  changesSince(mark: HistoryMark, until?: HistoryMark | null): HistoryChange[] {
     const out: HistoryChange[] = [];
     for (const entry of this.undoStack) {
-      if (entry.id > mark.seq) out.push(...entry.changes);
+      if (entry.id > mark.seq && (!until || entry.id <= until.seq)) out.push(...entry.changes);
     }
     return out;
   }

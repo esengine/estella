@@ -278,12 +278,12 @@ function Skeleton() {
  * declared nothing contribute nothing, so this is a floor — which is why an
  * empty one renders nothing at all rather than "no changes".
  */
-function ChangeSet({ turn }: { turn: AgentTurn }) {
+function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null }) {
   const [open, setOpen] = useState(true);
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const mark = turn.mark as HistoryMark | null;
-  const changes = mark ? EditorHistory.changesSince(mark) : [];
-  const counts = changeCounts(turn);
+  const changes = mark ? EditorHistory.changesSince(mark, until) : [];
+  const counts = changeCounts(turn, until);
   if (!counts) return null;
   return (
     <div className={`ag-changes${open ? ' open' : ''}`}>
@@ -326,10 +326,17 @@ function ChangeSet({ turn }: { turn: AgentTurn }) {
   );
 }
 
-/** Counts for the turn header: what the run left behind, in one glance. */
-function changeCounts(turn: AgentTurn): { add: number; modify: number; remove: number } | null {
+/**
+ * Counts for the turn header: what THIS run left behind, in one glance.
+ *
+ * Bounded above by where the next run started. Without that bound an older run
+ * reports everything that happened after it — the runs that followed, and the
+ * edits the person made in between — so its header would keep growing while it
+ * sat there finished.
+ */
+function changeCounts(turn: AgentTurn, until: HistoryMark | null): { add: number; modify: number; remove: number } | null {
   const mark = turn.mark as HistoryMark | null;
-  const changes = mark ? EditorHistory.changesSince(mark) : [];
+  const changes = mark ? EditorHistory.changesSince(mark, until) : [];
   if (changes.length === 0) return null;
   return {
     add: changes.filter((c) => c.kind === 'add').length,
@@ -361,7 +368,13 @@ function Elapsed({ from, to, className }: { from: number; to: number | null; cla
   return <span className={`${className ?? ''}${live ? ' ag-live' : ''}`.trim()}>{formatElapsed(ms)}</span>;
 }
 
-function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; running: boolean }) {
+function Turn({ turn, isLast, running, until }: {
+  turn: AgentTurn;
+  isLast: boolean;
+  running: boolean;
+  /** Where the NEXT run started, so this one counts only its own steps. */
+  until: HistoryMark | null;
+}) {
   // A finished run folds to its header: the stat line already IS the summary, so
   // the body becomes detail you ask for rather than detail you scroll past.
   // Keyed on isLast changing, which is the moment a run becomes history — after
@@ -371,7 +384,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
 
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const tokens = turn.inputTokens + turn.outputTokens;
-  const counts = changeCounts(turn);
+  const counts = changeCounts(turn, until);
   const empty = turn.entries.length === 0;
   return (
     <div className={`ag-turn${folded ? ' folded' : ''}${isLast ? ' current' : ''}`}>
@@ -434,7 +447,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
               who just pressed Stop is asking. */}
           {turn.reason === 'aborted' && <div className="ag-sys">{t('agent.turn.aborted.note')}</div>}
           {turn.reason === 'refusal' && <div className="ag-sys">{t('agent.turn.refusal.note')}</div>}
-          {turn.reason !== null && <ChangeSet turn={turn} />}
+          {turn.reason !== null && <ChangeSet turn={turn} until={until} />}
         </div>
       </Fold>
     </div>
@@ -808,7 +821,13 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         {turns.length === 0
           ? <EmptyState />
           : turns.map((turn, i) => (
-            <Turn key={turn.id} turn={turn} isLast={i === turns.length - 1} running={status.phase !== 'idle'} />
+            <Turn
+              key={turn.id}
+              turn={turn}
+              isLast={i === turns.length - 1}
+              running={status.phase !== 'idle'}
+              until={(turns[i + 1]?.mark as HistoryMark | undefined) ?? null}
+            />
           ))}
         {/* Held until the run ends. Shown rather than merely promised: a message
             that vanished into a queue nobody can see is one you retype. */}

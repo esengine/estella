@@ -75,4 +75,36 @@ describe('describing a step', () => {
     history.undo();
     expect(history.changesSince(mark)).toEqual([]);
   });
+
+  // A run's header reports what THAT run did. Without an upper bound an older
+  // run keeps absorbing everything after it — the runs that followed, and the
+  // edits the person made in between — so its count grows while it sits there
+  // finished, which is the opposite of a summary.
+  it('reports only the window between two marks', () => {
+    const first = history.mark();
+    history.describe({ kind: 'add', entity: 1, name: 'FromFirstRun' });
+    history.record('first run', noop, noop);
+
+    const second = history.mark();
+    history.describe({ kind: 'add', entity: 2, name: 'FromSecondRun' });
+    history.record('second run', noop, noop);
+
+    expect(history.changesSince(first, second).map((c) => c.name)).toEqual(['FromFirstRun']);
+    expect(history.changesSince(second, null).map((c) => c.name)).toEqual(['FromSecondRun']);
+    // Unbounded is still "everything since" — what the newest run wants.
+    expect(history.changesSince(first).map((c) => c.name))
+      .toEqual(['FromFirstRun', 'FromSecondRun']);
+  });
+
+  it('excludes the user\'s own edits from the run that preceded them', () => {
+    const run = history.mark();
+    history.describe({ kind: 'add', entity: 1, name: 'ByTheAgent' });
+    history.record('agent step', noop, noop);
+
+    const after = history.mark();
+    history.describe({ kind: 'modify', entity: 1, name: 'ByHand' });
+    history.record('user edit', noop, noop);
+
+    expect(history.changesSince(run, after).map((c) => c.name)).toEqual(['ByTheAgent']);
+  });
 });
