@@ -131,6 +131,15 @@ published separately; it ships inside the editor.
   — which is exactly the part a preview exists to show. Strike-all takes a batch apart in
   one gesture, and an emptied one disables Apply instead of offering "Apply 0", which the
   kernel would have treated as a decline anyway.
+- **The agent's answers render markdown tables.** Asked to compare a few entities or
+  field values a model reaches for one, and the fallback was a paragraph of raw pipes
+  wrapped in a 384px column — the least readable thing the renderer could produce. Column
+  alignment is honoured, an escaped `\|` stays content, a ragged row is fitted to the
+  header rather than shifting its cells, and cells go through the same inline parse as
+  prose, so a code span naming an entity is still a way into the scene. The table scrolls
+  inside its own box: the transcript never scrolls sideways as a whole. As everywhere
+  else in this parser, a half-arrived table is not an error — a header stays a paragraph
+  until its divider lands, so nothing flickers through being a narrower table first.
 - **A run that was cut off says so, and can be carried on.** The turn loop is bounded so a
   model that keeps calling tools cannot spin forever, and reaching that bound was reported
   as an ordinary end of turn — on screen, a run cut off mid-task looked exactly like one

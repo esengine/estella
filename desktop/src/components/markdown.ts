@@ -16,9 +16,14 @@
  * editor's heading and a code span is the editor's mono — instead of importing
  * a stylesheet built for a document and then fighting it.
  *
- * Deliberately NOT supported: tables, blockquotes, images, footnotes, HTML.
- * They do not appear in this transcript, and each one is more surface to get
- * subtly wrong on partial input.
+ * Deliberately NOT supported: blockquotes, images, footnotes, HTML. They do not
+ * appear in this transcript, and each one is more surface to get subtly wrong on
+ * partial input.
+ *
+ * Tables WERE on that list and should not have been: asked to compare a handful
+ * of entities or field values, a model reaches for one, and the fallback — a
+ * paragraph of raw pipes, wrapped in a 384px column — is the least readable
+ * thing this renderer can produce.
  */
 
 export type Inline =
@@ -28,19 +33,74 @@ export type Inline =
   | { kind: 'em'; text: string }
   | { kind: 'link'; text: string; href: string };
 
+export type Align = 'left' | 'center' | 'right';
+
 export type Block =
   | { kind: 'p'; spans: Inline[] }
   | { kind: 'h'; level: number; spans: Inline[] }
   | { kind: 'list'; ordered: boolean; items: Inline[][] }
   | { kind: 'rule' }
   /** `open` while the closing fence has not arrived — still being written. */
-  | { kind: 'code'; lang: string; text: string; open: boolean };
+  | { kind: 'code'; lang: string; text: string; open: boolean }
+  /** Rows are already fitted to the header's width, so rendering never has to
+   *  ask what a ragged row means. */
+  | { kind: 'table'; align: Align[]; head: Inline[][]; rows: Inline[][][] };
 
 const FENCE = /^\s*```(\S*)\s*$/;
 const HEADING = /^(#{1,4})\s+(.*)$/;
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
 const RULE = /^\s*([-*_])\1{2,}\s*$/;
+/**
+ * A leading pipe is REQUIRED of a table row, though the standard would also take
+ * `a | b`. Without it an ordinary sentence that happens to contain a pipe
+ * ("group them by A | B") turns into a one-row table as soon as the line under
+ * it looks like a rule — and being wrong in that direction is unrecoverable for
+ * the reader, while being wrong the other way just leaves a paragraph.
+ */
+const TABLE_ROW = /^\s*\|/;
+const DIVIDER_CELL = /^:?-+:?$/;
+
+/**
+ * `| a | b |` → `['a', 'b']`, with `\|` kept as a literal pipe.
+ *
+ * The trailing empty cell a closing pipe produces is dropped; interior empty
+ * cells are not, because `| a | | c |` is a three-column row with a blank in
+ * the middle and squeezing it would shift every cell after it left.
+ */
+function cells(line: string): string[] {
+  const out: string[] = [];
+  const s = line.trim();
+  let cur = '';
+  for (let i = s.startsWith('|') ? 1 : 0; i < s.length; i++) {
+    if (s[i] === '\\' && s[i + 1] === '|') { cur += '|'; i++; continue; }
+    if (s[i] === '|') { out.push(cur.trim()); cur = ''; continue; }
+    cur += s[i];
+  }
+  if (cur.trim() !== '') out.push(cur.trim());
+  return out;
+}
+
+/**
+ * The `|---|:--:|` line as per-column alignment, or null if that is not what
+ * this line is.
+ *
+ * `width` must match, which is what keeps a half-written divider from briefly
+ * rendering as a narrower table: mid-stream `|--` parses as one perfectly good
+ * column, and the header above it has three.
+ */
+function alignments(line: string, width: number): Align[] | null {
+  const parts = cells(line);
+  if (parts.length !== width || !parts.every((p) => DIVIDER_CELL.test(p))) return null;
+  return parts.map((p) => {
+    if (p.startsWith(':') && p.endsWith(':')) return 'center';
+    return p.endsWith(':') ? 'right' : 'left';
+  });
+}
+
+/** A row as the header's width, padded or truncated — never ragged. */
+const fit = (row: string[], width: number): string[] =>
+  Array.from({ length: width }, (_, i) => row[i] ?? '');
 
 /**
  * Split text into blocks. Total: any input is a valid document, because the
@@ -80,6 +140,24 @@ export function parseBlocks(source: string): Block[] {
       flushParagraph();
       blocks.push({ kind: 'rule' });
       continue;
+    }
+
+    // A table is only a table once its divider has arrived. Until then the
+    // header is an ordinary paragraph — which is exactly what it looks like,
+    // and what it may still turn out to be.
+    if (TABLE_ROW.test(line)) {
+      const head = cells(line);
+      const align = alignments(lines[i + 1] ?? '', head.length);
+      if (align) {
+        flushParagraph();
+        const rows: Inline[][][] = [];
+        for (i += 2; i < lines.length && TABLE_ROW.test(lines[i]); i++) {
+          rows.push(fit(cells(lines[i]), head.length).map(parseInline));
+        }
+        i--; // the loop's own i++ must land on the line that ended the table
+        blocks.push({ kind: 'table', align, head: head.map(parseInline), rows });
+        continue;
+      }
     }
 
     const heading = HEADING.exec(line);

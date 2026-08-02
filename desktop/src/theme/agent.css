@@ -646,6 +646,18 @@
   color: var(--text-hi);
   overflow-wrap: anywhere;
 }
+/* A comparison in columns. Hairlines DIVIDE the rows; nothing encloses the
+   table, and it has no fill of its own — the same rule the tool rows follow.
+   It scrolls inside its own box, because the drawer is narrower than most
+   tables want to be and the transcript must not scroll sideways as a whole. */
+.md-tw { margin: 0 0 10px; overflow-x: auto; overscroll-behavior-x: contain; }
+.md-table { border-collapse: collapse; font-size: var(--fs-xs); line-height: 1.65; }
+.md-table th, .md-table td { padding: 5px 16px 5px 0; white-space: nowrap; vertical-align: baseline; }
+.md-table th:last-child, .md-table td:last-child { padding-right: 0; }
+.md-table th { color: var(--text-hi); font-weight: 500; border-bottom: 1px solid var(--line-strong); }
+.md-table td { color: var(--text); border-bottom: 1px solid var(--line); }
+.md-table tr:last-child td { border-bottom: 0; }
+
 .md-link { color: var(--star-hi); text-decoration: none; border-bottom: 1px solid var(--star-soft); }
 .md-link:hover { border-bottom-color: var(--star-hi); }
 .md-pre { margin: 0 0 10px; border-radius: var(--r-sm); background: var(--inset); overflow: hidden; }

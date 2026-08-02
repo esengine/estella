@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { parseBlocks, type Block, type Inline } from './markdown';
+import type { Align } from './markdown';
 import { peekEntities } from '@/store/AgentStore';
 import { useSelection } from '@/store/selectionStore';
 import { t } from '@/i18n';
@@ -84,6 +85,46 @@ function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }) {
   );
 }
 
+/**
+ * A comparison the model laid out in columns.
+ *
+ * It scrolls inside its own box rather than widening anything: the drawer is
+ * 384px and most tables want more, and a transcript that scrolls sideways as a
+ * whole would take every paragraph with it. Cells do not wrap for the same
+ * reason — a wrapped table in a narrow column stops being a table.
+ *
+ * Cells go through the same inline parse as prose, so a code span naming an
+ * entity is still a way into the scene.
+ */
+function Table({ block, entity }: {
+  block: Extract<Block, { kind: 'table' }>;
+  entity?: (name: string) => number | null;
+}) {
+  const at = (i: number): Align => block.align[i] ?? 'left';
+  return (
+    <div className="md-tw">
+      <table className="md-table">
+        <thead>
+          <tr>
+            {block.head.map((cell, i) => (
+              <th key={i} style={{ textAlign: at(i) }}><Spans spans={cell} entity={entity} /></th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, i) => (
+                <td key={i} style={{ textAlign: at(i) }}><Spans spans={cell} entity={entity} /></td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function MarkdownView({ text, entity, caret }: {
   text: string;
   /** Resolve a code span to a scene entity, making it clickable. */
@@ -107,6 +148,11 @@ export function MarkdownView({ text, entity, caret }: {
         switch (b.kind) {
           case 'code':
             return <CodeBlock key={i} block={b} />;
+          // No caret: a table announces that it is still being written by
+          // growing a row at a time, and a block-level caret under it would sit
+          // on its own line — the stray blinking box this design avoids.
+          case 'table':
+            return <Table key={i} block={b} entity={entity} />;
           case 'h': {
             const Tag = (`h${Math.min(b.level + 2, 6)}`) as 'h3';
             return <Tag className="md-h" key={i}><Spans spans={b.spans} entity={entity} />{tail(i)}</Tag>;

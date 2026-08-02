@@ -47,6 +47,74 @@ describe('blocks', () => {
   });
 });
 
+/**
+ * Tables, which a model reaches for whenever it compares a few entities. Every
+ * case here is either a partial one (the input is always a prefix) or a way of
+ * being ragged that must not become a wrong-looking table.
+ */
+describe('tables', () => {
+  const table = (src: string) => parseBlocks(src)[0];
+  const text = (cell: { kind: string; text?: string }[]) => cell.map((s) => s.text ?? '').join('');
+
+  it('reads a header, its alignment and its rows', () => {
+    const block = table('| Entity | Kind |\n| --- | ---: |\n| Player | Sprite |\n| Ground | Tilemap |');
+    expect(block.kind).toBe('table');
+    if (block.kind !== 'table') return;
+    expect(block.align).toEqual(['left', 'right']);
+    expect(block.head.map(text)).toEqual(['Entity', 'Kind']);
+    expect(block.rows.map((r) => r.map(text))).toEqual([['Player', 'Sprite'], ['Ground', 'Tilemap']]);
+  });
+
+  it('reads the three alignments', () => {
+    const block = table('| a | b | c |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |');
+    expect(block.kind === 'table' && block.align).toEqual(['left', 'center', 'right']);
+  });
+
+  // The header arrives a whole line before the divider does. Rendering it as a
+  // one-column table and then replacing it is a flicker; it is a paragraph, and
+  // it may still turn out to be one.
+  it('is still a paragraph until the divider arrives', () => {
+    expect(table('| Entity | Kind |').kind).toBe('p');
+    expect(table('| Entity | Kind |\n| --').kind).toBe('p');
+  });
+
+  it('takes the divider only when it is as wide as the header', () => {
+    expect(table('| a | b |\n| --- |').kind).toBe('p');
+    expect(table('| a | b |\n| --- | --- |').kind).toBe('table');
+  });
+
+  it('fits a ragged row to the header rather than leaving a hole', () => {
+    const block = table('| a | b | c |\n| - | - | - |\n| 1 |\n| 1 | 2 | 3 | 4 |');
+    expect(block.kind === 'table' && block.rows.map((r) => r.map(text)))
+      .toEqual([['1', '', ''], ['1', '2', '3']]);
+  });
+
+  it('keeps an empty cell in the middle instead of shifting the row left', () => {
+    const block = table('| a | b | c |\n| - | - | - |\n| 1 |  | 3 |');
+    expect(block.kind === 'table' && block.rows[0].map(text)).toEqual(['1', '', '3']);
+  });
+
+  it('reads an escaped pipe as content, not as a boundary', () => {
+    const block = table('| key | value |\n| - | - |\n| mode | a \\| b |');
+    expect(block.kind === 'table' && block.rows[0].map(text)).toEqual(['mode', 'a | b']);
+  });
+
+  it('parses cells as inline, so a code span in one still resolves', () => {
+    const block = table('| what | where |\n| - | - |\n| `Player` | scene |');
+    expect(block.kind === 'table' && block.rows[0][0]).toEqual([{ kind: 'code', text: 'Player' }]);
+  });
+
+  it('ends at the first line that is not a row', () => {
+    const blocks = parseBlocks('| a |\n| - |\n| 1 |\nafter the table');
+    expect(blocks.map((b) => b.kind)).toEqual(['table', 'p']);
+  });
+
+  // A sentence with a pipe in it, above something that looks like a rule.
+  it('does not turn prose containing a pipe into a table', () => {
+    expect(parseBlocks('group them by A | B\n---').map((b) => b.kind)).toEqual(['p', 'rule']);
+  });
+});
+
 describe('inline spans', () => {
   it('picks out code, bold, italic and links', () => {
     expect(parseInline('run `npm t` now')).toEqual([
