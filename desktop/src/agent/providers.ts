@@ -30,9 +30,23 @@ export interface AgentProviderDef {
   baseUrl: string;
   /** What this provider offers, best-first. */
   models: readonly string[];
+  /**
+   * How much the conversation may grow before it has to be compacted, in tokens.
+   *
+   * Per provider rather than per model because one vendor's line sits at one
+   * order of magnitude, and a table with a row per model is a table that goes
+   * stale a model at a time. Unlike a PRICE — which we deliberately do not ship,
+   * because being wrong there means confidently showing someone the wrong amount
+   * of money — being wrong here costs a compaction that was not needed yet.
+   * Absent means {@link DEFAULT_CONTEXT_WINDOW}: conservative, because guessing
+   * high is what makes a turn fail outright.
+   */
+  contextWindow?: number;
   /** Filled in from settings rather than shipped — see {@link CUSTOM_PROVIDER}. */
   userDefined?: boolean;
 }
+
+export { DEFAULT_CONTEXT_WINDOW } from '@/settings/agentIds';
 
 /** The id a provider's key is stored under (electron/secrets.ts). */
 export const agentKeyId = (providerId: string): string => `agents.key.${providerId}`;
@@ -47,12 +61,14 @@ registry.registerAll('core', [
     label: 'Anthropic',
     baseUrl: '',
     models: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+    contextWindow: 200_000,
   },
   {
     id: 'deepseek',
     label: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/anthropic',
     models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    contextWindow: 1_000_000,
   },
   // The escape hatch. Its endpoint and model list come from settings, because a
   // provider we have not heard of is exactly the one we cannot ship a list for.

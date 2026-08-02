@@ -13,3 +13,22 @@
  *  real project: a wrong edit costs the user their scene, and the turn's
  *  checkpoint only helps if the plan was sane. */
 export const DEFAULT_MODEL = 'claude-opus-5';
+
+/**
+ * What a gateway we have never heard of is assumed to accept, in tokens.
+ *
+ * Deliberately low. Guessing high means a turn that fails outright after the
+ * person waited for it; guessing low means a compaction that was not needed yet.
+ * Providers we do ship say their own (agent/providers.ts).
+ */
+export const DEFAULT_CONTEXT_WINDOW = 128_000;
+
+/**
+ * Fold the oldest runs away once the conversation is this far into its window,
+ * keeping the last {@link KEEP_WHOLE_RUNS} intact.
+ *
+ * Not at the brim: the call that trips the limit is the one that fails, and it
+ * fails after the wait. Three quarters leaves room for one more large turn.
+ */
+export const COMPACT_AT = 0.75;
+export const KEEP_WHOLE_RUNS = 3;

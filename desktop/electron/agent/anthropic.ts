@@ -22,7 +22,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome } from './types';
-import { DEFAULT_MODEL } from '../../src/settings/agentIds';
+import { DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, COMPACT_AT, KEEP_WHOLE_RUNS } from '../../src/settings/agentIds';
 
 /** Agentic work is what `xhigh` is for; it is also the depth Claude Code runs at. */
 export const DEFAULT_EFFORT = 'xhigh';
@@ -42,6 +42,9 @@ export interface AnthropicOptions {
   /** Point at an Anthropic-compatible gateway; omit for the API. Its presence
    *  is what drops the request to the core wire format — see the file header. */
   baseURL?: string;
+  /** How far the conversation may grow before the oldest runs are folded away.
+   *  The window knows which provider this is, so it is the side that says. */
+  contextWindow?: number;
 }
 
 type Message = Anthropic.Beta.BetaMessageParam;
@@ -188,6 +191,68 @@ export function describeApiError(error: unknown): string {
   return raw;
 }
 
+/**
+ * Fold the oldest runs into one note, keeping what the PERSON said.
+ *
+ * A conversation grows mostly by tool traffic — a scene tree, a diagnostics
+ * list, the reasoning about them — and almost none of that is worth carrying
+ * once the edits have landed. The intent is: "make it feel like dusk" governs
+ * the ninth run as much as the first. So the person's own words survive verbatim
+ * and everything around them becomes a line.
+ *
+ * Structural rather than model-written: asking a model to summarise costs a call
+ * and a wait at exactly the moment the conversation is already long, and the
+ * facts worth keeping (what was asked) are ones already held exactly.
+ *
+ * Pure and exported for the reason buildStepRequest is: it rewrites the history
+ * everything else depends on, and the bookkeeping — turn COORDINATES outliving
+ * the messages they named — is the part worth pinning by test rather than by
+ * whichever long conversation happens to hit it first.
+ *
+ * @returns the rewritten history, or null when there is not enough to fold.
+ */
+export function compactHistory(
+  messages: readonly Message[],
+  turnStarts: readonly number[],
+  dropped: number,
+  keepRuns: number,
+): { messages: Message[]; turnStarts: number[]; dropped: number } | null {
+  const cut = turnStarts.length - keepRuns;
+  if (cut <= 0) return null;
+  const at = turnStarts[cut];
+  const asked = turnStarts.slice(0, cut)
+    .map((start, i) => `${dropped + i + 1}. ${firstText(messages[start])}`);
+  const note = 'Earlier in this conversation you were asked, in order:\n'
+    + `${asked.join('\n')}\n`
+    + 'The tool calls and results from those runs were dropped to keep this conversation '
+    + 'inside its context window. Whatever they changed is in the scene — read it back if '
+    + 'you need the current state rather than trusting this summary.';
+  const kept: Message[] = [
+    { role: 'user', content: note },
+    { role: 'assistant', content: 'Understood.' },
+    ...messages.slice(at),
+  ];
+  const shift = at - 2;
+  return {
+    messages: kept,
+    turnStarts: turnStarts.slice(cut).map((s) => s - shift),
+    // Coordinates count from the start of the CONVERSATION, not of what is left.
+    dropped: dropped + cut,
+  };
+}
+
+/** What a person's turn said, as one line for the compaction note. They are
+ *  pushed as plain strings; the block form is handled for completeness. */
+function firstText(message: Message | undefined): string {
+  const content = message?.content;
+  const text = typeof content === 'string'
+    ? content
+    : content?.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join(' ') ?? '';
+  const flat = text.replace(/\s+/g, ' ').trim();
+  if (!flat) return '(no text)';
+  return flat.length > 200 ? `${flat.slice(0, 197)}…` : flat;
+}
+
 class AnthropicSession implements AgentSession {
   private readonly messages: Message[] = [];
   /** Context waiting for a legal spot — see {@link flushContext}. */
@@ -195,16 +260,22 @@ class AnthropicSession implements AgentSession {
   /** Where each person's turn starts. A tool result is a `user` message too, so
    *  counting roles would not find them. */
   private readonly turnStarts: number[] = [];
+  /** Runs folded away by {@link compactOldest}. Turn coordinates count from the
+   *  start of the CONVERSATION, so they must survive their messages. */
+  private dropped = 0;
+  /** What the last call was billed for its input — the size of this whole
+   *  conversation as the endpoint measures it, which beats counting it here. */
+  private lastInputTokens = 0;
 
   constructor(
     private readonly client: Anthropic,
-    private readonly opts: { model: string; effort: string; dialect: Dialect },
+    private readonly opts: { model: string; effort: string; dialect: Dialect; contextWindow: number },
     private readonly system: string,
     private readonly tools: readonly CatalogTool[],
   ) {}
 
   get turnIndex(): number {
-    return this.turnStarts.length;
+    return this.dropped + this.turnStarts.length;
   }
 
   pushUser(text: string): void {
@@ -213,12 +284,22 @@ class AnthropicSession implements AgentSession {
   }
 
   rewindTo(n: number): void {
-    const at = this.turnStarts[n];
+    const at = this.turnStarts[n - this.dropped];
+    // Rewinding into runs that have already been folded away is not something
+    // this can do — their messages are gone. Refusing beats half-doing it.
     if (at === undefined) return;
     this.messages.length = at;
-    this.turnStarts.length = n;
+    this.turnStarts.length = n - this.dropped;
     // Context buffered for a turn that is no longer going to happen.
     this.pending.length = 0;
+  }
+
+  private compactOldest(keepRuns: number): void {
+    const next = compactHistory(this.messages, this.turnStarts, this.dropped, keepRuns);
+    if (!next) return;
+    this.messages.splice(0, this.messages.length, ...next.messages);
+    this.turnStarts.splice(0, this.turnStarts.length, ...next.turnStarts);
+    this.dropped = next.dropped;
   }
 
   pushContext(text: string): void {
@@ -275,6 +356,12 @@ class AnthropicSession implements AgentSession {
 
   async *step(signal: AbortSignal): AsyncIterable<StepEvent> {
     this.flushContext();
+    // Fold the oldest runs away BEFORE a call that would not fit. Measured by
+    // what the endpoint billed last time rather than by counting here: the
+    // tokeniser is theirs, and an estimate that drifts low fails the turn.
+    if (this.lastInputTokens > this.opts.contextWindow * COMPACT_AT) {
+      this.compactOldest(KEEP_WHOLE_RUNS);
+    }
 
     const request = buildStepRequest({
       dialect: this.opts.dialect,
@@ -337,6 +424,7 @@ class AnthropicSession implements AgentSession {
     this.messages.push({ role: 'assistant', content: message.content as Message['content'] });
 
     if (message.usage) {
+      this.lastInputTokens = message.usage.input_tokens ?? this.lastInputTokens;
       yield {
         type: 'usage',
         inputTokens: message.usage.input_tokens ?? 0,
@@ -383,7 +471,11 @@ export function createAnthropicProvider(options: AnthropicOptions): AgentProvide
   return {
     id: dialect === 'anthropic' ? 'anthropic' : `compatible:${baseURL ?? ''}`,
     model,
-    createSession: ({ system, tools }) =>
-      new AnthropicSession(client, { model, effort, dialect }, system, tools),
+    createSession: ({ system, tools }) => new AnthropicSession(
+      client,
+      { model, effort, dialect, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },
+      system,
+      tools,
+    ),
   };
 }

@@ -128,7 +128,7 @@ const api = {
     retry: (n: number, text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:retry', n, text),
     /** Point the NEXT session at an endpoint/model. Merged, so each settings row
      *  can push its own field. */
-    setEndpoint: (patch: { baseUrl?: string; model?: string; keyId?: string }): Promise<void> =>
+    setEndpoint: (patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number }): Promise<void> =>
       ipcRenderer.invoke('agent:setEndpoint', patch),
     /** Transcript events + status changes, in the order they happened; returns
      *  an unsubscribe. One channel because the two must not be reordered. */

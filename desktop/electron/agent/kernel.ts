@@ -49,6 +49,27 @@ function summarize(text: string): string {
 }
 
 /**
+ * The result as the MODEL receives it.
+ *
+ * A tool that answers with the whole scene can spend a conversation's context in
+ * one call, and the turn that follows fails for a reason no one can see from the
+ * transcript. Cut it, and SAY it was cut — a model handed a silently truncated
+ * list believes it saw everything and reasons from a scene that ends at entity
+ * 400. Most tools take a filter, so the useful thing to say is "ask for less".
+ */
+function budgeted(text: string): string {
+  if (text.length <= MAX_TOOL_RESULT) return text;
+  const kept = text.slice(0, MAX_TOOL_RESULT);
+  return `${kept}\n\n[Truncated: this result was ${text.length} characters and only the first `
+    + `${MAX_TOOL_RESULT} were kept. You have NOT seen all of it. Narrow the request — most `
+    + 'tools take a filter or an id — rather than reasoning from what is above as if complete.]';
+}
+
+/** Room for a large-but-reasonable answer (a few hundred entities), well under
+ *  the smallest context window we assume (agentIds.DEFAULT_CONTEXT_WINDOW). */
+const MAX_TOOL_RESULT = 24_000;
+
+/**
  * MCP wraps a result as content blocks because that is its wire format. Text
  * flattens; an image stays an image — a tool whose whole purpose is letting the
  * model SEE is not served by being handed the word "[image]".
@@ -61,7 +82,7 @@ function toOutcome(id: string, result: {
   const text = result.content.filter((c) => c.type !== 'image').map((c) => c.text ?? '').join('\n');
   return {
     id,
-    content: text || (image ? 'screenshot attached' : 'ok'),
+    content: budgeted(text) || (image ? 'screenshot attached' : 'ok'),
     isError: result.isError === true,
     ...(image ? { image: { data: image.data!, mediaType: image.mimeType ?? 'image/png' } } : {}),
   };

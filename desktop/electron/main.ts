@@ -675,7 +675,7 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // settings live in its localStorage) and merged, since the two rows fire
 // separately; read at session creation, so a change lands on the next
 // conversation rather than under the one being read.
-let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string } = {};
+let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number } = {};
 
 const agentHost = createAgentHost({
   driver: createSurfaceDriver(() => win),
@@ -692,6 +692,7 @@ const agentHost = createAgentHost({
       apiKey,
       baseURL: agentEndpoint.baseUrl,
       model: agentEndpoint.model,
+      contextWindow: agentEndpoint.contextWindow,
     });
   },
 });
@@ -702,7 +703,7 @@ ipcMain.handle('agent:stop', () => agentHost.stop());
 ipcMain.handle('agent:confirm', (_e, callId: string, allow: boolean) => agentHost.confirm(callId, allow));
 ipcMain.handle('agent:reset', () => agentHost.reset());
 ipcMain.handle('agent:retry', (_e, n: number, text: string) => agentHost.retry(n, text));
-ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string }) => {
+ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.
   agentHost.announce();

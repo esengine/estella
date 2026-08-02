@@ -20,7 +20,7 @@ import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
 import type { AgentEvent, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
 import {
-  agentProviders, agentProvider, agentKeyId, parseModelList, CUSTOM_PROVIDER,
+  agentProviders, agentProvider, agentKeyId, parseModelList, CUSTOM_PROVIDER, DEFAULT_CONTEXT_WINDOW,
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
@@ -192,6 +192,9 @@ export function syncAgentEndpoint(): void {
     baseUrl: def?.baseUrl ?? '',
     model: selection?.model ?? '',
     keyId: selection ? agentKeyId(selection.providerId) : '',
+    // How far the conversation may grow before it is compacted. Travels with the
+    // endpoint because it is the same piece of knowledge: which provider this is.
+    contextWindow: def?.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
   });
 }
 

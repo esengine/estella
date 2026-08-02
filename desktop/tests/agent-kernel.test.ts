@@ -20,6 +20,8 @@ function fakeSession(steps: StepEvent[][]): AgentSession & {
   const results: ToolOutcome[][] = [];
   return {
     context, user, results,
+    // Faithful to the real one: the coordinate the next turn will occupy.
+    get turnIndex() { return user.length; },
     pushUser: (t) => { user.push(t); },
     pushContext: (t) => { context.push(t); },
     pushToolResults: (o) => { results.push([...o]); },
@@ -44,7 +46,7 @@ describe('the agent turn', () => {
   let diagnostics: unknown[];
 
   const deps = (session: AgentSession) => ({
-    driver: driver as never, session, confirm: confirm as never,
+    driver: driver as never, session, model: 'fake-model', confirm: confirm as never,
     emit: (e: AgentEvent) => { events.push(e); },
   });
   const kinds = () => events.map((e) => e.type);
@@ -73,7 +75,7 @@ describe('the agent turn', () => {
     expect(out.steps).toBe(3);
     // Both carry what the editor's read model needs and cannot infer across IPC:
     // what was asked, and the point an Undo would go back to.
-    expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi' });
+    expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi', model: 'fake-model', index: 0 });
     expect(events.at(-1)).toEqual({ type: 'turn_end', steps: 3, mark: { seq: 7 }, reason: 'end_turn' });
   });
 
@@ -200,5 +202,39 @@ describe('the agent turn', () => {
     expect(outcome.content).not.toContain('[image]');
     const ended = events.find((e) => e.type === 'tool_end');
     expect(ended).toMatchObject({ image: 'data:image/png;base64,BASE64PNG' });
+  });
+
+  // A tool that answers with the whole scene can spend a conversation's context
+  // in one call, and the turn after it fails for a reason nothing on screen
+  // explains. The cut has to be SAID, too: a model handed a silently truncated
+  // list believes it saw everything and edits from a scene that ends early.
+  describe('a result too big to hand the model whole', () => {
+    it('cuts it, and says it was cut', async () => {
+      const huge = Array.from({ length: 4000 }, (_, i) => ({ id: i, name: `Entity${i}` }));
+      driver = vi.fn(async (method: string) => {
+        if (method === 'mark') return { seq: 7 };
+        if (method === 'stepsSince') return stepsSince;
+        if (method === 'getDiagnostics') return diagnostics;
+        if (method === 'getSceneTree') return huge;
+        return null;
+      }) as never;
+      (driver as { js: unknown }).js = vi.fn(async () => null);
+      (driver as { op: unknown }).op = vi.fn(async () => null);
+
+      const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+      await runTurn(deps(s), 'what is in here', null, new AbortController().signal);
+
+      const content = String(s.results[0][0].content);
+      expect(content.length).toBeLessThan(30_000);
+      expect(content).toContain('Truncated');
+      // Told what to do instead, not just that something is missing.
+      expect(content).toMatch(/narrow/i);
+    });
+
+    it('leaves an ordinary result untouched', async () => {
+      const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+      await runTurn(deps(s), 'what is in here', null, new AbortController().signal);
+      expect(String(s.results[0][0].content)).not.toContain('Truncated');
+    });
   });
 });
