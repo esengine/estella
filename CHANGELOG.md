@@ -98,6 +98,14 @@ published separately; it ships inside the editor.
   window — keeping what *you* said verbatim, since intent governs the ninth run as much as
   the first — and a single tool result is capped and says so, naming the fix, because a
   silently truncated scene tree is one the model believes it saw in full.
+- **Three things that only a real gateway could show**, found by driving the agent against
+  a live provider through a recording proxy: compaction could never actually fire (the
+  trigger trusted the endpoint's `input_tokens`, and a real one reported 33 for a request
+  carrying thousands — it now takes the larger of that and the conversation's own weight);
+  starting a new conversation made the window drop its runs (every session has a run 0, so
+  the fresh one looked like a duplicate of the old — the reset travels in the event stream
+  now); and folding a second time ate what the first fold had saved, so the earliest thing
+  you asked disappeared one compaction at a time.
 
 ## [0.39.0] - 2026-08-01
 
