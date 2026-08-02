@@ -1,35 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench, beforeAll } from 'vitest';
-import path from 'path';
 import { World } from '../src/ecs/world';
 import { defineBuiltin } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import { syncDynamicTransforms } from '../src/physics/PhysicsSystem';
 import type { Entity } from '../src/types';
-import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
+import { loadWasmModule, loadSideModule } from '../tests/helpers/loadWasm';
 
 let wasmModule: ESEngineModule;
 let physicsMod: PhysicsWasmModule;
 
-// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
-// in-repo build output, then the editor's copy. Hard-coding the last of
-// those is why these never found a wasm in CI.
-const WASM_DIR = WASM_DIR_SHARED;
-
 beforeAll(async () => {
-    const engineJs = path.join(WASM_DIR, 'esengine.js');
-    const engineMod = await import(engineJs);
-    wasmModule = await engineMod.default({
-        locateFile(p: string) { return path.join(WASM_DIR, p); },
-    });
-
-    const physicsJs = path.join(WASM_DIR, 'physics.js');
-    const physicsFn = await import(physicsJs);
-    physicsMod = await physicsFn.default({
-        locateFile(p: string) { return path.join(WASM_DIR, p); },
-    }) as PhysicsWasmModule;
+    wasmModule = await loadWasmModule();
+    physicsMod = await loadSideModule<PhysicsWasmModule>('physics');
     physicsMod._physics_init(0, -9.81, 1 / 30, 4, 30, 10, 3);
 });
 

@@ -63,3 +63,22 @@ export async function loadWasmModule(): Promise<ESEngineModule> {
     cachedModule = await factory({ wasmBinary }) as ESEngineModule;
     return cachedModule;
 }
+
+/**
+ * A side module (physics, spine38, …), loaded the same way: bytes handed
+ * straight to the factory.
+ *
+ * `locateFile` is the other way emscripten glue finds its binary, and it is the
+ * wrong one here — under the happy-dom test environment the glue takes itself
+ * for a browser and fetches the path, which resolves against localhost and is
+ * refused. The physics benchmarks measured nothing for exactly that reason.
+ */
+export async function loadSideModule<T>(name: string): Promise<T> {
+    const wasmBinary = readFileSync(resolve(WASM_DIR, `${name}.wasm`));
+    const factory = (await import(resolve(WASM_DIR, `${name}.js`))).default;
+    return await factory({ wasmBinary }) as T;
+}
+
+/** Whether a side module was built alongside the engine. */
+export const hasSideModule = (name: string): boolean =>
+    existsSync(resolve(WASM_DIR, `${name}.wasm`));

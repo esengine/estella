@@ -1,177 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench, beforeAll } from 'vitest';
-import path from 'path';
 import { World } from '../src/ecs/world';
-import { defineBuiltin } from '../src/ecs/component';
+import { defineComponent, Transform, Sprite, Camera } from '../src/ecs/component';
+import { RigidBody, BoxCollider, CircleCollider } from '../src/physics/PhysicsComponents';
+import { convertForWasm } from '../src/ecs/bridge/BuiltinBridge';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
-import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
+import { loadWasmModule } from '../tests/helpers/loadWasm';
 
 let wasmModule: ESEngineModule;
 
-// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
-// in-repo build output, then the editor's copy. Hard-coding the last of
-// those is why these never found a wasm in CI.
-const WASM_DIR = WASM_DIR_SHARED;
-
 beforeAll(async () => {
-    const jsPath = path.join(WASM_DIR, 'esengine.js');
-    const mod = await import(jsPath);
-    wasmModule = await mod.default({
-        locateFile(p: string) {
-            return path.join(WASM_DIR, p);
-        },
-    });
+    wasmModule = await loadWasmModule();
 });
 
-const Transform = defineBuiltin('Transform', {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0, w: 1 },
-    scale: { x: 1, y: 1, z: 1 },
-    worldPosition: { x: 0, y: 0, z: 0 },
-    worldRotation: { x: 0, y: 0, z: 0, w: 1 },
-    worldScale: { x: 1, y: 1, z: 1 },
-});
+// The embind payloads are built from the components' own defaults — the same
+// source BuiltinBridge inserts from. Hand-written copies of the C++ structs are
+// what these used to be, and they had drifted: Camera's four viewport scalars
+// became one Vec4 and every case touching it silently measured nothing.
+const wasmData = (def: { _default: unknown; colorKeys: readonly string[] }) =>
+    convertForWasm({ ...(def._default as Record<string, unknown>) }, def.colorKeys);
 
-const Sprite = defineBuiltin('Sprite', {
-    texture: 0,
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    size: { x: 100, y: 100 },
-    uvOffset: { x: 0, y: 0 },
-    uvScale: { x: 1, y: 1 },
-    layer: 0,
-    flipX: false,
-    flipY: false,
-    material: 0,
-    enabled: true,
-});
+// The SDK-side shape (colors as r/g/b/a) is the component's default as authored;
+// the wasm one is that run through the same conversion the bridge uses.
+const sdkData = (def: { _default: unknown }) => ({ ...(def._default as Record<string, unknown>) });
 
-const Velocity = defineBuiltin('Velocity', {
+const SPRITE_SDK = sdkData(Sprite);
+const TRANSFORM_DATA = wasmData(Transform);
+const SPRITE_DATA = wasmData(Sprite);
+const CAMERA_DATA = wasmData(Camera);
+const RIGIDBODY_DATA = wasmData(RigidBody);
+const BOXCOLLIDER_DATA = wasmData(BoxCollider);
+const CIRCLECOLLIDER_DATA = wasmData(CircleCollider);
+
+const Velocity = defineComponent('BenchVelocity', {
     linear: { x: 0, y: 0, z: 0 },
     angular: { x: 0, y: 0, z: 0 },
-});
-
-const Camera = defineBuiltin('Camera', {
-    projectionType: 0,
-    fov: 60,
-    orthoSize: 5,
-    nearPlane: 0.1,
-    farPlane: 1000,
-    aspectRatio: 0,
-    isActive: false,
-    priority: 0,
-    viewportX: 0,
-    viewportY: 0,
-    viewportW: 1,
-    viewportH: 1,
-    clearFlags: 3,
-});
-
-const UIRect = defineBuiltin('UIRect', {
-    anchorMin: { x: 0.5, y: 0.5 },
-    anchorMax: { x: 0.5, y: 0.5 },
-    offsetMin: { x: 0, y: 0 },
-    offsetMax: { x: 0, y: 0 },
-    size: { x: 100, y: 100 },
-    pivot: { x: 0.5, y: 0.5 },
-});
-
-const RigidBody = defineBuiltin('RigidBody', {
-    bodyType: 2,
-    gravityScale: 1,
-    linearDamping: 0,
-    angularDamping: 0,
-    fixedRotation: false,
-    bullet: false,
-    enabled: true,
-});
-
-const BoxCollider = defineBuiltin('BoxCollider', {
-    halfExtents: { x: 0.5, y: 0.5 },
-    offset: { x: 0, y: 0 },
-    density: 1,
-    friction: 0.3,
-    restitution: 0,
-    isSensor: false,
-    enabled: true,
-    categoryBits: 0x0001,
-    maskBits: 0xFFFF,
-});
-
-const CircleCollider = defineBuiltin('CircleCollider', {
-    radius: 0.5,
-    offset: { x: 0, y: 0 },
-    density: 1,
-    friction: 0.3,
-    restitution: 0,
-    isSensor: false,
-    enabled: true,
-    categoryBits: 0x0001,
-    maskBits: 0xFFFF,
 });
 
 const VELOCITY_DATA = {
     linear: { x: 5, y: 0, z: 0 },
     angular: { x: 0, y: 0, z: 1 },
-};
-
-const CAMERA_DATA = {
-    projectionType: 1,
-    fov: 60,
-    orthoSize: 5,
-    nearPlane: 0.1,
-    farPlane: 1000,
-    aspectRatio: 1.777,
-    isActive: true,
-    priority: 0,
-    viewportX: 0,
-    viewportY: 0,
-    viewportW: 1,
-    viewportH: 1,
-    clearFlags: 3,
-};
-
-const UIRECT_DATA = {
-    anchorMin: { x: 0, y: 0 },
-    anchorMax: { x: 1, y: 1 },
-    offsetMin: { x: 10, y: 10 },
-    offsetMax: { x: -10, y: -10 },
-    size: { x: 200, y: 100 },
-    pivot: { x: 0.5, y: 0.5 },
-};
-
-const RIGIDBODY_DATA = {
-    bodyType: 2,
-    gravityScale: 1,
-    linearDamping: 0.1,
-    angularDamping: 0.05,
-    fixedRotation: false,
-    bullet: false,
-    enabled: true,
-};
-
-const BOXCOLLIDER_DATA = {
-    halfExtents: { x: 0.5, y: 0.5 },
-    offset: { x: 0, y: 0 },
-    density: 1,
-    friction: 0.3,
-    restitution: 0.2,
-    isSensor: false,
-    enabled: true,
-    categoryBits: 0x0001,
-    maskBits: 0xFFFF,
-};
-
-const CIRCLECOLLIDER_DATA = {
-    radius: 0.5,
-    offset: { x: 0, y: 0 },
-    density: 1,
-    friction: 0.3,
-    restitution: 0.2,
-    isSensor: false,
-    enabled: true,
-    categoryBits: 0x0001,
-    maskBits: 0xFFFF,
 };
 
 const TRANSFORM_WASM = {
@@ -181,32 +50,6 @@ const TRANSFORM_WASM = {
     worldPosition: { x: 0, y: 0, z: 0 },
     worldRotation: { x: 0, y: 0, z: 0, w: 1 },
     worldScale: { x: 1, y: 1, z: 1 },
-};
-
-const SPRITE_SDK = {
-    texture: 0,
-    color: { r: 1, g: 1, b: 1, a: 1 },
-    size: { x: 100, y: 100 },
-    uvOffset: { x: 0, y: 0 },
-    uvScale: { x: 1, y: 1 },
-    layer: 0,
-    flipX: false,
-    flipY: false,
-    material: 0,
-    enabled: true,
-};
-
-const SPRITE_WASM = {
-    texture: 0,
-    color: { x: 1, y: 1, z: 1, w: 1 },
-    size: { x: 100, y: 100 },
-    uvOffset: { x: 0, y: 0 },
-    uvScale: { x: 1, y: 1 },
-    layer: 0,
-    flipX: false,
-    flipY: false,
-    material: 0,
-    enabled: true,
 };
 
 describe('World wrapper vs direct WASM - spawn', () => {
@@ -269,7 +112,7 @@ describe('World wrapper vs direct WASM - get (with color conversion)', () => {
     bench('direct WASM: getSprite x100 (no conversion)', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        reg.addSprite(e, SPRITE_WASM);
+        reg.addSprite(e, SPRITE_DATA);
         for (let i = 0; i < 100; i++) reg.getSprite(e);
         reg.delete();
     });
@@ -371,7 +214,7 @@ describe('Ptr-based getter vs embind getter - Sprite', () => {
     bench('embind: getSprite x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        reg.addSprite(e, SPRITE_WASM);
+        reg.addSprite(e, SPRITE_DATA);
         for (let i = 0; i < 100; i++) reg.getSprite(e);
         reg.delete();
     });
@@ -395,7 +238,7 @@ describe('Ptr-based multi-entity query - Transform + Sprite', () => {
         for (let i = 0; i < 100; i++) {
             const e = reg.create();
             reg.addTransform(e, TRANSFORM_WASM);
-            reg.addSprite(e, SPRITE_WASM);
+            reg.addSprite(e, SPRITE_DATA);
             entities.push(e);
         }
         for (const e of entities) {
@@ -463,27 +306,6 @@ describe('Ptr-based getter vs embind - Camera', () => {
         const e = world.spawn();
         world.insert(e, Camera, CAMERA_DATA as any);
         const getter = world.resolveGetter(Camera)!;
-        for (let i = 0; i < 100; i++) getter(e);
-        reg.delete();
-    });
-});
-
-describe('Ptr-based getter vs embind - UIRect', () => {
-    bench('embind: getUIRect x100', () => {
-        const reg = new wasmModule.Registry();
-        const e = reg.create();
-        (reg as any).addUIRect(e, UIRECT_DATA);
-        for (let i = 0; i < 100; i++) (reg as any).getUIRect(e);
-        reg.delete();
-    });
-
-    bench('ptr-based: resolveGetter(UIRect) x100', () => {
-        const world = new World();
-        const reg = new wasmModule.Registry();
-        world.connectCpp(reg as unknown as CppRegistry, wasmModule);
-        const e = world.spawn();
-        world.insert(e, UIRect, UIRECT_DATA as any);
-        const getter = world.resolveGetter(UIRect)!;
         for (let i = 0; i < 100; i++) getter(e);
         reg.delete();
     });
@@ -581,8 +403,8 @@ describe('Ptr-based setter vs embind - Sprite write', () => {
     bench('embind: addSprite (set) x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        reg.addSprite(e, SPRITE_WASM);
-        for (let i = 0; i < 100; i++) reg.addSprite(e, SPRITE_WASM);
+        reg.addSprite(e, SPRITE_DATA);
+        for (let i = 0; i < 100; i++) reg.addSprite(e, SPRITE_DATA);
         reg.delete();
     });
 
@@ -669,7 +491,7 @@ describe('Ptr-based has vs embind - Sprite', () => {
     bench('embind: hasSprite x1000', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        reg.addSprite(e, SPRITE_WASM);
+        reg.addSprite(e, SPRITE_DATA);
         for (let i = 0; i < 1000; i++) reg.hasSprite(e);
         reg.delete();
     });
@@ -726,7 +548,7 @@ describe('World wrapper overhead - full entity lifecycle', () => {
         for (let i = 0; i < 50; i++) {
             const e = reg.create();
             reg.addTransform(e, TRANSFORM_WASM);
-            reg.addSprite(e, SPRITE_WASM);
+            reg.addSprite(e, SPRITE_DATA);
             reg.getTransform(e);
             reg.getSprite(e);
             reg.destroy(e);

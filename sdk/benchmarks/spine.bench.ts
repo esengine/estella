@@ -7,13 +7,16 @@ import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { SpineModuleController } from '../src/spine/SpineController';
 import type { ESEngineModule } from '../src/wasm';
-import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
+import { WASM_DIR, loadWasmModule } from '../tests/helpers/loadWasm';
 
-// Same resolution the integration tests use: $ESENGINE_WASM_DIR, then the
-// in-repo build output, then the editor's copy. Hard-coding the last of
-// those is why these never found a wasm in CI.
-const WASM_DIR = WASM_DIR_SHARED;
 const SPINE_ASSETS = path.resolve(__dirname, 'fixtures/spine');
+
+/** One visitor for every extraction benchmark, so what they measure is the
+ *  extraction and not the cost of allocating a closure per call. */
+const NOOP_BATCH = () => { /* visit and discard */ };
+
+/** Interleaved x,y,u,v,r,g,b,a — the layout every skeletal module writes. */
+const VERTEX_FLOATS = 8;
 
 let raw: SpineWasmModule;
 let api: SpineWrappedAPI;
@@ -42,13 +45,7 @@ beforeAll(async () => {
     api = wrapSpineModule(raw);
     controller = new SpineModuleController(raw, api);
 
-    const coreJsPath = path.join(WASM_DIR, 'esengine.js');
-    const coreMod = await import(coreJsPath);
-    coreModule = await coreMod.default({
-        locateFile(p: string) {
-            return path.join(WASM_DIR, p);
-        },
-    }) as ESEngineModule;
+    coreModule = await loadWasmModule();
 
     spineboySkel = fs.readFileSync(path.join(SPINE_ASSETS, 'spineboy-38/spineboy-pro.skel'));
     spineboyAtlas = fs.readFileSync(path.join(SPINE_ASSETS, 'spineboy-38/spineboy.atlas'), 'utf-8');
@@ -248,7 +245,7 @@ describe('Spine: mesh extraction - spineboy', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -258,7 +255,7 @@ describe('Spine: mesh extraction - spineboy', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -268,7 +265,7 @@ describe('Spine: mesh extraction - spineboy', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -278,7 +275,7 @@ describe('Spine: mesh extraction - spineboy', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -288,7 +285,7 @@ describe('Spine: mesh extraction - spineboy', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 });
@@ -302,7 +299,7 @@ describe('Spine: mesh extraction - raptor (complex)', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -312,7 +309,7 @@ describe('Spine: mesh extraction - raptor (complex)', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 
@@ -322,7 +319,7 @@ describe('Spine: mesh extraction - raptor (complex)', () => {
             controller.play(id, 'walk', true);
             controller.update(id, DT);
         }
-        for (const id of instances) controller.extractMeshBatches(id);
+        for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         cleanupInstances(skelHandle, instances);
     });
 });
@@ -340,7 +337,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -352,7 +349,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -364,7 +361,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -376,7 +373,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -388,7 +385,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -400,7 +397,7 @@ describe('Spine: full frame (update + extract) - spineboy', () => {
         for (let frame = 0; frame < 60; frame++) {
             for (const id of instances) {
                 controller.update(id, DT);
-                controller.extractMeshBatches(id);
+                controller.forEachMeshBatch(id, NOOP_BATCH);
             }
         }
         cleanupInstances(skelHandle, instances);
@@ -416,12 +413,11 @@ describe('Spine: vertex/batch statistics', () => {
         const { skelHandle, instanceId } = loadAndSetup(spineboySkel, spineboyAtlas);
         controller.play(instanceId, 'walk', true);
         controller.update(instanceId, 1 / 60);
-        const batches = controller.extractMeshBatches(instanceId);
         let totalVerts = 0, totalIndices = 0;
-        for (const b of batches) {
-            totalVerts += b.vertices.length / 8;
-            totalIndices += b.indices.length;
-        }
+        controller.forEachMeshBatch(instanceId, (_v, _i, vertexCount, indexCount) => {
+            totalVerts += vertexCount;
+            totalIndices += indexCount;
+        });
         controller.destroyInstance(instanceId);
         controller.unloadSkeleton(skelHandle);
     });
@@ -430,12 +426,11 @@ describe('Spine: vertex/batch statistics', () => {
         const { skelHandle, instanceId } = loadAndSetup(raptorSkel, raptorAtlas);
         controller.play(instanceId, 'walk', true);
         controller.update(instanceId, 1 / 60);
-        const batches = controller.extractMeshBatches(instanceId);
         let totalVerts = 0, totalIndices = 0;
-        for (const b of batches) {
-            totalVerts += b.vertices.length / 8;
-            totalIndices += b.indices.length;
-        }
+        controller.forEachMeshBatch(instanceId, (_v, _i, vertexCount, indexCount) => {
+            totalVerts += vertexCount;
+            totalIndices += indexCount;
+        });
         controller.destroyInstance(instanceId);
         controller.unloadSkeleton(skelHandle);
     });
@@ -444,12 +439,11 @@ describe('Spine: vertex/batch statistics', () => {
         const { skelHandle, instanceId } = loadAndSetup(coinSkel, coinAtlas);
         controller.play(instanceId, 'animation', true);
         controller.update(instanceId, 1 / 60);
-        const batches = controller.extractMeshBatches(instanceId);
         let totalVerts = 0, totalIndices = 0;
-        for (const b of batches) {
-            totalVerts += b.vertices.length / 8;
-            totalIndices += b.indices.length;
-        }
+        controller.forEachMeshBatch(instanceId, (_v, _i, vertexCount, indexCount) => {
+            totalVerts += vertexCount;
+            totalIndices += indexCount;
+        });
         controller.destroyInstance(instanceId);
         controller.unloadSkeleton(skelHandle);
     });
@@ -481,21 +475,24 @@ function prepareExtractedBatches(
     }
     const entries: CachedBatchEntry[] = [];
     for (let i = 0; i < instances.length; i++) {
-        const batches = controller.extractMeshBatches(instances[i]);
-        for (const b of batches) {
-            if (b.vertices.length === 0 || b.indices.length === 0) continue;
-            entries.push({
-                vertices: b.vertices,
-                indices: b.indices,
-                textureId: b.textureId,
-                blendMode: b.blendMode,
-                entity: i + 1,
-                skeletonScale: 1,
-                flipX: false,
-                flipY: false,
-                layer: 0,
+        controller.forEachMeshBatch(instances[i],
+            (vertBytes, indexBytes, vertexCount, indexCount, textureId, blendMode) => {
+                if (vertexCount === 0 || indexCount === 0) return;
+                // The visitor lends views into the module heap that are valid only
+                // for the duration of the call, so a cache that outlives it copies.
+                const vertices = new Float32Array(vertexCount * VERTEX_FLOATS);
+                new Uint8Array(vertices.buffer).set(vertBytes);
+                const indices = new Uint16Array(indexCount);
+                new Uint8Array(indices.buffer).set(indexBytes);
+                entries.push({
+                    vertices, indices, textureId, blendMode,
+                    entity: i + 1,
+                    skeletonScale: 1,
+                    flipX: false,
+                    flipY: false,
+                    layer: 0,
+                });
             });
-        }
     }
     return { skelHandle, instances, entries };
 }
@@ -527,7 +524,8 @@ function simulateDataCopyOnly(entries: CachedBatchEntry[]) {
 }
 
 function simulateDataCopyAndSubmit(entries: CachedBatchEntry[]) {
-    const submitFn = coreModule.renderer_submitSpineBatchByEntity;
+    // Renamed when the spine path was generalised to skeletal; same signature.
+    const submitFn = coreModule.renderer_submitSkeletalBatchByEntity;
     const registry = new coreModule.Registry();
 
     let totalVertBytes = 0;
@@ -669,7 +667,7 @@ describe('Engine overhead: proportion (Spine update vs engine copy+submit)', () 
             controller.update(id, DT);
         }
         for (let frame = 0; frame < 60; frame++) {
-            for (const id of instances) controller.extractMeshBatches(id);
+            for (const id of instances) controller.forEachMeshBatch(id, NOOP_BATCH);
         }
         cleanupInstances(skelHandle, instances);
     });
