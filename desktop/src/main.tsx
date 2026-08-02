@@ -71,6 +71,9 @@ import { mcpStatus, subscribeMcp } from './store/McpStore';
 import { attachAgentBridge, agentDriving, subscribeAgent } from './store/AgentStore';
 import { guardAutomationHook } from './engine/automationGate';
 import { activeMode } from './mode/activeMode';
+import {
+  openAssetDocuments, readAssetDocument, editAssetDocument, type AssetDocumentChange,
+} from './document/assetDocumentOps';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
 import { applySettings } from './store/settingsStore';
@@ -403,6 +406,14 @@ function buildEditorAutomation(): unknown {
      */
     documentState,
     editorSetup,
+
+    // — The open asset editors (clips, timelines, tilesets, materials, graphs).
+    // One set of doors for all eight, because they share AssetDocument: the
+    // typed asset is read whole and written by dotted path, one undo step. —
+    assetDocuments: () => openAssetDocuments(),
+    getAssetDocument: (docId?: string) => readAssetDocument(docId),
+    editAssetDocument: (changes: AssetDocumentChange[], docId?: string, label?: string) =>
+      editAssetDocument(changes, docId, label),
     /** Leave Prefab Mode — the banner's "Back to Scene". Refuses on unsaved prefab
      *  changes unless `discardChanges` (see openAsset). */
     exitPrefabMode: async (discardChanges = false) => {

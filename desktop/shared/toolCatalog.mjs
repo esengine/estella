@@ -313,6 +313,55 @@ export const TOOLS = [
           .then((text) => window.__estellaEditor.applyOps(JSON.parse(text), ${JSON.stringify(i.label ?? null)}))`
       : null),
     method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
+  // — The open asset editors. One set of doors for all eight kinds, because they
+  //   share AssetDocument: `open_asset` puts one on screen, these read and write
+  //   it. A clip, a timeline, a tileset and a material graph differ in what they
+  //   HOLD, not in how they are edited, so a tool set per kind would be the same
+  //   three verbs written eight times and drifting apart. —
+  { name: 'list_asset_documents', effect: 'read',
+    description: 'Which asset editors are open right now (animation clip, timeline, tileset, material, material graph, animator/state/behaviour graph), with their file path and whether they have unsaved edits. Use it to learn the `docId` the other two tools take when more than one is open.',
+    schema: obj({}),
+    js: () => 'window.__estellaEditor.assetDocuments()', root: 'editor' },
+  { name: 'get_asset_document', effect: 'read',
+    description: "An open asset editor's document, in full, exactly as the editor holds it — the frames of a clip, the tracks of a timeline, the tiles of a tileset, the nodes of a graph. THIS is how you read those files: read_project_file gives you bytes on disk, which are stale the moment the editor has unsaved edits. Omit `docId` when only one is open.",
+    schema: obj({ docId: { type: 'string' } }),
+    js: (i) => `window.__estellaEditor.getAssetDocument(${JSON.stringify(i.docId ?? null)} ?? undefined)`,
+    root: 'editor' },
+  { name: 'edit_asset_document', effect: 'undoable',
+    description: 'Write fields of an open asset editor\'s document as ONE undo step. `changes` is [{path, value}], where `path` is dotted and addresses the typed asset the same way set_field addresses a component: "frames.0.duration", "tracks.2.keys.5.value", "nodes.3.position.x". '
+      + 'A numeric segment indexes an array. Paths that do not already exist are REFUSED rather than created — these are typed documents whose editors rely on their shape, and inventing a field produces a file that loads as something else. Read it with get_asset_document first. '
+      + 'It goes through the same door the editor\'s own UI writes through, so the panel updates and one Undo takes the whole call back.',
+    schema: obj({
+      changes: { type: 'array', description: '[{ path, value }], applied in order as one undo step' },
+      docId: { type: 'string', description: 'which open document, when more than one is' },
+      label: { type: 'string', description: 'undo-stack label (default "Edit asset")' },
+    }, ['changes']),
+    js: (i) => `window.__estellaEditor.editAssetDocument(${JSON.stringify(i.changes)}, ${JSON.stringify(i.docId ?? null)} ?? undefined, ${JSON.stringify(i.label ?? null)} ?? undefined)`,
+    root: 'editor' },
+
+  // — Tilemaps. Painting is not a field write: a cell is addressed by grid
+  //   coordinate, and a stroke is hundreds of them in one undo step. —
+  { name: 'create_tilemap', effect: 'undoable',
+    description: 'Create a tilemap entity from a tileset asset (project-relative .estileset path). `grid` optionally overrides the tileset\'s own cell size/shape: { tileWidth, tileHeight, orientation }. Returns the new entity id.',
+    schema: obj({
+      tilesetPath: { type: 'string' },
+      grid: { type: 'object', description: 'optional { tileWidth, tileHeight, orientation }' },
+    }, ['tilesetPath']),
+    js: (i) => `window.__estellaEditor.createTilemap(${JSON.stringify(i.tilesetPath)}, ${JSON.stringify(i.grid ?? null)} ?? undefined)`,
+    root: 'editor' },
+  { name: 'paint_tiles', effect: 'undoable',
+    description: 'Paint cells of a tilemap layer in ONE undo step. `edits` is [{x, y, tileId}] in GRID coordinates (not pixels); tileId 0 clears a cell. `source` is the tilemap entity id. This is the tool for laying out a level — set_field cannot reach a cell.',
+    schema: obj({
+      source: { type: 'number', description: 'the tilemap entity' },
+      edits: { type: 'array', description: '[{ x, y, tileId }] in grid coordinates' },
+    }, ['source', 'edits']),
+    js: (i) => `window.__estellaEditor.paintTiles(${i.source}, ${JSON.stringify(i.edits)})`,
+    root: 'editor' },
+  { name: 'get_tile_collision', effect: 'read',
+    description: 'The collision shapes a tilemap currently generates, for checking that a painted level is walkable before running it.',
+    schema: obj({ source: { type: 'number' } }, ['source']),
+    js: (i) => `window.__estellaEditor.probeTileCollision(${i.source})`, root: 'editor' },
+
   { name: 'refresh_assets',
     description: 'Re-scan the project into the asset registry. The editor watches the filesystem, but a batch written from outside (a converter copying twenty sprites in) can outrun the watcher — and until the scan lands those files have no `.meta`, so `set_import_settings` and any @uuid ref to them fail. Cheap and idempotent; call it after writing assets by hand.',
     schema: obj({}),
