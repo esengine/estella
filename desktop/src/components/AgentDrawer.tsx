@@ -27,13 +27,13 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyn
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
-  File as FileIcon, ArrowRight,
+  File as FileIcon, ArrowRight, History as HistoryIcon, Trash2,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
-  RESUMABLE,
+  RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import type { ConfirmAnswer } from '../../electron/agent/types';
@@ -703,6 +703,78 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
   );
 });
 
+/**
+ * The conversations this project has had.
+ *
+ * Over the transcript rather than beside it: picking one REPLACES what is on
+ * screen, and a list that sat alongside would suggest you could read both. Esc
+ * goes back, so opening it costs nothing.
+ */
+function History() {
+  const conversations = useAgent((s) => s.conversations);
+  const current = useAgent((s) => s.turns.length > 0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();   // Esc closes the history, not the drawer behind it
+      closeAgentHistory();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  return (
+    <div className="ag-history">
+      <div className="ag-history-h">
+        <span>{t('agent.history.title')}</span>
+        <span className="ag-sp" />
+        <button type="button" title={t('agent.history.close')} onClick={closeAgentHistory}>
+          <X size={13} strokeWidth={2} />
+        </button>
+      </div>
+      {conversations.length === 0 ? (
+        <div className="ag-history-none">{t('agent.history.none')}</div>
+      ) : (
+        <div className="ag-history-l">
+          {conversations.map((c) => (
+            <div className="ag-hrow" key={c.id}>
+              <button type="button" className="ag-hrow-go" onClick={() => void resumeConversation(c.id)}>
+                <span className="ag-hrow-t">{c.title || t('agent.history.untitled')}</span>
+                <span className="ag-hrow-m">
+                  {relativeDay(c.updatedAt)}
+                  <span className="ag-hrow-n">{t('agent.history.turns', { count: c.turns })}</span>
+                  <span className="ag-hrow-model">{c.model}</span>
+                </span>
+              </button>
+              {/* Quiet until the row is hovered — it destroys something. */}
+              <button
+                type="button"
+                className="ag-hrow-x"
+                title={t('agent.history.forget')}
+                onClick={() => void forgetConversation(c.id)}
+              >
+                <Trash2 size={12} strokeWidth={1.9} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Said here because the list is where someone would look for it: what is
+          on screen now is not in the list until its next turn ends. */}
+      {current && <div className="ag-history-note">{t('agent.history.currentNote')}</div>}
+    </div>
+  );
+}
+
+/** Today / yesterday / a date — a timestamp is not what anyone is scanning for. */
+function relativeDay(at: number): string {
+  const day = 86_400_000;
+  const midnight = new Date().setHours(0, 0, 0, 0);
+  if (at >= midnight) return t('agent.history.today');
+  if (at >= midnight - day) return t('agent.history.yesterday');
+  return new Date(at).toLocaleDateString();
+}
+
 function EmptyState() {
   const ready = useAgent((s) => s.status.ready);
   const openSettings = useEditorStore((s) => s.openSettings);
@@ -1008,6 +1080,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
   const turns = useAgent((s) => s.turns);
   const status = useAgent((s) => s.status);
   const queued = useAgent((s) => s.queued);
+  const historyOpen = useAgent((s) => s.historyOpen);
   const logRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
   // A question that has scrolled away is a turn that looks hung. Watched per
@@ -1041,6 +1114,14 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         <AgentMark size={docked ? 13 : 15} live={status.phase !== 'idle'} />
         {!docked && <span className="ag-ttl">{t('agent.title')}</span>}
         <span className="ag-sp" />
+        <button
+          type="button"
+          className={historyOpen ? 'on' : undefined}
+          title={t('agent.history.open')}
+          onClick={() => (historyOpen ? closeAgentHistory() : openAgentHistory())}
+        >
+          <HistoryIcon size={14} strokeWidth={1.9} />
+        </button>
         <button type="button" title={t('agent.newConversation')} onClick={() => void startNewConversation()}>
           <Plus size={14} strokeWidth={2} />
         </button>
@@ -1079,7 +1160,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         {turns.length > 0 && turns[0].id > 0 && (
           <div className="ag-sys">{t('agent.earlier', { count: turns[0].id })}</div>
         )}
-        {turns.length === 0
+        {historyOpen ? <History /> : turns.length === 0
           ? <EmptyState />
           : turns.map((turn, i) => (
             <Turn

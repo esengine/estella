@@ -142,12 +142,61 @@ interface AgentState {
   checkpointDone: number | null;
   /** What the user picked, or null for "whichever provider has a key". */
   selection: AgentSelection | null;
+  /**
+   * Conversations saved with this project, newest first, and whether the list
+   * is showing. Read on demand rather than kept in step: the only thing that
+   * writes them is main, at the end of a turn.
+   */
+  conversations: readonly ConversationSummary[];
+  historyOpen: boolean;
+}
+
+/** One saved conversation as the list shows it (electron/agent/store.ts). */
+export interface ConversationSummary {
+  id: string;
+  startedAt: number;
+  updatedAt: number;
+  title: string;
+  model: string;
+  turns: number;
 }
 
 export const useAgent = create<AgentState>(() => ({
   status: IDLE, turns: [], driving: false, peeked: [], queued: [], checkpointDone: null,
-  draft: '', selection: loadSelection(),
+  draft: '', selection: loadSelection(), conversations: [], historyOpen: false,
 }));
+
+// ── Conversations kept with the project ─────────────────────────────────────
+
+/** Re-read the list. Called when the history opens, and after it changes. */
+export async function refreshConversations(): Promise<void> {
+  const conversations = await window.estella?.agent?.conversations?.() ?? [];
+  useAgent.setState({ conversations });
+}
+
+export function openAgentHistory(): void {
+  useAgent.setState({ historyOpen: true });
+  void refreshConversations();
+}
+
+export const closeAgentHistory = (): void => useAgent.setState({ historyOpen: false });
+
+/**
+ * Carry on a saved conversation. The transcript arrives as a replayed event
+ * stream (the same path an attaching window takes), so nothing here rebuilds it
+ * — main pushes `conversation_reset` and then every event, and the projection
+ * does the rest.
+ */
+export async function resumeConversation(id: string): Promise<void> {
+  useAgent.setState({ historyOpen: false, queued: [], checkpointDone: null });
+  const status = await window.estella?.agent?.resumeConversation?.(id);
+  if (status) adoptStatus(status);
+}
+
+export async function forgetConversation(id: string): Promise<void> {
+  await window.estella?.agent?.deleteConversation?.(id);
+  await refreshConversations();
+}
 
 export const peekEntities = (ids: readonly number[]): void => useAgent.setState({ peeked: ids });
 

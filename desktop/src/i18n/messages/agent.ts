@@ -29,6 +29,24 @@ export const agentMessages = defineMessages({
     'agent.hint.mention': { en: 'reference', zh: '引用' },
     'agent.mention': { en: 'Reference', zh: '引用' },
 
+    // — Conversations this project has had —
+    'agent.history.open': { en: 'Earlier conversations', zh: '历史对话' },
+    'agent.history.title': { en: 'Earlier conversations', zh: '历史对话' },
+    'agent.history.close': { en: 'Back (Esc)', zh: '返回 (Esc)' },
+    'agent.history.none': {
+        en: 'Nothing kept yet. A conversation is saved with the project once a run finishes.',
+        zh: '还没有保存的对话。一轮跑完后,对话会随项目一起保存。',
+    },
+    'agent.history.untitled': { en: '(no question yet)', zh: '(还没有提问)' },
+    'agent.history.turns': { en: '{count} runs', zh: '{count} 轮' },
+    'agent.history.today': { en: 'today', zh: '今天' },
+    'agent.history.yesterday': { en: 'yesterday', zh: '昨天' },
+    'agent.history.forget': { en: 'Forget this conversation', zh: '删除这段对话' },
+    'agent.history.currentNote': {
+        en: 'The conversation on screen joins this list when its next run ends.',
+        zh: '当前这段会在下一轮结束时进入列表。',
+    },
+
     // — Ending a conversation, on purpose or as the price of a switch —
     'agent.new.title': { en: 'Start a new conversation?', zh: '开始新对话?' },
     'agent.new.body': {

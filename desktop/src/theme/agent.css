@@ -403,6 +403,67 @@
 .ag-skel.s3 { width: 56%; }
 @keyframes ag-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 
+/* ── Earlier conversations ───────────────────────────────────────────────────
+   Over the transcript, not beside it: picking one REPLACES what is on screen,
+   and a list sitting alongside would suggest you could have both. */
+.ag-history { display: flex; flex-direction: column; min-height: 0; }
+.ag-history-h {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 14px 9px;
+  font: 500 var(--fs-2xs) var(--font-ui);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+.ag-history-h button {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-history-h button:hover { color: var(--text-hi); background: var(--hover); }
+.ag-history-none, .ag-history-note {
+  padding: 16px 14px;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+.ag-history-note { padding: 10px 14px; font-size: var(--fs-2xs); }
+.ag-history-l { display: flex; flex-direction: column; }
+.ag-hrow { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
+.ag-hrow:hover { background: var(--hover); }
+.ag-hrow-go {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 11px 6px 11px 14px;
+  text-align: left;
+}
+.ag-hrow-t {
+  font-size: var(--fs-md);
+  color: var(--text-hi);
+  letter-spacing: -0.008em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-hrow-m {
+  display: flex; align-items: center; gap: 10px;
+  font: var(--fs-2xs) var(--font-mono);
+  color: var(--text-faint);
+}
+.ag-hrow-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quiet until the row is hovered — it destroys something. */
+.ag-hrow-x {
+  flex: none;
+  width: 34px;
+  display: grid; place-items: center;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--t-fast), color var(--t-fast);
+}
+.ag-hrow:hover .ag-hrow-x, .ag-hrow-x:focus-visible { opacity: 1; }
+.ag-hrow-x:hover { color: var(--error); }
+
 /* ── Empty states ────────────────────────────────────────────────────────── */
 .ag-empty { padding: 40px 14px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .ag-empty-mark { color: var(--text-faint); opacity: 0.5; }
