@@ -70,7 +70,8 @@ struct HostState {
     int nextFetchId = 1;
 
     AudioEngine audio;              ///< native sound (miniaudio); silent if no device
-    std::string cacheDir;           ///< app private dir — SDK bytecode cache + asset cache
+    std::string cacheDir;           ///< reclaimable — SDK bytecode cache + hot-update content
+    std::string dataDir;            ///< durable — saves and settings; survives what cacheDir does not
 
     esengine::f32 w = 0, h = 0;
     bool ready = false;             ///< engine + JS booted once

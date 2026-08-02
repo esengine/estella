@@ -93,8 +93,26 @@ struct Platform {
      *  app bundle on iOS. Empty when missing. Backs NativeBridge.readFile. */
     virtual std::vector<esengine::u8> readAsset(const char* path) = 0;
 
-    /** Writable private directory for the SDK bytecode cache; empty disables it. */
+    /**
+     * Writable private directory for things the host can REGENERATE — the SDK
+     * bytecode cache, downloaded hot-update content. Empty disables it.
+     *
+     * The platform is free to delete this whenever it wants the space back, and
+     * iOS does. Nothing a player would notice losing belongs here; that is
+     * {@link dataDir}, and the split exists because the two were once one
+     * directory whose durability quietly differed per platform.
+     */
     virtual std::string cacheDir() = 0;
+
+    /**
+     * Writable private directory that SURVIVES — saves, settings, progress.
+     *
+     * Distinct from {@link cacheDir} in exactly one way that matters: the
+     * platform will not reclaim it, and it is included in the device backup a
+     * player restores a new phone from. Empty means this platform cannot promise
+     * that, and storage falls back to lasting only for the session.
+     */
+    virtual std::string dataDir() = 0;
 
     /**
      * Writable directory a PLAYER can reach — where the boot record goes.

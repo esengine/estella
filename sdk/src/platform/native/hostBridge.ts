@@ -39,12 +39,18 @@ export interface NativeHostBindings {
         pixels: ArrayBuffer; width: number; height: number;
         advance: number; bearingX: number; bearingY: number;
     } | null;
-    /** A writable byte store (the host's cache dir). Optional: without it there
-     *  is no offline hot-update cache and no persistence for storage. */
+    /** A writable byte store the platform may reclaim (the host's cache dir).
+     *  Optional: without it there is no offline hot-update cache. */
     es_readCacheFile?(key: string): ArrayBuffer | null;
     es_writeCacheFile?(key: string, bytes: ArrayBuffer | Uint8Array | string): boolean;
+    /** The durable store, for what a player would notice losing. Separate from the
+     *  cache pair above because the platform is allowed to empty a cache and iOS
+     *  does: a host that maps both onto one directory has decided saves are
+     *  disposable, whether or not it meant to. */
+    es_readDataFile?(key: string): ArrayBuffer | null;
+    es_writeDataFile?(key: string, bytes: ArrayBuffer | Uint8Array | string): boolean;
     /** Native key-value store, when the host has one (NSUserDefaults /
-     *  SharedPreferences). Absent hosts persist through es_writeCacheFile. */
+     *  SharedPreferences). Absent hosts persist through es_writeDataFile. */
     es_getStorageItem?(key: string): string | null;
     es_setStorageItem?(key: string, value: string): void;
     es_removeStorageItem?(key: string): void;
@@ -336,9 +342,14 @@ const STORAGE_FILE = 'estella-storage.json';
 
 /**
  * Key-value storage, best available: the host's own store, else a JSON file in
- * its writable cache dir, else memory for the session. The API is synchronous
+ * its durable directory, else memory for the session. The API is synchronous
  * (localStorage's shape), so the file variant keeps the map in memory and writes
  * through on every mutation — storage holds saves and settings, not bulk data.
+ *
+ * The file goes to the DATA store, never the cache. An older host that binds only
+ * the cache pair still persists through it, because a cache that usually survives
+ * beats losing the save at every exit — but it is the wrong directory on any
+ * platform that reclaims one, so say so once rather than let a player find out.
  */
 function hostStorage(bindings: NativeHostBindings): Pick<
     NativeBridge, 'getStorageItem' | 'setStorageItem' | 'removeStorageItem' | 'storageKeys'
@@ -352,13 +363,20 @@ function hostStorage(bindings: NativeHostBindings): Pick<
         };
     }
 
+    const durable = typeof bindings.es_readDataFile === 'function'
+        && typeof bindings.es_writeDataFile === 'function';
+    const read = durable ? bindings.es_readDataFile! : bindings.es_readCacheFile;
+    const write = durable ? bindings.es_writeDataFile! : bindings.es_writeCacheFile;
+
     const entries = new Map<string, string>();
-    const persistent = typeof bindings.es_readCacheFile === 'function'
-        && typeof bindings.es_writeCacheFile === 'function';
+    const persistent = typeof read === 'function' && typeof write === 'function';
     if (!persistent) {
-        log.warn('native', 'host has no storage or cache bindings — saves last only for this session');
+        log.warn('native', 'host has no storage or file bindings — saves last only for this session');
     } else {
-        const bytes = bindings.es_readCacheFile!(STORAGE_FILE);
+        if (!durable) {
+            log.warn('native', 'host binds no durable store — saves go to its cache, which the platform may reclaim');
+        }
+        const bytes = read!(STORAGE_FILE);
         if (bytes) {
             try {
                 for (const [k, v] of Object.entries(JSON.parse(new TextDecoder().decode(bytes)) as Record<string, string>)) {
@@ -373,7 +391,7 @@ function hostStorage(bindings: NativeHostBindings): Pick<
         if (!persistent) return;
         // A string, not encoded bytes: the host writes UTF-8 itself, and a native
         // JS engine has no TextEncoder to reach for.
-        bindings.es_writeCacheFile!(STORAGE_FILE, JSON.stringify(Object.fromEntries(entries)));
+        write!(STORAGE_FILE, JSON.stringify(Object.fromEntries(entries)));
     };
     return {
         getStorageItem: (key) => entries.get(key) ?? null,

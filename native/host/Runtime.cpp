@@ -52,6 +52,7 @@ void createHost(Platform& platform) {
     g_host = &state;
     state.platform = &platform;
     state.cacheDir = platform.cacheDir();
+    state.dataDir = platform.dataDir();
 }
 
 void hostLog(bool error, const char* fmt, ...) {

@@ -87,6 +87,28 @@ Storage.has('keybinds');              // true
   游戏状态——不要放大块资源。
 </Aside>
 
+## 实际存在哪里
+
+没有目录可以打开,这是刻意的:Web 和小游戏平台根本没有路径命名空间可给,所以
+`getSaveDirectory()` 会是一个五个平台里只有两个答得上来的函数,而每个调用它的游戏
+都会因此长出逐平台分支。`Storage` 就是可移植的答案——写进去,各平台的耐久存储会被
+替你选好。
+
+| 平台 | 后端存储 |
+| --- | --- |
+| Web | `localStorage` |
+| 微信 / 小游戏 | `wx.setStorageSync` 等 |
+| iOS | `Application Support/estella-storage.json` |
+| Android | `files/estella-storage.json`(应用内部数据目录) |
+| Node | 仅内存——不跨进程存活 |
+
+iOS 上用的是 Application Support 而不是 Caches,这是有意为之——iOS 想要回空间时随时
+会清空 Caches,存在那里的存档玩家可能凭空丢失。两个移动平台的目录都是应用私有的,并且
+会进入玩家换新手机时恢复的设备备份。
+
+`platformReadFile()` **不是**读它们的途径。它读的是**打包进**构建产物里的文件
+(APK 的 `assets/`、iOS 的 app bundle),且只读。
+
 ## 参见
 
 - [场景](/docs/zh-cn/guides/scene/) —— 加载与切换存档所指向的场景。

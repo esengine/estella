@@ -146,7 +146,8 @@ struct AndroidPlatform final : eshost::Platform {
     AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
     ANativeWindow* window = nullptr;
     JavaVM* vm = nullptr;                    // for JNI HttpURLConnection off-thread
-    std::string cache;                      // app private dir — SDK bytecode cache
+    std::string cache;                      // getCacheDir() — the system may reclaim it
+    std::string data;                       // internalDataPath — files/, survives
     std::string logs;                       // Android/data/<pkg>/files — a player can open this
 
     // Read an APK asset (assets/<path>) fully into a buffer; empty if missing.
@@ -165,6 +166,8 @@ struct AndroidPlatform final : eshost::Platform {
     }
 
     std::string cacheDir() override { return cache; }
+
+    std::string dataDir() override { return data; }
 
     std::string logDir() override { return logs; }
 
@@ -805,6 +808,52 @@ void onWindowFocusChanged(ANativeActivity* activity, int hasFocus) {
     if (g_glueWindowFocusChanged) g_glueWindowFocusChanged(activity, hasFocus);
 }
 
+/**
+ * `Context.getCacheDir()`, asked rather than assembled.
+ *
+ * ANativeActivity hands over internalDataPath and externalDataPath and stops
+ * there, so the cache directory has to come over JNI. Deriving it from
+ * internalDataPath by swapping `files` for `cache` would be a guess about a
+ * layout that has already moved once (`/data/data` to `/data/user/0`), and the
+ * guess fails silently — as a directory that is simply never written.
+ *
+ * Empty on failure, which disables the bytecode cache and the hot-update store:
+ * both regenerate, so a slower boot is the whole cost.
+ */
+std::string queryCacheDir(ANativeActivity* activity) {
+    if (!activity || !activity->vm || !activity->clazz) return {};
+    JNIEnv* env = nullptr;
+    if (activity->vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return {};
+    }
+    std::string out;
+    jclass ctxCls = env->GetObjectClass(activity->clazz);
+    jmethodID getCacheDir = env->GetMethodID(ctxCls, "getCacheDir", "()Ljava/io/File;");
+    if (getCacheDir) {
+        if (jobject file = env->CallObjectMethod(activity->clazz, getCacheDir)) {
+            jclass fileCls = env->GetObjectClass(file);
+            jmethodID getPath = env->GetMethodID(fileCls, "getAbsolutePath", "()Ljava/lang/String;");
+            if (getPath) {
+                if (jstring path = (jstring)env->CallObjectMethod(file, getPath)) {
+                    if (const char* utf8 = env->GetStringUTFChars(path, nullptr)) {
+                        out = utf8;
+                        env->ReleaseStringUTFChars(path, utf8);
+                    }
+                    env->DeleteLocalRef(path);
+                }
+            }
+            env->DeleteLocalRef(fileCls);
+            env->DeleteLocalRef(file);
+        }
+    }
+    env->DeleteLocalRef(ctxCls);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return {};
+    }
+    return out;
+}
+
 }  // namespace
 
 void android_main(android_app* app) {
@@ -813,7 +862,9 @@ void android_main(android_app* app) {
     // Before boot: whether there is an editing surface decides whether the
     // es_textEditor_* entry points are bound at all.
     attachTextEditor(app->activity);
-    if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
+    // files/ holds what a player keeps; cache/ is the system's to reclaim.
+    if (app->activity->internalDataPath) g_platform.data = app->activity->internalDataPath;
+    g_platform.cache = queryCacheDir(app->activity);
     // The boot record goes where a person can reach it without a cable.
     if (app->activity->externalDataPath) g_platform.logs = app->activity->externalDataPath;
     app->onAppCmd = onAppCmd;

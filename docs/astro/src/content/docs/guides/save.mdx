@@ -94,6 +94,30 @@ backend.
   limit (a few MB in browsers). Keep saves to game state — not bulk assets.
 </Aside>
 
+## Where it actually lands
+
+There is no directory to open, and that is deliberate: the web and the mini-game
+platforms have no path namespace to hand you, so a `getSaveDirectory()` would be
+a function only two of five platforms could answer, and every game calling it
+would grow a branch per platform. `Storage` is the portable answer — write through
+it and each platform's durable store is used for you.
+
+| Platform | Backing store |
+| --- | --- |
+| Web | `localStorage` |
+| WeChat / mini-games | `wx.setStorageSync` and friends |
+| iOS | `Application Support/estella-storage.json` |
+| Android | `files/estella-storage.json` (the app's internal data dir) |
+| Node | memory only — it does not outlive the process |
+
+On iOS this is Application Support rather than Caches on purpose — iOS empties
+Caches whenever it wants the space back, so a save kept there is one the player
+can lose. Both mobile directories are private to the app and included in the
+device backup a player restores a new phone from.
+
+`platformReadFile()` is **not** a way to reach these. It reads files packaged
+*into* the build (the APK's `assets/`, the iOS app bundle) and is read-only.
+
 ## See also
 
 - [Scenes](/docs/guides/scene/) — loading and switching the scenes a save points at.
