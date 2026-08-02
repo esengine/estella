@@ -150,7 +150,7 @@ describe('the agent host', () => {
       await vi.waitFor(() => expect(h.status().phase).toBe('awaiting_confirm'));
       expect(statuses().at(-1)?.phase).toBe('awaiting_confirm');
 
-      h.confirm('c-save_scene', true);
+      h.confirm('c-save_scene', 'once');
       await settled(h);
       expect(events().some((e) => e.type === 'tool_end' && e.ok)).toBe(true);
     });
@@ -159,7 +159,7 @@ describe('the agent host', () => {
       const h = host([asks(call('save_scene')), ends()]);
       h.send('save it');
       await vi.waitFor(() => expect(h.status().phase).toBe('awaiting_confirm'));
-      h.confirm('c-save_scene', false);
+      h.confirm('c-save_scene', 'no');
       await settled(h);
       expect(events().some((e) => e.type === 'tool_end' && e.summary === 'declined')).toBe(true);
     });
@@ -186,7 +186,7 @@ describe('the agent host', () => {
 
     it('ignores an answer to a call nobody is waiting on', async () => {
       const h = host();
-      expect(() => h.confirm('c-gone', true)).not.toThrow();
+      expect(() => h.confirm('c-gone', 'once')).not.toThrow();
     });
   });
 

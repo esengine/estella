@@ -34,6 +34,7 @@ import {
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn,
   type AgentTurn, type AgentEntry, type AgentToolEntry,
 } from '@/store/AgentStore';
+import type { ConfirmAnswer } from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, subscribeProviders, providersRevision,
 } from '@/agent/providers';
@@ -53,7 +54,7 @@ const TOOL_ICON: Record<string, typeof Eye> = {
   irreversible: TriangleAlert,
 };
 
-function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allow: boolean) => void }) {
+function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answer: ConfirmAnswer) => void }) {
   const [open, setOpen] = useState(false);
   const Icon = TOOL_ICON[entry.effect ?? 'read'] ?? Eye;
   // While the model is writing them, show the raw text arriving; once the call
@@ -99,7 +100,7 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allo
  * unconditionally when it appears — a question you never saw is a turn that
  * looks hung.
  */
-function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (allow: boolean) => void }) {
+function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answer: ConfirmAnswer) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const target = describeTarget(entry.input);
   useEffect(() => {
@@ -119,8 +120,18 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
           echoing the tool name back is noise, and the heading already said it. */}
       {target && <div className="ag-ask-tgt">{target}</div>}
       <div className="ag-ask-acts">
-        <button type="button" className="ag-go" onClick={() => onConfirm(true)}>{t('agent.confirm.allow')}</button>
-        <button type="button" onClick={() => onConfirm(false)}>{t('agent.confirm.deny')}</button>
+        <button type="button" className="ag-go" onClick={() => onConfirm('once')}>{t('agent.confirm.allow')}</button>
+        {/* A task that saves eleven files should be one decision, not eleven
+            identical ones — a gate that interrupts that often is one people
+            learn to click through. Scoped to this run, and says so. */}
+        <button
+          type="button"
+          onClick={() => onConfirm('turn')}
+          title={t('agent.confirm.allowTurn.why', { tool: entry.name })}
+        >
+          {t('agent.confirm.allowTurn')}
+        </button>
+        <button type="button" onClick={() => onConfirm('no')}>{t('agent.confirm.deny')}</button>
       </div>
     </div>
   );
@@ -179,7 +190,7 @@ function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
 /** Consecutive tool rows are one hairline-divided block; prose breaks the run. */
 function Entries({ entries, onConfirm, streaming }: {
   entries: readonly AgentEntry[];
-  onConfirm: (callId: string, allow: boolean) => void;
+  onConfirm: (callId: string, answer: ConfirmAnswer) => void;
   /** The run is still taking events, so the last entry is mid-write. */
   streaming?: boolean;
 }) {
@@ -192,7 +203,7 @@ function Entries({ entries, onConfirm, streaming }: {
     out.push(
       <div className="ag-steps" key={`steps-${group[0].id}`}>
         {group.map((tool) => (
-          <ToolRow key={tool.id} entry={tool} onConfirm={(allow) => onConfirm(tool.id, allow)} />
+          <ToolRow key={tool.id} entry={tool} onConfirm={(answer) => onConfirm(tool.id, answer)} />
         ))}
       </div>,
     );

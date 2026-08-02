@@ -23,7 +23,7 @@
  */
 import { runTurn, agentTools } from './kernel';
 import { SYSTEM_PROMPT, editorContext } from './prompt';
-import type { AgentEvent, AgentProvider, AgentSession, ConfirmRequest } from './types';
+import type { AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmRequest } from './types';
 import type { SurfaceDriver } from '../surfaceDriver';
 
 export type AgentPhase = 'idle' | 'running' | 'awaiting_confirm';
@@ -66,7 +66,7 @@ export interface AgentHost {
   stop(): void;
   /** Answer a pending confirmation. Unknown ids are ignored — the turn it
    *  belonged to may have been aborted between the ask and the click. */
-  confirm(callId: string, allow: boolean): void;
+  confirm(callId: string, answer: ConfirmAnswer): void;
   /** Drop the conversation and start over; the next turn re-reads the key. */
   reset(): AgentStatus;
   /**
@@ -101,7 +101,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
   let phase: AgentPhase = 'idle';
   let error: string | null = null;
   let running: AbortController | null = null;
-  const pending = new Map<string, (allow: boolean) => void>();
+  const pending = new Map<string, (answer: ConfirmAnswer) => void>();
 
   const status = (): AgentStatus => ({
     ready: deps.ready(),
@@ -141,12 +141,12 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
 
   /** Settle every outstanding ask as declined. See invariant 2. */
   const settlePending = (): void => {
-    for (const resolve of pending.values()) resolve(false);
+    for (const resolve of pending.values()) resolve('no');
     pending.clear();
   };
 
-  const confirm = (request: ConfirmRequest): Promise<boolean> =>
-    new Promise<boolean>((resolve) => {
+  const confirm = (request: ConfirmRequest): Promise<ConfirmAnswer> =>
+    new Promise<ConfirmAnswer>((resolve) => {
       pending.set(request.callId, resolve);
       phase = 'awaiting_confirm';
       pushStatus();
@@ -227,11 +227,11 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       // not interrupt — it is waiting on us, not on the model.
       settlePending();
     },
-    confirm: (callId, allow) => {
+    confirm: (callId, answer) => {
       const resolve = pending.get(callId);
       if (!resolve) return;
       pending.delete(callId);
-      resolve(allow);
+      resolve(answer);
       if (pending.size === 0 && phase === 'awaiting_confirm') {
         phase = 'running';
         pushStatus();

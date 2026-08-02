@@ -18,7 +18,7 @@
  */
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
-import type { AgentEvent, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
+import type { AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, CUSTOM_PROVIDER, DEFAULT_CONTEXT_WINDOW,
 } from '@/agent/providers';
@@ -488,17 +488,20 @@ export function stopAgentTurn(): void {
  * main's echo — the person just decided, and a row that sits on "waiting for
  * you" afterwards reads as a click that did not land.
  */
-export function confirmAgentCall(callId: string, allow: boolean): void {
+export function confirmAgentCall(callId: string, answer: ConfirmAnswer): void {
   useAgent.setState((s) => {
     const open = openTurn(s.turns);
     if (!open) return {};
     return {
       turns: patchLast(s.turns, {
-        entries: patchTool(open.entries, callId, { state: allow ? 'running' : 'declined', reason: null }),
+        entries: patchTool(open.entries, callId, {
+          state: answer === 'no' ? 'declined' : 'running',
+          reason: null,
+        }),
       }),
     };
   });
-  void window.estella?.agent?.confirm(callId, allow);
+  void window.estella?.agent?.confirm(callId, answer);
 }
 
 /** Drop the conversation — a new one starts with the next message. */

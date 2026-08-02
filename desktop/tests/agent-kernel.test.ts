@@ -56,7 +56,7 @@ describe('the agent turn', () => {
     events = [];
     stepsSince = 0;
     diagnostics = [];
-    confirm = vi.fn(async () => true);
+    confirm = vi.fn(async () => 'once');
     driver = vi.fn(async (method: string) => {
       if (method === 'mark') return { seq: 7 };
       if (method === 'stepsSince') return stepsSince;
@@ -111,7 +111,7 @@ describe('the agent turn', () => {
   });
 
   it('a decline is told to the model, not raised as a failure', async () => {
-    confirm.mockResolvedValue(false);
+    confirm.mockResolvedValue('no');
     const s = fakeSession([asks(call('export_game', { platform: 'web' })), ends()]);
     await runTurn(deps(s), 'ship it', null, new AbortController().signal);
 
@@ -164,7 +164,7 @@ describe('the agent turn', () => {
     stepsSince = 2;
     const ac = new AbortController();
     const s = fakeSession([asks(call('add_entity'), call('add_entity')), ends()]);
-    confirm.mockImplementation(async () => true);
+    confirm.mockImplementation(async () => 'once');
     driver.mockImplementation(async (method: string) => {
       if (method === 'mark') return { seq: 7 };
       if (method === 'stepsSince') return stepsSince;
@@ -235,6 +235,83 @@ describe('the agent turn', () => {
       const s = fakeSession([asks(call('get_scene_tree')), ends()]);
       await runTurn(deps(s), 'what is in here', null, new AbortController().signal);
       expect(String(s.results[0][0].content)).not.toContain('Truncated');
+    });
+  });
+
+  // A task that saves eleven files should be one decision, not eleven identical
+  // ones — a gate that interrupts that often is one people click through.
+  describe('the confirmation gate\'s scope', () => {
+    it('asks once per call by default', async () => {
+      const s = fakeSession([asks(call('save_scene'), call('save_scene')), ends()]);
+      await runTurn(deps(s), 'save twice', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops asking for that tool once it is allowed for the run', async () => {
+      confirm.mockResolvedValue('turn');
+      const s = fakeSession([asks(call('save_scene'), call('save_scene'), call('save_scene')), ends()]);
+      await runTurn(deps(s), 'save thrice', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(events.filter((e) => e.type === 'tool_end' && e.ok)).toHaveLength(3);
+    });
+
+    // Scoped to the TOOL, not to everything: saying yes to saving is not saying
+    // yes to running arbitrary code.
+    it('does not carry the allowance to a different tool', async () => {
+      confirm.mockResolvedValue('turn');
+      const s = fakeSession([asks(call('save_scene'), call('run_editor_command')), ends()]);
+      await runTurn(deps(s), 'save then run', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(2);
+    });
+
+    // The allowance is the run's. A new run starts from a clean gate, which is
+    // the whole reason it is not persisted.
+    it('expires with the run', async () => {
+      confirm.mockResolvedValue('turn');
+      const s = fakeSession([asks(call('save_scene')), ends(), asks(call('save_scene')), ends()]);
+      await runTurn(deps(s), 'save', null, new AbortController().signal);
+      await runTurn(deps(s), 'save again', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // Reads cannot affect each other, so a batch of them is one wait rather than
+  // N. Anything that writes stays ordered, including against the reads around it.
+  describe('running a batch of calls', () => {
+    /** Records overlap: how many calls were in flight at the busiest moment. */
+    const withConcurrency = () => {
+      let live = 0;
+      let peak = 0;
+      driver = vi.fn(async (method: string) => {
+        if (method === 'mark') return { seq: 7 };
+        if (method === 'stepsSince') return stepsSince;
+        if (method === 'getDiagnostics') return diagnostics;
+        live++;
+        peak = Math.max(peak, live);
+        await new Promise((r) => setTimeout(r, 5));
+        live--;
+        return method === 'getSceneTree' ? [] : null;
+      }) as never;
+      (driver as { js: unknown }).js = vi.fn(async () => null);
+      (driver as { op: unknown }).op = vi.fn(async () => null);
+      return () => peak;
+    };
+
+    it('sends a run of reads together', async () => {
+      const peak = withConcurrency();
+      const s = fakeSession([asks(call('get_scene_tree'), call('get_stats'), call('get_document')), ends()]);
+      await runTurn(deps(s), 'look around', null, new AbortController().signal);
+      expect(peak()).toBeGreaterThan(1);
+    });
+
+    it('keeps a write to itself, and in order with the reads around it', async () => {
+      const peak = withConcurrency();
+      const s = fakeSession([asks(call('get_scene_tree'), call('add_entity'), call('get_stats')), ends()]);
+      await runTurn(deps(s), 'read, write, read', null, new AbortController().signal);
+      expect(peak()).toBe(1);
+      // Results still line up with the calls that produced them.
+      expect(s.results[0].map((o) => o.id))
+        .toEqual(['cget_scene_tree', 'cadd_entity', 'cget_stats']);
     });
   });
 });

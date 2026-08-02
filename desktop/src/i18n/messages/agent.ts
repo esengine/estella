@@ -79,6 +79,11 @@ export const agentMessages = defineMessages({
         zh: '它会执行 Agent 自己写的代码,效果取决于那段代码。',
     },
     'agent.confirm.allow': { en: 'Run it', zh: '执行' },
+    'agent.confirm.allowTurn': { en: 'Allow for this run', zh: '本轮都允许' },
+    'agent.confirm.allowTurn.why': {
+        en: 'Stop asking for {tool} until this run ends. The next run asks again.',
+        zh: '本轮内不再为 {tool} 询问;下一轮会重新询问。',
+    },
     'agent.confirm.deny': { en: 'Skip', zh: '跳过' },
     'agent.confirm.denied': {
         en: 'Skipped — the agent was told to work around it.',

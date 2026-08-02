@@ -22,7 +22,7 @@ import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
-import type { AgentEvent } from './agent/types';
+import type { AgentEvent, ConfirmAnswer } from './agent/types';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -120,8 +120,8 @@ const api = {
     send: (text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:send', text),
     stop: (): Promise<void> => ipcRenderer.invoke('agent:stop'),
     /** Answer the pending confirmation for an irreversible tool. */
-    confirm: (callId: string, allow: boolean): Promise<void> =>
-      ipcRenderer.invoke('agent:confirm', callId, allow),
+    confirm: (callId: string, answer: ConfirmAnswer): Promise<void> =>
+      ipcRenderer.invoke('agent:confirm', callId, answer),
     /** Drop the conversation and start a new one. */
     reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
     /** Ask the n-th turn again, discarding it and everything after it. */

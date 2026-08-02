@@ -134,6 +134,17 @@ export interface ConfirmRequest {
 }
 
 /**
+ * How one of those was answered.
+ *
+ * `turn` also covers every later call of the SAME tool in this run — a task that
+ * saves eleven files should be one decision, not eleven identical ones, and a
+ * gate that interrupts that often is one people learn to click through without
+ * reading. It expires with the run on purpose: an "always" that outlives it is a
+ * permission switch nobody remembers flipping, which is what the gate is for.
+ */
+export type ConfirmAnswer = 'once' | 'turn' | 'no';
+
+/**
  * What the editor renders. A superset of what the provider emitted.
  *
  * Self-describing on purpose: the editor's read model is rebuilt from this
@@ -169,8 +180,8 @@ export interface KernelDeps {
   /** What is behind `session`, for the transcript. The session abstraction has
    *  no name for itself, and the host is where that name is known. */
   model: string;
-  /** Ask the person. Resolving false means "declined", which the model is told. */
-  confirm(request: ConfirmRequest): Promise<boolean>;
+  /** Ask the person. `no` is declined, which the model is told about. */
+  confirm(request: ConfirmRequest): Promise<ConfirmAnswer>;
   emit(event: AgentEvent): void;
 }
 

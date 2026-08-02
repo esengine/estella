@@ -111,6 +111,10 @@ export async function runTurn(
   emit({ type: 'turn_start', prompt: text, model, index: session.turnIndex });
 
   let reason: Extract<AgentEvent, { type: 'turn_end' }>['reason'] = 'end_turn';
+  // Tools the person has waved through for the REST OF THIS RUN. Not persisted:
+  // an "always" that outlives the run is a permission switch nobody remembers
+  // flipping, which is the thing the gate exists to prevent.
+  const allowed = new Set<string>();
   try {
     if (context) session.pushContext(context);
     session.pushUser(text);
@@ -130,13 +134,24 @@ export async function runTurn(
       if (refused) { reason = 'refusal'; break; }
       if (calls.length === 0) break;
 
+      // Reads have no side effects and no order among themselves, so a run of
+      // them goes out together — three lookups become one wait instead of three.
+      // Order is still respected ACROSS the boundary: a read the model asked for
+      // after a write means "tell me what that did", and answering it from
+      // before the write would be a lie it then reasons from.
       const outcomes: ToolOutcome[] = [];
       let wrote = false;
-      for (const call of calls) {
-        if (signal.aborted) break;
-        const { outcome, mutated } = await execute(deps, call);
-        outcomes.push(outcome);
-        wrote ||= mutated;
+      for (let i = 0; i < calls.length && !signal.aborted;) {
+        let end = i;
+        while (end < calls.length && isRead(calls[end])) end++;
+        const batch = end - i > 1
+          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed)))
+          : [await execute(deps, calls[i], allowed)];
+        for (const done of batch) {
+          outcomes.push(done.outcome);
+          wrote ||= done.mutated;
+        }
+        i += batch.length;
       }
       if (signal.aborted) break;
 
@@ -164,10 +179,17 @@ export async function runTurn(
 
 const MAX_ROUNDS = 48;
 
+/** True when a call cannot change anything, so it may run alongside others. */
+function isRead(call: ToolCall): boolean {
+  const tool = byName.get(call.name);
+  return !!tool && (tool.effect ?? 'read') === 'read';
+}
+
 /** Run one call: gate it, dispatch it, and report both ways. */
 async function execute(
   deps: KernelDeps,
   call: ToolCall,
+  allowed: Set<string>,
 ): Promise<{ outcome: ToolOutcome; mutated: boolean }> {
   const { emit, driver, confirm } = deps;
   const tool = byName.get(call.name);
@@ -185,15 +207,18 @@ async function execute(
   // the approval, and a prompt per setField would make the agent unusable.
   // `irreversible` is where undo stops being an answer, so it is where the
   // person has to be.
-  if (irreversible(tool)) {
+  // Already waved through for the rest of this run — see ConfirmAnswer.
+  if (irreversible(tool) && !allowed.has(call.name)) {
     const request = { callId: call.id, tool: call.name, reason: confirmReason(tool), input: call.input };
     emit({ type: 'awaiting_confirm', request });
-    if (!await confirm(request)) {
+    const answer = await confirm(request);
+    if (answer === 'no') {
       const content = `the user declined to run ${call.name}. Do not retry it; `
         + 'continue with what you can do without it, or say what you need.';
       emit({ type: 'tool_end', id: call.id, ok: false, summary: 'declined' });
       return { outcome: { id: call.id, content, isError: false }, mutated: false };
     }
+    if (answer === 'turn') allowed.add(call.name);
   }
 
   const result = await runTool(tool, driver, call.input, true) as {
