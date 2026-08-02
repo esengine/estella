@@ -24,6 +24,8 @@ import {
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
+import { confirm } from '@/components/confirm';
+import { t } from '@/i18n';
 
 export type { AgentStatus, AgentEvent };
 
@@ -222,8 +224,23 @@ export function syncAgentEndpoint(): void {
  * than continued: a session is built for one model, thinking blocks have to
  * come back to the model that produced them, and the cached prefix is a byte
  * match — so "same conversation, different model" is not a thing that exists.
+ *
+ * Which is why it asks. Ending the conversation is the unavoidable COST of the
+ * switch, not part of what the user asked for, and a transcript that vanished
+ * on a click aimed at the model name reads as having lost something rather than
+ * as having chosen it. Declining leaves the pick alone too: a selection saved
+ * for "next time" while this conversation keeps answering on the old model is a
+ * picker that lies about what is running.
  */
-export function selectAgentModel(providerId: string, model: string): void {
+export async function selectAgentModel(providerId: string, model: string): Promise<void> {
+  if (useAgent.getState().turns.length > 0) {
+    const ok = await confirm({
+      title: t('agent.switch.title', { model }),
+      body: t('agent.switch.body'),
+      confirmLabel: t('agent.switch.confirm'),
+    });
+    if (!ok) return;
+  }
   const selection: AgentSelection = { providerId, model };
   useAgent.setState({ selection });
   try {
@@ -540,6 +557,25 @@ export function confirmAgentCall(callId: string, answer: ConfirmAnswer, declined
     };
   });
   void window.estella?.agent?.confirm(callId, answer, declined);
+}
+
+/**
+ * Drop the conversation and start over, at the user's asking.
+ *
+ * Separate from {@link resetAgentSession} because that one is also how the
+ * editor ends a session it has no choice about (a model switch), and a
+ * confirmation there would either ask twice or ask the wrong question.
+ */
+export async function startNewConversation(): Promise<void> {
+  if (useAgent.getState().turns.length > 0) {
+    const ok = await confirm({
+      title: t('agent.new.title'),
+      body: t('agent.new.body'),
+      confirmLabel: t('agent.new.confirm'),
+    });
+    if (!ok) return;
+  }
+  await resetAgentSession();
 }
 
 /** Drop the conversation — a new one starts with the next message. */

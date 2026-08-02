@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
-  useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
+  useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
@@ -688,7 +688,7 @@ function ModelPicker() {
                     className={`ag-picker-it${current?.model === m && current.providerId === p.id ? ' on' : ''}${keyed ? '' : ' locked'}`}
                     onClick={() => {
                       setOpen(false);
-                      if (keyed) selectAgentModel(p.id, m);
+                      if (keyed) void selectAgentModel(p.id, m);
                       else openAgentSettings();
                     }}
                   >
@@ -933,7 +933,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         <AgentMark size={docked ? 13 : 15} live={status.phase !== 'idle'} />
         {!docked && <span className="ag-ttl">{t('agent.title')}</span>}
         <span className="ag-sp" />
-        <button type="button" title={t('agent.newConversation')} onClick={() => void resetAgentSession()}>
+        <button type="button" title={t('agent.newConversation')} onClick={() => void startNewConversation()}>
           <Plus size={14} strokeWidth={2} />
         </button>
         {!docked && (

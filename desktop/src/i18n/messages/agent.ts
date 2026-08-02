@@ -29,6 +29,20 @@ export const agentMessages = defineMessages({
     'agent.hint.mention': { en: 'reference', zh: '引用' },
     'agent.mention': { en: 'Reference', zh: '引用' },
 
+    // — Ending a conversation, on purpose or as the price of a switch —
+    'agent.new.title': { en: 'Start a new conversation?', zh: '开始新对话?' },
+    'agent.new.body': {
+        en: 'This one is dropped and the agent forgets what was said. What it changed in the scene stays.',
+        zh: '当前这段会被丢弃,Agent 会忘掉说过的话。它对场景做过的改动仍然保留。',
+    },
+    'agent.new.confirm': { en: 'Start new', zh: '新建' },
+    'agent.switch.title': { en: 'Switch to {model}?', zh: '切换到 {model}?' },
+    'agent.switch.body': {
+        en: 'A conversation belongs to the model that answered it, so this one ends here. What it changed in the scene stays.',
+        zh: '一段对话属于回答它的那个模型,所以当前对话会在此结束。它对场景做过的改动仍然保留。',
+    },
+    'agent.switch.confirm': { en: 'Switch and start over', zh: '切换并重新开始' },
+
     // — Which model the next message runs on —
     'agent.picker.none': { en: 'Pick a model', zh: '选择模型' },
     'agent.picker.noKey': { en: 'no key', zh: '未配置密钥' },
