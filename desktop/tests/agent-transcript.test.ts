@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyAgentEvent, entitiesInInput, touchedEntities, briefResult,
-  type AgentTurn, type AgentToolEntry,
+  type AgentTurn, type AgentToolEntry, type AgentProseEntry,
 } from '../src/store/AgentStore';
 import type { AgentEvent, ToolCall } from '../electron/agent/types';
 
@@ -61,7 +61,27 @@ describe('the transcript projection', () => {
       { type: 'text', delta: 'The scene ' },
       { type: 'text', delta: 'has 58 entities.' },
     );
-    expect(turn.entries).toEqual([{ kind: 'text', text: 'The scene has 58 entities.' }]);
+    expect(turn.entries).toMatchObject([{ kind: 'text', text: 'The scene has 58 entities.' }]);
+  });
+
+  // Reasoning is timed: the reader is already measuring that silence, and a
+  // block that never closes would keep counting after the run moved on.
+  it('stamps a prose block\'s start, and closes it when something else begins', () => {
+    const [turn] = fold(
+      started(),
+      { type: 'thinking', delta: 'look at the UI layer' },
+      { type: 'text', delta: 'Building it now.' },
+    );
+    const [thinking, answer] = turn.entries as [AgentProseEntry, AgentProseEntry];
+    expect(thinking.startedAt).toBeGreaterThan(0);
+    expect(thinking.endedAt).toBeGreaterThanOrEqual(thinking.startedAt);
+    // The one still being written has not ended.
+    expect(answer.endedAt).toBeNull();
+  });
+
+  it('closes an open prose block when the run ends', () => {
+    const [turn] = fold(started(), { type: 'text', delta: 'Done.' }, ended());
+    expect((turn.entries[0] as AgentProseEntry).endedAt).not.toBeNull();
   });
 
   // Reasoning and answer are different rows; concatenating them would put the

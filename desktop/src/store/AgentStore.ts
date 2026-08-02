@@ -63,6 +63,11 @@ export interface AgentToolEntry {
 export interface AgentProseEntry {
   kind: 'text' | 'thinking';
   text: string;
+  /** When the first delta landed, and when the run moved on to something else.
+   *  Reasoning shows how long it took: a long silence is the thing the reader is
+   *  already measuring, and guessing at it is what makes a turn feel hung. */
+  startedAt: number;
+  endedAt: number | null;
 }
 
 export interface AgentErrorEntry {
@@ -231,9 +236,19 @@ const withEntries = (turns: readonly AgentTurn[], entries: AgentEntry[]): AgentT
 function appendProse(entries: readonly AgentEntry[], kind: 'text' | 'thinking', delta: string): AgentEntry[] {
   const last = entries[entries.length - 1];
   if (last?.kind === kind) {
-    return [...entries.slice(0, -1), { kind, text: last.text + delta }];
+    return [...entries.slice(0, -1), { ...last, text: last.text + delta }];
   }
-  return [...entries, { kind, text: delta }];
+  return [...closeProse(entries), { kind, text: delta, startedAt: Date.now(), endedAt: null }];
+}
+
+/** A prose block is over the moment anything else begins — another kind of
+ *  block, a tool call, the end of the run. Idempotent. */
+function closeProse(entries: readonly AgentEntry[]): AgentEntry[] {
+  const last = entries[entries.length - 1];
+  if (!last || last.kind === 'tool' || last.kind === 'error' || last.endedAt !== null) {
+    return entries as AgentEntry[];
+  }
+  return [...entries.slice(0, -1), { ...last, endedAt: Date.now() }];
 }
 
 /** Rewrite the tool row `id` — a no-op if the turn never saw it asked for. */
@@ -291,7 +306,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       if (open.entries.some((e) => e.kind === 'tool' && e.id === id)) {
         return withEntries(turns, patchTool(open.entries, id, { input }));
       }
-      return withEntries(turns, [...open.entries, {
+      return withEntries(turns, [...closeProse(open.entries), {
         kind: 'tool',
         id,
         name,
@@ -339,7 +354,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       });
 
     case 'error':
-      return withEntries(turns, [...open.entries, { kind: 'error', message: event.message }]);
+      return withEntries(turns, [...closeProse(open.entries), { kind: 'error', message: event.message }]);
 
     case 'turn_end':
       return patchLast(turns, {
@@ -348,7 +363,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         mark: event.mark,
         endedAt: Date.now(),
         // Nothing will report on these now. Neither failed nor succeeded.
-        entries: open.entries.map((e) =>
+        entries: closeProse(open.entries).map((e) =>
           (e.kind === 'tool' && !TERMINAL.has(e.state) ? { ...e, state: 'stopped' as const } : e)),
       });
 

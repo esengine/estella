@@ -62,7 +62,15 @@ export const agentMessages = defineMessages({
     'agent.stopped': { en: 'stopped', zh: '已中止' },
     'agent.declined': { en: 'skipped', zh: '已跳过' },
     'agent.turn.aborted': { en: 'Stopped part-way.', zh: '中途停止。' },
+    'agent.turn.aborted.note': {
+        en: 'You stopped this run — whatever it had already done is still there.',
+        zh: '你停止了这一轮——做到一半的改动都留着。',
+    },
     'agent.turn.refusal': { en: 'The model declined this one.', zh: '模型拒绝了这个请求。' },
+    'agent.turn.refusal.note': {
+        en: 'Nothing was changed by this run, so there is nothing to undo.',
+        zh: '这一轮什么都没有改动,不需要撤销。',
+    },
     'agent.turn.queuedMessage': { en: 'Queued: {text}', zh: '已排队:{text}' },
     'agent.copy': { en: 'Copy', zh: '复制' },
     'agent.changes': { en: 'What changed', zh: '改动集' },

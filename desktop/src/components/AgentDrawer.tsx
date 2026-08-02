@@ -27,12 +27,13 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
+  File as FileIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn,
-  type AgentTurn, type AgentEntry, type AgentToolEntry,
+  type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import type { ConfirmAnswer } from '../../electron/agent/types';
 import {
@@ -46,6 +47,7 @@ import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
 import { EditorControlSurface } from '@/engine/EditorSession';
+import { ProjectStore } from '@/project/ProjectStore';
 import { t } from '@/i18n';
 
 const TOOL_ICON: Record<string, typeof Eye> = {
@@ -152,47 +154,60 @@ function Fold({ open, children }: { open: boolean; children: React.ReactNode }) 
   );
 }
 
-function Thinking({ text }: { text: string }) {
+function Thinking({ entry }: { entry: AgentProseEntry }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`ag-think${open ? ' open' : ''}`}>
       <button type="button" className="ag-think-t" onClick={() => setOpen((o) => !o)}>
         <ChevronRight size={10} strokeWidth={2} className="ag-car" />
         <span>{t('agent.thinking')}</span>
+        {/* How long it thought. The reader is already measuring this silence;
+            saying it is the difference between "working" and "stuck". */}
+        <Elapsed from={entry.startedAt} to={entry.endedAt} className="ag-think-el" />
       </button>
-      <Fold open={open}><div className="ag-think-body">{text}</div></Fold>
+      <Fold open={open}><div className="ag-think-body">{entry.text}</div></Fold>
     </div>
   );
 }
 
-function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
+function Prose({ text, streaming, onRerun }: { text: string; streaming?: boolean; onRerun?: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="ag-say">
       {/* The caret rides the tail of the text itself — see MarkdownView. */}
       <MarkdownView text={text} entity={entityByName} caret={streaming} />
-      <button
-        type="button"
-        className="ag-say-copy"
-        title={t('agent.copy')}
-        onClick={() => {
-          void navigator.clipboard?.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 900);
-        }}
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-      </button>
+      {/* On the answer rather than only on the run header: a reply you disagree
+          with is the thing you are looking at when you decide to ask again. */}
+      <span className="ag-say-acts">
+        <button
+          type="button"
+          title={t('agent.copy')}
+          onClick={() => {
+            void navigator.clipboard?.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 900);
+          }}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+        {onRerun && (
+          <button type="button" title={t('agent.rerun')} onClick={onRerun}>
+            <RotateCcw size={12} strokeWidth={1.9} />
+          </button>
+        )}
+      </span>
     </div>
   );
 }
 
 /** Consecutive tool rows are one hairline-divided block; prose breaks the run. */
-function Entries({ entries, onConfirm, streaming }: {
+function Entries({ entries, onConfirm, streaming, onRerun }: {
   entries: readonly AgentEntry[];
   onConfirm: (callId: string, answer: ConfirmAnswer) => void;
   /** The run is still taking events, so the last entry is mid-write. */
   streaming?: boolean;
+  /** Ask this run again. Absent while one is running — see Turn. */
+  onRerun?: () => void;
 }) {
   const out: React.ReactNode[] = [];
   let run: AgentToolEntry[] = [];
@@ -221,8 +236,8 @@ function Entries({ entries, onConfirm, streaming }: {
           <span className="ag-ask-hd">{entry.message}</span>
         </div>,
       );
-    } else if (entry.kind === 'thinking') out.push(<Thinking key={i} text={entry.text} />);
-    else out.push(<Prose key={i} text={entry.text} streaming={streaming && i === entries.length - 1} />);
+    } else if (entry.kind === 'thinking') out.push(<Thinking key={i} entry={entry} />);
+    else out.push(<Prose key={i} text={entry.text} streaming={streaming && i === entries.length - 1} onRerun={onRerun} />);
   });
   flush();
   return <>{out}</>;
@@ -332,18 +347,18 @@ function brief(value: unknown): string {
   return text.length > 22 ? `${text.slice(0, 21)}…` : text;
 }
 
-/** Ticks while the turn runs, then freezes at what it took. A turn that takes
- *  two minutes should say so as it happens, not only afterwards. */
-function Elapsed({ turn }: { turn: AgentTurn }) {
+/** Ticks while it runs, then freezes at what it took. A turn that takes two
+ *  minutes should say so as it happens, not only afterwards. */
+function Elapsed({ from, to, className }: { from: number; to: number | null; className?: string }) {
   const [now, setNow] = useState(() => Date.now());
-  const live = turn.endedAt === null;
+  const live = to === null;
   useEffect(() => {
     if (!live) return;
     const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
   }, [live]);
-  const ms = (turn.endedAt ?? now) - turn.startedAt;
-  return <span className={live ? 'ag-live' : undefined}>{formatElapsed(ms)}</span>;
+  const ms = (to ?? now) - from;
+  return <span className={`${className ?? ''}${live ? ' ag-live' : ''}`.trim()}>{formatElapsed(ms)}</span>;
 }
 
 function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; running: boolean }) {
@@ -384,7 +399,7 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
               them, and the composer's picker only ever says what is next. */}
           {turn.model && <span className="ag-stat-model">{turn.model}</span>}
           <span className="ag-sp" />
-          <Elapsed turn={turn} />
+          <Elapsed from={turn.startedAt} to={turn.endedAt} />
           {tokens > 0 && <span>↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}</span>}
           {turn.reason === 'aborted' && <span className="ag-warn">{t('agent.turn.aborted')}</span>}
           {turn.reason === 'refusal' && <span className="ag-warn">{t('agent.turn.refusal')}</span>}
@@ -402,12 +417,23 @@ function Turn({ turn, isLast, running }: { turn: AgentTurn; isLast: boolean; run
       <Fold open={!folded}>
         <div className="ag-tb">
           {empty && running && isLast ? <Skeleton /> : (
-            <Entries entries={turn.entries} onConfirm={confirmAgentCall} streaming={running && isLast} />
+            <Entries
+              entries={turn.entries}
+              onConfirm={confirmAgentCall}
+              streaming={running && isLast}
+              onRerun={running ? undefined : () => void retryAgentTurn(turn.id)}
+            />
           )}
           {/* Between rounds: the last thing that happened was a tool result and
               the model is being asked again. Without this the transcript looks
               finished while a request is in flight. */}
           {running && isLast && turn.entries.length > 0 && lastIsSettled(turn.entries) && <Waiting />}
+          {/* How the run ENDED, where the run is — the header's badge survives
+              folding, and this says the part that needs a sentence: a stopped
+              turn keeps whatever it already did, which is the question anyone
+              who just pressed Stop is asking. */}
+          {turn.reason === 'aborted' && <div className="ag-sys">{t('agent.turn.aborted.note')}</div>}
+          {turn.reason === 'refusal' && <div className="ag-sys">{t('agent.turn.refusal.note')}</div>}
           {turn.reason !== null && <ChangeSet turn={turn} />}
         </div>
       </Fold>
@@ -540,13 +566,37 @@ function resolveProviderModels(id: string): { label: string; models: readonly st
   return { label: def.label, models: def.models };
 }
 
-/** Entities the `@` picker offers for `query`, best-first. */
-function mentionMatches(query: string): { id: number; name: string }[] {
+/** One thing `@` can name: something in the scene, or something on disk. */
+interface Mention {
+  key: string;
+  /** What gets typed. An asset goes in as its path — that is what the tools take. */
+  insert: string;
+  label: string;
+  /** Entities light up in the Outliner and the viewport when hovered. */
+  entity: number | null;
+  detail: string;
+}
+
+/**
+ * What `@` offers for `query`, entities first.
+ *
+ * Assets belong here as much as entities do: half of what gets asked for names
+ * a texture or a prefab ("use @panel_9slice.png for the buttons"), and without
+ * them the alternative is typing a path from memory and hoping it is right.
+ */
+function mentionMatches(query: string): Mention[] {
   const q = query.toLowerCase();
-  return EditorControlSurface.getSceneTree()
+  const entities: Mention[] = EditorControlSurface.getSceneTree()
     .filter((n) => !q || n.name.toLowerCase().includes(q))
-    .slice(0, 40)
-    .map((n) => ({ id: n.id, name: n.name }));
+    .slice(0, 24)
+    .map((n) => ({ key: `e${n.id}`, insert: n.name, label: n.name, entity: n.id, detail: String(n.id) }));
+
+  const assets: Mention[] = ProjectStore.listAssets()
+    .filter((a) => !q || a.name.toLowerCase().includes(q) || a.path.toLowerCase().includes(q))
+    .slice(0, 16)
+    .map((a) => ({ key: `a${a.ref}`, insert: a.path, label: a.name, entity: null, detail: a.type }));
+
+  return [...entities, ...assets];
 }
 
 function Compose() {
@@ -557,7 +607,7 @@ function Compose() {
   // `@` opens a picker over the scene tree. Read at open time rather than
   // subscribed: it is a menu, and a list reordering under the arrow keys is a
   // menu that picks something other than what was highlighted.
-  const [mention, setMention] = useState<{ query: string; items: { id: number; name: string }[]; at: number } | null>(null);
+  const [mention, setMention] = useState<{ query: string; items: Mention[]; at: number } | null>(null);
   const [mentionIdx, setMentionIdx] = useState(0);
   const selected = useSelection((s) => s.selectedId);
   const selectedName = selected == null ? null : EditorControlSurface.getEntity(selected)?.name ?? null;
@@ -608,15 +658,17 @@ function Compose() {
             {mention.items.map((item, i) => (
               <button
                 type="button"
-                key={item.id}
+                key={item.key}
                 className={`ag-mention-i${i === mentionIdx ? ' on' : ''}`}
-                onMouseEnter={() => { setMentionIdx(i); peekEntities([item.id]); }}
+                onMouseEnter={() => { setMentionIdx(i); peekEntities(item.entity === null ? [] : [item.entity]); }}
                 onMouseLeave={() => peekEntities([])}
-                onMouseDown={(e) => { e.preventDefault(); insertMention(item.name); }}
+                onMouseDown={(e) => { e.preventDefault(); insertMention(item.insert); }}
               >
-                <Boxes size={12} strokeWidth={1.8} />
-                {item.name}
-                <span className="ag-mention-id">{item.id}</span>
+                {item.entity === null
+                  ? <FileIcon size={12} strokeWidth={1.8} />
+                  : <Boxes size={12} strokeWidth={1.8} />}
+                {item.label}
+                <span className="ag-mention-id">{item.detail}</span>
               </button>
             ))}
           </div>
@@ -647,7 +699,7 @@ function Compose() {
             if (mention && mention.items.length > 0) {
               if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % mention.items.length); return; }
               if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + mention.items.length) % mention.items.length); return; }
-              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mention.items[mentionIdx].name); return; }
+              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mention.items[mentionIdx].insert); return; }
               // Esc dismisses the picker without closing the drawer behind it.
               if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null); return; }
             }

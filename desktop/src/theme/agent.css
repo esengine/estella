@@ -171,19 +171,27 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.ag-say-copy {
-  position: absolute; top: -10px; right: 0;
+/* Quiet until the answer is hovered: they act on what you are reading, and a
+   row of buttons always on would compete with the text for the eye. */
+.ag-say-acts {
+  position: absolute; top: -11px; right: 0;
+  display: flex; gap: 1px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+.ag-say:hover .ag-say-acts, .ag-say-acts:focus-within { opacity: 1; }
+.ag-say-acts button {
   width: 22px; height: 22px;
   display: grid; place-items: center;
   border-radius: var(--r-sm);
-  background: var(--raised);
-  border: 1px solid var(--line);
   color: var(--text-faint);
-  opacity: 0;
-  transition: opacity var(--t-fast), color var(--t-fast);
+  transition: color var(--t-fast), background var(--t-fast);
 }
-.ag-say:hover .ag-say-copy, .ag-say-copy:focus-visible { opacity: 1; }
-.ag-say-copy:hover { color: var(--text-hi); }
+.ag-say-acts button:hover { color: var(--text-hi); background: var(--hover); }
 
 .ag-think { padding-left: 12px; border-left: 1px solid var(--line); }
 .ag-think-t {
@@ -193,6 +201,7 @@
   transition: color var(--t-fast);
 }
 .ag-think-t:hover { color: var(--text-dim); }
+.ag-think-el { margin-left: 2px; font: var(--fs-2xs) var(--font-mono); color: var(--text-faint); }
 .ag-car { transition: transform var(--t) var(--e-out); }
 .ag-think.open .ag-car { transform: rotate(90deg); }
 .ag-think-body {
