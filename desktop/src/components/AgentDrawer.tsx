@@ -126,7 +126,26 @@ function PreviewPassage({ entry, onConfirm }: {
   const [struck, setStruck] = useState<ReadonlySet<number>>(new Set());
   useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }); }, []);
 
-  const ops = Array.isArray(entry.input.ops) ? (entry.input.ops as SceneOp[]) : null;
+  // A batch big enough to be written to a file is the one most worth reading
+  // before it lands, so the file form is loaded rather than waved through. An
+  // empty preview beside an Apply button would claim the batch changes nothing.
+  const opsPath = typeof entry.input.opsPath === 'string' ? entry.input.opsPath : null;
+  const [fromFile, setFromFile] = useState<SceneOp[] | 'unreadable' | null>(null);
+  useEffect(() => {
+    if (!opsPath) return;
+    void (window.estella?.fs?.read(opsPath) ?? Promise.reject())
+      .then((text) => {
+        const parsed: unknown = JSON.parse(text);
+        setFromFile(Array.isArray(parsed) ? (parsed as SceneOp[]) : 'unreadable');
+      })
+      .catch(() => setFromFile('unreadable'));
+  }, [opsPath]);
+
+  const ops = Array.isArray(entry.input.ops)
+    ? (entry.input.ops as SceneOp[])
+    : (Array.isArray(fromFile) ? fromFile : null);
+  const loading = opsPath !== null && fromFile === null;
+  const unreadable = fromFile === 'unreadable';
   const preview = ops ? previewSceneOps(ops, editorScene) : [];
   // What striking these lines actually costs, dependents included.
   const dropped = ops ? new Set(withoutDeclined(ops, struck).dropped) : new Set<number>();
@@ -142,8 +161,14 @@ function PreviewPassage({ entry, onConfirm }: {
   return (
     <div ref={ref} className="ag-ask ag-ask--preview">
       <span className="ag-ask-g"><Pencil size={16} strokeWidth={1.8} /></span>
-      <span className="ag-ask-hd">{t('agent.preview.title', { count: preview.length })}</span>
-      <div className="ag-ask-d">{t('agent.preview.why')}</div>
+      <span className="ag-ask-hd">
+        {loading ? t('agent.preview.loading')
+          : unreadable ? t('agent.preview.unreadable', { path: opsPath ?? '' })
+            : t('agent.preview.title', { count: preview.length })}
+      </span>
+      <div className="ag-ask-d">
+        {unreadable ? t('agent.preview.unreadable.why') : t('agent.preview.why')}
+      </div>
       <div className="ag-preview">
         {preview.map((line) => (
           <button

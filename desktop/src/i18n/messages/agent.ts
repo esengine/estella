@@ -98,6 +98,15 @@ export const agentMessages = defineMessages({
         en: 'Click a line to strike it out. Striking a new entity also strikes what refers to it.',
         zh: '点击某一行可划掉它。划掉一个新建实体时,引用它的行会一并划掉。',
     },
+    'agent.preview.loading': { en: 'Reading the batch…', zh: '正在读取这批改动…' },
+    'agent.preview.unreadable': {
+        en: 'This batch comes from {path}, which could not be read',
+        zh: '这批改动来自 {path},读取失败',
+    },
+    'agent.preview.unreadable.why': {
+        en: 'Nothing is previewed below. Applying runs the file as the agent wrote it.',
+        zh: '下面没有可预览的内容。应用将按 Agent 写好的文件原样执行。',
+    },
     'agent.preview.apply': { en: 'Apply all', zh: '全部应用' },
     'agent.preview.applyKept': { en: 'Apply {count}', zh: '应用 {count} 项' },
     'agent.confirm.allow': { en: 'Run it', zh: '执行' },
