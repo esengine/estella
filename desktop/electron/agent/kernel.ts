@@ -140,10 +140,9 @@ export async function runTurn(
     }
     session.pushUser(text);
 
-    // Bounded so a model that keeps calling tools cannot spin forever. Reaching
-    // it is reported as an ordinary end of turn — the work so far stands, and
-    // the person can say "keep going".
-    for (let round = 0; round < MAX_ROUNDS; round++) {
+    // Bounded so a model that keeps calling tools cannot spin forever.
+    let round = 0;
+    for (; round < MAX_ROUNDS; round++) {
       // The editor is not frozen while a turn runs: the person can drag an
       // entity while the model is thinking. Whatever the agent read before that
       // is now possibly stale, and it has no way to notice — an edit made from
@@ -207,6 +206,11 @@ export async function runTurn(
       // Everything on the stack now is this turn's own doing.
       ours = await undoSteps(deps, mark);
     }
+    // The budget ran out rather than the model stopping asking, so the work is
+    // unfinished. Said out loud: reported as an ordinary end of turn, a run cut
+    // off mid-task looks exactly like one that finished, and the sentence that
+    // would have told you otherwise is the one it never got to write.
+    if (round === MAX_ROUNDS) reason = 'max_rounds';
   } catch (e) {
     reason = signal.aborted ? 'aborted' : 'error';
     if (!signal.aborted) emit({ type: 'error', message: (e as Error)?.message ?? String(e) });

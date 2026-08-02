@@ -79,7 +79,10 @@ export interface AgentErrorEntry {
 
 export type AgentEntry = AgentProseEntry | AgentToolEntry | AgentErrorEntry;
 
-export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal';
+export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
+
+/** Endings the run could have gone further from, so the person can say so. */
+export const RESUMABLE: ReadonlySet<TurnReason> = new Set<TurnReason>(['aborted', 'max_rounds']);
 
 export interface AgentTurn {
   /** Position in the conversation; stable, so React keys are too. */

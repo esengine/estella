@@ -183,6 +183,21 @@ describe('the agent turn', () => {
     expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'refusal' });
   });
 
+  // A model that keeps asking for tools is cut off, and the run has to say so:
+  // an end_turn here looks exactly like a run that finished, and the sentence
+  // that would have told you otherwise is the one it never got to write.
+  it('says the step budget ran out rather than reporting a finished run', async () => {
+    const s = fakeSession(Array.from({ length: 60 }, () => asks(call('get_scene_tree'))));
+    await runTurn(deps(s), 'build the whole game', null, new AbortController().signal);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'max_rounds' });
+  });
+
+  it('does not blame the budget for a run that stopped asking in time', async () => {
+    const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+    await runTurn(deps(s), 'look', null, new AbortController().signal);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'end_turn' });
+  });
+
   it('puts editor context ahead of the user turn, and only when there is some', async () => {
     const s = fakeSession([ends()]);
     await runTurn(deps(s), 'hi', 'The open document is main.esscene.', new AbortController().signal);

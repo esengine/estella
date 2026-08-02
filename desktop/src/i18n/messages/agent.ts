@@ -85,6 +85,16 @@ export const agentMessages = defineMessages({
         zh: '你停止了这一轮——做到一半的改动都留着。',
     },
     'agent.turn.refusal': { en: 'The model declined this one.', zh: '模型拒绝了这个请求。' },
+    'agent.turn.maxRounds': { en: 'Ran out of steps.', zh: '步数用尽。' },
+    'agent.turn.maxRounds.note': {
+        en: 'It reached the limit on tool calls for one run before it was finished. What it already did is there.',
+        zh: '它在干完之前用光了单轮的工具调用次数。已经做完的部分都留着。',
+    },
+    'agent.continue': { en: 'Carry on', zh: '接着干' },
+    'agent.continue.message': {
+        en: 'Carry on from where you stopped.',
+        zh: '从你停下的地方接着干。',
+    },
     'agent.turn.refusal.note': {
         en: 'Nothing was changed by this run, so there is nothing to undo.',
         zh: '这一轮什么都没有改动,不需要撤销。',

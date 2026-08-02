@@ -200,7 +200,9 @@ export type AgentEvent =
   | { type: 'awaiting_confirm'; request: ConfirmRequest }
   /** The turn is over. `steps` is what a single Undo would take back — 0 is the
    *  signal not to offer one — and `mark` is where it would take it back to. */
-  | { type: 'turn_end'; steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }
+  /** `max_rounds` is its own ending because the work is UNFINISHED: reported as
+   *  an ordinary end_turn it would look like the agent had said its piece. */
+  | { type: 'turn_end'; steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds' }
   | { type: 'error'; message: string };
 
 /** Everything the kernel needs from outside, so it runs under a test with none

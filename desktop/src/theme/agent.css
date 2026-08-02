@@ -701,6 +701,23 @@
 .ag-th:hover .ag-rerun, .ag-rerun:focus-visible { opacity: 1; }
 .ag-rerun:hover { color: var(--text-hi); background: var(--hover); }
 
+/* Pick a stopped run back up. Sits with the note that says it stopped, and
+   reads as an offer rather than as the primary thing to do — the run may well
+   have got far enough already. */
+.ag-continue {
+  align-self: flex-start;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 13px;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.ag-continue:hover { background: var(--pressed); color: var(--text-hi); }
+.ag-continue svg { color: var(--text-faint); }
+.ag-continue:hover svg { color: var(--text); }
+
 /* ── The change set ─────────────────────────────────────────────────────────
    The work product of a run, so it gets real +/~/− semantics and a field-level
    before→after inline — not a popover hung off the undo bar. */

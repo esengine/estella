@@ -27,12 +27,13 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
-  File as FileIcon,
+  File as FileIcon, ArrowRight,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
+  RESUMABLE,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import type { ConfirmAnswer } from '../../electron/agent/types';
@@ -557,6 +558,7 @@ function Turn({ turn, isLast, running, until }: {
           {tokens > 0 && <span>↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}</span>}
           {turn.reason === 'aborted' && <span className="ag-warn">{t('agent.turn.aborted')}</span>}
           {turn.reason === 'refusal' && <span className="ag-warn">{t('agent.turn.refusal')}</span>}
+          {turn.reason === 'max_rounds' && <span className="ag-warn">{t('agent.turn.maxRounds')}</span>}
           {/* What the run left in the scene — the number the summary is actually
               about, which is why it reads here and not only inside the fold. */}
           {counts && (
@@ -588,6 +590,19 @@ function Turn({ turn, isLast, running, until }: {
               who just pressed Stop is asking. */}
           {turn.reason === 'aborted' && <div className="ag-sys">{t('agent.turn.aborted.note')}</div>}
           {turn.reason === 'refusal' && <div className="ag-sys">{t('agent.turn.refusal.note')}</div>}
+          {turn.reason === 'max_rounds' && <div className="ag-sys">{t('agent.turn.maxRounds.note')}</div>}
+          {/* A run that could have gone further. Offered only on the run that
+              stopped: picking a stopped run up from three turns ago would carry
+              on from a scene that has since moved. */}
+          {isLast && !running && turn.reason && RESUMABLE.has(turn.reason) && (
+            <button
+              type="button"
+              className="ag-continue"
+              onClick={() => void sendAgentMessage(t('agent.continue.message'))}
+            >
+              <ArrowRight size={13} strokeWidth={2} />{t('agent.continue')}
+            </button>
+          )}
           {turn.reason !== null && <ChangeSet turn={turn} until={until} />}
         </div>
       </Fold>
