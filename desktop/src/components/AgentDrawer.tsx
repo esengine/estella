@@ -73,7 +73,14 @@ function ToolRow({ entry, onConfirm }: {
   entry: AgentToolEntry;
   onConfirm: (answer: ConfirmAnswer, declined?: readonly number[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // A call that FAILED opens itself. The cell beside the row is clipped to a
+  // couple of dozen characters (AgentStore's briefResult) and a reason never
+  // fits in that, so the one row you actually have to read is the one that used
+  // to hide what it had to say. Folding it again afterwards stays the user's:
+  // the effect fires on becoming failed, not on every render.
+  const failed = entry.state === 'error';
+  const [open, setOpen] = useState(failed);
+  useEffect(() => { if (failed) setOpen(true); }, [failed]);
   const Icon = TOOL_ICON[entry.effect ?? 'read'] ?? Eye;
   // While the model is writing them, show the raw text arriving; once the call
   // is complete, the tidied summary. The switch is the point at which there is
