@@ -84,6 +84,15 @@ published separately; it ships inside the editor.
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
 
+- **The agent notices when you edit while it is working.** The editor is not frozen during
+  a turn, and an edit it made from a reading taken before you dragged something would
+  silently overwrite you. It is now told between rounds, and told to re-read rather than
+  handed a guess about what went stale.
+- **It knows which room it is in**: the per-turn context now carries the editor's mode and
+  the project's design resolution, so a tilemap task is not reasoned about as a UI one and
+  coordinates stop coming out an order of magnitude off. And where the endpoint cannot
+  carry images — which is true of Anthropic-compatible gateways generally — it is told
+  up front that screenshots cannot reach it, instead of discovering that by taking one.
 - **A batch of scene edits can be read before it lands, and cut down.** The change set
   under a finished run says what happened and only offers to revert the whole run; this
   says what is *about* to happen, while declining part of it is still free. Lines read in
