@@ -10,11 +10,14 @@
  *        regression tests for holding it instead.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { useAgent, sendAgentMessage, stopAgentTurn, applyAgentMessage } from '@/store/AgentStore';
+import {
+  useAgent, sendAgentMessage, stopAgentTurn, applyAgentMessage, retryAgentTurn,
+} from '@/store/AgentStore';
 import type { AgentStatus } from '../electron/agent/host';
 
 const send = vi.fn(async (_text: string, _images?: unknown) => undefined);
 const stop = vi.fn();
+const retry = vi.fn(async (_n: number, _text: string) => undefined);
 
 const status = (phase: AgentStatus['phase']): AgentStatus =>
   ({ ready: true, conversation: true, phase, model: 'opus-5', error: null });
@@ -25,7 +28,8 @@ const pushStatus = (phase: AgentStatus['phase']) => applyAgentMessage({ kind: 's
 beforeEach(() => {
   send.mockClear();
   stop.mockClear();
-  (globalThis as { window?: unknown }).window = { estella: { agent: { send, stop } } };
+  retry.mockClear();
+  (globalThis as { window?: unknown }).window = { estella: { agent: { send, stop, retry } } };
   useAgent.setState({ status: status('idle'), turns: [], queued: [], driving: false });
 });
 
@@ -97,5 +101,52 @@ describe('messages typed while a turn runs', () => {
     pushStatus('idle');
     await Promise.resolve();
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Re-asking a run.
+ *
+ * The host has always taken the text rather than looking it up, because the
+ * usual reason to run a turn again is that the question could have been put
+ * better. Same words is just the case where it could not.
+ */
+describe('asking a run again', () => {
+  const turn = (id: number, prompt: string) => ({
+    id, prompt, model: 'm', entries: [], inputTokens: 0, outputTokens: 0,
+    steps: 0, mark: null, reason: 'end_turn' as const, startedAt: 0, endedAt: 1,
+  });
+
+  beforeEach(() => {
+    useAgent.setState({ turns: [turn(0, 'first'), turn(1, 'second')] });
+  });
+
+  it('sends the words it was given, not the ones that were asked', async () => {
+    await retryAgentTurn(0, 'put it better');
+    expect(retry).toHaveBeenCalledWith(0, 'put it better');
+  });
+
+  it('falls back to the original when nothing was changed', async () => {
+    await retryAgentTurn(0);
+    expect(retry).toHaveBeenCalledWith(0, 'first');
+  });
+
+  // The run being re-asked and everything after it goes, on this side too —
+  // the transcript must not show runs the session has already forgotten.
+  it('drops that run and the ones after it', async () => {
+    await retryAgentTurn(0, 'again');
+    expect(useAgent.getState().turns).toEqual([]);
+  });
+
+  it('keeps the runs before it', async () => {
+    await retryAgentTurn(1, 'again');
+    expect(useAgent.getState().turns.map((t) => t.id)).toEqual([0]);
+  });
+
+  // Clearing the box and pressing Enter is not a request to ask nothing.
+  it('refuses an emptied question, leaving the run alone', async () => {
+    await retryAgentTurn(0, '   ');
+    expect(retry).not.toHaveBeenCalled();
+    expect(useAgent.getState().turns).toHaveLength(2);
   });
 });

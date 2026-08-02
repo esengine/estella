@@ -619,6 +619,8 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
   // that the fold is the user's, and re-opening one stays open.
   const [folded, setFolded] = useState(!isLast);
   useEffect(() => { setFolded(!isLast); }, [isLast]);
+  /** The question, open for a better wording. Null unless re-asking. */
+  const [editing, setEditing] = useState<string | null>(null);
 
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const tokens = turn.inputTokens + turn.outputTokens;
@@ -626,20 +628,33 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
   const empty = turn.entries.length === 0;
   return (
     <div className={`ag-turn${folded ? ' folded' : ''}${isLast ? ' current' : ''}`}>
+      {editing !== null ? (
+        // Not a button while editing: a header you fold by clicking cannot also
+        // hold a field you click into.
+        <div className="ag-th ag-th--editing">
+          <AskAgain
+            initial={editing}
+            onCancel={() => setEditing(null)}
+            onSubmit={(text) => { setEditing(null); void retryAgentTurn(turn.id, text); }}
+          />
+        </div>
+      ) : (
       <button type="button" className="ag-th" onClick={() => setFolded((f) => !f)}>
         <span className="ag-hrow">
           <ChevronRight size={12} strokeWidth={2} className="ag-fold" />
           <span className="ag-req">{turn.prompt}</span>
           {/* A bad answer three turns in should cost you that answer, not the
-              whole conversation that led to it. */}
+              whole conversation that led to it — and the reason to re-ask is
+              usually that the question could have been put better, so this
+              opens it for editing rather than firing the same words again. */}
           {!running && (
             <span
               role="button"
               tabIndex={0}
               className="ag-rerun"
               title={t('agent.rerun')}
-              onClick={(e) => { e.stopPropagation(); void retryAgentTurn(turn.id); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); void retryAgentTurn(turn.id); } }}
+              onClick={(e) => { e.stopPropagation(); setEditing(turn.prompt); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setEditing(turn.prompt); } }}
             >
               <RotateCcw size={12} strokeWidth={1.9} />
             </span>
@@ -666,13 +681,14 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
           )}
         </span>
       </button>
+      )}
       <Fold open={!folded}>
         <div className="ag-tb">
           {empty && running && isLast ? <Skeleton /> : (
             <Entries
               entries={turn.entries}
               streaming={running && isLast}
-              onRerun={running ? undefined : () => void retryAgentTurn(turn.id)}
+              onRerun={running ? undefined : () => setEditing(turn.prompt)}
             />
           )}
           {/* Between rounds: the last thing that happened was a tool result and
@@ -775,6 +791,60 @@ function relativeDay(at: number): string {
   if (at >= midnight) return t('agent.history.today');
   if (at >= midnight - day) return t('agent.history.yesterday');
   return new Date(at).toLocaleDateString();
+}
+
+/**
+ * The question, open for a better wording.
+ *
+ * Re-asking and re-wording are the same gesture: the usual reason to run a turn
+ * again is that it could have been put better, and submitting unchanged does
+ * exactly what the plain re-ask always did. So there is no second button —
+ * editing is a step on the way, not a separate feature.
+ */
+function AskAgain({ initial, onSubmit, onCancel }: {
+  initial: string;
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initial);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(160, el.scrollHeight)}px`;
+  }, [text]);
+
+  // Selected, not just focused: re-asking often means saying it differently
+  // rather than amending a word, and a caret at the end makes that a chore.
+  useEffect(() => { ref.current?.select(); }, []);
+
+  return (
+    <div className="ag-reask">
+      <textarea
+        ref={ref}
+        className="ag-reask-in"
+        rows={1}
+        value={text}
+        autoFocus
+        aria-label={t('agent.reask.label')}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.stopPropagation(); onCancel(); return; }
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(text); }
+        }}
+      />
+      <div className="ag-reask-acts">
+        <button type="button" className="ag-go" onClick={() => onSubmit(text)}>
+          {t('agent.reask.go')}<span className="ag-kb">⏎</span>
+        </button>
+        <button type="button" onClick={onCancel}>{t('agent.reask.cancel')}</button>
+        {/* What it costs, where the decision is made. */}
+        <span className="ag-reask-note">{t('agent.reask.note')}</span>
+      </div>
+    </div>
+  );
 }
 
 function EmptyState() {

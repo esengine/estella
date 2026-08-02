@@ -800,6 +800,39 @@
   font-size: var(--fs-sm);
   font-weight: 500;
 }
+/* The question, open for a better wording. Sits exactly where the header was,
+   so nothing moves and it is plainly the same question being changed. */
+.ag-th--editing { display: block; width: 100%; padding: 13px 14px 11px; background: var(--panel); }
+.ag-reask { display: flex; flex-direction: column; gap: 9px; }
+.ag-reask-in {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  border: 1px solid var(--line-strong);
+  outline: 0;
+  color: var(--text-hi);
+  font: var(--fs-md) / 1.5 var(--font-ui);
+  letter-spacing: -0.008em;
+  resize: none;
+  overflow-y: auto;
+}
+.ag-reask-in:focus { border-color: var(--acc); }
+.ag-reask-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.ag-reask-acts button {
+  padding: 5px 13px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--hover);
+  transition: background var(--t-fast);
+}
+.ag-reask-acts button:hover { background: var(--pressed); }
+.ag-reask-acts .ag-go { background: var(--star); color: var(--on-accent); font-weight: 500; }
+.ag-reask-acts .ag-go:hover { background: var(--star-hi); }
+/* What it costs, where the decision is made. */
+.ag-reask-note { font-size: var(--fs-2xs); color: var(--text-faint); }
+
 /* Re-ask this turn. Quiet until the header is hovered — it discards work. */
 .ag-rerun {
   flex: none;

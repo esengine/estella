@@ -595,12 +595,17 @@ export const clearAgentQueue = (): void => useAgent.setState({ queued: [] });
  * store truncates first so the transcript never shows runs the session has
  * already forgotten.
  */
-export async function retryAgentTurn(turnId: number): Promise<void> {
+export async function retryAgentTurn(turnId: number, prompt?: string): Promise<void> {
   const turn = useAgent.getState().turns.find((t) => t.id === turnId);
   if (!turn) return;
+  // Asking the same question again is a special case of asking a different one,
+  // which is why the host has always taken the text rather than looking it up:
+  // usually the reason to re-ask is that the question could have been better.
+  const text = (prompt ?? turn.prompt).trim();
+  if (!text) return;
   // By id, not by position: this window may not hold every run the session does.
   useAgent.setState((s) => ({ turns: s.turns.filter((t) => t.id < turnId), checkpointDone: null }));
-  const status = await window.estella?.agent?.retry(turnId, turn.prompt);
+  const status = await window.estella?.agent?.retry(turnId, text);
   if (status) adoptStatus(status);
 }
 

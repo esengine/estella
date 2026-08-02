@@ -124,6 +124,13 @@ export const agentMessages = defineMessages({
     'agent.turn.queuedMessage': { en: 'Queued: {text}', zh: '已排队:{text}' },
     'agent.copy': { en: 'Copy', zh: '复制' },
     'agent.changes': { en: 'What changed', zh: '改动集' },
+    'agent.reask.label': { en: 'Ask this again', zh: '重新提问' },
+    'agent.reask.go': { en: 'Ask again', zh: '重新提问' },
+    'agent.reask.cancel': { en: 'Cancel', zh: '取消' },
+    'agent.reask.note': {
+        en: 'this run and everything after it is discarded',
+        zh: '这一轮及之后都会被丢弃',
+    },
     'agent.rerun': { en: 'Ask this again, discarding what followed', zh: '从这里重跑(丢弃之后的内容)' },
 
     // — The decision it needs from you —
