@@ -14,7 +14,63 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-08-02
+
+The agent went from working to being pleasant to work with. It answers from the keyboard
+now, shows you the values a batch is about to write rather than how many there are, keeps
+what you were typing when you close the drawer, and asks before it drops a conversation.
+It renders tables, which it turns out models reach for constantly when comparing a few
+entities.
+
+Underneath, the UI layout stopped re-deriving every node's box every frame: Yoga has
+tracked what changed all along, and resetting its nodes each pass was throwing that away.
+Editing one field now costs a quarter of what it did.
+
+The last part is the one that makes the rest keep: performance has a snapshot in the repo
+and a gate in CI, the way the API surface has had for a while. Building it turned up that
+eleven of the fifteen benchmark files had not run since the ECS moved directories — and
+that `vitest bench` skips a file it cannot resolve and still exits 0, so nothing had said
+so.
+
 ### Added
+
+- **Performance has a snapshot now, guarded the way the API surface is.** This repo gated
+  correctness hard — thousands of tests, pixel regressions, an API-surface snapshot, cycle
+  and layer checks — and performance not at all: fifteen benchmark files, no CI job running
+  any of them, no baseline anywhere. The UI layout re-derived every node's box every frame
+  for months inside exactly that gap. `tools/perf-guard.mjs --check` asserts two things
+  chosen to survive running on a different machine: **ratios** between benchmarks in the
+  same run (the CPU cancels out, and each ratio states an architectural invariant — "editing
+  a field is far cheaper than adding a node" *is* the incremental layout working), and
+  **coverage**, how many cases produced a number at all. Tolerance is 30% deliberately: it
+  cannot see a 5% slowdown, it is there for the 2×-and-up kind. Accept a change with
+  `--update`, the same as the API snapshot.
+
+- **The agent can be answered from the keyboard.** A passage that stops a run takes focus
+  when it arrives — that is where the keyboard belongs while a run waits on it — and Enter
+  is its primary action, Shift+Enter the for-this-run one, both labelled on the buttons
+  rather than left to be found. The batch preview also shows the *values* it wants to
+  write, as the same `before → after` the change set uses, where it used to say "3 fields"
+  — which is exactly the part a preview exists to show. Strike-all takes a batch apart in
+  one gesture, and an emptied one disables Apply instead of offering "Apply 0", which the
+  kernel would have treated as a decline anyway.
+
+- **The agent's answers render markdown tables.** Asked to compare a few entities or
+  field values a model reaches for one, and the fallback was a paragraph of raw pipes
+  wrapped in a 384px column — the least readable thing the renderer could produce. Column
+  alignment is honoured, an escaped `\|` stays content, a ragged row is fitted to the
+  header rather than shifting its cells, and cells go through the same inline parse as
+  prose, so a code span naming an entity is still a way into the scene. The table scrolls
+  inside its own box: the transcript never scrolls sideways as a whole. As everywhere
+  else in this parser, a half-arrived table is not an error — a header stays a paragraph
+  until its divider lands, so nothing flickers through being a narrower table first.
+
+- **A run that was cut off says so, and can be carried on.** The turn loop is bounded so a
+  model that keeps calling tools cannot spin forever, and reaching that bound was reported
+  as an ordinary end of turn — on screen, a run cut off mid-task looked exactly like one
+  that had finished, and the sentence that would have said otherwise is the one it never
+  got to write. Both endings a run could have gone further from, that and Stop, now offer
+  to carry on from where it stopped.
 
 - **UI zoom, on Ctrl/Cmd +, − and 0.** On a 2K display the editor's numbers were too
   small to read, and the one setting that could fix it sat in a dialog with no menu row,
@@ -25,34 +81,6 @@ published separately; it ships inside the editor.
   with it. Screenshot and MCP runs pin the zoom instead (`ESTELLA_SHOT_ZOOM=<percent>`
   to capture a zoomed shell), because Chromium persists per-origin zoom across restarts
   and one left behind by an ordinary session would silently rebase every later capture.
-
-### Fixed
-
-- **UI zoom no longer blurs the viewport or misplaces what you click.** It was applied as
-  a CSS `zoom` on the body, which leaves `devicePixelRatio` at 1: every canvas — the
-  viewport, the profiler graphs, the waveforms, the node graphs — kept its backing store
-  at the unzoomed size and was upscaled to fit, and `getBoundingClientRect` drifted a
-  whole zoom factor away from `clientWidth`, so viewport picking and gizmo dragging
-  missed by more the further right and down you aimed (at 150% the right third of the
-  viewport could not be hit at all). Chromium applies the zoom now, and raises the dpr
-  with it: measured at 80/100/125/150/200%, canvases stay pixel-exact and a dragged gizmo
-  lands under the cursor.
-- **The viewport canvas is sized from its own layout box**, not `floor(clientWidth × dpr)`
-  — which lost up to a pixel at fractional dpr, the case UI zoom makes ordinary.
-- **A message typed while the agent was working is no longer lost.** The composer said
-  "this will be the next message"; the host refuses a send mid-turn, and nobody held it —
-  so the box cleared, the send was rejected, and what you typed was gone, replaced by a
-  red banner. It is queued now, shown in the transcript while it waits, and sent when the
-  turn ends. Stopping the turn drops the queue, because stopping means stop.
-- **The agent's typing caret sits after the last character** instead of on its own line
-  below the paragraph — it was rendered after the whole markdown block rather than inside
-  it, which read as a stray blinking box rather than as text being written.
-- **A tool row's result column says what came back.** It showed the first ~20 characters
-  of the raw result, which for a JSON answer is `[{"id` — and the disclosure under it was
-  the *same* string, flattened and cut at 160 characters, so expanding a row taught you
-  nothing. The row now carries a one-cell summary (a list is its length, an object leads
-  with its first named string) and the disclosure keeps the full result with its line
-  structure intact.
 
 ### Changed
 
@@ -83,30 +111,6 @@ published separately; it ships inside the editor.
 - **Reasoning shows how long it took**, a stopped or refused run explains itself in the
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
-- **Performance has a snapshot now, guarded the way the API surface is.** This repo gated
-  correctness hard — thousands of tests, pixel regressions, an API-surface snapshot, cycle
-  and layer checks — and performance not at all: fifteen benchmark files, no CI job running
-  any of them, no baseline anywhere. The UI layout re-derived every node's box every frame
-  for months inside exactly that gap. `tools/perf-guard.mjs --check` asserts two things
-  chosen to survive running on a different machine: **ratios** between benchmarks in the
-  same run (the CPU cancels out, and each ratio states an architectural invariant — "editing
-  a field is far cheaper than adding a node" *is* the incremental layout working), and
-  **coverage**, how many cases produced a number at all. Tolerance is 30% deliberately: it
-  cannot see a 5% slowdown, it is there for the 2×-and-up kind. Accept a change with
-  `--update`, the same as the API snapshot.
-- **The benchmarks had not run since the ECS moved.** Eleven of the fifteen files still
-  imported `../src/world` / `../src/query` / `../src/component` — the paths from before
-  `src/ecs/` existed. `vitest bench` skips a file it cannot resolve and still exits 0, so
-  the suite reported success while measuring nothing: 27 cases produced a number, 147 did
-  not. It is **230** now, and the guard above fails if that number ever falls again. Fixing
-  the rest turned up the API drift the silence had been hiding: `physics` instantiated
-  through `locateFile`, which under the test environment fetches against localhost;
-  `wasm-vs-world` re-declared Transform/Sprite/Camera locally and hand-wrote payloads that
-  had all drifted (Camera's four viewport scalars are one `Vec4`; `Sprite` had gained five
-  fields, so every embind case died on a missing one), and still measured `UIRect`, which
-  `UINode` replaced; `spine` called `extractMeshBatches`, since replaced by the
-  allocation-free `forEachMeshBatch(id, visitor)`, and submitted through a function renamed
-  when that path was generalised to skeletal.
 - **The UI layout keeps Yoga's work, not just its allocations.** Yoga already tracks what
   changed — every style setter is `if (old != new) { set; markDirtyAndPropagate(); }`, and
   a solve skips the subtrees still clean — but the layout pass reset every node and rebuilt
@@ -165,31 +169,48 @@ published separately; it ships inside the editor.
   names it is not a smaller edit but a failed batch. Since authoring is one undo step, the
   gate is neutral rather than a warning, and "Allow for this run" turns it off for the
   rest of a long build.
-- **The agent can be answered from the keyboard.** A passage that stops a run takes focus
-  when it arrives — that is where the keyboard belongs while a run waits on it — and Enter
-  is its primary action, Shift+Enter the for-this-run one, both labelled on the buttons
-  rather than left to be found. The batch preview also shows the *values* it wants to
-  write, as the same `before → after` the change set uses, where it used to say "3 fields"
-  — which is exactly the part a preview exists to show. Strike-all takes a batch apart in
-  one gesture, and an emptied one disables Apply instead of offering "Apply 0", which the
-  kernel would have treated as a decline anyway.
-- **The agent's answers render markdown tables.** Asked to compare a few entities or
-  field values a model reaches for one, and the fallback was a paragraph of raw pipes
-  wrapped in a 384px column — the least readable thing the renderer could produce. Column
-  alignment is honoured, an escaped `\|` stays content, a ragged row is fitted to the
-  header rather than shifting its cells, and cells go through the same inline parse as
-  prose, so a code span naming an entity is still a way into the scene. The table scrolls
-  inside its own box: the transcript never scrolls sideways as a whole. As everywhere
-  else in this parser, a half-arrived table is not an error — a header stays a paragraph
-  until its divider lands, so nothing flickers through being a narrower table first.
-- **A run that was cut off says so, and can be carried on.** The turn loop is bounded so a
-  model that keeps calling tools cannot spin forever, and reaching that bound was reported
-  as an ordinary end of turn — on screen, a run cut off mid-task looked exactly like one
-  that had finished, and the sentence that would have said otherwise is the one it never
-  got to write. Both endings a run could have gone further from, that and Stop, now offer
-  to carry on from where it stopped.
-
 ### Fixed
+
+- **The benchmarks had not run since the ECS moved.** Eleven of the fifteen files still
+  imported `../src/world` / `../src/query` / `../src/component` — the paths from before
+  `src/ecs/` existed. `vitest bench` skips a file it cannot resolve and still exits 0, so
+  the suite reported success while measuring nothing: 27 cases produced a number, 147 did
+  not. It is **230** now, and the guard above fails if that number ever falls again. Fixing
+  the rest turned up the API drift the silence had been hiding: `physics` instantiated
+  through `locateFile`, which under the test environment fetches against localhost;
+  `wasm-vs-world` re-declared Transform/Sprite/Camera locally and hand-wrote payloads that
+  had all drifted (Camera's four viewport scalars are one `Vec4`; `Sprite` had gained five
+  fields, so every embind case died on a missing one), and still measured `UIRect`, which
+  `UINode` replaced; `spine` called `extractMeshBatches`, since replaced by the
+  allocation-free `forEachMeshBatch(id, visitor)`, and submitted through a function renamed
+  when that path was generalised to skeletal.
+
+- **UI zoom no longer blurs the viewport or misplaces what you click.** It was applied as
+  a CSS `zoom` on the body, which leaves `devicePixelRatio` at 1: every canvas — the
+  viewport, the profiler graphs, the waveforms, the node graphs — kept its backing store
+  at the unzoomed size and was upscaled to fit, and `getBoundingClientRect` drifted a
+  whole zoom factor away from `clientWidth`, so viewport picking and gizmo dragging
+  missed by more the further right and down you aimed (at 150% the right third of the
+  viewport could not be hit at all). Chromium applies the zoom now, and raises the dpr
+  with it: measured at 80/100/125/150/200%, canvases stay pixel-exact and a dragged gizmo
+  lands under the cursor.
+- **The viewport canvas is sized from its own layout box**, not `floor(clientWidth × dpr)`
+  — which lost up to a pixel at fractional dpr, the case UI zoom makes ordinary.
+- **A message typed while the agent was working is no longer lost.** The composer said
+  "this will be the next message"; the host refuses a send mid-turn, and nobody held it —
+  so the box cleared, the send was rejected, and what you typed was gone, replaced by a
+  red banner. It is queued now, shown in the transcript while it waits, and sent when the
+  turn ends. Stopping the turn drops the queue, because stopping means stop.
+- **The agent's typing caret sits after the last character** instead of on its own line
+  below the paragraph — it was rendered after the whole markdown block rather than inside
+  it, which read as a stray blinking box rather than as text being written.
+- **A tool row's result column says what came back.** It showed the first ~20 characters
+  of the raw result, which for a JSON answer is `[{"id` — and the disclosure under it was
+  the *same* string, flattened and cut at 160 characters, so expanding a row taught you
+  nothing. The row now carries a one-cell summary (a list is its length, an object leads
+  with its first named string) and the disclosure keeps the full result with its line
+  structure intact.
+
 
 - **A reloaded window rejoins the agent conversation instead of coming back to an empty
   drawer.** main owns the session, so it survives a reload; the transcript did not, and
@@ -2622,6 +2643,7 @@ not kept before this file was introduced — see the Git history at
 commit on 2026-01-25.
 
 [Unreleased]: https://github.com/esengine/estella/compare/v0.39.0...HEAD
+[0.40.0]: https://github.com/esengine/estella/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/esengine/estella/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/esengine/estella/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/esengine/estella/compare/v0.36.0...v0.37.0
