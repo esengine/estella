@@ -123,7 +123,14 @@ export type ConfirmReason =
   /** Escapes the undo stack — a file, a project setting, an export. */
   | 'irreversible'
   /** Runs code the agent wrote, so its effect is whatever that code does. */
-  | 'arbitrary_code';
+  | 'arbitrary_code'
+  /**
+   * Authors a whole subtree at once. Undoable, so this is not about safety — it
+   * is about seeing a hundred-node edit BEFORE it lands, while saying no to part
+   * of it is still free. The window renders the preview, because reading what a
+   * batch would change takes the scene, and the scene is on that side.
+   */
+  | 'bulk_edit';
 
 /** A tool the user has to say yes to before it runs (see `effect`). */
 export interface ConfirmRequest {
@@ -131,6 +138,17 @@ export interface ConfirmRequest {
   tool: string;
   reason: ConfirmReason;
   input: Record<string, unknown>;
+}
+
+/** What came back, and — for a previewed batch — which lines were struck out. */
+export interface ConfirmDecision {
+  answer: ConfirmAnswer;
+  /**
+   * Indices into the batch's `ops` the person declined. The rest still runs; the
+   * kernel drops anything that depended on a declined line, because a `set` on
+   * an entity that was never created is a throw, not a smaller change.
+   */
+  declined?: readonly number[];
 }
 
 /**
@@ -190,7 +208,7 @@ export interface KernelDeps {
    *  no name for itself, and the host is where that name is known. */
   model: string;
   /** Ask the person. `no` is declined, which the model is told about. */
-  confirm(request: ConfirmRequest): Promise<ConfirmAnswer>;
+  confirm(request: ConfirmRequest): Promise<ConfirmDecision>;
   emit(event: AgentEvent): void;
 }
 

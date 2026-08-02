@@ -57,7 +57,7 @@ describe('the agent turn', () => {
     events = [];
     stepsSince = 0;
     diagnostics = [];
-    confirm = vi.fn(async () => 'once');
+    confirm = vi.fn(async () => ({ answer: 'once' }));
     driver = vi.fn(async (method: string) => {
       if (method === 'mark') return { seq: 7 };
       if (method === 'stepsSince') return stepsSince;
@@ -112,7 +112,7 @@ describe('the agent turn', () => {
   });
 
   it('a decline is told to the model, not raised as a failure', async () => {
-    confirm.mockResolvedValue('no');
+    confirm.mockResolvedValue({ answer: 'no' });
     const s = fakeSession([asks(call('export_game', { platform: 'web' })), ends()]);
     await runTurn(deps(s), 'ship it', null, new AbortController().signal);
 
@@ -165,7 +165,7 @@ describe('the agent turn', () => {
     stepsSince = 2;
     const ac = new AbortController();
     const s = fakeSession([asks(call('add_entity'), call('add_entity')), ends()]);
-    confirm.mockImplementation(async () => 'once');
+    confirm.mockImplementation(async () => ({ answer: 'once' }));
     driver.mockImplementation(async (method: string) => {
       if (method === 'mark') return { seq: 7 };
       if (method === 'stepsSince') return stepsSince;
@@ -249,7 +249,7 @@ describe('the agent turn', () => {
     });
 
     it('stops asking for that tool once it is allowed for the run', async () => {
-      confirm.mockResolvedValue('turn');
+      confirm.mockResolvedValue({ answer: 'turn' });
       const s = fakeSession([asks(call('save_scene'), call('save_scene'), call('save_scene')), ends()]);
       await runTurn(deps(s), 'save thrice', null, new AbortController().signal);
       expect(confirm).toHaveBeenCalledTimes(1);
@@ -259,7 +259,7 @@ describe('the agent turn', () => {
     // Scoped to the TOOL, not to everything: saying yes to saving is not saying
     // yes to running arbitrary code.
     it('does not carry the allowance to a different tool', async () => {
-      confirm.mockResolvedValue('turn');
+      confirm.mockResolvedValue({ answer: 'turn' });
       const s = fakeSession([asks(call('save_scene'), call('run_editor_command')), ends()]);
       await runTurn(deps(s), 'save then run', null, new AbortController().signal);
       expect(confirm).toHaveBeenCalledTimes(2);
@@ -268,7 +268,7 @@ describe('the agent turn', () => {
     // The allowance is the run's. A new run starts from a clean gate, which is
     // the whole reason it is not persisted.
     it('expires with the run', async () => {
-      confirm.mockResolvedValue('turn');
+      confirm.mockResolvedValue({ answer: 'turn' });
       const s = fakeSession([asks(call('save_scene')), ends(), asks(call('save_scene')), ends()]);
       await runTurn(deps(s), 'save', null, new AbortController().signal);
       await runTurn(deps(s), 'save again', null, new AbortController().signal);
@@ -313,6 +313,54 @@ describe('the agent turn', () => {
       // Results still line up with the calls that produced them.
       expect(s.results[0].map((o) => o.id))
         .toEqual(['cget_scene_tree', 'cadd_entity', 'cget_stats']);
+    });
+  });
+
+  // Authoring a subtree is one undo step, so this gate is not about safety — it
+  // is about seeing a hundred-node edit before it lands, while declining part of
+  // it still costs nothing.
+  describe('previewing a batch before it lands', () => {
+    const ops = [
+      { op: 'create', ref: 'root', name: 'Root' },
+      { op: 'create', ref: 'child', name: 'Child', parent: '$root' },
+      { op: 'rename', entity: 1, name: 'Renamed' },
+    ];
+    const batch = (): ToolCall => ({ id: 'cbatch', name: 'apply_scene_ops', input: { ops } });
+
+    it('asks, and says which kind of question it is', async () => {
+      const s = fakeSession([asks(batch()), ends()]);
+      await runTurn(deps(s), 'build it', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm.mock.calls[0][0]).toMatchObject({ tool: 'apply_scene_ops', reason: 'bulk_edit' });
+    });
+
+    it('runs only what survived, in order', async () => {
+      confirm.mockResolvedValue({ answer: 'once', declined: [1] });
+      const s = fakeSession([asks(batch()), ends()]);
+      await runTurn(deps(s), 'build it', null, new AbortController().signal);
+
+      const call = (driver as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .find((c) => c[0] === 'applyOps');
+      expect((call?.[1] as unknown[])[0]).toEqual([ops[0], ops[2]]);
+    });
+
+    // Applying nothing and reporting success would tell the model its work
+    // landed. It has to hear that the person said no to all of it.
+    it('treats an entirely struck-out batch as declined', async () => {
+      confirm.mockResolvedValue({ answer: 'once', declined: [0, 1, 2] });
+      const s = fakeSession([asks(batch()), ends()]);
+      await runTurn(deps(s), 'build it', null, new AbortController().signal);
+
+      expect(ran('apply_scene_ops')).toBe(true);           // it was announced
+      expect(events.some((e) => e.type === 'tool_end' && !e.ok)).toBe(true);
+      expect(String(s.results[0][0].content)).toMatch(/struck out/i);
+    });
+
+    it('stops asking once the run is trusted', async () => {
+      confirm.mockResolvedValue({ answer: 'turn' });
+      const s = fakeSession([asks(batch(), batch()), ends()]);
+      await runTurn(deps(s), 'build it twice', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(1);
     });
   });
 });

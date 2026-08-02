@@ -515,7 +515,7 @@ export function stopAgentTurn(): void {
  * main's echo — the person just decided, and a row that sits on "waiting for
  * you" afterwards reads as a click that did not land.
  */
-export function confirmAgentCall(callId: string, answer: ConfirmAnswer): void {
+export function confirmAgentCall(callId: string, answer: ConfirmAnswer, declined?: readonly number[]): void {
   useAgent.setState((s) => {
     const open = openTurn(s.turns);
     if (!open) return {};
@@ -528,7 +528,7 @@ export function confirmAgentCall(callId: string, answer: ConfirmAnswer): void {
       }),
     };
   });
-  void window.estella?.agent?.confirm(callId, answer);
+  void window.estella?.agent?.confirm(callId, answer, declined);
 }
 
 /** Drop the conversation — a new one starts with the next message. */

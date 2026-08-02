@@ -47,6 +47,8 @@ import { dockApi } from '@/layout/dockApi';
 import { EditorHistory, type HistoryMark } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
 import { EditorControlSurface } from '@/engine/EditorSession';
+import { previewSceneOps, withoutDeclined, type PreviewScene } from '@/engine/sceneOpsPreview';
+import type { SceneOp } from '@/engine/sceneOps';
 import { ProjectStore } from '@/project/ProjectStore';
 import { t } from '@/i18n';
 
@@ -56,7 +58,10 @@ const TOOL_ICON: Record<string, typeof Eye> = {
   irreversible: TriangleAlert,
 };
 
-function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answer: ConfirmAnswer) => void }) {
+function ToolRow({ entry, onConfirm }: {
+  entry: AgentToolEntry;
+  onConfirm: (answer: ConfirmAnswer, declined?: readonly number[]) => void;
+}) {
   const [open, setOpen] = useState(false);
   const Icon = TOOL_ICON[entry.effect ?? 'read'] ?? Eye;
   // While the model is writing them, show the raw text arriving; once the call
@@ -92,7 +97,9 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answ
           <Fold open={open}><div className="ag-call-detail">{entry.summary}</div></Fold>
         )}
       </div>
-      {entry.state === 'awaiting' && <ConfirmPassage entry={entry} onConfirm={onConfirm} />}
+      {entry.state === 'awaiting' && (entry.reason === 'bulk_edit'
+        ? <PreviewPassage entry={entry} onConfirm={onConfirm} />
+        : <ConfirmPassage entry={entry} onConfirm={onConfirm} />)}
     </>
   );
 }
@@ -102,6 +109,90 @@ function ToolRow({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answ
  * unconditionally when it appears — a question you never saw is a turn that
  * looks hung.
  */
+/**
+ * A batch of scene edits, read before it lands.
+ *
+ * The change set below a finished run answers "what happened"; this answers
+ * "what is about to", while saying no to part of it still costs nothing. Lines
+ * are struck out rather than removed, and striking a create takes the ops that
+ * address it — running a `set` on an entity that was never created is a throw,
+ * not a smaller edit — so the consequence is visible before you commit to it.
+ */
+function PreviewPassage({ entry, onConfirm }: {
+  entry: AgentToolEntry;
+  onConfirm: (answer: ConfirmAnswer, declined?: readonly number[]) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [struck, setStruck] = useState<ReadonlySet<number>>(new Set());
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }); }, []);
+
+  const ops = Array.isArray(entry.input.ops) ? (entry.input.ops as SceneOp[]) : null;
+  const preview = ops ? previewSceneOps(ops, editorScene) : [];
+  // What striking these lines actually costs, dependents included.
+  const dropped = ops ? new Set(withoutDeclined(ops, struck).dropped) : new Set<number>();
+  const keeping = preview.length - dropped.size;
+
+  const toggle = (index: number) => setStruck((was) => {
+    const next = new Set(was);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    return next;
+  });
+
+  return (
+    <div ref={ref} className="ag-ask ag-ask--preview">
+      <span className="ag-ask-g"><Pencil size={16} strokeWidth={1.8} /></span>
+      <span className="ag-ask-hd">{t('agent.preview.title', { count: preview.length })}</span>
+      <div className="ag-ask-d">{t('agent.preview.why')}</div>
+      <div className="ag-preview">
+        {preview.map((line) => (
+          <button
+            type="button"
+            key={line.index}
+            className={`ag-pv ag-pv--${line.kind}${dropped.has(line.index) ? ' struck' : ''}`}
+            onClick={() => toggle(line.index)}
+            onMouseEnter={() => line.entity !== null && peekEntities([line.entity])}
+            onMouseLeave={() => peekEntities([])}
+          >
+            <span className="ag-pv-s">{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : '~'}</span>
+            <span className="ag-pv-t">
+              {line.target}
+              {line.detail && <span className="ag-pv-d"> {line.detail}</span>}
+              {line.components?.length ? <span className="ag-pv-d"> {line.components.join(', ')}</span> : null}
+            </span>
+            {line.fields?.length ? <span className="ag-pv-n">{line.fields.length}</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="ag-ask-acts">
+        <button
+          type="button"
+          className="ag-go"
+          onClick={() => onConfirm('once', struck.size ? [...struck] : undefined)}
+        >
+          {struck.size ? t('agent.preview.applyKept', { count: keeping }) : t('agent.preview.apply')}
+        </button>
+        {/* Trusting the batch once is different from not wanting to be asked
+            again this run — the second is what makes a long build bearable. */}
+        <button
+          type="button"
+          onClick={() => onConfirm('turn')}
+          title={t('agent.confirm.allowTurn.why', { tool: entry.name })}
+        >
+          {t('agent.confirm.allowTurn')}
+        </button>
+        <button type="button" onClick={() => onConfirm('no')}>{t('agent.confirm.deny')}</button>
+      </div>
+    </div>
+  );
+}
+
+/** The preview reads names and current values straight from the live scene. */
+const editorScene: PreviewScene = {
+  entityName: (id) => EditorControlSurface.getEntity(id)?.name ?? null,
+  fieldValue: (id, component, key) => EditorControlSurface.getFieldValue(id, component, key) ?? undefined,
+};
+
 function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answer: ConfirmAnswer) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const target = describeTarget(entry.input);
@@ -209,7 +300,7 @@ function Prose({ text, streaming, onRerun }: { text: string; streaming?: boolean
 /** Consecutive tool rows are one hairline-divided block; prose breaks the run. */
 function Entries({ entries, onConfirm, streaming, onRerun }: {
   entries: readonly AgentEntry[];
-  onConfirm: (callId: string, answer: ConfirmAnswer) => void;
+  onConfirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]) => void;
   /** The run is still taking events, so the last entry is mid-write. */
   streaming?: boolean;
   /** Ask this run again. Absent while one is running — see Turn. */
@@ -224,7 +315,7 @@ function Entries({ entries, onConfirm, streaming, onRerun }: {
     out.push(
       <div className="ag-steps" key={`steps-${group[0].id}`}>
         {group.map((tool) => (
-          <ToolRow key={tool.id} entry={tool} onConfirm={(answer) => onConfirm(tool.id, answer)} />
+          <ToolRow key={tool.id} entry={tool} onConfirm={(answer, declined) => onConfirm(tool.id, answer, declined)} />
         ))}
       </div>,
     );

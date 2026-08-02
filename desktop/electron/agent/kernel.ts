@@ -30,10 +30,22 @@ export const agentTools = (): readonly CatalogTool[] => catalog;
 /** Why `tool` needs saying out loud. A code — the editor renders the sentence,
  *  because it is the side that knows the reader's language. */
 function confirmReason(tool: CatalogTool): ConfirmReason {
+  if (tool.name === BULK_EDIT_TOOL) return 'bulk_edit';
   return tool.name === 'run_editor_command' || tool.name === 'play_probe'
     ? 'arbitrary_code'
     : 'irreversible';
 }
+
+/**
+ * The one undoable tool that still stops to ask.
+ *
+ * Not for safety — it is one undo step. For SIZE: it authors a subtree in a
+ * single call, and a hundred-node edit is worth seeing before it lands rather
+ * than reading back afterwards. The window renders the preview, since that takes
+ * the scene. "Allow for this run" turns it off for the rest of the run, which is
+ * what keeps a long build from becoming a hundred prompts.
+ */
+const BULK_EDIT_TOOL = 'apply_scene_ops';
 
 /**
  * The result as the transcript's disclosure shows it: bounded so a tool that
@@ -179,6 +191,22 @@ export async function runTurn(
 
 const MAX_ROUNDS = 48;
 
+/**
+ * The batch minus the lines the person struck out, or null when nothing is left.
+ *
+ * Only the ops array is rewritten; the dependency pruning that makes the
+ * remainder runnable lives with the preview that produced the indices
+ * (engine/sceneOpsPreview), so main is not a second opinion on what depends on
+ * what. A batch given by `opsPath` is not previewable and is left alone.
+ */
+function keptOps(input: Record<string, unknown>, declined: readonly number[]): Record<string, unknown> | null {
+  const ops = input.ops;
+  if (!Array.isArray(ops)) return input;
+  const drop = new Set(declined);
+  const kept = ops.filter((_, i) => !drop.has(i));
+  return kept.length === 0 ? null : { ...input, ops: kept };
+}
+
 /** True when a call cannot change anything, so it may run alongside others. */
 function isRead(call: ToolCall): boolean {
   const tool = byName.get(call.name);
@@ -208,10 +236,12 @@ async function execute(
   // `irreversible` is where undo stops being an answer, so it is where the
   // person has to be.
   // Already waved through for the rest of this run — see ConfirmAnswer.
-  if (irreversible(tool) && !allowed.has(call.name)) {
+  const gated = irreversible(tool) || call.name === BULK_EDIT_TOOL;
+  let input = call.input;
+  if (gated && !allowed.has(call.name)) {
     const request = { callId: call.id, tool: call.name, reason: confirmReason(tool), input: call.input };
     emit({ type: 'awaiting_confirm', request });
-    const answer = await confirm(request);
+    const { answer, declined } = await confirm(request);
     if (answer === 'no') {
       const content = `the user declined to run ${call.name}. Do not retry it; `
         + 'continue with what you can do without it, or say what you need.';
@@ -219,9 +249,27 @@ async function execute(
       return { outcome: { id: call.id, content, isError: false }, mutated: false };
     }
     if (answer === 'turn') allowed.add(call.name);
+    if (declined?.length) {
+      const kept = keptOps(call.input, declined);
+      if (kept === null) {
+        // Everything was struck out — running an empty batch would report
+        // success for work nobody accepted.
+        emit({ type: 'tool_end', id: call.id, ok: false, summary: 'declined' });
+        return {
+          outcome: {
+            id: call.id,
+            content: `the user struck out every operation of ${call.name}. Do not retry it as-is; `
+              + 'ask what they wanted different.',
+            isError: false,
+          },
+          mutated: false,
+        };
+      }
+      input = kept;
+    }
   }
 
-  const result = await runTool(tool, driver, call.input, true) as {
+  const result = await runTool(tool, driver, input, true) as {
     content: Array<{ type: string; text?: string; data?: string }>;
     isError?: boolean;
   };

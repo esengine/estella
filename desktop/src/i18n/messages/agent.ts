@@ -90,6 +90,16 @@ export const agentMessages = defineMessages({
         en: 'It runs code the agent wrote, so its effect is whatever that code does.',
         zh: '它会执行 Agent 自己写的代码,效果取决于那段代码。',
     },
+    'agent.preview.title': {
+        en: '{count} scene changes, before they land',
+        zh: '{count} 项场景改动,尚未应用',
+    },
+    'agent.preview.why': {
+        en: 'Click a line to strike it out. Striking a new entity also strikes what refers to it.',
+        zh: '点击某一行可划掉它。划掉一个新建实体时,引用它的行会一并划掉。',
+    },
+    'agent.preview.apply': { en: 'Apply all', zh: '全部应用' },
+    'agent.preview.applyKept': { en: 'Apply {count}', zh: '应用 {count} 项' },
     'agent.confirm.allow': { en: 'Run it', zh: '执行' },
     'agent.confirm.allowTurn': { en: 'Allow for this run', zh: '本轮都允许' },
     'agent.confirm.allowTurn.why': {

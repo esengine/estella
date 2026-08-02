@@ -120,8 +120,8 @@ const api = {
     send: (text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:send', text),
     stop: (): Promise<void> => ipcRenderer.invoke('agent:stop'),
     /** Answer the pending confirmation for an irreversible tool. */
-    confirm: (callId: string, answer: ConfirmAnswer): Promise<void> =>
-      ipcRenderer.invoke('agent:confirm', callId, answer),
+    confirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]): Promise<void> =>
+      ipcRenderer.invoke('agent:confirm', callId, answer, declined),
     /** Drop the conversation and start a new one. */
     reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
     /** Ask the n-th turn again, discarding it and everything after it. */

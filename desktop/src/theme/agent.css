@@ -281,6 +281,47 @@
   border-left: 2px solid var(--ag-tone);
 }
 .ag-ask--confirm { --ag-tone: var(--warn); }
+/* A batch of scene edits waiting to land. Neutral rather than amber: nothing is
+   at risk here — it is one undo step — and colouring it like the irreversible
+   gate would spend the warning that gate depends on. */
+.ag-ask--preview { --ag-tone: var(--line-strong); }
+.ag-ask--preview > .ag-ask-g { color: var(--text-dim); }
+
+/* The lines themselves: the same +/~/− vocabulary the change set uses, because
+   they are the same facts asked in the other direction. */
+.ag-preview {
+  grid-column: 2;
+  margin-top: 9px;
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.ag-pv {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: baseline;
+  width: 100%;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--text);
+  text-align: left;
+  transition: background var(--t-fast), opacity var(--t-fast);
+}
+.ag-pv:hover { background: var(--hover); }
+.ag-pv-s { text-align: center; font-weight: 600; }
+.ag-pv--add .ag-pv-s { color: var(--run); }
+.ag-pv--modify .ag-pv-s { color: var(--warn); }
+.ag-pv--remove .ag-pv-s { color: var(--error); }
+.ag-pv-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-pv-d { color: var(--text-faint); }
+/* How many fields this line writes — the row is a summary, not the diff. */
+.ag-pv-n { color: var(--text-faint); font-size: var(--fs-2xs); }
+/* Struck, not removed: the line stays where it was so the consequence of
+   striking a create — its dependents going with it — is visible in place. */
+.ag-pv.struck { opacity: 0.4; }
+.ag-pv.struck .ag-pv-t { text-decoration: line-through; }
 .ag-ask--fail { --ag-tone: var(--error); }
 /* Arriving in a transcript that has been scrolling on its own, a question that
    merely appeared is one you read past. It flashes ONCE, on arrival. */
