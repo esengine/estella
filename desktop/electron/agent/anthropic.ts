@@ -522,6 +522,8 @@ export function createAnthropicProvider(options: AnthropicOptions): AgentProvide
   return {
     id: dialect === 'anthropic' ? 'anthropic' : `compatible:${baseURL ?? ''}`,
     model,
+    // The same condition toolResultContent substitutes on — one fact, one place.
+    acceptsImages: dialect === 'anthropic',
     createSession: ({ system, tools }) => new AnthropicSession(
       client,
       { model, effort, dialect, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },

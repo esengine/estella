@@ -100,6 +100,7 @@ export interface AgentHost {
 export function createAgentHost(deps: AgentHostDeps): AgentHost {
   let session: AgentSession | null = null;
   let model: string | null = null;
+  let acceptsImages = true;
   let phase: AgentPhase = 'idle';
   let error: string | null = null;
   let running: AbortController | null = null;
@@ -165,6 +166,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         const provider = deps.provider();
         session = provider.createSession({ system: SYSTEM_PROMPT, tools: agentTools() });
         model = provider.model;
+        acceptsImages = provider.acceptsImages;
       } catch (e) {
         error = (e as Error)?.message ?? String(e);
         pushStatus();
@@ -190,7 +192,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         // would be a second definition of "what the agent knows".
         const context = await editorContext(deps.driver).catch(() => null);
         await runTurn(
-          { driver: deps.driver, session: session!, model: model ?? '', confirm, emit },
+          { driver: deps.driver, session: session!, model: model ?? '', acceptsImages, confirm, emit },
           text,
           context,
           controller.signal,

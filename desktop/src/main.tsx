@@ -70,6 +70,7 @@ import { initBackgroundThrottle } from './engine/backgroundThrottle';
 import { mcpStatus, subscribeMcp } from './store/McpStore';
 import { attachAgentBridge, agentDriving, subscribeAgent } from './store/AgentStore';
 import { guardAutomationHook } from './engine/automationGate';
+import { activeMode } from './mode/activeMode';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
 import { applySettings } from './store/settingsStore';
@@ -101,6 +102,22 @@ function documentState(): { kind: 'scene' | 'prefab'; path: string | null; name:
   const dirty = DirtyRegistry.isDirty();
   if (pe) return { kind: 'prefab', path: pe.path, name: pe.name, dirty, isVariant: !!pe.isVariant, returnScene: pe.returnScene };
   return { kind: 'scene', path: st?.currentScene ?? null, name: st?.name ?? null, dirty };
+}
+
+/**
+ * What the editor is set up as, for the agent's per-turn context.
+ *
+ * The mode changes what the tools MEAN — a tilemap-mode task is about cells, a
+ * UI-mode one about anchors — and the design resolution is the frame every UI
+ * coordinate is relative to. An agent told neither guesses, and guessing the
+ * unit convention is how coordinates come out an order of magnitude off.
+ */
+function editorSetup(): { mode: string; designResolution: { width: number; height: number } | null } {
+  const res = ProjectStore.designResolution?.();
+  return {
+    mode: activeMode().id,
+    designResolution: res ? { width: res.width, height: res.height } : null,
+  };
 }
 
 /** Open a scene and resolve once it is ADOPTED and readable, so a driver never has to
@@ -385,6 +402,7 @@ function buildEditorAutomation(): unknown {
      * different document), and no way to know whether `save` writes a scene or an asset.
      */
     documentState,
+    editorSetup,
     /** Leave Prefab Mode — the banner's "Back to Scene". Refuses on unsaved prefab
      *  changes unless `discardChanges` (see openAsset). */
     exitPrefabMode: async (discardChanges = false) => {

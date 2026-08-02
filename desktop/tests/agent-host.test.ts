@@ -36,7 +36,7 @@ function fakeProvider(steps: StepEvent[][]): AgentProvider & { session: AgentSes
       at++;
     },
   };
-  return { id: 'fake', model: 'fake-model', session, createSession: () => session };
+  return { id: 'fake', model: 'fake-model', acceptsImages: true, session, createSession: () => session };
 }
 
 describe('the agent host', () => {

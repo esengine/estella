@@ -111,6 +111,15 @@ export interface AgentProvider {
   readonly id: string;
   /** The model this provider will run, for the transcript header. */
   readonly model: string;
+  /**
+   * Whether a rendered frame can reach the model at all.
+   *
+   * A gateway that speaks the core format may still refuse image blocks, and
+   * the agent has no way to find out except by spending a call on a screenshot
+   * it will be told it cannot see. Stated once, in the turn's context, so it
+   * can plan around being blind instead of discovering it.
+   */
+  readonly acceptsImages: boolean;
   createSession(opts: { system: string; tools: readonly CatalogTool[] }): AgentSession;
 }
 
@@ -207,6 +216,8 @@ export interface KernelDeps {
   /** What is behind `session`, for the transcript. The session abstraction has
    *  no name for itself, and the host is where that name is known. */
   model: string;
+  /** See {@link AgentProvider.acceptsImages}. */
+  acceptsImages: boolean;
   /** Ask the person. `no` is declined, which the model is told about. */
   confirm(request: ConfirmRequest): Promise<ConfirmDecision>;
   emit(event: AgentEvent): void;

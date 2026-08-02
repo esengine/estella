@@ -47,7 +47,7 @@ describe('the agent turn', () => {
   let diagnostics: unknown[];
 
   const deps = (session: AgentSession) => ({
-    driver: driver as never, session, model: 'fake-model', confirm: confirm as never,
+    driver: driver as never, session, model: 'fake-model', acceptsImages: true, confirm: confirm as never,
     emit: (e: AgentEvent) => { events.push(e); },
   });
   const kinds = () => events.map((e) => e.type);
@@ -362,5 +362,51 @@ describe('the agent turn', () => {
       await runTurn(deps(s), 'build it twice', null, new AbortController().signal);
       expect(confirm).toHaveBeenCalledTimes(1);
     });
+  });
+
+  // The editor is not frozen while a turn runs. An edit the agent makes from a
+  // reading taken before the person dragged something silently overwrites them,
+  // and nothing else in the loop would notice.
+  describe('the person editing mid-turn', () => {
+    it('says so, once, between rounds', async () => {
+      const s = fakeSession([asks(call('add_entity')), asks(call('get_stats')), ends()]);
+      // The stack grows between the agent's own work and the next round.
+      let reported = 0;
+      driver = vi.fn(async (method: string) => {
+        if (method === 'mark') return { seq: 7 };
+        if (method === 'stepsSince') { reported += 1; return reported; }
+        if (method === 'getDiagnostics') return diagnostics;
+        return null;
+      }) as never;
+      (driver as { js: unknown }).js = vi.fn(async () => null);
+      (driver as { op: unknown }).op = vi.fn(async () => null);
+
+      await runTurn(deps(s), 'add one', null, new AbortController().signal);
+      expect(s.context.some((c) => /edited the scene themselves/i.test(c))).toBe(true);
+      expect(s.context.some((c) => /re-read/i.test(c))).toBe(true);
+    });
+
+    it('stays quiet when every step is the agent\'s own', async () => {
+      stepsSince = 3;
+      const s = fakeSession([asks(call('add_entity')), asks(call('get_stats')), ends()]);
+      await runTurn(deps(s), 'add one', null, new AbortController().signal);
+      expect(s.context.some((c) => /edited the scene themselves/i.test(c))).toBe(false);
+    });
+  });
+
+  // A gateway that speaks the core format may still refuse image blocks. The
+  // agent has no way to find that out except by spending a call on a screenshot
+  // it will then be told it cannot see.
+  it('tells a blind endpoint\'s agent not to rely on looking', async () => {
+    const s = fakeSession([ends()]);
+    await runTurn({ ...deps(s), acceptsImages: false }, 'how does it look', null, new AbortController().signal);
+    expect(s.context.some((c) => /cannot carry images/i.test(c))).toBe(true);
+    expect(s.context.some((c) => /get_diagnostics/.test(c))).toBe(true);
+  });
+
+  it('says nothing about it where images do cross', async () => {
+    const s = fakeSession([ends()]);
+    await runTurn(deps(s), 'how does it look', null, new AbortController().signal);
+    expect(s.context.some((c) => /cannot carry images/i.test(c))).toBe(false);
   });
 });

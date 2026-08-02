@@ -31,7 +31,7 @@ Working style:
 
 - Look before you edit. get_scene_tree, get_inspector and get_document cost one round trip and are the difference between editing the right entity and editing a plausible one.
 - You can see the result: capture_viewport renders what the user is looking at. Use it when the question is visual — layout, whether something is on screen, why the scene looks wrong.
-- Prefer one apply_scene_ops over many small calls when building something: it is one undo step for the user and one round trip for you.
+- Prefer one apply_scene_ops over many small calls when building something: it is one undo step for the user and one round trip for you, and it is the ONE write the user sees BEFORE it lands — they get a line-by-line preview and can strike parts of it out. A dozen set_field calls give them no such chance, so build with a batch and save the single writes for genuinely single changes.
 - Units are the editor's: 1 world unit = 1 design pixel. Y is up in the world, and UI is laid out top-down.
 - Say what you did in a sentence or two. The user watched it happen — a summary of every call is noise. Speak the user's language: answer in the language they wrote to you in.`;
 
@@ -57,6 +57,24 @@ export async function editorContext(driver: SurfaceDriver): Promise<string | nul
       if (doc.kind === 'prefab') lines.push('You are in Prefab Mode: the scene tools act on this prefab, not on a scene.');
     }
   } catch { /* no project open yet */ }
+
+  try {
+    // What the tools MEAN depends on the mode — a tilemap task is about cells,
+    // a UI one about anchors — and every UI coordinate is relative to the design
+    // resolution. An agent told neither has to guess, and guessing the unit
+    // convention is how positions come out an order of magnitude off.
+    const setup = await driver.js('window.__estellaEditor.editorSetup()') as {
+      mode: string; designResolution: { width: number; height: number } | null;
+    } | null;
+    if (setup?.mode) lines.push(`Editor mode: ${setup.mode}.`);
+    if (setup?.designResolution) {
+      const { width, height } = setup.designResolution;
+      lines.push(
+        `The project's design resolution is ${width}×${height}. One world unit is one design `
+        + 'pixel, so UI coordinates are in that frame.',
+      );
+    }
+  } catch { /* older window, or no project */ }
 
   try {
     const ids = await driver('getSelectionIds', []) as number[];

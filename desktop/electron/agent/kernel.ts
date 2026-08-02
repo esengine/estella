@@ -117,7 +117,7 @@ export async function runTurn(
   context: string | null,
   signal: AbortSignal,
 ): Promise<{ mark: unknown; steps: number }> {
-  const { driver, session, emit, model } = deps;
+  const { driver, session, emit, model, acceptsImages } = deps;
   const mark = await driver('mark', []);
   // Read before pushUser opens it: this is the index that turn will occupy.
   emit({ type: 'turn_start', prompt: text, model, index: session.turnIndex });
@@ -127,14 +127,41 @@ export async function runTurn(
   // an "always" that outlives the run is a permission switch nobody remembers
   // flipping, which is the thing the gate exists to prevent.
   const allowed = new Set<string>();
+  // Undo steps this turn is responsible for, so a jump beyond it is the person.
+  let ours = 0;
   try {
     if (context) session.pushContext(context);
+    if (!acceptsImages) {
+      session.pushContext(
+        'This endpoint cannot carry images, so capture_viewport and the other screenshot '
+        + 'tools will not let you SEE anything — their frames cannot reach you. Verify with '
+        + 'get_diagnostics and by reading fields back instead of by looking.',
+      );
+    }
     session.pushUser(text);
 
     // Bounded so a model that keeps calling tools cannot spin forever. Reaching
     // it is reported as an ordinary end of turn — the work so far stands, and
     // the person can say "keep going".
     for (let round = 0; round < MAX_ROUNDS; round++) {
+      // The editor is not frozen while a turn runs: the person can drag an
+      // entity while the model is thinking. Whatever the agent read before that
+      // is now possibly stale, and it has no way to notice — an edit made from
+      // the old reading silently overwrites the one just made by hand. Steps
+      // that appeared since our own work is enough to say SO; what changed is
+      // the scene's to answer, and telling it to re-read beats guessing.
+      if (round > 0) {
+        const now = await undoSteps(deps, mark);
+        if (now > ours) {
+          session.pushContext(
+            `While you were working, the user edited the scene themselves (${now - ours} undo `
+            + 'steps beyond your own). Anything you read before now may be out of date — '
+            + 're-read what you are about to change rather than acting on it.',
+          );
+          ours = now;
+        }
+      }
+
       const calls: ToolCall[] = [];
       let refused = false;
 
@@ -177,6 +204,8 @@ export async function runTurn(
         if (issues) session.pushContext(issues);
       }
       session.pushToolResults(outcomes);
+      // Everything on the stack now is this turn's own doing.
+      ours = await undoSteps(deps, mark);
     }
   } catch (e) {
     reason = signal.aborted ? 'aborted' : 'error';
@@ -184,12 +213,17 @@ export async function runTurn(
   }
   if (signal.aborted) reason = 'aborted';
 
-  const steps = Number(await driver('stepsSince', [mark]).catch(() => 0)) || 0;
+  const steps = await undoSteps(deps, mark);
   emit({ type: 'turn_end', steps, mark, reason });
   return { mark, steps };
 }
 
 const MAX_ROUNDS = 48;
+
+/** Undo steps recorded since `mark`, or 0 when the editor cannot say. */
+async function undoSteps(deps: KernelDeps, mark: unknown): Promise<number> {
+  return Number(await deps.driver('stepsSince', [mark]).catch(() => 0)) || 0;
+}
 
 /**
  * The batch minus the lines the person struck out, or null when nothing is left.
