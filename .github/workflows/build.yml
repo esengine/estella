@@ -133,6 +133,12 @@ jobs:
     - name: Build SDK
       run: pnpm --filter ./sdk build
 
+    # The snapshot above is read out of the sources, so it says nothing about what
+    # the declaration build actually emitted. This is the only step that looks at
+    # the .d.ts a consumer installs.
+    - name: Check built declarations carry the API surface
+      run: node tools/api-surface.mjs --check-dts
+
     - name: Type-check Examples
       run: node build-tools/cli.js check-examples
 

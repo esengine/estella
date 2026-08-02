@@ -11,8 +11,9 @@
 // stability: untagged = stable, @beta = experimental, @internal = must not be
 // exported from a public entry (policy error).
 //
-// Run: node tools/api-surface.mjs --check    (CI: exit 1 on drift/violation)
-//      node tools/api-surface.mjs --update   (accept surface changes)
+// Run: node tools/api-surface.mjs --check     (CI: exit 1 on drift/violation)
+//      node tools/api-surface.mjs --update    (accept surface changes)
+//      node tools/api-surface.mjs --check-dts (built .d.ts still carries it)
 // =============================================================================
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -39,10 +40,23 @@ const ENTRIES = {
 };
 
 const mode = process.argv[2];
-if (mode !== '--check' && mode !== '--update') {
-    console.error('usage: node tools/api-surface.mjs --check | --update');
+if (mode !== '--check' && mode !== '--update' && mode !== '--check-dts') {
+    console.error('usage: node tools/api-surface.mjs --check | --update | --check-dts');
     process.exit(2);
 }
+
+// `--check-dts` reads the same entries out of the BUILT declarations. The
+// snapshot stays the one authority for what the surface is; this only asks
+// whether the `.d.ts` a consumer installs still carries it, which is the one
+// thing a source-only guard cannot see. It is a smaller claim than the snapshot
+// makes — names, kinds and "it compiles" — because that is what survives being
+// re-printed by a declaration bundler. Comparing rendered types across two
+// programs compares their printers, not the API.
+const fromDts = mode === '--check-dts';
+const entryPaths = fromDts
+    ? Object.fromEntries(Object.entries(ENTRIES)
+        .map(([name, p]) => [name, p.replace(/^src\//, 'dist/').replace(/\.ts$/, '.d.ts')]))
+    : ENTRIES;
 
 // ---------------------------------------------------------------------------
 // Program setup
@@ -51,8 +65,24 @@ if (mode !== '--check' && mode !== '--update') {
 const configPath = join(SDK, 'tsconfig.json');
 const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
 const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, SDK);
-const rootNames = Object.values(ENTRIES).map((p) => join(SDK, p));
-const options = { ...parsed.options, noEmit: true };
+const rootNames = Object.values(entryPaths).map((p) => join(SDK, p));
+const absent = rootNames.filter((p) => !existsSync(p));
+if (absent.length) {
+    console.error('api-surface: the SDK is not built — run `pnpm --filter ./sdk build` first.');
+    for (const p of absent) console.error(`  missing ${p.replace(SDK + '/', '')}`);
+    process.exit(2);
+}
+// `rootDir` is src, and in --check-dts the roots live under dist; nothing is
+// emitted here, so drop it rather than let TS reject the roots as out of scope.
+// `skipLibCheck` has to go with it: it skips checking .d.ts files, which in this
+// mode is every file we came to check — left on, a declaration referring to a
+// type that did not survive the bundle passes silently.
+const options = {
+    ...parsed.options,
+    noEmit: true,
+    rootDir: undefined,
+    ...(fromDts ? { skipLibCheck: false } : {}),
+};
 // typeToString relativizes import("...") type paths against the host cwd — pin
 // it so the report is byte-identical no matter where the tool is invoked from.
 const host = ts.createCompilerHost(options);
@@ -248,9 +278,67 @@ function buildReport(entryName, entryPath) {
     return (out.join('\n') + '\n').replace(/\r\n?/g, '\n');
 }
 
+if (fromDts) {
+    let broken = 0;
+    // Only our own output: with skipLibCheck off, the installed @types are fair
+    // game for the checker too, and their errors are not ours to fix.
+    const DIST = join(SDK, 'dist');
+    const diagnostics = program.getSemanticDiagnostics().concat(program.getSyntacticDiagnostics())
+        .filter((d) => d.file?.fileName.startsWith(DIST.replace(/\\/g, '/')));
+    if (diagnostics.length) {
+        broken++;
+        console.error(`INVALID: the built .d.ts does not compile — ${diagnostics.length} error(s)`);
+        for (const d of diagnostics.slice(0, 10)) {
+            const where = d.file ? `${d.file.fileName.replace(SDK + '/', '')}:${d.file.getLineAndCharacterOfPosition(d.start ?? 0).line + 1} ` : '';
+            console.error(`  ${where}${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`);
+        }
+    }
+
+    for (const [entryName, entryPath] of Object.entries(entryPaths)) {
+        const sourceFile = program.getSourceFile(join(SDK, entryPath));
+        const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
+        if (!moduleSymbol) {
+            broken++;
+            console.error(`INVALID: ${entryName} — ${entryPath} is not a module`);
+            continue;
+        }
+        const emitted = new Map();
+        for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
+            if (symbol.name.startsWith('__')) continue;
+            const desc = describeSymbol(symbol.name, symbol);
+            if (desc) emitted.set(desc.name, desc.kind);
+        }
+
+        // The snapshot's headings are `## <name> — <kind>[ @tag]`; the tag comes
+        // from a `@file` header as often as a declaration, and a header cannot
+        // survive into a bundled .d.ts, so only name and kind are compared.
+        const snapshot = readFileSync(join(ETC, `${entryName}.api.md`), 'utf8');
+        const expected = new Map([...snapshot.matchAll(/^## (\S+) — (\S+)/gm)].map((m) => [m[1], m[2]]));
+
+        const dropped = [...expected.keys()].filter((n) => !emitted.has(n));
+        const extra = [...emitted.keys()].filter((n) => !expected.has(n));
+        const rekinded = [...expected].filter(([n, k]) => emitted.has(n) && emitted.get(n) !== k);
+        if (!dropped.length && !extra.length && !rekinded.length) continue;
+
+        broken++;
+        console.error(`DIVERGED: ${entryName} — the built .d.ts does not carry the documented surface.`);
+        for (const n of dropped.slice(0, 15)) console.error(`  missing from .d.ts: ${n}`);
+        for (const n of extra.slice(0, 15)) console.error(`  only in .d.ts:      ${n}`);
+        for (const [n, k] of rekinded.slice(0, 15)) console.error(`  ${n}: ${k} became ${emitted.get(n)}`);
+    }
+
+    for (const e of errors) console.error(`POLICY ${e}`);
+    if (broken || errors.length) {
+        console.error('\napi-surface: the declaration build is not shipping the documented surface.');
+        process.exit(1);
+    }
+    console.log(`api-surface: ${Object.keys(ENTRIES).length} entries — built .d.ts carries the documented surface.`);
+    process.exit(0);
+}
+
 let drift = 0;
 mkdirSync(ETC, { recursive: true });
-for (const [entryName, entryPath] of Object.entries(ENTRIES)) {
+for (const [entryName, entryPath] of Object.entries(entryPaths)) {
     const report = buildReport(entryName, entryPath);
     const file = join(ETC, `${entryName}.api.md`);
     if (mode === '--update') {
