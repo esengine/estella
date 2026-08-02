@@ -324,9 +324,10 @@
 .ag-pv.struck .ag-pv-t { text-decoration: line-through; }
 .ag-ask--fail { --ag-tone: var(--error); }
 /* Arriving in a transcript that has been scrolling on its own, a question that
-   merely appeared is one you read past. It flashes ONCE, on arrival. */
+   merely appeared is one you read past. It flashes ONCE, on arrival — both
+   passages that wait on the person, not just the amber one. */
 @media (prefers-reduced-motion: no-preference) {
-  .ag-ask--confirm { animation: ag-flash 1.1s var(--e-out); }
+  .ag-asking { animation: ag-flash 1.1s var(--e-out); }
 }
 @keyframes ag-flash { 0%, 100% { background: transparent; } 40% { background: var(--hover); } }
 .ag-ask-g { color: var(--ag-tone); margin-top: 1px; }

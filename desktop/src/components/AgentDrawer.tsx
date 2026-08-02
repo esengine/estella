@@ -52,6 +52,17 @@ import type { SceneOp } from '@/engine/sceneOps';
 import { ProjectStore } from '@/project/ProjectStore';
 import { t } from '@/i18n';
 
+/**
+ * Both passages that are WAITING ON THE PERSON carry this, and everything that
+ * hunts for one looks for it rather than for a particular passage.
+ *
+ * The two are otherwise unlike — one is amber and irreversible, the other is a
+ * batch you can strike lines out of — and naming them separately is how the
+ * scrolled-away notice came to cover only the rarer of them while apply_scene_ops,
+ * the write the agent is told to prefer, could scroll off with nothing said.
+ */
+const ASKING = 'ag-asking';
+
 const TOOL_ICON: Record<string, typeof Eye> = {
   read: Eye,
   undoable: Pencil,
@@ -159,7 +170,7 @@ function PreviewPassage({ entry, onConfirm }: {
   });
 
   return (
-    <div ref={ref} className="ag-ask ag-ask--preview">
+    <div ref={ref} className={`ag-ask ag-ask--preview ${ASKING}`}>
       <span className="ag-ask-g"><Pencil size={16} strokeWidth={1.8} /></span>
       <span className="ag-ask-hd">
         {loading ? t('agent.preview.loading')
@@ -225,7 +236,7 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
     ref.current?.scrollIntoView({ block: 'nearest' });
   }, []);
   return (
-    <div ref={ref} className="ag-ask ag-ask--confirm">
+    <div ref={ref} className={`ag-ask ag-ask--confirm ${ASKING}`}>
       <span className="ag-ask-g"><TriangleAlert size={16} strokeWidth={1.8} /></span>
       <span className="ag-ask-hd">{t('agent.confirm.title', { tool: entry.name })}</span>
       <div className="ag-ask-d">
@@ -886,7 +897,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
   useEffect(() => {
     if (!awaiting) { setAskOffscreen(false); return; }
     const log = logRef.current;
-    const ask = log?.querySelector('.ag-ask--confirm');
+    const ask = log?.querySelector(`.${ASKING}`);
     if (!log || !ask) return;
     const io = new IntersectionObserver(([e]) => setAskOffscreen(!e.isIntersecting), { root: log, threshold: 0.5 });
     io.observe(ask);
@@ -969,7 +980,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         <button
           type="button"
           className="ag-jump"
-          onClick={() => logRef.current?.querySelector('.ag-ask--confirm')
+          onClick={() => logRef.current?.querySelector(`.${ASKING}`)
             ?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
         >
           <ChevronDown size={12} strokeWidth={2.2} />{t('agent.jump')}
