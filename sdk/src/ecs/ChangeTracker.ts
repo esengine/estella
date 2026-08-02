@@ -100,14 +100,7 @@ export class ChangeTracker {
 
     recordRemoved(component: AnyComponentDef, entity: Entity): void {
         if (!this.trackedComponents_.has(component._id)) return;
-        let buffer = this.componentRemovedBuffer_.get(component._id);
-        if (!buffer) {
-            buffer = [];
-            this.componentRemovedBuffer_.set(component._id, buffer);
-        }
-        buffer.push({ entity, tick: this.worldTick_ });
-        this.componentAddedTicks_.get(component._id)?.delete(entity);
-        this.componentChangedTicks_.get(component._id)?.delete(entity);
+        this.recordRemovedById(component._id, entity);
     }
 
     recordRemovedById(componentId: symbol, entity: Entity): void {
@@ -119,5 +112,11 @@ export class ChangeTracker {
         buffer.push({ entity, tick: this.worldTick_ });
         this.componentAddedTicks_.get(componentId)?.delete(entity);
         this.componentChangedTicks_.get(componentId)?.delete(entity);
+        // Losing a component IS a change to it. Without this, `anyChangedSince`
+        // — which reads only this watermark — says nothing happened, and a
+        // consumer that gates work on it never learns the component is gone.
+        // The UI layout did exactly that: removing a FlexContainer left its
+        // padding and justification laying the node out for the rest of the run.
+        this.componentLastChangedTick_.set(componentId, this.worldTick_);
     }
 }

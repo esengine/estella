@@ -101,3 +101,41 @@ describe('Mut() write-back records change tracking for builtin components', () =
         expect(changedSince(world, tickBeforeWrite - 1)).toContain(e);
     });
 });
+
+/**
+ * The other half of "did anything touch this component": losing it.
+ *
+ * `anyChangedSince` is the O(1) gate consumers use to decide whether to do any
+ * work at all, and it reads one per-component watermark. Removal used to record
+ * only into the per-entity maps, so a component being taken off an entity was
+ * invisible to that gate — the UI layout, which gates its whole solve on it,
+ * went on laying nodes out with a FlexContainer that had been removed.
+ */
+describe('removal is a change', () => {
+    it('moves the component watermark, so anyChangedSince sees it', () => {
+        const world = new World();
+        world.enableChangeTracking(Transform);
+        const e = world.spawn();
+        world.insert(e, Transform, defaultTransform());
+
+        world.advanceTick();
+        const quiet = world.getWorldTick();
+        expect(world.anyChangedSince(Transform, quiet)).toBe(false);
+
+        world.advanceTick();
+        world.remove(e, Transform);
+        expect(world.anyChangedSince(Transform, quiet)).toBe(true);
+    });
+
+    it('still lists the entity as removed since that tick', () => {
+        const world = new World();
+        world.enableChangeTracking(Transform);
+        const e = world.spawn();
+        world.insert(e, Transform, defaultTransform());
+
+        const before = world.getWorldTick();
+        world.advanceTick();
+        world.remove(e, Transform);
+        expect(world.getRemovedEntitiesSince(Transform, before)).toContain(e);
+    });
+});
