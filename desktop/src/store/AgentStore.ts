@@ -266,6 +266,10 @@ function patchTool(entries: readonly AgentEntry[], id: string, patch: Partial<Ag
  * transcript for something the user never asked.
  */
 export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent): AgentTurn[] {
+  // A new session numbers its runs from zero again, so keeping the old ones
+  // would make the next turn_start look like a repeat of one already held.
+  if (event.type === 'conversation_reset') return [];
+
   if (event.type === 'turn_start') {
     // Idempotent, so replaying the stream over a transcript that already has
     // some of it cannot double a run (see attachAgentBridge).

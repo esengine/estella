@@ -247,6 +247,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       phase = 'idle';
       error = null;
       log.length = 0;
+      // Straight to the window, not through `emit`: the log it would join was
+      // just emptied, and a window attaching later has nothing to reset.
+      deps.push({ kind: 'event', event: { type: 'conversation_reset' } });
       pushStatus();
       return status();
     },

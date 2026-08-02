@@ -159,6 +159,15 @@ export type AgentEvent =
    *  header of a past run has to say which one answered it. `index` is the
    *  session's own coordinate for this run — see {@link AgentSession.turnIndex}. */
   | { type: 'turn_start'; prompt: string; model: string; index: number }
+  /**
+   * The session was dropped; run coordinates start over at zero.
+   *
+   * Said out loud rather than left implied, because a mirror that keeps the old
+   * runs would then see the NEW run 0 as one it already has — runs are matched
+   * by the session's index, and two sessions both have a run 0. Every path that
+   * drops the conversation emits this, so no caller has to remember to.
+   */
+  | { type: 'conversation_reset' }
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
   | { type: 'tool_end'; id: string; ok: boolean; summary: string; image?: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }

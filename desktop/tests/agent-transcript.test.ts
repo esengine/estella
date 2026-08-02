@@ -273,7 +273,21 @@ describe('which entities a turn touched', () => {
     expect([...touchedEntities(turns, 0)]).toEqual([2]);
     expect([...touchedEntities(turns, 1)]).toEqual([]);
   });
+
+  // Two sessions both have a run 0. A mirror that kept the old runs would treat
+  // the new one as a repeat of what it already had and drop it — which is
+  // exactly what happened the first time this was driven against a real gateway.
+  it('starts over when the conversation is dropped', () => {
+    const after = fold(
+      started('old one'), ended(),
+      { type: 'conversation_reset' },
+      started('new one'),
+    );
+    expect(after.map((t) => t.prompt)).toEqual(['new one']);
+    expect(after.map((t) => t.id)).toEqual([0]);
+  });
 });
+
 
 // The row's result column is one cell wide. It used to hold the first 20
 // characters of whatever the tool returned — for a JSON answer that is `[{"id`,

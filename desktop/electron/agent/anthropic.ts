@@ -216,14 +216,27 @@ export function compactHistory(
   turnStarts: readonly number[],
   dropped: number,
   keepRuns: number,
-): { messages: Message[]; turnStarts: number[]; dropped: number } | null {
+  folded: readonly string[] = [],
+): { messages: Message[]; turnStarts: number[]; dropped: number; folded: string[] } | null {
   const cut = turnStarts.length - keepRuns;
   if (cut <= 0) return null;
   const at = turnStarts[cut];
-  const asked = turnStarts.slice(0, cut)
-    .map((start, i) => `${dropped + i + 1}. ${firstText(messages[start])}`);
+  // Everything ever folded, not only this pass. The note a fold produces is NOT
+  // in turnStarts, so the next one splices straight over it — carrying the asks
+  // in a value of their own is what stops the oldest request disappearing one
+  // compaction at a time. (Caught against a real gateway: the first fold kept
+  // "remember the passphrase", the second silently ate it.)
+  const asked = [
+    ...folded,
+    ...turnStarts.slice(0, cut).map((start, i) => `${dropped + i + 1}. ${firstText(messages[start])}`),
+  ];
+  // A conversation folded many times would otherwise grow a note that is itself
+  // the problem. The oldest go first: their edits are furthest downstream.
+  const shown = asked.length > MAX_FOLDED_ASKS
+    ? [`(${asked.length - MAX_FOLDED_ASKS} earlier requests omitted)`, ...asked.slice(-MAX_FOLDED_ASKS)]
+    : asked;
   const note = 'Earlier in this conversation you were asked, in order:\n'
-    + `${asked.join('\n')}\n`
+    + `${shown.join('\n')}\n`
     + 'The tool calls and results from those runs were dropped to keep this conversation '
     + 'inside its context window. Whatever they changed is in the scene — read it back if '
     + 'you need the current state rather than trusting this summary.';
@@ -238,16 +251,26 @@ export function compactHistory(
     turnStarts: turnStarts.slice(cut).map((s) => s - shift),
     // Coordinates count from the start of the CONVERSATION, not of what is left.
     dropped: dropped + cut,
+    folded: asked,
   };
 }
 
-/** What a person's turn said, as one line for the compaction note. They are
- *  pushed as plain strings; the block form is handled for completeness. */
+/** How many past requests the note quotes before it elides the oldest. */
+const MAX_FOLDED_ASKS = 20;
+
+/**
+ * What a person's turn said, as one line for the compaction note.
+ *
+ * The FIRST text block only. A turn is pushed as a plain string and then gets
+ * the editor context appended as a second block (flushContext), which is the
+ * same paragraph every turn — joining them would quote the state of the editor
+ * once per folded run and bury the sentence that was actually said.
+ */
 function firstText(message: Message | undefined): string {
   const content = message?.content;
   const text = typeof content === 'string'
     ? content
-    : content?.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join(' ') ?? '';
+    : content?.find((b) => b.type === 'text')?.text ?? '';
   const flat = text.replace(/\s+/g, ' ').trim();
   if (!flat) return '(no text)';
   return flat.length > 200 ? `${flat.slice(0, 197)}…` : flat;
@@ -263,8 +286,10 @@ class AnthropicSession implements AgentSession {
   /** Runs folded away by {@link compactOldest}. Turn coordinates count from the
    *  start of the CONVERSATION, so they must survive their messages. */
   private dropped = 0;
-  /** What the last call was billed for its input — the size of this whole
-   *  conversation as the endpoint measures it, which beats counting it here. */
+  /** What was asked in every folded run, oldest first — see compactHistory. */
+  private folded: string[] = [];
+  /** What the last call was billed for its input. Authoritative WHERE it counts
+   *  the whole request — see {@link contextUsed}, which does not assume it does. */
   private lastInputTokens = 0;
 
   constructor(
@@ -294,12 +319,40 @@ class AnthropicSession implements AgentSession {
     this.pending.length = 0;
   }
 
+  /**
+   * How full the context is, in tokens — the larger of what the endpoint billed
+   * and what this conversation obviously weighs.
+   *
+   * Measured against a real gateway, `input_tokens` is NOT always the whole
+   * request: DeepSeek reported 33 for a first turn whose system prompt and 75
+   * tool schemas are thousands, so trusting it alone meant compaction would
+   * never fire and the conversation would hit the wall it exists to prevent.
+   * Nor can the estimate simply replace it — chars/4 is a rule of thumb that
+   * under-counts CJK badly, which is most of what this editor's users type.
+   *
+   * So: whichever is bigger. Both err by under-reporting, and the cost of
+   * over-reporting is one compaction that was not needed yet.
+   */
+  private contextUsed(): number {
+    let chars = this.system.length;
+    for (const tool of this.tools) {
+      chars += tool.name.length + tool.description.length + JSON.stringify(tool.schema).length;
+    }
+    for (const message of this.messages) {
+      chars += typeof message.content === 'string'
+        ? message.content.length
+        : JSON.stringify(message.content).length;
+    }
+    return Math.max(this.lastInputTokens, Math.ceil(chars / 4));
+  }
+
   private compactOldest(keepRuns: number): void {
-    const next = compactHistory(this.messages, this.turnStarts, this.dropped, keepRuns);
+    const next = compactHistory(this.messages, this.turnStarts, this.dropped, keepRuns, this.folded);
     if (!next) return;
     this.messages.splice(0, this.messages.length, ...next.messages);
     this.turnStarts.splice(0, this.turnStarts.length, ...next.turnStarts);
     this.dropped = next.dropped;
+    this.folded = next.folded;
   }
 
   pushContext(text: string): void {
@@ -356,10 +409,8 @@ class AnthropicSession implements AgentSession {
 
   async *step(signal: AbortSignal): AsyncIterable<StepEvent> {
     this.flushContext();
-    // Fold the oldest runs away BEFORE a call that would not fit. Measured by
-    // what the endpoint billed last time rather than by counting here: the
-    // tokeniser is theirs, and an estimate that drifts low fails the turn.
-    if (this.lastInputTokens > this.opts.contextWindow * COMPACT_AT) {
+    // Fold the oldest runs away BEFORE a call that would not fit.
+    if (this.contextUsed() > this.opts.contextWindow * COMPACT_AT) {
       this.compactOldest(KEEP_WHOLE_RUNS);
     }
 

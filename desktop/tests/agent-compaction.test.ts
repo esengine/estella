@@ -83,6 +83,34 @@ describe('compacting a long conversation', () => {
     expect(out.dropped).toBe(13);
   });
 
+  // The note a fold writes is NOT one of the turn starts, so the next fold
+  // splices straight over it. Carrying the asks forward is what stops the
+  // earliest request vanishing one compaction at a time — which is exactly what
+  // a real gateway showed happening: fold one kept the passphrase, fold two ate it.
+  it('keeps what was asked in EVERY fold, not just the last one', () => {
+    const first = compactHistory(...Object.values(history(6)) as [Message[], number[]], 0, 2)!;
+    expect(String(first.messages[0].content)).toContain('ask 0');
+
+    const grown = {
+      messages: [...first.messages, { role: 'user' as const, content: 'ask 6' }],
+      turnStarts: [...first.turnStarts, first.messages.length],
+    };
+    const second = compactHistory(grown.messages, grown.turnStarts, first.dropped, 1, first.folded)!;
+
+    const note = String(second.messages[0].content);
+    expect(note).toContain('ask 0');   // from the first fold
+    expect(note).toContain('ask 4');   // folded by the second
+  });
+
+  it('elides the oldest once the note would grow unbounded', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `${i}. old ask ${i}`);
+    const out = compactHistory(...Object.values(history(5)) as [Message[], number[]], 0, 2, many)!;
+    const note = String(out.messages[0].content);
+    expect(note).toContain('earlier requests omitted');
+    expect(note).not.toContain('old ask 0');
+    expect(note).toContain('old ask 39');
+  });
+
   // Compacting twice is the ordinary case in a conversation long enough to need
   // it once — the second pass must fold the note itself away with the rest.
   it('can be applied again to its own output', () => {
