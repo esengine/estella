@@ -84,7 +84,15 @@ published separately; it ships inside the editor.
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
 
-- **The agent notices when you edit while it is working.** The editor is not frozen during
+- **The agent can edit the asset editors, not just the scene.** Animation clips, timelines,
+  tilesets, materials, material graphs and the animator/state/behaviour graphs were
+  unreachable: not components, and not plain files either — reading them off disk gives
+  bytes that are stale the moment an editor holds unsaved edits. They now share three
+  tools rather than six sets, because all eight share one document base: a field is named
+  by dotted path (`frames.0.duration`, the same shape `set_field` uses), and one call is
+  one undo step through the same door the panels write through. A path that does not
+  already exist is refused rather than created. Tilemaps get their own tools instead —
+  a cell is addressed by grid coordinate, which no field write reaches. The editor is not frozen during
   a turn, and an edit it made from a reading taken before you dragged something would
   silently overwrite you. It is now told between rounds, and told to re-read rather than
   handed a guess about what went stale.
