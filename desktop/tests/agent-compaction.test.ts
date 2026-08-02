@@ -9,7 +9,8 @@
  *        conversation, so they must outlive the messages they pointed at.
  */
 import { describe, it, expect } from 'vitest';
-import { compactHistory } from '../electron/agent/anthropic';
+import { compactHistory, createAnthropicProvider } from '../electron/agent/anthropic';
+import { KEEP_WHOLE_RUNS, COMPACT_AT } from '../src/settings/agentIds';
 
 type Message = Parameters<typeof compactHistory>[0][number];
 
@@ -124,5 +125,64 @@ describe('compacting a long conversation', () => {
     expect(second.dropped).toBe(6);
     expect(second.turnStarts.map((s) => second.messages[s]))
       .toEqual([{ role: 'user', content: 'ask 6' }]);
+  });
+});
+
+/**
+ * When the session decides to fold, and what it can then SAY about it — the
+ * half a person sees. A conversation that quietly stopped remembering its
+ * earliest runs, while the transcript on screen still showed them in full, is
+ * the state this reporting exists to end.
+ */
+describe('a session deciding to compact', () => {
+  /** A session of `runs` bulky runs against a deliberately small window. Reached
+   *  through the private surface because step() past this point is the network,
+   *  and the decision is made before that — the same trick the dialect suite
+   *  uses for flushContext(). */
+  const conversation = (runs: number, contextWindow = 4000) => {
+    const session = createAnthropicProvider({ apiKey: 'k', contextWindow })
+      .createSession({ system: 'be useful', tools: [] });
+    for (let i = 0; i < runs; i++) {
+      session.pushUser(`ask ${i}`);
+      session.pushToolResults([{ id: `c${i}`, content: 'x'.repeat(4000), isError: false }]);
+    }
+    return session as unknown as {
+      compactIfNeeded(): number;
+      contextUsed(): number;
+      lastInputTokens: number;
+      turnIndex: number;
+    };
+  };
+
+  it('says how many runs went, because nothing else can', () => {
+    const session = conversation(6);
+    expect(session.compactIfNeeded()).toBe(6 - KEEP_WHOLE_RUNS);
+  });
+
+  it('leaves a conversation inside its window alone, and reports nothing', () => {
+    expect(conversation(6, 1_000_000).compactIfNeeded()).toBe(0);
+  });
+
+  // The coordinate the editor names runs by. Folding messages away must not
+  // renumber the runs that are left — see the suite above.
+  it('does not renumber what survives', () => {
+    const session = conversation(6);
+    expect(session.turnIndex).toBe(6);
+    session.compactIfNeeded();
+    expect(session.turnIndex).toBe(6);
+  });
+
+  // What the endpoint billed is the LARGER half of the reading on an honest
+  // endpoint, and it describes the history that was just rewritten. Left in
+  // place, the gauge would not move after a fold that emptied most of the
+  // conversation, and the next step would fold again over a stale full reading.
+  it('stops reporting the request it just threw away', () => {
+    const session = conversation(12, 8000);
+    session.lastInputTokens = 20_000;              // what the endpoint billed
+    expect(session.contextUsed()).toBe(20_000);    // the larger half wins
+
+    expect(session.compactIfNeeded()).toBe(12 - KEEP_WHOLE_RUNS);
+    // It now reads what is actually there — back under the threshold that fired.
+    expect(session.contextUsed()).toBeLessThan(8000 * COMPACT_AT);
   });
 });

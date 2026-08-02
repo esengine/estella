@@ -424,13 +424,32 @@ class AnthropicSession implements AgentSession {
     return Math.max(this.lastInputTokens, Math.ceil(chars / 4));
   }
 
-  private compactOldest(keepRuns: number): void {
-    const next = compactHistory(this.messages, this.turnStarts, this.dropped, keepRuns, this.folded);
-    if (!next) return;
+  /**
+   * Fold the oldest runs away if this conversation has outgrown its budget.
+   *
+   * @returns how many runs went, 0 when none did. The caller SAYS it — a
+   *          conversation losing part of its memory with nothing on screen to
+   *          show for it is the thing this number exists to end.
+   */
+  private compactIfNeeded(): number {
+    if (this.contextUsed() <= this.opts.contextWindow * COMPACT_AT) return 0;
+    const next = compactHistory(
+      this.messages, this.turnStarts, this.dropped, KEEP_WHOLE_RUNS, this.folded,
+    );
+    if (!next) return 0;
+    const runs = next.dropped - this.dropped;
     this.messages.splice(0, this.messages.length, ...next.messages);
     this.turnStarts.splice(0, this.turnStarts.length, ...next.turnStarts);
     this.dropped = next.dropped;
     this.folded = next.folded;
+    // What the endpoint billed describes a history that no longer exists, and
+    // it is the LARGER half of contextUsed() on an honest endpoint. Left in
+    // place it would report the conversation as still full immediately after
+    // emptying it: no visible drop, and the next step would fold again for a
+    // reason that had already been dealt with. The estimate carries the reading
+    // until the next call reports a real one.
+    this.lastInputTokens = 0;
+    return runs;
   }
 
   pushContext(text: string): void {
@@ -487,9 +506,15 @@ class AnthropicSession implements AgentSession {
 
   async *step(signal: AbortSignal): AsyncIterable<StepEvent> {
     this.flushContext();
-    // Fold the oldest runs away BEFORE a call that would not fit.
-    if (this.contextUsed() > this.opts.contextWindow * COMPACT_AT) {
-      this.compactOldest(KEEP_WHOLE_RUNS);
+    // Fold the oldest runs away BEFORE a call that would not fit, and report
+    // both halves of it: what the model lost, and where that leaves the
+    // conversation. The reading is stated here as well as after the answer
+    // because this is the moment it moves DOWN, and a gauge that only ever
+    // climbed would make the fold invisible in the one place it shows.
+    const folded = this.compactIfNeeded();
+    if (folded > 0) {
+      yield { type: 'compacted', runs: folded };
+      yield { type: 'context', used: this.contextUsed(), window: this.opts.contextWindow };
     }
 
     const request = buildStepRequest({
@@ -560,6 +585,11 @@ class AnthropicSession implements AgentSession {
         outputTokens: message.usage.output_tokens ?? 0,
       };
     }
+    // Where the conversation stands now — separate from `usage`, which is what
+    // this one call cost. A level and a cost project differently (the editor
+    // replaces one and sums the other), and an endpoint that reports no usage
+    // at all still has a context this can answer for from the estimate.
+    yield { type: 'context', used: this.contextUsed(), window: this.opts.contextWindow };
 
     // Again, now with the PARSED arguments — the streamed deltas are display
     // text, and the kernel needs a real object to dispatch. The editor treats a

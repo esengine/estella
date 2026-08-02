@@ -64,7 +64,27 @@ export type StepEvent =
   | { type: 'tool_args'; id: string; delta: string }
   /** Why the model stopped. `refusal` is a provider-level decline, not an error. */
   | { type: 'stop'; reason: 'end_turn' | 'tool_use' | 'refusal' | 'max_tokens' }
-  | { type: 'usage'; inputTokens: number; outputTokens: number };
+  | { type: 'usage'; inputTokens: number; outputTokens: number }
+  /**
+   * How full the conversation's context is, as of the call that just answered.
+   *
+   * The provider is the only side that can say it: the number is the larger of
+   * what the endpoint billed and what the history obviously weighs, and both of
+   * those are in the session. A window counting the characters of its own
+   * transcript would be measuring a different thing — it never saw the system
+   * prompt, the tool schemas, or the results that were truncated on the way.
+   */
+  | { type: 'context'; used: number; window: number }
+  /**
+   * The oldest runs were folded out of the model's memory to make room.
+   *
+   * The one thing that happens to a conversation without anyone asking for it:
+   * the model stops being able to answer about its earliest runs while the
+   * transcript on screen still shows them in full. Silence there is what makes
+   * a model look like it has started ignoring what it was told. What was ASKED
+   * survives verbatim — see compactHistory — and the tool traffic is what goes.
+   */
+  | { type: 'compacted'; runs: number };
 
 /**
  * One conversation. Stateful on purpose — see the file header. The kernel

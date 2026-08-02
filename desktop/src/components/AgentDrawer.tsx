@@ -27,16 +27,17 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyn
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
   Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
-  File as FileIcon, ArrowRight, History as HistoryIcon, Trash2,
+  File as FileIcon, ArrowRight, History as HistoryIcon, Trash2, FoldVertical,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
-  addAgentAttachments, removeAgentAttachment,
+  addAgentAttachments, removeAgentAttachment, latestContext,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
+import { COMPACT_AT } from '@/settings/agentIds';
 import type { ConfirmAnswer } from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, subscribeProviders, providersRevision,
@@ -459,6 +460,20 @@ function Entries({ entries, streaming, onRerun }: {
         <div className="ag-ask ag-ask--fail" key={i}>
           <span className="ag-ask-g"><TriangleAlert size={16} strokeWidth={1.8} /></span>
           <span className="ag-ask-hd">{entry.message}</span>
+        </div>,
+      );
+    } else if (entry.kind === 'folded') {
+      // Where the model stopped remembering. The runs it lost are still on
+      // screen above this line, which is exactly why the line has to be here:
+      // a transcript that shows them and a model that cannot answer about them
+      // otherwise disagree with nothing to explain it.
+      out.push(
+        <div className="ag-folded" key={i}>
+          <FoldVertical size={13} strokeWidth={1.8} />
+          <span>
+            {entry.runs === 1 ? t('agent.folded.one') : t('agent.folded', { count: entry.runs })}
+            <span className="ag-folded-w">{t('agent.folded.why')}</span>
+          </span>
         </div>,
       );
     } else if (entry.kind === 'thinking') out.push(<Thinking key={i} entry={entry} />);
@@ -1005,6 +1020,38 @@ function mentionMatches(query: string): Mention[] {
   return [...entities, ...assets];
 }
 
+/**
+ * How much of the model's memory this conversation has filled.
+ *
+ * In the header, beside the button that starts a new conversation — which is
+ * the action a filling context prompts, and the reading is about the whole
+ * conversation rather than about any run in it. (Under the composer it also had
+ * to share a line with four keyboard hints, and at an ordinary drawer width one
+ * of them lost.)
+ *
+ * Not coloured as it fills. Folding is ordinary — the conversation carries on,
+ * having lost the tool traffic of its oldest runs — and spending the amber that
+ * means "this cannot be undone" on it would make that warning mean less.
+ */
+function ContextMeter() {
+  const context = useAgent((s) => latestContext(s.turns));
+  if (!context || context.window <= 0) return null;
+  const pct = Math.min(100, Math.round((context.used / context.window) * 100));
+  return (
+    <span
+      className={`ag-ctx${context.used > context.window * COMPACT_AT ? ' near' : ''}`}
+      title={t('agent.context.why', {
+        used: compact(context.used),
+        window: compact(context.window),
+        at: Math.round(COMPACT_AT * 100),
+      })}
+    >
+      <span className="ag-ctx-bar"><i style={{ width: `${pct}%` }} /></span>
+      {t('agent.context', { pct })}
+    </span>
+  );
+}
+
 function Compose({ autoFocus }: { autoFocus?: boolean }) {
   const status = useAgent((s) => s.status);
   const draft = useAgent((s) => s.draft);
@@ -1241,6 +1288,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         <AgentMark size={docked ? 13 : 15} live={status.phase !== 'idle'} />
         {!docked && <span className="ag-ttl">{t('agent.title')}</span>}
         <span className="ag-sp" />
+        <ContextMeter />
         <button
           type="button"
           className={historyOpen ? 'on' : undefined}

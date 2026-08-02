@@ -55,6 +55,28 @@
 .ag-head button:hover { color: var(--text-hi); background: var(--hover); }
 .ag-head button.on { color: var(--text-hi); background: var(--pressed); }
 
+/* How full the model's memory is, beside the button that starts a fresh
+   conversation. Quiet: it is a reading, and it sits among controls. */
+.ag-ctx {
+  display: flex; align-items: center; gap: 6px;
+  flex: none;
+  margin-right: 6px;
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.ag-ctx-bar {
+  width: 32px; height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ag-ctx-bar i { display: block; height: 100%; background: var(--text-faint); }
+/* Past the point where the oldest runs start being folded away. Emphasis, not
+   alarm — see ContextMeter on why this is not the amber. */
+.ag-ctx.near { color: var(--text-dim); }
+.ag-ctx.near .ag-ctx-bar i { background: var(--text-dim); }
+
 .ag-log { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; padding-bottom: 12px; }
 
 /* ── The mark ───────────────────────────────────────────────────────────────
@@ -102,6 +124,21 @@
   color: var(--text-faint);
 }
 .ag-sys::before, .ag-sys::after { content: ''; height: 1px; background: var(--line); flex: 1; }
+
+/* Where the model stopped remembering its earliest runs. Not one of the
+   hairline notes above: those are asides about a message, and this one is about
+   the conversation itself — it needs a second sentence, because "folded away"
+   without "your questions are kept" reads as the agent having lost the plot. */
+.ag-folded {
+  display: flex; gap: 9px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.ag-folded > svg { flex: none; margin-top: 2px; color: var(--text-faint); }
+.ag-folded-w { display: block; margin-top: 3px; color: var(--text-faint); }
 
 /* ── A run ─────────────────────────────────────────────────────────────────
    The unit of work, so it gets a header: what was asked plus the numbers that

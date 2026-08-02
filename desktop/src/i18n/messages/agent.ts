@@ -99,6 +99,25 @@ export const agentMessages = defineMessages({
         en: '{count} earlier runs are no longer shown here',
         zh: '更早的 {count} 轮已不在此窗口',
     },
+    // Once a conversation is past the threshold every further run folds exactly
+    // one, so the singular is the COMMON case rather than the edge one.
+    'agent.folded.one': {
+        en: 'The earliest run was folded out of the model’s memory',
+        zh: '最早的一轮已折叠出模型的记忆',
+    },
+    'agent.folded': {
+        en: 'The earliest {count} runs were folded out of the model’s memory',
+        zh: '最早的 {count} 轮已折叠出模型的记忆',
+    },
+    'agent.folded.why': {
+        en: 'The conversation outgrew the context window. What you asked is kept word for word; the tool calls and their results are gone — have it re-read the scene rather than trusting what it said about them.',
+        zh: '对话超出了上下文窗口。你问过的话原样保留,工具调用和结果已丢弃 —— 让它重新读一遍场景,别信它对那些内容的转述。',
+    },
+    'agent.context': { en: '{pct}% context', zh: '上下文 {pct}%' },
+    'agent.context.why': {
+        en: 'This conversation fills {used} of the model’s {window} token window. Past {at}% the earliest runs are folded out of its memory — what you asked is kept, the tool calls and their results are not.',
+        zh: '这段对话占了模型 {window} token 上下文窗口中的 {used}。超过 {at}% 后,最早的几轮会被折叠出它的记忆 —— 你问过的话保留,工具调用和结果不保留。',
+    },
     'agent.stopped': { en: 'stopped', zh: '已中止' },
     'agent.declined': { en: 'skipped', zh: '已跳过' },
     'agent.turn.aborted': { en: 'Stopped part-way.', zh: '中途停止。' },

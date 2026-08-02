@@ -78,7 +78,20 @@ export interface AgentErrorEntry {
   message: string;
 }
 
-export type AgentEntry = AgentProseEntry | AgentToolEntry | AgentErrorEntry;
+/**
+ * The point at which the model stopped remembering its earliest runs.
+ *
+ * An entry rather than a badge on the run, because it happened at a moment —
+ * mid-run, between two tool calls — and the runs it took away are still on
+ * screen above it. Reading the transcript afterwards, this is the line that
+ * explains why the model cannot answer about them.
+ */
+export interface AgentFoldEntry {
+  kind: 'folded';
+  runs: number;
+}
+
+export type AgentEntry = AgentProseEntry | AgentToolEntry | AgentErrorEntry | AgentFoldEntry;
 
 export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
 
@@ -94,6 +107,16 @@ export interface AgentTurn {
   entries: AgentEntry[];
   inputTokens: number;
   outputTokens: number;
+  /**
+   * How full the model's context was as of this run's last answer — null for
+   * one that never got that far.
+   *
+   * Kept per run rather than beside the conversation so it is rebuilt by the
+   * same replay everything else here is: a window that reloads mid-conversation
+   * gets the reading back with the transcript, instead of a blank gauge under a
+   * conversation that is nearly full.
+   */
+  context: { used: number; window: number } | null;
   /** What one Undo would take back, once the turn ended. 0 means don't offer it. */
   steps: number;
   /** Where that Undo would go back to (EditorHistory.undoToMark). */
@@ -338,10 +361,12 @@ function appendProse(entries: readonly AgentEntry[], kind: 'text' | 'thinking', 
 }
 
 /** A prose block is over the moment anything else begins — another kind of
- *  block, a tool call, the end of the run. Idempotent. */
+ *  block, a tool call, the end of the run. Idempotent. Named by what it CAN
+ *  close rather than by what it cannot: a kind added later is not prose, and
+ *  listing the exceptions is how it would come to be treated as some. */
 function closeProse(entries: readonly AgentEntry[]): AgentEntry[] {
   const last = entries[entries.length - 1];
-  if (!last || last.kind === 'tool' || last.kind === 'error' || last.endedAt !== null) {
+  if (!last || (last.kind !== 'text' && last.kind !== 'thinking') || last.endedAt !== null) {
     return entries as AgentEntry[];
   }
   return [...entries.slice(0, -1), { ...last, endedAt: Date.now() }];
@@ -380,6 +405,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       entries: [],
       inputTokens: 0,
       outputTokens: 0,
+      context: null,
       steps: 0,
       mark: null,
       reason: null,
@@ -458,6 +484,14 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         outputTokens: open.outputTokens + event.outputTokens,
       });
 
+    // A level, not a cost: the newest reading REPLACES the last one, where the
+    // token counts beside it accumulate.
+    case 'context':
+      return patchLast(turns, { context: { used: event.used, window: event.window } });
+
+    case 'compacted':
+      return withEntries(turns, [...closeProse(open.entries), { kind: 'folded', runs: event.runs }]);
+
     case 'error':
       return withEntries(turns, [...closeProse(open.entries), { kind: 'error', message: event.message }]);
 
@@ -477,6 +511,22 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
     case 'stop':
       return turns as AgentTurn[];
   }
+}
+
+/**
+ * The most recent reading the conversation produced, or null before there is
+ * one (a conversation that has not had an answer yet has no context to be full
+ * of).
+ *
+ * Searched backwards rather than read off the last run, because a run that has
+ * only just started carries none — and a gauge that blanked at the top of every
+ * turn would go missing exactly while the thing it measures is growing fastest.
+ */
+export function latestContext(turns: readonly AgentTurn[]): { used: number; window: number } | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].context) return turns[i].context;
+  }
+  return null;
 }
 
 /**

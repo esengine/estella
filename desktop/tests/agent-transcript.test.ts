@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  applyAgentEvent, entitiesInInput, touchedEntities, briefResult,
+  applyAgentEvent, entitiesInInput, touchedEntities, briefResult, latestContext,
   type AgentTurn, type AgentToolEntry, type AgentProseEntry,
 } from '../src/store/AgentStore';
 import type { AgentEvent, ToolCall } from '../electron/agent/types';
@@ -186,6 +186,48 @@ describe('the transcript projection', () => {
     expect(turn).toMatchObject({ inputTokens: 2600, outputTokens: 110 });
   });
 
+  // A level, where usage is a cost. The newest reading replaces the last one —
+  // added up, the gauge would pass the window in three turns and claim a
+  // conversation was full while the model was still answering it.
+  it('replaces the context reading rather than accumulating it', () => {
+    const [turn] = fold(
+      started(),
+      { type: 'context', used: 12_000, window: 200_000 },
+      { type: 'context', used: 31_000, window: 200_000 },
+    );
+    expect(turn.context).toEqual({ used: 31_000, window: 200_000 });
+  });
+
+  // The runs it folded away are still on screen above this line, which is why
+  // the line has to be in the run where it happened rather than a badge on it.
+  it('marks where the model stopped remembering its earliest runs', () => {
+    const [turn] = fold(
+      started(),
+      { type: 'thinking', delta: 'this is a long one' },
+      { type: 'compacted', runs: 4 },
+      { type: 'text', delta: 'Carrying on.' },
+    );
+    expect(turn.entries.map((e) => e.kind)).toEqual(['thinking', 'folded', 'text']);
+    expect(turn.entries[1]).toEqual({ kind: 'folded', runs: 4 });
+    // The block above it is over: a fold is something else beginning.
+    expect((turn.entries[0] as AgentProseEntry).endedAt).not.toBeNull();
+  });
+
+  // A run that has only just started carries no reading, and a gauge that
+  // blanked at the top of every turn would go missing exactly while the thing
+  // it measures grows fastest.
+  it('reads the latest context back through runs that have none', () => {
+    expect(latestContext([])).toBeNull();
+    const turns = fold(
+      started('one'),
+      { type: 'context', used: 90_000, window: 200_000 },
+      ended(),
+      started('two', 1),
+    );
+    expect(turns[1].context).toBeNull();
+    expect(latestContext(turns)).toEqual({ used: 90_000, window: 200_000 });
+  });
+
   // Stamped on this side of the IPC because it is what the PERSON waited.
   it('stamps when the run started and when it stopped', () => {
     const [running] = fold(started());
@@ -257,8 +299,8 @@ describe('which entities a turn touched', () => {
     state: 'ok', summary: 'ok', brief: 'ok', image: null, argText: '', reason: null, ...over,
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
-    id, prompt: 'p', model: 'opus-5', entries, inputTokens: 0, outputTokens: 0, steps: 1,
-    mark: { seq: 1 }, reason: 'end_turn', startedAt: 0, endedAt: 1,
+    id, prompt: 'p', model: 'opus-5', entries, inputTokens: 0, outputTokens: 0, context: null,
+    steps: 1, mark: { seq: 1 }, reason: 'end_turn', startedAt: 0, endedAt: 1,
   });
 
   it('reads the ids out of the argument names the catalog uses', () => {
