@@ -696,6 +696,7 @@ const agentHost = createAgentHost({
   },
 });
 ipcMain.handle('agent:status', () => agentHost.status());
+ipcMain.handle('agent:transcript', () => agentHost.transcript());
 ipcMain.handle('agent:send', (_e, text: string) => agentHost.send(text));
 ipcMain.handle('agent:stop', () => agentHost.stop());
 ipcMain.handle('agent:confirm', (_e, callId: string, allow: boolean) => agentHost.confirm(callId, allow));

@@ -86,7 +86,8 @@ export async function runTurn(
 ): Promise<{ mark: unknown; steps: number }> {
   const { driver, session, emit, model } = deps;
   const mark = await driver('mark', []);
-  emit({ type: 'turn_start', prompt: text, model });
+  // Read before pushUser opens it: this is the index that turn will occupy.
+  emit({ type: 'turn_start', prompt: text, model, index: session.turnIndex });
 
   let reason: Extract<AgentEvent, { type: 'turn_end' }>['reason'] = 'end_turn';
   try {

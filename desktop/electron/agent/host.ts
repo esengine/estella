@@ -76,6 +76,17 @@ export interface AgentHost {
    */
   retry(n: number, text: string): AgentStatus;
   /**
+   * Every event of the open conversation, in order, so a window that was not
+   * there for them can rebuild the transcript.
+   *
+   * The stream is the record. A reloaded renderer used to come back to an empty
+   * drawer while this host still held the conversation — the model remembered
+   * what the screen had forgotten, and a "re-ask" aimed at run 0 of a transcript
+   * that started counting again rewound the session to somewhere nobody asked
+   * for. Replaying is what makes the two sides agree again.
+   */
+  transcript(): readonly AgentEvent[];
+  /**
    * Re-push the status because something OUTSIDE changed it — the window picked
    * a different provider, so `ready` now answers differently. Without this the
    * mirror only learns on the next transition, and the drawer keeps saying
@@ -101,7 +112,32 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
   });
 
   const pushStatus = (): void => deps.push({ kind: 'status', status: status() });
-  const emit = (event: AgentEvent): void => deps.push({ kind: 'event', event });
+
+  // The conversation as a replayable stream. Bounded, and trimmed by WHOLE runs
+  // from the front: half a run replays as a run that never ended. Dropping the
+  // oldest is safe only because a run's identity is the session's own index and
+  // not its position here — see AgentSession.turnIndex.
+  const log: AgentEvent[] = [];
+  const LOG_LIMIT = 4000;
+
+  const trimOldestRun = (): void => {
+    const next = log.findIndex((e, i) => i > 0 && e.type === 'turn_start');
+    // One run longer than the whole budget: keep it rather than corrupt it.
+    if (next > 0) log.splice(0, next);
+  };
+
+  /** A re-ask discards that run and everything after it — here too, or the
+   *  replay would hand a reloaded window the runs it just threw away. */
+  const trimFrom = (turnIndex: number): void => {
+    const at = log.findIndex((e) => e.type === 'turn_start' && e.index === turnIndex);
+    if (at >= 0) log.length = at;
+  };
+
+  const emit = (event: AgentEvent): void => {
+    log.push(event);
+    if (log.length > LOG_LIMIT) trimOldestRun();
+    deps.push({ kind: 'event', event });
+  };
 
   /** Settle every outstanding ask as declined. See invariant 2. */
   const settlePending = (): void => {
@@ -134,7 +170,10 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       }
     }
 
-    if (rewindTo !== undefined) session.rewindTo(rewindTo);
+    if (rewindTo !== undefined) {
+      session.rewindTo(rewindTo);
+      trimFrom(rewindTo);
+    }
 
     error = null;
     phase = 'running';
@@ -207,8 +246,10 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       model = null;
       phase = 'idle';
       error = null;
+      log.length = 0;
       pushStatus();
       return status();
     },
+    transcript: () => log,
   };
 }

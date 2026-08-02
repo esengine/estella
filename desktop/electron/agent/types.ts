@@ -71,6 +71,17 @@ export type StepEvent =
  * appends, then asks for a step; it never reads the history back.
  */
 export interface AgentSession {
+  /**
+   * Which person's turn the NEXT {@link pushUser} opens — the coordinate
+   * {@link rewindTo} counts in.
+   *
+   * The transcript quotes it back as a run's identity rather than numbering runs
+   * itself. A renderer that numbered its own would agree with the session only
+   * until it lost some (a reload, a trimmed log), after which "re-ask run 0"
+   * meant two different turns on the two sides and rewinding threw away a
+   * conversation nobody asked to end.
+   */
+  readonly turnIndex: number;
   /** The person's turn. */
   pushUser(text: string): void;
   /**
@@ -134,8 +145,9 @@ export interface ConfirmRequest {
 export type AgentEvent =
   | StepEvent
   /** `model` because a conversation can change models between runs, and the
-   *  header of a past run has to say which one actually answered it. */
-  | { type: 'turn_start'; prompt: string; model: string }
+   *  header of a past run has to say which one answered it. `index` is the
+   *  session's own coordinate for this run — see {@link AgentSession.turnIndex}. */
+  | { type: 'turn_start'; prompt: string; model: string; index: number }
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
   | { type: 'tool_end'; id: string; ok: boolean; summary: string; image?: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }

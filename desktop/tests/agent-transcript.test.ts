@@ -17,8 +17,8 @@ import type { AgentEvent, ToolCall } from '../electron/agent/types';
 const fold = (...events: AgentEvent[]): AgentTurn[] =>
   events.reduce<AgentTurn[]>((turns, e) => applyAgentEvent(turns, e), []);
 
-const started = (prompt = 'add a pause menu', model = 'opus-5'): AgentEvent =>
-  ({ type: 'turn_start', prompt, model });
+const started = (prompt = 'add a pause menu', index = 0, model = 'opus-5'): AgentEvent =>
+  ({ type: 'turn_start', prompt, model, index });
 const ended = (over: Partial<{ steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }> = {}): AgentEvent =>
   ({ type: 'turn_end', steps: 0, mark: null, reason: 'end_turn', ...over });
 const call = (name: string): ToolCall => ({ id: `c-${name}`, name, input: { a: 1 } });
@@ -26,7 +26,7 @@ const tools = (t: AgentTurn): AgentToolEntry[] => t.entries.filter((e): e is Age
 
 describe('the transcript projection', () => {
   it('opens a run per turn, carrying what was asked', () => {
-    const turns = fold(started('one'), ended(), started('two'));
+    const turns = fold(started('one'), ended(), started('two', 1));
     expect(turns.map((t) => t.prompt)).toEqual(['one', 'two']);
     expect(turns.map((t) => t.reason)).toEqual(['end_turn', null]);
   });
@@ -34,8 +34,25 @@ describe('the transcript projection', () => {
   // The header of a past run has to say which model answered IT — the picker in
   // the composer only ever says what the NEXT message will use.
   it('records the model that answered each run, not just the current one', () => {
-    const turns = fold(started('one', 'opus-5'), ended(), started('two', 'haiku-4-5'));
+    const turns = fold(started('one', 0, 'opus-5'), ended(), started('two', 1, 'haiku-4-5'));
     expect(turns.map((t) => t.model)).toEqual(['opus-5', 'haiku-4-5']);
+  });
+
+  // A run's identity is the SESSION's coordinate. A window that only saw the
+  // tail of a conversation still has to name run 7 the way the session does, or
+  // "re-ask this one" rewinds to somewhere nobody asked for.
+  it('takes a run\'s identity from the session, not from its own position', () => {
+    const turns = fold(started('seventh', 7), ended(), started('eighth', 8));
+    expect(turns.map((t) => t.id)).toEqual([7, 8]);
+  });
+
+  // Replaying the stream over a transcript that already holds part of it is how
+  // a reloaded window catches up — it must not double the runs it already had.
+  it('replays without doubling a run it already has', () => {
+    const stream = [started('one'), ended(), started('two', 1)];
+    const once = fold(...stream);
+    const twice = stream.reduce<AgentTurn[]>(applyAgentEvent, once);
+    expect(twice.map((t) => t.id)).toEqual([0, 1]);
   });
 
   it('gathers a streamed answer into one paragraph', () => {

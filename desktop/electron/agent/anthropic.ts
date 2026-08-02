@@ -203,6 +203,10 @@ class AnthropicSession implements AgentSession {
     private readonly tools: readonly CatalogTool[],
   ) {}
 
+  get turnIndex(): number {
+    return this.turnStarts.length;
+  }
+
   pushUser(text: string): void {
     this.turnStarts.push(this.messages.length);
     this.messages.push({ role: 'user', content: text });

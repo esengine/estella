@@ -249,8 +249,14 @@ function patchTool(entries: readonly AgentEntry[], id: string, patch: Partial<Ag
  */
 export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent): AgentTurn[] {
   if (event.type === 'turn_start') {
+    // Idempotent, so replaying the stream over a transcript that already has
+    // some of it cannot double a run (see attachAgentBridge).
+    if (turns.some((t) => t.id === event.index)) return turns as AgentTurn[];
     return [...turns, {
-      id: turns.length,
+      // The SESSION's coordinate, not this array's position. They agree while a
+      // window sees every run, and stop agreeing the moment one reloads — after
+      // which numbering here would aim "re-ask run 0" at the wrong turn.
+      id: event.index,
       prompt: event.prompt,
       model: event.model,
       entries: [],
@@ -403,6 +409,18 @@ export function applyAgentMessage(message: AgentMessage): void {
 export function attachAgentBridge(): () => void {
   const off = window.estella?.agent?.onMessage(applyAgentMessage) ?? (() => {});
   void window.estella?.agent?.status().then(adoptStatus);
+  // The conversation can outlive the window: main holds the session, so a reload
+  // used to come back to an empty drawer while the model still remembered
+  // everything. Subscribed FIRST so nothing arriving meanwhile is missed; the
+  // replay is the history in front of whatever did (runs are matched by id).
+  void window.estella?.agent?.transcript?.().then((events) => {
+    if (!events?.length) return;
+    useAgent.setState((s) => {
+      const replayed = events.reduce<AgentTurn[]>(applyAgentEvent, []);
+      const known = new Set(replayed.map((t) => t.id));
+      return { turns: [...replayed, ...s.turns.filter((t) => !known.has(t.id))] };
+    });
+  });
   // Which keys exist decides which provider runs when nothing is picked, so ask
   // once at boot rather than the first time a settings row happens to render.
   for (const p of agentProviders()) void refreshSecret(agentKeyId(p.id)).then(syncAgentEndpoint);
@@ -447,9 +465,10 @@ export const clearAgentQueue = (): void => useAgent.setState({ queued: [] });
  * already forgotten.
  */
 export async function retryAgentTurn(turnId: number): Promise<void> {
-  const turn = useAgent.getState().turns[turnId];
+  const turn = useAgent.getState().turns.find((t) => t.id === turnId);
   if (!turn) return;
-  useAgent.setState((s) => ({ turns: s.turns.slice(0, turnId), checkpointDone: null }));
+  // By id, not by position: this window may not hold every run the session does.
+  useAgent.setState((s) => ({ turns: s.turns.filter((t) => t.id < turnId), checkpointDone: null }));
   const status = await window.estella?.agent?.retry(turnId, turn.prompt);
   if (status) adoptStatus(status);
 }

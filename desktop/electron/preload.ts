@@ -22,6 +22,7 @@ import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
+import type { AgentEvent } from './agent/types';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -113,6 +114,8 @@ const api = {
   // this is the window's way to talk to it and to hear what it is doing. —
   agent: {
     status: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:status'),
+    /** The open conversation's events, for a window that was not there for them. */
+    transcript: (): Promise<AgentEvent[]> => ipcRenderer.invoke('agent:transcript'),
     /** Start a turn; resolves with the resulting status, refusals included. */
     send: (text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:send', text),
     stop: (): Promise<void> => ipcRenderer.invoke('agent:stop'),

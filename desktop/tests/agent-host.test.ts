@@ -23,10 +23,14 @@ function fakeProvider(steps: StepEvent[][]): AgentProvider & { session: AgentSes
   const session: AgentSession & { asked: string[]; rewinds: number[] } = {
     asked: [],
     rewinds: [],
+    // The real one counts person's turns; asking is what opens them.
+    get turnIndex() { return session.asked.length; },
     pushUser: (t) => { session.asked.push(t); },
     pushContext: () => {},
     pushToolResults: () => {},
-    rewindTo: (n) => { session.rewinds.push(n); },
+    // Faithful about the coordinate too: rewinding drops those turns, so the
+    // next one reopens at n — which is what the host stamps onto turn_start.
+    rewindTo: (n) => { session.rewinds.push(n); session.asked.length = n; },
     step: async function* () {
       for (const ev of steps[at] ?? [{ type: 'stop', reason: 'end_turn' }]) yield ev;
       at++;
@@ -216,5 +220,61 @@ describe('the agent host', () => {
     await settled(h);
     expect(provider!.session.rewinds).toEqual([]);
     expect(provider!.session.asked).toEqual(['hello']);
+  });
+
+  // The conversation outlives the window: main holds the session, so a reloaded
+  // renderer has to be able to rebuild what it was never there for.
+  describe('the replayable transcript', () => {
+    const startsIn = (h: AgentHost): number[] =>
+      h.transcript().filter((e) => e.type === 'turn_start').map((e) => (e as { index: number }).index);
+
+    it('keeps the conversation as a stream a new window can fold', async () => {
+      const h = host([ends(), ends()]);
+      h.send('first');
+      await settled(h);
+      h.send('second');
+      await settled(h);
+
+      expect(startsIn(h)).toEqual([0, 1]);
+      // Same events, same order as were pushed live — the replay IS the record.
+      expect(h.transcript().map((e) => e.type))
+        .toEqual(messages.filter((m) => m.kind === 'event').map((m) => (m as { event: { type: string } }).event.type));
+    });
+
+    it('names each run with the session\'s own coordinate', async () => {
+      const h = host([ends(), ends(), ends()]);
+      h.send('first');
+      await settled(h);
+      h.send('second');
+      await settled(h);
+      h.send('third');
+      await settled(h);
+      expect(startsIn(h)).toEqual([0, 1, 2]);
+    });
+
+    // A re-ask discards that run and everything after it. Replaying afterwards
+    // must not hand a window back the runs the session has already forgotten.
+    it('drops the re-asked run and everything after it', async () => {
+      const h = host([ends(), ends(), ends(), ends()]);
+      h.send('first');
+      await settled(h);
+      h.send('second');
+      await settled(h);
+      h.send('third');
+      await settled(h);
+
+      h.retry(1, 'second, but better');
+      await settled(h);
+      expect(startsIn(h)).toEqual([0, 1]);
+    });
+
+    it('forgets everything when the conversation is dropped', async () => {
+      const h = host([ends()]);
+      h.send('first');
+      await settled(h);
+      expect(h.transcript().length).toBeGreaterThan(0);
+      h.reset();
+      expect(h.transcript()).toEqual([]);
+    });
   });
 });
