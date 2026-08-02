@@ -216,7 +216,6 @@ export interface NativeEngineApi {
     trail_update?(registry: unknown, dt: number): void;
     transform_patchPosition?(registry: unknown, entity: number, x: number, y: number, z: number): void;
     transform_update?(registry: unknown): void;
-    uiFlexLayout_update?(registry: unknown): void;
     uiHitTest_getHitEntity?(): number;
     uiHitTest_getHitEntityPrev?(): number;
     uiHitTest_pick?(registry: unknown, worldX: number, worldY: number): number;
@@ -227,9 +226,6 @@ export interface NativeEngineApi {
     uiNode_computedHeight?(registry: unknown, entity: number): number;
     uiNode_computedWidth?(registry: unknown, entity: number): number;
     uiRenderOrder_update?(registry: unknown): void;
-    uiTree_markAllDirty?(): void;
-    uiTree_markDirty?(entity: number): void;
-    uiTree_markStructureDirty?(): void;
     ui_getRenderOrder?(registry: unknown, entity: number): number;
 }
 
@@ -449,7 +445,6 @@ export function createNativeEngineApi(
     bind('trail_update', 'es_trail_update', true);
     bind('transform_patchPosition', 'es_transform_patchPosition', true);
     bind('transform_update', 'es_transform_update', true);
-    bind('uiFlexLayout_update', 'es_uiFlexLayout_update', true);
     bind('uiHitTest_getHitEntity', 'es_uiHitTest_getHitEntity', false);
     bind('uiHitTest_getHitEntityPrev', 'es_uiHitTest_getHitEntityPrev', false);
     bind('uiHitTest_pick', 'es_uiHitTest_pick', true);
@@ -460,9 +455,6 @@ export function createNativeEngineApi(
     bind('uiNode_computedHeight', 'es_uiNode_computedHeight', true);
     bind('uiNode_computedWidth', 'es_uiNode_computedWidth', true);
     bind('uiRenderOrder_update', 'es_uiRenderOrder_update', true);
-    bind('uiTree_markAllDirty', 'es_uiTree_markAllDirty', false);
-    bind('uiTree_markDirty', 'es_uiTree_markDirty', false);
-    bind('uiTree_markStructureDirty', 'es_uiTree_markStructureDirty', false);
     bind('ui_getRenderOrder', 'es_ui_getRenderOrder', true);
     return api as NativeEngineApi;
 }

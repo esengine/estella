@@ -431,7 +431,6 @@ export interface ESEngineModule {
     uiNode_computedWidth(registry: CppRegistry, entity: number): number;
     uiNode_computedHeight(registry: CppRegistry, entity: number): number;
     uiRenderOrder_update(registry: CppRegistry): void;
-    uiFlexLayout_update(registry: CppRegistry): void;
     getUINodeComputedWidth?(registry: CppRegistry, entity: number): number;
     getUINodeComputedHeight?(registry: CppRegistry, entity: number): number;
     getUINodeHiddenInTree?(registry: CppRegistry, entity: number): boolean;
@@ -439,9 +438,6 @@ export interface ESEngineModule {
     getUINodeAlphaInTree?(registry: CppRegistry, entity: number): number;
     /** True when this node or an ancestor set pointerEvents = None. */
     getUINodePointerBlockedInTree?(registry: CppRegistry, entity: number): boolean;
-    uiTree_markStructureDirty(): void;
-    uiTree_markDirty(entity: number): void;
-    uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
     transform_patchPosition(registry: CppRegistry, entity: number, x: number, y: number, z: number): void;
 

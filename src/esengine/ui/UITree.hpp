@@ -12,24 +12,30 @@
 
 namespace esengine::ecs {
 
-constexpr u8 LAYOUT_DIRTY = 0x01;
-constexpr u8 HAS_DIRTY_CHILD = 0x02;
-
+/**
+ * The DFS view of the UI hierarchy, rebuilt each pass.
+ *
+ * It carries no dirty state of its own. It used to — a per-node LAYOUT_DIRTY
+ * with a HAS_DIRTY_CHILD walk up to the root — but nothing ever produced those
+ * marks except the rebuild itself, which set every node dirty every frame, so
+ * the gate reading them was always open. What is actually dirty is now Yoga's
+ * own answer, tracked per style field on the retained nodes it already owns
+ * (UILayoutSystem.cpp); a second set of marks beside it would only be a second
+ * thing to keep true.
+ */
 struct UITree {
     struct Node {
         Entity entity;
         Entity parent;
         u16 depth;
         u16 subtree_size;
-        u8 flags;
     };
 
     std::vector<Node> nodes_;
-    bool structure_dirty_{true};
     // FNV-1a hash of the (entity, parent) pairs in DFS order — a compact
     // fingerprint of the tree's shape. It changes on any spawn/despawn/reparent,
-    // sibling reorder, or UINode/Canvas add-remove, so the layout gate can detect
-    // structural change without a reliable per-write dirty producer.
+    // sibling reorder, or UINode/Canvas add-remove, which is how a pass knows to
+    // rebuild the retained Yoga hierarchy rather than reuse it.
     u64 structure_sig_{0};
 
     void rebuild(Registry& reg) {
@@ -38,7 +44,6 @@ struct UITree {
             if (!reg.has<UINode>(entity) || !reg.has<Transform>(entity)) return;
             buildDFS(reg, entity, INVALID_ENTITY, 0);
         });
-        structure_dirty_ = false;
 
         u64 h = 1469598103934665603ULL;  // FNV-1a offset basis
         for (const auto& n : nodes_) {
@@ -46,47 +51,6 @@ struct UITree {
             h = (h ^ n.parent.id()) * 1099511628211ULL;
         }
         structure_sig_ = h;
-    }
-
-    void rebuildIfDirty(Registry& reg) {
-        if (structure_dirty_) {
-            rebuild(reg);
-        }
-    }
-
-    void markDirty(Entity entity) {
-        i32 idx = indexOf(entity);
-        if (idx < 0) return;
-
-        nodes_[idx].flags |= LAYOUT_DIRTY;
-
-        Entity parent = nodes_[idx].parent;
-        while (parent != INVALID_ENTITY) {
-            i32 parentIdx = indexOf(parent);
-            if (parentIdx < 0) break;
-            if (nodes_[parentIdx].flags & HAS_DIRTY_CHILD) break;
-            nodes_[parentIdx].flags |= HAS_DIRTY_CHILD;
-            parent = nodes_[parentIdx].parent;
-        }
-    }
-
-    void markAllDirty() {
-        for (auto& node : nodes_) {
-            node.flags |= LAYOUT_DIRTY | HAS_DIRTY_CHILD;
-        }
-    }
-
-    i32 indexOf(Entity entity) const {
-        for (i32 i = 0; i < static_cast<i32>(nodes_.size()); i++) {
-            if (nodes_[i].entity == entity) return i;
-        }
-        return -1;
-    }
-
-    void clearFlags() {
-        for (auto& node : nodes_) {
-            node.flags = 0;
-        }
     }
 
 private:
@@ -97,7 +61,7 @@ private:
 
         if (isLayoutNode) {
             nodeIndex = static_cast<i32>(nodes_.size());
-            nodes_.push_back({entity, layoutParent, depth, 1, LAYOUT_DIRTY});
+            nodes_.push_back({entity, layoutParent, depth, 1});
             layoutParent = entity;
             depth++;
         }

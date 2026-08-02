@@ -368,7 +368,6 @@ trail_clear: ((registry: CppRegistry, entity: number) => void) | undefined
 trail_update: ((registry: CppRegistry, dt: number) => void) | undefined
 transform_patchPosition: (registry: CppRegistry, entity: number, x: number, y: number, z: number) => void
 transform_update: (registry: CppRegistry) => void
-uiFlexLayout_update: (registry: CppRegistry) => void
 uiHitTest_getHitEntity: () => number
 uiHitTest_getHitEntityPrev: () => number
 uiHitTest_pick: ((registry: CppRegistry, worldX: number, worldY: number) => number) | undefined
@@ -379,9 +378,6 @@ uiLayout_update: (registry: CppRegistry, camLeft: number, camBottom: number, cam
 uiNode_computedHeight: (registry: CppRegistry, entity: number) => number
 uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
 uiRenderOrder_update: (registry: CppRegistry) => void
-uiTree_markAllDirty: () => void
-uiTree_markDirty: (entity: number) => void
-uiTree_markStructureDirty: () => void
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
 ```
 

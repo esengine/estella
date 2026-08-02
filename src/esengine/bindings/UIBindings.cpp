@@ -81,26 +81,6 @@ i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity) {
     return ui ? ui->uiOrder : -1;
 }
 
-void uiFlexLayout_update(ecs::Registry& registry) {
-    // Flex layout is now integrated into uiLayout_update via unified layout pass.
-    // Kept as no-op for backward compatibility with TS plugin.
-    (void)registry;
-}
-
-void uiTree_markStructureDirty() {
-    ctx().require<ecs::UISystem>().treeMarkStructureDirty();
-}
-
-void uiTree_markDirty(u32 entity) {
-    auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY) return;
-    ctx().require<ecs::UISystem>().treeMarkDirty(e);
-}
-
-void uiTree_markAllDirty() {
-    ctx().require<ecs::UISystem>().tree.markAllDirty();
-}
-
 // UINode (CSS box) computed size — its internal computed_size_ is not
 // embind-readable, so expose it for TS uiHelpers.
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity) {

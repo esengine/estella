@@ -312,10 +312,7 @@ void layoutUINodeSubtree(
         }
         // Yoga tells us what it recomputed; everything else still holds the
         // output of the last solve, which is still correct.
-        if (!forceWriteback && !YGNodeGetHasNewLayout(node) && !parentResized) {
-            tree.nodes_[k].flags &= ~(LAYOUT_DIRTY | HAS_DIRTY_CHILD);
-            continue;
-        }
+        if (!forceWriteback && !YGNodeGetHasNewLayout(node) && !parentResized) continue;
         YGNodeSetHasNewLayout(node, false);
 
         auto& un = registry.get<UINode>(e);
@@ -365,7 +362,6 @@ void layoutUINodeSubtree(
             if (!(un.anim_override_ & UINode::ANIM_POS_X)) t->position.x = localX;
             if (!(un.anim_override_ & UINode::ANIM_POS_Y)) t->position.y = localY;
         }
-        tree.nodes_[k].flags &= ~(LAYOUT_DIRTY | HAS_DIRTY_CHILD);
     }
 
     // Retained nodes are not freed here — layoutUpdate reaps entities that left
@@ -445,11 +441,6 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
                        bool forceWriteback) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
-
-        if (!(node.flags & (LAYOUT_DIRTY | HAS_DIRTY_CHILD))) {
-            i += node.subtree_size;
-            continue;
-        }
 
         // Every node is a UINode. A subtree root (its parent is not a UINode —
         // a top-level UI element / Canvas) is resolved in one Yoga solve over its
@@ -548,12 +539,5 @@ void UISystem::layoutUpdate(
 UISystem::UISystem() = default;
 UISystem::~UISystem() = default;
 
-void UISystem::treeMarkStructureDirty() {
-    tree.structure_dirty_ = true;
-}
-
-void UISystem::treeMarkDirty(Entity entity) {
-    tree.markDirty(entity);
-}
 
 }  // namespace esengine::ecs

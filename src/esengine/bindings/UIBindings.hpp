@@ -45,12 +45,6 @@ void uiRenderOrder_update(ecs::Registry& registry);
  *  with UI quads. -1 = not a UI node. */
 i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity);
 
-/** Flex layout folded into uiLayout_update; kept as a no-op for the TS plugin. */
-void uiFlexLayout_update(ecs::Registry& registry);
-
-void uiTree_markStructureDirty();
-void uiTree_markDirty(u32 entity);
-void uiTree_markAllDirty();
 
 /** UINode computed state that is not embind-readable off the component. */
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity);

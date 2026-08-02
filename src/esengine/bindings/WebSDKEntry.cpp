@@ -583,15 +583,11 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
     emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
-    emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
     emscripten::function("getUINodePointerBlockedInTree", &esengine::getUINodePointerBlockedInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
     emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
-    emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);
-    emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
-    emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
     emscripten::function("transform_update", &esengine::transform_update);
     emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
 

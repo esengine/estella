@@ -73,12 +73,6 @@ public:
                       f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
                       bool tsPropertyDirty);
 
-    /** @brief Mark the tree structure as dirty (forces full rebuild next update) */
-    void treeMarkStructureDirty();
-
-    /** @brief Mark a single entity's layout as dirty */
-    void treeMarkDirty(Entity entity);
-
     // ---- Hit test pass (defined in UISystem.cpp) ----
 
     /** @brief Run point-vs-UI hit-test, updating hitResult */
