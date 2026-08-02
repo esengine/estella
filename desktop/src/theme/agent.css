@@ -283,8 +283,8 @@
 }
 .ag-pv {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
-  gap: 9px;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 0 9px;
   align-items: baseline;
   width: 100%;
   padding: 3px 6px;
@@ -301,8 +301,18 @@
 .ag-pv--remove .ag-pv-s { color: var(--error); }
 .ag-pv-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag-pv-d { color: var(--text-faint); }
-/* How many fields this line writes — the row is a summary, not the diff. */
-.ag-pv-n { color: var(--text-faint); font-size: var(--fs-2xs); }
+/* What the line actually writes, under it and indented to the label column —
+   the same before→after the change set shows, since it is the same fact asked
+   before rather than after. */
+.ag-pv-fs { grid-column: 2 / -1; display: block; margin-top: 2px; }
+.ag-pv-f {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: var(--fs-2xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.ag-pv-fp { color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; }
+.ag-pv-more { color: var(--text-faint); }
 /* Struck, not removed: the line stays where it was so the consequence of
    striking a create — its dependents going with it — is visible in place. */
 .ag-pv.struck { opacity: 0.4; }
@@ -315,8 +325,35 @@
   .ag-asking { animation: ag-flash 1.1s var(--e-out); }
 }
 @keyframes ag-flash { 0%, 100% { background: transparent; } 40% { background: var(--hover); } }
+/* It takes focus when it arrives — the run is blocked on it, so the keyboard
+   belongs to it — but a focus ring drawn around a passage that already has a
+   rule above, a rule below and a coloured edge is a box on top of structure. */
+.ag-ask:focus { outline: none; }
 .ag-ask-g { color: var(--ag-tone); margin-top: 1px; }
-.ag-ask-hd { font-size: var(--fs-md); font-weight: 500; color: var(--text-hi); letter-spacing: -0.01em; line-height: 1.4; }
+.ag-ask-hd {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: var(--fs-md); font-weight: 500; color: var(--text-hi);
+  letter-spacing: -0.01em; line-height: 1.4;
+}
+/* Strike the lot, or put it back. Only worth showing past one line. */
+.ag-pv-all {
+  margin-left: auto;
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--r-sm);
+  font: var(--fs-2xs) var(--font-ui);
+  font-weight: 400;
+  color: var(--text-faint);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.ag-pv-all:hover { color: var(--text-hi); background: var(--hover); }
+/* The key that does what the button does. Quiet — it labels the button, it is
+   not a second thing on it. */
+.ag-kb {
+  margin-left: 7px;
+  font: var(--fs-2xs) var(--font-mono);
+  opacity: 0.6;
+}
 .ag-ask-d { grid-column: 2; font-size: var(--fs-sm); color: var(--text-dim); margin-top: 5px; line-height: 1.65; }
 /* Wraps rather than scrolls or truncates: this is the whole basis on which
    someone says yes, and a hidden filename is the one thing to never ship. */
@@ -344,6 +381,8 @@
 .ag-ask-acts button:hover { background: var(--pressed); }
 .ag-ask-acts .ag-go { background: var(--star); color: var(--on-accent); font-weight: 500; }
 .ag-ask-acts .ag-go:hover { background: var(--star-hi); }
+.ag-ask-acts .ag-go:disabled { opacity: 0.4; cursor: default; }
+.ag-ask-acts .ag-go:disabled:hover { background: var(--star); }
 
 /* ── Waiting on the first token ──────────────────────────────────────────── */
 .ag-wait { display: flex; flex-direction: column; gap: 8px; }

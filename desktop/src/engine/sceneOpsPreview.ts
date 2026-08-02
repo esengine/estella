@@ -151,7 +151,10 @@ export function previewSceneOps(ops: readonly SceneOp[], scene: PreviewScene): P
       case 'remove_component':
         return { ...base, target, entity: id, components: [op.component] };
       case 'rename':
-        return { ...base, target, entity: id, detail: op.name };
+        // Carries its own arrow the way `parent` carries "under": the row reads
+        // `target detail`, and a bare new name beside the old one is two names
+        // side by side saying nothing about which way it goes.
+        return { ...base, target, entity: id, detail: `→ ${op.name}` };
       case 'parent': {
         noteDependency(op.parent, index);
         return { ...base, target, entity: id, detail: `under ${describe(op.parent)}` };

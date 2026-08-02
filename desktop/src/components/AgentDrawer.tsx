@@ -55,6 +55,31 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { t } from '@/i18n';
 
 /**
+ * Bring a passage that needs an answer into view AND under the keyboard.
+ *
+ * Taking focus is the one place in this drawer where that is right: the run is
+ * blocked until this is answered, so the thing the keyboard should be aimed at
+ * is this and not the box for the message after it. It also makes the buttons a
+ * Tab away instead of a mouse trip, which is what the gesture costs today.
+ */
+function showAsk(el: HTMLElement | null): void {
+  el?.scrollIntoView({ block: 'nearest' });
+  el?.focus({ preventScroll: true });
+}
+
+/** Enter on the passage itself is its primary action; Shift+Enter is "for the
+ *  rest of this run". Ignored once focus has moved onto a button — the browser
+ *  is already turning Enter into that button's click. */
+function askKeys(
+  e: React.KeyboardEvent<HTMLElement>,
+  run: (answer: ConfirmAnswer) => void,
+): void {
+  if (e.target !== e.currentTarget || e.key !== 'Enter') return;
+  e.preventDefault();
+  run(e.shiftKey ? 'turn' : 'once');
+}
+
+/**
  * Both passages that are WAITING ON THE PERSON carry this, and everything that
  * hunts for one looks for it rather than for a particular passage.
  *
@@ -144,7 +169,7 @@ function PreviewPassage({ entry, onConfirm }: {
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [struck, setStruck] = useState<ReadonlySet<number>>(new Set());
-  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }); }, []);
+  useEffect(() => { showAsk(ref.current); }, []);
 
   // A batch big enough to be written to a file is the one most worth reading
   // before it lands, so the file form is loaded rather than waved through. An
@@ -179,12 +204,27 @@ function PreviewPassage({ entry, onConfirm }: {
   });
 
   return (
-    <div ref={ref} className={`ag-ask ag-ask--preview ${ASKING}`}>
+    <div
+      ref={ref}
+      className={`ag-ask ag-ask--preview ${ASKING}`}
+      tabIndex={-1}
+      onKeyDown={(e) => keeping > 0 && askKeys(e, (answer) =>
+        onConfirm(answer, answer === 'once' && struck.size ? [...struck] : undefined))}
+    >
       <span className="ag-ask-g"><Pencil size={16} strokeWidth={1.8} /></span>
       <span className="ag-ask-hd">
         {loading ? t('agent.preview.loading')
           : unreadable ? t('agent.preview.unreadable', { path: opsPath ?? '' })
             : t('agent.preview.title', { count: preview.length })}
+        {preview.length > 1 && (
+          <button
+            type="button"
+            className="ag-pv-all"
+            onClick={() => setStruck(struck.size ? new Set() : new Set(preview.map((l) => l.index)))}
+          >
+            {struck.size ? t('agent.preview.restoreAll') : t('agent.preview.strikeAll')}
+          </button>
+        )}
       </span>
       <div className="ag-ask-d">
         {unreadable ? t('agent.preview.unreadable.why') : t('agent.preview.why')}
@@ -205,7 +245,31 @@ function PreviewPassage({ entry, onConfirm }: {
               {line.detail && <span className="ag-pv-d"> {line.detail}</span>}
               {line.components?.length ? <span className="ag-pv-d"> {line.components.join(', ')}</span> : null}
             </span>
-            {line.fields?.length ? <span className="ag-pv-n">{line.fields.length}</span> : null}
+            {/* The values, not their count. "3 fields" is exactly the part of a
+                write that a preview exists to show, and the change set already
+                speaks this before→after — these are the same facts asked in the
+                other direction, so they read the same way. */}
+            {line.fields?.length ? (
+              <span className="ag-pv-fs">
+                {line.fields.slice(0, MAX_PREVIEW_FIELDS).map((f) => (
+                  <span className="ag-pv-f" key={f.path}>
+                    <span className="ag-pv-fp">{f.path}</span>
+                    {f.before !== undefined && (
+                      <>
+                        <span className="ag-del">{brief(f.before)}</span>
+                        <span className="ag-chg-arrow">→</span>
+                      </>
+                    )}
+                    <span className="ag-add">{brief(f.after)}</span>
+                  </span>
+                ))}
+                {line.fields.length > MAX_PREVIEW_FIELDS && (
+                  <span className="ag-pv-f ag-pv-more">
+                    {t('agent.preview.moreFields', { count: line.fields.length - MAX_PREVIEW_FIELDS })}
+                  </span>
+                )}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -213,9 +277,14 @@ function PreviewPassage({ entry, onConfirm }: {
         <button
           type="button"
           className="ag-go"
+          // Nothing left to apply. The kernel treats an emptied batch as a
+          // decline anyway, so an enabled "Apply 0" would be a button whose
+          // real name is Skip.
+          disabled={keeping === 0}
           onClick={() => onConfirm('once', struck.size ? [...struck] : undefined)}
         >
           {struck.size ? t('agent.preview.applyKept', { count: keeping }) : t('agent.preview.apply')}
+          <span className="ag-kb">⏎</span>
         </button>
         {/* Trusting the batch once is different from not wanting to be asked
             again this run — the second is what makes a long build bearable. */}
@@ -224,13 +293,16 @@ function PreviewPassage({ entry, onConfirm }: {
           onClick={() => onConfirm('turn')}
           title={t('agent.confirm.allowTurn.why', { tool: entry.name })}
         >
-          {t('agent.confirm.allowTurn')}
+          {t('agent.confirm.allowTurn')}<span className="ag-kb">⇧⏎</span>
         </button>
         <button type="button" onClick={() => onConfirm('no')}>{t('agent.confirm.deny')}</button>
       </div>
     </div>
   );
 }
+
+/** Past this a line is a wall of its own; the count says what was left out. */
+const MAX_PREVIEW_FIELDS = 6;
 
 /** The preview reads names and current values straight from the live scene. */
 const editorScene: PreviewScene = {
@@ -241,11 +313,14 @@ const editorScene: PreviewScene = {
 function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm: (answer: ConfirmAnswer) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const target = describeTarget(entry.input);
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: 'nearest' });
-  }, []);
+  useEffect(() => { showAsk(ref.current); }, []);
   return (
-    <div ref={ref} className={`ag-ask ag-ask--confirm ${ASKING}`}>
+    <div
+      ref={ref}
+      className={`ag-ask ag-ask--confirm ${ASKING}`}
+      tabIndex={-1}
+      onKeyDown={(e) => askKeys(e, onConfirm)}
+    >
       <span className="ag-ask-g"><TriangleAlert size={16} strokeWidth={1.8} /></span>
       <span className="ag-ask-hd">{t('agent.confirm.title', { tool: entry.name })}</span>
       <div className="ag-ask-d">
@@ -258,7 +333,9 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
           echoing the tool name back is noise, and the heading already said it. */}
       {target && <div className="ag-ask-tgt">{target}</div>}
       <div className="ag-ask-acts">
-        <button type="button" className="ag-go" onClick={() => onConfirm('once')}>{t('agent.confirm.allow')}</button>
+        <button type="button" className="ag-go" onClick={() => onConfirm('once')}>
+          {t('agent.confirm.allow')}<span className="ag-kb">⏎</span>
+        </button>
         {/* A task that saves eleven files should be one decision, not eleven
             identical ones — a gate that interrupts that often is one people
             learn to click through. Scoped to this run, and says so. */}
@@ -267,7 +344,7 @@ function ConfirmPassage({ entry, onConfirm }: { entry: AgentToolEntry; onConfirm
           onClick={() => onConfirm('turn')}
           title={t('agent.confirm.allowTurn.why', { tool: entry.name })}
         >
-          {t('agent.confirm.allowTurn')}
+          {t('agent.confirm.allowTurn')}<span className="ag-kb">⇧⏎</span>
         </button>
         <button type="button" onClick={() => onConfirm('no')}>{t('agent.confirm.deny')}</button>
       </div>

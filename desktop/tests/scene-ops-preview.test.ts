@@ -36,7 +36,7 @@ describe('previewing a batch of scene ops', () => {
   it('names an existing entity the way the scene does', () => {
     const ops: SceneOp[] = [{ op: 'rename', entity: 1, name: 'Backdrop' }];
     expect(previewSceneOps(ops, scene)[0]).toMatchObject({
-      kind: 'modify', target: 'Panel', entity: 1, detail: 'Backdrop',
+      kind: 'modify', target: 'Panel', entity: 1, detail: '→ Backdrop',
     });
   });
 
