@@ -73,10 +73,10 @@ const METRICS = [
         over: 'static frame (nothing changed)',
     },
     {
-        name: 'query: count vs iterating',
-        why: 'count() answers from the query cache; it must not walk the entities.',
+        name: 'query: materialising vs visiting',
+        why: 'forEach visits in place; toArray pays for the array. The gap is that cost.',
         group: 'Query - Iteration (5000 entities, 2 components)',
-        of: 'count',
+        of: 'toArray',
         over: 'forEach',
     },
     {
@@ -86,19 +86,17 @@ const METRICS = [
         of: 'Mut write-back, component tracked',
         over: 'Mut write-back, component NOT tracked',
     },
-    {
-        name: 'uiMath: reusing a result vs allocating one',
-        why: 'The out-param path exists to not allocate; it has to stay ahead.',
-        group: 'uiMath - Matrix operations',
-        of: 'invertMatrix4 x100 (result reuse)',
-        over: 'invertMatrix4 x100 (no result reuse)',
-    },
 ];
 
-// A metric whose denominator is tens of nanoseconds cannot be guarded: the
-// fastest sample of a system dispatch with no params rounds to zero, and a ratio
-// between two quantities at the timer's resolution is measuring the timer. The
-// dispatch benchmarks stay — they are worth reading — but nothing gates on them.
+/**
+ * Both sides of a ratio must take at least this long, or it is not measuring the
+ * code. Below roughly ten microseconds a sample is mostly timer and scheduler:
+ * a system dispatch with no params is tens of nanoseconds and its fastest sample
+ * rounds to 0, and CI reported a 370ns `count` as +90% against a build that had
+ * not touched it. Ratios that were only ever measuring the clock are gone —
+ * their benchmarks remain, worth reading, with nothing gating on them.
+ */
+const MIN_TIMEABLE_MS = 0.01;
 
 const DEFAULT_TOLERANCE = 0.50;
 
@@ -153,10 +151,9 @@ function main(report) {
             missing.push(`${m.name} (a benchmark it names did not run)`);
             continue;
         }
-        // Below the timer's resolution the fastest sample is 0, and a ratio
-        // against it says nothing. Pick a denominator with real duration.
-        if (den === 0) {
-            missing.push(`${m.name} (its denominator is too fast to time)`);
+        if (num < MIN_TIMEABLE_MS || den < MIN_TIMEABLE_MS) {
+            missing.push(`${m.name} (${round(Math.min(num, den))}ms is below the `
+                + `${MIN_TIMEABLE_MS}ms a ratio can be measured over — pick a longer benchmark)`);
             continue;
         }
         measured.ratios[m.name] = round(num / den);

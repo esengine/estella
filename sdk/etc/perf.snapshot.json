@@ -3,10 +3,9 @@
   "tolerance": 0.5,
   "cases": 230,
   "ratios": {
-    "ui-layout: editing a field vs adding a node": 0.195,
-    "ui-layout: editing a field vs an idle frame": 9.33,
-    "query: count vs iterating": 0.0046,
-    "change-tracking: tracked vs untracked write-back": 1.05,
-    "uiMath: reusing a result vs allocating one": 0.289
+    "ui-layout: editing a field vs adding a node": 0.197,
+    "ui-layout: editing a field vs an idle frame": 9.46,
+    "query: materialising vs visiting": 2.73,
+    "change-tracking: tracked vs untracked write-back": 1.03
   }
 }
