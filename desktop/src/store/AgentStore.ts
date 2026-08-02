@@ -124,6 +124,15 @@ interface AgentState {
   peeked: readonly number[];
   /** Typed while a turn was running, waiting for it to end. See sendAgentMessage. */
   queued: readonly string[];
+  /**
+   * What is typed and not yet sent.
+   *
+   * Here rather than in the composer because there are TWO composers — the
+   * drawer's and the docked panel's — and the drawer's unmounts every time it
+   * closes. Half a message should not be the price of pressing Esc, and the two
+   * should not disagree about what you were writing.
+   */
+  draft: string;
   /** The turn whose checkpoint bar has been answered — see AgentCheckpoint. */
   checkpointDone: number | null;
   /** What the user picked, or null for "whichever provider has a key". */
@@ -132,10 +141,12 @@ interface AgentState {
 
 export const useAgent = create<AgentState>(() => ({
   status: IDLE, turns: [], driving: false, peeked: [], queued: [], checkpointDone: null,
-  selection: loadSelection(),
+  draft: '', selection: loadSelection(),
 }));
 
 export const peekEntities = (ids: readonly number[]): void => useAgent.setState({ peeked: ids });
+
+export const setAgentDraft = (draft: string): void => useAgent.setState({ draft });
 
 // ── Which provider and model the next conversation runs on ──────────────────
 // Persisted here rather than as a registered setting: it is picked from the

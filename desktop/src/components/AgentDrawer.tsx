@@ -32,7 +32,7 @@ import {
 import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, resetAgentSession,
-  peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn,
+  peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import type { ConfirmAnswer } from '../../electron/agent/types';
@@ -753,9 +753,10 @@ function mentionMatches(query: string): Mention[] {
   return [...entities, ...assets];
 }
 
-function Compose() {
+function Compose({ autoFocus }: { autoFocus?: boolean }) {
   const status = useAgent((s) => s.status);
-  const [draft, setDraft] = useState('');
+  const draft = useAgent((s) => s.draft);
+  const setDraft = setAgentDraft;
   const ref = useRef<HTMLTextAreaElement>(null);
   const busy = status.phase !== 'idle';
   // `@` opens a picker over the scene tree. Read at open time rather than
@@ -784,22 +785,23 @@ function Compose() {
       el?.focus();
       const pos = at + name.length + 2;
       el?.setSelectionRange(pos, pos);
-      autosize();
     });
   };
 
-  const autosize = () => {
+  // Driven by the text rather than by the keystroke, because the text now
+  // arrives from elsewhere too: a draft restored when the drawer reopens has to
+  // come back the height it was, not one line tall with the rest scrolled away.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(112, el.scrollHeight)}px`;
-  };
+  }, [draft]);
 
   const submit = () => {
     const text = draft.trim();
     if (!text) return;
     setDraft('');
-    requestAnimationFrame(autosize);
     void sendAgentMessage(text);
   };
 
@@ -841,11 +843,14 @@ function Compose() {
           ref={ref}
           rows={1}
           value={draft}
+          // Summoned, it is summoned to be typed into. Docked, it is a panel
+          // that happens to be open and stealing focus from the viewport would
+          // be the wrong read of why it is on screen.
+          autoFocus={autoFocus}
           placeholder={busy ? t('agent.compose.busy') : t('agent.compose')}
           aria-label={t('agent.compose')}
           onChange={(e) => {
             setDraft(e.target.value);
-            autosize();
             openMention(e.target.value, e.target.selectionStart ?? 0);
           }}
           onBlur={() => setMention(null)}
@@ -995,7 +1000,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
         </button>
       )}
       {status.error && <div className="ag-banner">{status.error}</div>}
-      <Compose />
+      <Compose autoFocus={!docked} />
     </div>
   );
 }
