@@ -98,8 +98,15 @@ published separately; it ships inside the editor.
   imported `../src/world` / `../src/query` / `../src/component` — the paths from before
   `src/ecs/` existed. `vitest bench` skips a file it cannot resolve and still exits 0, so
   the suite reported success while measuring nothing: 27 cases produced a number, 147 did
-  not. Repointed, it is 174. The wasm-backed ones also hard-coded the editor's wasm
-  directory, which is not where CI puts the artifact.
+  not. It is **230** now, and the guard above fails if that number ever falls again. Fixing
+  the rest turned up the API drift the silence had been hiding: `physics` instantiated
+  through `locateFile`, which under the test environment fetches against localhost;
+  `wasm-vs-world` re-declared Transform/Sprite/Camera locally and hand-wrote payloads that
+  had all drifted (Camera's four viewport scalars are one `Vec4`; `Sprite` had gained five
+  fields, so every embind case died on a missing one), and still measured `UIRect`, which
+  `UINode` replaced; `spine` called `extractMeshBatches`, since replaced by the
+  allocation-free `forEachMeshBatch(id, visitor)`, and submitted through a function renamed
+  when that path was generalised to skeletal.
 - **The UI layout keeps Yoga's work, not just its allocations.** Yoga already tracks what
   changed — every style setter is `if (old != new) { set; markDirtyAndPropagate(); }`, and
   a solve skips the subtrees still clean — but the layout pass reset every node and rebuilt
