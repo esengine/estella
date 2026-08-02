@@ -54,8 +54,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "rollup -c",
-    "watch": "rollup -c -w",
+    "build": "rolldown -c && rollup -c",
+    "watch": "rolldown -c -w",
     "clean": "rimraf dist",
     "api:check": "node ../tools/api-surface.mjs --check",
     "api:update": "node ../tools/api-surface.mjs --update",
@@ -85,6 +85,7 @@
     "happy-dom": "^15.11.0",
     "minigame-api-typings": "^3.8.16",
     "rimraf": "^5.0.5",
+    "rolldown": "1.2.1",
     "rollup": "^4.9.0",
     "rollup-plugin-dts": "^6.1.0",
     "tslib": "^2.6.2",

@@ -44,8 +44,8 @@ export async function buildSdk(options = {}) {
 
             const sdkSrcDir = path.join(sdkDir, 'src');
             // The bundle is a function of the sources AND the build configuration,
-            // so rollup/tsconfig/package edits must bust the cache too.
-            const configFiles = ['rollup.config.js', 'tsconfig.json', 'package.json']
+            // so bundler/tsconfig/package edits must bust the cache too.
+            const configFiles = ['rolldown.config.js', 'rollup.config.js', 'tsconfig.json', 'package.json']
                 .map((f) => path.join(sdkDir, f));
             currentHash = `${await hashDirectory(sdkSrcDir, /\.ts$/)}:${await hashFiles(configFiles)}`;
 
@@ -148,26 +148,6 @@ async function copyDistOutputs(sdkDir, outputDir) {
         }
         logger.debug(`Copied ${sharedFiles.length} shared chunks`);
     }
-}
-
-export async function buildSdkDirect(format = 'all') {
-    logger.step(`Building SDK (${format})...`);
-
-    const sdkDir = config.paths.sdk;
-    const outputDir = path.join(config.paths.output, 'sdk');
-
-    await mkdir(outputDir, { recursive: true });
-
-    const args = ['rollup', '-c'];
-    if (format !== 'all') {
-        args.push('--environment', `FORMAT:${format}`);
-    }
-
-    await runCommand('npx', args, { cwd: sdkDir });
-
-    await copyDistOutputs(sdkDir, outputDir);
-
-    logger.success(`SDK (${format}): Build complete`);
 }
 
 export async function cleanSdk() {
