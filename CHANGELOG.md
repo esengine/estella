@@ -83,6 +83,24 @@ published separately; it ships inside the editor.
 - **Reasoning shows how long it took**, a stopped or refused run explains itself in the
   transcript rather than only in its header badge, `@` offers project assets alongside
   entities, and re-ask is on the answer as well as on the run header.
+- **The UI layout keeps Yoga's work, not just its allocations.** Yoga already tracks what
+  changed — every style setter is `if (old != new) { set; markDirtyAndPropagate(); }`, and
+  a solve skips the subtrees still clean — but the layout pass reset every node and rebuilt
+  the whole hierarchy each frame, so none of it was reachable: the retained nodes reused
+  allocations while re-deriving every result. Styles and hierarchy now persist, and only
+  the nodes Yoga reports new layout for are written back. Editing one field costs a quarter
+  of what it did (2000 nodes: 1.03ms → 0.25ms); a static frame is unchanged and a
+  structural change still pays for a full resolve. Two things this made load-bearing: a
+  `Registry` now has an instance id, because retained per-entity state is meaningless
+  across registries (a scene reload or an editor play/stop would have served the new world
+  the old world's boxes), and a node that loses its `FlexContainer` is actively told Yoga's
+  defaults rather than left with the removed container's padding.
+- **The UI dirty marks nothing ever produced are gone.** A per-node `LAYOUT_DIRTY` with a
+  walk to the root, a `structure_dirty_` flag, and three bindings to reach them from TS —
+  all of it inert, because the DFS rebuild that runs every pass marked every node dirty as
+  it built them, so the gate reading those marks was always open. It was the half-built
+  version of what Yoga already does per style field; two sets of marks for one question is
+  what was worth deleting.
 - **There is one way to be a summoned drawer.** There were two of them (the Content
   Browser from the bottom, the agent from the right) and one implementation and a half:
   the second wrote the scrim and the Esc key again, and got the slide and the focus
@@ -169,6 +187,12 @@ published separately; it ships inside the editor.
   the fresh one looked like a duplicate of the old — the reset travels in the event stream
   now); and folding a second time ate what the first fold had saved, so the earliest thing
   you asked disappeared one compaction at a time.
+- **Losing a component counts as changing it.** `anyChangedSince` is the O(1) gate a
+  consumer uses to decide whether to do any work at all, and it reads one per-component
+  watermark; removal wrote only to the per-entity maps, so taking a component OFF an entity
+  was invisible to it. Found from the other end: a UI node that lost its `FlexContainer`
+  went on being laid out by the removed container's padding and justification, because the
+  layout pass gates its whole solve on exactly that signal and was told nothing happened.
 - **A conversation no longer disappears on a click aimed at the model name.** A session is
   built for one model, so switching has to end it — but that is the *cost* of the switch,
   not what was asked for, and doing it silently read as having lost the transcript rather
