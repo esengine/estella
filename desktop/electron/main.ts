@@ -47,6 +47,9 @@ import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from '.
 import { secretStatus, setSecret, clearSecret, readSecret } from './secrets';
 import { createSurfaceDriver } from './surfaceDriver';
 import { createAgentHost } from './agent/host';
+import {
+  saveConversation, loadConversation, listConversations, deleteConversation,
+} from './agent/store';
 import type { ConfirmAnswer } from './agent/types';
 import { createAnthropicProvider } from './agent/anthropic';
 
@@ -696,6 +699,15 @@ const agentHost = createAgentHost({
       contextWindow: agentEndpoint.contextWindow,
     });
   },
+  // Conversations are kept with the project they are about. With none open
+  // there is nowhere for them to go, which is a state, not a failure — and a
+  // disk that will not take them must never cost the user their turn, so this
+  // reports and moves on.
+  persist: (conversation) => {
+    if (!projectRoot) return;
+    void saveConversation(projectRoot, conversation)
+      .catch((e) => console.error('[agent] could not save the conversation:', e));
+  },
 });
 ipcMain.handle('agent:status', () => agentHost.status());
 ipcMain.handle('agent:transcript', () => agentHost.transcript());
@@ -707,6 +719,18 @@ ipcMain.handle(
 );
 ipcMain.handle('agent:reset', () => agentHost.reset());
 ipcMain.handle('agent:retry', (_e, n: number, text: string) => agentHost.retry(n, text));
+// — Saved conversations (agent/store.ts). Project-local, so an unopened project
+//   simply has none rather than erroring. —
+ipcMain.handle('agent:conversations', () => (projectRoot ? listConversations(projectRoot) : []));
+ipcMain.handle('agent:resumeConversation', async (_e, id: string) => {
+  if (!projectRoot) return agentHost.status();
+  const stored = await loadConversation(projectRoot, id);
+  if (!stored) return agentHost.status();
+  return agentHost.resume(stored);
+});
+ipcMain.handle('agent:deleteConversation', async (_e, id: string) => {
+  if (projectRoot) await deleteConversation(projectRoot, id);
+});
 ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.

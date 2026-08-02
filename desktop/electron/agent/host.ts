@@ -57,6 +57,22 @@ export interface AgentHostDeps {
   ready(): boolean;
   /** Build the provider, or throw with a sentence the user can act on. */
   provider(): AgentProvider;
+  /**
+   * Keep this conversation, or forget it. Absent (no project open) means the
+   * conversation is not persisted, which is a fine state to be in — it is not
+   * an error, and the host carries on either way.
+   */
+  persist?(conversation: PersistedConversation): void;
+}
+
+/** A conversation as the host hands it over to be kept. See agent/store.ts. */
+export interface PersistedConversation {
+  id: string;
+  startedAt: number;
+  model: string;
+  endpoint: string;
+  events: readonly AgentEvent[];
+  memory: unknown;
 }
 
 export interface AgentHost {
@@ -71,6 +87,8 @@ export interface AgentHost {
   confirm(callId: string, answer: ConfirmAnswer, declined?: readonly number[]): void;
   /** Drop the conversation and start over; the next turn re-reads the key. */
   reset(): AgentStatus;
+  /** Put a saved conversation back — transcript and memory both. */
+  resume(conversation: PersistedConversation): AgentStatus;
   /**
    * Ask the `n`-th turn again, discarding it and everything after. The point of
    * having it: a bad answer three turns in should cost you that answer, not the
@@ -100,6 +118,35 @@ export interface AgentHost {
 export function createAgentHost(deps: AgentHostDeps): AgentHost {
   let session: AgentSession | null = null;
   let model: string | null = null;
+  // Names the conversation on disk. Minted when a session is, so a reset starts
+  // a new file rather than overwriting the one the user may want back.
+  let conversationId: string | null = null;
+  let startedAt = 0;
+  let endpoint = '';
+  /** Memory handed to the next session this creates — see {@link AgentHost.resume}. */
+  let resuming: unknown;
+
+  /** Sortable and filename-safe. Time first so a directory listing reads
+   *  chronologically even before anything parses it. */
+  const newId = (): string =>
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+  /**
+   * Hand the conversation over to be kept. Called when a turn ends rather than
+   * on every event: a run is the unit anyone would want back, and the stream
+   * carries one event per token.
+   */
+  const keep = (): void => {
+    if (!deps.persist || !conversationId || !session) return;
+    deps.persist({
+      id: conversationId,
+      startedAt,
+      model: model ?? '',
+      endpoint,
+      events: log,
+      memory: session.serialize(),
+    });
+  };
   let acceptsImages = true;
   let phase: AgentPhase = 'idle';
   let error: string | null = null;
@@ -164,9 +211,12 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
     if (!session) {
       try {
         const provider = deps.provider();
-        session = provider.createSession({ system: SYSTEM_PROMPT, tools: agentTools() });
+        session = provider.createSession({ system: SYSTEM_PROMPT, tools: agentTools() }, resuming);
         model = provider.model;
         acceptsImages = provider.acceptsImages;
+        endpoint = provider.id;
+        if (!conversationId) { conversationId = newId(); startedAt = Date.now(); }
+        resuming = undefined;
       } catch (e) {
         error = (e as Error)?.message ?? String(e);
         pushStatus();
@@ -206,6 +256,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         emit({ type: 'turn_end', steps: 0, mark: null, reason: 'error' });
       } finally {
         settlePending();
+        // The run is over either way — errors included, since a conversation
+        // that ended badly is still one you may want back.
+        if (running === controller) keep();
         // A turn that was superseded by a reset must not walk the phase back:
         // reset already put it at idle for a conversation this one is no longer
         // part of.
@@ -248,12 +301,46 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       settlePending();
       session = null;
       model = null;
+      // A new conversation is a new file. The old one keeps whatever it had at
+      // its last turn — it was saved then, and nothing here takes that back.
+      conversationId = null;
+      resuming = undefined;
       phase = 'idle';
       error = null;
       log.length = 0;
       // Straight to the window, not through `emit`: the log it would join was
       // just emptied, and a window attaching later has nothing to reset.
       deps.push({ kind: 'event', event: { type: 'conversation_reset' } });
+      pushStatus();
+      return status();
+    },
+    /**
+     * Continue a saved conversation: its transcript for the window, its memory
+     * for the model.
+     *
+     * The session is not built here — it is built by the next `send`, from the
+     * provider the endpoint resolves to THEN. Building it now would pin the
+     * conversation to whatever provider happens to be configured at the moment
+     * of clicking, which is not the same thing as the moment of asking.
+     */
+    resume: (conversation) => {
+      running?.abort();
+      running = null;
+      settlePending();
+      session = null;
+      model = conversation.model;
+      conversationId = conversation.id;
+      startedAt = conversation.startedAt;
+      endpoint = conversation.endpoint;
+      resuming = conversation.memory;
+      phase = 'idle';
+      error = null;
+      log.length = 0;
+      log.push(...conversation.events);
+      // Reset first so a window holding another conversation drops it, then
+      // replay: the same pair an attaching window gets, in the same order.
+      deps.push({ kind: 'event', event: { type: 'conversation_reset' } });
+      for (const event of conversation.events) deps.push({ kind: 'event', event });
       pushStatus();
       return status();
     },

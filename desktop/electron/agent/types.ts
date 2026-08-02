@@ -105,6 +105,16 @@ export interface AgentSession {
   rewindTo(n: number): void;
   /** Run one model call. */
   step(signal: AbortSignal): AsyncIterable<StepEvent>;
+  /**
+   * The model's memory of this conversation, as JSON, so it can be put back.
+   *
+   * Opaque on purpose. What a model remembers is in the provider's wire format
+   * — reasoning blocks that must return byte-identical, a prefix the cache
+   * matches on — and the moment anything above here could read it, the kernel
+   * and the host would be reasoning about that format, which is what this
+   * contract exists to keep out of them. They hand it back and ask no questions.
+   */
+  serialize(): unknown;
 }
 
 export interface AgentProvider {
@@ -120,7 +130,21 @@ export interface AgentProvider {
    * can plan around being blind instead of discovering it.
    */
   readonly acceptsImages: boolean;
-  createSession(opts: { system: string; tools: readonly CatalogTool[] }): AgentSession;
+  /**
+   * Start a conversation, or resume one from what {@link AgentSession.serialize}
+   * returned.
+   *
+   * A resumed memory belongs to the model that produced it — reasoning blocks
+   * go back to their author and the cached prefix is a byte match — so the
+   * caller must only hand back memory it saved under this same provider and
+   * model. A provider that cannot make sense of what it is given starts fresh
+   * rather than failing: a conversation you cannot continue is worth less than
+   * a new one, and far less than a crash.
+   */
+  createSession(
+    opts: { system: string; tools: readonly CatalogTool[] },
+    memory?: unknown,
+  ): AgentSession;
 }
 
 /**

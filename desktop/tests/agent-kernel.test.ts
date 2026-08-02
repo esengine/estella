@@ -26,6 +26,7 @@ function fakeSession(steps: StepEvent[][]): AgentSession & {
     pushContext: (t) => { context.push(t); },
     pushToolResults: (o) => { results.push([...o]); },
     rewindTo: (n) => { user.length = n; },
+    serialize: () => ({ user: [...user] }),
     step: async function* () {
       for (const ev of steps[at] ?? [{ type: 'stop', reason: 'end_turn' }]) yield ev;
       at++;

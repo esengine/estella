@@ -276,13 +276,30 @@ function firstText(message: Message | undefined): string {
   return flat.length > 200 ? `${flat.slice(0, 197)}…` : flat;
 }
 
+/** What a conversation's memory looks like on disk. Versioned: a shape this
+ *  does not recognise is refused rather than half-read. */
+interface SessionMemory {
+  v: 1;
+  messages: Message[];
+  turnStarts: number[];
+  dropped: number;
+  folded: string[];
+  lastInputTokens: number;
+}
+
+const isSessionMemory = (value: unknown): value is SessionMemory => {
+  const m = value as Partial<SessionMemory> | null;
+  return !!m && m.v === 1 && Array.isArray(m.messages) && Array.isArray(m.turnStarts)
+    && typeof m.dropped === 'number' && Array.isArray(m.folded);
+};
+
 class AnthropicSession implements AgentSession {
-  private readonly messages: Message[] = [];
+  private messages: Message[] = [];
   /** Context waiting for a legal spot — see {@link flushContext}. */
   private readonly pending: string[] = [];
   /** Where each person's turn starts. A tool result is a `user` message too, so
    *  counting roles would not find them. */
-  private readonly turnStarts: number[] = [];
+  private turnStarts: number[] = [];
   /** Runs folded away by {@link compactOldest}. Turn coordinates count from the
    *  start of the CONVERSATION, so they must survive their messages. */
   private dropped = 0;
@@ -301,6 +318,36 @@ class AnthropicSession implements AgentSession {
 
   get turnIndex(): number {
     return this.dropped + this.turnStarts.length;
+  }
+
+  /**
+   * Everything the model remembers, and nothing about how it got there.
+   *
+   * `pending` is deliberately absent: it holds context gathered for a turn that
+   * has not been sent, which describes an editor state that will be re-gathered
+   * anyway. Restoring it would replay a stale reading of the scene as if it were
+   * current — the one thing the per-turn context exists to avoid.
+   */
+  serialize(): SessionMemory {
+    return {
+      v: 1,
+      messages: this.messages,
+      turnStarts: this.turnStarts,
+      dropped: this.dropped,
+      folded: this.folded,
+      lastInputTokens: this.lastInputTokens,
+    };
+  }
+
+  /** Put a serialized memory back. Anything else leaves the session empty —
+   *  see AgentProvider.createSession on why that beats refusing. */
+  restore(memory: unknown): void {
+    if (!isSessionMemory(memory)) return;
+    this.messages = memory.messages;
+    this.turnStarts = memory.turnStarts;
+    this.dropped = memory.dropped;
+    this.folded = memory.folded;
+    this.lastInputTokens = memory.lastInputTokens ?? 0;
   }
 
   pushUser(text: string): void {
@@ -524,11 +571,15 @@ export function createAnthropicProvider(options: AnthropicOptions): AgentProvide
     model,
     // The same condition toolResultContent substitutes on — one fact, one place.
     acceptsImages: dialect === 'anthropic',
-    createSession: ({ system, tools }) => new AnthropicSession(
-      client,
-      { model, effort, dialect, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },
-      system,
-      tools,
-    ),
+    createSession: ({ system, tools }, memory) => {
+      const session = new AnthropicSession(
+        client,
+        { model, effort, dialect, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },
+        system,
+        tools,
+      );
+      if (memory !== undefined) session.restore(memory);
+      return session;
+    },
   };
 }

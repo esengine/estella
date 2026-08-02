@@ -9,7 +9,10 @@
  *        Pure TS: a fake provider, a fake driver, no Electron and no network.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createAgentHost, type AgentHost, type AgentMessage, type AgentStatus } from '../electron/agent/host';
+import {
+  createAgentHost,
+  type AgentHost, type AgentMessage, type AgentStatus, type PersistedConversation,
+} from '../electron/agent/host';
 import type { AgentProvider, AgentSession, StepEvent, ToolCall } from '../electron/agent/types';
 
 const call = (name: string): ToolCall => ({ id: `c-${name}`, name, input: {} });
@@ -21,7 +24,7 @@ const ends = (): StepEvent[] => [{ type: 'stop', reason: 'end_turn' }];
 function fakeProvider(steps: StepEvent[][]): AgentProvider & { session: AgentSession & { asked: string[]; rewinds: number[] } } {
   let at = 0;
   const session: AgentSession & { asked: string[]; rewinds: number[] } = {
-    asked: [],
+    asked: [] as string[],
     rewinds: [],
     // The real one counts person's turns; asking is what opens them.
     get turnIndex() { return session.asked.length; },
@@ -31,12 +34,22 @@ function fakeProvider(steps: StepEvent[][]): AgentProvider & { session: AgentSes
     // Faithful about the coordinate too: rewinding drops those turns, so the
     // next one reopens at n — which is what the host stamps onto turn_start.
     rewindTo: (n) => { session.rewinds.push(n); session.asked.length = n; },
+    serialize: () => ({ asked: [...session.asked] }),
     step: async function* () {
       for (const ev of steps[at] ?? [{ type: 'stop', reason: 'end_turn' }]) yield ev;
       at++;
     },
   };
-  return { id: 'fake', model: 'fake-model', acceptsImages: true, session, createSession: () => session };
+  return {
+    id: 'fake', model: 'fake-model', acceptsImages: true, session,
+    createSession: (_opts, memory) => {
+      // Faithful to the real one: a resumed memory replaces what the session
+      // remembers, so the turns it has already had are its own again.
+      const m = memory as { asked?: string[] } | undefined;
+      if (m?.asked) session.asked = [...m.asked];
+      return session;
+    },
+  };
 }
 
 describe('the agent host', () => {
@@ -276,5 +289,143 @@ describe('the agent host', () => {
       h.reset();
       expect(h.transcript()).toEqual([]);
     });
+  });
+});
+
+/**
+ * Keeping a conversation, and putting it back.
+ *
+ * The host owns both halves — the event stream the window draws from and the
+ * memory the model needs — so it is the only place that can be asked whether
+ * they stay together.
+ */
+describe('a conversation that outlives the session', () => {
+  let messages: AgentMessage[];
+  let kept: PersistedConversation[];
+  let driver: ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+
+  const settled = (h: AgentHost): Promise<void> =>
+    vi.waitFor(() => expect(h.status().phase).toBe('idle'));
+
+  const host = (steps: StepEvent[][] = [ends(), ends()]): AgentHost => createAgentHost({
+    driver: driver as never,
+    push: (m) => messages.push(m),
+    ready: () => true,
+    provider: () => fakeProvider(steps),
+    persist: (c) => { kept.push({ ...c, events: [...c.events] }); },
+  });
+
+  beforeEach(() => {
+    messages = [];
+    kept = [];
+    driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 2;
+      if (method === 'getDiagnostics') return [];
+      if (method === 'getSelectionIds') return [];
+      return null;
+    }) as never;
+    (driver as { js: unknown }).js = vi.fn(async () => null);
+    (driver as { op: unknown }).op = vi.fn(async () => null);
+  });
+
+  it('hands over the turn once it ends, with the memory beside it', async () => {
+    const h = host();
+    h.send('add a pause menu');
+    await settled(h);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].events.some((e) => e.type === 'turn_start')).toBe(true);
+    expect(kept[0].memory).toEqual({ asked: ['add a pause menu'] });
+  });
+
+  it('keeps handing over the same conversation as it grows', async () => {
+    const h = host();
+    h.send('first');
+    await settled(h);
+    h.send('second');
+    await settled(h);
+    expect(kept).toHaveLength(2);
+    expect(kept[0].id).toBe(kept[1].id);
+    expect(kept[1].memory).toEqual({ asked: ['first', 'second'] });
+  });
+
+  // Otherwise New Conversation would overwrite the one the user may want back.
+  it('a new conversation is a new file, not the old one rewritten', async () => {
+    const h = host([ends(), ends()]);
+    h.send('first');
+    await settled(h);
+    h.reset();
+    h.send('second');
+    await settled(h);
+    expect(kept[0].id).not.toBe(kept[1].id);
+  });
+
+  // A turn that failed is still one you may want back.
+  it('keeps a run that ended badly', async () => {
+    const h = createAgentHost({
+      driver: (vi.fn(async (m: string) => { if (m === 'mark') throw new Error('no window'); return null; }) as never),
+      push: (m) => messages.push(m),
+      ready: () => true,
+      provider: () => fakeProvider([ends()]),
+      persist: (c) => { kept.push({ ...c, events: [...c.events] }); },
+    });
+    h.send('hi');
+    await settled(h);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('resuming replays the transcript and carries the memory into the next turn', async () => {
+    const saved: PersistedConversation = {
+      id: 'kept-1',
+      startedAt: 10,
+      model: 'fake-model',
+      endpoint: 'fake',
+      events: [
+        { type: 'turn_start', prompt: 'yesterday', model: 'fake-model', index: 0 },
+        { type: 'turn_end', steps: 0, mark: null, reason: 'end_turn' },
+      ],
+      memory: { asked: ['yesterday'] },
+    };
+    const h = host();
+    messages = [];
+    h.resume(saved);
+
+    // The window is told to drop what it had, then given the run back.
+    const replayed = messages.flatMap((m) => (m.kind === 'event' ? [m.event] : []));
+    expect(replayed[0]).toEqual({ type: 'conversation_reset' });
+    expect(replayed.some((e) => e.type === 'turn_start' && e.prompt === 'yesterday')).toBe(true);
+    expect(h.transcript()).toHaveLength(2);
+
+    // And the model picks up where it left off: the next turn opens at 1.
+    h.send('and now the fonts');
+    await settled(h);
+    const opened = messages.flatMap((m) => (m.kind === 'event' ? [m.event] : []))
+      .filter((e) => e.type === 'turn_start');
+    expect(opened.at(-1)).toMatchObject({ prompt: 'and now the fonts', index: 1 });
+  });
+
+  it('writes a resumed conversation back under the id it came from', async () => {
+    const h = host();
+    h.resume({
+      id: 'kept-1', startedAt: 10, model: 'fake-model', endpoint: 'fake',
+      events: [], memory: { asked: ['yesterday'] },
+    });
+    h.send('more');
+    await settled(h);
+    expect(kept.at(-1)?.id).toBe('kept-1');
+    expect(kept.at(-1)?.startedAt).toBe(10);
+  });
+
+  // Nothing to write to is a state, not a failure.
+  it('runs fine with nowhere to keep anything', async () => {
+    const h = createAgentHost({
+      driver: driver as never,
+      push: (m) => messages.push(m),
+      ready: () => true,
+      provider: () => fakeProvider([ends()]),
+    });
+    h.send('hi');
+    await settled(h);
+    expect(h.status().phase).toBe('idle');
   });
 });

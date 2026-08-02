@@ -23,6 +23,7 @@ import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
 import type { AgentEvent, ConfirmAnswer } from './agent/types';
+import type { ConversationSummary } from './agent/store';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -126,6 +127,13 @@ const api = {
     reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
     /** Ask the n-th turn again, discarding it and everything after it. */
     retry: (n: number, text: string): Promise<AgentStatus> => ipcRenderer.invoke('agent:retry', n, text),
+    /** Every conversation saved with this project, newest first. */
+    conversations: (): Promise<ConversationSummary[]> => ipcRenderer.invoke('agent:conversations'),
+    /** Continue a saved one — its transcript and the model's memory of it. */
+    resumeConversation: (id: string): Promise<AgentStatus> =>
+      ipcRenderer.invoke('agent:resumeConversation', id),
+    deleteConversation: (id: string): Promise<void> =>
+      ipcRenderer.invoke('agent:deleteConversation', id),
     /** Point the NEXT session at an endpoint/model. Merged, so each settings row
      *  can push its own field. */
     setEndpoint: (patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number }): Promise<void> =>
