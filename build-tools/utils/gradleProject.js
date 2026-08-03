@@ -54,7 +54,7 @@ export function gradleManifest(templateXml, app) {
         HAS_CODE: 'true',
     });
 
-    const minSdk = Number(/android:minSdkVersion="(\d+)"/.exec(filled)?.[1] ?? 24);
+    const minSdk = Number(/android:minSdkVersion="(\d+)"/.exec(filled)?.[1] ?? 29);
     const targetSdk = Number(/android:targetSdkVersion="(\d+)"/.exec(filled)?.[1] ?? 33);
 
     const xml = filled

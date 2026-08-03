@@ -10,7 +10,6 @@
 // to put a game on a phone.
 
 import path from 'path';
-import { androidMinPlatform } from '../utils/androidFloor.js';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { mkdir, rm, cp, readdir } from 'fs/promises';
@@ -201,7 +200,7 @@ export async function emitNativeTemplate(options) {
         spineVersion: options.spineVersion || '4.2',
         ...(platform === 'ios' ? { deploymentTarget: options.deploymentTarget || '17.0' } : {}),
         ...(platform === 'android'
-            ? { androidPlatform: options.androidPlatform || androidMinPlatform(), abis: templateAbis(dir) }
+            ? { androidPlatform: options.androidPlatform || 'android-29', abis: templateAbis(dir) }
             : {}),
     });
 

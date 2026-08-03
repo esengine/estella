@@ -26,7 +26,7 @@ different words. All of it is documented, in both languages, for the first time.
 Underneath, two things that only show up after you ship: a game's own `.json` data is an
 asset now rather than a path you fetch and discover missing in the build, and a save
 written by an earlier build is carried into the durable directory this release moves saves
-to. Android's floor drops to 7.0.
+to.
 
 ### Added
 
@@ -86,25 +86,6 @@ to. Android's floor drops to 7.0.
   and no scan on a frame where no UINode was written and nothing moved in the hierarchy — the
   same pair of signals the layout solve and the physics reconcile already gate on. Measured in
   a real UI of 112 nodes: 0 reads per idle frame, one full pass on the frame a panel is toggled.
-
-### Changed
-
-- **Android's minimum is API 24 (Android 7.0), lowered from 29.** The floor was 29
-  because the font path called `AFontMatcher_create` and nothing below it could
-  answer; on 24 through 28 the engine now picks the font out of `/system/fonts`
-  itself, asking each candidate whether it has a glyph for the character rather
-  than trusting a family name. Read the Vulkan requirement alongside this: it is
-  unchanged and still `required="true"`, and it filters far more devices than the
-  API level does, so what 24 adds is Android 7/8-era hardware that has a Vulkan
-  driver — not every phone on those releases. The compatibility matrix now starts
-  at 24; emulators below API 28 may have no Vulkan, so those rows can report "no
-  data" rather than a verdict.
-
-  Which is also the honest limit on this: the `/system/fonts` path has not run on a
-  real 7-or-8-era device. The emulators that could have covered it are the ones with
-  no Vulkan driver, and the phones in the device lab are all newer. What is verified
-  is that the floor builds, installs and boots; if you ship to API 24–28, test text
-  rendering on real hardware before your players do.
 
 ### Fixed
 

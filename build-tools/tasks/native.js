@@ -17,7 +17,6 @@ import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
 import { fetchNativeDeps, pinnedDep, ensureDawnBuild, dawnLibrary, DAWN_TARGETS } from './nativeDeps.js';
-import { androidMinPlatform } from '../utils/androidFloor.js';
 import {
     ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
@@ -320,7 +319,7 @@ async function buildAndroidHost(options) {
     // into a load-time requirement. At android-33 that shipped a host which could
     // not dlopen below API 31: `cannot locate symbol APerformanceHint_getManager`,
     // on Android 10 and 11, before a line of our code ran.
-    const { abi = 'arm64-v8a', platform = androidMinPlatform() } = options;
+    const { abi = 'arm64-v8a', platform = 'android-29' } = options;
     const rootDir = config.paths.root;
 
     const sdk = requireSdk();
@@ -328,7 +327,7 @@ async function buildAndroidHost(options) {
     const toolchain = path.join(ndk, 'build', 'cmake', 'android.toolchain.cmake');
     const { cmake, ninja } = sdkCmake(sdk);
 
-    const { dawnDir, dawnBuild } = await dawnPaths({ ...options, platform }, 'android', { ndk, cmake, ninja });
+    const { dawnDir, dawnBuild } = await dawnPaths(options, 'android', { ndk, cmake, ninja });
     // One build tree per ABI, beside the generated sources they share — a second
     // architecture must not overwrite the first one's objects.
     const buildDir = path.join(rootDir, 'build/cmake/native', abi);
@@ -350,17 +349,6 @@ async function buildAndroidHost(options) {
         `-DCMAKE_TOOLCHAIN_FILE=${toolchain}`,
         `-DANDROID_ABI=${abi}`,
         `-DANDROID_PLATFORM=${platform}`,
-        // Without this the NDK marks every symbol newer than the platform
-        // `unavailable` outright — a hard compile error that no availability
-        // guard can satisfy, because the annotation means "this build cannot see
-        // it" rather than "call me under a check". ON makes those references
-        // weak, which is what gives `__builtin_available` something to test.
-        //
-        // Turning it on used to be the riskier choice: while the floor equalled
-        // the newest API the host called, dropping the flag changed nothing and
-        // would have gone unnoticed. Below that floor it cannot — the build stops
-        // and names the symbol, which is how this line came to be here.
-        '-DANDROID_WEAK_API_DEFS=ON',
         '-DANDROID_STL=c++_shared',
         '-DCMAKE_BUILD_TYPE=Release',
         // Emit build/cmake/native/compile_commands.json so editor IntelliSense (the
