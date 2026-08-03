@@ -116,6 +116,46 @@ export interface MiniGameInnerAudioContext {
     onError(cb: (res: { errMsg: string }) => void): void;
 }
 
+/**
+ * A rewarded video ad, as every mini-game host shapes it: WeChat's
+ * `RewardedVideoAd` and Douyin's are structurally identical, which is what
+ * makes ads a FAMILY capability rather than a per-vendor override. `onClose`
+ * reports whether the video was watched to the end (`isEnded`); some hosts
+ * omit the record entirely on older runtimes, which callers must treat as
+ * "completed" — the platform granted the reward and simply didn't say so.
+ */
+export interface MiniGameRewardedVideoAd {
+    load(): Promise<void>;
+    show(): Promise<void>;
+    onLoad(cb: () => void): void;
+    offLoad(cb: () => void): void;
+    onError(cb: (err: { errMsg: string; errCode?: number }) => void): void;
+    offError(cb: (err: { errMsg: string; errCode?: number }) => void): void;
+    onClose(cb: (res?: { isEnded: boolean }) => void): void;
+    offClose(cb: (res?: { isEnded: boolean }) => void): void;
+}
+
+/** An interstitial ad. Same family shape as rewarded, plus `destroy` (the
+ *  hosts document interstitials as destroyable; rewarded ads are singletons). */
+export interface MiniGameInterstitialAd {
+    load(): Promise<void>;
+    show(): Promise<void>;
+    destroy(): void;
+    onLoad(cb: () => void): void;
+    offLoad(cb: () => void): void;
+    onError(cb: (err: { errMsg: string; errCode?: number }) => void): void;
+    offError(cb: (err: { errMsg: string; errCode?: number }) => void): void;
+    onClose(cb: () => void): void;
+    offClose(cb: () => void): void;
+}
+
+/** The share card a host shows for an active or passive share. */
+export interface MiniGameShareOptions {
+    title?: string;
+    imageUrl?: string;
+    query?: string;
+}
+
 /** The socket task `connectSocket()` returns. WeChat's `SocketTask` fits. */
 export interface MiniGameSocketTask {
     send(opts: { data: string | ArrayBuffer }): void;
@@ -172,6 +212,15 @@ export interface MiniGameGlobal {
 
     onShow?(cb: () => void): void;
     onHide?(cb: () => void): void;
+
+    /** Monetization + share — optional like every capability a vendor may lack
+     *  (or a game may not have configured): the adapter probes at use time. */
+    createRewardedVideoAd?(opts: { adUnitId: string }): MiniGameRewardedVideoAd;
+    createInterstitialAd?(opts: { adUnitId: string }): MiniGameInterstitialAd;
+    shareAppMessage?(opts: MiniGameShareOptions): void;
+    /** Passive share: what the card says when the player shares from the host's
+     *  own menu. The host calls `cb` at share time, not at registration. */
+    onShareAppMessage?(cb: () => MiniGameShareOptions): void;
 
     getStorageSync(key: string): unknown;
     setStorageSync(key: string, value: string): void;

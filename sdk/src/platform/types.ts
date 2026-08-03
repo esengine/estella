@@ -491,12 +491,64 @@ export interface PlatformAdapter {
      *  Optional; web falls through to navigator.language. */
     language?(): string;
 
+    /** One rewarded ad unit. Mini-game hosts implement it over their
+     *  RewardedVideoAd; platforms without an ad system (web, native until a
+     *  mediation SDK is wired, playable — networks forbid nested ads) omit the
+     *  method, and a family adapter whose PARTICULAR host lacks the capability
+     *  returns null. Both answers mean the same thing to the services layer:
+     *  substitute the mock provider or fail loud with the reason. */
+    createRewardedAd?(adUnitId: string): PlatformRewardedAd | null;
+    /** One interstitial ad unit — same availability story as rewarded. */
+    createInterstitialAd?(adUnitId: string): PlatformInterstitialAd | null;
+    /** Actively open the host's share sheet. Fire-and-forget: since 2021 no
+     *  mini-game host reports whether the player actually shared. */
+    share?(options: PlatformShareOptions): void;
+    /** Provide the card for PASSIVE shares (the host's own share menu). The
+     *  host asks at share time, so the provider can answer with live state. */
+    onShareRequest?(provide: () => PlatformShareOptions): void;
+
     devicePixelRatio(): number;
 
     getStorageItem(key: string): string | null;
     setStorageItem(key: string, value: string): void;
     removeStorageItem(key: string): void;
     clearStorage(prefix: string): void;
+}
+
+// =============================================================================
+// Monetization / share services
+// =============================================================================
+
+/** How a rewarded ad ended: `completed` is whether the reward was earned. */
+export interface PlatformRewardedAdResult {
+    completed: boolean;
+}
+
+/**
+ * One rewarded ad unit. `show()` resolves when the ad CLOSED (however that
+ * went), never while it is covering the game — the services layer wraps the
+ * whole span in pause/resume. Implementations own the host's load/show dance
+ * (load on demand, one reload retry on a stale instance).
+ */
+export interface PlatformRewardedAd {
+    preload(): Promise<void>;
+    show(): Promise<PlatformRewardedAdResult>;
+    destroy(): void;
+}
+
+/** One interstitial ad unit. Same contract as rewarded, minus the reward. */
+export interface PlatformInterstitialAd {
+    preload(): Promise<void>;
+    show(): Promise<void>;
+    destroy(): void;
+}
+
+/** The share card for an active or passive share. `query` rides the launch
+ *  options of whoever opens the shared card (invite links, room codes). */
+export interface PlatformShareOptions {
+    title?: string;
+    imageUrl?: string;
+    query?: string;
 }
 
 // =============================================================================

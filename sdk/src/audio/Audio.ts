@@ -414,6 +414,21 @@ export class AudioAPI {
         }
     }
 
+    /**
+     * Suspend the whole audio device (every voice, every bus) without touching
+     * any volume the user set — the device-level pause a fullscreen takeover
+     * (a rewarded ad, an OS interruption) wants, where per-bus volumes would
+     * fight the mixer's own state. Balanced by {@link resume}.
+     */
+    suspend(): void {
+        this.backend_.suspend();
+    }
+
+    /** Resume the audio device after {@link suspend}. */
+    resume(): void {
+        this.backend_.resume();
+    }
+
     setMasterVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.master.volume = volume;

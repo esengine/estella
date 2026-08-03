@@ -253,6 +253,52 @@ export function platformSetStorageItem(key: string, value: string): void {
     getPlatform().setStorageItem(key, value);
 }
 
+/** Whether this platform can mint ad units at all, without minting one (a
+ *  mini-game host materializes a real host object per created unit). */
+export function platformCanCreateAds(): boolean {
+    return isPlatformInitialized() && getPlatform().createRewardedAd !== undefined;
+}
+
+/** One rewarded ad unit from the platform, or null where the platform has no ad
+ *  system (web, native, playable, an uninitialized platform in tests). Null is
+ *  an answer, not an error: the services layer substitutes its mock provider or
+ *  fails loud with the reason, which is a decision this layer cannot make. */
+export function platformCreateRewardedAd(adUnitId: string): import('./types').PlatformRewardedAd | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().createRewardedAd?.(adUnitId) ?? null;
+}
+
+/** One interstitial ad unit, or null — same availability story as rewarded. */
+export function platformCreateInterstitialAd(adUnitId: string): import('./types').PlatformInterstitialAd | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().createInterstitialAd?.(adUnitId) ?? null;
+}
+
+/** Whether this platform can open a share sheet at all, without opening one. */
+export function platformCanShare(): boolean {
+    return isPlatformInitialized() && getPlatform().share !== undefined;
+}
+
+/** Actively open the host's share sheet; false when this platform cannot share
+ *  (web, native, tests) so the caller can hide its share button honestly. */
+export function platformShare(options: import('./types').PlatformShareOptions): boolean {
+    if (!isPlatformInitialized()) return false;
+    const p = getPlatform();
+    if (!p.share) return false;
+    p.share(options);
+    return true;
+}
+
+/** Register the passive-share card provider; false when the platform has no
+ *  passive share surface. The host asks the provider at share time. */
+export function platformOnShareRequest(provide: () => import('./types').PlatformShareOptions): boolean {
+    if (!isPlatformInitialized()) return false;
+    const p = getPlatform();
+    if (!p.onShareRequest) return false;
+    p.onShareRequest(provide);
+    return true;
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform) {
         return currentPlatform.devicePixelRatio();

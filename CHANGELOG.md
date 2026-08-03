@@ -14,6 +14,24 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Ads and sharing are engine services now, not glue every game writes itself.**
+  A rewarded video is four lines on the platform and a page of ceremony around
+  them, and the ceremony is the part teams get wrong: `Ads.showRewarded(unitId)`
+  pauses the game clock while the ad covers the screen (a revive must not cost
+  the player their run), suspends the audio device without touching any volume
+  the user set, restores both however the ad ends — including the error paths —
+  and resolves with whether the reward was earned, folding in the hosts'
+  load/show retry dance and the runtime that grants a reward without saying so.
+  `Share.share(...)` and `Share.setShareCard(...)` cover both share surfaces
+  (the game's own button, and the host's menu — asked at share time, so the card
+  can carry a live room code). WeChat and Douyin are one family implementation;
+  `Ads.available` is false where there is no ad system (web, native until a
+  mediation provider is installed through the same door), and the editor's play
+  mode installs a mock provider — so "watch an ad to revive" is a flow you can
+  rehearse at your desk, real pauses included, without a device.
+
 ### Fixed
 
 - **Compressed textures are no longer upside down.** Every uncompressed image is

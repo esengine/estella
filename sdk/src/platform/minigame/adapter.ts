@@ -23,6 +23,10 @@ import type {
     PlatformImage,
     PlatformSocket,
     PlatformSocketOptions,
+    PlatformRewardedAd,
+    PlatformRewardedAdResult,
+    PlatformInterstitialAd,
+    PlatformShareOptions,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
@@ -112,6 +116,69 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
                 complete: () => {},
             });
         });
+    }
+
+    /** One rewarded ad over the host's RewardedVideoAd; null when this vendor
+     *  has no ad API (the services layer substitutes its mock or fails loud). */
+    createRewardedAd(adUnitId: string): PlatformRewardedAd | null {
+        const create = this.g_.createRewardedVideoAd;
+        if (!create) return null;
+        const ad = create.call(this.g_, { adUnitId });
+        return {
+            preload: () => ad.load(),
+            show(): Promise<PlatformRewardedAdResult> {
+                let settle!: (r: PlatformRewardedAdResult) => void;
+                const onClose = (res?: { isEnded: boolean }): void => {
+                    ad.offClose(onClose);
+                    // An absent record is a host that granted the reward without
+                    // saying so (documented behavior on older runtimes) — only an
+                    // explicit isEnded:false is an abandoned video.
+                    settle({ completed: res?.isEnded !== false });
+                };
+                const closed = new Promise<PlatformRewardedAdResult>((r) => { settle = r; });
+                ad.onClose(onClose);
+                // The host's documented dance: show() rejects when no fill is
+                // loaded; one load()+show() retry is the remedy, and a second
+                // failure is a real "no ad right now" the caller must hear.
+                return ad.show()
+                    .catch(() => ad.load().then(() => ad.show()))
+                    .then(() => closed, (e) => { ad.offClose(onClose); throw e; });
+            },
+            // Rewarded ads are host singletons per unit — nothing to free.
+            destroy: () => {},
+        };
+    }
+
+    /** One interstitial over the host's InterstitialAd; null when absent. */
+    createInterstitialAd(adUnitId: string): PlatformInterstitialAd | null {
+        const create = this.g_.createInterstitialAd;
+        if (!create) return null;
+        const ad = create.call(this.g_, { adUnitId });
+        return {
+            preload: () => ad.load(),
+            show(): Promise<void> {
+                let settle!: () => void;
+                const onClose = (): void => { ad.offClose(onClose); settle(); };
+                const closed = new Promise<void>((r) => { settle = r; });
+                ad.onClose(onClose);
+                return ad.show()
+                    .catch(() => ad.load().then(() => ad.show()))
+                    .then(() => closed, (e) => { ad.offClose(onClose); throw e; });
+            },
+            destroy: () => ad.destroy(),
+        };
+    }
+
+    /** Open the host's share sheet. A vendor without `shareAppMessage` no-ops:
+     *  every shipped mini-game host has it, and "the sheet did not open" is not
+     *  a state the caller can act on (no host reports share outcomes at all). */
+    share(options: PlatformShareOptions): void {
+        this.g_.shareAppMessage?.call(this.g_, options);
+    }
+
+    /** Register the passive-share card provider (the host's own share menu). */
+    onShareRequest(provide: () => PlatformShareOptions): void {
+        this.g_.onShareAppMessage?.call(this.g_, provide);
     }
 
     onMemoryWarning(callback: () => void): () => void {

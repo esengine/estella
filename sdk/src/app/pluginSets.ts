@@ -36,14 +36,18 @@ import { lifecyclePlugin } from '../ecs/lifecycle';
 import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from '../ai';
 import { eventBindingPlugin } from '../eventBinding';
 import { replicationPlugin } from '../net/replication';
+import { servicesPlugin } from '../services';
 
 /**
  * The simulation: timers/lifecycle, gameplay AI, audio (silent on a host with no
- * device) and replication. What an authoritative server runs.
+ * device), replication, and platform services (ads/share — unavailable on a host
+ * with no such surface, and gameplay code gates on `Ads.available` the same way
+ * audio degrades). What an authoritative server runs.
  */
 export const simulationBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
+    servicesPlugin,
 ];
 
 /** What exists to be seen. Every entry drives the engine through `engineApi`. */
@@ -61,4 +65,5 @@ export const webBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
     particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
+    servicesPlugin,
 ];

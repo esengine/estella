@@ -54,6 +54,12 @@ export {
     platformSetStorageItem,
     platformDevicePixelRatio,
     platformLanguage,
+    platformCanCreateAds,
+    platformCreateRewardedAd,
+    platformCreateInterstitialAd,
+    platformCanShare,
+    platformShare,
+    platformOnShareRequest,
 } from './base';
 
 // Note: webAdapter is exported here for initialization

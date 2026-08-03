@@ -399,6 +399,17 @@ export {
 } from './audio';
 
 // =============================================================================
+// Platform services (ads, share)
+// =============================================================================
+
+export {
+    Ads, AdsAPI, createMockAdProvider,
+    Share, ShareAPI,
+    ServicesPlugin, servicesPlugin,
+    type AdProvider, type AdsHost, type MockAdProviderOptions, type ShareCard,
+} from './services';
+
+// =============================================================================
 // Video
 // =============================================================================
 
