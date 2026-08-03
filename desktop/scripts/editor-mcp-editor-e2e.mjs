@@ -40,6 +40,41 @@ const ORPHAN_PNG = Buffer.from(
 await mkdir(path.join(project, 'assets', 'textures'), { recursive: true });
 await writeFile(path.join(project, ORPHAN_REL), ORPHAN_PNG);
 
+// A counter the hot-reload stage can read from outside: one entity, one field,
+// incremented every Update. The tick DELTA doubles as a logic fingerprint — a
+// swapped-in delta of 1e6 makes the value's low digits the preserved state and
+// its high digits the new logic, so one number answers both "did the new code
+// arrive" and "did the World survive it". `logicV` marks which bundle is live,
+// which is what the poll waits on (the watcher's rebuild lands at its own pace).
+const COUNTER_REL = path.join('src', 'e2e-hotreload.ts');
+const counterSource = (delta, logicV, extraField = false) => `// staged by editor-mcp-editor-e2e.mjs — not a shipped example file
+import {
+    addStartupSystem, addSystemToSchedule, defineComponent, defineSystem,
+    Query, Mut, Commands, Schedule,
+} from 'esengine';
+
+export const E2ECounter = defineComponent('E2ECounter', { value: 0${extraField ? ', extra: 0' : ''} });
+
+const spawnCounter = defineSystem([Commands()], (cmds) => {
+    cmds.spawn('E2ECounterHolder').insert(E2ECounter, { value: 0 });
+}, { name: 'E2ESpawnCounter' });
+
+const tickCounter = defineSystem([Query(Mut(E2ECounter))], (q) => {
+    for (const [, c] of q) {
+        c.value += ${delta};
+        const g = globalThis;
+        g.__e2eCounter = c.value;
+        g.__e2eLogicV = ${logicV};
+    }
+}, { name: 'E2ETickCounter' });
+
+addStartupSystem(spawnCounter);
+addSystemToSchedule(Schedule.Update, tickCounter);
+`;
+await writeFile(path.join(project, COUNTER_REL), counterSource(1, 1));
+const mainTs = path.join(project, 'src', 'main.ts');
+await writeFile(mainTs, `${await readFile(mainTs, 'utf8')}\nimport './e2e-hotreload';\n`);
+
 // ESTELLA_E2E_FRONT points at an alternate front (e.g. the shipped bundle,
 // dist-electron/mcp/editor-mcp.mjs) to prove distribution artifacts end to end.
 const front = process.env.ESTELLA_E2E_FRONT ?? 'scripts/editor-mcp.mjs';
@@ -86,6 +121,8 @@ const cleanup = async () => {
   await rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
 };
 const fail = async (m) => { console.log('EDITOR-E2E FAIL:', m); await cleanup(); process.exit(1); };
+// Whatever kills THIS process must still take the front (and its editor) along.
+process.on('exit', () => { try { child.kill(); } catch { /* gone */ } });
 
 try {
   const init = await rpc('initialize', {
@@ -258,8 +295,51 @@ try {
   // The gameplay-state probe reaches the estella:// OOPIF and sees __estellaPlay.
   const probe = JSON.parse((await call('play_probe', { code: 'typeof window.__estellaPlay' })).text);
   if (probe !== 'object') await fail(`play_probe: __estellaPlay not present (${probe})`);
+
+  // ---- Hot reload, live (REARCH_HOT_RELOAD's one unverified claim) ----------
+  // The realm's rAF is throttled in an unfocused window, so frames are driven
+  // by hand: each sample ticks the app a few frames, then reads the counter.
+  const sample = async () => JSON.parse((await call('play_probe', {
+    code: `(async () => {
+      const p = window.__estellaPlay; const g = globalThis;
+      for (let i = 0; i < 3; i++) await p.app.tick(1 / 60);
+      return { v: g.__e2eCounter ?? null, lv: g.__e2eLogicV ?? null };
+    })()`,
+  }, 30_000)).text);
+  const until = async (what, pred, tries = 45) => {
+    for (let i = 0; i < tries; i++) {
+      const s = await sample();
+      if (pred(s)) return s;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return fail(`hot reload: timed out waiting for ${what}`);
+  };
+
+  const s1 = await until('the staged counter to tick', (s) => s.lv === 1 && s.v >= 2);
+  if (s1.v >= 100000) await fail(`counter ran away before the swap (${s1.v}) — the low-digit invariant needs v1 << 1e6`);
+
+  // Logic-only edit: same component, delta 1 → 1e6. The watcher rebuild must
+  // hot-swap: the value's low digits are the pre-swap count, still there.
+  await writeFile(path.join(project, COUNTER_REL), counterSource(1000000, 2));
+  const s2 = await until('the swapped logic to arrive', (s) => s.lv === 2);
+  if (s2.v % 1000000 === 0) {
+    await fail(`logic edit lost the World: counter restarted at ${s2.v} — hot swap fell back to a full reload (or swapped a rebooted realm)`);
+  }
+  if (s2.v % 1000000 < s1.v) await fail(`counter went backwards across the swap (${s1.v} -> ${s2.v})`);
+  console.log(`hot swap OK — logic replaced, state preserved (${s1.v} -> ${s2.v})`);
+
+  // Schema edit: a new component field. The fingerprint gate must refuse the
+  // swap and full-reload instead — preserved state would be the WRONG outcome
+  // here, so the assertion flips: the count restarts as a clean multiple.
+  await writeFile(path.join(project, COUNTER_REL), counterSource(1000000, 3, true));
+  const s3 = await until('the schema edit to land', (s) => s.lv === 3);
+  if (s3.v % 1000000 !== 0) {
+    await fail(`schema edit kept the old World: counter carried ${s3.v % 1000000} across a component redefinition`);
+  }
+  console.log(`schema change OK — fingerprint gate forced a clean restart (${s2.v} -> ${s3.v})`);
+
   await call('toggle_play', {}, 60_000);
-  console.log('play OK — realm ready, screenshot + probe captured, stopped');
+  console.log('play OK — realm ready, screenshot + probe captured, hot reload exercised, stopped');
 
   if (process.env.ESTELLA_E2E_EXPORT === '1') {
     const outDir = path.join(tmpRoot, 'export-web');

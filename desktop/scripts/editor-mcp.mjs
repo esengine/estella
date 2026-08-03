@@ -121,6 +121,12 @@ function spawnHost(mode, token) {
   });
   const killHost = () => { try { host.kill(); } catch { /* already gone */ } };
   process.on('exit', killHost);
+  // 'exit' does NOT run when this process dies to a signal — which is exactly
+  // how an MCP client tears its server down (child.kill() → SIGTERM). Without
+  // these, every killed run leaves an orphaned editor window on the desktop.
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+    process.on(sig, () => { killHost(); process.exit(0); });
+  }
 
   return new Promise((resolve, reject) => {
     let buf = '';
