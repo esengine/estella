@@ -32,6 +32,7 @@
 
 #include "Host.hpp"
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "media/font_scan.hpp"      // the pre-29 stand-in for AFontMatcher
 
 #define LOG_TAG "EstellaSDK"
 
@@ -146,7 +147,8 @@ struct AndroidPlatform final : eshost::Platform {
     AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
     ANativeWindow* window = nullptr;
     JavaVM* vm = nullptr;                    // for JNI HttpURLConnection off-thread
-    std::string cache;                      // app private dir — SDK bytecode cache
+    std::string cache;                      // getCacheDir() — the system may reclaim it
+    std::string data;                       // internalDataPath — files/, survives
     std::string logs;                       // Android/data/<pkg>/files — a player can open this
 
     // Read an APK asset (assets/<path>) fully into a buffer; empty if missing.
@@ -165,6 +167,8 @@ struct AndroidPlatform final : eshost::Platform {
     }
 
     std::string cacheDir() override { return cache; }
+
+    std::string dataDir() override { return data; }
 
     std::string logDir() override { return logs; }
 
@@ -223,7 +227,19 @@ struct AndroidPlatform final : eshost::Platform {
     // installed families, applies weight/italic, and — the part worth having —
     // falls back per codepoint, so CJK text resolves to Noto without the host
     // hard-coding a single font path.
+    //
+    // Below 29 there is no such API, and `/system/fonts` is what the matcher is
+    // reading anyway. Scanning it ourselves loses the system's own family
+    // aliases and its ordering, so a codepoint two fonts both cover may resolve
+    // to the other one — the character draws either way, which is the property
+    // that matters.
     eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        if (__builtin_available(android 29, *)) return matchFont(family, codepoint, style);
+        return eshost::scanFontDir("/system/fonts", family, codepoint, style);
+    }
+
+    eshost::FontFile matchFont(const std::string& family, u32 codepoint, int style)
+            __attribute__((availability(android, introduced = 29))) {
         eshost::FontFile out;
         AFontMatcher* matcher = AFontMatcher_create();
         if (!matcher) return out;
@@ -502,19 +518,17 @@ void onAppCmd(android_app* app, int32_t cmd) {
 //
 // Resolved by hand, through dlsym, rather than called directly.
 //
-// ADPF is API 33 and this host builds against the manifest's floor, so the NDK
-// marks those four symbols `unavailable`: a hard compile error, and no
-// `__builtin_available` guard changes that — the annotation is not "call me
-// under a check", it is "this build cannot see me". Raising the build target is
-// what makes them callable, and that is precisely the mistake being fixed here:
-// at android-33 every availability guard in this file became dead code and every
-// guarded symbol became a load-time requirement, so the released host could not
-// dlopen on Android 10 or 11 at all.
+// This predates the build turning on ANDROID_WEAK_API_DEFS, which is what makes
+// `__builtin_available` mean anything: without it the NDK marks a newer symbol
+// `unavailable` outright — not "call me under a check" but "this build cannot
+// see me" — and no guard satisfies that. Every other guarded call here now goes
+// through the flag; ADPF still comes through dlsym because it works and this is
+// not the change to test it in.
 //
-// The NDK's own answer is ANDROID_WEAK_API_DEFS, which turns such symbols into
-// weak references. Looking them up here instead keeps the decision in the code
-// that depends on it, where it is visible, rather than in a toolchain flag whose
-// absence would silently restore the same class of failure.
+// The objection to the flag was that its absence would silently restore the
+// failure it prevents. That was true while the floor equalled the newest API
+// this file called, when dropping it changed nothing. Below that floor it is a
+// compile error naming the symbol, which is how the flag got turned on.
 struct PerformanceHints {
     void* session = nullptr;
 
@@ -644,8 +658,8 @@ struct FrameDriver {
         if (__builtin_available(android 29, *)) {
             AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
         } else {
-            // Deprecated in 29 and the only one that exists below it. minSdk is 26,
-            // so this branch is the two releases the 64-bit call cannot serve — not
+            // Deprecated in 29 and the only one that exists below it. minSdk is 24,
+            // so this branch is the five releases the 64-bit call cannot serve — not
             // an oversight, which is why the warning is turned off rather than the
             // call changed.
 #pragma clang diagnostic push
@@ -805,6 +819,52 @@ void onWindowFocusChanged(ANativeActivity* activity, int hasFocus) {
     if (g_glueWindowFocusChanged) g_glueWindowFocusChanged(activity, hasFocus);
 }
 
+/**
+ * `Context.getCacheDir()`, asked rather than assembled.
+ *
+ * ANativeActivity hands over internalDataPath and externalDataPath and stops
+ * there, so the cache directory has to come over JNI. Deriving it from
+ * internalDataPath by swapping `files` for `cache` would be a guess about a
+ * layout that has already moved once (`/data/data` to `/data/user/0`), and the
+ * guess fails silently — as a directory that is simply never written.
+ *
+ * Empty on failure, which disables the bytecode cache and the hot-update store:
+ * both regenerate, so a slower boot is the whole cost.
+ */
+std::string queryCacheDir(ANativeActivity* activity) {
+    if (!activity || !activity->vm || !activity->clazz) return {};
+    JNIEnv* env = nullptr;
+    if (activity->vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return {};
+    }
+    std::string out;
+    jclass ctxCls = env->GetObjectClass(activity->clazz);
+    jmethodID getCacheDir = env->GetMethodID(ctxCls, "getCacheDir", "()Ljava/io/File;");
+    if (getCacheDir) {
+        if (jobject file = env->CallObjectMethod(activity->clazz, getCacheDir)) {
+            jclass fileCls = env->GetObjectClass(file);
+            jmethodID getPath = env->GetMethodID(fileCls, "getAbsolutePath", "()Ljava/lang/String;");
+            if (getPath) {
+                if (jstring path = (jstring)env->CallObjectMethod(file, getPath)) {
+                    if (const char* utf8 = env->GetStringUTFChars(path, nullptr)) {
+                        out = utf8;
+                        env->ReleaseStringUTFChars(path, utf8);
+                    }
+                    env->DeleteLocalRef(path);
+                }
+            }
+            env->DeleteLocalRef(fileCls);
+            env->DeleteLocalRef(file);
+        }
+    }
+    env->DeleteLocalRef(ctxCls);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return {};
+    }
+    return out;
+}
+
 }  // namespace
 
 void android_main(android_app* app) {
@@ -813,7 +873,9 @@ void android_main(android_app* app) {
     // Before boot: whether there is an editing surface decides whether the
     // es_textEditor_* entry points are bound at all.
     attachTextEditor(app->activity);
-    if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
+    // files/ holds what a player keeps; cache/ is the system's to reclaim.
+    if (app->activity->internalDataPath) g_platform.data = app->activity->internalDataPath;
+    g_platform.cache = queryCacheDir(app->activity);
     // The boot record goes where a person can reach it without a cable.
     if (app->activity->externalDataPath) g_platform.logs = app->activity->externalDataPath;
     app->onAppCmd = onAppCmd;

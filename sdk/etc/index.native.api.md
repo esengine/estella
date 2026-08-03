@@ -4220,6 +4220,7 @@ es_loadImagePixels: (path: string) => { width: number; height: number; pixels: A
 es_rasterizeGlyph: ((request: PlatformGlyphRequest) => { pixels: ArrayBuffer; width: number; height: number; advance: number; bearingX: number; bearingY: number; } | null) | undefined
 es_readAsset: (path: string) => ArrayBuffer | null
 es_readCacheFile: ((key: string) => ArrayBuffer | null) | undefined
+es_readDataFile: ((key: string) => ArrayBuffer | null) | undefined
 es_removeStorageItem: ((key: string) => void) | undefined
 es_setStorageItem: ((key: string, value: string) => void) | undefined
 es_storageKeys: (() => string[]) | undefined
@@ -4227,6 +4228,7 @@ es_textEditor_blur: (() => void) | undefined
 es_textEditor_focus: ((value: string, selectionStart: number, selectionEnd: number, multiline: boolean, maxLength: number, password: boolean) => void) | undefined
 es_textEditor_write: ((value: string, selectionStart: number, selectionEnd: number) => void) | undefined
 es_writeCacheFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => boolean) | undefined
+es_writeDataFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => boolean) | undefined
 ```
 
 ## NativeInputListener — interface @beta

@@ -2,13 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    AssetBindings.cpp
- * @brief   Packaged files, image decode, the writable cache, and UTF-8 decoding.
+ * @brief   Packaged files, image decode, the writable stores, and UTF-8 decoding.
  * @details What the SDK's platform layer reads a game off the device with. The
  *          decode path is "Path 2" — the host decodes an image to RGBA and the
  *          native ResourceManager uploads the bytes — because there is no
- *          offscreen DOM canvas here. The cache is the hot-update offline store:
- *          content-addressed keys written after verification, so a returning
- *          player boots updated content with no network.
+ *          offscreen DOM canvas here. There are two writable stores, and which
+ *          one a caller picks is a statement about what may be lost: the cache
+ *          is the hot-update offline store, content-addressed and refetchable,
+ *          while data holds what a player would notice gone.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -60,25 +61,19 @@ JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv
     return obj;
 }
 
-// The host's writable store, under Platform::cacheDir(). Backs both the
-// hot-update offline cache and (through it) key-value storage. Keys are
-// content hashes or plain names; anything else is refused rather than escaping
-// the directory.
-std::string cachePathFor(const char* key) {
-    if (!key || !*key || host().cacheDir.empty()) return {};
+// A file in one of the host's two writable directories. Keys are content hashes
+// or plain names; anything else is refused rather than escaping the directory.
+std::string pathIn(const std::string& dir, const char* key) {
+    if (!key || !*key || dir.empty()) return {};
     for (const char* c = key; *c; ++c) {
         const bool ok = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z')
                         || (*c >= '0' && *c <= '9') || *c == '.' || *c == '_' || *c == '-';
         if (!ok) return {};
     }
-    return host().cacheDir + "/" + key;
+    return dir + "/" + key;
 }
 
-// es_readCacheFile(key) -> ArrayBuffer | null.
-JSValue js_readCacheFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    const char* key = JS_ToCString(ctx, argv[0]);
-    const std::string path = cachePathFor(key);
-    if (key) JS_FreeCString(ctx, key);
+JSValue readFileAt(JSContext* ctx, const std::string& path) {
     if (path.empty()) return JS_NULL;
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) return JS_NULL;
@@ -92,29 +87,67 @@ JSValue js_readCacheFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) 
     return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
 }
 
-// es_writeCacheFile(key, ArrayBuffer | TypedArray | string) -> bool. A string is
-// written as UTF-8, so script-side JSON needs no TextEncoder.
-JSValue js_writeCacheFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2) return JS_FALSE;
-    const char* key = JS_ToCString(ctx, argv[0]);
-    const std::string path = cachePathFor(key);
-    if (key) JS_FreeCString(ctx, key);
+// A string source is written as UTF-8, so script-side JSON needs no TextEncoder.
+JSValue writeFileAt(JSContext* ctx, const std::string& path, JSValueConst source) {
     if (path.empty()) return JS_FALSE;
     std::vector<u8> bytes;
-    if (JS_IsString(argv[1])) {
+    if (JS_IsString(source)) {
         size_t len = 0;
-        if (const char* text = JS_ToCStringLen(ctx, &len, argv[1])) {
+        if (const char* text = JS_ToCStringLen(ctx, &len, source)) {
             bytes.assign(text, text + len);
             JS_FreeCString(ctx, text);
         }
     } else {
-        readByteSource(ctx, argv[1], bytes);
+        readByteSource(ctx, source, bytes);
     }
-    FILE* f = fopen(path.c_str(), "wb");
+    // Write a temp file and rename over the target: a crash or a kill mid-write
+    // must not leave a truncated file where a save used to be. rename(2) within
+    // one directory is atomic, so a reader sees the old file or the new one.
+    const std::string tmp = path + ".tmp";
+    FILE* f = fopen(tmp.c_str(), "wb");
     if (!f) return JS_FALSE;
-    const bool ok = bytes.empty() || fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    const bool wrote = bytes.empty() || fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    const bool flushed = wrote && fflush(f) == 0;
     fclose(f);
-    return ok ? JS_TRUE : JS_FALSE;
+    if (!flushed || rename(tmp.c_str(), path.c_str()) != 0) {
+        remove(tmp.c_str());
+        return JS_FALSE;
+    }
+    return JS_TRUE;
+}
+
+// es_readCacheFile(key) -> ArrayBuffer | null. Reclaimable half: hot-update content.
+JSValue js_readCacheFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = pathIn(host().cacheDir, key);
+    if (key) JS_FreeCString(ctx, key);
+    return readFileAt(ctx, path);
+}
+
+// es_writeCacheFile(key, ArrayBuffer | TypedArray | string) -> bool.
+JSValue js_writeCacheFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2) return JS_FALSE;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = pathIn(host().cacheDir, key);
+    if (key) JS_FreeCString(ctx, key);
+    return writeFileAt(ctx, path, argv[1]);
+}
+
+// es_readDataFile(key) -> ArrayBuffer | null. Durable half: what a player keeps.
+JSValue js_readDataFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = pathIn(host().dataDir, key);
+    if (key) JS_FreeCString(ctx, key);
+    return readFileAt(ctx, path);
+}
+
+// es_writeDataFile(key, ArrayBuffer | TypedArray | string) -> bool.
+JSValue js_writeDataFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2) return JS_FALSE;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = pathIn(host().dataDir, key);
+    if (key) JS_FreeCString(ctx, key);
+    return writeFileAt(ctx, path, argv[1]);
 }
 
 // es_utf8Decode(ArrayBuffer | TypedArray) -> string. Backs the TextDecoder the
@@ -149,6 +182,8 @@ void registerAssetBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_loadImagePixels", js_loadImagePixels, 1);
     bindGlobal(h, global, "es_readCacheFile", js_readCacheFile, 1);
     bindGlobal(h, global, "es_writeCacheFile", js_writeCacheFile, 2);
+    bindGlobal(h, global, "es_readDataFile", js_readDataFile, 1);
+    bindGlobal(h, global, "es_writeDataFile", js_writeDataFile, 2);
     bindGlobal(h, global, "es_utf8Decode", js_utf8Decode, 1);
 }
 

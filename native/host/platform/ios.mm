@@ -98,6 +98,26 @@ struct IOSPlatform final : eshost::Platform {
         return std::string([dirs[0] UTF8String]);
     }
 
+    /** Application Support, not Caches: iOS empties Caches whenever it wants the
+     *  space back, which is correct for content that refetches and wrong for a
+     *  save. Unlike the other two this directory does not exist until an app
+     *  makes it, so create it — and only report it once it is really there,
+     *  since an empty answer degrades storage to the session rather than
+     *  handing out a path that every write will fail against. */
+    std::string dataDir() override {
+        NSArray* dirs = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
+        if (dirs.count == 0) return {};
+        NSString* path = dirs[0];
+        NSError* err = nil;
+        if (![[NSFileManager defaultManager] createDirectoryAtPath:path
+                                       withIntermediateDirectories:YES
+                                                        attributes:nil
+                                                             error:&err]) {
+            return {};
+        }
+        return std::string([path UTF8String]);
+    }
+
     /** Documents, not Caches: the record exists to be sent, and Documents is the
      *  directory the Files app shows (with UIFileSharingEnabled) and iTunes/Finder
      *  can copy off a device that has none. */

@@ -74,7 +74,52 @@ describe('createHostBridge', () => {
         expect(sink.onTouchStart).toHaveBeenCalledTimes(1);
     });
 
-    it('persists storage through the host cache file', () => {
+    /** A host with both stores, kept apart so a test can say which one was written. */
+    const twoStoreScope = (): { scope: ReturnType<typeof hostScope>; cache: Map<string, string>; data: Map<string, string> } => {
+        const cache = new Map<string, string>();
+        const data = new Map<string, string>();
+        const reader = (store: Map<string, string>) => (key: string) => {
+            const text = store.get(key);
+            return text === undefined ? null : new TextEncoder().encode(text).buffer;
+        };
+        return {
+            cache,
+            data,
+            scope: hostScope({
+                es_readCacheFile: reader(cache),
+                es_writeCacheFile: (key: string, bytes: string) => { cache.set(key, bytes); return true; },
+                es_readDataFile: reader(data),
+                es_writeDataFile: (key: string, bytes: string) => { data.set(key, bytes); return true; },
+            }),
+        };
+    };
+
+    it('persists storage through the host data file', () => {
+        const { scope } = twoStoreScope();
+        createHostBridge(scope).setStorageItem('save', '{"level":3}');
+        // A fresh bridge (the next launch) reads what the previous one wrote.
+        expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
+    });
+
+    // The whole point of the split: a platform is allowed to empty its cache, so a
+    // save that lands there is a save the player can lose.
+    it('writes saves to the durable store and never to the cache', () => {
+        const { scope, cache, data } = twoStoreScope();
+        createHostBridge(scope).setStorageItem('save', '{"level":3}');
+        expect([...data.keys()]).toEqual(['estella-storage.json']);
+        expect(cache.size).toBe(0);
+    });
+
+    it('survives a cache the platform reclaimed', () => {
+        const { scope, cache } = twoStoreScope();
+        createHostBridge(scope).setStorageItem('save', '{"level":3}');
+        cache.clear();
+        expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
+    });
+
+    // An older shell binds only the cache pair. Persisting there beats losing the
+    // save at every exit, so the fallback stays.
+    it('still persists through a host that binds only the cache pair', () => {
         const files = new Map<string, string>();
         const scope = hostScope({
             es_readCacheFile: (key: string) => {
@@ -85,7 +130,6 @@ describe('createHostBridge', () => {
         });
 
         createHostBridge(scope).setStorageItem('save', '{"level":3}');
-        // A fresh bridge (the next launch) reads what the previous one wrote.
         expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
     });
 
