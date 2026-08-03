@@ -9,21 +9,25 @@
   restarted for. `hasCode` follows whether the Java shim compiled — the game is
   native, and the only Java in the package is the IME's side of a text field.
 
-  minSdkVersion 29, and the NDK MUST build against the same number (`--platform`,
-  build-tools/tasks/native.js). The host calls AFontMatcher_create unguarded and
-  that is API 29, so nothing below it could ever have run; 26 promised three
-  releases the code never supported. The equality is what makes the availability
-  guards work: the NDK emits a weak reference only for an API newer than the
-  build target, so building above the declared floor compiles every
+  minSdkVersion 24 (Android 7.0), and the NDK MUST build against the same number
+  (`--platform`, build-tools/tasks/native.js). The equality is what makes the
+  availability guards work: the NDK emits a weak reference only for an API newer
+  than the build target, so building above the declared floor compiles every
   `__builtin_available` out and turns its symbol into a load-time requirement.
   Built at android-33, the released host could not dlopen below API 31 —
   "cannot locate symbol APerformanceHint_getManager" on Android 10 and 11.
+
+  24 is where Vulkan and AChoreographer both arrive, which is the real floor: the
+  host has no GLES path, so a device without Vulkan cannot run it at any API
+  level. The uses-feature below is what keeps such a device from being offered
+  the app at all, and it does more filtering than minSdkVersion does — Vulkan was
+  optional until well after 24.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="@APP_ID@"
           android:versionCode="@VERSION_CODE@"
           android:versionName="@VERSION_NAME@">
-    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="33" />
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
     <application android:label="@APP_NAME@" android:icon="@mipmap/ic_launcher"
                  android:hasCode="@HAS_CODE@" android:extractNativeLibs="false">

@@ -32,6 +32,7 @@
 
 #include "Host.hpp"
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "media/font_scan.hpp"      // the pre-29 stand-in for AFontMatcher
 
 #define LOG_TAG "EstellaSDK"
 
@@ -226,7 +227,19 @@ struct AndroidPlatform final : eshost::Platform {
     // installed families, applies weight/italic, and — the part worth having —
     // falls back per codepoint, so CJK text resolves to Noto without the host
     // hard-coding a single font path.
+    //
+    // Below 29 there is no such API, and `/system/fonts` is what the matcher is
+    // reading anyway. Scanning it ourselves loses the system's own family
+    // aliases and its ordering, so a codepoint two fonts both cover may resolve
+    // to the other one — the character draws either way, which is the property
+    // that matters.
     eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        if (__builtin_available(android 29, *)) return matchFont(family, codepoint, style);
+        return eshost::scanFontDir("/system/fonts", family, codepoint, style);
+    }
+
+    eshost::FontFile matchFont(const std::string& family, u32 codepoint, int style)
+            __attribute__((availability(android, introduced = 29))) {
         eshost::FontFile out;
         AFontMatcher* matcher = AFontMatcher_create();
         if (!matcher) return out;
@@ -647,8 +660,8 @@ struct FrameDriver {
         if (__builtin_available(android 29, *)) {
             AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
         } else {
-            // Deprecated in 29 and the only one that exists below it. minSdk is 26,
-            // so this branch is the two releases the 64-bit call cannot serve — not
+            // Deprecated in 29 and the only one that exists below it. minSdk is 24,
+            // so this branch is the five releases the 64-bit call cannot serve — not
             // an oversight, which is why the warning is turned off rather than the
             // call changed.
 #pragma clang diagnostic push

@@ -46,9 +46,9 @@ on:
         default: 'space-shooter'
         type: string
       api-floor:
-        description: 'Oldest API level to test (29 = Android 10).'
+        description: 'Oldest API level to test (24 = Android 7.0, the manifest floor).'
         required: false
-        default: '29'
+        default: '24'
         type: string
       template-source:
         description: 'Which runtime template to wrap: the latest release, this branch (~35 min), or decide from what the PR touches.'
@@ -68,10 +68,16 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Android 10. The manifest claims 26, which is a wider promise than anything
-  # here checks — raising this floor is a decision about what we support, so it is
-  # stated once, in one place, rather than implied by a matrix.
-  ANDROID_API_FLOOR: ${{ inputs.api-floor || '29' }}
+  # Android 7.0, matching the manifest's minSdkVersion — the promise and the thing
+  # that checks it must be the same number, or one of them is decoration. Changing
+  # this floor is a decision about what we support, so it is stated once, in one
+  # place, rather than implied by a matrix.
+  #
+  # An emulator below API 28 may have no Vulkan at all, and the host has no GLES
+  # path, so those rows can red for the runner's reasons rather than ours. That is
+  # a result worth having rather than a reason to hide them: this matrix exists to
+  # say which versions work, and "we cannot tell from CI" is one of the answers.
+  ANDROID_API_FLOOR: ${{ inputs.api-floor || '24' }}
   ANDROID_PROFILE: pixel_6
   CANARY_EXAMPLES: ${{ inputs.examples || 'space-shooter' }}
 

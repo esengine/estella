@@ -243,6 +243,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/media/audio_spectrum.cpp
         host/media/ktx2_decode.cpp
         host/media/glyph_raster.cpp
+        host/media/font_scan.cpp
         "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
 
     if(ESTELLA_IOS)

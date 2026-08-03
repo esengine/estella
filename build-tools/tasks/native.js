@@ -319,7 +319,7 @@ async function buildAndroidHost(options) {
     // into a load-time requirement. At android-33 that shipped a host which could
     // not dlopen below API 31: `cannot locate symbol APerformanceHint_getManager`,
     // on Android 10 and 11, before a line of our code ran.
-    const { abi = 'arm64-v8a', platform = 'android-29' } = options;
+    const { abi = 'arm64-v8a', platform = 'android-24' } = options;
     const rootDir = config.paths.root;
 
     const sdk = requireSdk();

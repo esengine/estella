@@ -53,18 +53,30 @@ where Xcode does the assembling.
 
 | | Android | iOS |
 |---|---|---|
-| Minimum OS | **Android 10** (API 29) | **iOS 17.0** |
+| Minimum OS | **Android 7.0** (API 24) | **iOS 17.0** |
 | Declared target | API 33 | — |
 | CPU | `arm64-v8a` (every real device) + `x86_64` (the emulator) | arm64 device + simulator slice |
 | GPU | **Vulkan 1.0.3 required** — declared `required="true"`, so a device without it does not see the app on Play | Metal |
 
-Android's floor is 29 because the engine's font path calls `AFontMatcher_create`,
-which is API 29 — below that there is nothing to fall back to. It was **declared** as
-26 through v0.37.0, which was a claim rather than a capability: those builds install
-on Android 10 and 11 and then fail to start, because the NDK was told to build against
-a higher API and turned every guarded symbol into a load-time requirement. Nothing
-that ran on v0.37.0 stops running on v0.38.0 — the number now says what was always
-true.
+Android's floor is 24 because that is where Vulkan and `AChoreographer` both arrive,
+and the engine cannot run without either. Read the GPU row before the OS row, though:
+Vulkan stayed **optional** for hardware until long after Android 7, so `required="true"`
+filters out far more devices than the API level does. What API 24 adds is the Android
+7 and 8 era hardware that does have a Vulkan driver — largely the flagships of the
+time — not every phone still running those releases.
+
+The floor was 29 through v0.40.0, because the font path called `AFontMatcher_create`
+and that is API 29 with nothing below it to fall back to. There is now: on 24 through
+28 the engine picks the font out of `/system/fonts` itself, asking each candidate
+whether it actually has a glyph for the character rather than trusting a family name.
+System font aliases and the platform's own fallback ordering are lost, so a character
+two fonts both cover may resolve to the other one — it draws either way.
+
+<Aside type="caution">
+  API 24–27 is the least verifiable tier we ship. A hosted emulator below API 28
+  may have no Vulkan at all, so CI can report "cannot tell" for those rows rather
+  than pass or fail. Test on real hardware before promising an Android 7 build.
+</Aside>
 
 <Aside type="note">
   The Vulkan requirement follows from the runtime: the engine renders through Dawn,

@@ -14,6 +14,33 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **Android's minimum is API 24 (Android 7.0), lowered from 29.** The floor was 29
+  because the font path called `AFontMatcher_create` and nothing below it could
+  answer; on 24 through 28 the engine now picks the font out of `/system/fonts`
+  itself, asking each candidate whether it has a glyph for the character rather
+  than trusting a family name. Read the Vulkan requirement alongside this: it is
+  unchanged and still `required="true"`, and it filters far more devices than the
+  API level does, so what 24 adds is Android 7/8-era hardware that has a Vulkan
+  driver — not every phone on those releases. The compatibility matrix now starts
+  at 24; emulators below API 28 may have no Vulkan, so those rows can report "no
+  data" rather than a verdict.
+
+### Fixed
+
+- **Saves no longer live in a directory the platform may delete.** Key/value
+  storage went to the host's cache directory, whose stated purpose was the
+  regenerable bytecode cache. On iOS that is `NSCachesDirectory`, which the system
+  empties when it wants the space back and no backup includes — so a player's
+  saves and settings could vanish between launches. Android put the same file in
+  `files/`, which nothing reclaims: one API, two opposite promises. There is now a
+  durable directory distinct from the reclaimable one (Application Support on iOS,
+  `internalDataPath` on Android) and storage writes there. Android's cache
+  directory is also a real cache directory now, so the hot-update store can be
+  reclaimed instead of growing forever. Writes go through a temp file and a
+  rename, so a kill mid-write cannot truncate a save.
+
 ## [0.40.0] - 2026-08-02
 
 The agent went from working to being pleasant to work with. It answers from the keyboard
