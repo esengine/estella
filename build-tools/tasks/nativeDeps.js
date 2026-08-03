@@ -10,6 +10,7 @@
 // without a flag.
 
 import path from 'path';
+import { androidMinPlatform } from '../utils/androidFloor.js';
 import { existsSync, readFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import config from '../build.config.js';
@@ -109,10 +110,18 @@ export function dawnLibrary(dawnBuild, target) {
 
 /** Dawn's build directory for a target. Android's is per-ABI — an emulator build
  *  and a device build are different binaries — with the default ABI keeping the
- *  plain name a checkout may already have. */
-export function dawnBuildDir(dawn, target, abi) {
-    const suffix = target === 'android' && abi && abi !== 'arm64-v8a' ? `-${abi}` : '';
-    return path.join(dawn, DAWN_TARGETS[target].out + suffix);
+ *  plain name a checkout may already have.
+ *
+ *  The API level is part of it for the same reason the ABI is: a Dawn compiled
+ *  against a newer platform links symbols the host's own floor promised not to
+ *  need, and the result installs and then fails to load on the versions the floor
+ *  exists to cover. Sharing one directory across levels made lowering the floor a
+ *  no-op on whichever machine already had a build. */
+export function dawnBuildDir(dawn, target, abi, androidPlatform) {
+    if (target !== 'android') return path.join(dawn, DAWN_TARGETS[target].out);
+    const abiSuffix = abi && abi !== 'arm64-v8a' ? `-${abi}` : '';
+    const apiSuffix = androidPlatform ? `-${String(androidPlatform).replace(/^android-/, 'api')}` : '';
+    return path.join(dawn, DAWN_TARGETS[target].out + abiSuffix + apiSuffix);
 }
 
 /**
@@ -124,7 +133,8 @@ export function dawnBuildDir(dawn, target, abi) {
 export async function ensureDawnBuild(options) {
     const target = DAWN_TARGETS[options.target];
     if (!target) throw new Error(`Unknown Dawn target ${options.target}.`);
-    const buildDir = options.buildDir || dawnBuildDir(options.dawn, options.target, options.abi);
+    const buildDir = options.buildDir
+        || dawnBuildDir(options.dawn, options.target, options.abi, options.androidPlatform);
     if (existsSync(dawnLibrary(buildDir, options.target))) return buildDir;
 
     const cmake = options.cmake || 'cmake';
@@ -145,7 +155,7 @@ export async function ensureDawnBuild(options) {
         ? [
             `-DCMAKE_TOOLCHAIN_FILE=${path.join(options.ndk, 'build', 'cmake', 'android.toolchain.cmake')}`,
             `-DANDROID_ABI=${options.abi || 'arm64-v8a'}`,
-            `-DANDROID_PLATFORM=${options.androidPlatform || 'android-24'}`,
+            `-DANDROID_PLATFORM=${options.androidPlatform || androidMinPlatform()}`,
             '-DANDROID_STL=c++_shared',
             '-DDAWN_ENABLE_VULKAN=ON', '-DDAWN_ENABLE_METAL=OFF',
             // Shared on Android (the APK ships the .so); static on iOS (an app

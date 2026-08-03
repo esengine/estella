@@ -518,19 +518,17 @@ void onAppCmd(android_app* app, int32_t cmd) {
 //
 // Resolved by hand, through dlsym, rather than called directly.
 //
-// ADPF is API 33 and this host builds against the manifest's floor, so the NDK
-// marks those four symbols `unavailable`: a hard compile error, and no
-// `__builtin_available` guard changes that — the annotation is not "call me
-// under a check", it is "this build cannot see me". Raising the build target is
-// what makes them callable, and that is precisely the mistake being fixed here:
-// at android-33 every availability guard in this file became dead code and every
-// guarded symbol became a load-time requirement, so the released host could not
-// dlopen on Android 10 or 11 at all.
+// This predates the build turning on ANDROID_WEAK_API_DEFS, which is what makes
+// `__builtin_available` mean anything: without it the NDK marks a newer symbol
+// `unavailable` outright — not "call me under a check" but "this build cannot
+// see me" — and no guard satisfies that. Every other guarded call here now goes
+// through the flag; ADPF still comes through dlsym because it works and this is
+// not the change to test it in.
 //
-// The NDK's own answer is ANDROID_WEAK_API_DEFS, which turns such symbols into
-// weak references. Looking them up here instead keeps the decision in the code
-// that depends on it, where it is visible, rather than in a toolchain flag whose
-// absence would silently restore the same class of failure.
+// The objection to the flag was that its absence would silently restore the
+// failure it prevents. That was true while the floor equalled the newest API
+// this file called, when dropping it changed nothing. Below that floor it is a
+// compile error naming the symbol, which is how the flag got turned on.
 struct PerformanceHints {
     void* session = nullptr;
 
