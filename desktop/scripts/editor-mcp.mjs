@@ -104,6 +104,12 @@ function spawnHost(mode, token) {
     command = createRequire(import.meta.url)('electron');
     args = mode === 'editor' ? ['.', '--mcp'] : [path.join(HERE, 'editor-mcp-host.mjs')];
   }
+  // Extra Chromium/Electron switches for a diagnostic run (dev only) — e.g.
+  // ESTELLA_MCP_EDITOR_ARGS='--remote-debugging-port=9333' to let a debugger
+  // reach the renderer of an editor a script is driving.
+  if (process.env.ESTELLA_MCP_EDITOR_ARGS) {
+    args.push(...process.env.ESTELLA_MCP_EDITOR_ARGS.split(/\s+/).filter(Boolean));
+  }
   const host = spawn(command, args, {
     // An installed exe needs no cwd (and the repo layout may not exist there).
     cwd: editorExe ? undefined : DESKTOP,

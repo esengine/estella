@@ -171,6 +171,15 @@ to.
   and the order between a C++ system and the JS-owned registry is not guaranteed.
   Held by an AddressSanitizer harness that exercises both orders.
 
+- **The renderer no longer interrogates the GPU about errors it isn't having.**
+  Every frame ended with a drain of `glGetError` — a debug facility that shipped
+  enabled, in every build, on every platform. Each call is a synchronous round
+  trip to the GPU process; on a fast machine it hides, and on a slow or contended
+  one it was the single largest item in the renderer's profile, starving the
+  editor's automation surface into timeouts. Error checking is opt-in now
+  (`GLDebug.enable()`), the on-demand probes still force a check, and the browser
+  already reports WebGL errors to the console on its own.
+
 - **Saves no longer live in a directory the platform may delete.** Key/value
   storage went to the host's cache directory, whose stated purpose was the
   regenerable bytecode cache. On iOS that is `NSCachesDirectory`, which the system
