@@ -132,9 +132,14 @@ jobs:
           # until its launcher stops responding, which is noise this has already
           # had to filter once.
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          # --recreate only when the template is this run's own build: the probe
+          # requires the stack-anchor fix (jsEntry), and pointing it at an older
+          # release's template would red the run on a bug that release is known
+          # to carry.
           script: >-
             node tools/verify-native-boot.mjs --platform android --examples all
             --shard ${{ matrix.shard }}/3
+            ${{ steps.src.outputs.tag == '' && '--recreate' || '' }}
             ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
 
       - name: Keep the frames and the records

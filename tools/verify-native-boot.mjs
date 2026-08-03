@@ -102,6 +102,7 @@ function parseArgs(argv) {
         const key = argv[i].replace(/^--/, '');
         if (key === 'allow-skip') { opts.allowSkip = true; continue; }
         if (key === 'no-frame-judge') { opts.frameJudge = false; continue; }
+        if (key === 'recreate') { opts.recreate = true; continue; }
         opts[key.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
     }
     opts.timeout = Number(opts.timeout);
@@ -235,6 +236,15 @@ function androidDriver(opts) {
         },
         clearScreen() {
             trySh(adb, ['shell', 'am', 'broadcast', '-a', 'android.intent.action.CLOSE_SYSTEM_DIALOGS']);
+        },
+        // A uiMode change the manifest does not handle, so the platform recreates
+        // the activity: the process and the booted engine survive, every later JS
+        // call runs on a NEW glue thread. That thread swap is what broke three
+        // releases' smoke runs intermittently (QuickJS's stack-overflow anchor),
+        // and ASLR decides whether a given recreate trips it — hence a probe that
+        // recreates several times rather than once.
+        recreate(night) {
+            trySh(adb, ['shell', 'cmd', 'uimode', 'night', night ? 'yes' : 'no']);
         },
         readLog() {
             const got = trySh(adb, ['shell', 'cat', logFile]);
@@ -517,6 +527,29 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
 
     // Before stop(): a dead process has no memory, no threads and no layer.
     const metrics = driver.metrics ? await driver.metrics(launchOutput) : null;
+
+    // The recreate probe, after the frame is already banked so it cannot disturb
+    // the pixel question. Each uiMode toggle recreates the activity over the
+    // LIVING engine; the errors that only this path produces (a JS runtime
+    // entered from a fresh thread) land in the boot record, and the diff below
+    // attributes them to the recreate rather than to the boot.
+    let recreateWhy = '';
+    let bootErrorCount = null;
+    if (opts.recreate && driver.recreate && !offScreen && log.includes(READY)) {
+        const errorsBefore = log.split('\n').filter((l) => l.startsWith('ERROR [')).length;
+        bootErrorCount = errorsBefore;
+        for (let i = 0; i < 3; i++) {
+            driver.recreate(true); await sleep(2000);
+            driver.recreate(false); await sleep(2000);
+        }
+        const after = driver.readLog();
+        if (after) log = after;
+        const fresh = log.split('\n').filter((l) => l.startsWith('ERROR [')).slice(errorsBefore);
+        const gone = driver.foreground();
+        if (fresh.length) recreateWhy = `after an activity recreate: ${fresh[0].trim()}`;
+        else if (gone) recreateWhy = `after an activity recreate: ${gone}`;
+        writeFileSync(path.join(opts.out, `${driver.name}-${label}.log`), log);
+    }
     driver.stop();
 
     const image = decodePng(frame);
@@ -527,7 +560,10 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     // The record already carries structured errors, and they say far more than a
     // pixel count can: drawing-demo drew a black screen because a resize sent
     // es_onNativeVisibility into infinite recursion, and the record said so.
+    // Errors the recreate probe provoked are its to report (with attribution),
+    // not this list's — the boot slice is what the plain branch judges.
     const errors = log.split('\n').filter((l) => l.startsWith('ERROR ['));
+    const bootErrors = bootErrorCount === null ? errors : errors.slice(0, bootErrorCount);
 
     // `--no-frame-judge` turns the pixel question off entirely: a compatibility
     // run compares one Android version against another, and the frame is there to
@@ -536,8 +572,9 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     const countColors = judgeFrame && opts.frameJudge !== false;
     const why = !ready ? 'never reported ready'
         : offScreen ? `the game was not on screen — ${offScreen}`
-            : errors.length ? errors[0].trim()
-                : (countColors && colors < opts.minColors) ? `the frame is ${colors} flat color` : '';
+            : bootErrors.length ? bootErrors[0].trim()
+                : (countColors && colors < opts.minColors) ? `the frame is ${colors} flat color`
+                    : recreateWhy;
 
     return {
         ok: !why, ready, colors, readyLine, errors, offScreen, metrics,
