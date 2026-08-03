@@ -415,15 +415,27 @@ async function boot(msg: InitMessage): Promise<void> {
  */
 async function tryHotSwapReload(): Promise<boolean> {
   if (!app) return false;
+  // Each outcome says why: "the editor kept my state" vs "it restarted" is
+  // invisible from the outside, and a swap that silently falls back reads as a
+  // hot reload that lost the World.
   try {
     const liveFingerprint = getUserComponentFingerprint();
     const { fingerprint, pending } = await probeRegistrations(() =>
       import(/* @vite-ignore */ `${bundleUrl}?v=${++reloadSeq}`).then(() => undefined),
     );
-    if (fingerprint !== liveFingerprint) return false; // a component's fields changed
-    return app.hotSwapSystems(pending as Parameters<App['hotSwapSystems']>[0]);
-  } catch {
-    return false; // probe/import failure → safe full reload
+    if (fingerprint !== liveFingerprint) {
+      console.info('[play] reload: full restart — a component schema changed');
+      return false;
+    }
+    if (!app.hotSwapSystems(pending as Parameters<App['hotSwapSystems']>[0])) {
+      console.info('[play] reload: full restart — the system structure changed');
+      return false;
+    }
+    console.info('[play] reload: hot-swapped system bodies in place (World kept)');
+    return true;
+  } catch (e) {
+    console.info(`[play] reload: full restart — probe failed: ${(e as Error)?.message ?? e}`);
+    return false;
   }
 }
 

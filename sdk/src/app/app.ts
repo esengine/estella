@@ -62,6 +62,12 @@ interface SystemEntry {
     /** The subsystem (owning plugin name) this system belongs to — pets that
      *  subsystem's liveness watchdog when it runs (observability). */
     subsystem?: string;
+    /** Came through the project bundle's pending-systems drain — the set hot
+     *  reload may swap. "No owning subsystem" is NOT that set: engine systems
+     *  registered lazily outside a plugin build (the physics event bridge, the
+     *  hot-update rebind) carry no subsystem either, and mistaking them for
+     *  user systems vetoed every hot swap in any project that had physics. */
+    fromBundle?: boolean;
 }
 
 // =============================================================================
@@ -102,6 +108,7 @@ export class App {
     /** The plugin currently in build(), so systems it adds inherit its name for
      *  liveness reporting. Null outside a build. */
     private buildingPlugin_: string | null = null;
+    private addingBundleSystems_ = false;
     // The realm's acquirer for optional native modules (physics, spine). Set once
     // at app creation; physics/spine self-gate off it. Null in headless/test apps.
     private sideModules_: SideModuleHost | null = null;
@@ -261,6 +268,7 @@ export class App {
             runAfter: mergeOrderingEdges(system._runAfter, options?.runAfter),
             runIf: options?.runIf,
             subsystem: this.buildingPlugin_ ?? undefined,
+            fromBundle: this.addingBundleSystems_ || undefined,
         });
         this.sortedSystemsCache_.delete(schedule);
         return this;
@@ -268,6 +276,24 @@ export class App {
 
     addSystem(system: SystemDef): this {
         return this.addSystemToSchedule(Schedule.Update, system);
+    }
+
+    /**
+     * Register systems drained from the PROJECT BUNDLE, marking them as the set
+     * hot reload may swap. The bundle drain is the one boundary that separates
+     * user-authored systems from everything the engine registers — plugin
+     * builds tag themselves, but lazily-added engine systems are told apart
+     * from user code only by which door they came through.
+     * @internal
+     */
+    addBundleSystems(entries: ReadonlyArray<{ schedule: number; system: SystemDef }>): this {
+        this.addingBundleSystems_ = true;
+        try {
+            for (const e of entries) this.addSystemToSchedule(e.schedule as Schedule, e.system);
+        } finally {
+            this.addingBundleSystems_ = false;
+        }
+        return this;
     }
 
     addStartupSystem(system: SystemDef): this {
@@ -295,21 +321,42 @@ export class App {
             else bySchedule.set(e.schedule as Schedule, [e.system]);
         }
         const userEntries = (s: Schedule): SystemEntry[] =>
-            (this.systems_.get(s) ?? []).filter((entry) => entry.subsystem === undefined);
+            (this.systems_.get(s) ?? []).filter((entry) => entry.fromBundle === true);
 
+        // Startup is exempt from matching in both directions: its entries are
+        // CONSUMED when they run (flushStartupSystems truncates the list), so the
+        // live side is always empty while a re-imported bundle always queues them
+        // again — requiring a match would veto hot swap for every project that
+        // uses addStartupSystem. There is nothing to swap either way: a startup
+        // body can only run on a cold start, so an edited one takes effect on the
+        // next full reload, which is the only time it could.
+        // Each rejection names the mismatch: "the structure changed" alone reads
+        // as a hot reload that arbitrarily lost the World.
         for (const [schedule, defs] of bySchedule) {
+            if (schedule === Schedule.Startup) continue;
             const live = userEntries(schedule);
-            if (live.length !== defs.length) return false;
+            if (live.length !== defs.length) {
+                log.info('hotReload', `structure: schedule ${Schedule[schedule]} has ${live.length} live user system(s) [${live.map((e) => e.system._name).join(', ')}] vs ${defs.length} incoming [${defs.map((d) => d._name || '(unnamed)').join(', ')}]`);
+                return false;
+            }
             for (let i = 0; i < live.length; i++) {
-                if (!App.systemNamesCompatible(live[i].system._name, defs[i]._name)) return false;
+                if (!App.systemNamesCompatible(live[i].system._name, defs[i]._name)) {
+                    log.info('hotReload', `structure: schedule ${Schedule[schedule]} system #${i} renamed "${live[i].system._name}" -> "${defs[i]._name || '(unnamed)'}"`);
+                    return false;
+                }
             }
         }
         // A schedule that had user systems the new bundle didn't re-add is structural.
         for (const [schedule, entries] of this.systems_) {
-            if (!bySchedule.has(schedule) && entries.some((e) => e.subsystem === undefined)) return false;
+            if (schedule === Schedule.Startup) continue;
+            if (!bySchedule.has(schedule) && entries.some((e) => e.fromBundle === true)) {
+                log.info('hotReload', `structure: schedule ${Schedule[schedule]} lost its user systems in the new bundle`);
+                return false;
+            }
         }
 
         for (const [schedule, defs] of bySchedule) {
+            if (schedule === Schedule.Startup) continue;
             const live = userEntries(schedule);
             for (let i = 0; i < live.length; i++) {
                 const cur = live[i].system;
@@ -1156,7 +1203,5 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
 export function flushPendingSystems(app: App): void {
     const drained = getDefaultContext().drainPendingSystems();
-    for (const entry of drained) {
-        app.addSystemToSchedule(entry.schedule as Schedule, entry.system as SystemDef);
-    }
+    app.addBundleSystems(drained as ReadonlyArray<{ schedule: number; system: SystemDef }>);
 }

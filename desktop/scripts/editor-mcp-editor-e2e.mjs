@@ -323,6 +323,11 @@ try {
   await writeFile(path.join(project, COUNTER_REL), counterSource(1000000, 2));
   const s2 = await until('the swapped logic to arrive', (s) => s.lv === 2);
   if (s2.v % 1000000 === 0) {
+    const logs = JSON.parse((await call('get_logs', { tail: 30 })).text);
+    for (const l of logs) {
+      const line = typeof l === 'string' ? l : JSON.stringify(l);
+      if (/reload|play|swap/i.test(line)) console.log('  log:', line.slice(0, 520));
+    }
     await fail(`logic edit lost the World: counter restarted at ${s2.v} — hot swap fell back to a full reload (or swapped a rebooted realm)`);
   }
   if (s2.v % 1000000 < s1.v) await fail(`counter went backwards across the swap (${s1.v} -> ${s2.v})`);

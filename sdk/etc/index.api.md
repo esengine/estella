@@ -444,6 +444,7 @@ ComponentDef<any> | BuiltinComponentDef<any>
 
 ## App — class
 ```
+addBundleSystems: (entries: ReadonlyArray<{ schedule: number; system: SystemDef; }>) => App
 addEvent: <T>(event: EventDef<T>) => App
 addPlugin: (plugin: Plugin) => App
 addPlugins: (plugins: Plugin[]) => App

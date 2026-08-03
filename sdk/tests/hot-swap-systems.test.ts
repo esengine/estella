@@ -22,7 +22,7 @@ describe('App.hotSwapSystems', () => {
     }
 
     it('swaps a named system body in place, keeping it scheduled', async () => {
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => log.push('old'), { name: 'S' }));
+        app.addBundleSystems([{ schedule: Schedule.Update, system: defineSystem([], () => log.push('old'), { name: 'S' }) }]);
         await runUpdate();
         expect(log).toEqual(['old']);
 
@@ -36,8 +36,46 @@ describe('App.hotSwapSystems', () => {
         expect(log).toEqual(['new']);
     });
 
+    it('ignores startup systems: consumed on run, always re-queued by a re-import', async () => {
+        // The live side truncates Schedule.Startup after flushing it, so a
+        // re-imported bundle's startup defs have no live counterpart. That must
+        // not veto the swap — it did, which made hot reload silently dead for
+        // every project using addStartupSystem (the e2e's first complete run
+        // caught it as "counter restarted at a clean multiple").
+        app.addSystemToSchedule(Schedule.Startup, defineSystem([], () => log.push('boot'), { name: 'Boot' }));
+        app.addBundleSystems([{ schedule: Schedule.Update, system: defineSystem([], () => log.push('old'), { name: 'S' }) }]);
+        (app as unknown as { systems_: Map<Schedule, unknown[]> }).systems_.get(Schedule.Startup)!.length = 0;
+
+        const ok = app.hotSwapSystems([
+            { schedule: Schedule.Startup, system: defineSystem([], () => log.push('boot2'), { name: 'Boot' }) },
+            { schedule: Schedule.Update, system: defineSystem([], () => log.push('new'), { name: 'S' }) },
+        ]);
+        expect(ok).toBe(true);
+
+        await runUpdate();
+        expect(log).toEqual(['new']);
+    });
+
+    it('ignores engine systems registered lazily outside a plugin build', async () => {
+        // PhysicsEventBridgeSystem / HotUpdateRebindSystem register via
+        // app.addSystemToSchedule after boot — no owning subsystem, but not user
+        // code either. Classifying "no subsystem" as "user" made them phantom
+        // structure: every project with physics full-reloaded on every edit.
+        // The bundle door is the classifier now.
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => log.push('engine'), { name: 'PhysicsEventBridgeSystem' }));
+        app.addBundleSystems([{ schedule: Schedule.Update, system: defineSystem([], () => log.push('old'), { name: 'S' }) }]);
+
+        const ok = app.hotSwapSystems([
+            { schedule: Schedule.Update, system: defineSystem([], () => log.push('new'), { name: 'S' }) },
+        ]);
+        expect(ok).toBe(true);
+
+        await runUpdate();
+        expect(log.sort()).toEqual(['engine', 'new']);
+    });
+
     it('rejects an added system (count change) → caller full-reloads', () => {
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {}, { name: 'S' }));
+        app.addBundleSystems([{ schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'S' }) }]);
         expect(app.hotSwapSystems([
             { schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'S' }) },
             { schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'T' }) },
@@ -45,15 +83,17 @@ describe('App.hotSwapSystems', () => {
     });
 
     it('rejects a rename → full-reload', () => {
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {}, { name: 'S' }));
+        app.addBundleSystems([{ schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'S' }) }]);
         expect(app.hotSwapSystems([
             { schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'Renamed' }) },
         ])).toBe(false);
     });
 
     it('matches unnamed systems positionally (System_N ⇔ unnamed)', async () => {
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => log.push('a-old')));
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => log.push('b-old')));
+        app.addBundleSystems([
+            { schedule: Schedule.Update, system: defineSystem([], () => log.push('a-old')) },
+            { schedule: Schedule.Update, system: defineSystem([], () => log.push('b-old')) },
+        ]);
         expect(app.hotSwapSystems([
             { schedule: Schedule.Update, system: defineSystem([], () => log.push('a-new')) },
             { schedule: Schedule.Update, system: defineSystem([], () => log.push('b-new')) },

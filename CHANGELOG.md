@@ -180,6 +180,28 @@ to.
   (`GLDebug.enable()`), the on-demand probes still force a check, and the browser
   already reports WebGL errors to the console on its own.
 
+- **Editor automation no longer times out when a call lands during a subframe
+  load.** Driving the editor (MCP tools, the agent, the e2e) goes through a guard
+  that waited for `did-finish-load` whenever the window reported loading — but
+  the play realm prewarms in an IFRAME seconds after a project opens, the loading
+  flag covers subframes, and that event only fires for the main frame. A call
+  that drew the short straw awaited an event that had already fired for the last
+  time. The guard polls now, bounded, and cannot be stranded.
+
+- **Hot reload now actually keeps the World — in projects that exist.** Two
+  gates rejected every real project while passing every unit test. Startup
+  systems are consumed when they run, so a re-imported bundle always has ones
+  the live side doesn't — structural mismatch, full restart, for anyone using
+  `addStartupSystem`. And "no owning subsystem" was read as "user system", which
+  swept up engine systems that register lazily outside a plugin build (the
+  physics event bridge among them) — phantom structure, full restart, for any
+  project with physics. User systems are now classified by the one boundary that
+  defines them — they came through the project bundle's drain — startup is
+  exempt in both directions, and every reload logs which path it took and why,
+  so a fallback is a stated fact instead of a mystery about lost state. Proven
+  live by the editor e2e: a logic edit mid-play swaps with state preserved, a
+  schema edit forces the clean restart it must.
+
 - **Saves no longer live in a directory the platform may delete.** Key/value
   storage went to the host's cache directory, whose stated purpose was the
   regenerable bytecode cache. On iOS that is `NSCachesDirectory`, which the system
