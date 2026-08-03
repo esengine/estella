@@ -44,13 +44,20 @@ export const ImageType = { PNG: 'png', JPG: 'jpg', RGBA: 'rgba' };
  * Encode a source image to a KTX2 container.
  *   source: { type: ImageType, data: Uint8Array, width?, height? }
  *           width/height are read from the PNG header when omitted; required for RGBA.
- *   opts:   { mode: 'uastc'|'etc1s', mipmaps, srgb, perceptual, quality, normalMap }
+ *   opts:   { mode: 'uastc'|'etc1s', mipmaps, srgb, perceptual, quality, normalMap, yFlip }
  * Returns the KTX2 bytes (Uint8Array).
+ *
+ * yFlip defaults ON because the engine samples bottom-up memory: every
+ * uncompressed upload is row-flipped at load (GL UNPACK_FLIP_Y, and the WebGPU
+ * device's CPU flip that emulates it), but compressed blocks cannot be — a 4x4
+ * block has no valid row order to swap at upload. So the orientation must be
+ * baked here, before encoding, or the texture renders vertically mirrored on
+ * every backend.
  */
 export async function encodeToKtx2(source, opts = {}) {
   const {
     mode = 'uastc', mipmaps = true, srgb = true,
-    perceptual = true, quality = 128, normalMap = false,
+    perceptual = true, quality = 128, normalMap = false, yFlip = true,
   } = opts;
   const m = await loadModule();
 
@@ -84,6 +91,7 @@ export async function encodeToKtx2(source, opts = {}) {
     }
     enc.setPerceptual(perceptual);
     enc.setMipGen(mipmaps);
+    enc.setYFlip(yFlip);
     if (normalMap) enc.setNormalMap();
 
     // RGBA8 is a safe upper bound for UASTC (1 B/px) + mips (~+1/3) + container.

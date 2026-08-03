@@ -39,6 +39,16 @@ function gradient(size = 64): Uint8Array {
   return px;
 }
 
+/** Vertically mirror an RGBA buffer, row by row. */
+function flipRows(px: Uint8Array, width: number, height: number): Uint8Array {
+  const out = new Uint8Array(px.length);
+  const stride = width * 4;
+  for (let y = 0; y < height; y++) {
+    out.set(px.subarray(y * stride, (y + 1) * stride), (height - 1 - y) * stride);
+  }
+  return out;
+}
+
 describe('basis KTX2 encoder', () => {
   it('encodes raw RGBA → valid KTX2 and round-trips at high PSNR', async () => {
     const size = 64;
@@ -54,8 +64,39 @@ describe('basis KTX2 encoder', () => {
     expect(back.width).toBe(size);
     expect(back.height).toBe(size);
     expect(back.pixels.length).toBe(size * size * 4);
-    // UASTC on a smooth gradient is near-lossless.
-    expect(psnr(src, back.pixels)).toBeGreaterThan(40);
+    // UASTC on a smooth gradient is near-lossless. The payload is stored
+    // bottom-up (the engine's texture memory order), so the round-trip
+    // matches the row-flipped source.
+    expect(psnr(flipRows(src, size, size), back.pixels)).toBeGreaterThan(40);
+  }, 30_000);
+
+  it('stores rows bottom-up: the engine orientation compressed blocks cannot get at upload', async () => {
+    // Top half red, bottom half blue — unambiguous under any codec loss.
+    const size = 16;
+    const src = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const o = (y * size + x) * 4;
+        src[o] = y < size / 2 ? 255 : 0;
+        src[o + 2] = y < size / 2 ? 0 : 255;
+        src[o + 3] = 255;
+      }
+    }
+    const ktx2 = await encodeToKtx2(
+      { type: ImageType.RGBA, data: src, width: size, height: size },
+      { mode: 'uastc', mipmaps: false },
+    );
+    const back = await transcodeKtx2ToRgba(ktx2);
+    // First stored row is the source's BOTTOM row (blue).
+    expect(back.pixels[2]).toBeGreaterThan(200);
+    expect(back.pixels[0]).toBeLessThan(50);
+    // yFlip: false preserves the source order (top row red).
+    const raw = await transcodeKtx2ToRgba(await encodeToKtx2(
+      { type: ImageType.RGBA, data: src, width: size, height: size },
+      { mode: 'uastc', mipmaps: false, yFlip: false },
+    ));
+    expect(raw.pixels[0]).toBeGreaterThan(200);
+    expect(raw.pixels[2]).toBeLessThan(50);
   }, 30_000);
 
   it('encodes a real PNG asset → valid KTX2 with matching dimensions', async () => {

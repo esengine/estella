@@ -22,6 +22,9 @@ export interface EncodeOptions {
   /** ETC1S quality 1..255. */
   quality?: number;
   normalMap?: boolean;
+  /** Flip rows before encoding (default true — the engine samples bottom-up
+   *  memory, and compressed blocks cannot be flipped at upload). */
+  yFlip?: boolean;
 }
 
 export interface RgbaResult {

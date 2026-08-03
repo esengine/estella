@@ -16,6 +16,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Compressed textures are no longer upside down.** Every uncompressed image is
+  row-flipped at upload into the engine's texture orientation; a compressed KTX2
+  cannot be — a 4x4 block has no row order to swap — so the cook's KTX2 came out
+  vertically mirrored on every backend that drew it. It went unnoticed because
+  everything that verified the path was symmetric: a solid green square looks the
+  same both ways, and the photograph that would have shown it was only ever looked
+  at on an iOS simulator, where it was filed as a native quirk. The orientation is
+  baked at encode now, where flipping is free and exact, and a test holds the
+  stored row order to the engine's — native and web draw the same file the same
+  way up.
+
 - **Coming back to a running game no longer kills it, sometimes.** On Android,
   recreating the activity — leave with Back and reopen, rotate, toggle dark mode —
   keeps the process and the booted engine but hands every later JS call to a new
