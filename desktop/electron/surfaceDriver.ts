@@ -62,8 +62,14 @@ export function createSurfaceDriver(getWin: () => BrowserWindow | null): Surface
     const win = requireWin();
     // A call can arrive before the renderer finished booting (the endpoint comes
     // up with the window) — wait out the initial load instead of failing it.
-    if (win.webContents.isLoading()) {
-      await new Promise<void>((resolve) => win.webContents.once('did-finish-load', () => resolve()));
+    // Polled, never event-awaited: isLoading() covers SUBFRAMES (the play realm
+    // prewarms in an iframe seconds after a project opens), but did-finish-load
+    // fires only for the main frame — a call that awaited the event during a
+    // subframe load parked forever, timing out whichever automation call drew
+    // the short straw. Bounded: a page that never settles still gets the call,
+    // and executeJavaScript's own error is a better answer than silence.
+    for (let waited = 0; win.webContents.isLoading() && waited < 10_000; waited += 50) {
+      await new Promise((r) => setTimeout(r, 50));
     }
     return unwrap(await win.webContents.executeJavaScript(carryError(code), true));
   };
