@@ -1,0 +1,189 @@
+name: Package the canary example(s)
+
+# ONE packaged APK, for whoever wants to run it somewhere.
+#
+# Extracted from android-compat.yml when a second consumer appeared: the device
+# farm run (android-device.yml) installs the same binary on real hardware that
+# the emulator matrix installs on emulators. Two copies of a 35-minute build
+# recipe would drift, and the first symptom would be an emulator row and a device
+# row disagreeing for a reason that is not the device.
+#
+# It stays a job rather than a script because most of it IS workflow: caching the
+# Dawn build, choosing a template source from what the PR touched, and the NDK.
+
+on:
+  workflow_call:
+    inputs:
+      examples:
+        description: 'Comma-separated example names to package.'
+        required: false
+        default: 'space-shooter'
+        type: string
+      template-source:
+        description: 'Which runtime template to wrap: release, head, or auto (decide from what the PR touches).'
+        required: false
+        default: auto
+        type: string
+    outputs:
+      template-from:
+        description: 'Which template the APKs were wrapped in — "release" or "head".'
+        value: ${{ jobs.apk.outputs.template-from }}
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Package the canary example(s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      pull-requests: read   # to see which files the PR touches
+    outputs:
+      # Reported alongside the numbers: "the shipped binary" and "a build of this
+      # branch" are different claims, and a table that does not say which it made
+      # is a table nobody can act on.
+      template-from: ${{ steps.src.outputs.from }}
+    steps:
+      # Submodules only matter to a from-source build; the released template
+      # carries its libraries already. Fetched unconditionally because a
+      # conditional checkout is a second way for the two paths to diverge.
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, so a template built here
+      # needs it — and the export bundles the game against it either way.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      # Building the host takes ~35 minutes (Dawn, once per ABI) and produces
+      # something byte-for-byte irrelevant unless the host source actually changed.
+      # A released template was already built, on a machine that did nothing else,
+      # and it has the stronger claim besides: it is the binary users installed, so
+      # a crash reproduced against it is THE crash rather than a rebuild of it.
+      #
+      # So: from source only when this PR touches the host, and from the release
+      # otherwise. Getting this backwards is silent — a native fix "verified"
+      # against a template that predates it — hence the decision is logged.
+      - name: Decide where the template comes from
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          WANT='${{ inputs.template-source }}'
+          if [ -z "$WANT" ] || [ "$WANT" = 'auto' ]; then
+            if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+              CHANGED=$(gh pr diff '${{ github.event.pull_request.number }}' --name-only)
+              # build-tools/ counts: the API level the host compiles against is a
+              # DEFAULT in build-tools, not a value in native/. The change that fixed
+              # the Android 10 crash touched nothing under native/, so a rule that
+              # watched only native/ would have tested the old released binary and
+              # reported the fix as not working.
+              if echo "$CHANGED" | grep -qE '^(native/|build-tools/|toolchain\.manifest\.json)'; then
+                WANT=head
+                echo "this PR touches the native host — the template must be built from it"
+              else
+                WANT=release
+                echo "this PR touches no native host source — using the released template"
+              fi
+            else
+              WANT=release
+            fi
+          fi
+          echo "from=$WANT" >> "$GITHUB_OUTPUT"
+
+      - name: Take the template from the latest release
+        if: steps.src.outputs.from == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "template from $TAG"
+          mkdir -p artifacts
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-android-*.zip' -D artifacts
+
+      - name: Read the native dependency pins
+        if: steps.src.outputs.from == 'head'
+        id: pins
+        run: |
+          node -e "const p=require('./toolchain.manifest.json').native;\
+            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+
+      # restore-keys without the pins, because a Dawn build for a DIFFERENT pin is
+      # still most of this one's object files. Note the release pipeline's own cache
+      # is written from a tag ref and is therefore unreachable from any branch —
+      # see the PR discussion; warming this from master is separate work.
+      - name: Cache the pinned checkouts + Dawn builds
+        if: steps.src.outputs.from == 'head'
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: native-deps-android-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+          restore-keys: native-deps-android-
+
+      - name: Set up the Android NDK
+        if: steps.src.outputs.from == 'head'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        if: steps.src.outputs.from == 'head'
+        run: node build-tools/cli.js native --fetch-deps
+
+      # BOTH ABIs, even though every emulator here is x86_64: ANDROID_ABIS names
+      # arm64-v8a and x86_64 as what a template must carry, and the emitter refuses
+      # an incomplete one. An x86_64-only build fails at the emit step, not at the
+      # compile — which is exactly how this was found.
+      - name: Build the Android runtime template from this branch
+        if: steps.src.outputs.from == 'head'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          node build-tools/cli.js native --abi arm64-v8a
+          node build-tools/cli.js native --abi x86_64 --template-out artifacts
+
+      - name: Unpack the template
+        run: |
+          node build-tools/cli.js verify-template artifacts/*.zip
+          mkdir -p template
+          unzip -q artifacts/*.zip -d template
+
+      # Packaged the way the editor's Package dialog does it, once: every version
+      # in the matrix installs the identical file, so a difference between two rows
+      # cannot be a difference between two builds.
+      - name: Package the canary example(s)
+        run: |
+          set -euo pipefail
+          mkdir -p apks
+          IFS=',' read -ra NAMES <<< "${{ inputs.examples }}"
+          for name in "${NAMES[@]}"; do
+            name=$(echo "$name" | xargs)
+            [ -z "$name" ] && continue
+            echo "::group::packaging $name"
+            node desktop/scripts/export-project.mjs "examples/$name" \
+              --platform android --template template \
+              --out "build/pkg/$name" --json "build/pkg/$name.json"
+            APK=$(node -e "process.stdout.write(require('./build/pkg/$name.json').apkFile || '')")
+            if [ -z "$APK" ]; then
+              echo "::error::the export of $name wrote no APK"
+              exit 1
+            fi
+            cp "$APK" "apks/$name.apk"
+            echo "::endgroup::"
+          done
+          ls -la apks
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: compat-apks
+          path: apks/*.apk
+          retention-days: 3

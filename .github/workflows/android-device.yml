@@ -1,0 +1,144 @@
+name: Android real devices
+
+# The same canary, on real phones.
+#
+# android-compat.yml answers "does this Android VERSION work" across a dozen
+# emulators. It cannot answer "does this DRIVER work", and for this engine that
+# is the question that matters: the host renders through Dawn → Vulkan, and an
+# emulator's Vulkan is SwiftShader — a CPU rasteriser. Adreno, Mali and Xclipse
+# are where a renderer actually breaks, and none of them exist in CI's emulators.
+#
+# So this runs the SAME APK, through the SAME verifier, on AWS Device Farm's real
+# hardware. Not per PR: it costs device minutes and a driver break is not the
+# thing that lands ten times a day. Before a release, and whenever someone wants
+# to know.
+#
+# Wiring it up needs three repository secrets, all created in the AWS console
+# (us-west-2 — Device Farm has no other region):
+#   AWS_DEVICEFARM_ROLE_ARN     an IAM role trusting this repo via GitHub OIDC
+#   DEVICEFARM_PROJECT_ARN      the Device Farm project
+#   DEVICEFARM_DEVICE_POOL_ARN  the pool of models to run on
+#
+# Pick the pool by GPU vendor rather than by popularity: a Pixel (Mali/Tensor), a
+# Snapdragon Galaxy (Adreno) and an Exynos Galaxy (Xclipse) cover the three
+# drivers between them, and a fourth phone from the same vendor as one of those
+# is a device minute spent on a question already answered.
+
+on:
+  workflow_dispatch:
+    inputs:
+      examples:
+        description: 'Comma-separated example names to package and run.'
+        required: false
+        default: 'space-shooter'
+        type: string
+      template-source:
+        description: 'Which runtime template to wrap: the latest release, or a build of this branch (~35 min).'
+        required: false
+        default: release
+        type: choice
+        options: [release, head]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-device-${{ github.ref }}
+  cancel-in-progress: false   # a device farm run costs money; do not abandon one mid-flight
+
+jobs:
+  # The same packaging the emulator matrix uses, so a device row and an emulator
+  # row that disagree disagree about the DEVICE.
+  apk:
+    uses: ./.github/workflows/android-canary-apk.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      examples: ${{ inputs.examples || 'space-shooter' }}
+      template-source: ${{ inputs.template-source || 'release' }}
+
+  devices:
+    name: Real devices (AWS Device Farm)
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write   # OIDC, so no long-lived AWS keys live in this repo
+    steps:
+      - uses: actions/checkout@v7
+
+      # Where the toolchain versions live. The bundle script has no dependencies,
+      # but "which Node" is not a thing to leave to whatever the runner shipped.
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: compat-apks
+          path: apks
+
+      - name: Build the test bundle
+        run: node tools/devicefarm/pack-test-bundle.mjs
+
+      # Fails early and by name when the account side was never wired up, rather
+      # than as an opaque AWS error three steps later.
+      - name: Check the run is configured
+        env:
+          ROLE: ${{ secrets.AWS_DEVICEFARM_ROLE_ARN }}
+          PROJECT: ${{ secrets.DEVICEFARM_PROJECT_ARN }}
+          POOL: ${{ secrets.DEVICEFARM_DEVICE_POOL_ARN }}
+        run: |
+          set -euo pipefail
+          missing=
+          [ -z "$ROLE" ]    && missing="$missing AWS_DEVICEFARM_ROLE_ARN"
+          [ -z "$PROJECT" ] && missing="$missing DEVICEFARM_PROJECT_ARN"
+          [ -z "$POOL" ]    && missing="$missing DEVICEFARM_DEVICE_POOL_ARN"
+          if [ -n "$missing" ]; then
+            echo "::error::missing repository secret(s):$missing — see the header of .github/workflows/android-device.yml"
+            exit 1
+          fi
+          ls -la apks
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEVICEFARM_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Install and measure on real devices
+        id: farm
+        uses: aws-actions/aws-devicefarm-mobile-device-testing@v3
+        with:
+          # File paths (rather than ARNs) tell the action to upload them first.
+          run-settings-json: |
+            {
+              "name": "estella canary ${{ github.ref_name }} ${{ github.sha }}",
+              "projectArn": "${{ secrets.DEVICEFARM_PROJECT_ARN }}",
+              "devicePoolArn": "${{ secrets.DEVICEFARM_DEVICE_POOL_ARN }}",
+              "appArn": "apks/${{ inputs.examples || 'space-shooter' }}.apk",
+              "test": {
+                "type": "APPIUM_NODE",
+                "testPackageArn": "build/devicefarm/tests.zip",
+                "testSpecArn": "tools/devicefarm/testspec.yml"
+              }
+            }
+          artifact-types: CUSTOMER_ARTIFACT,VIDEO,SCREENSHOT
+
+      # Always: a failed run's artifacts are the ones worth having, and the device
+      # is gone by the time anyone reads the red X.
+      - name: Keep what the devices produced
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: device-farm-artifacts
+          path: ${{ steps.farm.outputs.artifact-folder }}
+          if-no-files-found: warn
+
+      - name: Where to look
+        if: always()
+        run: |
+          echo "result:  ${{ steps.farm.outputs.result }}"
+          echo "console: ${{ steps.farm.outputs.console-url }}"

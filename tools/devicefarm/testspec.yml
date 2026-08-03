@@ -1,0 +1,77 @@
+version: 0.1
+
+# Run the canary on a REAL phone, with the same verifier the emulators use.
+#
+# Device Farm's custom test environment hands you a shell on the test HOST with
+# the device attached over adb, which is the only reason this platform was picked:
+# tools/verify-native-boot.mjs drives adb directly (install, `am start -W`,
+# logcat, dumpsys, /proc/<pid>/stat), and a farm that only runs Espresso or
+# Appium would have meant rewriting the thing that decides whether the engine
+# booted — and then having two answers to that question.
+#
+# Two variables make it fit with no code change at all:
+#   $ANDROID_HOME       — the verifier already builds its adb path from this
+#   $DEVICEFARM_DEVICE_UDID → ANDROID_SERIAL, which the adb CLIENT honours, so
+#                         nothing downstream needs to learn a -s flag
+#
+# What this covers that no emulator can: the real GPU driver. The host renders
+# through Dawn → Vulkan, and on an emulator that is SwiftShader, a CPU
+# rasteriser — so the emulator matrix answers "does this Android VERSION work"
+# and this answers "does this DRIVER work". They are different questions and
+# this file exists because only one of them was being asked.
+
+android_test_host: amazon_linux_2
+
+phases:
+  install:
+    commands:
+      # The verifier is plain Node with no dependencies; it just needs a runtime.
+      - devicefarm-cli use node 20
+      - node --version
+      # Every later command re-exports this: a phase's commands share a shell,
+      # but relying on that across phases is a footgun this file cannot test.
+      - export ANDROID_SERIAL=$DEVICEFARM_DEVICE_UDID
+      - adb devices -l
+
+  pre_test:
+    commands:
+      - export ANDROID_SERIAL=$DEVICEFARM_DEVICE_UDID
+      # Named in the artifact and in the metrics, because "it failed on Android 14"
+      # is not actionable when the two Android 14 devices in the pool are a Pixel
+      # and a Galaxy with different GPUs. The model is the interesting axis here.
+      - echo "device=$DEVICEFARM_DEVICE_NAME os=$DEVICEFARM_DEVICE_OS_VERSION udid=$DEVICEFARM_DEVICE_UDID"
+      - adb shell getprop ro.product.model
+      - adb shell getprop ro.hardware
+      # The GPU this run actually exercised, recorded before anything can crash:
+      # it is the one fact that explains a driver-shaped failure, and it is gone
+      # once the device is released back to the pool.
+      - adb shell dumpsys SurfaceFlinger 2>/dev/null | grep -iE "GLES|Vulkan" | head -5 > $DEVICEFARM_LOG_DIR/gpu.txt || true
+      - cat $DEVICEFARM_LOG_DIR/gpu.txt || true
+
+  test:
+    commands:
+      - export ANDROID_SERIAL=$DEVICEFARM_DEVICE_UDID
+      - cd $DEVICEFARM_TEST_PACKAGE_PATH
+      # --no-frame-judge for the same reason the emulator matrix passes it: a
+      # scene that is legitimately dark and a renderer that died produce the same
+      # dark PNG. The frame is collected for a human; the gate is install +
+      # `ready` + no recorded error.
+      - |-
+        node tools/verify-native-boot.mjs \
+          --platform android \
+          --apk "$DEVICEFARM_APP_PATH" \
+          --label "device-$DEVICEFARM_DEVICE_OS_VERSION" \
+          --no-frame-judge \
+          --out "$DEVICEFARM_LOG_DIR" \
+          --metrics-out "$DEVICEFARM_LOG_DIR/metrics.json"
+
+  post_test:
+    commands:
+      # The logcat tail ships whether or not the verifier was happy: a run that
+      # passed and a run that failed are read the same way, and asking for the log
+      # only on failure is how you find out you needed it after the device is gone.
+      - export ANDROID_SERIAL=$DEVICEFARM_DEVICE_UDID
+      - adb logcat -d -t 2000 > $DEVICEFARM_LOG_DIR/logcat.txt 2>&1 || true
+
+artifacts:
+  - $DEVICEFARM_LOG_DIR
