@@ -1,0 +1,135 @@
+---
+title: The Built-in Agent
+description: Ask the editor to do something in plain language. The agent reads your scene and edits it through the same tools the editor's own UI uses — with an Undo checkpoint around every turn and a confirmation before anything Undo cannot reach.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+The editor ships with an agent of its own. You type a sentence; it reads the scene,
+calls the same tools the editor's UI calls, and shows you every one of them as it
+goes. Nothing about it is a separate copy of the editor: it drives the exact tool
+catalog an [external MCP client](/docs/guides/mcp/) drives, so what it can do and
+what the editor can do are one list.
+
+<Aside type="tip">
+It is the same window you were already working in. Its edits land in your scene,
+your Undo takes them back, and you can take the mouse at any moment.
+</Aside>
+
+## Give it a model
+
+The editor ships no key and calls nothing on its own. Open **Settings ▸ AI Agents**
+and configure one provider — that is the whole setup.
+
+![Settings ▸ AI Agents — a key field per provider, plus the custom endpoint and model list](../../../assets/guides/en/agent-settings.png)
+
+<Steps>
+
+1. Paste an **API key** for Anthropic or DeepSeek. Each provider keeps its own, so
+   switching back to one you used last week costs nothing.
+
+2. Or fill in the **Custom Provider**: any Anthropic-compatible endpoint, plus the
+   model names it offers. Those names become choices in the composer.
+
+3. Close Settings. The model picker sits next to the box you type in — it is a
+   per-message choice, not a preference buried in a dialog.
+
+</Steps>
+
+<Aside type="tip" title="Where the key lives">
+In the system keychain. It is never written to the project, never written to the
+settings file, and never handed back to the editor window — only to the client that
+has to send it.
+</Aside>
+
+## Ask it something
+
+Open the command palette (`Ctrl/Cmd+Shift+P`) and run **Agent: Open**. Or skip that:
+type your question straight into the palette. Anything that reads as a sentence
+rather than a command offers **Hand to Agent**, and `Enter` sends it.
+
+![A finished agent run: the question, two tool calls, and the answer](../../../assets/guides/en/agent-turn.png)
+
+A run reads top to bottom:
+
+- **The question**, with the model that answered it, how long it took, and the
+  tokens it cost.
+- **A row per tool call** — `get_scene_tree`, `get_event_bindings` — with its
+  arguments and how much came back. This is the part worth reading: it is the
+  difference between an answer about your scene and an answer about scenes in
+  general.
+- **The answer.**
+
+In the composer, `@` references an entity by name so you do not have to describe
+which one you mean. You can drop or paste an **image** — a mock-up, a screenshot of
+the bug — and it is sent along with the question, where the endpoint accepts images.
+While it works, the status bar carries a live segment with a **Stop** button, so a
+long run is visible and interruptible with the drawer closed.
+
+## What it may do without asking
+
+The tiers are drawn where **Undo stops working**, which is what makes them worth
+knowing:
+
+| Tier | Examples | What happens |
+| --- | --- | --- |
+| Read | `get_scene_tree`, `get_inspector`, `capture_viewport` | Runs. Never asks. |
+| Undoable | create, delete, `set_field`, re-parent, paint tiles | Runs. The whole turn is bracketed by one checkpoint, so a single **Undo** takes all of it back. |
+| Irreversible | writing a file, exporting a build, saving, `run_editor_command` | **Always asks first.** Undo cannot rescue you afterwards. |
+
+So the approval you give is not per edit — it is the Undo button, and it applies to
+the turn as a whole. When a run finishes having changed something, the transcript
+leaves a bar behind offering **Undo** or **Keep**, and it tells you if you have
+edited since (because then Undo would take your own work back too).
+
+## Before a large edit
+
+One undoable tool still stops to ask, and not for safety: `apply_scene_ops` authors
+a whole subtree in a single call, and a hundred-node edit is worth seeing before it
+lands rather than reading back afterwards.
+
+![The preview of a bulk scene edit: six changes listed, each strikeable, with Apply all / Allow for this run / Skip](../../../assets/guides/en/agent-preview.png)
+
+Every line is one change. Click one to **strike it out** — striking a new entity also
+strikes whatever refers to it — then **Apply** the rest. **Allow for this run** stops
+the asking until the turn ends, which is what keeps a long build from becoming a
+hundred prompts; the next run asks again.
+
+Declining is not a dead end: the agent is told it was skipped and works around it.
+
+## The conversation is kept with the project
+
+A finished run is saved alongside the project — the transcript and the model's memory
+of it. **Earlier conversations** lists them; pick one and it carries on where it
+stopped. The next question in an open conversation still has everything the previous
+one established.
+
+Two things are worth knowing about a long one:
+
+- **The context gauge** in the drawer's header says how full the model's window is.
+  Past a threshold the earliest runs are *folded out of its memory*: what you asked is
+  kept word for word, the tool calls and their results are not. The transcript still
+  shows them — the model can no longer read them. When that happens the drawer says
+  so, on the line where it happened.
+- **A conversation belongs to the model that answered it.** Switching models ends it
+  and starts a new one. What it changed in the scene stays.
+
+You can also **ask a run again** in different words: it discards that run and
+everything after it, then re-asks. Useful when a turn went the wrong way three
+messages ago and you would rather not talk it back.
+
+<Aside type="caution">
+It can be confidently wrong, like any model — most often about state it read several
+runs ago. When an answer describes your scene rather than reasoning about it, ask it
+to re-read rather than trusting the summary. That is also why the tool rows are on
+screen: they show what it actually looked at.
+</Aside>
+
+## See also
+
+- [AI Agents (MCP)](/docs/guides/mcp/) — the same tool catalog, driven from Claude
+  Code, Cursor, or your own agent instead of from inside the editor.
+- [Event Binding](/docs/guides/events/) — what the agent reaches for when you ask
+  for behaviour without code.
+- [Prefabs](/docs/guides/prefab/) — in Prefab Mode the agent edits the prefab, not
+  the scene. Check the document it is working on before asking for a big change.
