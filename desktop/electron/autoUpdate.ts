@@ -26,7 +26,7 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { app } from 'electron';
-import { checkForUpdate, updateFeeds, type LatestRelease } from './updateCheck';
+import { describeUpdate, updateFeeds, PROBE_TIMEOUT_MS, type LatestRelease } from './updateCheck';
 import { publisherNameIn, signatureSatisfies, type AuthenticodeProbe } from './updateSignature';
 
 /** Where a self-installing update sends anyone who would rather read about it first. */
@@ -156,12 +156,39 @@ export function canSelfInstall(): boolean {
 /** Reached a feed and got an answer, or reached none at all. */
 type CheckOutcome = { reached: true; update: AvailableUpdate | null } | { reached: false };
 
+/**
+ * Give a promise a deadline it cannot outlive.
+ *
+ * electron-updater exposes no request timeout, and its http executor inherits the
+ * same hazard the plain fetches had: a source that accepts the connection and then
+ * says nothing keeps the check pending for as long as the editor runs. Losing the
+ * race only abandons the ANSWER — the request finishes into nothing — which is the
+ * right trade for a check whose worst honest outcome is "ask again later".
+ */
+async function withDeadline<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${what} did not answer within ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function checkWithUpdater(): Promise<CheckOutcome> {
   const autoUpdater = await updater();
   for (const feed of updateFeeds()) {
     try {
       autoUpdater.setFeedURL(feed as Parameters<typeof autoUpdater.setFeedURL>[0]);
-      const result = await autoUpdater.checkForUpdates();
+      const result = await withDeadline(
+        autoUpdater.checkForUpdates(),
+        PROBE_TIMEOUT_MS,
+        String(feed.url ?? feed.provider),
+      );
       if (!result) continue;
       // The feed that answered stays selected, so the download comes from the
       // source that was fast enough to be asked.
@@ -177,12 +204,20 @@ async function checkWithUpdater(): Promise<CheckOutcome> {
   return { reached: false };
 }
 
+/** What a check found, in the shape the renderer has to tell the user about. */
+export type UpdateStatus =
+  | { status: 'update'; update: AvailableUpdate }
+  | { status: 'current' }
+  | { status: 'unreachable' };
+
 /**
- * The newest release if it is newer than this build, else null.
+ * What the newest published release means for this build.
  *
- * Never throws: an update check must not be able to break editor startup.
+ * Never throws: an update check must not be able to break editor startup. It can,
+ * however, come back saying nobody answered — which is a different thing from "you
+ * are up to date" and must not be reported as one.
  */
-export async function findUpdate(currentVersion: string = app.getVersion()): Promise<AvailableUpdate | null> {
+export async function findUpdate(currentVersion: string = app.getVersion()): Promise<UpdateStatus> {
   if (canSelfInstall()) {
     // Catches what the per-feed handler cannot: loading the updater at all.
     const outcome = await checkWithUpdater().catch((err): CheckOutcome => {
@@ -191,10 +226,14 @@ export async function findUpdate(currentVersion: string = app.getVersion()): Pro
     });
     // Only a feed that ANSWERED settles the question. "No feed could be reached" is
     // not "no update", so it falls through to the check that speaks GitHub's API.
-    if (outcome.reached) return outcome.update;
+    if (outcome.reached) {
+      return outcome.update ? { status: 'update', update: outcome.update } : { status: 'current' };
+    }
   }
-  const release = await checkForUpdate(currentVersion);
-  return release ? { ...release, selfInstall: false } : null;
+  const outcome = await describeUpdate(currentVersion);
+  return outcome.status === 'update'
+    ? { status: 'update', update: { ...outcome.release, selfInstall: false } }
+    : outcome;
 }
 
 let downloaded = false;

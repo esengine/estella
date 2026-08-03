@@ -12,7 +12,7 @@ import type {
   PlatformStatus, CreatePlatformResult, PlayableNetworkOption, ProjectPlatformKind,
 } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
-import type { AvailableUpdate, DownloadProgress } from './autoUpdate';
+import type { AvailableUpdate, DownloadProgress, UpdateStatus } from './autoUpdate';
 import type { LaunchError } from './externalProgram';
 import type { DetectedEditor } from './editorCatalog';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
@@ -66,8 +66,9 @@ const api = {
         void Promise.resolve(cb()).finally(() => ipcRenderer.send('app:quitConfirmed'));
       });
     },
-    /** Manual update check (Help menu); null = up to date / offline. */
-    checkUpdates: (): Promise<AvailableUpdate | null> => ipcRenderer.invoke('app:checkUpdates'),
+    /** Manual update check (Help menu). Says which of the three things happened —
+     *  found one, already current, or nobody answered. */
+    checkUpdates: (): Promise<UpdateStatus> => ipcRenderer.invoke('app:checkUpdates'),
     /** Startup update notification (main checks once after launch); returns an unsubscribe. */
     onUpdateAvailable: (cb: (release: AvailableUpdate) => void): (() => void) => {
       const h = (_e: unknown, release: AvailableUpdate) => cb(release);

@@ -878,6 +878,8 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   pointer-events: none;
 }
 .toast {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -922,6 +924,37 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 .toast__close:hover {
   color: var(--text-hi);
   background: var(--hover);
+}
+/* Progress rides the toast's bottom edge: it belongs to the whole line, and a
+   download's own words (percent, size) are already in the message. */
+.toast__bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--line-strong);
+}
+.toast__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--star);
+  transition: width var(--t) linear;
+}
+/* Nothing measurable yet — a slice sweeping across says "working", where a bar
+   parked at zero says "stuck". */
+.toast__bar--waiting .toast__bar-fill {
+  width: 30%;
+  transition: none;
+  animation: toast-bar-sweep 1.1s ease-in-out infinite;
+}
+@keyframes toast-bar-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(333%);
+  }
 }
 @keyframes toast-in {
   from {

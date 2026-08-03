@@ -1505,9 +1505,11 @@ app.whenReady().then(async () => {
   // Skipped in automation/dev so screenshots and local runs stay deterministic.
   if (!VITE_DEV_SERVER_URL && !process.env.ESTELLA_SHOT) {
     setTimeout(() => {
-      void findUpdate().then((release) => {
-        if (release && win && !win.isDestroyed()) {
-          win.webContents.send('app:updateAvailable', release);
+      // Startup stays silent unless there IS one: a machine that could not reach a
+      // source has not asked for this check and should not be told about the weather.
+      void findUpdate().then((result) => {
+        if (result.status === 'update' && win && !win.isDestroyed()) {
+          win.webContents.send('app:updateAvailable', result.update);
         }
       });
     }, 5000);

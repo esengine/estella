@@ -20,6 +20,15 @@ export interface Toast {
   kind: ToastKind;
   message: string;
   action?: ToastAction;
+  /**
+   * How far along the work behind this toast is: 0–100, or `'indeterminate'` for
+   * "started, no measurable progress yet". A number that has not moved and a bar
+   * that says nothing yet read very differently — a download stuck at "0%" looks
+   * broken, while the same moment shown as indeterminate looks like connecting.
+   */
+  progress?: number | 'indeterminate';
+  /** Hide the close button: work the user cannot get back to if they lose it. */
+  pinned?: boolean;
 }
 
 class ToastsImpl {
@@ -30,11 +39,21 @@ class ToastsImpl {
   getSnapshot = (): Toast[] => this.store.getState().list;
 
   /** Post a toast; it auto-dismisses after `ttl` ms (0 = sticky until clicked). */
-  push(message: string, kind: ToastKind = 'info', ttl = 3200, action?: ToastAction): number {
+  push(
+    message: string,
+    kind: ToastKind = 'info',
+    ttl = 3200,
+    action?: ToastAction,
+    extra?: Pick<Toast, 'progress' | 'pinned'>,
+  ): number {
     const id = ++this.seq;
-    this.store.setState((s) => ({ list: [...s.list, { id, kind, message, action }] }));
+    this.store.setState((s) => ({ list: [...s.list, { id, kind, message, action, ...extra }] }));
     if (ttl > 0) setTimeout(() => this.dismiss(id), ttl);
     return id;
+  }
+  /** Is this toast still on screen? For work that has to re-post if it was closed. */
+  has(id: number): boolean {
+    return this.store.getState().list.some((t) => t.id === id);
   }
   /**
    * Rewrite a live toast in place. For a task that reports as it runs — a download's

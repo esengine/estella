@@ -14,6 +14,35 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Checking for updates showed nothing, and could show nothing forever.** The toast was
+  posted only once the network had answered, so Help ▸ Check for Updates was a click with
+  no visible effect for as long as the request took — and the requests had no timeout at
+  all. `catch` catches a connection that fails, not one that is accepted and then never
+  speaks, which is exactly what a filtered network does: the promise never settled, the
+  command waited on it forever, and nothing was ever shown. Each source now gets six
+  seconds, including the one electron-updater asks (which exposes no timeout of its own,
+  so it is raced against a deadline).
+
+  With that fixed, the answer can be honest. "No update" and "nobody answered" used to be
+  the same `null`, reported the same way — a machine that had reached neither the mirror
+  nor GitHub was told, in green, that it was up to date. The check now reports three
+  outcomes, and the unreachable one offers the download page instead of a reassurance it
+  has not earned.
+
+- **A download that reported nothing looked like a download that had stopped.** Progress
+  was a percentage inside a line of text, which sat at "0%" through connect, redirect and
+  the whole of a differential download's first phase. Toasts can carry a progress bar now:
+  indeterminate while there is nothing to be a percentage of, then the real figure with the
+  download's size next to it. The line is also pinned while the download runs and re-posts
+  itself if it was closed — the download outlives its toast, and "Restart" was the only way
+  to install what it had just fetched.
+
+- **One release, announced once.** The startup check and the menu item both raise the same
+  notification, so clicking Check for Updates in the first seconds after launch answered
+  with two identical lines.
+
 ### Added
 
 - **A UI node can say that it arrived on screen, or left it.** Everything a panel does when it

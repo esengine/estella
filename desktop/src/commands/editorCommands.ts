@@ -34,7 +34,7 @@ import { Toasts } from '@/store/Toasts';
 import { confirm } from '@/components/confirm';
 import { requestPluginPanelAction } from '@/plugins/panelActions';
 import { t } from '@/i18n';
-import { notifyUpdate } from '@/update/updateToast';
+import { checkForUpdatesInteractive } from '@/update/updateToast';
 import type { ToolMode } from '@/types';
 
 const editor = () => useEditorStore.getState();
@@ -623,10 +623,7 @@ commands.register({
   id: 'help.checkUpdates',
   label: t('menu.checkUpdates'),
   category: t('cat.help'),
-  run: () => void window.estella?.app?.checkUpdates?.().then((release) => {
-    if (release) notifyUpdate(release);
-    else Toasts.push(t('toast.upToDate'), 'success');
-  }),
+  run: () => void checkForUpdatesInteractive(),
 });
 commands.register({
   id: 'help.openLogs',

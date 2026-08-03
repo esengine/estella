@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseVersion, isNewerVersion, checkForUpdate, downloadKeyFor, updateFeeds } from '../electron/updateCheck';
+import {
+  parseVersion, isNewerVersion, checkForUpdate, describeUpdate, downloadKeyFor, updateFeeds,
+} from '../electron/updateCheck';
 import { DEFAULT_RELEASE_MIRROR } from '../../build-tools/utils/nativeTemplate.js';
 
 describe('parseVersion', () => {
@@ -186,5 +188,79 @@ describe('updateFeeds', () => {
     for (const feed of updateFeeds({ ESTELLA_RELEASE_MIRROR: 'https://a.test' })) {
       if (feed.provider === 'generic') expect(feed.useMultipleRangeRequest).toBe(false);
     }
+  });
+});
+
+// — Three answers, and a deadline ————————————————————————————————————————————————
+//
+// "No update" and "nobody answered" were the same null, and the editor reported
+// both as "up to date" — in green, to a machine that had reached nothing. And the
+// probes had no timeout at all: `catch` catches a connection that FAILS, not one
+// that is accepted and then never speaks, which is what a filtered network does.
+
+describe('describeUpdate', () => {
+  it('separates a source that says no from a source that says nothing', async () => {
+    const current = fetchRouting({ [MIRROR]: { ...LATEST, version: '0.35.0' } });
+    expect(await describeUpdate('0.35.0', { fetch: current, env, platform: 'win32', arch: 'x64' }))
+      .toEqual({ status: 'current' });
+
+    const silent = fetchRouting({});
+    expect(await describeUpdate('0.35.0', { fetch: silent, env, platform: 'win32', arch: 'x64' }))
+      .toEqual({ status: 'unreachable' });
+  });
+
+  it('reports the release when one is published', async () => {
+    const f = fetchRouting({ [MIRROR]: LATEST });
+    expect(await describeUpdate('0.34.1', { fetch: f, env, platform: 'win32', arch: 'x64' })).toEqual({
+      status: 'update',
+      release: { version: '0.35.0', url: 'https://m.test/latest/Estella-Editor-Setup.exe' },
+    });
+  });
+
+  it('a mirror that is merely current still lets the origin be asked', async () => {
+    // The mirror can lag the origin, which is why the origin is asked second at all.
+    const f = fetchRouting({
+      [MIRROR]: { ...LATEST, version: '0.35.0' },
+      'https://api.github.com': { tag_name: 'v0.36.0', html_url: 'https://github.com/x/releases/v0.36.0' },
+    });
+    expect(await describeUpdate('0.35.0', { fetch: f, env, platform: 'win32', arch: 'x64' })).toEqual({
+      status: 'update',
+      release: { version: '0.36.0', url: 'https://github.com/x/releases/v0.36.0' },
+    });
+  });
+
+  it('a mirror that answered outranks an origin that did not', async () => {
+    // Reaching one source and losing the other is "current", not "unreachable":
+    // something DID tell us where this build stands.
+    const f = fetchRouting({ [MIRROR]: { ...LATEST, version: '0.35.0' } });
+    expect(await describeUpdate('0.35.0', { fetch: f, env, platform: 'win32', arch: 'x64' }))
+      .toEqual({ status: 'current' });
+  });
+
+  it('gives up on a source that accepts the connection and then says nothing', async () => {
+    // The bug this exists for: no timeout meant the promise never settled, so the
+    // menu command waited forever and the user saw a click that did nothing.
+    const blackhole = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })) as unknown as typeof fetch;
+
+    const started = Date.now();
+    expect(await describeUpdate('0.35.0', { fetch: blackhole, env, timeoutMs: 30 }))
+      .toEqual({ status: 'unreachable' });
+    // Two sources, one deadline each — and it RESOLVED, which is the whole point.
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it('passes a deadline to every request it makes', async () => {
+    const seen: Array<AbortSignal | null | undefined> = [];
+    const f = ((_url: string, init?: RequestInit) => {
+      seen.push(init?.signal);
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    }) as unknown as typeof fetch;
+
+    await describeUpdate('0.35.0', { fetch: f, env, timeoutMs: 50 });
+    expect(seen.length).toBe(2); // the mirror and the origin
+    for (const signal of seen) expect(signal).toBeInstanceOf(AbortSignal);
   });
 });

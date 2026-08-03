@@ -26,14 +26,30 @@ export function Toaster() {
               {toast.action.label}
             </button>
           )}
-          <button
-            type="button"
-            className="toast__close"
-            aria-label={t('ui.dismiss')}
-            onClick={() => Toasts.dismiss(toast.id)}
-          >
-            <X size={12} strokeWidth={2.2} />
-          </button>
+          {!toast.pinned && (
+            <button
+              type="button"
+              className="toast__close"
+              aria-label={t('ui.dismiss')}
+              onClick={() => Toasts.dismiss(toast.id)}
+            >
+              <X size={12} strokeWidth={2.2} />
+            </button>
+          )}
+          {toast.progress !== undefined && (
+            <div
+              className={`toast__bar${toast.progress === 'indeterminate' ? ' toast__bar--waiting' : ''}`}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={toast.progress === 'indeterminate' ? undefined : toast.progress}
+            >
+              <span
+                className="toast__bar-fill"
+                style={toast.progress === 'indeterminate' ? undefined : { width: `${toast.progress}%` }}
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>
