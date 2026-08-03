@@ -19,6 +19,12 @@ name: Android real devices
 #   DEVICEFARM_PROJECT_ARN      the Device Farm project
 #   DEVICEFARM_DEVICE_POOL_ARN  the pool of models to run on
 #
+# Until they exist this SKIPS rather than fails. A repo that has not opened an AWS
+# account yet is not a broken repo, and a red X on every tag for a rig nobody has
+# set up teaches people to ignore red X's on releases — which is the one place
+# they must not. Asking for the run BY HAND still fails by name: if you pressed the
+# button, "not configured" is the answer you came for.
+#
 # Pick the pool by GPU vendor rather than by popularity: a Pixel (Mali/Tensor), a
 # Snapdragon Galaxy (Adreno) and an Exynos Galaxy (Xclipse) cover the three
 # drivers between them, and a fourth phone from the same vendor as one of those
@@ -50,9 +56,45 @@ concurrency:
   cancel-in-progress: false   # a device farm run costs money; do not abandon one mid-flight
 
 jobs:
+  # Is there an AWS account behind this at all? Its own job because a job-level
+  # `if` cannot read the secrets context — only a step can, and only a job output
+  # carries that answer to the jobs that must not start without it. Cheap: it
+  # holds a runner for seconds and saves the APK build (~35 min) from being spent
+  # on a run with nowhere to send it.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.cfg.outputs.configured }}
+    steps:
+      - id: cfg
+        env:
+          ROLE: ${{ secrets.AWS_DEVICEFARM_ROLE_ARN }}
+          PROJECT: ${{ secrets.DEVICEFARM_PROJECT_ARN }}
+          POOL: ${{ secrets.DEVICEFARM_DEVICE_POOL_ARN }}
+        run: |
+          set -euo pipefail
+          missing=
+          [ -z "$ROLE" ]    && missing="$missing AWS_DEVICEFARM_ROLE_ARN"
+          [ -z "$PROJECT" ] && missing="$missing DEVICEFARM_PROJECT_ARN"
+          [ -z "$POOL" ]    && missing="$missing DEVICEFARM_DEVICE_POOL_ARN"
+          if [ -z "$missing" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'configured=false' >> "$GITHUB_OUTPUT"
+          # Asked for by hand: say no by name. Reached by a tag: say so and stand down.
+          if [ '${{ github.event_name }}' = 'workflow_dispatch' ]; then
+            echo "::error::missing repository secret(s):$missing — see the header of .github/workflows/android-device.yml"
+            exit 1
+          fi
+          echo "::notice::skipped — no Device Farm account wired up (missing:$missing). See the header of .github/workflows/android-device.yml."
+          echo "Real-device canary skipped: missing$missing" >> "$GITHUB_STEP_SUMMARY"
+
   # The same packaging the emulator matrix uses, so a device row and an emulator
   # row that disagree disagree about the DEVICE.
   apk:
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
     uses: ./.github/workflows/android-canary-apk.yml
     permissions:
       contents: read
@@ -63,7 +105,8 @@ jobs:
 
   devices:
     name: Real devices (AWS Device Farm)
-    needs: apk
+    needs: [preflight, apk]
+    if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -84,24 +127,11 @@ jobs:
       - name: Build the test bundle
         run: node tools/devicefarm/pack-test-bundle.mjs
 
-      # Fails early and by name when the account side was never wired up, rather
-      # than as an opaque AWS error three steps later.
-      - name: Check the run is configured
-        env:
-          ROLE: ${{ secrets.AWS_DEVICEFARM_ROLE_ARN }}
-          PROJECT: ${{ secrets.DEVICEFARM_PROJECT_ARN }}
-          POOL: ${{ secrets.DEVICEFARM_DEVICE_POOL_ARN }}
-        run: |
-          set -euo pipefail
-          missing=
-          [ -z "$ROLE" ]    && missing="$missing AWS_DEVICEFARM_ROLE_ARN"
-          [ -z "$PROJECT" ] && missing="$missing DEVICEFARM_PROJECT_ARN"
-          [ -z "$POOL" ]    && missing="$missing DEVICEFARM_DEVICE_POOL_ARN"
-          if [ -n "$missing" ]; then
-            echo "::error::missing repository secret(s):$missing — see the header of .github/workflows/android-device.yml"
-            exit 1
-          fi
-          ls -la apks
+      # What is about to be uploaded, by name and size — the one thing worth
+      # having in the log when a device says it could not install the app.
+      # Whether the account exists at all was settled by `preflight`.
+      - name: Show what will be installed
+        run: ls -la apks
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -128,9 +158,12 @@ jobs:
           artifact-types: CUSTOMER_ARTIFACT,VIDEO,SCREENSHOT
 
       # Always: a failed run's artifacts are the ones worth having, and the device
-      # is gone by the time anyone reads the red X.
+      # is gone by the time anyone reads the red X. Only once the farm step has
+      # actually produced a folder, though — `always()` alone ran this after a
+      # failure that happened BEFORE there was a path, and the upload then failed
+      # for want of one, burying the real error under a second red step.
       - name: Keep what the devices produced
-        if: always()
+        if: always() && steps.farm.outputs.artifact-folder != ''
         uses: actions/upload-artifact@v7
         with:
           name: device-farm-artifacts
