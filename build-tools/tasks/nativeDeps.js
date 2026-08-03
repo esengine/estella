@@ -155,7 +155,16 @@ export async function ensureDawnBuild(options) {
         ? [
             `-DCMAKE_TOOLCHAIN_FILE=${path.join(options.ndk, 'build', 'cmake', 'android.toolchain.cmake')}`,
             `-DANDROID_ABI=${options.abi || 'arm64-v8a'}`,
-            `-DANDROID_PLATFORM=${options.androidPlatform || androidMinPlatform()}`,
+            // EXPERIMENT (exp/dawn-android-api29, do not merge): pin Dawn's build
+            // API level back to 29 while everything else stays at the new floor of
+            // 24. v0.41.0 took Dawn from android-29 to android-24 as a consequence
+            // of lowering the manifest floor, and postprocess-effects went from a
+            // drawn frame to a flat black one on the emulator in the same release —
+            // with no rendering source changed, iOS unaffected, and the same scene
+            // passing on SwiftShader through the WebGPU path. This isolates that one
+            // variable. The resulting host hard-requires API-29 symbols, so it is
+            // only loadable on the API 34 emulator this experiment runs on.
+            '-DANDROID_PLATFORM=android-29',
             '-DANDROID_STL=c++_shared',
             '-DDAWN_ENABLE_VULKAN=ON', '-DDAWN_ENABLE_METAL=OFF',
             // Shared on Android (the APK ships the .so); static on iOS (an app
