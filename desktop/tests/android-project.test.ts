@@ -110,7 +110,7 @@ describe('the Android Studio project an export writes', () => {
         expect(gradle).toContain('versionCode = 7');
         expect(gradle).toContain('versionName = "1.2"');
         // Taken from the manifest template rather than restated, so the two agree.
-        expect(gradle).toContain('minSdk = 29');
+        expect(gradle).toContain('minSdk = 24');
         expect(gradle).toContain('targetSdk = 33');
     });
 
@@ -163,7 +163,7 @@ describe('the Android Studio project an export writes', () => {
 describe('gradleManifest', () => {
     it('reads the SDK levels it strips, so the build script can state them', () => {
         const { minSdk, targetSdk } = gradleManifest(readFileSync(MANIFEST_TEMPLATE, 'utf8'), APP);
-        expect(minSdk).toBe(29);
+        expect(minSdk).toBe(24);
         expect(targetSdk).toBe(33);
     });
 });
