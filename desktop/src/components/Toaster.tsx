@@ -20,7 +20,7 @@ export function Toaster() {
               className="toast__action"
               onClick={() => {
                 toast.action?.run();
-                Toasts.dismiss(toast.id);
+                if (!toast.action?.keepOpen) Toasts.dismiss(toast.id);
               }}
             >
               {toast.action.label}

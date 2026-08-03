@@ -41,7 +41,15 @@ published separately; it ships inside the editor.
 
 - **One release, announced once.** The startup check and the menu item both raise the same
   notification, so clicking Check for Updates in the first seconds after launch answered
-  with two identical lines.
+  with two identical lines. Announcing once does not mean announcing only once ever: a
+  download that failed can be offered again, which running the real thing turned out to be
+  the case that mattered.
+
+- **A toast action no longer throws away the line it just wrote.** Pressing a toast's button
+  always dismissed the toast, which is right for an action that leaves (open a page, restart)
+  and wrong for one that keeps reporting on that same line: pressing Download blanked the
+  screen for the second before the first byte report, right where the "did my click do
+  anything" doubt lives.
 
 ### Added
 

@@ -13,6 +13,14 @@ export type ToastKind = 'info' | 'success' | 'warn' | 'error';
 export interface ToastAction {
   label: string;
   run: () => void;
+  /**
+   * Keep the toast when this action is pressed. The default is to dismiss, which
+   * is right for an action that LEAVES (open a page, restart) and wrong for one
+   * that starts work reported on this same line — dismissing would throw away the
+   * state the handler just wrote, leaving nothing on screen until the work's first
+   * report.
+   */
+  keepOpen?: boolean;
 }
 
 export interface Toast {

@@ -97,14 +97,23 @@ export function checkForUpdatesInteractive(): Promise<void> {
 }
 
 /**
- * The version a toast is already about, so the two surfaces that raise this — the
- * startup check and the menu — announce one release once. Clicking Check for
- * Updates a few seconds after launch used to answer with two identical lines.
+ * The version a live toast is already the current news about, so the two surfaces
+ * that raise this — the startup check and the menu — announce one release once.
+ * Clicking Check for Updates a few seconds after launch used to answer with two
+ * identical lines.
+ *
+ * It is dropped the moment that line stops being the news: pressing Download turns
+ * it into progress, and a download that FAILED must be re-offerable, or checking
+ * again is a click that produces nothing — which is the bug this whole file is
+ * about, reintroduced in a corner where it is harder to see.
  */
 let announced: { version: string; id: number } | null = null;
+/** A download in flight; its own line is on screen, so do not add a second. */
+let downloading: string | null = null;
 
 /** Post the "there is a newer Estella" toast, wired to whatever this build can do. */
 export function notifyUpdate(release: AvailableUpdate): void {
+  if (downloading === release.version) return;
   if (announced?.version === release.version && Toasts.has(announced.id)) return;
   const openInBrowser = { label: t('ui.download'), run: () => window.open(release.url) };
 
@@ -119,6 +128,10 @@ export function notifyUpdate(release: AvailableUpdate): void {
   let id = 0;
   id = Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
     label: t('ui.download'),
+    // This line becomes the download's line; dismissing it here would blank the
+    // screen until the first byte report — a second of "nothing happened" right
+    // after a click, which is the thing being fixed.
+    keepOpen: true,
     run: () => void download(id, release),
   });
   announced = { version: release.version, id };
@@ -127,6 +140,11 @@ export function notifyUpdate(release: AvailableUpdate): void {
 async function download(id: number, release: AvailableUpdate): Promise<void> {
   const bridge = window.estella?.app;
   if (!bridge?.downloadUpdate) return;
+
+  // From here the line is a download, not an offer — so it no longer suppresses a
+  // fresh announcement, and `downloading` takes over that job for as long as it runs.
+  announced = null;
+  downloading = release.version;
 
   // The download outlives its toast if the user closes it — and then there is no
   // way back to "Restart", so the line re-posts itself rather than disappearing.
@@ -176,6 +194,9 @@ async function download(id: number, release: AvailableUpdate): Promise<void> {
       pinned: false,
       action: { label: t('ui.restart'), run: () => void bridge.installUpdate?.() },
     });
+    // Downloaded and waiting for a restart IS the current news about this version:
+    // checking again should not offer a download that already happened.
+    announced = { version: release.version, id: live };
   } catch (err) {
     console.error('[update] download failed', err);
     // The link still works when the download did not — a failed update should cost
@@ -189,5 +210,6 @@ async function download(id: number, release: AvailableUpdate): Promise<void> {
     });
   } finally {
     stop?.();
+    downloading = null;
   }
 }

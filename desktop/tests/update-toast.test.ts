@@ -165,9 +165,20 @@ describe('the download', () => {
     };
   }
 
+  // A version per test: the "announce once" guard is module state keyed by version,
+  // and a download left in flight by one test would suppress the next one's offer.
+  let seq = 0;
+  let version = '';
+  /** Press a toast's button exactly as Toaster does — including the dismiss. */
+  const press = (toast: Toast): void => {
+    toast.action?.run();
+    if (!toast.action?.keepOpen) Toasts.dismiss(toast.id);
+  };
+
   const startDownload = async (): Promise<void> => {
-    notifyUpdate({ version: '9.9.9', url: 'https://example.test', selfInstall: true });
-    only().action?.run();
+    version = `9.9.${++seq}`;
+    notifyUpdate({ version, url: 'https://example.test', selfInstall: true });
+    press(only());
     await settle();
   };
 
@@ -176,7 +187,7 @@ describe('the download', () => {
     await startDownload();
 
     const toast = only();
-    expect(toast.message).toBe('Starting the Estella 9.9.9 download…');
+    expect(toast.message).toBe(`Starting the Estella ${version} download…`);
     expect(toast.progress).toBe('indeterminate');
     expect(toast.pinned).toBe(true);
   });
@@ -188,7 +199,7 @@ describe('the download', () => {
     dl.report(37.4);
     const toast = only();
     expect(toast.progress).toBe(37);
-    expect(toast.message).toBe('Downloading Estella 9.9.9… 37% of 204.1 MB');
+    expect(toast.message).toBe(`Downloading Estella ${version}… 37% of 204.1 MB`);
   });
 
   it('comes back if the user closes it, so Restart stays reachable', async () => {
@@ -204,13 +215,43 @@ describe('the download', () => {
 
     await dl.finish();
     const ready = only();
-    expect(ready.message).toBe('Estella 9.9.9 is ready — restart to install');
+    expect(ready.message).toBe(`Estella ${version} is ready — restart to install`);
     expect(ready.kind).toBe('success');
     expect(ready.progress).toBeUndefined();
     expect(ready.pinned).toBe(false);
 
-    ready.action?.run();
+    press(ready);
     expect(dl.installed()).toBe(true);
+    expect(toasts()).toHaveLength(0); // Restart leaves; its line goes with it
+  });
+
+  it('can be offered again after a download failed', async () => {
+    // Found by driving a real packaged build: the failed line kept the id the
+    // "announce once" guard was holding, so checking again dismissed its own
+    // progress toast and posted nothing — a click that does nothing, which is the
+    // exact complaint this file exists to fix.
+    const dl = downloadBridge();
+    await startDownload();
+    await dl.fail();
+    expect(only().kind).toBe('error');
+
+    notifyUpdate({ version, url: 'https://example.test', selfInstall: true });
+    expect(toasts()).toHaveLength(2);
+    expect(toasts()[1].message).toBe(`Estella ${version} is available`);
+  });
+
+  it('does not offer a second time while it is downloading, or once it is ready', async () => {
+    const dl = downloadBridge();
+    await startDownload();
+    dl.report(30);
+
+    notifyUpdate({ version, url: 'https://example.test', selfInstall: true });
+    expect(toasts()).toHaveLength(1); // the progress line is the news
+
+    await dl.finish();
+    notifyUpdate({ version, url: 'https://example.test', selfInstall: true });
+    expect(toasts()).toHaveLength(1); // and so is "restart to install"
+    expect(only().message).toBe(`Estella ${version} is ready — restart to install`);
   });
 
   it('falls back to the link when the download itself fails', async () => {
