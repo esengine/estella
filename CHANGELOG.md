@@ -14,7 +14,43 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-03
+
+The editor's own agent is the headline, and this is the release where a user can
+find out it exists: a conversation now lives with the project — its transcript and the
+model's memory of it — so quitting no longer throws away what the agent was told, earlier
+conversations can be picked back up, and a long one says out loud which of its runs have
+been folded out of the model's reach. You can hand it a picture, and re-ask a run in
+different words. All of it is documented, in both languages, for the first time.
+
+Underneath, two things that only show up after you ship: a game's own `.json` data is an
+asset now rather than a path you fetch and discover missing in the build, and a save
+written by an earlier build is carried into the durable directory this release moves saves
+to. Android's floor drops to 7.0.
+
 ### Added
+
+- **The agent's conversation outlives the window, and there is a guide to all of it.**
+  Quitting the editor threw away everything the agent had been told, and nothing led back
+  to yesterday's work. A conversation is kept with the project now, under
+  `<root>/.esengine/agent/` beside the autosaves and for the same reason — what was asked
+  and what it did are about THIS project. **Earlier conversations** lists them and picking
+  one up restores both halves: the transcript you read and the memory the model answers
+  from. You can drop or paste a **picture** into the composer (in a 2D editor "make it look
+  like this" is most of what anyone wants to say, and until now only the agent could show
+  pictures), and **re-ask** a run in different words — it opens the question prefilled
+  rather than firing the identical words again, since wanting to put it better is the usual
+  reason to run a turn twice.
+
+  A long conversation also stops forgetting in silence. Past its context window the oldest
+  runs fold away — what you asked survives word for word, the tool traffic does not — and
+  the transcript now says so on the line where it happened, because runs still on screen
+  that the model can no longer answer about read as a model ignoring you rather than one
+  that was made to forget.
+
+  None of this was documented anywhere: the only agent the guides knew about was MCP. There
+  is now a **Built-in Agent** guide in both languages, screenshot-led, including the table
+  of what it may do unasked — the tiers are drawn where Undo stops working.
 
 - **A game's own data is an asset.** A `.json` that is not a Spine skeleton or a
   DragonBones pair — a level table, a tuning file, dialogue — was not an asset at all:
@@ -32,6 +68,43 @@ published separately; it ships inside the editor.
   Two edges, deliberately: the content sniff still asks Spine and DragonBones first, so
   nothing that was already a skeleton becomes data; and the project's own configuration
   (`package.json`, `tsconfig.json` and their kind) never becomes an asset.
+
+
+- **A UI node can say that it arrived on screen, or left it.** Everything a panel does when it
+  appears — play the entrance, start the timer, refresh the count — had no event to hang on,
+  because a node does not go away by itself: an ANCESTOR's `display` changed, and every node
+  under it stopped being drawn without being told. The only way to notice was to walk the parent
+  chain of every animated node, every frame, re-deriving what the layout pass had already
+  computed. `shown` and `hidden` are those two moments on the same channel as `click`, so the
+  answer is an EventBinding row rather than a system, and the whole subtree is told rather than
+  just the node whose field changed.
+
+  Visibility is read as the engine's own resolved bit, the same one rendering and hit-testing
+  use, so it cannot drift from what you can see. That bit is reachable one entity at a time,
+  which makes the scan the entire cost of the feature — so it is gated twice, and on a steady
+  frame it is nothing: no listener, no scan (`EntityEventQueue.hasListenersFor` makes that O(1)),
+  and no scan on a frame where no UINode was written and nothing moved in the hierarchy — the
+  same pair of signals the layout solve and the physics reconcile already gate on. Measured in
+  a real UI of 112 nodes: 0 reads per idle frame, one full pass on the frame a panel is toggled.
+
+### Changed
+
+- **Android's minimum is API 24 (Android 7.0), lowered from 29.** The floor was 29
+  because the font path called `AFontMatcher_create` and nothing below it could
+  answer; on 24 through 28 the engine now picks the font out of `/system/fonts`
+  itself, asking each candidate whether it has a glyph for the character rather
+  than trusting a family name. Read the Vulkan requirement alongside this: it is
+  unchanged and still `required="true"`, and it filters far more devices than the
+  API level does, so what 24 adds is Android 7/8-era hardware that has a Vulkan
+  driver — not every phone on those releases. The compatibility matrix now starts
+  at 24; emulators below API 28 may have no Vulkan, so those rows can report "no
+  data" rather than a verdict.
+
+  Which is also the honest limit on this: the `/system/fonts` path has not run on a
+  real 7-or-8-era device. The emulators that could have covered it are the ones with
+  no Vulkan driver, and the phones in the device lab are all newer. What is verified
+  is that the floor builds, installs and boots; if you ship to API 24–28, test text
+  rendering on real hardware before your players do.
 
 ### Fixed
 
@@ -77,39 +150,6 @@ published separately; it ships inside the editor.
   screen for the second before the first byte report, right where the "did my click do
   anything" doubt lives.
 
-### Added
-
-- **A UI node can say that it arrived on screen, or left it.** Everything a panel does when it
-  appears — play the entrance, start the timer, refresh the count — had no event to hang on,
-  because a node does not go away by itself: an ANCESTOR's `display` changed, and every node
-  under it stopped being drawn without being told. The only way to notice was to walk the parent
-  chain of every animated node, every frame, re-deriving what the layout pass had already
-  computed. `shown` and `hidden` are those two moments on the same channel as `click`, so the
-  answer is an EventBinding row rather than a system, and the whole subtree is told rather than
-  just the node whose field changed.
-
-  Visibility is read as the engine's own resolved bit, the same one rendering and hit-testing
-  use, so it cannot drift from what you can see. That bit is reachable one entity at a time,
-  which makes the scan the entire cost of the feature — so it is gated twice, and on a steady
-  frame it is nothing: no listener, no scan (`EntityEventQueue.hasListenersFor` makes that O(1)),
-  and no scan on a frame where no UINode was written and nothing moved in the hierarchy — the
-  same pair of signals the layout solve and the physics reconcile already gate on. Measured in
-  a real UI of 112 nodes: 0 reads per idle frame, one full pass on the frame a panel is toggled.
-
-### Changed
-
-- **Android's minimum is API 24 (Android 7.0), lowered from 29.** The floor was 29
-  because the font path called `AFontMatcher_create` and nothing below it could
-  answer; on 24 through 28 the engine now picks the font out of `/system/fonts`
-  itself, asking each candidate whether it has a glyph for the character rather
-  than trusting a family name. Read the Vulkan requirement alongside this: it is
-  unchanged and still `required="true"`, and it filters far more devices than the
-  API level does, so what 24 adds is Android 7/8-era hardware that has a Vulkan
-  driver — not every phone on those releases. The compatibility matrix now starts
-  at 24; emulators below API 28 may have no Vulkan, so those rows can report "no
-  data" rather than a verdict.
-
-### Fixed
 
 - **The mock-wasm test harness left every engine-calling plugin inert.** `bootMockApp` connected
   the world but not the App, and `engineApi(app)` answers with the App's module — so plugins that
@@ -127,6 +167,13 @@ published separately; it ships inside the editor.
   directory is also a real cache directory now, so the hot-update store can be
   reclaimed instead of growing forever. Writes go through a temp file and a
   rename, so a kill mid-write cannot truncate a save.
+
+  A save written by an earlier build is in the old directory, and moving where
+  storage reads would have lost it on exactly the version that exists to keep it.
+  So the first launch after the update reads the cache copy when the durable store
+  has nothing, and writes it through — once, and only when there is nothing durable
+  to prefer, so a stale copy can never overwrite newer progress. Nothing to do on
+  your side if you have already shipped a native build.
 
 ## [0.40.0] - 2026-08-02
 
