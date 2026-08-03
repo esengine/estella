@@ -25,6 +25,18 @@ describe('content classification', () => {
     expect(isContentFile('.DS_Store')).toBe(false);
   });
 
+  it("excludes an export's output, whichever platform wrote it", () => {
+    // A build's output is made OF content, so every file in it looks like one.
+    // Adopted, the registry treats a finished build as authored assets and the
+    // next build ships the previous one's manifest inside itself.
+    for (const dir of ['dist-web', 'dist-android', 'dist-wechat', 'dist-playable', 'dist-native']) {
+      expect(isContentDir(dir)).toBe(false);
+      expect(isNonContentPath(`${dir}/assets/hero.png`)).toBe(true);
+    }
+    // Not a prefix match on "dist": a folder of distortion sprites is content.
+    expect(isContentDir('distortion')).toBe(true);
+  });
+
   it('treats any dot or build segment in a path as leaving content space', () => {
     expect(isNonContentPath('assets/hero.png')).toBe(false);
     expect(isNonContentPath('.esengine/cache/assets.json')).toBe(true);

@@ -15,8 +15,19 @@ export const META_EXT = '.meta';
  *  (`.esengine`, `.git`, …) are excluded by the dot rule. */
 const NON_CONTENT_DIRS = new Set(['node_modules', 'dist', 'dist-electron', 'build']);
 
+/**
+ * Where an export lands: `dist-web`, `dist-android`, `dist-wechat`, one per
+ * platform and more of them over time.
+ *
+ * A build's OUTPUT is not the project's content — but it is full of files that
+ * look exactly like content, because it is made of them. Left in, the registry
+ * adopts a finished build's assets as if the user had authored them, and the
+ * next build ships the previous one's manifest inside itself.
+ */
+const isBuildOutputDir = (name: string): boolean => name.startsWith('dist-');
+
 export const isContentDir = (name: string): boolean =>
-  !name.startsWith('.') && !NON_CONTENT_DIRS.has(name);
+  !name.startsWith('.') && !NON_CONTENT_DIRS.has(name) && !isBuildOutputDir(name);
 
 export const isContentFile = (name: string): boolean =>
   !name.startsWith('.') && !name.endsWith(META_EXT);
@@ -27,7 +38,7 @@ export function isNonContentPath(rel: string): boolean {
   return rel
     .replace(/\\/g, '/')
     .split('/')
-    .some((seg) => seg.startsWith('.') || NON_CONTENT_DIRS.has(seg));
+    .some((seg) => seg.startsWith('.') || NON_CONTENT_DIRS.has(seg) || isBuildOutputDir(seg));
 }
 
 /**

@@ -35,6 +35,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An export's output is no longer mistaken for the project's content.** `dist/` and
+  `build/` were excluded; `dist-web/`, `dist-android/`, `dist-wechat/` and the rest were
+  not — so the registry adopted a finished build's assets as if they had been authored,
+  and they show up in the Content Browser. Harmless while nothing forced them into a
+  build; with data assets always included, the next build would have shipped the previous
+  one's manifest inside itself. Any `dist-*` folder is build output now.
+
 - **Checking for updates showed nothing, and could show nothing forever.** The toast was
   posted only once the network had answered, so Help ▸ Check for Updates was a click with
   no visible effect for as long as the request took — and the requests had no timeout at
