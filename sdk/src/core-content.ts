@@ -88,6 +88,7 @@ export {
     type TextureInfo,
     type SpineLoadResult,
     type LocaleResult,
+    type JsonResult,
     type AssetRefInfo,
     textureImportSettingsFrom,
     type ParsedTextureImportSettings,

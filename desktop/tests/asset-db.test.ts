@@ -151,16 +151,31 @@ describe('scanAssetDatabase — orphan adoption', () => {
   // all Spine 2.1 can export. Nothing in the NAME says the `.json` is a skeleton,
   // so a name-only adoption left it out of the registry entirely and its component
   // slot had nothing to offer.
-  it('adopts a JSON Spine skeleton as spine, and leaves plain data JSON alone', async () => {
+  it('adopts a JSON Spine skeleton as spine and a plain one as data', async () => {
     const skel = path.join(root, 'assets/skeleton.json');
     const data = path.join(root, 'assets/levels.json');
     writeFileSync(skel, '{"skeleton":{"hash":"h","spine":"2.1.27"},"bones":[{"name":"root"}]}');
     writeFileSync(data, '{"levels":[1,2,3]}');
     const res = await scanAssetDatabase(root, { write: false });
-    expect(res.adopted).toEqual(['assets/skeleton.json']);
+    expect(res.adopted.sort()).toEqual(['assets/levels.json', 'assets/skeleton.json']);
+    // The marker inside the file wins; a `.json` nobody else claims is data.
     expect(JSON.parse(readFileSync(`${skel}.meta`, 'utf8')).type).toBe('spine');
-    expect(existsSync(`${data}.meta`)).toBe(false);
+    expect(JSON.parse(readFileSync(`${data}.meta`, 'utf8')).type).toBe('json');
     expect(res.index.entries.find((e) => e.path === 'assets/skeleton.json')?.type).toBe('spine');
-    rmSync(skel); rmSync(`${skel}.meta`); rmSync(data);
+    expect(res.index.entries.find((e) => e.path === 'assets/levels.json')?.type).toBe('json');
+    rmSync(skel); rmSync(`${skel}.meta`); rmSync(data); rmSync(`${data}.meta`);
+  });
+
+  it("leaves the project's own config files alone", async () => {
+    // Every project has these, and a `.meta` beside them is pure noise.
+    const ts = path.join(root, 'tsconfig.json');
+    const pkg = path.join(root, 'package.json');
+    writeFileSync(ts, '{"compilerOptions":{}}');
+    writeFileSync(pkg, '{"name":"game"}');
+    const res = await scanAssetDatabase(root, { write: false });
+    expect(res.adopted).toEqual([]);
+    expect(existsSync(`${ts}.meta`)).toBe(false);
+    expect(existsSync(`${pkg}.meta`)).toBe(false);
+    rmSync(ts); rmSync(pkg);
   });
 });

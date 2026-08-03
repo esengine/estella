@@ -7,3 +7,4 @@ export const CONTENT_SNIFF_BYTES: number;
 export function metaTypeForExt(fileOrExt: string): string | null;
 export function needsContentType(fileOrExt: string): boolean;
 export function metaTypeForContent(fileOrExt: string, head: string): string | null;
+export function isProjectPlumbing(fileOrPath: string): boolean;

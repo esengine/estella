@@ -14,6 +14,25 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A game's own data is an asset.** A `.json` that is not a Spine skeleton or a
+  DragonBones pair — a level table, a tuning file, dialogue — was not an asset at all:
+  no `.meta`, no uuid, nothing in the registry, so the only way to read one was to fetch
+  its path by hand. That works in the editor, which serves the whole project, and 404s in
+  the build, which ships only assets. The failure appears after release and nowhere else.
+
+  It is a type now, `json`, with `assets.loadJson<T>(ref)`. Being a type is the point: a
+  data file gets ref resolution (`@uuid:` and manifest paths, so moving it breaks
+  nothing), one parse shared by every caller, group and subpackage delivery, and hot
+  update — none of which a hand-rolled fetch can have. It is also always included in a
+  build, like locale tables and for the same reason: the code that loads it is the only
+  thing that names it, so reachability would cull every one.
+
+  Two edges, deliberately: the content sniff still asks Spine and DragonBones first, so
+  nothing that was already a skeleton becomes data; and the project's own configuration
+  (`package.json`, `tsconfig.json` and their kind) never becomes an asset.
+
 ### Fixed
 
 - **Checking for updates showed nothing, and could show nothing forever.** The toast was

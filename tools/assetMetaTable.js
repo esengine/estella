@@ -114,6 +114,28 @@ export function metaTypeForExt(fileOrExt) {
  */
 export const CONTENT_TYPED_EXTENSIONS = Object.freeze(['.json']);
 
+/**
+ * Files that are the project's own configuration, never its content.
+ *
+ * A plain `.json` is a data asset (see {@link metaTypeForContent}), and these
+ * are the ones that would be swept up by that and should not be: they are read
+ * by the toolchain, not by the game, and a `.meta` beside `package.json` is
+ * noise in every project that has ever existed. Matched by full name, because
+ * `data/package.json` — a file a game genuinely ships — is not this.
+ */
+const PLUMBING_FILES = Object.freeze(new Set([
+    'package.json',
+    'package-lock.json',
+    'tsconfig.json',
+    'jsconfig.json',
+]));
+
+/** Is this the project's own plumbing rather than a game asset? */
+export function isProjectPlumbing(fileOrPath) {
+    const parts = String(fileOrPath).toLowerCase().replace(/\\/g, '/').split('/');
+    return PLUMBING_FILES.has(parts[parts.length - 1]);
+}
+
 /** How much of a file's head the sniff needs. A skeleton's `"skeleton"` header
  *  is the first thing the exporter writes, and a bound keeps the scan from
  *  re-reading every unrelated multi-megabyte JSON in the project. */
@@ -122,6 +144,7 @@ export const CONTENT_SNIFF_BYTES = 65536;
 /** Whether @p fileOrExt is one the name cannot type but content can. */
 export function needsContentType(fileOrExt) {
     const lower = fileOrExt.toLowerCase();
+    if (isProjectPlumbing(lower)) return false;
     return metaTypeForExt(lower) === null && CONTENT_TYPED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
@@ -133,13 +156,19 @@ const SPINE_SKELETON_JSON = /"skeleton"\s*:\s*\{[^{}]*"spine"\s*:\s*"\d/;
 
 /**
  * The `.meta` type for a file whose head has been read — the name-derived one
- * where a name suffices, else what the content declares. Null means neither
- * could type it (a plain data `.json`), which the callers treat as "not an
- * asset", exactly as an unknown extension is.
+ * where a name suffices, else what the content declares.
+ *
+ * A `.json` nobody else claims is `json`: a data asset, the type a game's own
+ * tables and configuration load as. It is the LAST claim on purpose — Spine's
+ * skeleton and DragonBones' pair are also `.json`, and they are recognised
+ * first, so nothing that was already a skeleton becomes data.
+ *
+ * Null still means "not an asset", but now only for a name nothing can type at
+ * all (a `.md`, a `.ts`) and for the project's own plumbing.
  */
 export function metaTypeForContent(fileOrExt, head) {
     const byName = metaTypeForExt(fileOrExt);
     if (byName) return byName;
     if (!needsContentType(fileOrExt)) return null;
-    return SPINE_SKELETON_JSON.test(head) ? 'spine' : null;
+    return SPINE_SKELETON_JSON.test(head) ? 'spine' : 'json';
 }

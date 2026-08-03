@@ -132,8 +132,14 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Pro
 // so the cook keeps the textures instead of shipping an atlas that 404s them.
 const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
 
+// 'json' is a game's own data table. It is scanned like the rest because a
+// data-driven game names assets FROM its data — a spawn table holding `@uuid:`
+// refs is the ordinary way to do that — and an unscanned table means the cook
+// culls what only it points at, which surfaces as a missing asset in the build
+// and nowhere else.
 const JSON_REF_TYPES = new Set([
   'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
+  'json',
 ]);
 
 /**

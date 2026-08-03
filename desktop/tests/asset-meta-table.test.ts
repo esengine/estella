@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { EXT_TO_TYPE, metaTypeFor } from '../electron/assetMeta';
 import {
-  EXT_TO_TYPE as SHARED, metaTypeForContent, needsContentType,
+  EXT_TO_TYPE as SHARED, metaTypeForContent, needsContentType, isProjectPlumbing,
 } from '../../tools/assetMetaTable.js';
 
 describe('.meta type table (single source)', () => {
@@ -70,10 +70,28 @@ describe('content-typed assets', () => {
         expect(metaTypeForContent('x.json', '{\n  "skeleton": {\n    "spine": "3.8.99"\n  }\n}')).toBe('spine');
     });
 
-    it('leaves project data alone — a `.json` is not an asset just for being JSON', () => {
-        expect(metaTypeForContent('levels.json', '{"levels":[1,2,3]}')).toBeNull();
-        // "spine" outside a skeleton header is not a skeleton.
-        expect(metaTypeForContent('notes.json', '{"about":"the spine: 4.2 runtime"}')).toBeNull();
+    it('types a `.json` nobody else claims as data', () => {
+        // The game's own tables are assets: that is what gives them a uuid, a
+        // place in the manifest, and a seat in the build.
+        expect(metaTypeForContent('levels.json', '{"levels":[1,2,3]}')).toBe('json');
+        // "spine" outside a skeleton header is not a skeleton — it is data.
+        expect(metaTypeForContent('notes.json', '{"about":"the spine: 4.2 runtime"}')).toBe('json');
+    });
+
+    it('leaves the project\'s own plumbing alone', () => {
+        // These are read by the toolchain, not the game; a `.meta` beside them
+        // is noise in every project that has ever existed.
+        for (const name of ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json']) {
+            expect(needsContentType(name)).toBe(false);
+            expect(metaTypeForContent(name, '{}')).toBeNull();
+        }
+        expect(isProjectPlumbing('a/b/tsconfig.json')).toBe(true);
+        expect(isProjectPlumbing('assets/data/levels.json')).toBe(false);
+    });
+
+    it('never types a name that is not JSON at all', () => {
+        expect(metaTypeForContent('README.md', '# hi')).toBeNull();
+        expect(metaTypeForContent('main.ts', 'export {}')).toBeNull();
     });
 
     it('never overrides a name that already typed the file', () => {

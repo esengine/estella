@@ -84,6 +84,15 @@ export interface PrefabResult {
     data: unknown;
 }
 
+/**
+ * A data asset's parsed document. `T` is the caller's claim about the file's
+ * shape — the loader parses, it does not validate, so a wrong claim is a wrong
+ * claim about untyped JSON exactly as `JSON.parse` would give.
+ */
+export interface JsonResult<T = unknown> {
+    data: T;
+}
+
 export interface LoadContext {
     backend: Backend;
     catalog: Catalog;

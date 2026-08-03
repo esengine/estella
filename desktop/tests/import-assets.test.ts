@@ -97,12 +97,21 @@ describe('importAssets', () => {
     expect(meta(path.join(root, 'assets/spine/skeleton.json')).type).toBe('spine');
   });
 
-  it('still skips a plain data .json — being JSON does not make a file an asset', async () => {
+  it('imports a plain data .json as a data asset', async () => {
     const src = path.join(outside, 'levels.json');
     writeFileSync(src, '{"levels":[1,2,3]}');
     const res = await importAssets(root, 'assets', [src]);
+    expect(res.imported).toEqual(['assets/levels.json']);
+    expect(res.skipped).toEqual([]);
+    expect(JSON.parse(readFileSync(path.join(root, 'assets/levels.json.meta'), 'utf8')).type).toBe('json');
+  });
+
+  it("skips the project's own config files", async () => {
+    const src = path.join(outside, 'tsconfig.json');
+    writeFileSync(src, '{"compilerOptions":{}}');
+    const res = await importAssets(root, 'assets', [src]);
     expect(res.imported).toEqual([]);
-    expect(res.skipped).toEqual(['levels.json']);
+    expect(res.skipped).toEqual(['tsconfig.json']);
   });
 
   it('offers the content-typed extensions in the dialog filter', () => {

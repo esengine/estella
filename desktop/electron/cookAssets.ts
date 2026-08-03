@@ -313,6 +313,13 @@ export async function cookAssets(
   for (const e of index.entries) {
     if (e.path.toLowerCase().endsWith('.eslocale')) seed(e.uuid);
   }
+  // …and data assets, for the same reason one step further: a `.json` table is
+  // named by the code that loads it, so nothing in the scene graph points at it.
+  // Culling it produces the worst failure this pipeline can produce — it works in
+  // the editor, which serves the whole project, and 404s only in the build.
+  for (const e of index.entries) {
+    if (e.type === 'json') seed(e.uuid);
+  }
   // …then take the transitive closure over the dependency graph.
   while (queue.length > 0) {
     const uuid = queue.shift()!;

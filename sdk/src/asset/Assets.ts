@@ -10,7 +10,7 @@ import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
     TilemapResult, TilesetResult, TimelineResult, PrefabResult,
-    LocaleResult, FsmResult, BtResult, AnimatorControllerResult,
+    LocaleResult, FsmResult, BtResult, AnimatorControllerResult, JsonResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
@@ -31,6 +31,7 @@ import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
+import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import { getComponentDefaults } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
@@ -435,6 +436,19 @@ export class Assets {
 
     async loadPrefab(ref: string): Promise<PrefabResult> {
         return this.loadTyped('prefab', ref);
+    }
+
+    /**
+     * Load a `.json` data asset — a game's own table, tuning or dialogue file.
+     *
+     * `T` is what the caller expects the document to be; nothing validates it,
+     * so this is `JSON.parse`'s guarantee, not a schema's. What the asset system
+     * adds over fetching the file yourself is everything around the parse: ref
+     * resolution (`@uuid:` and manifest paths), one parse per file, group /
+     * subpackage delivery, and hot update.
+     */
+    async loadJson<T = unknown>(ref: string): Promise<JsonResult<T>> {
+        return this.loadTyped('json', ref);
     }
 
     // =========================================================================
@@ -1462,6 +1476,7 @@ export class Assets {
         this.register(new AnimatorControllerAssetLoader());
         this.register(new BtAssetLoader());
         this.register(new LocaleAssetLoader());
+        this.register(new JsonAssetLoader());
     }
 
     private textureCacheKey_(path: string, flip: boolean): string {

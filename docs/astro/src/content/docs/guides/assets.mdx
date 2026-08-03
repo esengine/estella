@@ -52,6 +52,33 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
 | `loadPrefab(ref)` | `{ data }` |
+| `loadJson<T>(ref)` | `{ data: T }` |
+
+## Your own data
+
+A `.json` that is not a Spine skeleton or a DragonBones pair is a **data asset** — the
+game's own tables, tuning and dialogue. It loads like anything else:
+
+```typescript
+const { data } = await assets.loadJson<LevelTable>('data/levels.json');
+```
+
+`T` is what you expect the file to hold; nothing validates it, so this is `JSON.parse`'s
+guarantee and not a schema's.
+
+Loading it as an asset rather than fetching the path yourself is not ceremony. A data
+asset has a uuid, so moving the file does not break what points at it; it is parsed once
+and reference-counted; it can live in a lazy [group](#addressable-groups-lazy-loading) or
+come from a CDN; and [hot update](/docs/guides/hot-update/) can replace it in a shipped
+game. A hand-rolled `fetch` of a project path gets none of that — and it *works in the
+editor*, which serves the whole project, while the build ships only assets.
+
+Data assets ship whether or not anything references them — see
+[Shipping what only code names](#shipping-what-only-code-names), where they are one of
+the two built-in exceptions.
+
+The project's own configuration is not data: `package.json`, `tsconfig.json` and their
+kind never become assets.
 
 There's also a generic `load<T>(type, ref)` when you're driving the type
 dynamically, and `register(loader)` to add a loader for a custom asset type.
@@ -169,6 +196,10 @@ model this project already had. **Off by default**, deliberately.
   Assets under `subpackages/` are always included even when unreachable — only
   their group assignment differs. `alwaysInclude` is what gives any other folder
   the same guarantee.
+
+  Two types never need it, because nothing can ever reference them: **locale
+  tables** (`Text` carries keys, not paths) and **data assets** (`.json`, named by
+  the code that loads them). Both always ship.
 </Aside>
 
 ## Lifetime & reference counting

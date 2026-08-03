@@ -47,9 +47,31 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
 | `loadPrefab(ref)` | `{ data }` |
+| `loadJson<T>(ref)` | `{ data: T }` |
 
 还有一个通用的 `load<T>(type, ref)`,当类型是动态决定时用;以及 `register(loader)`
 为自定义资源类型添加加载器。
+
+## 你自己的数据
+
+一个 `.json`,只要不是 Spine 骨架、也不是 DragonBones 的那一对,它就是**数据资源**——
+游戏自己的数值表、配置、对白。和别的资源一样加载:
+
+```typescript
+const { data } = await assets.loadJson<LevelTable>('data/levels.json');
+```
+
+`T` 是你声称这个文件长什么样;没有任何东西校验它,所以这是 `JSON.parse` 的保证,不是 schema 的。
+
+把它当资源加载、而不是自己去 fetch 那个路径,不是走形式。数据资源有 uuid,所以移动文件不会
+让指向它的东西失效;它只解析一次并被引用计数;它可以放进惰性[分组](#寻址组懒加载)或者从 CDN 来;
+[热更新](/docs/zh-cn/guides/hot-update/)能在已发行的游戏里替换它。手写的 `fetch` 一样都拿不到——
+而且它**在编辑器里是通的**(编辑器伺服整个项目),而构建只装资源。
+
+数据资源无论有没有人引用都会进包——见[只有代码点名的资产](#只有代码点名的资产),
+它是那里两个内建例外之一。
+
+项目自己的配置不算数据:`package.json`、`tsconfig.json` 这一类永远不会变成资源。
 
 ## 清单(manifest)
 
@@ -149,6 +171,9 @@ const { failed } = await assets.preload(
 <Aside type="tip">
   `subpackages/` 下的资源即使触达不到也总会被包含——只是分组归属不同。
   `alwaysInclude` 让任何其他文件夹也能拿到同样的保证。
+
+  有两类永远不需要它,因为它们本来就不可能被引用:**多语言字表**(`Text` 带的是 key 不是路径)
+  和**数据资源**(`.json`,由加载它的代码点名)。这两类总是进包。
 </Aside>
 
 ## 生命周期与引用计数
