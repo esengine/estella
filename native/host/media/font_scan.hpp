@@ -19,6 +19,7 @@
 #pragma once
 
 #include "Host.hpp"
+#include "glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC — the `style` below is these
 
 #include <string>
 
