@@ -497,18 +497,18 @@ TEST_CASE("view_each tolerates mid-iteration remove of the current entity") {
     CHECK_EQ(registry.view<test::Position>().size(), 0u);
 }
 
-TEST_CASE("onDestroy callback can safely removeOnDestroy itself") {
+TEST_CASE("onDestroy callback can safely disconnect itself mid-publish") {
     esengine::ecs::Registry registry;
     esengine::Entity e = registry.create();
 
     bool other_fired = false;
-    esengine::u32 self_id = 0;
     esengine::u32 self_fires = 0;
 
-    esengine::u32 other_id = registry.onDestroy([&](esengine::Entity) { other_fired = true; });
-    self_id = registry.onDestroy([&](esengine::Entity) {
+    esengine::Connection self;
+    esengine::Connection other = registry.onDestroy([&](esengine::Entity) { other_fired = true; });
+    self = registry.onDestroy([&](esengine::Entity) {
         ++self_fires;
-        registry.removeOnDestroy(self_id);
+        self.disconnect();
     });
 
     registry.destroy(e);
@@ -521,8 +521,6 @@ TEST_CASE("onDestroy callback can safely removeOnDestroy itself") {
     registry.destroy(e2);
     CHECK(other_fired);
     CHECK_EQ(self_fires, 1u);
-
-    registry.removeOnDestroy(other_id);
 }
 
 TEST_CASE("setParent is idempotent on duplicate reparent") {

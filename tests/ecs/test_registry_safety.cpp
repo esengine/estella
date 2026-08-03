@@ -73,7 +73,10 @@ int main() {
         Registry r;
         Entity e = r.create();
         int calls = 0;
-        r.onDestroy([&](Entity ent) {
+        // Hold the Connection: onDestroy now returns an RAII handle (RC12); a
+        // discarded return would disconnect immediately and the callback would
+        // never fire, making the re-entrancy below untested.
+        esengine::Connection conn = r.onDestroy([&](Entity ent) {
             if (calls++ == 0) r.destroy(ent);  // re-entrant destroy of the SAME entity
         });
         CHECK(r.entityCount() == 1u, "one live entity before destroy");
@@ -91,17 +94,17 @@ int main() {
         CHECK(r.valid(a) && r.valid(b), "both recreated entities are valid");
     }
 
-    // --- onDestroyScoped: the RAII Connection auto-unregisters on scope exit ---
-    // A system that stores the raw callback id but forgets to removeOnDestroy
-    // leaves a dangling `this` in the registry (the ParticleSystem / SpineSystem
-    // bug). The scoped variant makes that impossible: the callback is gone once
-    // the returned Connection is destroyed. ASAN here would catch a disconnect
+    // --- onDestroy: the RAII Connection auto-unregisters on scope exit ---
+    // A system that held a raw callback id and forgot to remove it left a
+    // dangling `this` in the registry (the ParticleSystem / SpineSystem bug).
+    // The Connection makes that impossible: the callback is gone once the
+    // returned Connection is destroyed. ASAN here would catch a disconnect
     // that reached into freed memory.
     {
         Registry r;
         int hits = 0;
         {
-            auto conn = r.onDestroyScoped([&](Entity) { ++hits; });
+            auto conn = r.onDestroy([&](Entity) { ++hits; });
             Entity e = r.create();
             r.destroy(e);
             CHECK(hits == 1, "scoped onDestroy fires while the Connection is alive");

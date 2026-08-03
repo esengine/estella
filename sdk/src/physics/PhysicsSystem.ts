@@ -414,6 +414,11 @@ export function applyPhysicsTransforms(
     const getTransformPtr = transformPtrFn
         ? (e: Entity) => transformPtrFn.call(engineMod, registry!, e as number)
         : null;
+    // engF32 views the ENGINE heap, srcU32/srcF32 the PHYSICS heap. Caching them
+    // across the loop is safe only because the loop allocates on neither: it
+    // reads the transform buffer and reads/writes EXISTING Transform components.
+    // ALLOW_MEMORY_GROWTH detaches a cached view on any allocation that grows
+    // the heap — add one to this loop and these must be re-read per iteration.
     const engF32 = engineMod?.HEAPF32;
     const addFn = (!getTransformPtr || !engF32) ? registry.addTransform.bind(registry) : null;
     const t = syncTransformBuf_;

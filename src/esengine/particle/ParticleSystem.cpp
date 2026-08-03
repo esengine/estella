@@ -15,7 +15,7 @@ ParticleSystem::ParticleSystem()
 
 void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
     if (!destroyConn_.isConnected()) {
-        destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
+        destroyConn_ = registry.onDestroy([this](Entity entity) {
             states_.erase(entity);
             pending_play_.erase(entity);
             colorLuts_.erase(entity);

@@ -6,7 +6,7 @@ namespace esengine::trail {
 
 void TrailSystem::update(ecs::Registry& registry, f32 dt) {
     if (!destroyConn_.isConnected()) {
-        destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
+        destroyConn_ = registry.onDestroy([this](Entity entity) {
             states_.erase(entity);
         });
     }

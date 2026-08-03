@@ -163,6 +163,14 @@ to.
   reach the engine optional-chained it away and their engine branches never ran under test. They
   passed, silently testing less than they read as testing.
 
+- **A torn-down system no longer leaves a dangling callback in the registry — in
+  either direction.** Entity-destroy subscriptions are RAII now, end to end: the
+  subscriber's Connection removes the callback when the subscriber dies, and the
+  Connection itself is safe to outlive the registry (it holds a weak liveness flag,
+  not a bare pointer). The half-fix that existed covered only one teardown order,
+  and the order between a C++ system and the JS-owned registry is not guaranteed.
+  Held by an AddressSanitizer harness that exercises both orders.
+
 - **Saves no longer live in a directory the platform may delete.** Key/value
   storage went to the host's cache directory, whose stated purpose was the
   regenerable bytecode cache. On iOS that is `NSCachesDirectory`, which the system
