@@ -115,6 +115,10 @@ Caches whenever it wants the space back, so a save kept there is one the player
 can lose. Both mobile directories are private to the app and included in the
 device backup a player restores a new phone from.
 
+Builds before Estella 0.41 kept the same file in the cache directory. If you have
+already shipped one, the first launch after the update finds that save and moves
+it — your players keep their progress and there is nothing to write.
+
 `platformReadFile()` is **not** a way to reach these. It reads files packaged
 *into* the build (the APK's `assets/`, the iOS app bundle) and is read-only.
 

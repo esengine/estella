@@ -346,10 +346,14 @@ const STORAGE_FILE = 'estella-storage.json';
  * (localStorage's shape), so the file variant keeps the map in memory and writes
  * through on every mutation — storage holds saves and settings, not bulk data.
  *
- * The file goes to the DATA store, never the cache. An older host that binds only
- * the cache pair still persists through it, because a cache that usually survives
- * beats losing the save at every exit — but it is the wrong directory on any
- * platform that reclaims one, so say so once rather than let a player find out.
+ * The file is WRITTEN to the DATA store, never the cache. An older host that binds
+ * only the cache pair still persists through it, because a cache that usually
+ * survives beats losing the save at every exit — but it is the wrong directory on
+ * any platform that reclaims one, so say so once rather than let a player find out.
+ *
+ * It is READ from the cache too, once, when the durable store has nothing: builds
+ * before the split wrote every save there, and a player updating across it would
+ * otherwise open the game to a blank profile.
  */
 function hostStorage(bindings: NativeHostBindings): Pick<
     NativeBridge, 'getStorageItem' | 'setStorageItem' | 'removeStorageItem' | 'storageKeys'
@@ -370,20 +374,41 @@ function hostStorage(bindings: NativeHostBindings): Pick<
 
     const entries = new Map<string, string>();
     const persistent = typeof read === 'function' && typeof write === 'function';
+    /** Read a stored blob into `entries`. False when it was not readable. */
+    const adopt = (bytes: ArrayBuffer): boolean => {
+        try {
+            for (const [k, v] of Object.entries(JSON.parse(new TextDecoder().decode(bytes)) as Record<string, string>)) {
+                entries.set(k, v);
+            }
+            return true;
+        } catch {
+            log.warn('native', 'stored data was unreadable — starting empty');
+            return false;
+        }
+    };
+
+    /** The save came from the cache directory and owes the durable one a copy. */
+    let inherited = false;
     if (!persistent) {
         log.warn('native', 'host has no storage or file bindings — saves last only for this session');
     } else {
         if (!durable) {
             log.warn('native', 'host binds no durable store — saves go to its cache, which the platform may reclaim');
         }
-        const bytes = read!(STORAGE_FILE);
-        if (bytes) {
-            try {
-                for (const [k, v] of Object.entries(JSON.parse(new TextDecoder().decode(bytes)) as Record<string, string>)) {
-                    entries.set(k, v);
-                }
-            } catch {
-                log.warn('native', 'stored data was unreadable — starting empty');
+        const own = read!(STORAGE_FILE);
+        if (own) {
+            adopt(own);
+        } else if (durable) {
+            // Nothing in the durable store. Either nothing was ever saved, in which
+            // case the cache holds nothing either — or the player updated from a
+            // build that knew only the cache directory, and their save is the file
+            // sitting in it. Not looking there is indistinguishable from having
+            // deleted it, and it would happen on exactly the version that claims to
+            // have made saves safe.
+            const previous = bindings.es_readCacheFile?.(STORAGE_FILE) ?? null;
+            if (previous && adopt(previous) && entries.size > 0) {
+                inherited = true;
+                log.info('native', 'adopted the save an earlier build left in the cache directory');
             }
         }
     }
@@ -393,6 +418,10 @@ function hostStorage(bindings: NativeHostBindings): Pick<
         // JS engine has no TextEncoder to reach for.
         write!(STORAGE_FILE, JSON.stringify(Object.fromEntries(entries)));
     };
+    // Write an inherited save through now rather than at the next mutation: the
+    // cache copy is never read again, and the directory it is in is the one the
+    // platform is allowed to empty.
+    if (inherited) flush();
     return {
         getStorageItem: (key) => entries.get(key) ?? null,
         setStorageItem: (key, value) => { entries.set(key, value); flush(); },

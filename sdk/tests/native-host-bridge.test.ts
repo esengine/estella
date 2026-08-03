@@ -133,6 +133,37 @@ describe('createHostBridge', () => {
         expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
     });
 
+    // The upgrade path. Every build before the split wrote the save into the cache
+    // directory, so a player who updates has it there and in no other place.
+    it('adopts the save a pre-split build left in the cache directory', () => {
+        const { scope, cache, data } = twoStoreScope();
+        cache.set('estella-storage.json', '{"save":"{\\"level\\":3}"}');
+
+        expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
+        // Written through at once: the directory it came from is the one the
+        // platform may empty, so leaving it there is leaving it lost.
+        expect(data.get('estella-storage.json')).toContain('level');
+    });
+
+    it('adopts it once — a cache emptied afterwards costs nothing', () => {
+        const { scope, cache } = twoStoreScope();
+        cache.set('estella-storage.json', '{"save":"{\\"level\\":3}"}');
+        createHostBridge(scope);
+        cache.clear();
+
+        expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":3}');
+    });
+
+    // A durable save is the truth even when a stale cache copy is still on disk:
+    // the cache is only consulted when there is nothing to consult it against.
+    it('never lets a stale cache copy overwrite the durable save', () => {
+        const { scope, cache } = twoStoreScope();
+        createHostBridge(scope).setStorageItem('save', '{"level":9}');
+        cache.set('estella-storage.json', '{"save":"{\\"level\\":3}"}');
+
+        expect(createHostBridge(scope).getStorageItem('save')).toBe('{"level":9}');
+    });
+
     it('degrades to session storage when the host has no cache, without throwing', () => {
         const bridge = createHostBridge(hostScope());
         bridge.setStorageItem('k', 'v');
