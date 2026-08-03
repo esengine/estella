@@ -138,12 +138,12 @@ hears its buttons:
 
 `shown` and `hidden` are the exception to "a widget emits them": nobody clicked anything, the
 node simply arrived on screen or left it — usually because an **ancestor** was shown or hidden,
-which is what navigation, tabs and dialogs do. Every node in the subtree is told, so an entrance
-animation is a row on the panel that plays it rather than a system that watches for it:
+which is what navigation, tabs and dialogs do. Every node in the subtree is told, so "when this
+screen appears" is a row on the screen rather than a system that watches for it:
 
-| Event | Action | Target |
-|---|---|---|
-| `shown` | `tween.play` | *(this entity)* |
+```
+shown ─▶ fsm.fire(enter)  on "MissionPanel"   →   Hidden ──enter──▶ Entering
+```
 
 The watching costs nothing until something listens for one of the two, and nothing again on a
 frame where no UI moved.
