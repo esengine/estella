@@ -1,9 +1,17 @@
 name: Deploy Documentation
 
+# The `docs-v*` tag is for a docs-only deploy — a typo fix, a new guide, anything
+# that does not wait for an engine release. A RELEASE deploys them too, by calling
+# this: the site states the version it was built from and links the mirror's
+# `latest/` names, so a release that publishes without redeploying leaves the
+# download section naming the version before it, and every guide written for what
+# just shipped unpublished. That happened with v0.41.0, whose agent guide was
+# committed and then simply not on the site.
 on:
   push:
     tags:
       - 'docs-v*'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

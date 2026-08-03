@@ -444,3 +444,18 @@ jobs:
     secrets: inherit
     with:
       tag: ${{ github.ref_name }}
+
+  # The site alongside the binaries, for the same reason the mirror is here: both
+  # describe the release that just went out, and a release is the moment they stop
+  # being true. The landing page bakes in desktop/package.json's version and links
+  # the mirror's `latest/` names, so a deploy that lags a release advertises the
+  # previous one — and every guide written for what just shipped sits in the repo,
+  # published nowhere. After `publish`, not beside it: a draft that never became a
+  # release should not move the documentation.
+  docs:
+    needs: publish
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
