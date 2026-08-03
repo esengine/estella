@@ -14,6 +14,21 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Coming back to a running game no longer kills it, sometimes.** On Android,
+  recreating the activity — leave with Back and reopen, rotate, toggle dark mode —
+  keeps the process and the booted engine but hands every later JS call to a new
+  thread. QuickJS measures stack overflow from a stack top it records once, on the
+  thread that created the runtime; when the new thread's stack lands lower than
+  that mark minus the budget, every call — however flat — throws "Maximum call
+  stack size exceeded", forever. Whether it lands there is address-space luck,
+  which is why the same build died one smoke run in forty, first at
+  `es_onNativeVisibility` (the first call after a resume) and then on every frame.
+  The check is re-anchored to the calling thread at each host→JS entry now — the
+  API's own answer to a runtime outliving its thread, at the cost of one stack
+  pointer read.
+
 ## [0.41.0] - 2026-08-03
 
 The editor's own agent is the headline, and this is the release where a user can

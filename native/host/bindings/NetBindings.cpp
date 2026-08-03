@@ -129,6 +129,7 @@ JSValue makeFetchResult(HostState& h, const FetchResult& r) {
 }  // namespace
 
 void drainFetches(HostState& h) {
+    jsEntry(h);
     std::queue<FetchResult> done;
     { std::lock_guard<std::mutex> lk(g_fetchMutex); done.swap(g_fetchQueue); }
     while (!done.empty()) {

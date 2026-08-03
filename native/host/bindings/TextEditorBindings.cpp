@@ -116,6 +116,7 @@ void drainTextEditor(HostState& h) {
     std::queue<EditorPush> pending;
     { std::lock_guard<std::mutex> lk(g_mutex); pending.swap(g_queue); }
     if (pending.empty()) return;
+    jsEntry(h);
 
     JSValue global = JS_GetGlobalObject(h.js);
     JSValue fn = JS_GetPropertyStr(h.js, global, "es_onNativeTextEditor");

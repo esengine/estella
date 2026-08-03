@@ -333,13 +333,27 @@ void logJsError(JSContext* ctx, const char* where) {
     JS_FreeValue(ctx, e);
 }
 
+// QuickJS detects JS stack overflow by comparing the current C stack pointer
+// against a top it records ONCE, at JS_NewRuntime. The runtime outlives the
+// thread that made it: on Android an activity recreate keeps the process (and
+// the booted engine) but hands every later JS call to a NEW glue thread, whose
+// stack ASLR may map more than the 1MB budget below the recorded top — at which
+// point every call, however flat, throws "Maximum call stack size exceeded"
+// forever. Re-anchoring at each host→JS entry is the API's own answer to a
+// runtime crossing threads, and costs one stack-pointer read.
+void jsEntry(HostState& h) {
+    JS_UpdateStackTop(h.rt);
+}
+
 void evalJs(HostState& h, const char* src, const char* name) {
+    jsEntry(h);
     JSValue r = JS_Eval(h.js, src, strlen(src), name, JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException(r)) logJsError(h.js, name);
     JS_FreeValue(h.js, r);
 }
 
 void callJs(HostState& h, const char* fn, int argc, JSValue* argv) {
+    jsEntry(h);
     JSValue global = JS_GetGlobalObject(h.js);
     JSValue f = JS_GetPropertyStr(h.js, global, fn);
     if (JS_IsFunction(h.js, f)) {
@@ -352,6 +366,7 @@ void callJs(HostState& h, const char* fn, int argc, JSValue* argv) {
 }
 
 void pumpJs(HostState& h) {
+    jsEntry(h);
     pumpJobs(h);
     pumpTimers(h);
     pumpJobs(h);

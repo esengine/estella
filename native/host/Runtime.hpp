@@ -129,6 +129,12 @@ void bindGlobal(HostState& h, JSValue global, const char* name, JSCFunction* fn,
 /** Report a pending JS exception through the platform log, with its stack. */
 void logJsError(JSContext* ctx, const char* where);
 
+/** Re-anchor QuickJS's stack-overflow check to the calling thread's stack.
+ *  Must open every host→JS entry: the runtime outlives the thread that made it
+ *  (Android activity recreate), and a stale anchor turns every call into a
+ *  false "Maximum call stack size exceeded" — permanently. */
+void jsEntry(HostState& h);
+
 /** Evaluate a global script; exceptions are logged, not propagated. */
 void evalJs(HostState& h, const char* src, const char* name);
 
