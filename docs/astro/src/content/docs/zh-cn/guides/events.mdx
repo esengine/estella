@@ -127,7 +127,18 @@ registerAction('game.award', {
 按钮的事件：
 
 `click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` ·
-`change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect`
+`change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` ·
+`shown` · `hidden`
+
+`shown` 和 `hidden` 是「控件发出的」里的例外：没人点任何东西，是这个节点出现在了屏幕上、或者离开了
+屏幕——通常因为**某个祖先**被显示或隐藏，也就是导航、页签、弹窗在做的事。子树里的每个节点都会被告知，
+所以入场动画是挂在那块面板上的一行，而不是一个每帧去盯着的系统：
+
+| 事件 | 动作 | 目标 |
+|---|---|---|
+| `shown` | `tween.play` | *（本实体）* |
+
+在没有人监听这两个事件之前，这份「盯着」不花任何代价；有人监听、但这一帧 UI 没动过时，同样不花。
 
 [物理](/docs/zh-cn/guides/physics/)接触也走同一条通道（`PhysicsEventType`），所以
 [触发区](/docs/zh-cn/guides/markers/)的接线方式和按钮一模一样——双方都会收到事件，各自拿到对方：

@@ -382,6 +382,7 @@ export {
 } from './layout/safe-area';
 
 export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './render/render-order';
+export { UIVisibilityPlugin, uiVisibilityPlugin } from './core/visibility';
 
 // ─── Theme (design tokens) ──────────────────────────────────────────────────
 

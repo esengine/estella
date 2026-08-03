@@ -9,6 +9,7 @@ export const PluginName = {
     UILayout: 'uiLayout',
     UIInteraction: 'uiInteraction',
     UIRenderOrder: 'uiRenderOrder',
+    UIVisibility: 'uiVisibility',
     UIMask: 'uiMask',
     Text: 'text',
     Focus: 'focus',

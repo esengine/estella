@@ -28,6 +28,7 @@ import { dragPlugin } from './input/drag';
 import { focusPlugin } from './input/focus';
 import { textInputPlugin } from './text/text-input-plugin';
 import { uiRenderOrderPlugin } from './render/render-order';
+import { uiVisibilityPlugin } from './core/visibility';
 
 import type { UIEventQueue } from './core/events';
 import type { ListView } from './collection/list-view';
@@ -43,6 +44,7 @@ const SUB_PLUGINS: Plugin[] = [
     textPlugin,
     inlineImagePlugin,
     uiInteractionPlugin,
+    uiVisibilityPlugin,
     uiBehaviorPlugin,
     uiControllerPlugin,
     dragPlugin,

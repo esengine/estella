@@ -14,6 +14,32 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A UI node can say that it arrived on screen, or left it.** Everything a panel does when it
+  appears — play the entrance, start the timer, refresh the count — had no event to hang on,
+  because a node does not go away by itself: an ANCESTOR's `display` changed, and every node
+  under it stopped being drawn without being told. The only way to notice was to walk the parent
+  chain of every animated node, every frame, re-deriving what the layout pass had already
+  computed. `shown` and `hidden` are those two moments on the same channel as `click`, so the
+  answer is an EventBinding row rather than a system, and the whole subtree is told rather than
+  just the node whose field changed.
+
+  Visibility is read as the engine's own resolved bit, the same one rendering and hit-testing
+  use, so it cannot drift from what you can see. That bit is reachable one entity at a time,
+  which makes the scan the entire cost of the feature — so it is gated twice, and on a steady
+  frame it is nothing: no listener, no scan (`EntityEventQueue.hasListenersFor` makes that O(1)),
+  and no scan on a frame where no UINode was written and nothing moved in the hierarchy — the
+  same pair of signals the layout solve and the physics reconcile already gate on. Measured in
+  a real UI of 112 nodes: 0 reads per idle frame, one full pass on the frame a panel is toggled.
+
+### Fixed
+
+- **The mock-wasm test harness left every engine-calling plugin inert.** `bootMockApp` connected
+  the world but not the App, and `engineApi(app)` answers with the App's module — so plugins that
+  reach the engine optional-chained it away and their engine branches never ran under test. They
+  passed, silently testing less than they read as testing.
+
 ## [0.40.0] - 2026-08-02
 
 The agent went from working to being pleasant to work with. It answers from the keyboard

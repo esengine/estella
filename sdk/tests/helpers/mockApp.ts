@@ -15,12 +15,11 @@
 import { App } from '../../src/app/app';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../../src/ecs/env';
-import { createMockModule } from '../mocks/wasm';
-import type { ESEngineModule } from '../../src/wasm';
+import { createMockModule, type MockModule } from '../mocks/wasm';
 
 export interface MockApp {
   app: App;
-  module: ESEngineModule;
+  module: MockModule;
 }
 
 /**
@@ -35,6 +34,11 @@ export function bootMockApp(): MockApp {
   setPlayMode(false); // standalone runtime ⇒ playModeOnly() === true
   const app = App.new();
   const module = createMockModule();
-  app.world.connectCpp(module.getRegistry(), module);
+  // Through the App, not `app.world` directly: only this path also hands the App
+  // the module, and that is what `engineApi(app)` answers with. Connecting the
+  // world alone leaves every engine-calling plugin inert — silently, since they
+  // all optional-chain the engine away — which is not what a test means by
+  // "connected".
+  app.connectCpp(module.getRegistry(), module);
   return { app, module };
 }

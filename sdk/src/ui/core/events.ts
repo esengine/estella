@@ -38,6 +38,11 @@ export const UIEventType = {
     DragMove: 'drag_move',
     DragEnd: 'drag_end',
     Scroll: 'scroll',
+    /** This node arrived on screen — it, or an ancestor, stopped being `display: None`
+     *  (or it was just created visible). Emitted by the UI visibility watcher. */
+    Shown: 'shown',
+    /** …and left it, the same way. */
+    Hidden: 'hidden',
     Select: 'select',
     Deselect: 'deselect',
 } as const;

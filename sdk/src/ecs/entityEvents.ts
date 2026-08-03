@@ -115,6 +115,11 @@ export class EntityEventQueue {
         Map<string, Set<EntityEventHandler>>
     >();
     private readonly globalHandlers_ = new Map<string, Set<EntityEventHandler>>();
+    // How many handlers exist per type, entity-specific and global together. Kept as a
+    // count rather than derived on demand so {@link hasListenersFor} is O(1): a producer
+    // that has to WATCH for its events (visibility, proximity — anything not already
+    // computed) asks every frame, and should cost nothing while nobody is listening.
+    private readonly typeCounts_ = new Map<string, number>();
     private pending_: EntityEvent[] = [];
     private readonly activeKeys_ = new Set<string>();
 
@@ -148,13 +153,14 @@ export class EntityEventQueue {
                 set = new Set();
                 typeMap.set(type, set);
             }
+            if (!set.has(handler)) this.countType_(type, 1);
             set.add(handler);
 
             return () => {
                 const tm = this.entityHandlers_.get(entity);
                 const s = tm?.get(type);
-                if (s) {
-                    s.delete(handler);
+                if (s?.delete(handler)) {
+                    this.countType_(type, -1);
                     if (s.size === 0) tm!.delete(type);
                     if (tm && tm.size === 0) this.entityHandlers_.delete(entity);
                 }
@@ -170,15 +176,34 @@ export class EntityEventQueue {
             set = new Set();
             this.globalHandlers_.set(type, set);
         }
+        if (!set.has(handler)) this.countType_(type, 1);
         set.add(handler);
 
         return () => {
             const s = this.globalHandlers_.get(type);
-            if (s) {
-                s.delete(handler);
+            if (s?.delete(handler)) {
+                this.countType_(type, -1);
                 if (s.size === 0) this.globalHandlers_.delete(type);
             }
         };
+    }
+
+    private countType_(type: string, delta: number): void {
+        const next = (this.typeCounts_.get(type) ?? 0) + delta;
+        if (next > 0) this.typeCounts_.set(type, next);
+        else this.typeCounts_.delete(type);
+    }
+
+    /**
+     * Is anyone subscribed to this event type, for any entity?
+     *
+     * For producers that must LOOK for their events rather than being handed them: a
+     * visibility watcher walks the UI tree, a proximity watcher measures distances, and
+     * neither should do that work into an empty room. Emitting is unaffected — an event
+     * with no handlers still queues for `drain()`.
+     */
+    hasListenersFor(type: string): boolean {
+        return this.typeCounts_.has(type);
     }
 
     /**
@@ -186,6 +211,9 @@ export class EntityEventQueue {
      * Wire this to `world.onDespawn` for automatic cleanup.
      */
     removeAll(entity: Entity): void {
+        const typeMap = this.entityHandlers_.get(entity);
+        if (!typeMap) return;
+        for (const [type, set] of typeMap) this.countType_(type, -set.size);
         this.entityHandlers_.delete(entity);
     }
 

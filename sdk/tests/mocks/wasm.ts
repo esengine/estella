@@ -3,7 +3,16 @@
 import type { ESEngineModule, CppRegistry, CppResourceManager } from '../../src/wasm';
 import type { Entity } from '../../src/types';
 
-export function createMockModule(): ESEngineModule {
+/**
+ * The mock module, plus the handful of setters that stand in for computation the
+ * mock does not do. `setUINodeHiddenInTree` is the layout pass's verdict, which a
+ * test states instead of solving.
+ */
+export interface MockModule extends ESEngineModule {
+    setUINodeHiddenInTree(entity: Entity, hidden: boolean): void;
+}
+
+export function createMockModule(): MockModule {
     const entities = new Set<Entity>();
     const components = new Map<Entity, Map<string, any>>();
     let nextEntity = 1;
@@ -133,9 +142,16 @@ export function createMockModule(): ESEngineModule {
         }),
     };
 
+    // `hidden_in_tree_` is layout output, not a stored field, so the mock cannot
+    // derive it — a test that needs it says what the layout pass resolved via
+    // `setUINodeHiddenInTree`. Default false: a node nobody spoke for is on screen.
+    const hiddenInTree = new Map<Entity, boolean>();
+
     return {
         getRegistry: () => registry,
         getResourceManager: () => resourceManager,
+        getUINodeHiddenInTree: (_registry: unknown, entity: Entity) => hiddenInTree.get(entity) ?? false,
+        setUINodeHiddenInTree: (entity: Entity, hidden: boolean) => { hiddenInTree.set(entity, hidden); },
         GL: {} as any,
-    } as ESEngineModule;
+    } as MockModule;
 }
