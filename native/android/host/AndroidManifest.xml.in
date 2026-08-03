@@ -18,6 +18,19 @@
   `__builtin_available` out and turns its symbol into a load-time requirement.
   Built at android-33, the released host could not dlopen below API 31 —
   "cannot locate symbol APerformanceHint_getManager" on Android 10 and 11.
+
+  29 is also where ELF TLS begins, and that is the reason the floor cannot go
+  lower by guarding more calls. Built at or above 29, every thread_local in the
+  host and in Dawn resolves through __tls_get_addr@LIBC_Q, a versioned symbol
+  no older loader has — the .so does not load below 29, whatever the manifest
+  promises. Built below 29, the compiler lowers ALL of it to emulated TLS
+  instead, and that build is not the same renderer: Dawn compiled at
+  android-24 drew postprocess-effects as one flat black frame on the API 34
+  emulator while thirteen other examples were bit-identical (v0.41.0's smoke;
+  exp/dawn-android-api29 isolated the variable — the two builds' import tables
+  differ in nothing but the TLS mechanism). Android 7-9 support therefore means
+  shipping and separately verifying an emulated-TLS build, not loosening this
+  number.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="@APP_ID@"

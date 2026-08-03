@@ -644,18 +644,9 @@ struct FrameDriver {
     void post() {
         if (!choreographer || posted || !running) return;
         posted = true;
-        if (__builtin_available(android 29, *)) {
-            AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
-        } else {
-            // Deprecated in 29 and the only one that exists below it. minSdk is 26,
-            // so this branch is the two releases the 64-bit call cannot serve — not
-            // an oversight, which is why the warning is turned off rather than the
-            // call changed.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            AChoreographer_postFrameCallback(choreographer, &FrameDriver::onVsync32, this);
-#pragma clang diagnostic pop
-        }
+        // The 64-bit callback is API 29, which is the floor (see the manifest
+        // template for why the floor cannot go lower).
+        AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
     }
 
 private:
@@ -671,7 +662,6 @@ private:
     }
 
     static void onVsync64(int64_t, void* data) { static_cast<FrameDriver*>(data)->tick(); }
-    static void onVsync32(long, void* data) { static_cast<FrameDriver*>(data)->tick(); }
 };
 
 FrameDriver g_frames;
