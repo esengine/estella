@@ -1,0 +1,97 @@
+---
+title: Ads & Sharing
+description: Rewarded and interstitial ads with the pause ceremony built in, and both of the host's share surfaces.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+On a mini-game host (WeChat, Douyin), monetization and sharing are platform
+calls every game wires up by hand — and the wiring is the part that goes wrong:
+the game keeps simulating under a rewarded video, audio keeps playing under the
+ad, an error path leaves the world paused forever. The `Ads` and `Share`
+services own that ceremony, and they exist on every platform, so gameplay code
+is written once and *asks* what this platform can do instead of branching on it.
+
+## Rewarded ads
+
+`Ads.showRewarded(adUnitId)` shows a rewarded video and resolves — after the ad
+closed and the game is running again — with whether the reward was earned:
+
+```typescript
+import { defineSystem, Res, GetWorld, Ads } from 'esengine';
+
+const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
+  if (!reviveClicked(world)) return;
+  ads.showRewarded('adunit-xxxx').then(({ completed }) => {
+    if (completed) revivePlayer(world);   // watched to the end → grant the reward
+    else showToast(world, 'Watch the whole ad to revive');
+  }).catch(() => {
+    showToast(world, 'No ad available right now');
+  });
+}, { name: 'ReviveSystem' });
+```
+
+While the ad covers the screen, the service:
+
+- **pauses the game clock** — a revive must not cost the player their run;
+- **suspends the audio device** — without touching any volume the user set;
+- **restores both however the ad ends**, including every error path. A game you
+  paused yourself before the ad stays paused after it.
+
+The hosts' load/show dance (an ad with no fill must be loaded and retried once)
+is folded in, as is the runtime that grants a reward without reporting
+`isEnded` — an absent close record counts as completed, because that is what
+the host meant.
+
+`Ads.showInterstitial(adUnitId)` is the same contract minus the reward, and
+`Ads.preloadRewarded(adUnitId)` warms a unit so the show starts instantly.
+
+<Aside type="tip">
+The `adUnitId` comes from the host's ad console (WeChat: 流量主 → ad units in
+the MP dashboard). Ads only serve in a game that has monetization enabled
+there; the devtools simulator shows a test ad.
+</Aside>
+
+### Where ads exist
+
+`Ads.available` is `true` where SOME ad source exists — the platform's, or an
+installed provider. Use it to hide the "watch ad" button honestly:
+
+- **WeChat / Douyin builds** — the host's rewarded/interstitial ads, one family
+  implementation.
+- **The editor's Play mode** — a **mock provider** is installed automatically:
+  `showRewarded` "plays" for a moment and resolves `completed: true`, with the
+  real pause/audio ceremony running. Your revive flow rehearses at your desk.
+- **Web and native builds** — no ad system, `available` is `false`. A native
+  shell that integrates a mediation SDK installs it through the same door the
+  editor uses: `Ads.setProvider(...)`.
+
+## Sharing
+
+A mini-game host has **two** share surfaces, and a game should configure both:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, Share } from 'esengine';
+
+addStartupSystem(defineSystem([Res(Share)], (share) => {
+  // The DEFAULT card: what the host's own share menu (top-right on WeChat)
+  // shows, and what share() without arguments uses. A function is asked at
+  // share time, so the card can carry live state — a score, a room code.
+  share.setShareCard(() => ({
+    title: `I scored ${currentScore()} — beat me!`,
+    query: `room=${currentRoomCode()}`,
+  }));
+}, { name: 'SetupShare' }));
+
+// In the game's own share button handler (share is Res(Share) as above):
+share.share();                          // the default card
+share.share({ title: 'Join my game' }); // or a one-off card
+```
+
+Whoever opens the shared card receives `query` in the host's launch options —
+that is how invite links and room codes travel.
+
+Sharing is fire-and-forget by design: since 2021 no mini-game host reports
+whether the player actually shared, so there is nothing to await. Off-platform
+(web, native, the editor) `Share.available` is `false` and `share()` returns
+`false` — hide the button rather than promise a sheet that cannot open.

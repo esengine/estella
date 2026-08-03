@@ -132,6 +132,7 @@ export default defineConfig({
             { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
             { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'guides/save' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'guides/localization' },
+            { label: 'Ads & Sharing', translations: { 'zh-CN': '广告与分享' }, slug: 'guides/services' },
             { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'guides/build-export' },
             { label: 'Android & iOS', translations: { 'zh-CN': 'Android 与 iOS' }, slug: 'guides/mobile' },
             { label: 'Hot Update', translations: { 'zh-CN': '热更新' }, slug: 'guides/hot-update' },

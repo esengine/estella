@@ -1,0 +1,88 @@
+---
+title: 广告与分享
+description: 内置暂停仪式的激励视频/插屏广告,以及宿主的两个分享面。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+在小游戏宿主(微信、抖音)上,变现与分享是每个游戏都要手动接的平台调用——而接错的
+恰恰是接线本身:激励视频盖着屏幕时游戏还在跑、广告底下音频还在响、出错路径把世界
+永远留在暂停里。`Ads` 与 `Share` 服务把这套仪式收进引擎,并且在每个平台上都存在,
+所以玩法代码只写一份,用**询问**代替按平台分支。
+
+## 激励视频
+
+`Ads.showRewarded(adUnitId)` 展示一条激励视频,并在广告关闭、游戏恢复运行**之后**
+resolve,结果是奖励有没有赚到:
+
+```typescript
+import { defineSystem, Res, GetWorld, Ads } from 'esengine';
+
+const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
+  if (!reviveClicked(world)) return;
+  ads.showRewarded('adunit-xxxx').then(({ completed }) => {
+    if (completed) revivePlayer(world);   // 看完了 → 发奖
+    else showToast(world, '看完整条视频才能复活');
+  }).catch(() => {
+    showToast(world, '暂时没有可用的广告');
+  });
+}, { name: 'ReviveSystem' });
+```
+
+广告覆盖屏幕期间,服务会:
+
+- **暂停游戏时钟**——复活广告不能反过来害玩家丢掉这条命;
+- **挂起音频设备**——不碰用户设置的任何音量;
+- **无论广告怎么结束都恢复以上两者**,包括所有出错路径。你自己在广告前暂停的游戏,
+  广告后保持暂停。
+
+宿主文档里的 load/show 补救舞步(没有填充的广告要 load 一次再重试)已经折叠在内;
+老运行时"发了奖但不报 `isEnded`"的情况也是——关闭记录缺失按看完处理,因为宿主
+就是这个意思。
+
+`Ads.showInterstitial(adUnitId)` 是同一契约去掉奖励;`Ads.preloadRewarded(adUnitId)`
+预热一个广告位,让展示即点即出。
+
+<Aside type="tip">
+`adUnitId` 来自宿主的广告后台(微信:MP 后台的流量主 → 广告位)。只有开通了流量主
+的游戏才会出真广告;开发者工具的模拟器里出的是测试广告。
+</Aside>
+
+### 广告在哪些地方存在
+
+`Ads.available` 在**存在某个广告源**时为 true——平台自带的,或安装进来的 provider。
+用它诚实地隐藏"看广告"按钮:
+
+- **微信 / 抖音构建**——宿主的激励/插屏广告,同一份家族实现。
+- **编辑器 Play 模式**——自动安装 **mock provider**:`showRewarded`"播放"片刻后
+  resolve `completed: true`,真实的暂停/音频仪式照常运行。复活流程在工位上就能排练。
+- **Web 与原生构建**——没有广告系统,`available` 为 false。接入聚合 SDK 的原生壳
+  走编辑器同一扇门:`Ads.setProvider(...)`。
+
+## 分享
+
+小游戏宿主有**两个**分享面,游戏两个都该配置:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, Share } from 'esengine';
+
+addStartupSystem(defineSystem([Res(Share)], (share) => {
+  // 默认卡片:宿主自己的分享菜单(微信右上角)展示的内容,也是 share() 不带参数时
+  // 用的内容。传函数则在分享那一刻被询问,卡片可以携带实时状态——分数、房间号。
+  share.setShareCard(() => ({
+    title: `我拿了 ${currentScore()} 分,来超过我!`,
+    query: `room=${currentRoomCode()}`,
+  }));
+}, { name: 'SetupShare' }));
+
+// 在游戏自己的分享按钮回调里(share 同上,来自 Res(Share)):
+share.share();                        // 默认卡片
+share.share({ title: '来加入我的游戏' }); // 或一次性卡片
+```
+
+打开被分享卡片的人会在宿主的启动参数里收到 `query`——邀请链接和房间号就是这样
+传递的。
+
+分享是有意的 fire-and-forget:2021 年起没有任何小游戏宿主报告玩家是否真的分享了,
+所以没有可等待的结果。平台之外(web、原生、编辑器)`Share.available` 为 false 且
+`share()` 返回 false——把按钮藏起来,而不是承诺一张打不开的分享面板。
