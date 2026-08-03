@@ -84,7 +84,7 @@ env:
 jobs:
   # ---------------------------------------------------------------------------
   versions:
-    name: Which Android versions can this runner boot
+    name: Which Android versions this runner has images for
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -288,10 +288,14 @@ jobs:
     needs: [versions, apk]
     runs-on: ubuntu-latest
     # A version that works finishes in about three minutes and one that crashes in
-    # seven. API 29 once failed to boot at all and sat here for the full 45, so the
-    # cap is set near what a real run costs: a stuck emulator should be reported as
-    # "no data" quickly, not held open in case it recovers.
-    timeout-minutes: 20
+    # seven, so this wants to be near what a real run costs: a stuck emulator
+    # should be reported as "no data" quickly, not held open in case it recovers.
+    #
+    # But it has to hold TWO of them. At 20 it did not, and the retry below was
+    # fiction: API 24 sat in the boot poll from 01:11 to 01:30 and the job cap
+    # cancelled it mid-attempt, so "no data after two attempts" was printed after
+    # one. Two bounded attempts plus the system-image download is what this covers.
+    timeout-minutes: 40
     strategy:
       # A compatibility matrix whose whole output is "which versions work" must
       # run every version even after one fails. fail-fast here would report the
@@ -336,8 +340,17 @@ jobs:
           api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
-          profile: ${{ env.ANDROID_PROFILE }}
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          # An era-appropriate device below API 26: `pixel_6` is a 2021 profile,
+          # and pairing it with a 2016 system image is one of the two things that
+          # kept 24 and 25 from ever reaching sys.boot_completed.
+          profile: ${{ matrix.api <= 25 && 'pixel' || env.ANDROID_PROFILE }}
+          # The other one: the action boots from a snapshot by default, and an old
+          # image that cannot load the one it was given hangs instead of saying so.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -camera-back none -camera-front none -memory 4096 -cores 2
+          # Explicit, and short enough that two attempts fit the job cap. The
+          # default (600) did not bound anything here — the poll ran nineteen
+          # minutes — so this is the number that has to be believed, not inherited.
+          emulator-boot-timeout: 420
           # ONE line, because this action runs `script` as a separate `sh -c` per
           # line: a loop written here arrives split and dies on its own `do`, and
           # nothing set on one line is visible on the next. The work lives in a
@@ -355,6 +368,7 @@ jobs:
           fi
 
       - name: Try API ${{ matrix.api }} once more
+        id: retry
         if: steps.measured.outputs.any == 'false'
         uses: reactivecircus/android-emulator-runner@v2
         continue-on-error: true
@@ -362,8 +376,17 @@ jobs:
           api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
-          profile: ${{ env.ANDROID_PROFILE }}
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2
+          # An era-appropriate device below API 26: `pixel_6` is a 2021 profile,
+          # and pairing it with a 2016 system image is one of the two things that
+          # kept 24 and 25 from ever reaching sys.boot_completed.
+          profile: ${{ matrix.api <= 25 && 'pixel' || env.ANDROID_PROFILE }}
+          # The other one: the action boots from a snapshot by default, and an old
+          # image that cannot load the one it was given hangs instead of saying so.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -camera-back none -camera-front none -memory 4096 -cores 2
+          # Explicit, and short enough that two attempts fit the job cap. The
+          # default (600) did not bound anything here — the poll ran nineteen
+          # minutes — so this is the number that has to be believed, not inherited.
+          emulator-boot-timeout: 420
           script: bash tools/android-compat-run.sh ${{ matrix.api }}
 
       - name: Keep the frame, the record and the numbers
@@ -383,6 +406,12 @@ jobs:
         run: |
           if ls build/compat/*.json >/dev/null 2>&1; then
             echo "measured API ${{ matrix.api }}"
+          elif [ "${{ steps.retry.conclusion }}" = "skipped" ] || [ -z "${{ steps.retry.conclusion }}" ]; then
+            # The retry never ran, so "two attempts" would be a lie — and the
+            # difference matters: one says this Android version is broken, the
+            # other says this job ran out of time before it could find out.
+            echo "::error::API ${{ matrix.api }} produced no data and the second attempt never ran — the job hit its own cap first"
+            exit 1
           else
             echo "::error::API ${{ matrix.api }} produced no data after two attempts"
             exit 1
