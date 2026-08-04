@@ -70,6 +70,21 @@ interface SystemEntry {
     fromBundle?: boolean;
 }
 
+/**
+ * How a rejected schedule reads back to whoever wrote it. The two mistakes that
+ * get here look nothing alike in the source and identically at runtime, so the
+ * message has to tell them apart: a member that does not exist arrives as
+ * `undefined`, and swapped arguments arrive as the system itself.
+ */
+function describeSchedule(value: unknown): string {
+    if (value === undefined) return 'undefined (no such Schedule member?)';
+    if (value === null) return 'null';
+    if (typeof value === 'number' || typeof value === 'string') return JSON.stringify(value);
+    const name = (value as { _name?: unknown } | null)?._name;
+    if (typeof name === 'string') return `the system "${name}" (arguments the wrong way round?)`;
+    return Object.prototype.toString.call(value);
+}
+
 // =============================================================================
 // App
 // =============================================================================
@@ -242,6 +257,35 @@ export class App {
     // =========================================================================
 
     /**
+     * The entry list for `schedule`, or a refusal that says what was wrong.
+     *
+     * Every valid schedule gets its list in the constructor, so a miss means the
+     * caller passed something that is not a Schedule — a member that does not
+     * exist (`Schedule.LateUpdate` evaluates to `undefined`), or the two
+     * arguments the wrong way round. Neither is caught before it runs: the
+     * editor and the mini-game exporters bundle project code with esbuild, which
+     * strips types without checking them, so a registration TypeScript would
+     * have rejected reaches the App intact.
+     *
+     * It used to be `systems_.get(schedule)!`, which turned both into "Cannot
+     * read properties of undefined (reading 'push')" thrown from inside a
+     * minified bundle, naming neither the system nor the value.
+     */
+    private scheduleBucket_(schedule: Schedule, systemName: string): SystemEntry[] {
+        const bucket = this.systems_.get(schedule);
+        if (bucket) return bucket;
+        const valid = Object.entries(Schedule)
+            .filter(([, v]) => typeof v === 'number')
+            .map(([k, v]) => `${k} (${String(v)})`)
+            .join(', ');
+        throw new Error(
+            `addSystemToSchedule("${systemName}"): ${describeSchedule(schedule)} is not a schedule. `
+            + `Expected one of: ${valid}. `
+            + `Check the Schedule member exists, and that the schedule comes before the system.`,
+        );
+    }
+
+    /**
      * Register `system` onto `schedule`. Ordering given here is added to
      * whatever the definition already declared, so a system can carry its own
      * edges and still be constrained further at the registration site.
@@ -262,7 +306,7 @@ export class App {
         };
         this.templateToRuntime_.set(system._id, scoped._id);
 
-        this.systems_.get(schedule)!.push({
+        this.scheduleBucket_(schedule, name).push({
             system: scoped,
             runBefore: mergeOrderingEdges(system._runBefore, options?.runBefore),
             runAfter: mergeOrderingEdges(system._runAfter, options?.runAfter),
@@ -404,7 +448,7 @@ export class App {
             };
             this.templateToRuntime_.set(sys._id, scoped._id);
 
-            this.systems_.get(schedule)!.push({
+            this.scheduleBucket_(schedule, name).push({
                 system: scoped,
                 runBefore: mergedRunBefore,
                 runAfter: mergedRunAfter,

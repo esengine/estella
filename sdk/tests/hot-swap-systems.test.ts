@@ -155,3 +155,41 @@ describe('probeRegistrations', () => {
         expect(getUserComponents().has('Probe')).toBe(false);
     });
 });
+
+/**
+ * A registration TypeScript would have rejected still reaches the App: the
+ * editor and the mini-game exporters bundle project code with esbuild, which
+ * strips types without checking them. What it hits has to say what is wrong —
+ * it used to be `undefined.push` from inside a minified bundle.
+ */
+describe('a schedule that is not one', () => {
+    const sys = () => defineSystem([], () => {}, { name: 'Spin' });
+
+    it('names the system and the value when the member does not exist', () => {
+        // `Schedule.LateUpdate` — no such member, so the call site passes undefined.
+        expect(() => App.new().addSystemToSchedule(undefined as unknown as Schedule, sys()))
+            .toThrow(/addSystemToSchedule\("Spin"\).*undefined \(no such Schedule member\?\)/s);
+    });
+
+    it('recognises the arguments being the wrong way round', () => {
+        const system = sys();
+        expect(() => App.new().addSystemToSchedule(system as unknown as Schedule, system))
+            .toThrow(/the system "Spin" \(arguments the wrong way round\?\)/);
+    });
+
+    it('lists what a schedule can be', () => {
+        expect(() => App.new().addSystemToSchedule(99 as Schedule, sys()))
+            .toThrow(/Expected one of: .*Update \(3\).*FixedUpdate \(11\)/s);
+    });
+
+    it('refuses a bundle drain the same way, rather than half-registering it', () => {
+        const app = App.new();
+        expect(() => app.addBundleSystems([
+            { schedule: Schedule.Update, system: defineSystem([], () => {}, { name: 'Good' }) },
+            { schedule: undefined as unknown as number, system: sys() },
+        ])).toThrow(/Spin/);
+        // And the flag the drain sets is cleared, so a later good registration
+        // is not mistaken for one of the bundle's.
+        expect((app as unknown as { addingBundleSystems_: boolean }).addingBundleSystems_).toBe(false);
+    });
+});
