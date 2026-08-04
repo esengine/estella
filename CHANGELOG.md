@@ -14,6 +14,11 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-08-03
+
+A release about the last mile: what a game needs on the way out the door, and
+four things that were quietly broken on the way in.
+
 ### Added
 
 - **Ads and sharing are engine services now, not glue every game writes itself.**
