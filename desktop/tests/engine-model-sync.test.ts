@@ -314,4 +314,88 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         expect(host.world.has(newChildRt, Parent)).toBe(true);
         expect((host.world.get(newChildRt, Parent) as { entity: number }).entity).toBe(runtime1);
     });
+
+    /**
+     * Editor visibility is INHERITED. Five places used to read the flag off one
+     * entity, so hiding a group left every child drawing and pickable.
+     */
+    describe('hiding a parent', () => {
+        /** Group → Child, both with a Sprite, both spawned. */
+        const pair = (): { group: number; child: number; childRt: number } => {
+            const group = S.model.addEntity('Group', [{ type: 'Sprite', data: {} }] as never);
+            const child = S.model.addEntity('Child', [{ type: 'Sprite', data: {} }] as never, group);
+            return { group, child, childRt: S.model.runtimeFor(child)! };
+        };
+        const enabled = (rt: number): boolean => (host.world.get(rt, Sprite) as { enabled: boolean }).enabled;
+
+        it('takes the children with it, and gives them back', () => {
+            const { group, childRt } = pair();
+            expect(enabled(childRt)).toBe(true);
+
+            S.commands.setEntityVisible(group, false);
+            expect(enabled(childRt)).toBe(false);
+
+            S.commands.setEntityVisible(group, true);
+            expect(enabled(childRt)).toBe(true);
+        });
+
+        it('does not un-hide a child that was hidden on its own', () => {
+            const { group, child, childRt } = pair();
+            S.commands.setEntityVisible(child, false);
+            S.commands.setEntityVisible(group, false);
+            S.commands.setEntityVisible(group, true);
+            // The group is visible again; the child's own eye is still shut.
+            expect(enabled(childRt)).toBe(false);
+        });
+
+        it('leaves the authored gameplay enable alone', () => {
+            const { group, child } = pair();
+            S.commands.setEntityVisible(group, false);
+            const data = S.model.entityBySource(child)!.components.find((c) => c.type === 'Sprite')!.data as Record<string, unknown>;
+            expect(data.enabled).toBeUndefined();
+        });
+
+        it('stops the viewport grabbing what it cannot draw', () => {
+            const { group, child } = pair();
+            expect(S.model.isPickable(child)).toBe(true);
+            S.commands.setEntityVisible(group, false);
+            expect(S.model.isPickable(child)).toBe(false);
+        });
+
+        it('follows a drag INTO a hidden group, and back out', () => {
+            const { group } = pair();
+            const loose = S.model.addEntity('Loose', [{ type: 'Sprite', data: {} }] as never);
+            const looseRt = S.model.runtimeFor(loose)!;
+            S.commands.setEntityVisible(group, false);
+            expect(enabled(looseRt)).toBe(true);
+
+            S.commands.setParent(loose, group);
+            expect(enabled(looseRt)).toBe(false);
+
+            S.commands.setParent(loose, null);
+            expect(enabled(looseRt)).toBe(true);
+        });
+
+        it('reaches a grandchild, not just the first level', () => {
+            const { group, child } = pair();
+            const grand = S.model.addEntity('Grand', [{ type: 'Sprite', data: {} }] as never, child);
+            const grandRt = S.model.runtimeFor(grand)!;
+            S.commands.setEntityVisible(group, false);
+            expect(enabled(grandRt)).toBe(false);
+        });
+
+        it('is applied by a bulk load too, not only by the toggle', () => {
+            const scene = (): SceneData => ({
+                version: '1.0',
+                name: 'nested',
+                entities: [
+                    { id: 10, name: 'Group', parent: null, children: [11], hidden: true, components: [{ type: 'Sprite', data: {} }] },
+                    { id: 11, name: 'Child', parent: 10, children: [], components: [{ type: 'Sprite', data: {} }] },
+                ],
+            }) as unknown as SceneData;
+            S.reconciler.adopt(scene(), scene());
+            expect(enabled(S.model.runtimeFor(11)!)).toBe(false);
+        });
+    });
+
 });

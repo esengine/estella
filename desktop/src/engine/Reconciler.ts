@@ -8,6 +8,7 @@ import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 import { assetFieldType, spineSlotType, componentByName, componentDefaults, componentEntityFields, isRenderComponent, componentEnable, readonlyFieldsFor, type AnyComp, type WorldT } from './schema';
 import { EntityRefIndex } from './EntityRefIndex';
+import { hiddenInTreeResolver, type HiddenNode } from './hiddenInTree';
 
 /**
  * Projects the model into the World.
@@ -47,10 +48,16 @@ const STRUCTURAL = new Set(['Name', 'Parent', 'Children']);
  * stays complete.
  */
 function worldProjection(data: SceneData): SceneData {
+  const entities = data.entities ?? [];
+  // Resolved down the hierarchy, not read off each entity: hiding a parent has
+  // to hide what it contains. Memoized across the whole pass — a UI package is
+  // a deep tree, and walking every entity's chain on its own is quadratic.
+  const byId = new Map(entities.map((e) => [e.id, e as HiddenNode]));
+  const isHidden = hiddenInTreeResolver((id) => byId.get(id));
   return {
     ...data,
-    entities: (data.entities ?? []).map((e) => {
-      const hidden = !!(e as { hidden?: boolean }).hidden;
+    entities: entities.map((e) => {
+      const hidden = isHidden(e.id);
       return {
         ...e,
         components: (e.components ?? [])
@@ -251,7 +258,7 @@ export class ReconcilerImpl {
     const rt = world.spawn();
     this.model.bindRuntime(sourceId, rt);
     if (entity.name) world.insert(rt, Name, { value: entity.name } as never);
-    const hidden = this.model.isHidden(sourceId);
+    const hidden = this.model.isHiddenInTree(sourceId);
     for (const comp of entity.components) {
       const c = hidden ? foldHidden(comp) : comp;
       this.insertComponent(world, rt, c.type, c.data as Record<string, unknown>);
@@ -343,7 +350,7 @@ export class ReconcilerImpl {
     if (!comp) return;
     // Re-fold editor-hidden each time we project a render component, so a field
     // edit on a hidden entity doesn't quietly un-hide it in the viewport.
-    const src = this.model.isHidden(sourceId) ? foldHidden(comp) : comp;
+    const src = this.model.isHiddenInTree(sourceId) ? foldHidden(comp) : comp;
     const data = this.projectData(type, def, src.data as Record<string, unknown>);
     if (world.has(rt, def)) {
       // Readonly fields (Transform's world-space transform) are ENGINE-computed each
@@ -362,10 +369,30 @@ export class ReconcilerImpl {
   }
 
   /** Re-project an entity's render components when its editor visibility flips. */
+  /**
+   * Re-fold editor-hidden over an entity AND everything under it.
+   *
+   * The subtree is the point: visibility is inherited, so the entity whose flag
+   * changed is the only one whose FLAG changed and the last one whose rendering
+   * did. Toggling a parent used to re-project just that parent, which is why
+   * hiding a group left every child on screen.
+   *
+   * Whole-subtree rather than "descendants that are not hidden themselves": a
+   * child with its own flag set is already folded off, so re-projecting it is a
+   * write of the value it already has, and stopping at it would mean tracking
+   * why we stopped.
+   */
   private projectHidden(sourceId: number): void {
-    const entity = this.model.entityBySource(sourceId);
-    if (!entity) return;
-    for (const c of entity.components) if (isRenderComponent(c.type)) this.projectComponent(sourceId, c.type);
+    const seen = new Set<number>();
+    const walk = (id: number): void => {
+      if (seen.has(id)) return;   // a malformed parent chain must not hang the editor
+      seen.add(id);
+      const entity = this.model.entityBySource(id);
+      if (!entity) return;
+      for (const c of entity.components) if (isRenderComponent(c.type)) this.projectComponent(id, c.type);
+      for (const child of entity.children) walk(child);
+    };
+    walk(sourceId);
   }
 
   private removeComponent(sourceId: number, type: string): void {
@@ -388,6 +415,11 @@ export class ReconcilerImpl {
     // drops the child out of the UI layout's buildDFS walk.
     if (pr != null) world.setParent(rt, pr);
     else world.removeParent(rt);
+    // Visibility is inherited, so a move changes it: dragged under a hidden
+    // group the subtree has to go, dragged back out it has to return. Nothing
+    // about the entity's own flag changed, which is why this cannot wait for a
+    // hiddenChanged that will never come.
+    this.projectHidden(sourceId);
   }
 
   private projectName(sourceId: number): void {

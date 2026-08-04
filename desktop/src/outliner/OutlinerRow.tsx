@@ -80,6 +80,10 @@ function OutlinerRowInner(props: OutlinerRowProps) {
 
   const name = item.kind === 'folder' ? item.name : item.node.name;
   const visible = item.kind === 'entity' ? item.node.visible : true;
+  // Dimmed the same way, because it IS the same fact on screen — the row is not
+  // being drawn. The eye still reads this row's own flag, so clicking it is not
+  // a no-op that quietly does nothing.
+  const hiddenByAncestor = item.kind === 'entity' && !!item.node.hiddenByAncestor;
   const locked = item.kind === 'entity' ? item.node.locked : false;
 
   const canRename = !!props.onCommitRename;
@@ -92,7 +96,7 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `row${selected ? ' sel' : ''}` +
         `${props.cursored ? ' cursor' : ''}` +
         `${expanded ? ' open' : ''}` +
-        `${visible ? '' : ' hidden'}` +
+        `${visible && !hiddenByAncestor ? '' : ' hidden'}` +
         `${locked ? ' locked' : ''}` +
         `${prefabRole ? ' prefab' : ''}` +
         `${prefabRole === 'root' ? ' prefab-root' : ''}` +

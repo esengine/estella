@@ -21,7 +21,13 @@ export interface SceneNode {
   id: EntityId;
   name: string;
   kind: NodeKind;
+  /** This entity's OWN eye. What the toggle writes, so it stays meaningful on a
+   *  child whose parent is hidden — that child is not visible, but its own flag
+   *  is still the thing the eye sets. */
   visible: boolean;
+  /** Hidden because something above it is. Not visible, but not by its own
+   *  doing — which is why it is a second bit rather than folded into `visible`. */
+  hiddenByAncestor?: boolean;
   locked: boolean;
   children?: SceneNode[];
 }

@@ -3,6 +3,7 @@
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { isEnvironmentEntity } from './prefabEnvironment';
+import { hiddenInTree, type HiddenNode } from './hiddenInTree';
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
@@ -343,9 +344,17 @@ export class SceneModelImpl {
   // model — ignores it). `locked` is pure editor state (blocks viewport picking).
   // Storing the default (false) removes the field (cleaner JSON).
 
-  /** Whether an entity is hidden in the editor viewport (independent of gameplay). */
+  /** Whether an entity carries the hidden flag ITSELF — what the eye toggles.
+   *  For "is it actually visible", ask {@link isHiddenInTree}: hiding a parent
+   *  hides what it contains, and only that one answers for a child. */
   isHidden(sourceId: number): boolean {
     return !!(this.entityBySource(sourceId) as { hidden?: boolean } | undefined)?.hidden;
+  }
+
+  /** Whether an entity is hidden by its own flag or by an ancestor's — the
+   *  question every consumer of visibility actually has. */
+  isHiddenInTree(sourceId: number): boolean {
+    return hiddenInTree(sourceId, (id) => this.entityBySource(id) as HiddenNode | undefined);
   }
 
   /** Set an entity's editor visibility (`hidden` = not shown in the viewport). */
@@ -399,7 +408,7 @@ export class SceneModelImpl {
    *  predicate so click, marquee, and UI picking cannot drift apart. An id the
    *  model doesn't know (an engine-owned helper entity) stays grabbable. */
   isPickable(sourceId: number): boolean {
-    return this.isEditable(sourceId) && !this.isHidden(sourceId);
+    return this.isEditable(sourceId) && !this.isHiddenInTree(sourceId);
   }
 
   // ── Sibling order (outliner drag-reorder; render order = `data.entities` order) ──

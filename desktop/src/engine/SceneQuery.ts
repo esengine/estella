@@ -43,22 +43,25 @@ export function buildSceneTree(data: SceneData | null): SceneNode[] {
       roots.push(e); // no parent, or a dangling parent → a scene root
     }
   }
-  const build = (e: SceneEntity): SceneNode => {
+  // `hiddenAbove` rides the walk rather than being resolved per row: the tree is
+  // already being built top-down, so inheritance costs nothing here.
+  const build = (e: SceneEntity, hiddenAbove: boolean): SceneNode => {
     const kind = modelKindOf(e);
-    const kids = childrenOf.get(e.id)?.map(build);
     // `visible`/`locked` are editor-only per-entity flags, distinct from any
     // component's gameplay `enabled`.
     const flags = e as { hidden?: boolean; locked?: boolean };
+    const kids = childrenOf.get(e.id)?.map((c) => build(c, hiddenAbove || !!flags.hidden));
     return {
       id: e.id,
       name: modelNameOf(e, kind),
       kind,
       visible: !flags.hidden,
+      ...(hiddenAbove ? { hiddenByAncestor: true } : {}),
       locked: !!flags.locked,
       children: kids && kids.length ? kids : undefined,
     };
   };
-  return roots.map(build);
+  return roots.map((e) => build(e, false));
 }
 
 /** One entity's identity: what it is, and (for a prefab instance) what it came from. */
