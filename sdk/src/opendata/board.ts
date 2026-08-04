@@ -56,9 +56,29 @@ export interface BoardHost {
         fail?: (err: unknown) => void;
     }): void;
     createImage?(): HostImage;
-    /** This player, so their row can be marked. Absent marks nobody. */
+    /**
+     * This player, so their own row can be marked.
+     *
+     * The rehearsal knows it outright. On a device nobody hands it over — so
+     * the board ASKS, through {@link getUserInfo}, and this stays for the hosts
+     * (and the rehearsal) that can simply answer.
+     */
     selfOpenId?: string;
+    /**
+     * Who someone is. The context is given this with one special argument: the
+     * literal `'selfOpenId'` in the list means "the player running the game",
+     * which is the only way this runtime can learn its own identity — it has no
+     * login, and the main domain has no channel to tell it.
+     */
+    getUserInfo?(opts: {
+        openIdList: string[];
+        success?: (res: { data: Array<{ openid?: string }> }) => void;
+        fail?: (err: unknown) => void;
+    }): void;
 }
+
+/** The host's word for "whoever is playing" in an openIdList. */
+const SELF = 'selfOpenId';
 
 // =============================================================================
 // Ranking
@@ -218,17 +238,52 @@ export function createBoard(host: BoardHost): Board {
         }
     };
 
+    /**
+     * Who is playing, asked once and kept.
+     *
+     * Resolved lazily and NEVER waited on: the identity only decides which row
+     * is emphasised, so a board that drew a moment before the answer arrived is
+     * a correct board missing one highlight — where a board that waited would
+     * be a blank rectangle for as long as the host took. The answer schedules a
+     * repaint, so the highlight lands on its own.
+     */
+    let self: string | undefined = host.selfOpenId;
+    let asked = false;
+    const askWhoWeAre = (): void => {
+        if (asked || self !== undefined || !host.getUserInfo) return;
+        asked = true;
+        host.getUserInfo.call(host, {
+            openIdList: [SELF],
+            success: (res) => {
+                self = res.data?.[0]?.openid;
+                // Only useful if there is still a board on screen to re-mark.
+                if (self !== undefined) repaint?.();
+            },
+            // A host that will not say leaves every row unmarked, which is the
+            // same board minus one emphasis — not a failure worth reporting to
+            // a runtime that has no way to report anything.
+            fail: () => {},
+        });
+    };
+
     const show = (msg: ShowMessage): void => {
         last = msg;
         const canvas = host.getSharedCanvas?.();
         const read = host.getFriendCloudStorage;
         if (!canvas || !read) return;
+        askWhoWeAre();
         read.call(host, {
             keyList: [msg.key],
             success: (res) => {
                 if (last !== msg) return;   // a newer show already replaced this one
-                const rows = rowsFrom(res.data ?? [], msg.key, msg.order, msg.limit, host.selfOpenId);
-                repaint = () => { if (last === msg) paint(canvas, rows, msg.style, msg.dpr); };
+                const players = res.data ?? [];
+                // Ranked at paint time, not here: `self` can land after the rows
+                // do, and re-ranking is what turns that late answer into the
+                // highlight appearing.
+                repaint = () => {
+                    if (last !== msg) return;
+                    paint(canvas, rowsFrom(players, msg.key, msg.order, msg.limit, self), msg.style, msg.dpr);
+                };
                 repaint();
             },
             // Nothing to draw and nothing to say: this runtime has no channel

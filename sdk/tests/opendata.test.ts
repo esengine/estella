@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { rowsFrom } from '../src/opendata/board';
+import { createBoard, rowsFrom } from '../src/opendata/board';
 
 const DIR = path.join(__dirname, '..', 'src', 'opendata');
 
@@ -62,6 +62,117 @@ describe('the boundary', () => {
         for (const banned of ['document.', 'window.', 'WebGL', 'WebAssembly', 'requestAnimationFrame']) {
             expect(src.includes(banned), `${file} uses \`${banned}\`, which the open data context does not have`).toBe(false);
         }
+    });
+});
+
+/**
+ * Who the player is, in a runtime that has no login and no channel to be told.
+ * It can only ask the host, and the answer can arrive after the board already
+ * drew — which is the whole reason ranking happens at paint time.
+ */
+describe('marking the player\'s own row', () => {
+    /** A host whose cloud read and identity call can each be settled by hand. */
+    function host(opts: { identity?: 'sync' | 'late' | 'never' | 'absent' } = {}) {
+        const fills: string[] = [];
+        let settleSelf: (() => void) | null = null;
+        const ctx = new Proxy({} as Record<string, unknown>, {
+            get: (_t, prop: string) => {
+                if (prop === 'measureText') return (s: string) => ({ width: s.length * 6 });
+                if (prop === 'font') return '';
+                return (...args: unknown[]) => { if (prop === 'fillText') fills.push(String(args[0])); };
+            },
+            set: () => true,
+        });
+        const base = {
+            getSharedCanvas: () => ({ width: 600, height: 400, getContext: () => ctx as unknown as CanvasRenderingContext2D }),
+            getFriendCloudStorage: (o: { keyList: string[]; success?: (r: { data: unknown[] }) => void }) => {
+                o.success?.({
+                    data: [
+                        { nickname: 'me', openid: 'oid-me', KVDataList: [{ key: 'best', value: '10' }] },
+                        { nickname: 'you', openid: 'oid-you', KVDataList: [{ key: 'best', value: '20' }] },
+                    ],
+                });
+            },
+        };
+        const identity = opts.identity ?? 'sync';
+        const getUserInfo = identity === 'absent' ? undefined
+            : (o: { openIdList: string[]; success?: (r: { data: Array<{ openid?: string }> }) => void; fail?: () => void }) => {
+                const answer = () => {
+                    if (identity === 'never') o.fail?.();
+                    else o.success?.({ data: [{ openid: o.openIdList[0] === 'selfOpenId' ? 'oid-me' : undefined }] });
+                };
+                if (identity === 'late') settleSelf = answer; else answer();
+            };
+        return { fills, base: { ...base, getUserInfo }, settle: () => settleSelf?.() };
+    }
+
+    const showMsg = { kind: 'show', key: 'best', scope: 'friends', limit: 10, order: 'desc', style: { avatars: false }, dpr: 1 };
+    /** The bold weight is what marks the row, so the font string carries it. */
+    const boldCount = (calls: string[]) => calls.length;
+
+    it('asks the host who is playing, with the host\'s own word for it', () => {
+        const asked: string[][] = [];
+        const h = host();
+        createBoard({
+            ...h.base,
+            getUserInfo: (o) => { asked.push(o.openIdList); o.success?.({ data: [{ openid: 'oid-me' }] }); },
+        }).handle(showMsg);
+        expect(asked).toEqual([['selfOpenId']]);
+    });
+
+    it('asks once, however many boards are shown', () => {
+        let asks = 0;
+        const h = host();
+        const board = createBoard({ ...h.base, getUserInfo: (o) => { asks++; o.success?.({ data: [{ openid: 'oid-me' }] }); } });
+        board.handle(showMsg);
+        board.handle(showMsg);
+        board.handle(showMsg);
+        expect(asks).toBe(1);
+    });
+
+    it('draws immediately rather than waiting for the answer', () => {
+        // A board that waited would be a blank rectangle for as long as the
+        // host took; missing one highlight for a moment is the cheaper wrong.
+        const h = host({ identity: 'late' });
+        createBoard(h.base).handle(showMsg);
+        expect(boldCount(h.fills)).toBeGreaterThan(0);
+    });
+
+    it('repaints when the answer lands late, so the highlight appears', () => {
+        const h = host({ identity: 'late' });
+        createBoard(h.base).handle(showMsg);
+        const before = h.fills.length;
+        h.settle();
+        expect(h.fills.length).toBeGreaterThan(before);
+    });
+
+    it('does not repaint after the board was hidden', () => {
+        const h = host({ identity: 'late' });
+        const board = createBoard(h.base);
+        board.handle(showMsg);
+        board.handle({ kind: 'hide' });
+        const before = h.fills.length;
+        h.settle();
+        expect(h.fills.length).toBe(before);
+    });
+
+    it('draws a board anyway on a host that will not say', () => {
+        const h = host({ identity: 'never' });
+        createBoard(h.base).handle(showMsg);
+        expect(h.fills).toContain('20');
+    });
+
+    it('draws a board anyway on a host with no such call', () => {
+        const h = host({ identity: 'absent' });
+        createBoard(h.base).handle(showMsg);
+        expect(h.fills).toContain('20');
+    });
+
+    it('does not ask when the host already said who we are', () => {
+        let asks = 0;
+        const h = host();
+        createBoard({ ...h.base, selfOpenId: 'oid-me', getUserInfo: () => { asks++; } }).handle(showMsg);
+        expect(asks).toBe(0);
     });
 });
 

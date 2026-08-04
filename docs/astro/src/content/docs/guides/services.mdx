@@ -95,3 +95,62 @@ Sharing is fire-and-forget by design: since 2021 no mini-game host reports
 whether the player actually shared, so there is nothing to await. Off-platform
 (web, native, the editor) `Share.available` is `false` and `share()` returns
 `false` — hide the button rather than promise a sheet that cannot open.
+
+## Friends leaderboard
+
+A mini-game leaderboard is not a list you fetch. The player's friends can be
+**read only inside the open data context** — a second JavaScript runtime the
+host starts beside your game, with no engine, no WebGL and no wasm in it — and
+there is no channel back from that runtime to yours. So the board is drawn
+*over there* and arrives here as pixels.
+
+The API says that out loud rather than hiding it:
+
+```typescript
+import { defineSystem, Res, Leaderboard, UIVisual } from 'esengine';
+
+// Your half: write your own row. It is the one cloud operation the game
+// itself may do — reading anyone's, including your own, belongs to the context.
+leaderboard.submit(score);
+
+// Ask the context to draw. This is a request, not a question: no rows come
+// back, no count, no "did it work".
+leaderboard.show({ limit: 10, order: 'desc' });
+
+// What it drew, as a texture handle any UIVisual can wear.
+world.get(panel, UIVisual).texture = leaderboard.texture;
+
+leaderboard.hide();   // clears the board and stops sampling
+```
+
+`Leaderboard.available` is `false` where there is no context — web, native, and
+any package that declares none. Hide the button rather than open a panel that
+stays blank.
+
+### What ships by default
+
+Nothing to write: the engine's own board is bundled into every mini-game export
+that does not supply one, and `Leaderboard.show()` draws it. Rows are ranked,
+the player's own row is emphasised, and a friend who has never played is left
+off rather than shown as zero.
+
+Style it through `show({ style })` — colours, row height, font size, whether to
+draw avatars. The canvas is a fixed size and **cannot scroll**: no pointer or
+key event reaches that runtime, so `limit` is how many rows fit, not a page.
+
+### Your own board
+
+Put an `open-data/index.ts` in the project and the exporter bundles that
+instead. It runs in the context, so it may **not import `esengine`** — the
+export fails if it does, which is better than finding out on a device. Inside,
+you have a 2D canvas from `wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`,
+and `wx.onMessage()` carrying whatever `show()` sent.
+
+### At your desk
+
+Play mode installs a local board: the engine's own renderer, the same code that
+ships inside the context, drawn on an offscreen canvas with obviously-invented
+friends. So the panel can be laid out and styled without packaging anything.
+
+What it cannot rehearse is the part that is genuinely the host's — real friends
+and the sandbox they live in. Check that on a device before you ship.
