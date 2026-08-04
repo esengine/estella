@@ -51,6 +51,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_ID = 'com.estella.game';
 const LOG_NAME = 'estella-boot.log';
 const READY = 'ready in';
+/** Captures per app. See the comment at the capture site for why >1 and why
+ *  the richest one wins. */
+const FRAME_SAMPLES = 3;
 
 /**
  * Examples that do not start or draw on a device yet, and why.
@@ -231,8 +234,22 @@ function androidDriver(opts) {
         foreground() {
             const out = trySh(adb, ['shell', 'dumpsys', 'activity', 'activities']).stdout ?? '';
             const line = out.split('\n').find((l) => /ResumedActivity/.test(l));
-            if (line) return line.includes(APP_ID) ? null : `on screen instead: ${line.trim().slice(0, 100)}`;
-            return trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim() ? null : 'the app process is gone';
+            if (line && !line.includes(APP_ID)) return `on screen instead: ${line.trim().slice(0, 100)}`;
+            if (!line && !trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim()) return 'the app process is gone';
+            // The resumed activity is still OURS while a dialog sits on top of
+            // it, which is the hole this check had: the frame judge counts
+            // colours on the SCREEN, and a system dialog is hundreds of them —
+            // so a game that had gone black passed on the dialog's antialiased
+            // text. Focus is what actually moves when something covers us.
+            const focus = (trySh(adb, ['shell', 'dumpsys', 'window']).stdout ?? '')
+                .split('\n').find((l) => /mCurrentFocus/.test(l));
+            // No focus line at all is not evidence of anything — some versions
+            // word it differently, and inventing a failure from a parse miss is
+            // how a gate teaches people to ignore it.
+            if (focus && !focus.includes(APP_ID) && !/mCurrentFocus=null/.test(focus)) {
+                return `something is on top of it: ${focus.trim().slice(0, 100)}`;
+            }
+            return null;
         },
         clearScreen() {
             trySh(adb, ['shell', 'am', 'broadcast', '-a', 'android.intent.action.CLOSE_SYSTEM_DIALOGS']);
@@ -520,7 +537,29 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     }
 
     driver.clearScreen();
-    const frame = driver.screenshot();
+    // More than one, and keep the richest.
+    //
+    // A single capture is a coin flip against everything transient: a toast
+    // fading in, a frame taken between two the game drew, a compositor that
+    // handed back the previous buffer. Every one of those makes a WORKING game
+    // look broken, which is the failure that gets a gate ignored. Three is
+    // enough to make that unlucky rather than likely, and they cost a
+    // screencap each.
+    //
+    // Richest, not median: the question is "did it ever draw", so one good
+    // frame is proof and the others cannot un-prove it. The dialog case runs
+    // the other way and is not this check's to catch — `foreground` above is,
+    // because a dialog's colours would win exactly this comparison.
+    let frame = driver.screenshot();
+    let image = decodePng(frame);
+    let colors = distinctColors(image);
+    for (let i = 1; i < FRAME_SAMPLES; i++) {
+        await sleep(120);
+        const again = driver.screenshot();
+        const decoded = decodePng(again);
+        const n = distinctColors(decoded);
+        if (n > colors) { frame = again; image = decoded; colors = n; }
+    }
     const shot = path.join(opts.out, `${driver.name}-${label}.png`);
     writeFileSync(shot, frame);
     writeFileSync(path.join(opts.out, `${driver.name}-${label}.log`), log);
@@ -552,8 +591,8 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     }
     driver.stop();
 
-    const image = decodePng(frame);
-    const colors = distinctColors(image);
+    // `image` and `colors` come from the sampling above — decoding the kept
+    // frame a second time would be two sources for one number.
     const ready = log.includes(READY);
     const readyLine = log.split('\n').find((l) => l.includes(READY))?.trim() ?? '';
     if (metrics) metrics.startup.readyMs = firstNumber(/ready in (\d+) ms/, readyLine);

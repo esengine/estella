@@ -29,6 +29,21 @@ name: Android real devices
 # Snapdragon Galaxy (Adreno) and an Exynos Galaxy (Xclipse) cover the three
 # drivers between them, and a fourth phone from the same vendor as one of those
 # is a device minute spent on a question already answered.
+#
+# Pick the EXAMPLES the same way. One run per example, sequential, and each one
+# costs real device minutes — so the default is not "all of them" (the emulator
+# matrix already does that) and not one (which only ever exercised the plainest
+# renderer path). It is the smallest set that asks a different question of the
+# driver:
+#
+#   space-shooter        sprites, batching — the baseline that must never break
+#   postprocess-effects  render targets and float textures, the most
+#                        driver-divergent thing the engine does
+#   tilemap-demo         large atlases and chunked geometry
+#
+# Physics, audio and video are CPU or wasm on every device; an emulator answers
+# for them as well as a phone does, so they stay in the emulator matrix. Pass
+# `examples` by hand for anything else.
 
 on:
   workflow_dispatch:
@@ -36,7 +51,7 @@ on:
       examples:
         description: 'Comma-separated example names to package and run.'
         required: false
-        default: 'space-shooter'
+        default: 'space-shooter,postprocess-effects,tilemap-demo'
         type: string
       template-source:
         description: 'Which runtime template to wrap: the latest release, or a build of this branch (~35 min).'
@@ -65,7 +80,31 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       configured: ${{ steps.cfg.outputs.configured }}
+      # The example list as a JSON array, so the device job can be one run PER
+      # example. `appArn` names a single file: interpolating the raw input into
+      # it turned "a,b" — which the input documents and the APK job honours —
+      # into a hunt for `apks/a,b.apk`.
+      examples: ${{ steps.list.outputs.json }}
     steps:
+      - id: list
+        env:
+          NAMES: ${{ inputs.examples || 'space-shooter,postprocess-effects,tilemap-demo' }}
+        run: |
+          set -euo pipefail
+          # Split the way the APK job splits it (android-canary-apk.yml), so the
+          # two cannot disagree about what "a, b" means.
+          IFS=',' read -ra NAMES_ARR <<< "$NAMES"
+          json='['
+          sep=''
+          for raw in "${NAMES_ARR[@]}"; do
+            name="$(echo "$raw" | tr -d '[:space:]')"
+            [ -z "$name" ] && continue
+            json="$json$sep\"$name\""
+            sep=','
+          done
+          json="$json]"
+          [ "$json" = '[]' ] && { echo '::error::no example names given'; exit 1; }
+          echo "json=$json" >> "$GITHUB_OUTPUT"
       - id: cfg
         env:
           ROLE: ${{ secrets.AWS_DEVICEFARM_ROLE_ARN }}
@@ -100,7 +139,7 @@ jobs:
       contents: read
       pull-requests: read
     with:
-      examples: ${{ inputs.examples || 'space-shooter' }}
+      examples: ${{ inputs.examples || 'space-shooter,postprocess-effects,tilemap-demo' }}
       template-source: ${{ inputs.template-source || 'release' }}
 
   devices:
@@ -112,6 +151,14 @@ jobs:
     permissions:
       contents: read
       id-token: write   # OIDC, so no long-lived AWS keys live in this repo
+    strategy:
+      # One Device Farm run per example. Not parallel by default and not
+      # fail-fast: device minutes cost money, and a second example's result is
+      # still worth having when the first one failed.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        example: ${{ fromJSON(needs.preflight.outputs.examples) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -145,10 +192,10 @@ jobs:
           # File paths (rather than ARNs) tell the action to upload them first.
           run-settings-json: |
             {
-              "name": "estella canary ${{ github.ref_name }} ${{ github.sha }}",
+              "name": "estella canary ${{ matrix.example }} ${{ github.ref_name }} ${{ github.sha }}",
               "projectArn": "${{ secrets.DEVICEFARM_PROJECT_ARN }}",
               "devicePoolArn": "${{ secrets.DEVICEFARM_DEVICE_POOL_ARN }}",
-              "appArn": "apks/${{ inputs.examples || 'space-shooter' }}.apk",
+              "appArn": "apks/${{ matrix.example }}.apk",
               "test": {
                 "type": "APPIUM_NODE",
                 "testPackageArn": "build/devicefarm/tests.zip",
@@ -166,12 +213,15 @@ jobs:
         if: always() && steps.farm.outputs.artifact-folder != ''
         uses: actions/upload-artifact@v7
         with:
-          name: device-farm-artifacts
+          # Per example: one name across the matrix is a collision, and the
+          # upload fails rather than merging.
+          name: device-farm-artifacts-${{ matrix.example }}
           path: ${{ steps.farm.outputs.artifact-folder }}
           if-no-files-found: warn
 
       - name: Where to look
         if: always()
         run: |
+          echo "example: ${{ matrix.example }}"
           echo "result:  ${{ steps.farm.outputs.result }}"
           echo "console: ${{ steps.farm.outputs.console-url }}"
