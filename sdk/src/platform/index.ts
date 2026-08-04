@@ -61,6 +61,8 @@ export {
     platformShare,
     platformOnShareRequest,
     platformCanSignIn,
+    platformCanPay,
+    platformRequestPayment,
     platformLogin,
     platformCheckSession,
     platformCanOpenData,

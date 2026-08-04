@@ -324,6 +324,23 @@ export function platformCheckSession(): Promise<boolean> {
     return getPlatform().checkSession?.() ?? Promise.resolve(false);
 }
 
+/** Whether a purchase may happen here at all — declared by the platform, and
+ *  permitted on THIS device. See `PlatformAdapter.canPay`. */
+export function platformCanPay(): boolean {
+    if (!isPlatformInitialized()) return false;
+    const p = getPlatform();
+    return p.requestPayment !== undefined && (p.canPay?.() ?? true);
+}
+
+/** Buy in-game currency; rejects where purchase is not available, so a caller
+ *  that skipped {@link platformCanPay} hears why rather than hanging. */
+export function platformRequestPayment(request: import('./types').PlatformPaymentRequest): Promise<void> {
+    if (!platformCanPay()) {
+        return Promise.reject(new Error('in-game purchase is not available on this platform'));
+    }
+    return getPlatform().requestPayment!(request);
+}
+
 /**
  * Whether this platform has a USABLE open data context — what a leaderboard
  * reads to hide itself honestly (web, native and the editor have none).

@@ -169,3 +169,37 @@ code**。
 是真的渲染器，排练它们有意义；而假 code 是任何服务器都换不了的字符串——拿它排练，
 排练的只是一个注定失败的请求。在没有该能力的平台上 `available` 是 `false`，游戏走
 它在「没有账号」时本来该走的那条路。
+
+## 内购
+
+在小游戏里付费是一种**权限，不是功能**。微信上它**只在安卓可用**：在 iPhone 上这个
+调用是存在的，而平台会拒绝它。所以 `available` 回答的是**这台设备**能不能买，商店
+应该在打开之前就问，而不是等玩家点了「购买」才发现。
+
+```typescript
+import { defineSystem, Res, Payment } from 'esengine';
+
+if (!payment.available) return;   // iOS、网页、原生——不要打开商店
+
+try {
+  await payment.request({ offerId: '你的 offerId', quantity: 10 });
+  // 是**宿主**说购买完成了。现在去问**你自己的服务器**玩家拥有什么，
+  // 不要在这里发货。
+  await refreshInventoryFromYourServer();
+} catch (err) {
+  // 宿主自己的消息和错误码，包括「玩家改主意了」。
+  // 这两种要不同的 UI，而只有宿主分得清。
+  if ((err as { code?: number }).code === /* 你的宿主的取消码 */ 2) return;
+  showPurchaseFailed(err);
+}
+```
+
+调试期传 `sandbox: true`；游戏有多个区服时传 `zoneId`。
+
+这个服务**刻意不做**两件事。它**不解释宿主的错误码**——各家不一样，引擎自己编一张
+映射表就是一个猜测，而你的游戏会照着它分支。它也**不发货**：客户端相信的购买等于
+攻击者可以声称的购买。宿主通知的是**你的服务器**，发货是服务器的事；`request()`
+resolve 只是「去问服务器」的信号。
+
+Play 模式里没有本地替身，理由和登录那节一样——一次不扣钱也不发货的排练，排练的只有
+那个弹窗，而真正会出问题的是弹窗后面。

@@ -73,6 +73,10 @@ export interface MiniGameSystemInfo {
     language?: string;
     windowWidth?: number;
     windowHeight?: number;
+    /** Where the host itself is running — `ios`, `android`, `devtools`, … Not
+     *  cosmetic: in-game purchase is permitted on some of these and forbidden
+     *  on others, so a capability has to read it. */
+    platform?: string;
 }
 
 export interface MiniGameTouch {
@@ -255,6 +259,21 @@ export interface MiniGameGlobal {
     /** Whether the host still regards the last sign-in as current. Reports the
      *  answer by WHICH callback it calls, not by a value. */
     checkSession?(opts: { success?: () => void; fail?: (err: unknown) => void }): void;
+
+    /** In-game purchase of the host's currency. Present on the global whatever
+     *  device it is running on — whether it may actually be CALLED is a
+     *  platform rule, not an API-shape question. See `MiniGamePlatformAdapter.canPay`. */
+    requestMidasPayment?(opts: {
+        mode: string;
+        offerId: string;
+        buyQuantity: number;
+        zoneId?: string;
+        currencyType?: string;
+        platform?: string;
+        env?: number;
+        success?: () => void;
+        fail?: (err: { errMsg?: string; errCode?: number }) => void;
+    }): void;
 
     /** The open data context, if this host has one. Absent on a host without
      *  friend data, and on a game whose package declares no context directory. */

@@ -186,3 +186,42 @@ still the real renderer, so rehearsing them tells you something. A pretend code
 is a string no server can exchange — rehearsing with it would only rehearse a
 request that is going to fail. Off-platform, `available` is `false`, and a game
 takes whatever path it takes when there is no account.
+
+## In-game purchase
+
+Buying inside a mini-game is a **permission, not a feature**. On WeChat it is
+Android-only: the call is present on an iPhone and the platform refuses it. So
+`available` answers for the **device**, and a shop asks before it opens rather
+than finding out when someone taps Buy.
+
+```typescript
+import { defineSystem, Res, Payment } from 'esengine';
+
+if (!payment.available) return;   // iOS, web, native — do not open the shop
+
+try {
+  await payment.request({ offerId: 'your-offer-id', quantity: 10 });
+  // The HOST says the purchase completed. Now ask YOUR server what the player
+  // owns — do not add the coins here.
+  await refreshInventoryFromYourServer();
+} catch (err) {
+  // The host's own message and code, including "the player changed their mind".
+  // Those are different UI, and only the host can tell them apart.
+  if ((err as { code?: number }).code === /* your host's cancel code */ 2) return;
+  showPurchaseFailed(err);
+}
+```
+
+Pass `sandbox: true` while you build the flow, and `zoneId` if your game has
+more than one server.
+
+Two things this service deliberately does not do. It **does not interpret the
+host's error codes** — they differ between vendors, and a mapping invented in
+the engine is a guess your game would then branch on. And it **grants nothing**:
+a purchase the client believes in is a purchase an attacker can claim. The host
+notifies your server, and your server is what hands out currency; `request()`
+resolving is the cue to go and ask it.
+
+There is no local stand-in in play mode, for the same reason sign-in has none —
+a rehearsed purchase that charges nothing and grants nothing rehearses only the
+dialog, and the part that goes wrong is behind it.

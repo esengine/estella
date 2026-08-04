@@ -22,6 +22,7 @@ import { Ads, AdsAPI } from './ads';
 import { Share, ShareAPI } from './share';
 import { Leaderboard, LeaderboardAPI } from './leaderboard';
 import { Identity, IdentityAPI } from './identity';
+import { Payment, PaymentAPI } from './payment';
 
 export class ServicesPlugin implements Plugin {
     name = 'Services';
@@ -38,6 +39,7 @@ export class ServicesPlugin implements Plugin {
         }));
         app.insertResource(Share, new ShareAPI());
         app.insertResource(Identity, new IdentityAPI());
+        app.insertResource(Payment, new PaymentAPI());
         // Resolved per call rather than captured: the module is attached by
         // connectCpp, which can run after the plugins have built.
         app.insertResource(Leaderboard, new LeaderboardAPI(() => app.wasmModule));

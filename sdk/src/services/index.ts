@@ -11,4 +11,5 @@ export {
     type LeaderboardStyle, type LocalLeaderboardOptions,
 } from './leaderboard';
 export { Identity, IdentityAPI, type LoginResult } from './identity';
+export { Payment, PaymentAPI, type PaymentRequest, type PaymentFailure } from './payment';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';

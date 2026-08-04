@@ -27,6 +27,7 @@ import type {
     PlatformRewardedAdResult,
     PlatformInterstitialAd,
     PlatformShareOptions,
+    PlatformPaymentRequest,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
@@ -190,6 +191,54 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
      *  the honest answer is whether the host behind it has one. */
     canSignIn(): boolean {
         return this.g_.login !== undefined;
+    }
+
+    /**
+     * Whether a purchase may happen on THIS device.
+     *
+     * Paying inside a mini-game is an Android-only permission: the call exists
+     * on an iPhone and the platform refuses it. That is a rule, not a fault, so
+     * it belongs in the capability rather than in an error a game discovers by
+     * charging someone. Devtools counts — that is where a purchase flow is
+     * built, against the host's sandbox.
+     */
+    canPay(): boolean {
+        if (!this.g_.requestMidasPayment) return false;
+        const where = this.g_.getSystemInfoSync().platform;
+        // Unknown means a host that did not say. Treated as allowed: refusing
+        // on silence would disable purchase on any vendor whose system info we
+        // have not met, and the host still gets the final word at call time.
+        return where === undefined || where === 'android' || where === 'devtools';
+    }
+
+    /** Buy in-game currency. Rejects with the host's own reason: "the purchase
+     *  failed" without a code cannot be told apart from the player changing
+     *  their mind, and those need different UI. */
+    requestPayment(request: PlatformPaymentRequest): Promise<void> {
+        const pay = this.g_.requestMidasPayment;
+        if (!pay) return Promise.reject(new Error('this host sells nothing'));
+        return new Promise<void>((resolve, reject) => {
+            pay.call(this.g_, {
+                mode: 'game',
+                offerId: request.offerId,
+                buyQuantity: request.quantity,
+                zoneId: request.zoneId ?? '1',
+                currencyType: 'CNY',
+                // Named explicitly rather than left to the host's default: the
+                // one platform this is allowed on is the one it must say.
+                platform: 'android',
+                ...(request.sandbox ? { env: 1 } : {}),
+                success: () => resolve(),
+                fail: (err) => {
+                    const e = new Error(err?.errMsg ?? 'payment failed') as Error & { code?: number };
+                    // Carried, not interpreted: the codes are the host's, they
+                    // differ between vendors, and a mapping this layer invented
+                    // would be a guess a game then branches on.
+                    e.code = err?.errCode;
+                    reject(e);
+                },
+            });
+        });
     }
 
     /** Begin a sign-in, as a promise. Rejects with the host's own words: this

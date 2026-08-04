@@ -531,6 +531,20 @@ export interface PlatformAdapter {
      * and presence stands; a family answers for the host it actually wraps.
      */
     canSignIn?(): boolean;
+
+    /**
+     * Whether in-game purchase is permitted HERE.
+     *
+     * A separate question from whether the host exposes the call, and the
+     * reason this is a capability rather than a try-and-see: on WeChat, paying
+     * inside a mini-game is an Android-only permission — the API is present on
+     * an iPhone and refusing it is the platform's rule, not a fault. A game has
+     * to be able to ask before it shows a shop.
+     */
+    canPay?(): boolean;
+    /** Buy `quantity` units of the host's in-game currency. Resolves when the
+     *  host reports the purchase done; rejects with the host's own reason. */
+    requestPayment?(request: PlatformPaymentRequest): Promise<void>;
     /** Whether the host still regards the last sign-in as current, so a game
      *  can skip re-exchanging a code it does not need. */
     checkSession?(): Promise<boolean>;
@@ -574,6 +588,19 @@ export interface PlatformInterstitialAd {
     preload(): Promise<void>;
     show(): Promise<void>;
     destroy(): void;
+}
+
+/** One in-game purchase, in the vocabulary every mini-game host shares. */
+export interface PlatformPaymentRequest {
+    /** The offer this game sells under, from the host's developer console. */
+    offerId: string;
+    /** How many units of the host's in-game currency to buy. */
+    quantity: number;
+    /** Which of the game's zones/servers the currency lands in. Hosts default
+     *  it to the first one; a single-zone game can leave it out. */
+    zoneId?: string;
+    /** Use the host's sandbox rather than charging real money. */
+    sandbox?: boolean;
 }
 
 /** The share card for an active or passive share. `query` rides the launch
