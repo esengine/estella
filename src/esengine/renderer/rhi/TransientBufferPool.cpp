@@ -230,14 +230,14 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     VertexLayoutDesc desc;
     switch (layout) {
         case LayoutId::Batch:
-            // BatchVertex: pos(8) + color(4) + uv(8) + texIndex(4) + sdfBias(4)
+            // BatchVertex: pos(12) + color(4) + uv(8) + texIndex(4) + sdfBias(4)
             desc.attributeCount = 5;
-            desc.strides[0] = 28;
-            desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
-            desc.attributes[1] = {1, 4, GfxDataType::UnsignedByte, true, 8, 0};
-            desc.attributes[2] = {2, 2, GfxDataType::Float, false, 12, 0};
-            desc.attributes[3] = {3, 1, GfxDataType::Float, false, 20, 0};
-            desc.attributes[4] = {4, 1, GfxDataType::Float, false, 24, 0};
+            desc.strides[0] = 32;
+            desc.attributes[0] = {0, 3, GfxDataType::Float, false, 0, 0};
+            desc.attributes[1] = {1, 4, GfxDataType::UnsignedByte, true, 12, 0};
+            desc.attributes[2] = {2, 2, GfxDataType::Float, false, 16, 0};
+            desc.attributes[3] = {3, 1, GfxDataType::Float, false, 24, 0};
+            desc.attributes[4] = {4, 1, GfxDataType::Float, false, 28, 0};
             break;
         case LayoutId::Shape:
             desc.attributeCount = 4;

@@ -196,7 +196,9 @@ void ImmediateDraw::emitQuad(const glm::vec2& center, const glm::vec2& size, f32
         glm::vec2 rotated = rotation != 0.0f
             ? glm::vec2(scaled.x * cosR - scaled.y * sinR, scaled.x * sinR + scaled.y * cosR)
             : scaled;
-        verts[i].position = center + rotated;
+        // Immediate geometry bypasses the sort key and draws with the depth test
+        // off, so it has no depth of its own to carry — it lands on the z=0 plane.
+        verts[i].position = glm::vec3(center + rotated, 0.0f);
         verts[i].color = packed;
         verts[i].texCoord = QUAD_UV[i] * uvScale + uvOffset;
     }
@@ -213,9 +215,9 @@ void ImmediateDraw::emitTriangle(const glm::vec2& p0, const glm::vec2& p1, const
 
     const u32 packed = packColor(color);
     std::array<BatchVertex, 3> verts{
-        BatchVertex{ p0, packed, {0.0f, 0.0f} },
-        BatchVertex{ p1, packed, {1.0f, 0.0f} },
-        BatchVertex{ p2, packed, {1.0f, 1.0f} },
+        BatchVertex{ {p0, 0.0f}, packed, {0.0f, 0.0f} },
+        BatchVertex{ {p1, 0.0f}, packed, {1.0f, 0.0f} },
+        BatchVertex{ {p2, 0.0f}, packed, {1.0f, 1.0f} },
     };
 
     u32 base = pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);

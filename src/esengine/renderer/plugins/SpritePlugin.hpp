@@ -16,7 +16,7 @@ private:
     // so this stays here rather than in BatchPlugin. Emits one quad per tile via appendQuad.
     void emitTiledQuads(
         TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-        const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivot,
+        const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivot,
         f32 angle, const glm::vec4& color,
         const glm::vec2& uvOffset, const glm::vec2& uvScale,
         const glm::vec2& tileSize, const glm::vec2& tileSpacing,

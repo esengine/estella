@@ -102,10 +102,10 @@ void TextPlugin::rebuildLayout(const text::BitmapFont& font, const ecs::BitmapTe
             f32 vBottom = (glyph->y + glyph->height) / texH;
 
             u32 baseVertex = static_cast<u32>(cache.vertices.size());
-            cache.vertices.push_back({ {cx - halfW, cy - halfH}, 0, {uMin, vBottom} });
-            cache.vertices.push_back({ {cx + halfW, cy - halfH}, 0, {uMax, vBottom} });
-            cache.vertices.push_back({ {cx + halfW, cy + halfH}, 0, {uMax, vTop} });
-            cache.vertices.push_back({ {cx - halfW, cy + halfH}, 0, {uMin, vTop} });
+            cache.vertices.push_back({ {cx - halfW, cy - halfH, 0.0f}, 0, {uMin, vBottom} });
+            cache.vertices.push_back({ {cx + halfW, cy - halfH, 0.0f}, 0, {uMax, vBottom} });
+            cache.vertices.push_back({ {cx + halfW, cy + halfH, 0.0f}, 0, {uMax, vTop} });
+            cache.vertices.push_back({ {cx - halfW, cy + halfH, 0.0f}, 0, {uMin, vTop} });
             for (u32 i = 0; i < 6; ++i) {
                 cache.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
             }
@@ -171,7 +171,7 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
         scratch_.reserve(cache.vertices.size());
         for (const BatchVertex& v : cache.vertices) {
             scratch_.push_back({
-                { position.x + v.position.x * s, position.y + v.position.y * s },
+                { position.x + v.position.x * s, position.y + v.position.y * s, position.z },
                 packedColor, v.texCoord });
         }
 

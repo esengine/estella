@@ -21,10 +21,10 @@ void RenderFrame::submitTileQuad(
     u32 pc = packColor(color);
 
     BatchVertex verts[4] = {
-        { {position.x - hw, position.y - hh}, pc, uvOffset },
-        { {position.x + hw, position.y - hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y} },
-        { {position.x + hw, position.y + hh}, pc, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} },
-        { {position.x - hw, position.y + hh}, pc, {uvOffset.x, uvOffset.y + uvScale.y} },
+        { {position.x - hw, position.y - hh, depth}, pc, uvOffset },
+        { {position.x + hw, position.y - hh, depth}, pc, {uvOffset.x + uvScale.x, uvOffset.y} },
+        { {position.x + hw, position.y + hh, depth}, pc, {uvOffset.x + uvScale.x, uvOffset.y + uvScale.y} },
+        { {position.x - hw, position.y + hh, depth}, pc, {uvOffset.x, uvOffset.y + uvScale.y} },
     };
 
     appendQuad(pool_, draw_list_, clip_state_, verts, BatchDrawKey{
@@ -60,7 +60,7 @@ void RenderFrame::submitTextBatch(
         u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
         // texIndex is assigned at merge time; sdfBias rides in from the layout,
         // which is where an outline pass says how far to grow the glyph.
-        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]}, 0.0f, v[8] };
+        dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]}, 0.0f, v[8] };
     }
 
     // sdf: the SDF variant derives coverage from the distance field; otherwise the
@@ -102,7 +102,7 @@ void RenderFrame::submitSpineBatch(
         const f32* v = vertices + i * FLOATS_PER_VERTEX;
         glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
         u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
-        dst[i] = { {worldPos.x, worldPos.y}, pc, {v[2], v[3]} };
+        dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]} };
     }
 
     pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,

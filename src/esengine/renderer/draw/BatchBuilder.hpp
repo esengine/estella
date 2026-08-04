@@ -62,12 +62,14 @@ inline constexpr glm::vec2 BATCH_QUAD_TEX_COORDS[4] = {
 /** @brief Canonical two-triangle quad winding shared by every batch path. */
 inline constexpr u32 BATCH_QUAD_INDICES[6] = { 0, 1, 2, 2, 3, 0 };
 
-/** @brief Rotates a point around @p center using a precomputed cos/sin. */
-inline glm::vec2 rotatePoint(const glm::vec2& center, f32 px, f32 py, f32 cosA, f32 sinA) {
+/** @brief Rotates a point around @p center in the XY plane, carrying the center's z
+ *         through untouched — the rotation a 2D renderer means is about z. */
+inline glm::vec3 rotatePoint(const glm::vec3& center, f32 px, f32 py, f32 cosA, f32 sinA) {
     f32 dx = px - center.x;
     f32 dy = py - center.y;
     return { center.x + dx * cosA - dy * sinA,
-             center.y + dx * sinA + dy * cosA };
+             center.y + dx * sinA + dy * cosA,
+             center.z };
 }
 
 // =============================================================================

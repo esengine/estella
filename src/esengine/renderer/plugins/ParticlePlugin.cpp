@@ -226,8 +226,8 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                     col.a *= t;
                     u32 packed = packColor(col);
 
-                    trail_verts_.push_back({trail_center_[j] + perp * halfW, packed, glm::vec2(1.0f - t, 0.0f)});
-                    trail_verts_.push_back({trail_center_[j] - perp * halfW, packed, glm::vec2(1.0f - t, 1.0f)});
+                    trail_verts_.push_back({{trail_center_[j] + perp * halfW, emitterWorldPos.z}, packed, glm::vec2(1.0f - t, 0.0f)});
+                    trail_verts_.push_back({{trail_center_[j] - perp * halfW, emitterWorldPos.z}, packed, glm::vec2(1.0f - t, 1.0f)});
                 }
 
                 trail_indices_.clear();

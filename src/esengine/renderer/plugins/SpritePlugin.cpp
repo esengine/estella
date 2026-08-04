@@ -111,20 +111,20 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
 
         if (hasTiling) {
             emitTiledQuads(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, sprite.pivot,
+                position, finalSize, sprite.pivot,
                 angle, sprite.color, uvOff, uvSc,
                 sprite.tileSize * glm::vec2(scale),
                 sprite.tileSpacing * glm::vec2(scale),
                 key);
         } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, sprite.pivot,
+                position, finalSize, sprite.pivot,
                 angle, texSize,
                 glm::vec4(sliceBorder.left, sliceBorder.right, sliceBorder.top, sliceBorder.bottom),
                 uvOff, uvSc, sprite.color, key);
         } else {
             emitQuad(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, sprite.pivot,
+                position, finalSize, sprite.pivot,
                 angle, uvOff, uvSc, sprite.color, key);
         }
     }
@@ -132,7 +132,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
 
 void SpritePlugin::emitTiledQuads(
     TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-    const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivot,
+    const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivot,
     f32 angle, const glm::vec4& color,
     const glm::vec2& uvOffset, const glm::vec2& uvScale,
     const glm::vec2& tileSize, const glm::vec2& tileSpacing,
@@ -170,10 +170,10 @@ void SpritePlugin::emitTiledQuads(
             verts[2] = { rotatePoint(position, baseX + absSize.x, baseY + absSize.y, cosA, sinA), pc, { uvOffset.x + uvScale.x, uvOffset.y + uvScale.y } };
             verts[3] = { rotatePoint(position, baseX, baseY + absSize.y, cosA, sinA), pc, { uvOffset.x, uvOffset.y + uvScale.y } };
         } else {
-            verts[0] = { { baseX, baseY }, pc, { uvOffset.x, uvOffset.y } };
-            verts[1] = { { baseX + absSize.x, baseY }, pc, { uvOffset.x + uvScale.x, uvOffset.y } };
-            verts[2] = { { baseX + absSize.x, baseY + absSize.y }, pc, { uvOffset.x + uvScale.x, uvOffset.y + uvScale.y } };
-            verts[3] = { { baseX, baseY + absSize.y }, pc, { uvOffset.x, uvOffset.y + uvScale.y } };
+            verts[0] = { { baseX, baseY, position.z }, pc, { uvOffset.x, uvOffset.y } };
+            verts[1] = { { baseX + absSize.x, baseY, position.z }, pc, { uvOffset.x + uvScale.x, uvOffset.y } };
+            verts[2] = { { baseX + absSize.x, baseY + absSize.y, position.z }, pc, { uvOffset.x + uvScale.x, uvOffset.y + uvScale.y } };
+            verts[3] = { { baseX, baseY + absSize.y, position.z }, pc, { uvOffset.x, uvOffset.y + uvScale.y } };
         }
         appendQuad(buffers, draw_list, clips, verts, key);
         return;
@@ -205,10 +205,10 @@ void SpritePlugin::emitTiledQuads(
                 verts[2] = { rotatePoint(position, x1, y1, cosA, sinA), pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
                 verts[3] = { rotatePoint(position, x0, y1, cosA, sinA), pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } };
             } else {
-                verts[0] = { { x0, y0 }, pc, { uvOffset.x,                 uvOffset.y } };
-                verts[1] = { { x1, y0 }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
-                verts[2] = { { x1, y1 }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
-                verts[3] = { { x0, y1 }, pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } };
+                verts[0] = { { x0, y0, position.z }, pc, { uvOffset.x,                 uvOffset.y } };
+                verts[1] = { { x1, y0, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
+                verts[2] = { { x1, y1, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
+                verts[3] = { { x0, y1, position.z }, pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } };
             }
 
             appendQuad(buffers, draw_list, clips, verts, key);

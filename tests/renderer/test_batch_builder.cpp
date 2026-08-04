@@ -63,10 +63,10 @@ TEST_CASE("pool reports each stream's vertex stride (single source for baseVerte
 TEST_CASE("appendQuad: Batch command with baseVertex-offset indices and one texture slot") {
     Harness h;
     BatchVertex quad[4] = {
-        { {0, 0}, 0xFFFFFFFFu, {0, 0} },
-        { {1, 0}, 0xFFFFFFFFu, {1, 0} },
-        { {1, 1}, 0xFFFFFFFFu, {1, 1} },
-        { {0, 1}, 0xFFFFFFFFu, {0, 1} },
+        { {0, 0, 0}, 0xFFFFFFFFu, {0, 0} },
+        { {1, 0, 0}, 0xFFFFFFFFu, {1, 0} },
+        { {1, 1, 0}, 0xFFFFFFFFu, {1, 1} },
+        { {0, 1, 0}, 0xFFFFFFFFu, {0, 1} },
     };
     appendQuad(h.pool, h.list, h.clips, quad, quadKey(42));
     appendQuad(h.pool, h.list, h.clips, quad, quadKey(42));
@@ -129,10 +129,10 @@ TEST_CASE("pushBatchDraw: instanced key assembles an instanced command over stat
 TEST_CASE("finalize: adjacent same-key Batch draws with different textures merge multi-texture") {
     Harness h;
     BatchVertex quad[4] = {
-        { {0, 0}, 0xFFFFFFFFu, {0, 0} },
-        { {1, 0}, 0xFFFFFFFFu, {1, 0} },
-        { {1, 1}, 0xFFFFFFFFu, {1, 1} },
-        { {0, 1}, 0xFFFFFFFFu, {0, 1} },
+        { {0, 0, 0}, 0xFFFFFFFFu, {0, 0} },
+        { {1, 0, 0}, 0xFFFFFFFFu, {1, 0} },
+        { {1, 1, 0}, 0xFFFFFFFFu, {1, 1} },
+        { {0, 1, 0}, 0xFFFFFFFFu, {0, 1} },
     };
     appendQuad(h.pool, h.list, h.clips, quad, quadKey(42));
     appendQuad(h.pool, h.list, h.clips, quad, quadKey(43));

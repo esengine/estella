@@ -130,10 +130,10 @@ void TilemapRenderPlugin::rebuildChunk(
 
             SlotMesh& mesh = cache.slots[slotIndex];
             u32 baseVertex = static_cast<u32>(mesh.vertices.size());
-            mesh.vertices.push_back({ {worldX - hw, worldY - hh}, 0, {bl.x, bl.y} });
-            mesh.vertices.push_back({ {worldX + hw, worldY - hh}, 0, {br.x, br.y} });
-            mesh.vertices.push_back({ {worldX + hw, worldY + hh}, 0, {tr.x, tr.y} });
-            mesh.vertices.push_back({ {worldX - hw, worldY + hh}, 0, {tl.x, tl.y} });
+            mesh.vertices.push_back({ {worldX - hw, worldY - hh, 0.0f}, 0, {bl.x, bl.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY - hh, 0.0f}, 0, {br.x, br.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY + hh, 0.0f}, 0, {tr.x, tr.y} });
+            mesh.vertices.push_back({ {worldX - hw, worldY + hh, 0.0f}, 0, {tl.x, tl.y} });
 
             for (u32 i = 0; i < 6; ++i) {
                 mesh.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
@@ -330,7 +330,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     u32 baseVertex = static_cast<u32>(slotVertices[si].size());
                     for (const BatchVertex& v : mesh.vertices) {
                         slotVertices[si].push_back({
-                            { v.position.x + adjOriginX, v.position.y + adjOriginY },
+                            { v.position.x + adjOriginX, v.position.y + adjOriginY, depth },
                             packedColor, v.texCoord });
                     }
                     for (u32 idx : mesh.indices) {

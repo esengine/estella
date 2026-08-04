@@ -19,7 +19,7 @@ namespace esengine {
 
 void BatchPlugin::emitQuad(
     TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-    const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivotNorm,
+    const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivotNorm,
     f32 angle, const glm::vec2& uvOffset, const glm::vec2& uvScale,
     const glm::vec4& color, const BatchDrawKey& key
 ) {
@@ -34,18 +34,20 @@ void BatchPlugin::emitQuad(
         for (u32 i = 0; i < 4; ++i) {
             f32 lx = (BATCH_QUAD_POSITIONS[i].x + ox) * size.x;
             f32 ly = (BATCH_QUAD_POSITIONS[i].y + oy) * size.y;
-            verts[i].position = glm::vec2(
+            verts[i].position = glm::vec3(
                 position.x + lx * cosA - ly * sinA,
-                position.y + lx * sinA + ly * cosA
+                position.y + lx * sinA + ly * cosA,
+                position.z
             );
             verts[i].color = packedColor;
             verts[i].texCoord = BATCH_QUAD_TEX_COORDS[i] * uvScale + uvOffset;
         }
     } else {
         for (u32 i = 0; i < 4; ++i) {
-            verts[i].position = glm::vec2(
+            verts[i].position = glm::vec3(
                 position.x + (BATCH_QUAD_POSITIONS[i].x + ox) * size.x,
-                position.y + (BATCH_QUAD_POSITIONS[i].y + oy) * size.y
+                position.y + (BATCH_QUAD_POSITIONS[i].y + oy) * size.y,
+                position.z
             );
             verts[i].color = packedColor;
             verts[i].texCoord = BATCH_QUAD_TEX_COORDS[i] * uvScale + uvOffset;
@@ -57,7 +59,7 @@ void BatchPlugin::emitQuad(
 
 void BatchPlugin::emitNineSlice(
     TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-    const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivotNorm,
+    const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivotNorm,
     f32 angle, const glm::vec2& texSize, const glm::vec4& border,
     const glm::vec2& uvOffset, const glm::vec2& uvScale,
     const glm::vec4& color, const BatchDrawKey& key
@@ -117,7 +119,7 @@ void BatchPlugin::emitNineSlice(
 
 void BatchPlugin::emitRadialFill(
     TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-    const glm::vec2& center, const glm::vec2& size, f32 angle,
+    const glm::vec3& center, const glm::vec2& size, f32 angle,
     f32 startAngle, f32 sweep,
     const glm::vec2& uvOffset, const glm::vec2& uvScale,
     const glm::vec4& color, const BatchDrawKey& key

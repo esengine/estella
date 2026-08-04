@@ -38,7 +38,7 @@ protected:
      * @param key Non-geometry attributes (stage/layer/shader/blend/texture/depth/entity/type).
      */
     void emitQuad(TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-                  const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivotNorm,
+                  const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivotNorm,
                   f32 angle, const glm::vec2& uvOffset, const glm::vec2& uvScale,
                   const glm::vec4& color, const BatchDrawKey& key);
 
@@ -48,7 +48,7 @@ protected:
      * @param texSize Texture dimensions; if either axis is <= 0 the slice UVs collapse to the outer rect.
      */
     void emitNineSlice(TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-                       const glm::vec2& position, const glm::vec2& size, const glm::vec2& pivotNorm,
+                       const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivotNorm,
                        f32 angle, const glm::vec2& texSize, const glm::vec4& border,
                        const glm::vec2& uvOffset, const glm::vec2& uvScale,
                        const glm::vec4& color, const BatchDrawKey& key);
@@ -68,7 +68,7 @@ protected:
      * @param sweep Total swept angle in radians, [0, 2π].
      */
     void emitRadialFill(TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
-                        const glm::vec2& center, const glm::vec2& size, f32 angle,
+                        const glm::vec3& center, const glm::vec2& size, f32 angle,
                         f32 startAngle, f32 sweep,
                         const glm::vec2& uvOffset, const glm::vec2& uvScale,
                         const glm::vec4& color, const BatchDrawKey& key);

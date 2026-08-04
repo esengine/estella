@@ -7,8 +7,19 @@
 
 namespace esengine {
 
+/**
+ * @brief One vertex of the shared batch stream.
+ *
+ * @details `position.z` must be the same world z the draw reports as its sort depth
+ *          (`BatchDrawKey::depth`). The two answer different questions — the key decides
+ *          draw ORDER, the vertex feeds projection and the depth test — and a draw whose
+ *          answers disagree is one the painter's order and the depth buffer would place
+ *          differently. Under an orthographic camera with the depth test off (today's 2D
+ *          default) that disagreement is invisible, which is exactly why it has to be an
+ *          invariant rather than a habit.
+ */
 struct BatchVertex {
-    glm::vec2 position;
+    glm::vec3 position;
     u32 color;
     glm::vec2 texCoord;
     f32 texIndex = 0.0f;  // sampler slot within the draw's texture set; assigned at merge time

@@ -129,8 +129,8 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
 
             glm::vec2 left = c.pos + perp * halfW;
             glm::vec2 right = c.pos - perp * halfW;
-            scratch_verts_.push_back({left, color, glm::vec2(u, 0.0f)});
-            scratch_verts_.push_back({right, color, glm::vec2(u, 1.0f)});
+            scratch_verts_.push_back({{left, headWorld.z}, color, glm::vec2(u, 0.0f)});
+            scratch_verts_.push_back({{right, headWorld.z}, color, glm::vec2(u, 1.0f)});
         }
 
         scratch_indices_.clear();

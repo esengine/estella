@@ -262,17 +262,17 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             f32 sweep = std::clamp(renderer.fillAmount, 0.0f, 1.0f)
                       * radialMaxSweep(renderer.fillMethod);
             emitRadialFill(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, angle,
+                position, finalSize, angle,
                 radialStartAngle(renderer.fillOrigin), sweep,
                 uvOffset, uvScale, color, key);
         } else if (useNineSlice) {
             emitNineSlice(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, CENTERED_PIVOT,
+                position, finalSize, CENTERED_PIVOT,
                 angle, texSize, sliceBorder,
                 uvOffset, uvScale, color, key);
         } else {
             emitQuad(buffers, draw_list, clips,
-                glm::vec2(position), finalSize, CENTERED_PIVOT,
+                position, finalSize, CENTERED_PIVOT,
                 angle, uvOffset, uvScale, color, key);
         }
     }

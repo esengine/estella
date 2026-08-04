@@ -104,10 +104,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         for (usize v = 0; v < mesh.vertices.size(); ++v) {
             const auto& in = mesh.vertices[v];
             glm::vec2 local(in.position.x * scale.x, in.position.y * scale.y);
-            glm::vec2 world = rotated
-                ? glm::vec2(position.x + local.x * cosA - local.y * sinA,
-                            position.y + local.x * sinA + local.y * cosA)
-                : glm::vec2(position.x + local.x, position.y + local.y);
+            glm::vec3 world = rotated
+                ? glm::vec3(position.x + local.x * cosA - local.y * sinA,
+                            position.y + local.x * sinA + local.y * cosA,
+                            position.z)
+                : glm::vec3(position.x + local.x, position.y + local.y, position.z);
             scratch_[v] = { world, tinted ? mulColor(in.color, tint) : in.color, in.uv };
         }
 

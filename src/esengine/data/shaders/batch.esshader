@@ -18,7 +18,7 @@
 #pragma feature ALPHA_CLIP
 
 #pragma vertex
-layout(location = 0) in vec2 a_position;
+layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
@@ -41,7 +41,7 @@ out highp vec2 v_worldPos;
 #endif
 
 void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    gl_Position = u_projection * vec4(a_position, 1.0);
     v_color = a_color;
     v_texCoord = a_texCoord;
     v_texIndex = int(a_texIndex);
@@ -49,7 +49,7 @@ void main() {
     v_sdfBias = a_sdfBias;
 #endif
 #ifdef LIT
-    v_worldPos = a_position;
+    v_worldPos = a_position.xy;
 #endif
 }
 #pragma end
@@ -125,7 +125,7 @@ struct FrameConstants { projection : mat4x4f };
 @group(0) @binding(0) var<uniform> frame : FrameConstants;
 
 struct VSIn {
-    @location(0) a_position : vec2f,
+    @location(0) a_position : vec3f,
     @location(1) a_color : vec4f,
     @location(2) a_texCoord : vec2f,
     @location(3) a_texIndex : f32,
@@ -148,7 +148,7 @@ struct VSOut {
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
     var out : VSOut;
-    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
+    out.pos = frame.projection * vec4f(v.a_position, 1.0);
     out.v_color = v.a_color;
     out.v_texCoord = v.a_texCoord;
     out.v_texIndex = v.a_texIndex;
@@ -156,7 +156,7 @@ struct VSOut {
     out.v_sdfBias = v.a_sdfBias;
 #endif
 #ifdef LIT
-    out.v_worldPos = v.a_position;
+    out.v_worldPos = v.a_position.xy;
 #endif
     return out;
 }
