@@ -126,8 +126,16 @@ describe('exportGame (playable)', () => {
     expect(html).toContain('AcmeSDK.openStore()');
     // The bridge must precede the game bundle, or a CTA fired during boot finds nothing.
     expect(html.indexOf('__ESTELLA_PLAYABLE__')).toBeLessThan(html.indexOf('__ENGINE_GLUE__'));
-    // The warning cites this network's cap and where it came from — not a constant.
-    expect(res.warnings.join('\n')).toMatch(/over the 0\.0MB limit for Acme Ads \(Acme caps playables at 16 bytes\)/);
+    // The verdict cites THIS network's cap and where it came from — not a constant,
+    // and not an English sentence composed in the main process: the export reports
+    // the fact and the build dialog writes it in the editor's language.
+    const verdict = res.size?.verdicts.find((v) => v.budget.scope === 'deliverable');
+    expect(verdict?.status).toBe('over');
+    expect(verdict?.budget.maxBytes).toBe(16);
+    expect(verdict?.budget.note).toBe('Acme caps playables at 16 bytes');
+    // Measured against index.html itself, which is what this network takes.
+    expect(verdict?.measuredBytes).toBe(res.size?.deliverableBytes);
+    expect(res.size?.deliverableName).toBe('index.html');
   }, 60_000);
 
   // A zip-delivery network gets an archive with index.html at the root, and the cap
@@ -159,6 +167,10 @@ describe('exportGame (playable)', () => {
     expect(res.zipFile).toBe(zip);
     const sized = res as unknown as { bytes: number; htmlBytes: number };
     expect(sized.bytes).toBeLessThan(sized.htmlBytes);
+    // The archive is what the limit is measured against, and it is NOT counted a
+    // second time as a file sitting in the output dir.
+    expect(res.size?.deliverableName).toBe('playable.zip');
+    expect(res.size?.deliverableBytes).toBe(sized.bytes);
   }, 60_000);
 
   it('injects nothing and keeps the default cap with no network selected', async () => {
@@ -174,6 +186,12 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('__ESTELLA_PLAYABLE__');
     // A fixture this small is under every cap, so nothing to report.
     expect(res.warnings).toEqual([]);
+    // …but it is still judged, against the same fallback the pipeline packages
+    // with: the strictest cap we know of. A build with no network selected that
+    // reported no limit at all would be the one that surprises you at upload.
+    const verdict = res.size?.verdicts.find((v) => v.budget.scope === 'deliverable');
+    expect(verdict?.status).toBe('ok');
+    expect(verdict?.budget.maxBytes).toBe(2 * 1024 * 1024);
   }, 60_000);
 
   it('inlines the project camera fit as __GAME_SCREENFIT__ (only when opted in)', async () => {

@@ -33,7 +33,7 @@ import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 import { exportPlayable } from './exportPlayable';
-import type { PlayableAdProfile } from './playableAdProfile';
+import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
@@ -44,6 +44,8 @@ import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
+import type { SizeBudget } from '../src/project/sizeBudget';
+import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
 
@@ -171,6 +173,9 @@ export interface ExportGameResult {
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
+  /** What the package weighs, and how it fared against the limits in force.
+   *  Absent when the export failed, or when measuring itself did. */
+  size?: BuildSizeReport;
 }
 
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
@@ -348,14 +353,7 @@ async function stageDesktopApp(absOut: string, title: string, orientation: Scree
   await writeFile(path.join(absOut, 'README.md'), desktopReadme(display));
 }
 
-/**
- * Export the open project. `entryScene` is the project-relative scene to boot;
- * `gameHostEntry` the game-host esbuild entry — the prebuilt realm-host bundle
- * (dist-electron/hosts/gameHost.js; a packaged app ships no src/ and esbuild
- * cannot read app.asar) or any source esbuild can reach (tests). `wasmDir` is
- * the engine runtime to copy. `platform` selects the target (default web).
- */
-export async function exportGame(opts: {
+export interface ExportGameOptions {
   root: string;
   entryScene: string;
   /** Project-relative scenes dir (manifest layout); default the entry's dir.
@@ -449,7 +447,83 @@ export async function exportGame(opts: {
   androidKey?: SigningKey;
   /** The app's launcher icon (project-relative). Omitted ⇒ the template's default. */
   appIcon?: string;
-}): Promise<ExportGameResult> {
+  /** `packaging.sizeBudget[platform]` — the project's own package-size ceiling in
+   *  bytes, replacing whatever limit the target declares. See sizeBudget.ts. */
+  sizeBudgetBytes?: number;
+}
+
+/**
+ * Export the open project. `entryScene` is the project-relative scene to boot;
+ * `gameHostEntry` the game-host esbuild entry — the prebuilt realm-host bundle
+ * (dist-electron/hosts/gameHost.js; a packaged app ships no src/ and esbuild
+ * cannot read app.asar) or any source esbuild can reach (tests). `wasmDir` is
+ * the engine runtime to copy. `platform` selects the target (default web).
+ *
+ * Every target's package is WEIGHED here, at the one point they all pass
+ * through. The pipelines below return early for the mini-game, WeChat and
+ * playable targets — measuring inside each of them would be four accountings
+ * that drift, and a platform a project defines for itself would have none at
+ * all. See sizeReport.ts for what is counted.
+ */
+export async function exportGame(opts: ExportGameOptions): Promise<ExportGameResult> {
+  return attachSizeReport(await produceExport(opts), opts);
+}
+
+/**
+ * The size limits an ad network's profile imposes, in the shape every target
+ * states one.
+ *
+ * The playable profile predates this vocabulary and spells its cap
+ * `maxBytes` + `limitNote`; a project's own network profile
+ * (`.esengine/platforms/<id>.mjs`) is written against those names, so they stay
+ * as the network's contract and are translated here — one conversion, rather
+ * than a second shape for the rest of the editor to know about.
+ */
+function playableBudgets(profile: PlayableAdProfile | undefined): readonly SizeBudget[] {
+  // The SAME fallback the playable pipeline picks when no network was chosen
+  // (the strictest cap we know of), taken from the one place it is declared —
+  // resolving it separately here is how the reported limit and the enforced one
+  // drift apart.
+  const resolved = profile ?? genericPlayableProfile;
+  return [{ scope: 'deliverable', maxBytes: resolved.maxBytes, note: resolved.limitNote }];
+}
+
+/**
+ * Weigh what the export produced, and judge it against the limits in force.
+ *
+ * Measures the PAYLOAD — for the desktop target the web build under `app/`, not
+ * the Electron shell around it, which weighs the same for every game and would
+ * bury the part a developer can act on. A failed export is not measured: half a
+ * package has no meaningful size, and a number next to an error reads as if the
+ * build were fine.
+ */
+async function attachSizeReport(result: ExportGameResult, opts: ExportGameOptions): Promise<ExportGameResult> {
+  if (!result.ok) return result;
+  // Packages written inside the output dir: each repackages content that is also
+  // there loose, and the one a store/network takes is the deliverable the limit
+  // applies to. The playable ships its single file as index.html unless a zip
+  // was written for a zip-delivery network.
+  const packages = [result.apkFile, result.aabFile, result.zipFile].filter((p): p is string => !!p);
+  const deliverable = result.platform === 'playable'
+    ? result.zipFile ?? path.join(result.outDir, 'index.html')
+    : result.apkFile ?? result.aabFile;
+  try {
+    const size = await measureBuild({
+      root: result.platform === 'desktop' ? path.join(result.outDir, 'app') : result.outDir,
+      platform: result.platform,
+      profileBudgets: opts.miniGameProfile?.sizeBudgets
+        ?? (result.platform === 'playable' ? playableBudgets(opts.playableAdProfile) : undefined),
+      projectMaxBytes: opts.sizeBudgetBytes,
+      deliverable,
+      packages,
+    });
+    return { ...result, size };
+  } catch {
+    return result;  // measuring is reporting, never a reason to fail a build
+  }
+}
+
+async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
   // One orientation for every target; default landscape (the engine's 1920×1080 Canvas

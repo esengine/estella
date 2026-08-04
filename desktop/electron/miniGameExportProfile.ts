@@ -12,6 +12,7 @@
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
 import { WECHAT_MODULE_BUILD_TARGET } from './sideModuleScan';
+import type { SizeBudget } from '../src/project/sizeBudget';
 
 /**
  * A mini-game vendor's id. Open on purpose: the value is identity — the cook's
@@ -104,6 +105,19 @@ export interface MiniGameExportProfile {
     readonly binRestageExts: readonly string[];
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
+
+    /**
+     * What this host refuses to accept — the main package cap, the all-in cap.
+     *
+     * Every mini-game host has these limits and each states them differently, so
+     * they are DATA like everything else here: a vendor the editor does not ship
+     * declares its own and the build dialog reports it exactly as it reports
+     * WeChat's. Built-in vendors leave this absent — their limits are the
+     * platform's rule, not the export's, and live in
+     * `src/project/sizeBudget.ts` where the settings UI can read them without
+     * loading an export profile.
+     */
+    readonly sizeBudgets?: readonly SizeBudget[];
 
     /**
      * Absolute path of a module whose DEFAULT EXPORT is the runtime

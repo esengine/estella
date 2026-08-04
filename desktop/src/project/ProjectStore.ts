@@ -1998,6 +1998,16 @@ class ProjectStoreImpl {
       ...patch,
       outDir: { ...st.packaging?.outDir, ...patch.outDir },
     };
+    // Per-platform size ceilings merge the way outDir does, with one difference:
+    // clearing the field means the target goes back to being judged against its
+    // OWN limit, so an entry patched to undefined is removed rather than
+    // persisted, and a map with nothing left in it is dropped entirely.
+    const sizeBudget: Record<string, number | undefined> = { ...st.packaging?.sizeBudget, ...patch.sizeBudget };
+    for (const [target, bytes] of Object.entries(sizeBudget)) {
+      if (bytes == null || !(bytes > 0)) delete sizeBudget[target];
+    }
+    if (Object.keys(sizeBudget).length > 0) packaging.sizeBudget = sizeBudget as ProjectPackaging['sizeBudget'];
+    else delete packaging.sizeBudget;
     this.store.setState({ project: { ...st, packaging } });
     await this.patchManifest((raw) => {
         raw.packaging = packaging;

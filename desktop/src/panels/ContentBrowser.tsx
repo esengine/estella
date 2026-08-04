@@ -14,6 +14,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, baseName, TYPE_CODE } from '@/project/assetMeta';
+import { formatBytes } from '@/project/sizeBudget';
 import { openAssetOfType } from '@/project/assetOpen';
 import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
@@ -126,18 +127,6 @@ function RenameInput({
       onBlur={(e) => (canceled.current ? onCancel() : onCommit(e.target.value))}
     />
   );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let v = n;
-  let i = -1;
-  do {
-    v /= 1024;
-    i++;
-  } while (v >= 1024 && i < units.length - 1);
-  return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
 }
 
 function TipRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {

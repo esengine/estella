@@ -43,6 +43,32 @@ describe('parseManifest — packaging', () => {
     expect(m.packaging?.outDir).toEqual({ 'acme-play': 'dist-acme', android: 'dist-android' });
   });
 
+  // The size budget round-trips, keyed like outDir. Caught on a real export: the
+  // dialog wrote it to the manifest and the parser — which is a whitelist —
+  // dropped it on the way back, so the build was still judged by the platform's
+  // limit and the field looked like it did nothing.
+  it('parses per-platform size budgets, migrating legacy platform ids', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { sizeBudget: { wechat: 2097152, native: 40 * 1024 * 1024, 'acme-play': 5000 } },
+    });
+    expect(m.packaging?.sizeBudget).toEqual({
+      wechat: 2097152, android: 40 * 1024 * 1024, 'acme-play': 5000,
+    });
+  });
+
+  it('drops size budgets that could not be judged against', () => {
+    // A zero would read as "every build is infinitely over"; absence means the
+    // target keeps its own limit, which is the honest state for a bad value.
+    const m = parseManifest({
+      name: 'X',
+      packaging: { sizeBudget: { web: 0, wechat: -1, desktop: 'big', ios: Number.NaN, android: 10 } },
+    });
+    expect(m.packaging?.sizeBudget).toEqual({ android: 10 });
+    expect(parseManifest({ name: 'X', packaging: { sizeBudget: { web: 0 } } }).packaging?.sizeBudget)
+      .toBeUndefined();
+  });
+
   it('parses excludeScenes, dropping non-string / empty entries', () => {
     const m = parseManifest({
       name: 'X',

@@ -58,6 +58,7 @@ import { fsRefresh } from '@/project/fsRefresh';
 import { Toasts } from '@/store/Toasts';
 import { baseName, IMAGE_RE } from '@/project/assetMeta';
 import { BUILTIN_PLATFORMS, type BuiltinPlatform } from '@/project/platforms';
+import { formatBytes } from '@/project/sizeBudget';
 import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
@@ -3324,17 +3325,6 @@ function AnimClipAssetInspector({ path }: { path: string }) {
   );
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let v = n;
-  let i = -1;
-  do {
-    v /= 1024;
-    i++;
-  } while (v >= 1024 && i < units.length - 1);
-  return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
-}
 
 function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (

@@ -387,6 +387,61 @@
 .build__adv.open .chev { transform: rotate(90deg); }
 .build__adv-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px 12px; }
 
+/* — What the package weighs (BuildSizePanel), after a build. —
+   Composition reuses the CATEGORY identity colors, so a texture is the same
+   purple here that the Sprite component header is: one color vocabulary for
+   "which domain is this", read on a bar instead of on a header. */
+.size { display: flex; flex-direction: column; gap: 10px; }
+
+.size__budget { display: flex; flex-direction: column; gap: 5px; }
+.size__budget-head { display: flex; align-items: baseline; gap: 8px; }
+.size__budget-scope { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }
+.size__budget-num { margin-left: auto; font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); }
+.size__budget.is-near .size__budget-num { color: var(--warn); }
+.size__budget.is-over .size__budget-num { color: var(--error); }
+.size__budget-note { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-mute); overflow-wrap: anywhere; }
+.size__meter { height: 6px; border-radius: 3px; background: var(--inset); overflow: hidden; }
+.size__meter-fill { height: 100%; border-radius: 3px; background: var(--run); transition: width var(--t) var(--e-out); }
+.size__budget.is-near .size__meter-fill { background: var(--warn); }
+.size__budget.is-over .size__meter-fill { background: var(--error); }
+
+.size__buckets { display: flex; flex-wrap: wrap; gap: 6px; }
+.size__bucket { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 8px; border-radius: var(--r-xs); background: var(--srf-3); border: 1px solid var(--line-soft); }
+.size__bucket-label { font-size: var(--fs-2xs); color: var(--text-mute); }
+.size__bucket-bytes { font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-dim); }
+/* CDN content is not in the package — stated, but visibly set apart from what is. */
+.size__bucket.is-remote { background: none; border-style: dashed; }
+.size__bucket.is-deliverable .size__bucket-label { font-family: var(--mono); }
+
+.size__bar { display: flex; height: 8px; border-radius: var(--r-xs); overflow: hidden; background: var(--inset); }
+.size__seg { height: 100%; min-width: 1px; }
+.size__legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.size__legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-mute); }
+.size__legend-bytes { font-family: var(--mono); color: var(--text-dim); }
+.size__dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+
+.size__seg.is-engine, .size__dot.is-engine { background: var(--srf-6); }
+.size__seg.is-scripts, .size__dot.is-scripts { background: var(--cat-script); }
+.size__seg.is-texture, .size__dot.is-texture { background: var(--cat-render); }
+.size__seg.is-audio, .size__dot.is-audio { background: var(--cat-audio); }
+.size__seg.is-video, .size__dot.is-video { background: var(--gizmo-particle); }
+.size__seg.is-font, .size__dot.is-font { background: var(--cat-collision); }
+.size__seg.is-scene, .size__dot.is-scene { background: var(--cat-transform); }
+.size__seg.is-data, .size__dot.is-data { background: var(--cat-physics); }
+.size__seg.is-other, .size__dot.is-other { background: var(--text-mute); }
+
+.size__files { display: flex; flex-direction: column; gap: 4px; }
+.size__disclose { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: var(--fs-2xs); color: var(--text-mute); background: none; border: none; cursor: pointer; padding: 0; }
+.size__disclose:hover { color: var(--text); }
+.size__chev { transition: transform var(--t-fast); }
+.size__chev.is-open { transform: rotate(90deg); }
+.size__file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; max-height: 148px; overflow-y: auto; }
+.size__file { display: flex; align-items: baseline; gap: 10px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }
+.size__file-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.size__file-bytes { flex-shrink: 0; color: var(--text-dim); }
+/* A file that costs the package nothing reads as an aside, not as an offender. */
+.size__file.is-remote { opacity: 0.55; }
+
 /* "compression lives in Import Settings" pointer + footer scene/target summary. */
 .build__hint { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-mute); }
 .build__footsum { margin-right: auto; align-self: center; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }

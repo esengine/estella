@@ -240,6 +240,17 @@ export interface ProjectPackaging {
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<ExportPlatform, string>>;
   /**
+   * Per-platform package-size ceiling, in BYTES — what the build is judged
+   * against instead of the limit the target declares for itself.
+   *
+   * Two teams need this for opposite reasons: one ships well under WeChat's 4MB
+   * and wants to be told before it creeps up, the other targets a host whose cap
+   * we do not know. Both are more authoritative about their own build than a
+   * built-in number is. Absent ⇒ the target's own limit, if it has one (see
+   * `sizeBudget.ts`).
+   */
+  sizeBudget?: Partial<Record<ExportPlatform, number>>;
+  /**
    * The application identifier (reverse-DNS) every installable target needs: the
    * Android manifest package, the iOS bundle id, the Electron appId. One project
    * ships as one application, so it is declared once here; a target that genuinely
@@ -519,6 +530,18 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof v === 'string' && v !== '') out[normalizePlatform(k)] = v;
       }
       if (Object.keys(out).length > 0) pkg.outDir = out;
+    }
+    // Per-platform size ceilings, keyed the same way the output dirs are. A
+    // non-positive or unreadable value is DROPPED rather than carried as zero:
+    // the field's absence means "judge this target by its own limit", and a 0
+    // that survived would mean every build is infinitely over budget.
+    if (p.sizeBudget && typeof p.sizeBudget === 'object') {
+      const sb = p.sizeBudget as Record<string, unknown>;
+      const budgets: NonNullable<ProjectPackaging['sizeBudget']> = {};
+      for (const [k, v] of Object.entries(sb)) {
+        if (typeof v === 'number' && Number.isFinite(v) && v > 0) budgets[normalizePlatform(k)] = v;
+      }
+      if (Object.keys(budgets).length > 0) pkg.sizeBudget = budgets;
     }
     if (p.platforms && typeof p.platforms === 'object') {
       const pl = p.platforms as Record<string, unknown>;

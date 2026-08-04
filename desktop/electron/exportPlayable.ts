@@ -339,14 +339,12 @@ export async function exportPlayable(opts: {
     bytes = (await stat(zipFile)).size;
   }
 
-  // A full WASM engine + assets routinely exceeds what a network accepts, and each
-  // network caps differently — say which cap and where it comes from, so this reads
-  // as a fact to check rather than a number to trust.
-  if (bytes > adProfile.maxBytes) {
-    warnings.push(`playable is ~${(bytes / 1024 / 1024).toFixed(1)}MB, over the `
-      + `${(adProfile.maxBytes / 1024 / 1024).toFixed(1)}MB limit for ${adProfile.label} `
-      + `(${adProfile.limitNote}).`);
-  }
+  // A full WASM engine + assets routinely exceeds what a network accepts, and this
+  // export used to say so in an English sentence it composed itself. It no longer
+  // does: `exportGame` weighs EVERY target against the limits in force and reports
+  // the verdict structurally (the network's cap arrives there as a `SizeBudget`),
+  // so the build dialog writes that sentence once, in the editor's language, for
+  // the playable and the 4MB WeChat main package alike.
   if (adProfile.deliveryNote) warnings.push(adProfile.deliveryNote);
 
   return {

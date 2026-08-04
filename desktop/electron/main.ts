@@ -1152,6 +1152,9 @@ ipcMain.handle(
       androidVersionCode: plat?.android?.versionCode,
       androidAppBundle: plat?.android?.appBundle,
       appIcon: manifest.packaging?.icon,
+      // The project's own size ceiling for this target, when it declared one —
+      // it replaces the platform's limit rather than adding to it.
+      sizeBudgetBytes: manifest.packaging?.sizeBudget?.[opts?.platform ?? 'web'],
       // One project-wide orientation for every target: the explicit packaging
       // setting, else derived from the design resolution's aspect.
       orientation: resolveOrientation(manifest),

@@ -267,6 +267,37 @@ export const projectMessages = defineMessages({
     'build.warnings': { en: '{count} warning(s): {first}', zh: '{count} 个警告：{first}' },
     'build.noProjectOpen': { en: 'no project open', zh: '没有打开的项目' },
 
+    // — What the package weighs (BuildSizePanel). A limit's own wording (a
+    //   platform's rule) is quoted from the profile, not translated here. —
+    'size.scope.initial': { en: 'Initial download', zh: '首包' },
+    'size.scope.total': { en: 'Package total', zh: '整包' },
+    'size.scope.deliverable': { en: 'Uploaded file', zh: '上传文件' },
+    'size.ofLimit': { en: '{used} of {max}', zh: '{used} / {max}' },
+    'size.over': { en: '{by} over the limit', zh: '超出上限 {by}' },
+    'size.near': { en: '{pct}% of the limit', zh: '已用上限的 {pct}%' },
+    'size.projectBudget': { en: "this project's own budget", zh: '本项目自定的体积预算' },
+    'size.bucket.initial': { en: 'Initial', zh: '首包' },
+    'size.bucket.lazy': { en: 'On demand', zh: '按需分包' },
+    'size.bucket.remote': { en: 'CDN (not packaged)', zh: 'CDN（不进包）' },
+    'size.composition': { en: 'Package composition', zh: '包体构成' },
+    'size.largest': { en: 'Largest files ({count} total)', zh: '最大的文件（共 {count} 个）' },
+    'size.kind.engine': { en: 'Engine', zh: '引擎' },
+    'size.kind.scripts': { en: 'Scripts', zh: '脚本' },
+    'size.kind.texture': { en: 'Textures', zh: '纹理' },
+    'size.kind.audio': { en: 'Audio', zh: '音频' },
+    'size.kind.video': { en: 'Video', zh: '视频' },
+    'size.kind.font': { en: 'Fonts', zh: '字体' },
+    'size.kind.scene': { en: 'Scenes', zh: '场景' },
+    'size.kind.data': { en: 'Data', zh: '数据' },
+    'size.kind.other': { en: 'Other', zh: '其他' },
+    // — Packaging settings: the project's own ceiling for this target —
+    'build.sizeBudget': { en: 'Size budget', zh: '体积预算' },
+    'build.sizeBudgetPlaceholder': { en: 'MB (blank = the platform’s own limit)', zh: 'MB（留空 = 平台自身上限）' },
+    'build.sizeBudgetHint': {
+        en: 'Judge this target against your own ceiling instead of the platform’s.',
+        zh: '用你自己的上限来判定这个目标，而不是平台的。',
+    },
+
     // — Project-level feedback toasts (ProjectStore) —
     'proj.openFailed': { en: 'Could not open project: {message}', zh: '无法打开项目：{message}' },
     'proj.createFailed': { en: 'Could not create project: {message}', zh: '无法创建项目：{message}' },

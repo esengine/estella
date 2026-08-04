@@ -30,6 +30,9 @@ import {
 } from 'lucide-react';
 import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
 import type { PlayableNetworkOption } from '../../electron/platformCatalog';
+import type { BuildSizeReport } from '../../electron/sizeReport';
+import { formatBytes } from '@/project/sizeBudget';
+import { BuildSizePanel } from '@/components/BuildSizePanel';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
@@ -61,6 +64,8 @@ interface Result {
   apkFile?: string;
   /** Android: the App Bundle, when the project asked for one. */
   aabFile?: string;
+  /** What the package weighs, measured by the export (electron/sizeReport.ts). */
+  size?: BuildSizeReport;
 }
 
 /** Nav groupings. Order here is the order they appear. */
@@ -155,7 +160,22 @@ const BUILTIN_PLATFORMS: PlatformDef[] = [
   },
 ];
 
-const mb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+/**
+ * The size-budget field, both directions.
+ *
+ * Entered in MB — the unit every platform states its cap in — and stored in
+ * bytes, so nothing downstream has to know which unit a limit was written in. A
+ * blank or unreadable field is not an error but a value: no budget, and the
+ * target goes back to being judged against its own limit.
+ */
+const BYTES_PER_MB = 1024 * 1024;
+const bytesToMb = (bytes: number | undefined): string =>
+  bytes && bytes > 0 ? String(+(bytes / BYTES_PER_MB).toFixed(2)) : '';
+const mbToBytes = (text: string): number | undefined => {
+  const mb = Number.parseFloat(text.trim());
+  return Number.isFinite(mb) && mb > 0 ? Math.round(mb * BYTES_PER_MB) : undefined;
+};
 
 /** Localized names for the native toolchain pieces the main process probes. */
 const TOOLCHAIN_TEXT: Record<NativeToolchain, string> = {
@@ -208,6 +228,10 @@ export function BuildDialog() {
   const [platform, setPlatform] = useState<Platform>(initialPlatform);
   const [config, setConfig] = useState<Config>(saved.config ?? 'shipping');
   const [outDir, setOutDir] = useState(saved.outDir?.[initialPlatform] ?? initialDef.defaultOut);
+  // The project's own ceiling for the selected target, edited in MB. Per platform
+  // like the output dir, since a WeChat build and a desktop build are not judged
+  // by the same number.
+  const [sizeBudgetMb, setSizeBudgetMb] = useState(bytesToMb(saved.sizeBudget?.[initialPlatform]));
   const [openFolder, setOpenFolder] = useState(saved.openFolder ?? true);
   const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
   // Publish-layer optimization switch: honor each asset's Import Settings, or skip
@@ -359,6 +383,7 @@ export function BuildDialog() {
     setResult(null);
     // Restore this platform's saved output, else its suggested default.
     setOutDir(saved.outDir?.[p.id] ?? (p.id === 'playable' ? playableOut(adNetwork) : p.defaultOut));
+    setSizeBudgetMb(bytesToMb(saved.sizeBudget?.[p.id]));
   };
 
   const startCreate = () => {
@@ -709,7 +734,7 @@ export function BuildDialog() {
                         ? <><Loader2 size={12} className="spin" /> {downloading.total > 0
                           ? t('build.downloadingTemplatePct', {
                             pct: String(Math.round((downloading.received / downloading.total) * 100)),
-                            size: mb(downloading.total),
+                            size: formatBytes(downloading.total),
                           })
                           : t('build.downloadingTemplate')}</>
                         : <><Package size={12} /> {t('build.downloadTemplate')}</>}
@@ -901,6 +926,21 @@ export function BuildDialog() {
                 onBlur={() => void ProjectStore.setActiveProfileRemoteRoot(cdnRoot.trim())}
               />
             </div>
+            {/* The project's own ceiling for this target, in MB — entered in the
+                unit every platform states its limit in, stored in bytes. Blank
+                leaves the target judged against its own limit, if it has one. */}
+            <div className="build__row">
+              <span className="build__label" title={t('build.sizeBudgetHint')}>{t('build.sizeBudget')}</span>
+              <input
+                value={sizeBudgetMb}
+                spellCheck={false}
+                inputMode="decimal"
+                placeholder={t('build.sizeBudgetPlaceholder')}
+                title={t('build.sizeBudgetHint')}
+                onChange={(e) => setSizeBudgetMb(e.target.value)}
+                onBlur={() => void ProjectStore.setPackaging({ sizeBudget: { [platform]: mbToBytes(sizeBudgetMb) } })}
+              />
+            </div>
             {def.sourceMaps && (
               <label className="build__opt">
                 <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
@@ -937,8 +977,9 @@ export function BuildDialog() {
             {phase === 'done' && result && (
               <>
                 <span className="build__status-line selectable">
-                  <CheckCircle2 size={14} /> {t('build.packagedSummary', { count: result.included, size: result.bytes ? ` · ${mb(result.bytes)}` : '', out: result.outDir })}
+                  <CheckCircle2 size={14} /> {t('build.packagedSummary', { count: result.included, size: result.bytes ? ` · ${formatBytes(result.bytes)}` : '', out: result.outDir })}
                 </span>
+                {result.size && <BuildSizePanel report={result.size} />}
                 <div className="build__next selectable">
                   {result.xcodeProject
                     ? t('build.next.iosProject')

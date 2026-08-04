@@ -141,6 +141,23 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(outWx, 'wasm', 'esengine.wxgame.wasm'))).toBe(true);
     expect(existsSync(path.join(outWx, 'wasm', 'physics.js'))).toBe(false);
     expect(existsSync(path.join(outWx, 'wasm', 'physics.wasm'))).toBe(false);
+
+    // …and the budget in that title is now MEASURED, not just a motive. WeChat's
+    // two limits ride the mini-game path the same way they ride every other one,
+    // and the main-package figure counts the engine and the bundle — the bytes a
+    // player downloads before anything runs, which is what the 4MB applies to.
+    const initial = res.size?.verdicts.find((v) => v.budget.scope === 'initial');
+    const total = res.size?.verdicts.find((v) => v.budget.scope === 'total');
+    expect(initial?.budget.maxBytes).toBe(4 * 1024 * 1024);
+    expect(total?.budget.maxBytes).toBe(20 * 1024 * 1024);
+    expect(initial?.status).toBe('ok');
+    expect(res.size?.byKind.find((k) => k.kind === 'engine')?.bytes).toBeGreaterThan(0);
+    // The fixture's subpackage asset (`subpackages/level2/extra.png`, 8 bytes of
+    // "PNG2DATA") is in the package but NOT in the main one — the distinction the
+    // 4MB limit is judged on, measured end-to-end on the real mini-game path.
+    expect(res.size?.lazyBytes).toBe(8);
+    expect(res.size?.packageBytes).toBe(res.size!.initialBytes + 8);
+    expect(initial?.measuredBytes).toBe(res.size?.initialBytes);
   }, 60_000);
 
   it('fails fast when the -t wechat engine runtime is missing', async () => {
