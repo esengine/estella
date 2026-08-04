@@ -46,6 +46,7 @@ import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androi
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import type { SizeBudget } from '../src/project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
+import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
 
@@ -652,6 +653,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // container directly and keep it. Without this a device shows a blank frame: it
   // cannot decode an .mp4.
   const transcodeVideo = isNativePlatform(platform) || platform === 'wechat';
+  // Optional native modules the PROJECT supplies (.esengine/modules/<id>/), resolved
+  // for this target before anything is staged — their ids ride game.config.json, so
+  // the runtime can acquire them exactly like the engine's own.
+  const projectModules = await loadProjectModules(opts.root, platform);
   const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform });
   warnings.push(...cook.warnings);
   warnings.push(...await unsupportedContentWarnings(opts.root, cook.includedPaths, platform));
@@ -718,6 +723,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
   }
 
+  // The project's own modules go beside the engine's, so every transport finds
+  // all of them in the one place it already looks. Outside the branch above
+  // because a native target must still be TOLD its modules cannot ship there —
+  // it stages nothing and says so.
+  warnings.push(...await stageProjectModules(projectModules, path.join(payloadDir, 'wasm'), platform));
+
   // 5. Host page + entry-scene config. Web pins orientation (rotate-to-fit overlay);
   //    desktop omits it — the Electron shell sizes its own window to the orientation.
   progress({ phase: 'Writing host page' });
@@ -734,6 +745,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
     ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
     ...(hotUpdate ? { hotUpdate } : {}),
+    ...(sideModuleDeclarations(projectModules, platform).length > 0
+      ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 

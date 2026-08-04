@@ -12,7 +12,7 @@
  *          / WeChat transports live in sibling files.
  */
 import { log } from '../util/logger';
-import { SIDE_MODULES, type SideModuleDescriptor, type SideModuleId } from './registry';
+import { SIDE_MODULES, sideModuleDescriptor, type SideModuleDescriptor, type SideModuleId } from './registry';
 
 /** The instantiated emscripten module. Consumers cwrap their own `_*` exports. */
 export type SideModule = Record<string, unknown>;
@@ -37,25 +37,40 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator): SideM
         acquire(id: SideModuleId): Promise<SideModule | null> {
             const cached = cache.get(id);
             if (cached) return cached;
-            const descriptor = SIDE_MODULES[id];
+            const descriptor = sideModuleDescriptor(id);
             const pending: Promise<SideModule | null> = descriptor
                 ? instantiate(descriptor, id).catch((e) => {
-                      // A 404 here is almost always a missing local build artifact,
-                      // not a code failure — say how to produce it.
-                      log.error(
-                          'sidemodule',
-                          `failed to load "${id}" (${descriptor.file}) — likely not built ` +
-                          `locally: run the matching wasm build (spine 4.2 = \`pnpm build -t spine\`, ` +
-                          `others match their file name, \`-t all\` builds everything), then rebuild the editor`,
-                          e,
-                      );
+                      log.error('sidemodule', `failed to load "${id}" (${descriptor.file}) — ${howToFix(id)}`, e);
                       return null;
                   })
-                : Promise.resolve(null);
+                // Unknown ids used to be impossible (the type was closed) and so
+                // returned null in silence. Now that a project can name its own,
+                // silence is how a typo becomes "this runtime just doesn't work".
+                : (log.warn('sidemodule', `no module named "${id}" is registered — a built-in id, or one `
+                    + 'declared in .esengine/modules/<id>/module.json and picked up by the export'),
+                   Promise.resolve(null));
             cache.set(id, pending);
             return pending;
         },
     };
+}
+
+/**
+ * What to do about a module that would not load, which differs by who built it.
+ *
+ * For an engine module a 404 is almost always a missing local build artifact, so
+ * the advice is the build command. For a project's own module the engine has no
+ * idea how it is produced — pointing someone at `pnpm build -t rive` would be a
+ * command that does not exist — so it says where the export looked instead.
+ */
+function howToFix(id: SideModuleId): string {
+    if (id in SIDE_MODULES) {
+        return 'likely not built locally: run the matching wasm build (spine 4.2 = '
+            + '`pnpm build -t spine`, others match their file name, `-t all` builds '
+            + 'everything), then rebuild the editor';
+    }
+    return `this is a project module: check that .esengine/modules/${id}/ carries a build for `
+        + 'this platform, and that the export staged it';
 }
 
 /** A factory produced by an emscripten `MODULARIZE` glue. */

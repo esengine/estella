@@ -14,7 +14,7 @@
 import {
   createWebApp, setEditorMode, setPlayMode, parseThemeOverrides, Assets,
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
-  HttpBackend, fetchDecodePixels,
+  HttpBackend, fetchDecodePixels, registerPackagedSideModules,
 } from 'esengine';
 import type { ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 
@@ -42,6 +42,9 @@ async function boot(): Promise<void> {
   }
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
+  // Before anything acquires: the project's own modules were staged into wasm/
+  // beside the engine's, and this is what makes their ids resolvable.
+  registerPackagedSideModules(cfg);
   // The addressable manifest is the asset index — the same one the WeChat and
   // native runtimes read. It resolves every ref spelling to its staged path and
   // carries the atlas metadata the catalog needs, so there is one asset model

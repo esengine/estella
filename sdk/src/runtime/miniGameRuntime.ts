@@ -22,7 +22,10 @@ import type { ThemeOverrides } from '../ui';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../platform';
 import { MiniGamePlatformAdapter } from '../platform/minigame';
-import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers } from './packagedRuntime';
+import {
+    loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers,
+    registerPackagedSideModules,
+} from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { Vec2 } from '../types';
 import type { SceneData } from '../scene/scene';
@@ -96,9 +99,22 @@ export interface MiniGameRuntimeConfig {
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createMiniGameSideModuleHost}. */
     sideModuleFactories?: MiniGameSideModuleFactories;
+    /**
+     * Project-supplied modules (`.esengine/modules/<id>/`) the export staged, so
+     * their ids resolve to an artifact name.
+     *
+     * Separate from the factories above because they answer different questions:
+     * a factory is the glue `game.js` already require()'d, this is where the
+     * BINARY sits — and a mini-game instantiates from a package path, so without
+     * it an acquired module has a factory and nowhere to load from. Built-in ids
+     * need no entry; the engine's table already has them.
+     */
+    sideModules?: Array<{ id: string; file: string; globalName?: string }>;
 }
 
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
+    // Before the app exists, so a plugin that acquires during build finds them.
+    registerPackagedSideModules({ sideModules: config.sideModules });
     // The family adapter owns the host global; boot refuses to guess at one.
     const adapter = getPlatform();
     if (!(adapter instanceof MiniGamePlatformAdapter)) {

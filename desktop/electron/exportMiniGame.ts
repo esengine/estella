@@ -42,6 +42,7 @@ import {
   spineModuleId, SIDE_MODULE_FILE,
 } from './sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
+import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 
 export interface ExportMiniGameResult {
@@ -276,7 +277,17 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //     the generated entry requires exactly those — the export-time half of
   //     the runtime's self-gating. A dynamically switched scene must find its
   //     modules present, so the union over ALL shipped scenes counts.
-  const sideModules = await scanSideModules(profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
+  const engineSideModules = await scanSideModules(profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
+  // …plus the ones the PROJECT supplies. They are not scanned for: a project put
+  // them in `.esengine/modules/` in order to use them, and unlike physics or
+  // spine there is no component in the scene the engine could recognize as the
+  // thing that needs one. Staged and required by the same code path, so a
+  // third-party runtime loads on a device exactly like a built-in.
+  const projectModules = await loadProjectModules(opts.root, profile.id);
+  const sideModules = [
+    ...engineSideModules,
+    ...projectModules.filter((m) => m.buildDir).map((m) => ({ id: m.id, file: m.file })),
+  ];
   const sceneRaw = sceneRawByName.get(sceneName) ?? null;
   if (!sceneRaw) errors.push(`entry scene "${opts.entryScene}" was not staged by the cook`);
 
@@ -303,13 +314,18 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // this the package would build fine and then throw on the device, which is
   // the worst place to learn that the two halves of a vendor were never joined.
   const installsPlatform = !!profile.runtimeProfileModule;
+  // A mini-game does not read game.config.json — its configuration IS this
+  // generated call — so the project modules' artifact names ride it here. The
+  // factories arrive separately (game.js require()s the glue); this is what tells
+  // the runtime where each binary sits in the package.
+  const projectDeclarations = sideModuleDeclarations(projectModules, profile.id);
   const entrySrc =
     `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(profile.runtimeProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''}${opts.uiTheme === 'light' ? `, uiTheme: 'light'` : ''}${themeColors ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(themeColors)})` : ''} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''}${opts.uiTheme === 'light' ? `, uiTheme: 'light'` : ''}${themeColors ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(themeColors)})` : ''}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {
@@ -410,10 +426,12 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const wasmOut = path.join(absOut, 'wasm');
   await rm(wasmOut, { recursive: true, force: true });
   await mkdir(wasmOut, { recursive: true });
+  // Engine artifacts only — the project's own come from `.esengine/modules/`,
+  // not from the engine runtime dir, and are staged below.
   const runtimeFiles = [
     engineGlueFile,
     engineGlueFile.replace(/\.js$/, '.wasm'),
-    ...sideModules.flatMap((m) => [`${m.file}.js`, `${m.file}.wasm`]),
+    ...engineSideModules.flatMap((m) => [`${m.file}.js`, `${m.file}.wasm`]),
   ];
   const { transform } = await loadEsbuild();
   for (const f of runtimeFiles) {
@@ -432,6 +450,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       await cp(src, dest);
     }
   }
+  // The project's own modules land in the same wasm/ dir, with the same glue
+  // down-level applied — game.js require()s them by the same path.
+  warnings.push(...await stageProjectModules(projectModules, wasmOut, profile.id,
+    async (code) => (await transform(code, { target: profile.esTarget, loader: 'js' })).code));
 
   return { ok: errors.length === 0, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
 }

@@ -251,4 +251,66 @@ describe('exportGame', () => {
     expect(res.ok).toBe(false);
     expect(res.errors.some((e) => e.includes('wasm runtime dir not found'))).toBe(true);
   }, 60_000);
+
+  // A third-party runtime (a vector-animation player, another solver) as an
+  // ordinary side module: staged beside the engine's own and declared in the
+  // config, which is the whole difference between `acquire('rive')` working and
+  // a game having to fetch and instantiate a wasm by hand.
+  it("ships a project's own native module and declares it for the runtime", async () => {
+    const modDir = path.join(root, '.esengine', 'modules', 'rive');
+    mkdirSync(path.join(modDir, 'web'), { recursive: true });
+    writeFileSync(path.join(modDir, 'module.json'), JSON.stringify({ file: 'rive', globalName: 'RiveModule' }));
+    writeFileSync(path.join(modDir, 'web', 'rive.js'), 'var RiveModule = () => Promise.resolve({});');
+    writeFileSync(path.join(modDir, 'web', 'rive.wasm'), '\0asm   ');
+
+    const outMod = path.join(root, 'dist-game-module');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: outMod,
+      title: 'My Game',
+    });
+    expect(res.ok).toBe(true);
+
+    // Beside the engine's own artifacts — one place, so every transport finds it.
+    expect(existsSync(path.join(outMod, 'wasm', 'rive.js'))).toBe(true);
+    expect(existsSync(path.join(outMod, 'wasm', 'rive.wasm'))).toBe(true);
+    expect(existsSync(path.join(outMod, 'wasm', 'esengine.js'))).toBe(true);
+
+    const cfg = JSON.parse(readFileSync(path.join(outMod, 'game.config.json'), 'utf8'));
+    expect(cfg.sideModules).toEqual([{ id: 'rive', file: 'rive', globalName: 'RiveModule' }]);
+
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+  }, 60_000);
+
+  it('says so when a project module has no build for the target, rather than shipping a broken package', async () => {
+    const modDir = path.join(root, '.esengine', 'modules', 'rive');
+    mkdirSync(path.join(modDir, 'web'), { recursive: true });
+    writeFileSync(path.join(modDir, 'web', 'rive.js'), 'export default () => Promise.resolve({});');
+
+    const outMod = path.join(root, 'dist-game-module-android');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: outMod,
+      platform: 'android',
+      title: 'My Game',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.join('\n')).toContain('app binary');
+    // Not declared, because it was not staged: a declaration whose binary is
+    // absent reports a missing file instead of an unsupported target.
+    const cfg = JSON.parse(readFileSync(path.join(outMod, 'game.config.json'), 'utf8'));
+    expect(cfg.sideModules).toBeUndefined();
+
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+  }, 60_000);
 });

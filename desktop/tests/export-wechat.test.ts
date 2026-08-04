@@ -188,6 +188,77 @@ describe('exportGame (wechat)', () => {
       .toBe(20 * 1024 * 1024);
   }, 60_000);
 
+  // The platform this matters most on: a mini-game has no `fetch`, so a
+  // third-party runtime cannot be loaded by hand at all — the binary has to be
+  // in the package and the glue has to be require()d by the generated entry.
+  it("packages a project's own native module and requires it from game.js", async () => {
+    const modDir = path.join(root, '.esengine', 'modules', 'rive');
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    mkdirSync(path.join(modDir, 'wechat'), { recursive: true });
+    writeFileSync(path.join(modDir, 'module.json'), JSON.stringify({ file: 'rive', globalName: 'RiveModule' }));
+    // `?.` is exactly what a real-device host rejects — it must not survive.
+    writeFileSync(path.join(modDir, 'wechat', 'rive.js'), 'var RiveModule = (o) => Promise.resolve(o?.x);');
+    writeFileSync(path.join(modDir, 'wechat', 'rive.wasm'), 'wasmbytes');
+
+    const outWx = path.join(root, 'dist-wechat-module');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outWx,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+
+    // Staged beside the engine's runtime, in the dir game.js require()s from.
+    expect(existsSync(path.join(outWx, 'wasm', 'rive.js'))).toBe(true);
+    expect(existsSync(path.join(outWx, 'wasm', 'rive.wasm'))).toBe(true);
+    // The generated entry hands its factory in by id, like a built-in module.
+    const gameJs = readFileSync(path.join(outWx, 'game.js'), 'utf8');
+    expect(gameJs).toContain(`"rive": asFactory(require('./wasm/rive.js'))`);
+    // A mini-game does not read game.config.json — its config IS the boot call,
+    // so the artifact name rides there or the runtime cannot find the binary.
+    // Matched loosely: the bundler re-prints the object literal.
+    const bundle = readFileSync(path.join(outWx, 'game-bundle.js'), 'utf8');
+    const declaration = bundle.match(/sideModules:\s*\[[^\]]*\]/)?.[0] ?? '(no sideModules in the boot call)';
+    expect(declaration).toContain('"rive"');
+    expect(declaration).toContain('RiveModule');
+    // Down-levelled like the engine's own glue.
+    expect(readFileSync(path.join(outWx, 'wasm', 'rive.js'), 'utf8')).not.toContain('?.');
+
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+  }, 60_000);
+
+  it('refuses to substitute a web build for a mini-game one', async () => {
+    // Serving the web glue would produce a package that builds clean and dies on
+    // a device — the failure this whole per-platform layout exists to prevent.
+    const modDir = path.join(root, '.esengine', 'modules', 'rive');
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    mkdirSync(path.join(modDir, 'web'), { recursive: true });
+    writeFileSync(path.join(modDir, 'web', 'rive.js'), 'export default () => Promise.resolve({});');
+
+    const outWx = path.join(root, 'dist-wechat-module-webonly');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outWx,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.join('\n')).toContain('wechat/rive.js');
+    expect(existsSync(path.join(outWx, 'wasm', 'rive.js'))).toBe(false);
+    expect(readFileSync(path.join(outWx, 'game.js'), 'utf8')).not.toContain('rive');
+
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+  }, 60_000);
+
   it('fails fast when the -t wechat engine runtime is missing', async () => {
     const outMissing = path.join(root, 'dist-wechat-missing');
     const res = await exportGame({

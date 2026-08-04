@@ -250,6 +250,7 @@ export {
     catalogFromManifest,
     createPackagedAssetSource,
     applyAssetRefResolvers,
+    registerPackagedSideModules,
     type PackagedAssetIndex,
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,

@@ -11,7 +11,12 @@ export {
     SIDE_MODULES,
     SPINE_VERSIONS,
     spineModuleId,
+    registerSideModule,
+    sideModuleDescriptor,
+    projectSideModuleIds,
+    clearProjectSideModules,
     type SideModuleId,
+    type BuiltinSideModuleId,
     type SideModuleDescriptor,
     type SpineVersion,
 } from './registry';

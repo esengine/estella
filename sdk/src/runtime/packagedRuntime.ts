@@ -23,6 +23,7 @@ import { Audio } from '../audio/Audio';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
+import { registerSideModule } from '../sideModules/registry';
 
 /**
  * `game.config.json` — what an export bakes about the project, and the contract
@@ -48,6 +49,16 @@ export interface PackagedGameConfig {
     /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
      *  the storage key an applied update persists under (both optional). */
     hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
+    /**
+     * Optional native modules this project supplied itself, staged beside the
+     * engine's own (see `.esengine/modules/<id>/`).
+     *
+     * The declaration ships rather than being discovered, because discovery is not
+     * possible where it matters: a mini-game cannot list a directory and a
+     * playable has no directory at all. The export knows what it staged, so it
+     * says so, and every transport resolves these ids exactly like a built-in.
+     */
+    sideModules?: Array<{ id: string; file: string; globalName?: string }>;
 }
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */
@@ -75,6 +86,22 @@ export interface PackagedAssetIndex {
  * a catalog buildPath. Atlas-packed frames additionally register frame/uv, keyed
  * by every ref spelling a scene can use.
  */
+/**
+ * Register the project modules this build staged, so `sideModules.acquire(id)`
+ * resolves them the way it resolves the engine's own.
+ *
+ * Every realm calls this after reading its config and before anything acquires —
+ * one line each rather than one clever shared boot, because the four realms do
+ * not share a boot: the web fetches its config, native reads it off disk, a
+ * mini-game requires it, and a playable has it inlined.
+ */
+export function registerPackagedSideModules(config: Pick<PackagedGameConfig, 'sideModules'>): void {
+    for (const m of config.sideModules ?? []) {
+        if (!m?.id || !m.file) continue;
+        registerSideModule(m.id, m.globalName ? { file: m.file, globalName: m.globalName } : { file: m.file });
+    }
+}
+
 export function catalogFromManifest(manifest: AddressableManifest): Catalog | undefined {
     const entries: Record<string, CatalogEntry> = {};
     for (const group of Object.values(manifest.groups)) {
