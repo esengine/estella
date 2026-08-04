@@ -160,6 +160,34 @@ describe('exportGame (wechat)', () => {
     expect(initial?.measuredBytes).toBe(res.size?.initialBytes);
   }, 60_000);
 
+  // The project's own ceiling, all the way through: packaging.sizeBudget →
+  // exportGame → the verdict a CI gate and the build dialog both read. The
+  // headless exporter reads that field through `parseManifest`, so this covers
+  // the half of the path that is not the parser's.
+  it("judges against the project's own ceiling when it declares one", async () => {
+    const outWx = path.join(root, 'dist-wechat-budget');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outWx,
+      platform: 'wechat',
+      sizeBudgetBytes: 1024,   // this fixture is a few KB — deliberately over
+    });
+    expect(res.ok).toBe(true);
+    const initial = res.size?.verdicts.find((v) => v.budget.scope === 'initial');
+    expect(initial?.status).toBe('over');
+    expect(initial?.budget.maxBytes).toBe(1024);
+    // Attributed to the project, not quoted as a WeChat rule that never said this.
+    expect(initial?.budget.note).toBe('project budget');
+    // Replacing the main-package limit is not a waiver of the other one.
+    expect(res.size?.verdicts.find((v) => v.budget.scope === 'total')?.budget.maxBytes)
+      .toBe(20 * 1024 * 1024);
+  }, 60_000);
+
   it('fails fast when the -t wechat engine runtime is missing', async () => {
     const outMissing = path.join(root, 'dist-wechat-missing');
     const res = await exportGame({

@@ -18,9 +18,14 @@
 //     --scripts <path>    scripts entry, project-relative (default src/main.ts if present)
 //     --template <dir>    android/ios: the runtime template to wrap, else the installed one
 //     --json <file>       also write the result here, for a caller that reads it back
+//     --enforce-budget    fail (exit 1) when the package is over a size limit
 //
-// Prints the export result as JSON — errors and warnings included, so a caller can
-// tell a clean package from one that silently dropped half a scene.
+// Prints the export result as JSON — errors, warnings, and what the package weighs
+// against the limits in force — so a caller can tell a clean package from one that
+// silently dropped half a scene, or from one that will be refused for being too big.
+//
+// The size report rides the result rather than being a second file: one artifact a
+// CI job reads, `result.size`, with the same verdicts the build dialog draws.
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -35,15 +40,27 @@ function parseArgs(argv) {
     const [projectDir, ...rest] = argv;
     if (!projectDir) {
         console.error('usage: node desktop/scripts/export-project.mjs <projectDir> '
-            + '[--platform android] [--out dir] [--output package|project] [--template dir]');
+            + '[--platform android] [--out dir] [--output package|project] [--template dir] '
+            + '[--enforce-budget]');
         process.exit(2);
     }
     const opts = { projectDir: path.resolve(projectDir), platform: 'android' };
-    for (let i = 0; i < rest.length; i += 2) {
+    // Options take a value; these do not. Without the distinction a trailing
+    // `--enforce-budget` swallows nothing and ends the loop, so a CI job would
+    // pass the flag and silently get no gate.
+    const FLAGS = new Set(['enforce-budget']);
+    for (let i = 0; i < rest.length;) {
         const key = rest[i]?.replace(/^--/, '');
+        if (!key) break;
+        if (FLAGS.has(key)) {
+            opts[key] = true;
+            i += 1;
+            continue;
+        }
         const value = rest[i + 1];
-        if (!key || value === undefined) break;
+        if (value === undefined) break;
         opts[key] = value;
+        i += 2;
     }
     return opts;
 }
@@ -147,7 +164,23 @@ const templateDir = nativePlatform
         ? path.resolve(opts.template)
         : firstExisting([installedTemplateDir(engineVersion, platform)]) ?? null)
     : null;
-const { resolveOrientation } = await loadProjectFormat();
+// The engine runtime for this target — the headless half of the editor's
+// `platformRuntimeDirs`. WeChat's is a different build (WXWebAssembly glue, `-t
+// wechat`), and handing it the web one produced either a "runtime not found"
+// failure or a package that could not boot on a device.
+const wasmDir = platform === 'wechat'
+    ? firstExisting([
+        path.join(DESKTOP, 'public', 'wasm-wechat'),
+        path.join(REPO, 'build', 'wasm', 'wechat'),
+    ]) ?? path.join(DESKTOP, 'public', 'wasm')
+    : path.join(DESKTOP, 'public', 'wasm');
+
+const { resolveOrientation, parseManifest } = await loadProjectFormat();
+// PARSED, not read by hand: the parser normalizes legacy platform ids and drops
+// values that could not be judged against, and a budget read straight off the JSON
+// here would be the orientation bug again with a different field.
+const manifest = parseManifest(project);
+const sizeBudgetBytes = manifest.packaging?.sizeBudget?.[platform];
 const { exportGame, cleanup } = await loadExportGame();
 let code = 1;
 try {
@@ -157,7 +190,7 @@ try {
         scriptsEntry,
         gameHostEntry: path.join(DESKTOP, 'src', 'gameHost.ts'),
         sdkDistDir: path.join(REPO, 'sdk', 'dist'),
-        wasmDir: path.join(DESKTOP, 'public', 'wasm'),
+        wasmDir,
         outDir,
         platform,
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
@@ -165,6 +198,7 @@ try {
         androidTemplate: platform === 'android' ? templateDir : null,
         iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
         androidOutput: opts.output === 'project' ? 'project' : undefined,
+        sizeBudgetBytes,
     });
     const report = { ...result, outDir };
     console.log(JSON.stringify(report, null, 2));
@@ -172,6 +206,18 @@ try {
     // result mechanically cannot just redirect it.
     if (opts.json) writeFileSync(path.resolve(opts.json), `${JSON.stringify(report, null, 2)}\n`);
     code = result.ok ? 0 : 1;
+
+    // The gate is opt-in. A package over its limit is still a package — it built,
+    // it runs, and whether that is a release-blocking fact belongs to the caller,
+    // not to the exporter. Said in prose on stderr as well as in the exit code,
+    // because a CI log that only goes red tells nobody which limit or by how much.
+    const over = (result.size?.verdicts ?? []).filter((v) => v.status === 'over');
+    for (const v of over) {
+        const mb = (n) => `${(n / 1024 / 1024).toFixed(2)}MB`;
+        console.error(`size budget: ${v.budget.scope} is ${mb(v.measuredBytes)}, over the `
+            + `${mb(v.budget.maxBytes)} limit (${v.budget.note}).`);
+    }
+    if (over.length > 0 && opts['enforce-budget']) code = 1;
 } finally {
     // Before the exit, not after: process.exit() in the try block would skip this
     // and leave the bundle dir behind.
