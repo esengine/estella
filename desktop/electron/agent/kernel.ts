@@ -184,8 +184,8 @@ export async function runTurn(
         let end = i;
         while (end < calls.length && isRead(calls[end])) end++;
         const batch = end - i > 1
-          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed)))
-          : [await execute(deps, calls[i], allowed)];
+          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal)))
+          : [await execute(deps, calls[i], allowed, signal)];
         for (const done of batch) {
           outcomes.push(done.outcome);
           wrote ||= done.mutated;
@@ -252,11 +252,42 @@ function isRead(call: ToolCall): boolean {
   return !!tool && (tool.effect ?? 'read') === 'read';
 }
 
+/** Marks a dispatch the person stopped waiting for. */
+const ABANDONED = Symbol('abandoned');
+
+/**
+ * `work`, or {@link ABANDONED} the moment `signal` aborts — whichever comes first.
+ *
+ * Stop used to be honoured only BETWEEN tool calls, so pressing it during a slow
+ * one did nothing until that one returned, which reads as a dead button. The
+ * dispatch itself cannot be cancelled: it is executing inside the editor window
+ * and will finish, and if it was a write that write will land. What ends
+ * promptly is the TURN — no further calls, no further model round trips — which
+ * is what the person is asking for. The transcript says which of the two
+ * happened rather than implying the work was undone.
+ */
+async function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T | typeof ABANDONED> {
+  if (signal.aborted) return ABANDONED;
+  let onAbort!: () => void;
+  const stopped = new Promise<typeof ABANDONED>((resolve) => {
+    onAbort = () => resolve(ABANDONED);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([work, stopped]);
+  } finally {
+    // A turn runs up to MAX_ROUNDS batches of calls; leaving one listener per
+    // call on a signal that lives as long as the turn is a slow leak.
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
 /** Run one call: gate it, dispatch it, and report both ways. */
 async function execute(
   deps: KernelDeps,
   call: ToolCall,
   allowed: Set<string>,
+  signal: AbortSignal,
 ): Promise<{ outcome: ToolOutcome; mutated: boolean }> {
   const { emit, driver, confirm } = deps;
   const tool = byName.get(call.name);
@@ -308,10 +339,20 @@ async function execute(
     }
   }
 
-  const result = await runTool(tool, driver, input, true) as {
+  const raced = await untilAborted(runTool(tool, driver, input, true) as Promise<{
     content: Array<{ type: string; text?: string; data?: string }>;
     isError?: boolean;
-  };
+  }>, signal);
+  if (raced === ABANDONED) {
+    // Said plainly, because "stopped" and "did not happen" are different: the
+    // call is still running in the editor and a write will still land.
+    emit({ type: 'tool_end', id: call.id, ok: false, summary: 'stopped — this call was already running and may still complete' });
+    return {
+      outcome: { id: call.id, content: `stopped by the user while ${call.name} was running`, isError: false },
+      mutated: false,
+    };
+  }
+  const result = raced;
   const outcome = toOutcome(call.id, result);
   emit({
     type: 'tool_end',

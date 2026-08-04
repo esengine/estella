@@ -429,3 +429,96 @@ describe('a conversation that outlives the session', () => {
     expect(h.status().phase).toBe('idle');
   });
 });
+
+/**
+ * Streaming deltas, merged before they leave main.
+ *
+ * A model writes a tool's arguments one JSON fragment at a time, and one scene
+ * edit's arguments are hundreds of them. One IPC message, one store update and
+ * one drawer re-render each is what froze the window while a call was being
+ * written — and a blocked renderer cannot deliver the Stop click either.
+ */
+describe('streaming deltas leave merged', () => {
+  let messages: AgentMessage[];
+  let driver: ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+
+  const settled = (h: AgentHost): Promise<void> =>
+    vi.waitFor(() => expect(h.status().phase).toBe('idle'));
+  const host = (steps: StepEvent[][]): AgentHost => createAgentHost({
+    driver: driver as never,
+    push: (m) => messages.push(m),
+    ready: () => true,
+    provider: () => fakeProvider(steps),
+  });
+  const events = () => messages.flatMap((m) => (m.kind === 'event' ? [m.event] : []));
+  const kinds = () => events().map((e) => e.type);
+
+  beforeEach(() => {
+    messages = [];
+    driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      if (method === 'getSelectionIds') return [];
+      return null;
+    }) as never;
+    (driver as { js: unknown }).js = vi.fn(async () => null);
+    (driver as { op: unknown }).op = vi.fn(async () => null);
+  });
+
+  const streamed = (...evs: StepEvent[]): StepEvent[][] => [evs, ends()];
+  const text = (delta: string): StepEvent => ({ type: 'text', delta });
+  const args = (id: string, delta: string): StepEvent => ({ type: 'tool_args', id, delta });
+  const stop = (): StepEvent => ({ type: 'stop', reason: 'end_turn' });
+
+  it('merges a run of text into one event', async () => {
+    const h = host(streamed(text('he'), text('ll'), text('o'), stop()));
+    h.send('hi');
+    await settled(h);
+    const said = events().filter((e) => e.type === 'text') as Array<{ delta: string }>;
+    expect(said).toHaveLength(1);
+    expect(said[0].delta).toBe('hello');
+  });
+
+  it("keeps two tools' arguments apart", async () => {
+    const h = host(streamed(
+      args('a', '{"x":'), args('a', '1}'),
+      args('b', '{"y":'), args('b', '2}'),
+      stop(),
+    ));
+    h.send('two');
+    await settled(h);
+    expect(events().filter((e) => e.type === 'tool_args')).toEqual([
+      { type: 'tool_args', id: 'a', delta: '{"x":1}' },
+      { type: 'tool_args', id: 'b', delta: '{"y":2}' },
+    ]);
+  });
+
+  it('does not merge across kinds', async () => {
+    const h = host(streamed(
+      { type: 'thinking', delta: 'hm' }, text('a'), { type: 'thinking', delta: 'ok' }, stop(),
+    ));
+    h.send('hi');
+    await settled(h);
+    expect(kinds().filter((k) => k === 'text' || k === 'thinking')).toEqual(['thinking', 'text', 'thinking']);
+  });
+
+  it('lets nothing overtake a pending delta', async () => {
+    // Transcript and status share one channel BECAUSE their order is meaning;
+    // a buffered delta is a transcript event that has not left yet.
+    const h = host(streamed(text('looking'), { type: 'tool_call', call: call('get_scene_tree') },
+      { type: 'stop', reason: 'tool_use' }));
+    h.send('look');
+    await settled(h);
+    const order = kinds();
+    expect(order.indexOf('text')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('text')).toBeLessThan(order.indexOf('tool_start'));
+  });
+
+  it('replays what it merged, not what it received', async () => {
+    const h = host(streamed(text('a'), text('b'), stop()));
+    h.send('hi');
+    await settled(h);
+    expect(h.transcript().filter((e) => e.type === 'text')).toEqual([{ type: 'text', delta: 'ab' }]);
+  });
+});

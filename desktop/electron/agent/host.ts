@@ -162,7 +162,13 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
     error,
   });
 
-  const pushStatus = (): void => deps.push({ kind: 'status', status: status() });
+  // Deltas out first: status and transcript share one channel BECAUSE the two
+  // must not be reordered, and a buffered delta is a transcript event that has
+  // not left yet. (Defined below; hoisted, so this reads in the order it runs.)
+  const pushStatus = (): void => {
+    flushDeltas();
+    deps.push({ kind: 'status', status: status() });
+  };
 
   // The conversation as a replayable stream. Bounded, and trimmed by WHOLE runs
   // from the front: half a run replays as a run that never ended. Dropping the
@@ -184,10 +190,70 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
     if (at >= 0) log.length = at;
   };
 
-  const emit = (event: AgentEvent): void => {
+  const record = (event: AgentEvent): void => {
     log.push(event);
     if (log.length > LOG_LIMIT) trimOldestRun();
     deps.push({ kind: 'event', event });
+  };
+
+  /**
+   * Streaming deltas, merged before they leave main.
+   *
+   * A model writes a tool's arguments one JSON fragment at a time, and a scene
+   * edit's arguments run to tens of kilobytes — hundreds of fragments, back to
+   * back with nothing between them. Forwarded one by one, each cost an IPC
+   * message, a store update that rebuilds the run's whole entry list, and a
+   * re-render of the drawer. The renderer's main thread saturated exactly while
+   * a call was being written, which is why the window froze mid-tool, would not
+   * scroll, and appeared to ignore Stop — a blocked renderer cannot deliver the
+   * click that would have stopped it either.
+   *
+   * Text that arrives 30 times a second reads exactly like text that arrives
+   * 600 times a second, so consecutive deltas of one kind merge and go out on a
+   * frame's delay. Everything else flushes them first: this sits at the one
+   * place events leave for the window precisely so nothing can be reordered
+   * around a merge — a store-side buffer could not promise that.
+   */
+  const FLUSH_MS = 33;
+  let buffered: (AgentEvent & { delta: string }) | null = null;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const isDelta = (e: AgentEvent): e is AgentEvent & { delta: string } =>
+    e.type === 'text' || e.type === 'thinking' || e.type === 'tool_args';
+
+  /** Same kind, and for arguments the same call — two tools written in one
+   *  response must not have their JSON concatenated into one of them. */
+  const mergeable = (a: AgentEvent & { delta: string }, b: AgentEvent & { delta: string }): boolean =>
+    a.type === b.type
+    && (a.type !== 'tool_args' || (a as { id: string }).id === (b as unknown as { id: string }).id);
+
+  const flushDeltas = (): void => {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    if (!buffered) return;
+    const merged = buffered;
+    buffered = null;
+    record(merged);
+  };
+
+  /** Throw the buffer away — for a reset, whose log is emptied anyway. */
+  const dropDeltas = (): void => {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    buffered = null;
+  };
+
+  const emit = (event: AgentEvent): void => {
+    if (isDelta(event)) {
+      if (buffered && mergeable(buffered, event)) {
+        buffered = { ...buffered, delta: buffered.delta + event.delta };
+      } else {
+        flushDeltas();
+        buffered = event;
+      }
+      if (!flushTimer) flushTimer = setTimeout(flushDeltas, FLUSH_MS);
+      return;
+    }
+    flushDeltas();
+    record(event);
   };
 
   /** Settle every outstanding ask as declined. See invariant 2. */
@@ -301,6 +367,8 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       running?.abort();
       running = null;
       settlePending();
+      // The half-written delta belongs to a conversation that no longer exists.
+      dropDeltas();
       session = null;
       model = null;
       // A new conversation is a new file. The old one keeps whatever it had at
@@ -329,6 +397,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       running?.abort();
       running = null;
       settlePending();
+      dropDeltas();
       session = null;
       model = conversation.model;
       conversationId = conversation.id;

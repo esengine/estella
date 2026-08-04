@@ -425,4 +425,88 @@ describe('the agent turn', () => {
     await runTurn(deps(s), 'how does it look', null, new AbortController().signal);
     expect(s.context.some((c) => /cannot carry images/i.test(c))).toBe(false);
   });
+
+  /**
+   * Stop, pressed while a tool is running.
+   *
+   * It used to be honoured only BETWEEN calls, so a slow one held the turn open
+   * after the click and the button read as dead. The dispatch cannot be
+   * cancelled — it is executing inside the editor window — so what has to end
+   * promptly is the turn.
+   */
+  describe('stopping while a tool is in flight', () => {
+    /** Park the tool dispatch; the checkpoint reads still answer. */
+    function hangingDriver(): { release: () => void } {
+      let release = (): void => {};
+      driver = vi.fn(async (method: string) => {
+        if (method === 'mark') return { seq: 7 };
+        if (method === 'stepsSince') return stepsSince;
+        if (method === 'getDiagnostics') return diagnostics;
+        await new Promise<void>((r) => { release = r; });
+        return null;
+      }) as never;
+      (driver as { js: unknown }).js = vi.fn(async () => null);
+      (driver as { op: unknown }).op = vi.fn(async () => null);
+      return { release: () => { release(); } };
+    }
+
+    /** Let the loop run until `done`, without waiting on wall time. */
+    async function until(done: () => boolean): Promise<void> {
+      for (let i = 0; i < 200 && !done(); i++) await new Promise((r) => { setTimeout(r, 0); });
+      if (!done()) throw new Error('condition never became true');
+    }
+
+    it('ends the turn without waiting for the call to come back', async () => {
+      const stuck = hangingDriver();
+      const ac = new AbortController();
+      const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+      const turn = runTurn(deps(s), 'look', null, ac.signal);
+
+      await until(() => events.some((e) => e.type === 'tool_start'));
+      ac.abort();
+      // Resolves on the abort alone — the dispatch is never released.
+      await expect(turn).resolves.toBeTruthy();
+      expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'aborted' });
+      stuck.release();
+    });
+
+    it('says the call may still land rather than implying it was undone', async () => {
+      const stuck = hangingDriver();
+      const ac = new AbortController();
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      const turn = runTurn(deps(s), 'save it', null, ac.signal);
+
+      await until(() => events.some((e) => e.type === 'tool_start'));
+      ac.abort();
+      await turn;
+      const end = events.find((e) => e.type === 'tool_end');
+      expect(end).toMatchObject({ ok: false });
+      expect((end as { summary: string }).summary).toMatch(/still complete/i);
+      stuck.release();
+    });
+
+    it('does not feed the model results from a turn nobody waited for', async () => {
+      const stuck = hangingDriver();
+      const ac = new AbortController();
+      const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+      const turn = runTurn(deps(s), 'look', null, ac.signal);
+
+      await until(() => events.some((e) => e.type === 'tool_start'));
+      ac.abort();
+      await turn;
+      expect(s.results).toEqual([]);
+      stuck.release();
+    });
+
+    it('never dispatches when the signal was already aborted', async () => {
+      const stuck = hangingDriver();
+      const ac = new AbortController();
+      ac.abort();
+      const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+      await runTurn(deps(s), 'look', null, ac.signal);
+      // The turn is over before the loop; the parked dispatch was never entered.
+      expect(events.some((e) => e.type === 'tool_start')).toBe(false);
+      stuck.release();
+    });
+  });
 });
