@@ -120,6 +120,11 @@ export const settingsMessages = defineMessages({
         zh: '存在系统钥匙串里——不写进项目、不写进设置文件,也不会交回给这个窗口。每个提供方各存各的,切回来不用重输。',
     },
     'set.group.customProvider': { en: 'Custom Provider', zh: '自定义提供方' },
+    'set.agents.effort': { en: 'Reasoning depth', zh: '思考深度' },
+    'set.agents.effort.desc': {
+        en: 'How hard the model is asked to think before it acts. `xhigh` is what agentic work is for and is the default; drop it when a turn costs more or takes longer than the task deserved. Applies to the next conversation.',
+        zh: '模型动手之前被要求思考到什么程度。`xhigh` 是为 agent 类工作准备的,也是默认值;当一次运行的花费或耗时超过这件事本身的价值时,把它调低。对下一次对话生效。',
+    },
     'set.agents.customBaseUrl': { en: 'Endpoint', zh: 'API 地址' },
     'set.agents.customBaseUrl.desc': {
         en: 'An Anthropic-compatible endpoint. Only needed for a provider not in the list — the built-in ones already know their address. The agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',

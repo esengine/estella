@@ -25,11 +25,10 @@ import type {
   AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome, UserImage,
 } from './types';
 import {
-  DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, KEEP_WHOLE_RUNS, shouldCompact,
+  DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, DEFAULT_EFFORT, KEEP_WHOLE_RUNS, shouldCompact,
 } from '../../src/settings/agentIds';
 
-/** Agentic work is what `xhigh` is for; it is also the depth Claude Code runs at. */
-export const DEFAULT_EFFORT = 'xhigh';
+
 
 /**
  * Which extensions a session may use.

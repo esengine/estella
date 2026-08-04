@@ -1073,3 +1073,11 @@
 }
 .ag-selchip:hover { background: var(--pressed); color: var(--text-hi); }
 .ag-selchip svg { color: var(--text-faint); }
+
+/* The depth beside the model in the picker's button. Muted and smaller: the
+   model is the choice made here, the depth is a setting this only reports. */
+.ag-picker-effort {
+  margin-left: 5px;
+  color: var(--text-faint);
+  font-size: var(--fs-2xs);
+}

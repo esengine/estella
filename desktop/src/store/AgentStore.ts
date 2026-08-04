@@ -24,6 +24,7 @@ import {
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
+import { asEffort, type AgentEffort } from '@/settings/agentIds';
 import type { Attachment } from '@/agent/attachments';
 import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
@@ -278,6 +279,10 @@ function resolveProvider(id: string) {
   };
 }
 
+/** The configured reasoning depth, narrowed. */
+export const agentEffort = (): AgentEffort =>
+  asEffort(useSettings.getState().getValue('agents.effort'));
+
 const hasKey = (providerId: string): boolean =>
   secretStatus(agentKeyId(providerId))?.configured === true;
 
@@ -310,6 +315,11 @@ export function syncAgentEndpoint(): void {
     // How far the conversation may grow before it is compacted. Travels with the
     // endpoint because it is the same piece of knowledge: which provider this is.
     contextWindow: def?.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+    // How hard the model is asked to think. A setting rather than part of the
+    // model pick: the same model is worth running at different depths, and the
+    // depth is the one thing a person adjusts because a turn cost too much or
+    // took too long — not because they changed provider.
+    effort: agentEffort(),
   });
 }
 

@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
-  useAgent, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
+  useAgent, agentEffort, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
   addAgentAttachments, removeAgentAttachment, latestContext,
@@ -924,6 +924,10 @@ function ModelPicker() {
   useSyncExternalStore(subscribeProviders, providersRevision);
   const providers = agentProviders();
   const current = effectiveSelection();
+  // Subscribed, not read once: changing the depth in Settings has to show here
+  // without reopening the drawer.
+  useSettings((st) => st.getValue('agents.effort'));
+  const effort = agentEffort();
 
   useEffect(() => {
     if (!open) return;
@@ -937,6 +941,10 @@ function ModelPicker() {
     <div className="ag-picker" onMouseDown={(e) => e.stopPropagation()}>
       <button type="button" className="ag-picker-btn" onClick={() => setOpen((o) => !o)}>
         {current?.model ?? t('agent.picker.none')}
+        {/* The depth beside the model, because together they are what the next
+            turn will cost. Muted: the model is the choice made here, the depth
+            is a setting this only reports. */}
+        {current && <span className="ag-picker-effort">{effort}</span>}
         <ChevronDown size={11} strokeWidth={2} />
       </button>
       {open && (

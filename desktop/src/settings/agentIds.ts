@@ -24,6 +24,25 @@ export const DEFAULT_MODEL = 'claude-opus-5';
 export const DEFAULT_CONTEXT_WINDOW = 128_000;
 
 /**
+ * How hard the model is asked to think, and what it costs.
+ *
+ * Agentic work is what `xhigh` is for — it is the depth Claude Code runs at,
+ * and it is the default here for the same reason the model is Opus-tier: this
+ * drives a real project and a wrong edit costs someone their scene. But the
+ * same model is worth running shallower when the ask is "rename these three
+ * entities", and depth is what a person reaches for when a turn cost too much
+ * or took too long. So it is a setting, separate from the model pick.
+ */
+export const AGENT_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type AgentEffort = (typeof AGENT_EFFORTS)[number];
+export const DEFAULT_EFFORT: AgentEffort = 'xhigh';
+
+/** A stored value, narrowed — a settings file is a file a person can edit, and
+ *  an unknown depth must not reach the wire. */
+export const asEffort = (value: unknown): AgentEffort =>
+    (AGENT_EFFORTS as readonly string[]).includes(String(value)) ? (value as AgentEffort) : DEFAULT_EFFORT;
+
+/**
  * Fold the oldest runs away once the conversation is this far into its window,
  * keeping the last {@link KEEP_WHOLE_RUNS} intact.
  *

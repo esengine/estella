@@ -679,7 +679,7 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // settings live in its localStorage) and merged, since the two rows fire
 // separately; read at session creation, so a change lands on the next
 // conversation rather than under the one being read.
-let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number } = {};
+let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string } = {};
 
 const agentHost = createAgentHost({
   driver: createSurfaceDriver(() => win),
@@ -696,6 +696,7 @@ const agentHost = createAgentHost({
       apiKey,
       baseURL: agentEndpoint.baseUrl,
       model: agentEndpoint.model,
+      effort: agentEndpoint.effort as Parameters<typeof createAnthropicProvider>[0]['effort'],
       contextWindow: agentEndpoint.contextWindow,
     });
   },

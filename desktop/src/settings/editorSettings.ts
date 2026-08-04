@@ -21,6 +21,7 @@ import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
 import { syncAgentEndpoint } from '@/store/AgentStore';
 import { agentProviders, agentKeyId, CUSTOM_PROVIDER } from '@/agent/providers';
+import { AGENT_EFFORTS, DEFAULT_EFFORT } from '@/settings/agentIds';
 import { applyUiZoom, UI_SCALE_SETTING, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from '@/layout/uiZoom';
 import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
@@ -253,6 +254,23 @@ for (const provider of agentProviders()) {
     status: { read: () => secretStatusLine(agentKeyId(provider.id)), subscribe: subscribeSecrets },
   });
 }
+
+// How hard the model is asked to think. Its own setting rather than part of the
+// model pick: the same model is worth running shallower for "rename these
+// three", and depth is what someone reaches for when a turn cost too much or
+// took too long — not when they change provider.
+settingsRegistry.register({
+  id: 'agents.effort',
+  type: 'enum',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.builtinAgent'),
+  label: t('set.agents.effort'),
+  description: t('set.agents.effort.desc'),
+  default: DEFAULT_EFFORT,
+  options: AGENT_EFFORTS.map((value) => ({ value, label: value })),
+  effect: () => syncAgentEndpoint(),
+});
 
 // The escape hatch, for a provider we have not heard of — which is exactly the
 // one we cannot ship an endpoint or a model list for.
