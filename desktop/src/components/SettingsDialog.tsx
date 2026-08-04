@@ -299,6 +299,10 @@ const EMPTY_MASKS: readonly number[] = [];
 function MatrixControl({ setting }: { setting: MatrixSetting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = useSettings(useShallow((s) => s.getValue<number[]>(setting.id) ?? (EMPTY_MASKS as number[])));
+  // `labels` reads a DIFFERENT setting (the layer names), which this control does
+  // not subscribe to — so also watch the store identity, bumped on every set.
+  // Without it, naming a layer left the matrix showing the names it booted with.
+  useSettings((s) => s.values);
   const labels = setting.labels();
   const masks = Array.from({ length: setting.count }, (_, i) => value[i] ?? 0xffff);
   // Show layer 0 (Default) + any named layer — the matrix stays readable.
@@ -339,6 +343,9 @@ function MatrixControl({ setting }: { setting: MatrixSetting }) {
 function FlagListControl({ setting }: { setting: FlagListSetting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = useSettings(useShallow((s) => s.getValue<number[]>(setting.id) ?? (EMPTY_MASKS as number[])));
+  // Same as MatrixControl: the names come from another setting, so a rename has
+  // to reach this list — otherwise a layer you just named never becomes tickable.
+  useSettings((s) => s.values);
   const labels = setting.labels();
   const shown = Array.from({ length: setting.count }, (_, i) => i).filter((i) => i === 0 || (labels[i] ?? '') !== '');
   const isOn = (i: number) => value.includes(i);
