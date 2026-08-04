@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "name": "KTX2 Orientation",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 150, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Png",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -80, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 120 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "texture": "@uuid:11111111-1111-4111-8111-111111111111" } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Ktx2",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 80, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 120 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "texture": "@uuid:22222222-2222-4222-8222-222222222222" } }
+      ],
+      "visible": true
+    }
+  ]
+}
