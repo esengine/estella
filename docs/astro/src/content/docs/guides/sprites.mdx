@@ -98,6 +98,10 @@ etc. instead of a raw number. Lower layers draw first (behind).
 
 ![Left: three sorting layers stacked so a higher layer draws in front. Right: on a Y-sorted layer a sprite lower on screen draws in front of one higher up.](../../../assets/guides/sprite-sort.svg)
 
+Naming is a readability feature, not a limit: name up to thirty-two slots (a slot's
+index *is* its z-order), or name none and the inspector leaves `layer` a plain number
+field. The renderer itself sorts on any integer either way.
+
 ```typescript
 sprite.layer = 0;   // e.g. "Background"
 sprite.layer = 2;   // e.g. "Foreground" — drawn on top
