@@ -26,6 +26,26 @@ export const PROJECT_MANIFEST_FILE = 'project.esproject';
 export const WORKSPACE_DIR = '.esengine';
 export const WORKSPACE_FILE = 'workspace.json';
 
+/**
+ * Nameable render sorting layers. 32 because y-sort is a 32-bit mask over layer
+ * indices (DrawList::setYSortMask) — a layer past 31 could be named but never
+ * y-sorted. The renderer itself takes any i32 as a `layer`; this bounds only the
+ * NAMED slots, and an unnamed project keeps a free-number `layer` field.
+ */
+export const SORTING_LAYER_COUNT = 32;
+
+/**
+ * The stored form of a sorting-layer list: the settings control always hands back
+ * a full-width list, most of it empty, but a slot's meaning is its INDEX, so only
+ * trailing empties are droppable — an empty slot between two named ones is a real
+ * z-order gap and must survive. An all-empty list stores as nothing at all.
+ */
+export function trimSortingLayers(names: readonly string[]): string[] {
+  const out = names.slice(0, SORTING_LAYER_COUNT).map((n) => (typeof n === 'string' ? n : ''));
+  while (out.length && out[out.length - 1].trim() === '') out.pop();
+  return out;
+}
+
 /** Resolved directory layout (relative to project root). */
 export interface ProjectLayout {
   scenes: string;
@@ -424,11 +444,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
       const r = f.rendering as Record<string, unknown>;
       const rendering: NonNullable<ProjectFeatures['rendering']> = {};
       if (Array.isArray(r.sortingLayers)) {
-        rendering.sortingLayers = r.sortingLayers.slice(0, 32).map((n) => (typeof n === 'string' ? n : ''));
+        rendering.sortingLayers = r.sortingLayers
+          .slice(0, SORTING_LAYER_COUNT)
+          .map((n) => (typeof n === 'string' ? n : ''));
       }
       if (Array.isArray(r.ySortLayers)) {
-        rendering.ySortLayers = r.ySortLayers
-          .filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 32);
+        rendering.ySortLayers = r.ySortLayers.filter(
+          (n): n is number =>
+            typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < SORTING_LAYER_COUNT,
+        );
       }
       // Only 'linear' persists; 'gamma' (the default) is expressed by absence.
       if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';

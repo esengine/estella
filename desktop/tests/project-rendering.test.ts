@@ -6,7 +6,9 @@
  *        by absence, and junk values are dropped.
  */
 import { describe, it, expect } from 'vitest';
-import { parseManifest, cameraScaleModeValue, resolveScreenFit } from '../src/project/format';
+import {
+  parseManifest, cameraScaleModeValue, resolveScreenFit, trimSortingLayers, SORTING_LAYER_COUNT,
+} from '../src/project/format';
 
 describe('parseManifest — rendering.colorSpace', () => {
   it("keeps 'linear'", () => {
@@ -31,6 +33,39 @@ describe('parseManifest — rendering.colorSpace', () => {
       ySortLayers: [1],
       colorSpace: 'linear',
     });
+  });
+});
+
+describe('sorting layers — slot count', () => {
+  it('names every slot up to the y-sort mask width, and drops the rest', () => {
+    const names = Array.from({ length: SORTING_LAYER_COUNT + 4 }, (_, i) => `L${i}`);
+    const parsed = parseManifest({ name: 'X', features: { rendering: { sortingLayers: names } } });
+    expect(parsed.features?.rendering?.sortingLayers).toHaveLength(SORTING_LAYER_COUNT);
+    expect(parsed.features?.rendering?.sortingLayers?.[SORTING_LAYER_COUNT - 1]).toBe(`L${SORTING_LAYER_COUNT - 1}`);
+  });
+
+  it('y-sorts the last nameable layer but nothing past it (the mask is 32 bits)', () => {
+    const m = parseManifest({
+      name: 'X',
+      features: { rendering: { ySortLayers: [0, SORTING_LAYER_COUNT - 1, SORTING_LAYER_COUNT, -1] } },
+    });
+    expect(m.features?.rendering?.ySortLayers).toEqual([0, SORTING_LAYER_COUNT - 1]);
+  });
+});
+
+describe('trimSortingLayers', () => {
+  it('drops trailing empties — the control sends a full-width list', () => {
+    expect(trimSortingLayers(['back', 'mid', '', '', ''])).toEqual(['back', 'mid']);
+    expect(trimSortingLayers(Array.from({ length: SORTING_LAYER_COUNT }, () => ''))).toEqual([]);
+  });
+
+  it('keeps an interior gap — a slot means its index, so the gap is a real z-order step', () => {
+    expect(trimSortingLayers(['back', '', 'front', ''])).toEqual(['back', '', 'front']);
+  });
+
+  it('never stores more than the nameable slots', () => {
+    const names = Array.from({ length: SORTING_LAYER_COUNT + 5 }, (_, i) => `L${i}`);
+    expect(trimSortingLayers(names)).toHaveLength(SORTING_LAYER_COUNT);
   });
 });
 

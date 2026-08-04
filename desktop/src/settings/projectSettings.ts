@@ -14,7 +14,7 @@ import { rgbaToHex8 } from '@/components/ColorControl';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { useEditorMode } from '@/store/editorModeStore';
-import type { ScreenOrientation, CameraScaleMode, ScreenPreset } from '@/project/format';
+import { SORTING_LAYER_COUNT, type ScreenOrientation, type CameraScaleMode, type ScreenPreset } from '@/project/format';
 import { t } from '@/i18n';
 
 const ORIENTATION = [
@@ -177,9 +177,10 @@ settingsRegistry.register({
   group: t('set.group.sortingLayers'),
   label: t('set.project.rendering.sortingLayers'),
   description: t('set.project.rendering.sortingLayers.desc'),
-  count: 8,
+  layout: 'block',
+  count: SORTING_LAYER_COUNT,
   placeholder: (i) => t('set.layerN', { i }),
-  default: Array.from({ length: 8 }, () => ''),
+  default: Array.from({ length: SORTING_LAYER_COUNT }, () => ''),
   bind: {
     get: () => ProjectStore.renderingFeature().sortingLayers,
     set: (v) => void ProjectStore.setRendering({ sortingLayers: v }),
@@ -223,7 +224,7 @@ settingsRegistry.register({
   group: t('set.group.ySort'),
   label: t('set.project.rendering.ySortLayers'),
   description: t('set.project.rendering.ySortLayers.desc'),
-  count: 8,
+  count: SORTING_LAYER_COUNT,
   labels: () => ProjectStore.renderingFeature().sortingLayers,
   default: [],
   bind: {

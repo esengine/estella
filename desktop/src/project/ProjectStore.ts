@@ -39,7 +39,7 @@ import { assetTypeOf } from '@/project/assetMeta';
 import { ASSET_TYPES, assetTypeDef } from '@/project/assetTypes';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
@@ -1846,7 +1846,7 @@ class ProjectStoreImpl {
   renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; colorSpace: 'gamma' | 'linear'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
     const r = this.state?.features?.rendering;
     return {
-      sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? ''),
+      sortingLayers: Array.from({ length: SORTING_LAYER_COUNT }, (_, i) => r?.sortingLayers?.[i] ?? ''),
       ySortLayers: r?.ySortLayers ?? [],
       colorSpace: r?.colorSpace === 'linear' ? 'linear' : 'gamma',
       cameraScaleMode: r?.cameraScaleMode ?? 'none',
@@ -1889,7 +1889,12 @@ class ProjectStoreImpl {
     const st = this.state;
     if (!st) return;
     const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering };
-    if (patch.sortingLayers) rendering.sortingLayers = patch.sortingLayers;
+    // An all-empty list means "no named layers" — expressed by ABSENCE, like colorSpace.
+    if (patch.sortingLayers) {
+      const trimmed = trimSortingLayers(patch.sortingLayers);
+      if (trimmed.length) rendering.sortingLayers = trimmed;
+      else delete rendering.sortingLayers;
+    }
     if (patch.ySortLayers) rendering.ySortLayers = patch.ySortLayers;
     // 'gamma' is the default — expressed by ABSENCE so untouched manifests stay untouched.
     if (patch.colorSpace === 'linear') rendering.colorSpace = 'linear';
