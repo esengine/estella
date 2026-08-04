@@ -222,6 +222,24 @@ export function platformOnMemoryWarning(callback: () => void): () => void {
     return p.onMemoryWarning ? p.onMemoryWarning(callback) : () => {};
 }
 
+/** Subscribe to errors that reached the host uncaught (window.onerror /
+ *  wx.onError and the promise equivalents). Returns an unsubscribe. A platform
+ *  without the signal never fires; tolerates an uninitialized platform (tests). */
+export function platformOnUnhandledError(callback: (error: unknown) => void): () => void {
+    if (!isPlatformInitialized()) return () => {};
+    const p = getPlatform();
+    return p.onUnhandledError ? p.onUnhandledError(callback) : () => {};
+}
+
+/** Subscribe to the render context being lost. Returns an unsubscribe. A
+ *  platform whose surface cannot be lost never fires; tolerates an
+ *  uninitialized platform (tests). */
+export function platformOnContextLost(callback: () => void): () => void {
+    if (!isPlatformInitialized()) return () => {};
+    const p = getPlatform();
+    return p.onContextLost ? p.onContextLost(callback) : () => {};
+}
+
 /** Subscribe to the app returning to foreground / going to background — the
  *  native shell's push signals (no DOM visibility on native). Return an
  *  unsubscribe; a platform without the signal never fires. Tolerates an

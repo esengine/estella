@@ -237,6 +237,15 @@ export interface MiniGameGlobal {
     onMemoryWarning?(cb: () => void): void;
     offMemoryWarning?(cb: () => void): void;
 
+    /** Errors that reached the host uncaught. WeChat reports the script error as
+     *  a string (plus a structured second argument on newer bases, which this
+     *  does not rely on); an unhandled rejection arrives separately, and only on
+     *  bases new enough to have it — hence both optional. */
+    onError?(cb: (error: string | { message?: string; stack?: string }) => void): void;
+    offError?(cb: (error: string | { message?: string; stack?: string }) => void): void;
+    onUnhandledRejection?(cb: (res: { reason?: unknown }) => void): void;
+    offUnhandledRejection?(cb: (res: { reason?: unknown }) => void): void;
+
     onShow?(cb: () => void): void;
     onHide?(cb: () => void): void;
 

@@ -48,6 +48,8 @@ export {
     platformReadCacheFile,
     platformWriteCacheFile,
     platformOnMemoryWarning,
+    platformOnUnhandledError,
+    platformOnContextLost,
     platformOnAppShow,
     platformOnAppHide,
     platformGetStorageItem,

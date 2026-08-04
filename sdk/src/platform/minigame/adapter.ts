@@ -322,6 +322,31 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         return () => off?.call(this.g_, listener);
     }
 
+    /**
+     * The host's two uncaught channels, each subscribed only if this base
+     * library has it.
+     *
+     * A script error arrives as a STRING on WeChat rather than an Error, so the
+     * stack is in the text and there is nothing to take a `.stack` off — which
+     * is why the diagnostics layer tolerates non-Errors instead of assuming one.
+     * `onUnhandledRejection` is newer than `onError`; a base without it loses
+     * only the promise half.
+     */
+    onUnhandledError(callback: (error: unknown) => void): () => void {
+        const onError = this.g_.onError;
+        const offError = this.g_.offError;
+        const onRejection = this.g_.onUnhandledRejection;
+        const offRejection = this.g_.offUnhandledRejection;
+        const errorListener = (e: string | { message?: string; stack?: string }): void => { callback(e); };
+        const rejectionListener = (res: { reason?: unknown }): void => { callback(res?.reason ?? res); };
+        if (onError) onError.call(this.g_, errorListener);
+        if (onRejection) onRejection.call(this.g_, rejectionListener);
+        return () => {
+            if (onError) offError?.call(this.g_, errorListener);
+            if (onRejection) offRejection?.call(this.g_, rejectionListener);
+        };
+    }
+
     createCanvas(width: number, height: number): PlatformCanvas {
         // One honest cast: MiniGameCanvas.getContext returns `unknown`, so it is not
         // structurally assignable to PlatformCanvas's typed 2D getContext.

@@ -304,6 +304,43 @@ class WebPlatformAdapter implements PlatformAdapter {
         return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
     }
 
+    /**
+     * Both ways an error reaches the browser with nobody holding it.
+     *
+     * `error` carries the thrown value on the event; `unhandledrejection`
+     * carries the rejection reason, which is the more common one in practice —
+     * a promise chain in game code with no `.catch` fails completely silently
+     * otherwise. Neither is prevented: this observes, and the browser still
+     * logs to the console the way the developer expects.
+     */
+    onUnhandledError(callback: (error: unknown) => void): () => void {
+        if (typeof window === 'undefined') return () => {};
+        const onError = (e: ErrorEvent): void => { callback(e.error ?? e.message); };
+        const onRejection = (e: PromiseRejectionEvent): void => { callback(e.reason); };
+        window.addEventListener('error', onError);
+        window.addEventListener('unhandledrejection', onRejection);
+        return () => {
+            window.removeEventListener('error', onError);
+            window.removeEventListener('unhandledrejection', onRejection);
+        };
+    }
+
+    /**
+     * Context loss, without needing to be told which canvas.
+     *
+     * `webglcontextlost` does not bubble, so a listener on `window` looks like
+     * it could not work — but a non-bubbling event still travels the CAPTURE
+     * phase down to its target, and `window` is the first stop. One listener
+     * therefore sees every canvas on the page, including one the engine did not
+     * create, and the plugin needs no canvas handed to it.
+     */
+    onContextLost(callback: () => void): () => void {
+        if (typeof window === 'undefined') return () => {};
+        const onLost = (): void => { callback(); };
+        window.addEventListener('webglcontextlost', onLost, true);
+        return () => window.removeEventListener('webglcontextlost', onLost, true);
+    }
+
     clearStorage(prefix: string): void {
         const toRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {

@@ -145,6 +145,18 @@ export {
 } from './util/logger';
 
 // =============================================================================
+// Diagnostics — what went wrong in a game nobody is watching
+// =============================================================================
+
+export {
+    Diagnostics, DiagnosticsAPI,
+    DiagnosticsPlugin, diagnosticsPlugin,
+    fingerprint, messageOf, stackOf,
+    type DiagnosticEvent, type DiagnosticKind, type DiagnosticReport,
+    type DiagnosticsOptions, type DiagnosticsPluginOptions, type DiagnosticsSink,
+} from './diagnostics';
+
+// =============================================================================
 // GL Debug
 // =============================================================================
 

@@ -37,14 +37,21 @@ import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from '../ai';
 import { eventBindingPlugin } from '../eventBinding';
 import { replicationPlugin } from '../net/replication';
 import { servicesPlugin } from '../services';
+import { diagnosticsPlugin } from '../diagnostics';
 
 /**
  * The simulation: timers/lifecycle, gameplay AI, audio (silent on a host with no
  * device), replication, and platform services (ads/share — unavailable on a host
  * with no such surface, and gameplay code gates on `Ads.available` the same way
  * audio degrades). What an authoritative server runs.
+ *
+ * Diagnostics is FIRST, and that position is the point: it starts listening
+ * before anything else builds, so a plugin that fails on the way up is recorded
+ * rather than being the one failure the reporter was installed too late to see.
+ * It sends nothing anywhere until a game installs a sink.
  */
 export const simulationBasePlugins = (): Plugin[] => [
+    diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
     servicesPlugin,
@@ -62,6 +69,7 @@ export const presentationBasePlugins = (): Plugin[] => [
  * exactly rather than derived by concatenation).
  */
 export const webBasePlugins = (): Plugin[] => [
+    diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
     particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,

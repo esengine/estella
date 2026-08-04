@@ -479,6 +479,32 @@ export interface PlatformAdapter {
      *  omit it. Residency caches subscribe to drop their evictable entries. */
     onMemoryWarning?(callback: () => void): () => void;
 
+    /**
+     * Subscribe to errors that reached the host with nobody catching them —
+     * `window.onerror` + `unhandledrejection` on the web, `wx.onError` +
+     * `wx.onUnhandledRejection` on a mini-game. Returns an unsubscribe.
+     *
+     * This is the only channel for the failures that happen OUTSIDE a system:
+     * a throw in a `setTimeout`, a promise nobody awaited, a callback from the
+     * host. The engine's own errors go through the logger and need no platform.
+     * Optional — a platform without the signal simply never fires, and the
+     * diagnostics plugin still collects everything else.
+     */
+    onUnhandledError?(callback: (error: unknown) => void): () => void;
+
+    /**
+     * Subscribe to the GPU taking the rendering context away — backgrounding,
+     * a driver reset, too many live contexts on the page. Returns an
+     * unsubscribe.
+     *
+     * Worth its own channel because it is invisible from everywhere else: no
+     * error is thrown and no log is written, the frames simply stop containing
+     * anything. A game whose players report "it went black" has no other way to
+     * find out that this is what happened. Optional — a platform whose surface
+     * cannot be lost (native, node) omits it.
+     */
+    onContextLost?(callback: () => void): () => void;
+
     /** App foreground/background signals, for platforms with no DOM visibility
      *  event. The native shell pushes them through its bridge; the Lifecycle
      *  plugin subscribes and auto-pauses on hide. Web/WeChat read visibility from
