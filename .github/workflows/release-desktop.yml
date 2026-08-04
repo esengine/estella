@@ -452,6 +452,14 @@ jobs:
   # previous one — and every guide written for what just shipped sits in the repo,
   # published nowhere. After `publish`, not beside it: a draft that never became a
   # release should not move the documentation.
+  #
+  # Deploying Pages needs the ref to be allowed by the `github-pages`
+  # ENVIRONMENT's deployment branch policy, which lives in repository settings
+  # and not in any file here. It listed `master` and `docs-v*` — the two refs
+  # that used to deploy — so the first release to reach this job was rejected
+  # before its first step ran, which reads as a job that failed for no reason
+  # (an empty step list is the tell). `v*` is allowed now; a fork or a fresh
+  # clone has to add it once, under Settings → Environments → github-pages.
   docs:
     needs: publish
     uses: ./.github/workflows/docs.yml
