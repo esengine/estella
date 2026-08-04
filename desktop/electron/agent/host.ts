@@ -21,7 +21,7 @@
  *      finished turn all resolve it as declined — a kernel awaiting a promise
  *      nobody will settle is a hang, not an error anyone can see.
  */
-import { runTurn, agentTools } from './kernel';
+import { runTurn, agentTools, type ContributedTool } from './kernel';
 import { SYSTEM_PROMPT, editorContext } from './prompt';
 import type {
   AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmDecision, ConfirmRequest, UserImage,
@@ -63,6 +63,14 @@ export interface AgentHostDeps {
    * an error, and the host carries on either way.
    */
   persist?(conversation: PersistedConversation): void;
+  /**
+   * Tools loaded plugins have contributed, as the WINDOW last reported them.
+   *
+   * A pull rather than a push into this host: it is read once per session, and
+   * the answer has to be whatever is true at that moment — a list captured at
+   * construction would be the empty one, since plugins load after main does.
+   */
+  contributedTools?(): readonly ContributedTool[];
 }
 
 /** A conversation as the host hands it over to be kept. See agent/store.ts. */
@@ -278,7 +286,10 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
     if (!session) {
       try {
         const provider = deps.provider();
-        session = provider.createSession({ system: SYSTEM_PROMPT, tools: agentTools() }, resuming);
+        session = provider.createSession(
+          { system: SYSTEM_PROMPT, tools: agentTools(deps.contributedTools?.() ?? []) },
+          resuming,
+        );
         model = provider.model;
         acceptsImages = provider.acceptsImages;
         endpoint = provider.id;

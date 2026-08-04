@@ -56,6 +56,7 @@ const KIND_LABEL: Record<ContributionKind, MsgKey> = {
   assetType: 'plug.kind.assetType',
   entityTemplate: 'plug.kind.entityTemplate',
   contextMenu: 'plug.kind.contextMenu',
+  agentTool: 'plug.kind.agentTool',
 };
 
 function PhaseChip({ phase }: { phase: PluginPhase }) {

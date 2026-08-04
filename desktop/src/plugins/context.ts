@@ -39,7 +39,9 @@ import type { InspectorFieldValue } from '@/types';
 import type { Owner, Disposable as CoreDisposable } from '@/contrib/ContributionRegistry';
 import type { PointerInput as CorePointerInput } from '@/tools/EditorTool';
 import type { PluginManifest, PluginCapability } from './manifest';
+import { agentToolProblem, registerAgentTool, publishAgentTools } from './agentTools';
 import type {
+  AgentToolContribution,
   AssetTypeContribution, CommandContribution, ContextMenuContribution, Disposable, EditorEvents,
   EditorPlugin, EditorProjectApi, EditorSceneApi, EntityTemplateContribution, FieldValue,
   InspectorContribution, OverlayContribution, PanelContribution, PluginContext,
@@ -195,7 +197,8 @@ export type ContributionKind =
   | 'inspector'
   | 'assetType'
   | 'entityTemplate'
-  | 'contextMenu';
+  | 'contextMenu'
+  | 'agentTool';
 
 /** One thing a plugin added, as the Plugins panel shows it. */
 export interface PluginContribution {
@@ -404,6 +407,27 @@ export function buildPluginContext(
       }),
     );
 
+  /**
+   * A tool the agent may call. Registered like any other contribution, and then
+   * ANNOUNCED: main reads the list when it builds a session, and it cannot ask
+   * for it at that moment — session creation is synchronous.
+   */
+  const registerAgentToolContribution = (tool: AgentToolContribution): Disposable => {
+    const problem = agentToolProblem(id, tool);
+    // Named and refused, never silently dropped: the plugin's own docs will say
+    // the tool exists, and an agent that never sees it looks broken from here.
+    if (problem) {
+      log.warn(`agent tool "${tool.name}": ${problem}`);
+      return { dispose: () => {} };
+    }
+    const handle = noted('agentTool', tool.name, tool.name, registerAgentTool({
+      ...tool,
+      run: (input: unknown) => guard(`agent tool ${tool.name}`, () => tool.run(input), undefined),
+    }, owner));
+    publishAgentTools();
+    return { dispose: () => { handle.dispose(); publishAgentTools(); } };
+  };
+
   const registerContextMenuItem = (item: ContextMenuContribution): Disposable =>
     noted(
       'contextMenu',
@@ -445,6 +469,7 @@ export function buildPluginContext(
     assets: { registerType: registerAssetType },
     entities: { registerTemplate },
     contextMenus: { register: registerContextMenuItem },
+    agentTools: { register: registerAgentToolContribution },
     scene: sceneApi(),
     project: projectApi(),
     viewport: viewportProjection,

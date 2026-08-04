@@ -141,6 +141,11 @@ const api = {
      *  can push its own field. */
     setEndpoint: (patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }): Promise<void> =>
       ipcRenderer.invoke('agent:setEndpoint', patch),
+    /** Report what loaded plugins contributed for the agent to call. Metadata
+     *  only — the handlers stay in this window, reached through the editor
+     *  surface like every other tool. Read once per session. */
+    setTools: (tools: readonly { name: string; description: string; schema: unknown; effect: string }[]): Promise<void> =>
+      ipcRenderer.invoke('agent:setTools', tools),
     /** Transcript events + status changes, in the order they happened; returns
      *  an unsubscribe. One channel because the two must not be reordered. */
     onMessage: (cb: (message: AgentMessage) => void): (() => void) => {

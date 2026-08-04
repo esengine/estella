@@ -334,6 +334,45 @@ export interface ContextMenuTarget {
   path?: string | null;
 }
 
+/**
+ * A tool the built-in agent may call.
+ *
+ * The agent's entire vocabulary is the tool catalog, so a plugin that adds a
+ * capability without adding a tool has added it for the person and not for the
+ * agent. Namespace `name` with your plugin id — an un-namespaced tool can
+ * shadow a built-in one, and the model would call it believing it knows what it
+ * does.
+ *
+ * `description` is not documentation; it is the ONLY thing the model reads when
+ * deciding whether this is the right tool. Say what it does and when to reach
+ * for it, in a sentence.
+ */
+export interface AgentToolContribution {
+    /** Namespaced with your plugin id, e.g. `acme.bake-occlusion`. */
+    name: string;
+    /** What it does and when to use it — written for the model, not for a menu. */
+    description: string;
+    /**
+     * JSON Schema for `input`. Defaults to "an object with no properties".
+     * The kernel validates against this before your handler runs, so a
+     * malformed call is refused rather than handed to you half-parsed.
+     */
+    schema?: unknown;
+    /**
+     * What calling it costs, which is what decides whether the person is asked
+     * first: `read` and `undoable` run unasked (the turn's checkpoint is the
+     * approval), `irreversible` stops and asks. Defaults to `read`.
+     *
+     * Declare it honestly. Nothing verifies it — a plugin already runs with the
+     * whole editor surface in reach — but an `irreversible` tool declared
+     * `read` is one that will run without anyone being asked.
+     */
+    effect?: 'read' | 'undoable' | 'irreversible';
+    /** Do the work. Whatever it returns is JSON-encoded for the model; throwing
+     *  reports the message as a failed call, which the model can act on. */
+    run(input: unknown): unknown | Promise<unknown>;
+}
+
 export interface ContextMenuContribution {
   /** Namespaced id, e.g. `acme.reveal-refs`. */
   id: string;
@@ -494,6 +533,10 @@ export interface PluginContext {
   };
   readonly contextMenus: {
     register(item: ContextMenuContribution): Disposable;
+  };
+  /** Lend the built-in agent a tool. See {@link AgentToolContribution}. */
+  readonly agentTools: {
+    register(tool: AgentToolContribution): Disposable;
   };
 
   readonly scene: EditorSceneApi;

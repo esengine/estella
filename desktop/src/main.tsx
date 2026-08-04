@@ -46,6 +46,7 @@ import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
+import { runContributedTool } from './plugins/agentTools';
 import { EditorHistory } from './engine/EditorHistory';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
@@ -238,6 +239,15 @@ function buildEditorAutomation(): unknown {
     }),
     /** Dispatch any registered editor command by id (the UI's own channel). */
     runCommand: (id: string) => commands.run(id),
+    /**
+     * The one door every plugin-contributed agent tool is dispatched through.
+     *
+     * The handler lives here because the plugin does; main only ever knew the
+     * metadata. One door rather than a method per tool: a transport per plugin
+     * would be a second way for an agent to reach this editor, and the whole
+     * point of the shared catalog is that there is one.
+     */
+    runPluginTool: (name: string, input: unknown) => runContributedTool(name, input),
     /** Save the open scene to disk (the toolbar Save, awaitable). */
     save: () => ProjectStore.save(),
     /** Patch the project's physics feature (Project Settings → Physics). */

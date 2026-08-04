@@ -243,6 +243,44 @@ ctx.tools.activate('acme.measure');
 - `ctx.contextMenus.register(…)` — a row in the Outliner or Content Browser
   right-click menu, gated by the thing that was clicked.
 
+### Lending the agent a tool
+
+The built-in agent's entire vocabulary is the tool catalog. A plugin that adds a
+capability without adding a tool has added it for the person and not for the
+agent — so if your plugin can bake occlusion, teach the agent to ask for it:
+
+```typescript
+ctx.agentTools.register({
+  name: 'acme.bake-occlusion',        // must start with your plugin id
+  description: 'Bake occlusion for the open scene. Use after moving walls.',
+  schema: { type: 'object', properties: { quality: { type: 'number' } } },
+  effect: 'undoable',
+  run: ({ quality }) => bake(quality ?? 1),
+});
+```
+
+`description` is not documentation — it is the only thing the model reads when
+deciding whether this is the right tool. Say what it does and when to reach for
+it.
+
+`effect` decides whether the person is asked first: `read` and `undoable` run
+unasked (the turn's checkpoint is the approval), `irreversible` stops and asks.
+Nothing verifies it, and that is not a gap — your plugin already runs with the
+whole editor surface in reach, so it could do the same work through a command.
+The boundary is the trust prompt at install. What the field buys is the confirm
+gate behaving correctly for an honest plugin, so declare it honestly.
+
+The name must be namespaced with your plugin id. An un-namespaced tool could
+shadow a built-in, and a model calling `delete_entity` believes it knows what
+happens next. A tool that breaks any of these rules is refused with the reason
+in the Output Log, rather than dropped silently.
+
+Whatever `run` returns is JSON-encoded for the model; throwing reports the
+message as a failed call, which the model can read and act on. A tool that
+appears while a conversation is open joins the NEXT one — the tool list renders
+first in the prompt, so changing it mid-conversation would throw away every
+cached byte after it.
+
 ## Editing the scene
 
 Always go through `ctx.scene`. Those writes run through the editor's command

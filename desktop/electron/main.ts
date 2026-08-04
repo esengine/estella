@@ -47,6 +47,7 @@ import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from '.
 import { secretStatus, setSecret, clearSecret, readSecret } from './secrets';
 import { createSurfaceDriver } from './surfaceDriver';
 import { createAgentHost } from './agent/host';
+import type { ContributedTool } from './agent/kernel';
 import {
   saveConversation, loadConversation, listConversations, deleteConversation,
 } from './agent/store';
@@ -680,6 +681,8 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // separately; read at session creation, so a change lands on the next
 // conversation rather than under the one being read.
 let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string } = {};
+/** Contributed agent tools, as the window last reported them. */
+let agentPluginTools: ContributedTool[] = [];
 
 const agentHost = createAgentHost({
   driver: createSurfaceDriver(() => win),
@@ -704,6 +707,7 @@ const agentHost = createAgentHost({
   // there is nowhere for them to go, which is a state, not a failure — and a
   // disk that will not take them must never cost the user their turn, so this
   // reports and moves on.
+  contributedTools: () => agentPluginTools,
   persist: (conversation) => {
     if (!projectRoot) return;
     void saveConversation(projectRoot, conversation)
@@ -732,10 +736,17 @@ ipcMain.handle('agent:resumeConversation', async (_e, id: string) => {
 ipcMain.handle('agent:deleteConversation', async (_e, id: string) => {
   if (projectRoot) await deleteConversation(projectRoot, id);
 });
-ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number }) => {
+ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.
   agentHost.announce();
+});
+
+// What loaded plugins have contributed for the agent to call. The window owns
+// the handlers (they run where the plugin lives); this is only the metadata a
+// session needs to describe them to the model.
+ipcMain.handle('agent:setTools', (_e, tools: ContributedTool[]) => {
+  agentPluginTools = Array.isArray(tools) ? tools : [];
 });
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —

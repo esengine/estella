@@ -22,10 +22,57 @@ import { TOOLS, runTool, mutates, irreversible } from '../../shared/toolCatalog.
 const catalog = TOOLS as CatalogTool[];
 const byName = new Map(catalog.map((t) => [t.name, t]));
 
-/** The tools an in-editor agent may call. Everything: the coarse
- *  ESTELLA_MCP_ALLOW_WRITES door exists because a REMOTE client has nobody to
- *  ask, and this one has the user right there (see the confirm gate below). */
-export const agentTools = (): readonly CatalogTool[] => catalog;
+/**
+ * The tools an in-editor agent may call: the built-in catalog, plus whatever
+ * loaded plugins contributed.
+ *
+ * Everything built-in is offered. The coarse ESTELLA_MCP_ALLOW_WRITES door
+ * exists because a REMOTE client has nobody to ask, and this one has the user
+ * right there (see the confirm gate below).
+ *
+ * Contributed tools are dispatched through ONE generic door on the editor
+ * surface rather than each getting a method of its own — a plugin's tool runs
+ * in the renderer where the plugin lives, and adding a transport per plugin
+ * would be a second way for an agent to reach the editor.
+ *
+ * Snapshotted per SESSION, not per turn: the tool list renders first in the
+ * prompt prefix, so a list that changed mid-conversation would invalidate every
+ * cached byte after it. A plugin loaded while a conversation is open joins the
+ * next one.
+ */
+export function agentTools(contributed: readonly ContributedTool[] = []): readonly CatalogTool[] {
+  if (contributed.length === 0) return catalog;
+  const out = [...catalog];
+  const taken = new Set(catalog.map((t) => t.name));
+  for (const tool of contributed) {
+    // Refused rather than renamed. A tool the model calls by a name the plugin
+    // did not choose is a tool whose own docs are wrong, and shadowing a
+    // built-in would let a plugin quietly redefine `delete_entity`.
+    if (taken.has(tool.name)) continue;
+    taken.add(tool.name);
+    out.push({
+      name: tool.name,
+      description: tool.description,
+      schema: tool.schema,
+      effect: tool.effect,
+      root: 'editor',
+      method: PLUGIN_TOOL_METHOD,
+      args: (input: unknown) => [tool.name, input],
+    } as unknown as CatalogTool);
+  }
+  return out;
+}
+
+/** One generic door on `window.__estellaEditor` for every contributed tool. */
+const PLUGIN_TOOL_METHOD = 'runPluginTool';
+
+/** What the window says a plugin contributed. The handler stays over there. */
+export interface ContributedTool {
+  name: string;
+  description: string;
+  schema: unknown;
+  effect: 'read' | 'undoable' | 'irreversible';
+}
 
 /** Why `tool` needs saying out loud. A code — the editor renders the sentence,
  *  because it is the side that knows the reader's language. */
