@@ -26,7 +26,7 @@ import type {
 import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { isRequiredEmpty, componentByName, userSchema } from './schema';
+import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -152,19 +152,23 @@ export function coerceFieldValue(
   };
   switch (declared) {
     case 'enum': {
-      // Name-valued options: accept the name (or a label spelling it), and refuse
-      // anything the field cannot actually hold, rather than silently writing NaN.
-      const named = options?.some((o) => typeof o.value === 'string');
-      if (named) {
-        const hit = options!.find((o) => o.value === value || o.label === value);
-        if (hit) return hit.value;
-        // An open source offers suggestions, not a closed set: a locale key with
-        // no table entry yet is a legal thing to bind, not a typo to refuse.
-        if (open) return typeof value === 'string' ? value : String(value);
-        return fail(`one of: ${options!.map((o) => String(o.value)).join(', ')}`);
+      // Whether a value the options don't list is a new layer/key or a typo is the
+      // field's own answer, and coerceEnumInput is where every writer asks it —
+      // this door used to answer it separately and disagree with the control.
+      if (!options?.length) {
+        // No options to check against (a source that isn't warm, a test): the
+        // field is an ordinal, so all that is knowable is that it is a number.
+        const n = Number(value);
+        return Number.isFinite(n) ? n : fail('a number');
       }
-      const n = Number(value);
-      return Number.isFinite(n) ? n : fail('a number');
+      if (typeof value !== 'string' && typeof value !== 'number') return fail('a name or a number');
+      const v = coerceEnumInput(value, options, open ?? false);
+      if (v !== null) return v;
+      return fail(
+        open
+          ? 'a whole number'
+          : `one of: ${options.map((o) => (o.label === String(o.value) ? o.label : `${o.value} (${o.label})`)).join(', ')}`,
+      );
     }
     case 'number':
     case 'flags':

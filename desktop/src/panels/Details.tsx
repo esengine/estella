@@ -77,7 +77,7 @@ import { sourceById, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, boxGroupsFor, isRequiredEmpty, inspectorFields, coerceEnumInput, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
 import { localizePlugin } from '@/plugins/localize';
 import type { AssetInspectorContribution, ComponentInspectorContribution } from '@/plugins/types';
@@ -320,20 +320,6 @@ export function SidesControl({
 // list would offer "Stand" for a value spelled "stand". A value with no matching
 // option still shows as itself (an animation the skeleton no longer declares is a
 // thing to SEE, not a blank), and an empty one reads as "None".
-/**
- * Parse text typed into an OPEN enum against what its options store: a numeric
- * source (sorting layers) takes an integer and nothing else, a name source takes
- * any non-empty name. `null` = not a value this field can hold, so the draft is
- * refused instead of written.
- */
-export function parseOpenEnumText(text: string, numeric: boolean): string | number | null {
-  const s = text.trim();
-  if (!s) return null;
-  if (!numeric) return s;
-  const n = Number(s);
-  return Number.isInteger(n) ? n : null;
-}
-
 export function EnumControl({
   value,
   options,
@@ -363,12 +349,12 @@ export function EnumControl({
   const searchable = !open && options.length > 8;
   const ql = (open ? (draft ?? '') : q).trim().toLowerCase();
   const filtered = ql ? options.filter((o) => optLabel(o).toLowerCase().includes(ql)) : options;
-  const numeric = typeof value === 'number' || options.some((o) => typeof o.value === 'number');
-  // A typed value that no option spells: offer it as its own row rather than
-  // leaving the list empty and the keystroke looking rejected.
-  const typedValue = open && draft !== null && !filtered.some((o) => optLabel(o).toLowerCase() === ql)
-    ? parseOpenEnumText(draft, numeric)
-    : null;
+  // What the draft would write, by the field's own rule (an option, its label, or
+  // — open only — the text on its own terms).
+  const drafted = open && draft !== null ? coerceEnumInput(draft, options, true) : null;
+  // Show it as its own row only when it is NOT one of the options: those are in
+  // the list already, and a duplicate row reads as a different choice.
+  const typedValue = drafted !== null && !options.some((o) => o.value === drafted) ? drafted : null;
   const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: !searchable && !open });
   const close = () => {
     pop.close();
@@ -391,7 +377,7 @@ export function EnumControl({
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (typedValue !== null) commit(typedValue);
+      if (drafted !== null) commit(drafted);
       else if (filtered.length === 1) commit(filtered[0].value);
       else close();
     } else if (e.key === 'Escape') {
@@ -419,11 +405,9 @@ export function EnumControl({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKey}
             onBlur={() => {
-              if (draft === null) return;
-              const v = parseOpenEnumText(draft, numeric);
-              const named = filtered.find((o) => optLabel(o).toLowerCase() === (draft ?? '').trim().toLowerCase());
-              if (named) onChange(named.value);
-              else if (v !== null) onChange(v);
+              // Clicking away commits what was typed rather than losing it; a draft
+              // the field cannot hold is simply dropped back to the stored value.
+              if (drafted !== null) onChange(drafted);
               setDraft(null);
             }}
           />

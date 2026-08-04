@@ -592,6 +592,45 @@ export function setEnumSource(name: string, provider: EnumOptionProvider | null,
 export function isEnumSourceExhaustive(name: string): boolean {
   return enumSources.get(name)?.exhaustive ?? true;
 }
+
+/**
+ * What an enum field may be handed, for every writer of one: the inspector's
+ * control (where it arrives as typed text) and the MCP/agent door (where it
+ * arrives as whatever the client sent). `null` = not a value this field can hold.
+ *
+ * One implementation because the two doors kept drifting: they disagreed about
+ * whether a name outside an open source's options was legal, and then about
+ * whether `7.5` was a sorting layer — the control refused it and the automation
+ * path wrote it. Both questions have one answer per field, and it is here.
+ *
+ * In order: an exact option value, an option's LABEL (what a person types, and
+ * what a client sends when it read the list), then — only for an open source —
+ * the input on its own terms. Ordinals and layer indices are whole numbers, so a
+ * numeric enum takes an integer and nothing else.
+ */
+export function coerceEnumInput(
+  input: string | number,
+  options: readonly EnumOption[],
+  open: boolean,
+): string | number | null {
+  const exact = options.find((o) => o.value === input);
+  if (exact) return exact.value;
+  const text = String(input).trim();
+  const byLabel = options.find((o) => o.label.trim().toLowerCase() === text.toLowerCase());
+  if (byLabel) return byLabel.value;
+  if (!text) return null;
+  // Which kind of value the field stores comes from what its options store.
+  if (typeof input === 'number' || options.some((o) => typeof o.value === 'number')) {
+    // Ordinals and layer indices are whole numbers. "1" is one too: a text
+    // transport sends every value as a string, and refusing that spelling was
+    // how this rule first broke an ordinary MCP write.
+    const n = Number(text);
+    if (!Number.isInteger(n)) return null;
+    const byOrdinal = options.find((o) => o.value === n);
+    return byOrdinal ? byOrdinal.value : open ? n : null;
+  }
+  return open ? text : null;
+}
 function enumSourceOptions(
   name: string,
   data: Readonly<Record<string, unknown>>,

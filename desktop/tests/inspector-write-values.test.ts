@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { toModelValue } from '@/engine/SceneCommands';
 import { coerceFieldValue, splitFieldMember, patchFieldMember } from '@/engine/EditorControlSurface';
-import { parseOpenEnumText } from '@/panels/Details';
+import { coerceEnumInput } from '@/engine/schema';
 import type { InspectorFieldValue } from '@/types';
 
 describe('toModelValue', () => {
@@ -58,6 +58,23 @@ describe('coerceFieldValue (the automation door)', () => {
     it('leaves an ordinal enum coercing to a number', () => {
         expect(coerceFieldValue('enum', 'projectionType', '1', [{ label: 'Ortho', value: 1 }])).toBe(1);
         expect(coerceFieldValue('enum', 'projectionType', 2)).toBe(2);
+    });
+
+    // A C++ enum is as closed as a skeleton's animation list; only the spelling of
+    // its options differed, and that is what this door used to key off. Writing
+    // BlendMode 99 is the ordinal version of writing animation "sprint".
+    it('refuses an ordinal the enum does not define, naming what it does', () => {
+        const MODES = [{ label: 'Alpha', value: 0 }, { label: 'Additive', value: 1 }];
+        expect(coerceFieldValue('enum', 'blendMode', 1, MODES)).toBe(1);
+        expect(() => coerceFieldValue('enum', 'blendMode', 99, MODES)).toThrow(/Additive/);
+    });
+
+    // An open numeric enum takes any LAYER, and a layer is a whole number — the
+    // control refused 7.5 while this door wrote it.
+    it('takes an unnamed layer but not a fractional one', () => {
+        const LAYERS = [{ label: 'back', value: 0 }];
+        expect(coerceFieldValue('enum', 'layer', 7, LAYERS, true)).toBe(7);
+        expect(() => coerceFieldValue('enum', 'layer', 7.5, LAYERS, true)).toThrow(/whole number/);
     });
 
     // An OPEN source offers suggestions, not a closed set: a locale key with no
@@ -117,25 +134,45 @@ describe('structural field members (the "position.x" door)', () => {
     });
 });
 
-// The open enum's text field decides what a keystroke MEANS: a sorting layer is
-// an integer alias, so "back " picks the option and "7" is a layer, while "7.5"
-// and "" are not values the field can hold and must not be written.
-describe('parseOpenEnumText (what an open enum accepts typed)', () => {
-    it('takes an integer for a numeric source, and nothing else numeric-ish', () => {
-        expect(parseOpenEnumText('7', true)).toBe(7);
-        expect(parseOpenEnumText(' 12 ', true)).toBe(12);
-        expect(parseOpenEnumText('-3', true)).toBe(-3);
-        expect(parseOpenEnumText('7.5', true)).toBeNull();
-        expect(parseOpenEnumText('back', true)).toBeNull();
+// The one rule every writer of an enum asks: the inspector control (where the
+// input is typed text) and the automation door (where it is whatever a client
+// sent). They used to answer it separately and disagree — on whether a name
+// outside an open source was legal, and then on whether 7.5 was a sorting layer.
+describe('coerceEnumInput (what an enum field may be handed)', () => {
+    const LAYERS = [{ label: 'back', value: 0 }, { label: 'ground', value: 1 }];
+    const ANIMS = [{ label: 'stand', value: 'stand' }, { label: 'walk', value: 'walk' }];
+
+    it('takes an option by value, and by the label a person actually types', () => {
+        expect(coerceEnumInput(1, LAYERS, true)).toBe(1);
+        expect(coerceEnumInput('ground', LAYERS, true)).toBe(1);
+        expect(coerceEnumInput('  GROUND ', LAYERS, true)).toBe(1);
+        expect(coerceEnumInput('walk', ANIMS, false)).toBe('walk');
     });
 
-    it('takes any non-empty name for a name source', () => {
-        expect(parseOpenEnumText('menu.quit', false)).toBe('menu.quit');
-        expect(parseOpenEnumText('  spaced  ', false)).toBe('spaced');
+    it('takes an ordinal spelled as text, which is how a text transport sends it', () => {
+        expect(coerceEnumInput('1', LAYERS, false)).toBe(1);
+        expect(coerceEnumInput('0', LAYERS, false)).toBe(0);
     });
 
-    it('refuses an empty draft either way — that is a cleared box, not a value', () => {
-        expect(parseOpenEnumText('   ', true)).toBeNull();
-        expect(parseOpenEnumText('', false)).toBeNull();
+    it('takes a whole number past the named layers when the source is open', () => {
+        expect(coerceEnumInput('7', LAYERS, true)).toBe(7);
+        expect(coerceEnumInput(7, LAYERS, true)).toBe(7);
+        expect(coerceEnumInput('-3', LAYERS, true)).toBe(-3);
+    });
+
+    it('refuses a number that is not a layer index — the same answer on both doors', () => {
+        expect(coerceEnumInput('7.5', LAYERS, true)).toBeNull();
+        expect(coerceEnumInput('nope', LAYERS, true)).toBeNull();
+    });
+
+    it('takes a new name for an open name source, and refuses one for a closed one', () => {
+        expect(coerceEnumInput('menu.quit', ANIMS, true)).toBe('menu.quit');
+        expect(coerceEnumInput('sprint', ANIMS, false)).toBeNull();
+        expect(coerceEnumInput(99, LAYERS, false)).toBeNull();
+    });
+
+    it('refuses an empty input — that is a cleared box, not a value', () => {
+        expect(coerceEnumInput('   ', LAYERS, true)).toBeNull();
+        expect(coerceEnumInput('', ANIMS, true)).toBeNull();
     });
 });
