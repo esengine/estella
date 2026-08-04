@@ -16,6 +16,7 @@ import type { BuildResult } from 'esbuild';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
+import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
@@ -64,15 +65,15 @@ export async function buildProjectScripts(
     return {
       ok: true,
       outputPath,
-      errors: result.errors.map((e) => e.text),
+      errors: explainBundleErrors(result.errors),
       warnings: result.warnings.map((w) => w.text),
     };
   } catch (err) {
-    const e = err as { errors?: { text: string }[]; warnings?: { text: string }[]; message?: string };
+    const e = err as { errors?: BundleMessage[]; warnings?: { text: string }[]; message?: string };
     return {
       ok: false,
       outputPath: null,
-      errors: e.errors?.map((x) => x.text) ?? [String(e.message ?? err)],
+      errors: e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)],
       warnings: e.warnings?.map((x) => x.text) ?? [],
     };
   }

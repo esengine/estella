@@ -23,6 +23,7 @@ import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
+import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from '../../build-tools/utils/zip.js';
@@ -274,11 +275,11 @@ export async function exportPlayable(opts: {
       outfile: 'game-bundle.js',
       logLevel: 'silent',
     });
-    errors.push(...res.errors.map((e) => e.text));
+    errors.push(...explainBundleErrors(res.errors));
     bundle = res.outputFiles?.[0]?.text ?? '';
   } catch (err) {
-    const e = err as { errors?: { text: string }[]; message?: string };
-    errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+    const e = err as { errors?: BundleMessage[]; message?: string };
+    errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
   }
 
   // 5. Engine runtime: reuse the shipped WEB build (esengine.js glue + esengine.wasm),

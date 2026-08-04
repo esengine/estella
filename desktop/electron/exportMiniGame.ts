@@ -37,6 +37,7 @@ import { buildAddressableManifest } from './addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
+import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 import {
   sceneUsesPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE,
@@ -345,10 +346,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       logLevel: 'silent',
       write: true,
     });
-    errors.push(...res.errors.map((e) => e.text));
+    errors.push(...explainBundleErrors(res.errors));
   } catch (err) {
-    const e = err as { errors?: { text: string }[]; message?: string };
-    errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+    const e = err as { errors?: BundleMessage[]; message?: string };
+    errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
   }
 
   // 4b. The open data context — a SECOND bundle, for a second JS runtime.
@@ -387,10 +388,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         logLevel: 'silent',
         write: true,
       });
-      errors.push(...res.errors.map((e) => e.text));
+      errors.push(...explainBundleErrors(res.errors));
     } catch (err) {
-      const e = err as { errors?: { text: string }[]; message?: string };
-      errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+      const e = err as { errors?: BundleMessage[]; message?: string };
+      errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
     }
   }
 

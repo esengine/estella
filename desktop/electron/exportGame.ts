@@ -36,6 +36,7 @@ import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
+import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../build-tools/utils/gradleProject.js';
@@ -690,7 +691,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (!nativeContent) {
       progress({ phase: 'Bundling game host' });
       const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
-      errors.push(...host.errors.map((e) => e.text));
+      errors.push(...explainBundleErrors(host.errors));
     }
     // 3. Project bundle (defineComponent/defineSystem). ESM + esengine external on
     //    the web (the import map resolves it); on native an IIFE the host evals,
@@ -704,11 +705,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.js'),
         })
         : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
-      errors.push(...proj.errors.map((e) => e.text));
+      errors.push(...explainBundleErrors(proj.errors));
     }
   } catch (err) {
-    const e = err as { errors?: { text: string }[]; message?: string };
-    errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+    const e = err as { errors?: BundleMessage[]; message?: string };
+    errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
