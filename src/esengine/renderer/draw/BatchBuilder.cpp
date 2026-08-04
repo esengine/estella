@@ -56,6 +56,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
                                            key.blend, 0)
         : DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
                                     key.blend, 0, key.depth, key.materialId);
+    cmd.stage = key.stage;
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
     cmd.vertex_byte_offset = vertexByteOffset;

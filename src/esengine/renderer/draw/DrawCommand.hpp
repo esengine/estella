@@ -50,6 +50,10 @@ struct DrawCommand {
 
     Entity entity = INVALID_ENTITY;
     RenderType type = RenderType::Sprite;
+    // Kept beside the sort key rather than unpacked from it: the bit layout is
+    // buildSortKey's business alone, and a second place that knows it is a second
+    // place to forget when it moves. `layer` is here for the same reason.
+    RenderStage stage = RenderStage::Transparent;
     i32 layer = 0;
     u32 entity_count = 1;
     bool merged = false;
@@ -67,12 +71,23 @@ struct DrawCommand {
     // selected per-vertex in the shader). Order within a layer is otherwise unchanged.
     // Material identity sorts above depth (like shader does) so same-material draws group
     // adjacent for the merge, at the usual batching-over-cross-material-depth tradeoff.
+    //
+    // Layer outranks stage, and that order is load-bearing. A sorting layer is a promise
+    // the user made about what draws on top of what; a stage is how one layer resolves
+    // its own contents. Ranking stage first — the classic 3D pipeline order, where every
+    // opaque draw precedes every transparent one — would let an opaque draw in layer 5
+    // jump ahead of a painter draw in layer 3, which is the sorting layer's entire
+    // meaning inverted. Within a layer the 3D order is the right one: opaque first
+    // (front-to-back, early-z), then blended (back-to-front).
+    //
+    // [63:48] layer | [47:44] stage | [43:36] shader | [35:33] blend
+    // [32:31] flags | [30:14] material | [13:0] depth
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
                             BlendMode blend, u16 stateFlags, f32 depth, u32 materialId = 0) {
-        u64 stageKey = static_cast<u64>(stage) << 60;
-
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
-        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 44;
+        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
+
+        u64 stageKey = static_cast<u64>(stage) << 44;
 
         u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 36;
         u64 blendKey = static_cast<u64>(blend) << 33;
@@ -108,12 +123,17 @@ struct DrawCommand {
     // first, so lower-on-screen entities land on top. Material/depth leave the key
     // (Y-order beats batching by design; adjacent same-state runs still merge in
     // finalize), shader/blend/flags remain as tie-breaks so equal-Y draws group.
+    // Same top two fields as buildSortKey, so a y-sorted layer and a plain one order
+    // correctly against each other; below them this spends its bits on worldY instead.
+    //
+    // [63:48] layer | [47:44] stage | [43:20] worldY | [19:12] shader
+    // [11:9] blend  | [8:7] flags
     static u64 buildSortKeyYSorted(RenderStage stage, i32 layer, f32 worldY,
                                    u32 shaderId, BlendMode blend, u16 stateFlags) {
-        u64 stageKey = static_cast<u64>(stage) << 60;
-
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
-        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 44;
+        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
+
+        u64 stageKey = static_cast<u64>(stage) << 44;
 
         u32 yDescending = (~orderedFloatBits(worldY)) >> 8;  // 24 bits, larger Y → smaller key
         u64 yKey = static_cast<u64>(yDescending & 0xFFFFFF) << 20;

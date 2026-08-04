@@ -181,7 +181,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
 
         if (capture && capture->isCapturing()) {
             capture->recordDrawCall(
-                static_cast<RenderStage>(cmd.sort_key >> 60),
+                cmd.stage,
                 cmd.type, cmd.blend_mode,
                 cmd.texture_count > 0 ? cmd.texture_ids[0] : 0,
                 0, cmd.shader_id,

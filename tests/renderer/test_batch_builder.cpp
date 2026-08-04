@@ -212,3 +212,44 @@ TEST_CASE("execute: indexed and instanced commands dispatch through the device")
     CHECK(h.device.lastDrawInstanceCount == 5);
     CHECK(h.device.setPipelineCalls == 2);
 }
+
+// The sort key ranks layer above stage, and both of these pin that down. Swapping the
+// two fields back (stage on top, the classic 3D pipeline order) flips the first check
+// and leaves the second passing — which is exactly the failure the old layout had:
+// correct inside a layer, and silently wrong across layers. Every other case in this
+// file submits Transparent only, so neither would have been caught here.
+TEST_CASE("sort order: a lower sorting layer draws first even when a higher one is opaque") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey opaqueAbove = quadKey(50, /*layer=*/5);
+    opaqueAbove.stage = RenderStage::Opaque;
+    // A different shader only keeps the two from coalescing, so their order stays
+    // observable; shader ranks below both fields under test.
+    opaqueAbove.shaderId = 8;
+    appendQuad(h.pool, h.list, h.clips, quad, opaqueAbove);
+    appendQuad(h.pool, h.list, h.clips, quad, quadKey(51, /*layer=*/3));
+
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 51);
+    CHECK(h.list.command(1).texture_ids[0] == 50);
+}
+
+TEST_CASE("sort order: inside one layer, opaque draws before blended") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    appendQuad(h.pool, h.list, h.clips, quad, quadKey(60, /*layer=*/4));
+    BatchDrawKey opaque = quadKey(61, /*layer=*/4);
+    opaque.stage = RenderStage::Opaque;
+    opaque.shaderId = 8;
+    appendQuad(h.pool, h.list, h.clips, quad, opaque);
+
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 61);
+    CHECK(h.list.command(1).texture_ids[0] == 60);
+}
