@@ -127,19 +127,34 @@ export function patchFieldMember(
   return obj as InspectorFieldValue;
 }
 
+/**
+ * What a field will accept, as the inspector already describes it — structurally
+ * a subset of InspectorField, so the write door hands its field straight in.
+ *
+ * Taken whole rather than as loose parameters because the constraints kept being
+ * enforced one at a time: the control clamped to a range the automation door
+ * never read, and each new rule meant another argument that existing callers
+ * silently didn't pass.
+ */
+export interface FieldConstraints {
+  /** An enum's options — a NAME-valued set ("walk", "Dragon") says whether a
+   *  string is a legal value or a typo; a numeric one lists the ordinals. */
+  options?: readonly EnumOption[];
+  /** `InspectorField.open` — options are suggestions and a value outside them is
+   *  legal. From the enum source's declaration, which the control reads too. */
+  open?: boolean;
+  /** A numeric field's declared range (ES_PROPERTY min/max). */
+  min?: number;
+  max?: number;
+}
+
 export function coerceFieldValue(
   declared: InspectorFieldType,
   key: string,
   value: InspectorFieldValue,
-  /** The field's own options, when it has them — an enum whose options are NAMES
-   *  ("walk", "Dragon", see EnumOption) stores the name, so the option set is what
-   *  says whether a string is a legal value or a typo. */
-  options?: readonly EnumOption[],
-  /** `InspectorField.open` — the options are suggestions and a value outside them
-   *  is legal. Comes from the enum source's own declaration (EnumSourceOptions),
-   *  which is also what the inspector control reads. */
-  open?: boolean,
+  field?: FieldConstraints,
 ): InspectorFieldValue {
+  const { options, open, min, max } = field ?? {};
   const fail = (expected: string): never => {
     throw new Error(`field "${key}" (${declared}) expects ${expected}, got ${JSON.stringify(value)}`);
   };
@@ -170,10 +185,30 @@ export function coerceFieldValue(
           : `one of: ${options.map((o) => (o.label === String(o.value) ? o.label : `${o.value} (${o.label})`)).join(', ')}`,
       );
     }
-    case 'number':
-    case 'flags':
+    case 'number': {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fail('a number');
+      // The declared range binds every writer. The control clamps a drag and a
+      // keystroke to it; this door REFUSES instead of clamping, because a caller
+      // that asked for 5 on a 0..1 field wants to hear so, not to find 1 stored.
+      if (min != null && n < min) return fail(`at least ${min}`);
+      if (max != null && n > max) return fail(`at most ${max}`);
+      return n;
+    }
+    case 'flags': {
+      const n = Number(value);
+      if (!Number.isFinite(n) || !Number.isInteger(n)) return fail('a whole number of bits');
+      // A flag IS a bit, and the options are the bits that exist. The control can
+      // only ever toggle those; this door used to take any number at all, so a
+      // mask with bits nothing declares went straight into the component.
+      const declaredBits = (options ?? []).reduce((m, o) => m | (Number(o.value) || 0), 0);
+      if (declaredBits !== 0 && (n & ~declaredBits) !== 0) {
+        return fail(`only the declared bits (mask ${declaredBits})`);
+      }
+      return n;
+    }
     case 'entity': {
-      // 'entity' is a source-id reference to another entity — a plain number.
+      // A source-id reference to another entity — a plain number.
       const n = Number(value);
       return Number.isFinite(n) ? n : fail('a number');
     }
@@ -404,7 +439,7 @@ export class EditorControlSurfaceImpl {
       const keys = [...comp.fields.map((f) => f.key), ...(comp.enable ? [comp.enable.key] : [])];
       throw new Error(`"${component}" has no field "${key}" (fields: ${keys.join(', ')})`);
     }
-    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field?.options, field?.open));
+    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field));
   }
   /**
    * Add a component (by schema name) to an entity — the Details "Add Component" door.

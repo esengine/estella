@@ -47,16 +47,16 @@ describe('coerceFieldValue (the automation door)', () => {
     ];
 
     it('accepts a name for an enum whose options are names', () => {
-        expect(coerceFieldValue('enum', 'animation', 'walk', ANIMS)).toBe('walk');
+        expect(coerceFieldValue('enum', 'animation', 'walk', { options: ANIMS })).toBe('walk');
     });
 
     it('refuses a name the field cannot hold, naming what it can', () => {
-        expect(() => coerceFieldValue('enum', 'animation', 'sprint', ANIMS))
+        expect(() => coerceFieldValue('enum', 'animation', 'sprint', { options: ANIMS }))
             .toThrow(/stand, walk/);
     });
 
     it('leaves an ordinal enum coercing to a number', () => {
-        expect(coerceFieldValue('enum', 'projectionType', '1', [{ label: 'Ortho', value: 1 }])).toBe(1);
+        expect(coerceFieldValue('enum', 'projectionType', '1', { options: [{ label: 'Ortho', value: 1 }] })).toBe(1);
         expect(coerceFieldValue('enum', 'projectionType', 2)).toBe(2);
     });
 
@@ -65,16 +65,16 @@ describe('coerceFieldValue (the automation door)', () => {
     // BlendMode 99 is the ordinal version of writing animation "sprint".
     it('refuses an ordinal the enum does not define, naming what it does', () => {
         const MODES = [{ label: 'Alpha', value: 0 }, { label: 'Additive', value: 1 }];
-        expect(coerceFieldValue('enum', 'blendMode', 1, MODES)).toBe(1);
-        expect(() => coerceFieldValue('enum', 'blendMode', 99, MODES)).toThrow(/Additive/);
+        expect(coerceFieldValue('enum', 'blendMode', 1, { options: MODES })).toBe(1);
+        expect(() => coerceFieldValue('enum', 'blendMode', 99, { options: MODES })).toThrow(/Additive/);
     });
 
     // An open numeric enum takes any LAYER, and a layer is a whole number — the
     // control refused 7.5 while this door wrote it.
     it('takes an unnamed layer but not a fractional one', () => {
         const LAYERS = [{ label: 'back', value: 0 }];
-        expect(coerceFieldValue('enum', 'layer', 7, LAYERS, true)).toBe(7);
-        expect(() => coerceFieldValue('enum', 'layer', 7.5, LAYERS, true)).toThrow(/whole number/);
+        expect(coerceFieldValue('enum', 'layer', 7, { options: LAYERS, open: true })).toBe(7);
+        expect(() => coerceFieldValue('enum', 'layer', 7.5, { options: LAYERS, open: true })).toThrow(/whole number/);
     });
 
     // An OPEN source offers suggestions, not a closed set: a locale key with no
@@ -84,8 +84,33 @@ describe('coerceFieldValue (the automation door)', () => {
     // refused a perfectly good new key.
     it('accepts a name outside the options when the source is open', () => {
         const KEYS = [{ label: 'menu.play', value: 'menu.play' }];
-        expect(coerceFieldValue('enum', 'i18nKey', 'menu.quit', KEYS, true)).toBe('menu.quit');
-        expect(() => coerceFieldValue('enum', 'i18nKey', 'menu.quit', KEYS, false)).toThrow(/menu\.play/);
+        expect(coerceFieldValue('enum', 'i18nKey', 'menu.quit', { options: KEYS, open: true })).toBe('menu.quit');
+        expect(() => coerceFieldValue('enum', 'i18nKey', 'menu.quit', { options: KEYS })).toThrow(/menu\.play/);
+    });
+
+    // The declared range is a property of the FIELD, so it has to bind whoever
+    // writes it. The control clamps a drag and a keystroke to it; this door
+    // refuses, because a caller that asked for 5 wants to hear that it can't have
+    // it rather than discover 1 stored later.
+    it('holds a numeric field to its declared range', () => {
+        expect(coerceFieldValue('number', 'opacity', 0.5, { min: 0, max: 1 })).toBe(0.5);
+        expect(() => coerceFieldValue('number', 'opacity', 5, { min: 0, max: 1 })).toThrow(/at most 1/);
+        expect(() => coerceFieldValue('number', 'opacity', -1, { min: 0, max: 1 })).toThrow(/at least 0/);
+        // An unranged field is unchanged — most fields declare no bounds at all.
+        expect(coerceFieldValue('number', 'x', 1e6)).toBe(1e6);
+    });
+
+    // A flag IS a bit, and the options ARE the bits that exist. The control can
+    // only toggle those; this door took any number, so a mask with bits nothing
+    // declares went into the component and no layer ever matched it.
+    it('holds a bitmask to the bits its options declare', () => {
+        const BITS = [{ label: 'Default', value: 1 }, { label: 'Player', value: 2 }];
+        expect(coerceFieldValue('flags', 'categoryBits', 3, { options: BITS })).toBe(3);
+        expect(() => coerceFieldValue('flags', 'categoryBits', 8, { options: BITS })).toThrow(/declared bits/);
+        expect(() => coerceFieldValue('flags', 'categoryBits', 1.5, { options: BITS })).toThrow(/whole number/);
+        // With no options to go on, any mask passes — the same "nothing knowable
+        // here" fallback the enum branch takes.
+        expect(coerceFieldValue('flags', 'categoryBits', 0xffff)).toBe(0xffff);
     });
 });
 

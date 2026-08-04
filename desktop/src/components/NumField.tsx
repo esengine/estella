@@ -138,7 +138,14 @@ export function NumField({
         onChange={(e) => {
           setText(e.target.value);
           const n = parseFloat(e.target.value);
-          if (!Number.isNaN(n)) onCommit(n);
+          if (Number.isNaN(n)) return;
+          // Typed values clamp like every other way into this field. They used not
+          // to, so dragging a slider stopped at its max while typing into the box
+          // beside it wrote straight past — the same field, two different rules.
+          let next = n;
+          if (min != null) next = Math.max(min, next);
+          if (max != null) next = Math.min(max, next);
+          onCommit(next);
         }}
       />
     </span>

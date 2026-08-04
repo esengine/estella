@@ -692,7 +692,7 @@ export function SliderControl({
         <span className="thumb" style={{ left: `${pct * 100}%` }} />
       </div>
       <span className="snum">
-        <NumField value={value} suffix={unit} mixed={mixed} onBegin={onBegin} onEnd={onEnd} onCommit={onChange} />
+        <NumField value={value} suffix={unit} mixed={mixed} step={step} min={min} max={max} onBegin={onBegin} onEnd={onEnd} onCommit={onChange} />
       </span>
     </>
   );
