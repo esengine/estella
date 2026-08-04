@@ -200,6 +200,131 @@ getLogger().addHandler(crumbs);
 | `message` | string | The message. |
 | `data` | unknown | Optional payload (object, `Error`, …). |
 
+## Error reporting from a shipped game
+
+Everything above assumes you're watching. After a build ships you aren't: the console
+that would show the error is on a player's phone. The **`Diagnostics`** resource
+collects what went wrong and hands it to a destination you choose.
+
+**The engine never picks that destination.** There is no default endpoint, no bundled
+vendor, and nothing opens a socket on its own. Stack traces carry file paths and
+messages carry whatever was interpolated into them, so where that goes is your
+decision, not ours. With no sink installed the plugin still does its whole job
+locally — events aggregate and you can read them — and nothing leaves the device.
+
+The plugin is installed by default, so this is available without any setup:
+
+```typescript
+import { Diagnostics, type DiagnosticEvent } from 'esengine';
+
+const diagnostics = app.getResource(Diagnostics);
+
+diagnostics.setSink((events: readonly DiagnosticEvent[]) => {
+  // Batched, distinct problems with counts — not one call per occurrence.
+  void fetch('https://your-service.example/errors', {
+    method: 'POST',
+    body: JSON.stringify({ build: '1.4.2', events }),
+  });
+});
+```
+
+Your sink must not throw (one that does is caught and dropped) and should not block —
+awaiting a network round-trip inside it trades a bug report for a stutter. Batch it
+and send it yourself.
+
+### What it collects
+
+| Kind | Where it comes from |
+|---|---|
+| `engine` | Everything the engine logs as an error — a system that threw during a schedule, an asset that would not load, a subsystem that refused to start. |
+| `unhandled` | Reached the host with nobody catching it: `window.onerror` / `unhandledrejection`, `wx.onError` / `wx.onUnhandledRejection`. Usually game code outside a system — a callback, a promise, a timer. |
+| `context-lost` | The GPU took the rendering context away. The frames after it draw nothing, and no error is thrown — this is the only way to find out it happened. |
+| `memory` | The OS says memory is running out: the warning that arrives *before* the process is killed, which is the crash that never gets a report of its own. |
+| `game` | Whatever you called `report` about. |
+
+The engine half needs no platform support — it listens to the same log broadcast the
+section above describes, which is why installing a `Diagnostics` sink takes nothing
+away from `app.onError`, `app.onSystemError` or your own `LogHandler`. They all keep
+working. The other kinds need the host to have a signal for them:
+
+| | web | WeChat / mini-game | native (Android / iOS) |
+|---|---|---|---|
+| `unhandled` | yes | yes | if the shell wires it |
+| `memory` | — | yes | if the shell wires it |
+| `context-lost` | yes | **no** — a mini-game canvas is not a DOM element and no vendor API reports it | if the shell wires it |
+
+Warnings are not collected by default; pass `captureLevel: LogLevel.Warn` to the
+plugin when chasing a specific complaint.
+
+### Distinct problems, not occurrences
+
+A system that throws does it *every frame* — sixty identical reports a second, from
+every player at once. Sent one by one that isn't telemetry, it's an outage your game
+caused. So the unit is the **distinct problem with a count**:
+
+```typescript
+diagnostics.setSink((events) => {
+  for (const e of events) {
+    console.log(`${e.kind} ${e.source ?? ''}: ${e.message} ×${e.count}`);
+    // engine physics: the world could not step ×1842
+  }
+});
+```
+
+Two occurrences are the same problem when their kind, source, message and **throw
+site** match. The whole stack would split one bug across its callers; the message
+alone would merge two unrelated bugs into one. Numbers in messages are normalized, so
+`Entity 41 has no Transform` files one problem rather than one per entity.
+
+| `DiagnosticEvent` field | Type | Description |
+|---|---|---|
+| `kind` | `DiagnosticKind` | One of the five above. |
+| `id` | string | Stable identity across repeats. |
+| `message` | string | The message, as reported. |
+| `source` | string? | Log category, or the system's name. |
+| `stack` | string? | Present when something with a stack was thrown. |
+| `count` | number | Occurrences since it was first seen. |
+| `firstAt` / `lastAt` | number | Epoch ms, first and most recent. |
+| `context` | object? | Whatever the reporter attached; the newest wins. |
+
+### Reporting from your own game
+
+```typescript
+diagnostics.report({
+  kind: 'game',
+  message: 'Cloud save rejected the payload',
+  context: { slot: 3, bytes: 41_233 },
+});
+
+try { risky(); } catch (err) {
+  diagnostics.reportError('game', err, 'shop');
+}
+```
+
+Keep player-identifying data out of `context` for the same reason the engine picks no
+endpoint — it ends up wherever your sink sends it.
+
+### Tuning
+
+```typescript
+import { DiagnosticsPlugin } from 'esengine';
+
+app.addPlugin(new DiagnosticsPlugin({
+  maxDistinct: 64,        // distinct problems tracked at once
+  flushIntervalSec: 10,   // seconds between handing a batch to the sink
+}));
+```
+
+At `maxDistinct` new problems are dropped while known ones keep counting, and
+`diagnostics.dropped` says how many — a non-zero value means the batch is incomplete,
+and a sink should say so rather than let it read as the whole picture. The earliest
+distinct problems are the ones kept: when a game comes apart it comes apart in
+cascade, and the first failure is what explains the next fifty.
+
+Flushing runs on the engine clock, not a timer, so a backgrounded tab or a suspended
+mini-game doesn't report from a game that isn't running. `flush()` sends immediately —
+useful right before a level transition — and shutdown flushes once on its own.
+
 ## Frame capture — every draw call, explained
 
 When "why is this 40 draw calls?" needs an answer, capture a frame. Arm the

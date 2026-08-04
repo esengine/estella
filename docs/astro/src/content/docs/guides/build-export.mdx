@@ -294,6 +294,66 @@ with [a camera fit](#) so the framing survives either one.
 
 See [The Editor](/docs/guides/editor/) for the settings UI.
 
+## Package size
+
+A finished export is weighed, and the result appears under the build log: what the
+package costs a player, what it's made of, and which files are the largest.
+
+Three figures, because where the bytes sit matters more than how many there are:
+
+- **Initial** — what a player downloads before the game is playable: the host page,
+  the engine runtime, your scripts, and the assets in `local` groups.
+- **On demand** — subpackages, fetched when the game asks for that group.
+- **CDN (not packaged)** — assets in `remote` groups. Real bytes, but they live on
+  your CDN and cost the package nothing. See [Hot Update](/docs/guides/hot-update/).
+
+That split is read from the same manifest the runtime loads, so what the report says
+and what the game does cannot disagree. Moving a level behind a subpackage genuinely
+removes it from the main package, and the report shows it the moment you do.
+
+### Limits
+
+Where a platform publishes a limit, the build is judged against it and the meter says
+which one and where the number came from — quoted, so you can check it against that
+platform's current docs rather than trusting us:
+
+| Target | Limit |
+| --- | --- |
+| WeChat MiniGame | 4MB main package, and 20MB across all subpackages |
+| Playable ad | whatever the chosen network accepts — Meta 2MB for a single `index.html`, Google 5MB for a ZIP, etc. |
+| Web / Desktop / Android / iOS | none published; set your own below |
+
+A build over a limit is reported, not blocked — it built and it runs, and whether
+that's release-blocking is your call (see [the gate](#gating-a-build-on-size) below).
+Past 90% of a limit the meter turns amber, because the pass after that is the one
+that breaks it.
+
+### Your own budget
+
+**Package Project → Advanced → Size budget** sets a ceiling in MB for the selected
+target, saved per platform in `packaging.sizeBudget`. Two reasons to use it: you ship
+well under WeChat's 4MB and want to hear about it before it creeps up, or you target a
+host whose cap the editor doesn't know.
+
+It **replaces the target's primary limit** — WeChat's 4MB main-package figure becomes
+yours — and is attributed to your project rather than quoted as a platform rule. It's
+not a waiver: WeChat's 20MB total still applies. Clear the field to go back to the
+platform's own limit.
+
+### Gating a build on size
+
+The headless exporter carries the same report on its result and can fail on it:
+
+```bash
+node desktop/scripts/export-project.mjs ./my-game \
+  --platform wechat --json report.json --enforce-budget
+```
+
+With `--enforce-budget`, a package over any limit in force exits non-zero and names
+the limit on stderr. Without it, the same facts are reported and the build passes.
+The report is `result.size` in the JSON — the same verdicts the dialog draws, so CI
+and the editor never disagree about whether a build fits.
+
 ## The build CLI (advanced)
 
 The editor packages your **game**. The `build-tools/cli.js` command builds the

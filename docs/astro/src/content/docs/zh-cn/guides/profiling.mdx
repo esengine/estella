@@ -185,6 +185,107 @@ getLogger().addHandler(crumbs);
 | `message` | string | 消息文本。 |
 | `data` | unknown | 可选负载(对象、`Error`……)。 |
 
+## 已发布游戏的错误上报
+
+上面所有内容都假设你在看着。而游戏发布之后你并不在:那个会打印错误的控制台在玩家手机上。**`Diagnostics`** 资源负责收集出了什么问题,并交给一个**由你指定**的去处。
+
+**引擎绝不替你选择这个去处。** 没有默认端点、没有内置服务商,也不会自己开任何连接。堆栈里带着文件路径,消息里带着被拼接进去的一切,所以这些数据去哪儿是你的决定,不是我们的。没有安装 sink 时插件照常完整工作——事件照样聚合、你随时可读——只是什么都不会离开设备。
+
+该插件**默认已安装**,无需任何配置即可使用:
+
+```typescript
+import { Diagnostics, type DiagnosticEvent } from 'esengine';
+
+const diagnostics = app.getResource(Diagnostics);
+
+diagnostics.setSink((events: readonly DiagnosticEvent[]) => {
+  // 收到的是带计数的「不同问题」,不是每次发生调用一次。
+  void fetch('https://your-service.example/errors', {
+    method: 'POST',
+    body: JSON.stringify({ build: '1.4.2', events }),
+  });
+});
+```
+
+你的 sink 不能抛异常(抛了会被吞掉),也不该阻塞——在里面 await 一次网络往返,等于拿一份错误报告换了一次卡顿。请自己攒批再发。
+
+### 它收集什么
+
+| 类别 | 来自哪里 |
+|---|---|
+| `engine` | 引擎作为错误记录的一切 —— 某个 system 在调度中抛异常、某个资产加载不了、某个子系统拒绝启动。 |
+| `unhandled` | 没人接住、直接到达宿主的错误:`window.onerror` / `unhandledrejection`、`wx.onError` / `wx.onUnhandledRejection`。通常是 system 之外的游戏代码——回调、promise、定时器。 |
+| `context-lost` | GPU 收回了渲染上下文。之后的帧什么也画不出来,而且不会抛任何错误——这是唯一能知道它发生过的途径。 |
+| `memory` | 系统提示内存不足:它在进程被杀掉**之前**到达,而那次崩溃本身是永远发不出报告的。 |
+| `game` | 你自己调用 `report` 上报的内容。 |
+
+engine 这一半不需要任何平台支持——它监听的正是上一节所说的那条日志广播。所以安装 `Diagnostics` 的 sink 不会从 `app.onError`、`app.onSystemError` 或你自己的 `LogHandler` 那里拿走任何东西,它们照常工作。其余类别则取决于宿主有没有对应信号:
+
+| | 网页 | 微信 / 小游戏 | 原生(Android / iOS) |
+|---|---|---|---|
+| `unhandled` | 有 | 有 | 需要壳层接入 |
+| `memory` | — | 有 | 需要壳层接入 |
+| `context-lost` | 有 | **没有** —— 小游戏的 canvas 不是 DOM 元素,也没有厂商 API 报告它 | 需要壳层接入 |
+
+警告默认不收集;排查具体问题时给插件传 `captureLevel: LogLevel.Warn`。
+
+### 是「不同的问题」,不是「每次发生」
+
+一个抛异常的 system 会**每帧**都抛——每秒六十条一模一样的报告,而且是所有玩家同时。逐条发出去那不叫遥测,那是你的游戏自己造出来的事故。所以单位是**带计数的不同问题**:
+
+```typescript
+diagnostics.setSink((events) => {
+  for (const e of events) {
+    console.log(`${e.kind} ${e.source ?? ''}: ${e.message} ×${e.count}`);
+    // engine physics: the world could not step ×1842
+  }
+});
+```
+
+当类别、来源、消息和**抛出位置**都相同时,两次发生算同一个问题。用完整堆栈会把一个 bug 按调用者拆成十个;只用消息又会把两个不相干的 bug 并成一个。消息里的数字会被归一化,所以 `Entity 41 has no Transform` 只记一个问题,而不是每个实体一条。
+
+| `DiagnosticEvent` 字段 | 类型 | 说明 |
+|---|---|---|
+| `kind` | `DiagnosticKind` | 上面五种之一。 |
+| `id` | string | 跨重复出现的稳定身份。 |
+| `message` | string | 上报时的消息。 |
+| `source` | string? | 日志分类,或 system 的名字。 |
+| `stack` | string? | 抛出物带堆栈时存在。 |
+| `count` | number | 自首次出现以来的发生次数。 |
+| `firstAt` / `lastAt` | number | epoch 毫秒,首次与最近一次。 |
+| `context` | object? | 上报方附带的数据;以最新的为准。 |
+
+### 上报你自己游戏的问题
+
+```typescript
+diagnostics.report({
+  kind: 'game',
+  message: 'Cloud save rejected the payload',
+  context: { slot: 3, bytes: 41_233 },
+});
+
+try { risky(); } catch (err) {
+  diagnostics.reportError('game', err, 'shop');
+}
+```
+
+不要把能识别玩家身份的数据放进 `context`,理由和引擎不替你选端点是同一个:它最终会去到你的 sink 送达的任何地方。
+
+### 调节
+
+```typescript
+import { DiagnosticsPlugin } from 'esengine';
+
+app.addPlugin(new DiagnosticsPlugin({
+  maxDistinct: 64,        // 同时跟踪多少个不同问题
+  flushIntervalSec: 10,   // 每隔多少秒把一批交给 sink
+}));
+```
+
+达到 `maxDistinct` 后,新问题会被丢弃而已知问题继续计数,`diagnostics.dropped` 告诉你丢了多少——它非零就意味着这批数据并不完整,sink 应当如实说明,而不是让它读起来像全貌。被保留的是**最早**出现的那些:游戏垮掉时是连锁垮的,第一个失败往往解释了后面五十个。
+
+flush 走引擎时钟而非定时器,因此后台标签页或被挂起的小游戏不会从一个根本没在运行的游戏里往外发。`flush()` 可立即发送(比如切关之前),关闭时也会自动发一次。
+
 ## 帧捕获 — 每个 draw call 都有解释
 
 当"这帧为什么是 40 个 draw call?"需要答案时,捕获一帧。先武装捕获,让一帧渲染
