@@ -54,6 +54,10 @@ const READY = 'ready in';
 /** Captures per app. See the comment at the capture site for why >1 and why
  *  the richest one wins. */
 const FRAME_SAMPLES = 3;
+/** How long window focus gets to land on the game before something else holding
+ *  it counts as covering it. See `foreground` for why this is a wait and not a
+ *  question. */
+const FOCUS_WAIT_MS = 8000;
 
 /**
  * Examples that do not start or draw on a device yet, and why.
@@ -197,6 +201,14 @@ function androidDriver(opts) {
         prepare() {
             trySh(adb, ['shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1']);
             trySh(adb, ['shell', 'settings', 'put', 'global', 'anr_show_background', '0']);
+            // A game going fullscreen earns itself the system's "swipe down to
+            // exit" panel, which takes focus for a few seconds — on a first run
+            // of a freshly installed app, which is every app this checks. So the
+            // one signal that says the game reached fullscreen also says
+            // something is on top of it, and the whole matrix reds on a working
+            // engine. Confirming it once, per device, is how Android turns it
+            // off; the wait in `foreground` covers a device that refuses.
+            trySh(adb, ['shell', 'settings', 'put', 'secure', 'immersive_mode_confirmations', 'confirmed']);
             // The boot record lives in the app's external files directory, which
             // scoped storage put out of the shell user's reach — on API 30 the game
             // ran, drew, and reported "never reported ready", because the reader
@@ -231,7 +243,7 @@ function androidDriver(opts) {
         died() {
             return !trySh(adb, ['shell', 'pidof', APP_ID]).stdout.trim();
         },
-        foreground() {
+        async foreground() {
             const out = trySh(adb, ['shell', 'dumpsys', 'activity', 'activities']).stdout ?? '';
             const line = out.split('\n').find((l) => /ResumedActivity/.test(l));
             if (line && !line.includes(APP_ID)) return `on screen instead: ${line.trim().slice(0, 100)}`;
@@ -241,15 +253,35 @@ function androidDriver(opts) {
             // colours on the SCREEN, and a system dialog is hundreds of them —
             // so a game that had gone black passed on the dialog's antialiased
             // text. Focus is what actually moves when something covers us.
-            const focus = (trySh(adb, ['shell', 'dumpsys', 'window']).stdout ?? '')
-                .split('\n').find((l) => /mCurrentFocus/.test(l));
-            // No focus line at all is not evidence of anything — some versions
-            // word it differently, and inventing a failure from a parse miss is
-            // how a gate teaches people to ignore it.
-            if (focus && !focus.includes(APP_ID) && !/mCurrentFocus=null/.test(focus)) {
-                return `something is on top of it: ${focus.trim().slice(0, 100)}`;
+            //
+            // But focus MOVES, and asking once times the question against
+            // whatever holds it at that instant. A launch hands focus over some
+            // time after the activity resumes, and what the system puts up on a
+            // first run holds it first — so asked once, forty-two working games
+            // answered "covered", one shard blaming the fullscreen panel and
+            // another the launcher focus had not yet left. Waiting is what makes
+            // the answer mean something, and it costs nothing when the game has
+            // focus already: what this catches is a window that never gives it
+            // back, which is exactly what an ANR dialog does.
+            const deadline = Date.now() + FOCUS_WAIT_MS;
+            for (;;) {
+                // Focus is reported more than once — the policy state and each
+                // display keep their own line — and they do not all update
+                // together, so the FIRST one is whichever the dump happens to
+                // print first. Reading only that is how a shard spent a whole
+                // matrix blaming a launcher window whose handle never changed.
+                // Any line naming us is the game holding focus.
+                const focus = (trySh(adb, ['shell', 'dumpsys', 'window']).stdout ?? '')
+                    .split('\n').filter((l) => /mCurrentFocus/.test(l));
+                // No focus line at all is not evidence of anything — some versions
+                // word it differently, and inventing a failure from a parse miss is
+                // how a gate teaches people to ignore it. Neither is a focus of
+                // null, which is what a display in transition reports.
+                const held = focus.filter((l) => !/mCurrentFocus=null/.test(l));
+                if (!held.length || held.some((l) => l.includes(APP_ID))) return null;
+                if (Date.now() >= deadline) return `something is on top of it: ${held[0].trim().slice(0, 100)}`;
+                await sleep(500);
             }
-            return null;
         },
         clearScreen() {
             trySh(adb, ['shell', 'am', 'broadcast', '-a', 'android.intent.action.CLOSE_SYSTEM_DIALOGS']);
@@ -530,7 +562,7 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         }
         // `ready` is the first frame submitted; presenting it is not instant.
         await sleep(opts.settle * 1000);
-        offScreen = driver.foreground();
+        offScreen = await driver.foreground();
         if (!offScreen) break;
         driver.clearScreen();
         driver.stop();
@@ -584,7 +616,7 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         const after = driver.readLog();
         if (after) log = after;
         const fresh = log.split('\n').filter((l) => l.startsWith('ERROR [')).slice(errorsBefore);
-        const gone = driver.foreground();
+        const gone = await driver.foreground();
         if (fresh.length) recreateWhy = `after an activity recreate: ${fresh[0].trim()}`;
         else if (gone) recreateWhy = `after an activity recreate: ${gone}`;
         writeFileSync(path.join(opts.out, `${driver.name}-${label}.log`), log);
