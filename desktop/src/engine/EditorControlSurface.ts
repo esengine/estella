@@ -135,6 +135,10 @@ export function coerceFieldValue(
    *  ("walk", "Dragon", see EnumOption) stores the name, so the option set is what
    *  says whether a string is a legal value or a typo. */
   options?: readonly EnumOption[],
+  /** `InspectorField.open` — the options are suggestions and a value outside them
+   *  is legal. Comes from the enum source's own declaration (EnumSourceOptions),
+   *  which is also what the inspector control reads. */
+  open?: boolean,
 ): InspectorFieldValue {
   const fail = (expected: string): never => {
     throw new Error(`field "${key}" (${declared}) expects ${expected}, got ${JSON.stringify(value)}`);
@@ -154,6 +158,9 @@ export function coerceFieldValue(
       if (named) {
         const hit = options!.find((o) => o.value === value || o.label === value);
         if (hit) return hit.value;
+        // An open source offers suggestions, not a closed set: a locale key with
+        // no table entry yet is a legal thing to bind, not a typo to refuse.
+        if (open) return typeof value === 'string' ? value : String(value);
         return fail(`one of: ${options!.map((o) => String(o.value)).join(', ')}`);
       }
       const n = Number(value);
@@ -393,7 +400,7 @@ export class EditorControlSurfaceImpl {
       const keys = [...comp.fields.map((f) => f.key), ...(comp.enable ? [comp.enable.key] : [])];
       throw new Error(`"${component}" has no field "${key}" (fields: ${keys.join(', ')})`);
     }
-    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field?.options));
+    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value, field?.options, field?.open));
   }
   /**
    * Add a component (by schema name) to an entity — the Details "Add Component" door.

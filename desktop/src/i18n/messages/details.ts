@@ -27,6 +27,7 @@ export const detailsMessages = defineMessages({
         zh: '需要 Transform 来放置阴影盒 —— 该投影体被跳过。',
     },
     'det.noMatch': { en: 'No match', zh: '无匹配项' },
+    'det.useLiteral': { en: 'Use {value}', zh: '使用 {value}' },
     'det.none': { en: 'None', zh: '无' },
     'det.noneOption': { en: '(none)', zh: '（无）' },
     'det.mapKey': { en: 'key', zh: '键' },

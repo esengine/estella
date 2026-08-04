@@ -276,7 +276,9 @@ class ProjectStoreImpl {
     // (dragonBones armatures/animations), the skeleton an entity has LOADED (spine),
     // or the project's locale tables (i18n keys). One registry, one control, one
     // write path — see setEnumSource.
-    setEnumSource('sortingLayers', () => this.sortingLayerOptions());
+    // Not exhaustive: the names alias an i32 the renderer sorts on either way, so
+    // a layer nobody named is still a legal layer.
+    setEnumSource('sortingLayers', () => this.sortingLayerOptions(), { exhaustive: false });
     installDragonBonesEnumSources();
     installSpineEnumSources();
     installLocaleKeyEnumSource(() => this.listAssets('locale'));

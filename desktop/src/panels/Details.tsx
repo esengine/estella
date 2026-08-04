@@ -320,41 +320,121 @@ export function SidesControl({
 // list would offer "Stand" for a value spelled "stand". A value with no matching
 // option still shows as itself (an animation the skeleton no longer declares is a
 // thing to SEE, not a blank), and an empty one reads as "None".
+/**
+ * Parse text typed into an OPEN enum against what its options store: a numeric
+ * source (sorting layers) takes an integer and nothing else, a name source takes
+ * any non-empty name. `null` = not a value this field can hold, so the draft is
+ * refused instead of written.
+ */
+export function parseOpenEnumText(text: string, numeric: boolean): string | number | null {
+  const s = text.trim();
+  if (!s) return null;
+  if (!numeric) return s;
+  const n = Number(s);
+  return Number.isInteger(n) ? n : null;
+}
+
 export function EnumControl({
   value,
   options,
+  open,
   mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: string | number; options: EnumOption[]; mixed?: boolean; onChange: (v: string | number) => void }) {
+}: ControlGesture & {
+  value: string | number;
+  options: EnumOption[];
+  /** Options are suggestions; typed values outside them are legal. See InspectorField.open. */
+  open?: boolean;
+  mixed?: boolean;
+  onChange: (v: string | number) => void;
+}) {
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState('');
+  // What an open control is currently being typed into; null = showing its value.
+  const [draft, setDraft] = useState<string | null>(null);
   const optLabel = (o: EnumOption): string => (typeof o.value === 'number' ? prettyLabel(o.label) : o.label);
   const cur = options.find((o) => o.value === value);
   const label = mixed ? '' : cur ? optLabel(cur) : String(value) || t('det.noneOption');
-  const searchable = options.length > 8;
-  const ql = q.trim().toLowerCase();
+  // The open control's own input IS the filter, so it never grows a second one.
+  const searchable = !open && options.length > 8;
+  const ql = (open ? (draft ?? '') : q).trim().toLowerCase();
   const filtered = ql ? options.filter((o) => optLabel(o).toLowerCase().includes(ql)) : options;
-  const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: !searchable });
+  const numeric = typeof value === 'number' || options.some((o) => typeof o.value === 'number');
+  // A typed value that no option spells: offer it as its own row rather than
+  // leaving the list empty and the keystroke looking rejected.
+  const typedValue = open && draft !== null && !filtered.some((o) => optLabel(o).toLowerCase() === ql)
+    ? parseOpenEnumText(draft, numeric)
+    : null;
+  const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: !searchable && !open });
   const close = () => {
     pop.close();
-    trigger.current?.focus();
+    setDraft(null);
+    (open ? input : trigger).current?.focus();
     onEnd?.();
+  };
+  const commit = (v: string | number) => {
+    onChange(v);
+    close();
   };
   const toggle = () => {
     if (pop.isOpen) return close();
     setQ('');
     onBegin?.();
-    pop.open(trigger.current);
+    pop.open((open ? input : trigger).current);
+  };
+  // Enter takes the typed value (or the sole remaining suggestion); Escape drops
+  // the draft without writing. Blur commits, so a click elsewhere isn't a silent loss.
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (typedValue !== null) commit(typedValue);
+      else if (filtered.length === 1) commit(filtered[0].value);
+      else close();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
   };
   return (
     <span className="field dropdown">
-      <button ref={trigger} type="button" className="dd-trigger" {...triggerProps} onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
-        <span className={`dd-val${mixed ? ' mixed' : ''}`}>{mixed ? '—' : label}</span>
-        <ChevronDown size={12} strokeWidth={2} />
-      </button>
+      {open ? (
+        <span className="dd-trigger dd-trigger--open">
+          <input
+            ref={input}
+            className={`dd-input${mixed ? ' mixed' : ''}`}
+            value={draft ?? (mixed ? '' : label)}
+            placeholder={mixed ? '—' : undefined}
+            spellCheck={false}
+            onMouseDown={(e) => e.stopPropagation()}
+            onFocus={() => {
+              if (!pop.isOpen) {
+                onBegin?.();
+                pop.open(input.current);
+              }
+            }}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onKey}
+            onBlur={() => {
+              if (draft === null) return;
+              const v = parseOpenEnumText(draft, numeric);
+              const named = filtered.find((o) => optLabel(o).toLowerCase() === (draft ?? '').trim().toLowerCase());
+              if (named) onChange(named.value);
+              else if (v !== null) onChange(v);
+              setDraft(null);
+            }}
+          />
+          <ChevronDown size={12} strokeWidth={2} onMouseDown={(e: React.MouseEvent) => e.preventDefault()} onClick={toggle} />
+        </span>
+      ) : (
+        <button ref={trigger} type="button" className="dd-trigger" {...triggerProps} onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+          <span className={`dd-val${mixed ? ' mixed' : ''}`}>{mixed ? '—' : label}</span>
+          <ChevronDown size={12} strokeWidth={2} />
+        </button>
+      )}
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
           {searchable && (
@@ -368,16 +448,28 @@ export function EnumControl({
                 role="option"
                 aria-selected={o.value === value && !mixed}
                 className={`dd-opt${o.value === value && !mixed ? ' on' : ''}`}
-                onClick={() => {
-                  onChange(o.value);
-                  close();
-                }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => commit(o.value)}
               >
                 <span className="dd-opt-label">{optLabel(o)}</span>
                 {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
             ))}
-            {filtered.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatch')}</div>}
+            {typedValue !== null && (
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                className="dd-opt dd-opt--literal"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => commit(typedValue)}
+              >
+                <span className="dd-opt-label">{t('det.useLiteral', { value: String(typedValue) })}</span>
+              </button>
+            )}
+            {filtered.length === 0 && typedValue === null && (
+              <div className="empty-line empty-line--sm">{t('det.noMatch')}</div>
+            )}
           </div>
         </Popover>
       )}
@@ -1470,6 +1562,7 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
         <EnumControl
           value={field.value as string | number}
           options={field.options ?? []}
+          open={field.open}
           mixed={mixed}
           onBegin={begin}
           onEnd={end}

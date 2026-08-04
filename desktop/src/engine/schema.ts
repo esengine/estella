@@ -557,18 +557,47 @@ export type EnumOptionProvider = (
   entity?: EntityId,
 ) => EnumOption[];
 
-const enumSources = new Map<string, EnumOptionProvider>();
-/** Register (or clear) a named source of dynamic enum options. */
-export function setEnumSource(name: string, provider: EnumOptionProvider | null): void {
-  if (provider) enumSources.set(name, provider);
+/**
+ * Whether a source's options are the ONLY legal values, which is a property of
+ * the thing being named and not of how it is spelled:
+ *
+ * - EXHAUSTIVE — a spine animation, a DragonBones armature. The names come out of
+ *   the referenced file; one that isn't in it is a typo, and the editor should
+ *   refuse it rather than store a reference to nothing.
+ * - not exhaustive — a sorting layer (the names are aliases over an i32 the
+ *   renderer sorts on regardless), a locale key (binding one before its entry
+ *   exists is the normal authoring order). The options are SUGGESTIONS.
+ *
+ * Declared here once because both writers need the same answer: the inspector,
+ * to decide whether the control may accept a value outside the list, and
+ * coerceFieldValue, for the same decision on the MCP/agent path. That answer
+ * used to be guessed independently from whether the value was a string, which
+ * happened to be right for the skeleton sources and wrong for locale keys.
+ */
+export interface EnumSourceOptions {
+  exhaustive: boolean;
+}
+
+const enumSources = new Map<string, { provider: EnumOptionProvider; exhaustive: boolean }>();
+/** Register a named source of dynamic enum options. */
+export function setEnumSource(name: string, provider: EnumOptionProvider, opts: EnumSourceOptions): void;
+/** Clear a named source. */
+export function setEnumSource(name: string, provider: null): void;
+export function setEnumSource(name: string, provider: EnumOptionProvider | null, opts?: EnumSourceOptions): void {
+  if (provider) enumSources.set(name, { provider, exhaustive: opts?.exhaustive ?? true });
   else enumSources.delete(name);
+}
+/** Whether values outside `name`'s options are illegal. Unknown sources answer
+ *  true, but offer no options either, so the field stays freely editable. */
+export function isEnumSourceExhaustive(name: string): boolean {
+  return enumSources.get(name)?.exhaustive ?? true;
 }
 function enumSourceOptions(
   name: string,
   data: Readonly<Record<string, unknown>>,
   entity?: EntityId,
 ): EnumOption[] {
-  return enumSources.get(name)?.(data, entity) ?? [];
+  return enumSources.get(name)?.provider(data, entity) ?? [];
 }
 /** The bit options for a bitmask field: its source's labels, else `Layer N`. */
 function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] {
@@ -629,6 +658,8 @@ function fieldFor(
     const stringly = typeof options[0].value === 'string';
     const v = stringly ? (typeof value === 'string' ? value : '') : (Number(value) || 0);
     field = { key, label: prettyLabel(key), type: 'enum', value: v, options };
+    // Suggestions, not a closed set — the control lets a value outside them in.
+    if (!isEnumSourceExhaustive(meta.enumSource)) field.open = true;
   } else {
     field = inferField(key, value, isColor);
     if (field && field.type === 'number' && meta) {

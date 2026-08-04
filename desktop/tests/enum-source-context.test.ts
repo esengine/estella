@@ -10,9 +10,14 @@
 // sees the component and the entity, an option may BE a name rather than an index
 // into one, and it may carry a label that reads differently from what it stores.
 import { describe, it, expect, afterEach } from 'vitest';
-import { setEnumSource, inspectorFields } from '@/engine/schema';
+import { setEnumSource, isEnumSourceExhaustive, inspectorFields } from '@/engine/schema';
 
 const FIELD = 'layer';
+
+// Most cases here are about WHAT a provider sees and stores, not about whether its
+// options are the only legal values, so they take the strict reading. Openness has
+// its own describe block below.
+const EXHAUSTIVE = { exhaustive: true } as const;
 
 afterEach(() => {
     setEnumSource('sortingLayers', null);
@@ -27,7 +32,7 @@ describe('enum sources', () => {
         setEnumSource('sortingLayers', (data) => {
             seen = data as Record<string, unknown>;
             return [{ label: 'Default', value: 0 }];
-        });
+        }, EXHAUSTIVE);
 
         fieldsOf('Sprite', { layer: 0, texture: 0 });
         expect(seen).not.toBeNull();
@@ -40,7 +45,7 @@ describe('enum sources', () => {
         setEnumSource('sortingLayers', (data) =>
             data.texture === 1
                 ? [{ label: 'A', value: 0 }, { label: 'B', value: 1 }]
-                : [{ label: 'Only', value: 0 }]);
+                : [{ label: 'Only', value: 0 }], EXHAUSTIVE);
 
         const one = fieldsOf('Sprite', { layer: 0, texture: 1 }).find((f) => f.key === FIELD);
         const two = fieldsOf('Sprite', { layer: 0, texture: 2 }).find((f) => f.key === FIELD);
@@ -54,7 +59,7 @@ describe('enum sources', () => {
         setEnumSource('sortingLayers', () => [
             { label: 'walk', value: 'walk' },
             { label: 'idle', value: 'idle' },
-        ]);
+        ], EXHAUSTIVE);
 
         const f = fieldsOf('Sprite', { layer: 'idle' }).find((x) => x.key === FIELD);
         expect(f?.type).toBe('enum');
@@ -65,7 +70,7 @@ describe('enum sources', () => {
         setEnumSource('sortingLayers', () => [
             { label: 'Default', value: 0 },
             { label: 'Foreground', value: 3 },
-        ]);
+        ], EXHAUSTIVE);
 
         const f = fieldsOf('Sprite', { layer: 3 }).find((x) => x.key === FIELD);
         expect(f?.type).toBe('enum');
@@ -80,7 +85,7 @@ describe('enum sources', () => {
         setEnumSource('sortingLayers', (_data, entity) => {
             seen = entity;
             return [{ label: 'Default', value: 0 }];
-        });
+        }, EXHAUSTIVE);
 
         fieldsOf('Sprite', { layer: 0 }, 42);
         expect(seen).toBe(42);
@@ -88,7 +93,7 @@ describe('enum sources', () => {
 
     it('keeps a label that reads differently from the value it stores', () => {
         // An i18n key previews its translation; the key is still what gets written.
-        setEnumSource('sortingLayers', () => [{ label: 'menu.play · 开始', value: 'menu.play' }]);
+        setEnumSource('sortingLayers', () => [{ label: 'menu.play · 开始', value: 'menu.play' }], EXHAUSTIVE);
 
         const f = fieldsOf('Sprite', { layer: 'menu.play' }).find((x) => x.key === FIELD);
         expect(f?.options).toEqual([{ label: 'menu.play · 开始', value: 'menu.play' }]);
@@ -100,5 +105,32 @@ describe('enum sources', () => {
         // dropdown — free editing has to survive an unwarmed cache.
         const f = fieldsOf('Sprite', { layer: 2 }).find((x) => x.key === FIELD);
         expect(f?.type).not.toBe('enum');
+    });
+});
+
+// Whether a source's options are the ONLY legal values is a property of the thing
+// being named, not of how it is spelled — and both writers (the inspector control
+// and the MCP/agent path) have to get the same answer, which is why the source
+// declares it once instead of each side guessing from the value's type.
+describe('enum sources — exhaustive vs open', () => {
+    it('marks a field open exactly when its source says its options are suggestions', () => {
+        setEnumSource('sortingLayers', () => [{ label: 'back', value: 0 }], { exhaustive: false });
+        expect(fieldsOf('Sprite', { layer: 0 }).find((f) => f.key === FIELD)?.open).toBe(true);
+
+        setEnumSource('sortingLayers', () => [{ label: 'back', value: 0 }], EXHAUSTIVE);
+        expect(fieldsOf('Sprite', { layer: 0 }).find((f) => f.key === FIELD)?.open).toBeFalsy();
+    });
+
+    it('keeps a value the options never offered — the layer nobody named', () => {
+        // The renderer sorts on any i32; the names are aliases over it. A project
+        // that named three layers must still be able to hold layer 7.
+        setEnumSource('sortingLayers', () => [{ label: 'back', value: 0 }], { exhaustive: false });
+        const f = fieldsOf('Sprite', { layer: 7 }).find((x) => x.key === FIELD);
+        expect(f?.type).toBe('enum');
+        expect(f?.value).toBe(7);
+    });
+
+    it('reports unknown sources as exhaustive, which offer nothing anyway', () => {
+        expect(isEnumSourceExhaustive('nothing-registered-here')).toBe(true);
     });
 });

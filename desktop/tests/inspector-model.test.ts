@@ -379,13 +379,23 @@ describe('Sorting-layer enum source (render layer)', () => {
   });
 
   it('becomes a named dropdown once sorting layers are defined', () => {
-    setEnumSource('sortingLayers', () => [{ label: 'Background', value: 0 }, { label: 'Foreground', value: 1 }]);
+    setEnumSource('sortingLayers', () => [{ label: 'Background', value: 0 }, { label: 'Foreground', value: 1 }], { exhaustive: false });
     const S = EditorSession.create();
     S.model.adopt(spriteScene(1), new Map([[1, 1]]));
     const lf = layerField(S);
     expect(lf.type).toBe('enum');
     expect(lf.value).toBe(1);
     expect(lf.options!.map((o) => o.label)).toEqual(['Background', 'Foreground']);
+    // Naming two layers must not make the other thirty illegal — the dropdown
+    // offers the names, and still takes a number outside them.
+    expect(lf.open).toBe(true);
+  });
+
+  it('holds a layer past the named ones', () => {
+    setEnumSource('sortingLayers', () => [{ label: 'Background', value: 0 }], { exhaustive: false });
+    const S = EditorSession.create();
+    S.model.adopt(spriteScene(9), new Map([[1, 1]]));
+    expect(layerField(S).value).toBe(9);
   });
 });
 

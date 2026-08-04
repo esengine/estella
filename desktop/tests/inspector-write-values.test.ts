@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { toModelValue } from '@/engine/SceneCommands';
 import { coerceFieldValue, splitFieldMember, patchFieldMember } from '@/engine/EditorControlSurface';
+import { parseOpenEnumText } from '@/panels/Details';
 import type { InspectorFieldValue } from '@/types';
 
 describe('toModelValue', () => {
@@ -58,6 +59,17 @@ describe('coerceFieldValue (the automation door)', () => {
         expect(coerceFieldValue('enum', 'projectionType', '1', [{ label: 'Ortho', value: 1 }])).toBe(1);
         expect(coerceFieldValue('enum', 'projectionType', 2)).toBe(2);
     });
+
+    // An OPEN source offers suggestions, not a closed set: a locale key with no
+    // table entry yet is the normal authoring order, not a typo. The refusal above
+    // and the acceptance here are the same rule reading the source's own
+    // declaration — before, this path guessed from the value being a string and so
+    // refused a perfectly good new key.
+    it('accepts a name outside the options when the source is open', () => {
+        const KEYS = [{ label: 'menu.play', value: 'menu.play' }];
+        expect(coerceFieldValue('enum', 'i18nKey', 'menu.quit', KEYS, true)).toBe('menu.quit');
+        expect(() => coerceFieldValue('enum', 'i18nKey', 'menu.quit', KEYS, false)).toThrow(/menu\.play/);
+    });
 });
 
 // A field path like "Transform.position.x" is what automation reaches for first —
@@ -102,5 +114,28 @@ describe('structural field members (the "position.x" door)', () => {
 
     it('takes a numeric string, which is what a schema-loose client sends', () => {
         expect(patchFieldMember('vec2', [0, 0], 'y', '12.5')).toEqual([0, 12.5]);
+    });
+});
+
+// The open enum's text field decides what a keystroke MEANS: a sorting layer is
+// an integer alias, so "back " picks the option and "7" is a layer, while "7.5"
+// and "" are not values the field can hold and must not be written.
+describe('parseOpenEnumText (what an open enum accepts typed)', () => {
+    it('takes an integer for a numeric source, and nothing else numeric-ish', () => {
+        expect(parseOpenEnumText('7', true)).toBe(7);
+        expect(parseOpenEnumText(' 12 ', true)).toBe(12);
+        expect(parseOpenEnumText('-3', true)).toBe(-3);
+        expect(parseOpenEnumText('7.5', true)).toBeNull();
+        expect(parseOpenEnumText('back', true)).toBeNull();
+    });
+
+    it('takes any non-empty name for a name source', () => {
+        expect(parseOpenEnumText('menu.quit', false)).toBe('menu.quit');
+        expect(parseOpenEnumText('  spaced  ', false)).toBe('spaced');
+    });
+
+    it('refuses an empty draft either way — that is a cleared box, not a value', () => {
+        expect(parseOpenEnumText('   ', true)).toBeNull();
+        expect(parseOpenEnumText('', false)).toBeNull();
     });
 });

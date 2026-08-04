@@ -24,6 +24,8 @@ const options = (entity: number | undefined, pick: (rt: number) => string[]): En
 };
 
 export function installSpineEnumSources(): void {
-  setEnumSource('spineAnimations', (_data, entity) => options(entity, (rt) => EngineHost.spineAnimations(rt)));
-  setEnumSource('spineSkins', (_data, entity) => options(entity, (rt) => EngineHost.spineSkins(rt)));
+  // Exhaustive: the names come out of the loaded skeleton, so one that isn't in it
+  // names nothing.
+  setEnumSource('spineAnimations', (_data, entity) => options(entity, (rt) => EngineHost.spineAnimations(rt)), { exhaustive: true });
+  setEnumSource('spineSkins', (_data, entity) => options(entity, (rt) => EngineHost.spineSkins(rt)), { exhaustive: true });
 }

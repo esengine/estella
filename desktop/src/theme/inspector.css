@@ -255,6 +255,14 @@
 .dd-val.dd-none, .dd-opt-label.dd-none { color: var(--text-mute); font-style: italic; }
 .dd-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
 .dd-trigger:hover > svg { color: var(--text-dim); }
+/* Open enum (options are suggestions): the trigger IS the text field, so the value
+   is typed in place and the chevron only reveals the suggestions. */
+.dd-trigger--open { cursor: text; }
+.dd-trigger--open > svg { cursor: pointer; }
+.dd-input { flex: 1; min-width: 0; background: none; border: none; outline: none; padding: 0; color: var(--text); font-size: var(--fs-sm); }
+.dd-input.mixed::placeholder { color: var(--text-mute); }
+/* The "use what you typed" row — an escape from the list, not one of its entries. */
+.dd-opt--literal { color: var(--text-mute); font-style: italic; }
 
 .popover { position: fixed; z-index: var(--z-popover); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); box-shadow: var(--shadow-3); padding: 3px; max-height: 320px; display: flex; flex-direction: column; min-width: 0; }
 /* popover-internal filter = the shared flush SearchField */

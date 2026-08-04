@@ -131,6 +131,12 @@ export interface InspectorField {
   assetType?: string;
   /** For `type: 'enum'` — the selectable options (label + stored int). */
   options?: EnumOption[];
+  /**
+   * For `type: 'enum'` — the options are SUGGESTIONS, and a value outside them is
+   * legal (a sorting layer past the named ones, a locale key not yet written).
+   * Absent/false ⇒ the options are the only legal values. See EnumSourceOptions.
+   */
+  open?: boolean;
   /** For `type: 'select'` — the selectable string values. */
   selectOptions?: string[];
   /**

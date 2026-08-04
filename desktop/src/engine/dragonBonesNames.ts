@@ -77,7 +77,9 @@ const asOptions = (names: readonly string[]): EnumOption[] =>
 
 /** Register both dropdowns. Called once at boot, beside the other enum sources. */
 export function installDragonBonesEnumSources(): void {
-    setEnumSource('dragonbonesArmatures', (data) => asOptions(armaturesFor(data).map((a) => a.name)));
+    // Both exhaustive: the names come out of the referenced file, so one that is
+    // not in it names nothing the runtime can play.
+    setEnumSource('dragonbonesArmatures', (data) => asOptions(armaturesFor(data).map((a) => a.name)), { exhaustive: true });
 
     setEnumSource('dragonbonesAnimations', (data) => {
         const armatures = armaturesFor(data);
@@ -90,7 +92,7 @@ export function installDragonBonesEnumSources(): void {
             ? armatures.find((a) => a.name === chosen)
             : armatures[0];
         return asOptions(armature?.animations ?? []);
-    });
+    }, { exhaustive: true });
 }
 
 /** Drop the cache — a project close, or an asset edited outside the editor. */

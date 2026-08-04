@@ -90,8 +90,10 @@ export function installLocaleKeyEnumSource(
   listAssets: () => ReadonlyArray<{ path: string }>,
 ): void {
   listLocaleAssets = listAssets;
+  // Not exhaustive: binding a key before its table entry exists is the normal
+  // authoring order, and the runtime falls back to the key's own text meanwhile.
   setEnumSource('localeKeys', () => {
     kickScan();
     return options;
-  });
+  }, { exhaustive: false });
 }
