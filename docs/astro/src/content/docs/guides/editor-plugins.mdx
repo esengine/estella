@@ -328,3 +328,94 @@ A `.esengine/platforms/<id>.mjs` packaging profile (see
 main process with full system access. It is listed in the Plugins panel and needs
 the same approval — until you approve it, its target shows as not ready in the
 Package dialog.
+
+## Project native modules
+
+Some runtimes arrive as WASM: a vector-animation player, a solver, anything with
+a C++ heritage and an official emscripten build. The engine already loads five of
+its own that way — physics, the Basis transcoder, the per-version Spine runtimes
+— and a project can add its own on the same terms.
+
+Fetching one by hand works on the web and nowhere else. A mini-game has no
+`fetch` and needs the binary *inside* the package; a playable has no files at
+all. A **project module** gets the treatment the engine's own get: acquired
+through one call, staged into every package, required by name in the generated
+mini-game entry, and loaded in Play so you can develop against it.
+
+### Laying one out
+
+```
+<project>/.esengine/modules/rive/
+  module.json          { "file": "rive", "globalName": "RiveModule" }
+  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
+  wechat/rive.js  rive.wasm    ← every mini-game vendor
+```
+
+The **directory name is the id** you acquire by. `module.json` is optional: with
+no manifest the artifact base name defaults to the directory name, so a module
+whose files are `rive/web/rive.js` needs nothing else. `globalName` is the
+emscripten `EXPORT_NAME` — set it when the glue was built with `MODULARIZE` and a
+named export, omit it when the glue is an ES module whose `default` is the
+factory.
+
+Per-platform directories are not bureaucracy. A mini-game host needs its own
+emscripten build (WXWebAssembly glue, a lower es-target) — which is why the
+engine builds its own modules twice too. The editor will **not** substitute the
+web build for a mini-game one: that produces a package that builds clean and dies
+on a device, so it is refused, with a warning naming the file it looked for.
+
+### Using it
+
+`acquire` hands back the emscripten instance. It is typed as
+`Record<string, unknown>` — the engine cannot know your module's exports — so
+declare the surface you use and wrap it once, which is exactly what the built-in
+Spine integration does:
+
+```typescript
+interface RiveModule {
+  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+const raw = await app.sideModules?.acquire('rive');
+if (!raw) return;                        // not packaged for this target — degrade
+const rive = raw as unknown as RiveModule;
+const version = rive.cwrap('rive_version', 'string', [])() as string;
+```
+
+`acquire` caches per id — including the failure, so a missing artifact is not
+re-fetched every frame — and returns `null` rather than throwing when the module
+is unavailable. Gate on it the way gameplay code gates on `Ads.available`: a
+target without the module should degrade, not crash.
+
+To draw what such a runtime produces, hand its triangles to
+[Mesh2D](/guides/drawing/) — positions, UVs, colors and indices go through the
+same path the engine's own Spine integration uses, so it renders on every backend
+the engine supports.
+
+<Aside type="note">
+  Writing the C++ yourself is a separate job and this does not do it for you: the
+  module has to be built with emscripten into the layout above, the same way the
+  engine builds its own. Most third-party runtimes publish an official WASM build
+  already — start there rather than compiling one.
+</Aside>
+
+### What each target does
+
+| Target | Project modules |
+|---|---|
+| Web / Desktop / Playable | staged from `web/` |
+| WeChat & other mini-games | staged from `wechat/` (or a directory named for your vendor id) |
+| Play (in the editor) | staged from `web/`, so you develop against the real module |
+| Android / iOS | **not supported** — the native host links its modules into the app binary, so one arriving with the content has no way to load. Build it into your native host instead. |
+
+A module that could not be staged is never declared to the runtime. That is
+deliberate: a declaration whose binary is absent would report a missing file
+instead of an unsupported target, which is much harder to understand from a
+phone.
+
+Two ids are reserved in the sense that you cannot take them: registering over one
+the engine owns (`physics`, `spine:4.2`, …) is refused, because `physics` meaning
+two different binaries depending on load order is not a capability.

@@ -289,3 +289,82 @@ ctx.scene.transact('Rename Markers', () => {
 [小游戏平台](/zh-cn/guides/minigame-platforms/)）会以完整系统权限被导入编辑器主
 进程。它同样列在插件面板里、同样需要批准——在你批准之前，它对应的目标在打包对话框
 里显示为未就绪。
+
+## 项目原生模块
+
+有些运行时是以 WASM 形态存在的：矢量动画播放器、各种求解器，凡是出身 C++、并且有
+官方 emscripten 构建的东西都算。引擎自己就以这种方式加载着五个——物理、Basis 转码
+器、各版本 Spine 运行时——项目也可以按同样的规则加自己的。
+
+自己 `fetch` 一个只在网页上行得通，别处都不行：小游戏没有 `fetch`，二进制必须**在
+包里**；试玩广告根本没有文件这个概念。而**项目模块**得到的是引擎自家模块同等的待
+遇：一次调用即可取用、被打进每个包、在生成的小游戏入口里按名字 require、并且在 Play
+里也会加载，好让你能对着它开发。
+
+### 目录怎么放
+
+```
+<项目>/.esengine/modules/rive/
+  module.json          { "file": "rive", "globalName": "RiveModule" }
+  web/rive.js   rive.wasm      ← 网页、桌面、试玩广告，以及 Play
+  wechat/rive.js  rive.wasm    ← 所有小游戏平台
+```
+
+**目录名就是你取用时用的 id**。`module.json` 是可选的：没有它时产物基名默认取目录
+名，所以文件按 `rive/web/rive.js` 摆放的模块什么都不用写。`globalName` 是 emscripten
+的 `EXPORT_NAME`——胶水用 `MODULARIZE` 且带具名导出时填它，胶水是 `default` 即工厂
+的 ES 模块时省略。
+
+按平台分目录不是官僚主义。小游戏宿主需要自己那份 emscripten 构建（WXWebAssembly 胶
+水、更低的 es-target）——引擎自家的模块也正因如此要编两遍。编辑器**不会**拿 web 构建
+去顶替小游戏构建：那会产出一个构建干净、上真机就死的包，所以它被拒绝，并给出一条点名
+了它找过哪个文件的警告。
+
+### 怎么用
+
+`acquire` 交还给你的是 emscripten 实例。它的类型是 `Record<string, unknown>`——引擎
+无从知道你的模块导出了什么——所以请自行声明你要用的那一小片并包一层，内置的 Spine
+集成就是这么做的：
+
+```typescript
+interface RiveModule {
+  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+const raw = await app.sideModules?.acquire('rive');
+if (!raw) return;                        // 这个目标没打包它——降级处理
+const rive = raw as unknown as RiveModule;
+const version = rive.cwrap('rive_version', 'string', [])() as string;
+```
+
+`acquire` 按 id 缓存——**包括失败**，所以缺失的产物不会每帧重新请求——并且在模块不可
+用时返回 `null` 而不是抛异常。请像游戏代码判断 `Ads.available` 那样判断它：缺这个模块
+的目标应当降级，而不是崩溃。
+
+要把这类运行时产出的东西画出来，把它的三角形交给
+[Mesh2D](/zh-cn/guides/drawing/)——顶点位置、UV、颜色和索引走的正是引擎内置 Spine 集成
+所用的同一条路，因此引擎支持的每个后端上它都能渲染。
+
+<Aside type="note">
+  自己写 C++ 是另一件事，这套机制并不替你做：模块仍需用 emscripten 按上面的布局构建出
+  来，和引擎构建自家模块的方式一样。多数第三方运行时本就发布了官方 WASM 构建——请从那里
+  开始，而不是自己去编一个。
+</Aside>
+
+### 各目标的行为
+
+| 目标 | 项目模块 |
+|---|---|
+| 网页 / 桌面 / 试玩广告 | 取 `web/` |
+| 微信及其他小游戏 | 取 `wechat/`（或以你的 vendor id 命名的目录） |
+| Play（编辑器内） | 取 `web/`，因此你是对着真实模块开发 |
+| Android / iOS | **不支持** —— 原生宿主把模块链接进应用二进制，随内容送达的模块没有任何加载路径。请把它构建进你的原生宿主。 |
+
+没能被打包进去的模块，**绝不会**被声明给运行时。这是刻意的：一个二进制并不存在的声明
+只会报出"文件找不到"，而不是"这个目标不支持"，后者在手机上要难懂得多。
+
+有一类 id 你拿不到：注册一个引擎自己拥有的 id（`physics`、`spine:4.2` 等）会被拒绝——
+`physics` 因加载顺序不同而指向两个不同的二进制，那不是一种能力。
