@@ -245,6 +245,17 @@ export interface MiniGameGlobal {
      *  own menu. The host calls `cb` at share time, not at registration. */
     onShareAppMessage?(cb: () => MiniGameShareOptions): void;
 
+    /** Begin a sign-in. The result is a one-time code the game's own server
+     *  exchanges — see the note on `PlatformAdapter.login`. */
+    login?(opts: {
+        success?: (res: { code: string }) => void;
+        fail?: (err: unknown) => void;
+        timeout?: number;
+    }): void;
+    /** Whether the host still regards the last sign-in as current. Reports the
+     *  answer by WHICH callback it calls, not by a value. */
+    checkSession?(opts: { success?: () => void; fail?: (err: unknown) => void }): void;
+
     /** The open data context, if this host has one. Absent on a host without
      *  friend data, and on a game whose package declares no context directory. */
     getOpenDataContext?(): MiniGameOpenDataContext;

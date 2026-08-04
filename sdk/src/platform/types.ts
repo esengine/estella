@@ -515,6 +515,25 @@ export interface PlatformAdapter {
      *  as a texture. Null when the host has the capability but this game's
      *  package declares no context to draw with. */
     openDataCanvas?(): PlatformCanvas | null;
+    /**
+     * Begin a host sign-in. Resolves with the one-time CODE, never a session:
+     * turning a code into an identity needs the app secret, which must not be
+     * in anything a player can open, so the exchange is the game's own server's
+     * to make. A platform with no sign-in omits this.
+     */
+    login?(): Promise<string>;
+    /**
+     * Whether {@link login} would reach a real sign-in.
+     *
+     * Method presence is not a capability probe for a FAMILY adapter — one
+     * class serves every mini-game vendor, so it defines `login` whether or not
+     * the host behind it has one. An adapter that is one platform can omit this
+     * and presence stands; a family answers for the host it actually wraps.
+     */
+    canSignIn?(): boolean;
+    /** Whether the host still regards the last sign-in as current, so a game
+     *  can skip re-exchanging a code it does not need. */
+    checkSession?(): Promise<boolean>;
     /** Write this player's own rows to the host's per-player cloud store — the
      *  writable half of a leaderboard. Reading is the open data context's
      *  alone, which is the whole reason that context exists. Returns whether

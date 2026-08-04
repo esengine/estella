@@ -10,4 +10,5 @@ export {
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
     type LeaderboardStyle, type LocalLeaderboardOptions,
 } from './leaderboard';
+export { Identity, IdentityAPI, type LoginResult } from './identity';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';

@@ -186,6 +186,40 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         this.g_.onShareAppMessage?.call(this.g_, provide);
     }
 
+    /** This one class serves every vendor, so it defines `login` regardless —
+     *  the honest answer is whether the host behind it has one. */
+    canSignIn(): boolean {
+        return this.g_.login !== undefined;
+    }
+
+    /** Begin a sign-in, as a promise. Rejects with the host's own words: this
+     *  is a network round trip and "it failed" without why is unactionable. */
+    login(): Promise<string> {
+        const begin = this.g_.login;
+        if (!begin) return Promise.reject(new Error('this host has no sign-in'));
+        return new Promise<string>((resolve, reject) => {
+            begin.call(this.g_, {
+                success: (res) => {
+                    // A host that answers success with no code has not signed
+                    // anyone in, whatever it says.
+                    if (res?.code) resolve(res.code);
+                    else reject(new Error('sign-in returned no code'));
+                },
+                fail: (err) => reject(new Error(`sign-in failed: ${JSON.stringify(err)}`)),
+            });
+        });
+    }
+
+    /** Whether the last sign-in is still current. The hosts answer by which
+     *  callback they call, so this is where that becomes a boolean. */
+    checkSession(): Promise<boolean> {
+        const check = this.g_.checkSession;
+        if (!check) return Promise.resolve(false);
+        return new Promise<boolean>((resolve) => {
+            check.call(this.g_, { success: () => resolve(true), fail: () => resolve(false) });
+        });
+    }
+
     /**
      * The open data context, resolved once and kept.
      *

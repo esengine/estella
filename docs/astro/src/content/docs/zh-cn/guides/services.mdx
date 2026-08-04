@@ -141,3 +141,31 @@ Play 模式会装一块本地榜：跑的是**引擎自己的渲染器**，和�
 
 它替代不了的是真正属于宿主的那部分——真实好友，以及它们所在的沙箱。发版前请在
 真机上过一眼。
+
+## 登录
+
+小游戏宿主把玩家登录后交给你一个**一次性 code**。这个 code 不是身份：要把它换成
+身份需要你的 app secret，而放在客户端里的 app secret 等于人人可读。所以**这一步
+交换属于你自己的服务器**，引擎的职责到 code 为止。
+
+```typescript
+import { defineSystem, Res, Identity } from 'esengine';
+
+if (!identity.available) return;             // 网页、原生、编辑器都没有
+
+// 你服务器手上的会话还有效时，跳过这趟往返。
+if (await identity.sessionValid()) return;
+
+const { code } = await identity.login();     // 是 code，不是会话
+const session = await postToYourServer('/session', { code });
+```
+
+登录失败时 `login()` 会 **reject**，并带上宿主自己的说法；平台压根没有登录时也会
+立刻 reject——这样跳过了 `available` 的调用方会听到消息，而不是 await 一个永远不
+settle 的 promise。code 短期有效且只能用一次：**缓存你服务器返回的会话，不要缓存
+code**。
+
+这里**刻意没有本地替身**，和广告、排行榜不同。假广告仍然是真的暂停、假排行榜仍然
+是真的渲染器，排练它们有意义；而假 code 是任何服务器都换不了的字符串——拿它排练，
+排练的只是一个注定失败的请求。在没有该能力的平台上 `available` 是 `false`，游戏走
+它在「没有账号」时本来该走的那条路。

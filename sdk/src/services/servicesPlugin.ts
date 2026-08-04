@@ -21,6 +21,7 @@ import { Schedule, defineSystem } from '../ecs/system';
 import { Ads, AdsAPI } from './ads';
 import { Share, ShareAPI } from './share';
 import { Leaderboard, LeaderboardAPI } from './leaderboard';
+import { Identity, IdentityAPI } from './identity';
 
 export class ServicesPlugin implements Plugin {
     name = 'Services';
@@ -36,6 +37,7 @@ export class ServicesPlugin implements Plugin {
             resumeAudio: () => app.getResource(Audio)?.resume(),
         }));
         app.insertResource(Share, new ShareAPI());
+        app.insertResource(Identity, new IdentityAPI());
         // Resolved per call rather than captured: the module is attached by
         // connectCpp, which can run after the plugins have built.
         app.insertResource(Leaderboard, new LeaderboardAPI(() => app.wasmModule));

@@ -299,6 +299,31 @@ export function platformOnShareRequest(provide: () => import('./types').Platform
     return true;
 }
 
+/** Whether this platform can sign a player in at all — what a menu reads to
+ *  hide its sign-in button honestly (web, native and the editor cannot). */
+export function platformCanSignIn(): boolean {
+    if (!isPlatformInitialized()) return false;
+    const p = getPlatform();
+    // Declared, and — where the adapter can be more precise than its own method
+    // list — actually backed by a host that signs people in.
+    return p.login !== undefined && (p.canSignIn?.() ?? true);
+}
+
+/** Begin a sign-in; rejects where the platform has none, so a caller that
+ *  skipped {@link platformCanSignIn} still hears about it rather than awaiting
+ *  a promise that never settles. */
+export function platformLogin(): Promise<string> {
+    if (!platformCanSignIn()) return Promise.reject(new Error('this platform has no sign-in'));
+    return getPlatform().login!();
+}
+
+/** Whether the host still regards the last sign-in as current. False where
+ *  there is no sign-in at all — there is nothing current about nothing. */
+export function platformCheckSession(): Promise<boolean> {
+    if (!isPlatformInitialized()) return Promise.resolve(false);
+    return getPlatform().checkSession?.() ?? Promise.resolve(false);
+}
+
 /**
  * Whether this platform has a USABLE open data context — what a leaderboard
  * reads to hide itself honestly (web, native and the editor have none).

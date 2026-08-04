@@ -406,10 +406,11 @@ export {
     Ads, AdsAPI, createMockAdProvider,
     Share, ShareAPI,
     Leaderboard, LeaderboardAPI, createLocalLeaderboard,
+    Identity, IdentityAPI,
     ServicesPlugin, servicesPlugin,
     type AdProvider, type AdsHost, type MockAdProviderOptions, type ShareCard,
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
-    type LeaderboardStyle, type LocalLeaderboardOptions,
+    type LeaderboardStyle, type LocalLeaderboardOptions, type LoginResult,
 } from './services';
 
 // =============================================================================

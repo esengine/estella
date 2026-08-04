@@ -154,3 +154,35 @@ friends. So the panel can be laid out and styled without packaging anything.
 
 What it cannot rehearse is the part that is genuinely the host's — real friends
 and the sandbox they live in. Check that on a device before you ship.
+
+## Signing in
+
+A mini-game host signs the player in and hands back a **one-time code**. That
+code is not an identity: turning it into one takes your app secret, and an app
+secret in a client is an app secret anyone can read. So the exchange belongs to
+your own server, and the engine's job ends at the code.
+
+```typescript
+import { defineSystem, Res, Identity } from 'esengine';
+
+if (!identity.available) return;             // web, native, the editor
+
+// Skip the round trip when the session your server holds is still good.
+if (await identity.sessionValid()) return;
+
+const { code } = await identity.login();     // a CODE, not a session
+const session = await postToYourServer('/session', { code });
+```
+
+`login()` rejects — with the host's own words — when the sign-in fails, and
+rejects immediately where the platform has none, so a caller that skipped
+`available` hears about it instead of awaiting a promise that never settles.
+The code is short-lived and single-use: cache the session your server returns,
+never the code.
+
+There is deliberately **no local stand-in** for this in play mode, unlike ads
+and the leaderboard. A pretend ad is still a real pause and a pretend board is
+still the real renderer, so rehearsing them tells you something. A pretend code
+is a string no server can exchange — rehearsing with it would only rehearse a
+request that is going to fail. Off-platform, `available` is `false`, and a game
+takes whatever path it takes when there is no account.
