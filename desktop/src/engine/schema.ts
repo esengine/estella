@@ -866,15 +866,36 @@ export function modelInspectableComponents(
  * it, plus user (schemas.json) components absent from both the entity and the
  * engine registry. Transform / structural components are excluded.
  */
+/**
+ * Whether a component is something a person (or an agent) may ADD to an entity at
+ * all — a property of the component itself, as against `addComponentOp`'s "does
+ * this entity already have one".
+ *
+ * Lives here, beside the sets it reads, because three places need the same answer:
+ * the Add Component list, the command that performs the add, and the automation
+ * door that has to say WHY it refused. It used to be enforced only while building
+ * the list, so the other two doors would happily author a runtime-only component
+ * into the scene file, or a second EventBinding beside the one its own panel owns.
+ */
+export type ComponentAuthorability = { ok: true } | { ok: false; reason: 'hidden' | 'transient' };
+
+export function componentAuthorability(name: string): ComponentAuthorability {
+  // Structural/relationship components and those with their own authoring panel.
+  if (HIDDEN_COMPONENTS.has(name)) return { ok: false, reason: 'hidden' };
+  // Runtime-only state is never authorable — it is the engine's, not the scene's.
+  if (getComponentRegistry().get(name)?.transient) return { ok: false, reason: 'transient' };
+  return { ok: true };
+}
+
 export function modelAddableComponentEntries(
   entity: SceneEntityLike,
 ): Array<{ name: string; label: string; category: string }> {
   const present = new Set(entity.components.map((c) => c.type));
   const userNames = new Set(getUserComponents().keys());
   const out: Array<{ name: string; label: string; category: string }> = [];
-  for (const [name, def] of getComponentRegistry()) {
-    if (HIDDEN_COMPONENTS.has(name) || name === 'Transform' || present.has(name)) continue;
-    if (def.transient) continue; // runtime-only state is never authorable
+  for (const name of getComponentRegistry().keys()) {
+    if (name === 'Transform' || present.has(name)) continue;
+    if (!componentAuthorability(name).ok) continue;
     out.push({ name, label: prettyLabel(name), category: componentCategory(name, userNames.has(name)) });
   }
   for (const name of userSchemas.keys()) {

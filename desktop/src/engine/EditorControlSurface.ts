@@ -26,7 +26,7 @@ import type {
 import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput } from './schema';
+import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -451,9 +451,20 @@ export class EditorControlSurfaceImpl {
    */
   addComponent(entity: EntityId, component: string): void {
     if (!componentByName(component) && !userSchema(component)) {
+      throw new Error(`no component schema named "${component}" — the editor cannot add it.`);
+    }
+    // The Add Component list hides these; the command that performs the add drops
+    // them too. Said out loud here because a driver that is refused deserves the
+    // reason — this door used to name EventBinding's own door only in the message
+    // for an UNKNOWN component, which is the one case EventBinding never hits.
+    const authorable = componentAuthorability(component);
+    if (!authorable.ok) {
       throw new Error(
-        `no component schema named "${component}" — the editor cannot add it. `
-        + 'Authored-wire components (EventBinding) have their own doors: setEventBindings.',
+        authorable.reason === 'transient'
+          ? `"${component}" is runtime-only state, not something a scene authors.`
+          : `"${component}" is not authored as a component — it has its own door `
+            + '(EventBinding: setEventBindings; UIController/UIGear: the Controllers panel; '
+            + 'Parent/Children: setParent; Name: renameEntity).',
       );
     }
     this.s.commands.addComponent(entity, component);

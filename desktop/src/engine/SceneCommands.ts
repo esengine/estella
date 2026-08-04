@@ -19,6 +19,7 @@ import {
   hexToRgba,
   prettyLabel,
   clampFieldValue,
+  componentAuthorability,
 } from './schema';
 import { normalizeFolder, folderParent, isFolderUnder, rebaseFolder } from '@/outliner/folders';
 import { convertColliderData, COLLIDER_SHAPE_COMP, COMP_COLLIDER_SHAPE, type ColliderShapeKind } from './colliderConvert';
@@ -1268,6 +1269,10 @@ export class SceneCommandsImpl {
   private addComponentOp(sourceId: EntityId, compName: string): UndoOp | null {
     const entity = this.model.entityBySource(sourceId);
     if (!entity || entity.components.some((c) => c.type === compName)) return null;
+    // Not authorable at all (runtime-only state, or a component whose own panel
+    // owns it) — the mirror of removeComponentOp's protected list, so no caller
+    // can author one by reaching past the Add Component list that hides it.
+    if (!componentAuthorability(compName).ok) return null;
     const data = this.defaultDataFor(compName);
     this.model.setComponent(sourceId, compName, data);
     return {

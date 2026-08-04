@@ -7,7 +7,7 @@
  *        UI; assetTypeAllowed is the drag-drop type guard. Pure TS.
  */
 import { describe, it, expect } from 'vitest';
-import { clampFieldValue, isRequiredField, setUserSchemas } from '@/engine/schema';
+import { clampFieldValue, isRequiredField, setUserSchemas, componentAuthorability } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 
 describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
@@ -25,6 +25,23 @@ describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
     expect(ProjectStore.assetTypeAllowed('texture', 'assets/hero.png')).toBe(true);
     expect(ProjectStore.assetTypeAllowed('texture', 'assets/thing.esprefab')).toBe(false);
     expect(ProjectStore.assetTypeAllowed(undefined, 'assets/anything.xyz')).toBe(true); // unconstrained slot
+  });
+
+  // Whether a component may be authored at all was enforced only while building
+  // the Add Component list, so the two doors that don't build that list — the
+  // command, and the automation surface — would author one anyway.
+  it('componentAuthorability refuses what has its own door, and runtime-only state', () => {
+    // Structural / owns-its-own-panel: authored through setEventBindings, the
+    // Controllers panel, setParent, renameEntity — not as a component.
+    for (const name of ['EventBinding', 'UIController', 'UIGear', 'Parent', 'Children', 'Name']) {
+      const v = componentAuthorability(name);
+      expect(v.ok).toBe(false);
+      expect(v.ok === false && v.reason).toBe('hidden');
+    }
+    // An ordinary component stays addable, and so does a project script component
+    // the engine registry has never heard of.
+    expect(componentAuthorability('Sprite').ok).toBe(true);
+    expect(componentAuthorability('SomeProjectScript').ok).toBe(true);
   });
 
   it('isRequiredField flags builtin required asset fields + user-schema required (C2)', () => {
