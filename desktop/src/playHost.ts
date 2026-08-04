@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
@@ -233,6 +233,15 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   // flow a game has to be able to REHEARSE here — the mock keeps the real
   // pause/audio ceremony and just skips the video.
   app.getResource(Ads)?.setProvider(createMockAdProvider());
+
+  // Same reason, harder problem: a friends leaderboard is drawn by a second JS
+  // runtime that exists only on a mini-game host, so without this there is
+  // nowhere to look at one until the game is on a phone. The local board runs
+  // the ENGINE'S OWN renderer — the one that ships inside that runtime —
+  // against an offscreen canvas and obviously-invented friends, so what you see
+  // here is what will be drawn there. What it cannot stand in for is the part
+  // that is genuinely the host's: real friends.
+  app.getResource(Leaderboard)?.setProvider(createLocalLeaderboard());
 
   // Role first, runtime second: initPlayRealmRuntime ends in app.run(), and by
   // then the Net role must already be decided (see beginNet).

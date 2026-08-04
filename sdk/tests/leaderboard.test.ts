@@ -9,7 +9,7 @@
  * tested in opendata.test.ts.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LeaderboardAPI } from '../src/services/leaderboard';
+import { LeaderboardAPI, createLocalLeaderboard } from '../src/services/leaderboard';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 
@@ -26,6 +26,7 @@ function platform(over: Partial<PlatformAdapter> = {}): {
         devicePixelRatio: () => 2,
         openDataPostMessage: (m: Record<string, unknown>) => { sent.push(m); },
         openDataCanvas: () => ({ width: 512, height: 512, getContext: () => null }),
+        createCanvas: (w: number, h: number) => ({ width: w, height: h, getContext: () => null }),
         setCloudKeyValues: (kv: Readonly<Record<string, string>>) => { cloud.push(kv); return true; },
         ...over,
     } as unknown as PlatformAdapter);
@@ -131,6 +132,89 @@ describe('show / hide', () => {
         l.show();
         l.hide();
         expect(sent[1]).toEqual({ kind: 'hide' });
+    });
+});
+
+/**
+ * The rehearsal board. Its value is entirely in being the SAME renderer that
+ * ships inside the open data context — an approximation drawn here would tell
+ * you nothing about what appears on a phone — so what these pin is that it
+ * really does draw, and that it stands in for the platform everywhere.
+ */
+describe('the local board', () => {
+    /** A 2D context that records what was drawn on it. */
+    function recordingCanvas() {
+        const calls: Array<{ op: string; args: unknown[] }> = [];
+        const ctx = new Proxy({} as Record<string, unknown>, {
+            get: (_t, prop: string) => {
+                if (prop === 'measureText') return (s: string) => ({ width: s.length * 7 });
+                if (prop === 'canvas') return undefined;
+                return (...args: unknown[]) => { calls.push({ op: prop, args }); };
+            },
+            set: () => true,
+        });
+        return { calls, ctx };
+    }
+
+    it('draws the rows through the engine\'s own renderer', () => {
+        const rec = recordingCanvas();
+        platform({
+            // No open data context here at all — the provider is the whole board.
+            openDataPostMessage: undefined,
+            openDataCanvas: undefined,
+            // 1:1, and wide enough that nothing is clipped: the clipping rule has
+            // its own test, and letting it fire here would only make this one
+            // assert the wrong thing.
+            devicePixelRatio: () => 1,
+            createCanvas: (w: number, h: number) => ({ width: w, height: h, getContext: () => rec.ctx }),
+        });
+        const l = api();
+        l.setProvider(createLocalLeaderboard({ width: 640 }));
+        expect(l.available).toBe(true);
+        expect(l.show()).toBe(true);
+
+        const texts = rec.calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]));
+        // The invented friends, ranked — and the one who never played is absent,
+        // the same rule the shipped board follows because it IS that board.
+        expect(texts).toContain('Player One');
+        expect(texts).toContain('18400');
+        expect(texts).not.toContain('Never Played');
+    });
+
+    it('re-keys the invented rows to whatever key the game asked for', () => {
+        // A game with its own key would otherwise rehearse against an empty
+        // board and reasonably read that as "this is broken".
+        const rec = recordingCanvas();
+        platform({
+            devicePixelRatio: () => 1,
+            createCanvas: (w: number, h: number) => ({ width: w, height: h, getContext: () => rec.ctx }),
+        });
+        const l = api();
+        l.setProvider(createLocalLeaderboard({ width: 640 }));
+        l.show({ key: 'my.own.key' });
+        expect(rec.calls.some((c) => c.op === 'fillText' && c.args[0] === '18400')).toBe(true);
+    });
+
+    it('answers `available` where the platform cannot', () => {
+        platform({ openDataPostMessage: undefined, openDataCanvas: undefined });
+        const l = api();
+        expect(l.available).toBe(false);
+        l.setProvider(createLocalLeaderboard());
+        expect(l.available).toBe(true);
+        l.setProvider(null);
+        expect(l.available).toBe(false);
+    });
+
+    it('clears the board when the provider is swapped out', () => {
+        platform();
+        const l = api();
+        l.setProvider(createLocalLeaderboard());
+        l.show();
+        expect(l.visible).toBe(true);
+        // The canvas behind the texture is going away with the provider.
+        l.setProvider(null);
+        expect(l.visible).toBe(false);
+        expect(l.texture).toBe(0);
     });
 });
 

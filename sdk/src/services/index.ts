@@ -6,7 +6,8 @@ export {
 } from './ads';
 export { Share, ShareAPI, type ShareCard } from './share';
 export {
-    Leaderboard, LeaderboardAPI,
-    type LeaderboardOptions, type LeaderboardScope, type LeaderboardStyle,
+    Leaderboard, LeaderboardAPI, createLocalLeaderboard,
+    type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
+    type LeaderboardStyle, type LocalLeaderboardOptions,
 } from './leaderboard';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';

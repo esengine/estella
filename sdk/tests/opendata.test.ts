@@ -9,9 +9,9 @@
  * boundary is a test rather than a comment at the top of the file.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { rowsFrom } from '../src/opendata/index';
+import { rowsFrom } from '../src/opendata/board';
 
 const DIR = path.join(__dirname, '..', 'src', 'opendata');
 
@@ -35,16 +35,23 @@ describe('the boundary', () => {
         expect(sources.length).toBeGreaterThan(0);
     });
 
-    it.each(sources)('%s imports nothing but its own protocol, and that only as a type', (file) => {
+    it.each(sources)('%s imports nothing from outside this folder', (file) => {
         const src = readFileSync(path.join(DIR, file), 'utf8');
-        const imports = [...src.matchAll(/^\s*import\s+(type\s+)?[^;]*?from\s+'([^']+)'/gm)]
-            .map((m) => ({ typeOnly: !!m[1], from: m[2] }));
-        for (const im of imports) {
-            // Relative and inside this folder: the two halves of the context.
-            expect(im.from.startsWith('./'), `${file} imports "${im.from}" — the open data context has no engine to import`).toBe(true);
-            // …and erased at build. A value import of anything, even a sibling,
-            // is a runtime dependency this bundle would have to carry.
-            expect(im.typeOnly, `${file} imports "${im.from}" as a VALUE; the context's bundle must carry no runtime dependency`).toBe(true);
+        const imports = [...src.matchAll(/^\s*import\s+(?:type\s+)?[^;]*?from\s+'([^']+)'/gm)].map((m) => m[1]);
+        for (const from of imports) {
+            // The boundary is the FOLDER, not the import kind: files in here are
+            // bundled together into the one file that ships to the context, so a
+            // sibling costs nothing. What must never happen is an import that
+            // leaves — `../` or a package name is the engine arriving in a
+            // runtime that cannot run it.
+            expect(
+                from.startsWith('./') && !from.includes('..'),
+                `${file} imports "${from}" — the open data context has no engine to import`,
+            ).toBe(true);
+            expect(
+                existsSync(path.join(DIR, `${from.slice(2)}.ts`)),
+                `${file} imports "${from}", which is not a file in this folder`,
+            ).toBe(true);
         }
     });
 
