@@ -11,11 +11,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 引用资源
 
-在代码里,按资源的**项目相对路径**引用它——可读,也是你平常会写的:
+在代码里,按资源的**项目相对路径**引用它——可读,也是你平常会写的。这个路径相对的是
+**项目根目录**,不是 assets 文件夹,所以它以 `assets/` 开头——和内容浏览器里显示的那个
+写法一致,也是烘焙产出的清单所用的键:
 
 ```typescript
-const tex = await assets.loadTexture('textures/player.png');
+const tex = await assets.loadTexture('assets/textures/player.png');
 ```
+
+少写这层根的引用(`'textures/player.png'`)照样按项目根解析,在那里什么也找不到,
+加载就以 404 失败。
 
 而编辑器会把引用序列化进场景/预制体时写成**稳定 UUID**(`@uuid:<uuid>`),这样文件被
 改名或移动后引用仍然有效,并自动解析——**`@uuid:` 不是给你手写的,是编辑器写的**。两种
@@ -30,7 +35,7 @@ const tex = await assets.loadTexture('textures/player.png');
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
 const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
-  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
+  const tex = await assets.loadTexture('assets/textures/player.png');   // { handle, width, height }
   for (const [entity, sprite] of q) {
     sprite.texture = tex.handle;
   }
@@ -58,7 +63,7 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 游戏自己的数值表、配置、对白。和别的资源一样加载:
 
 ```typescript
-const { data } = await assets.loadJson<LevelTable>('data/levels.json');
+const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 ```
 
 `T` 是你声称这个文件长什么样;没有任何东西校验它,所以这是 `JSON.parse` 的保证,不是 schema 的。
@@ -112,7 +117,7 @@ assets.releaseGroup('level2');
 
 ```typescript
 const { failed } = await assets.preload(
-  ['textures/boss.png', 'audio/boss-theme.mp3', 'maps/arena.estilemap'],
+  ['assets/textures/boss.png', 'assets/audio/boss-theme.mp3', 'assets/maps/arena.estilemap'],
   (loaded, total) => console.log(`${loaded}/${total}`),
 );
 ```

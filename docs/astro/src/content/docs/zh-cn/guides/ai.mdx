@@ -251,7 +251,7 @@ cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perceiver, { range: 240 })
   .insert(Perception, {})
-  .insert(StateMachineAgent, { fsm: 'ai/enemy.esfsm' });   // 一个编辑器编排的资产
+  .insert(StateMachineAgent, { fsm: 'assets/ai/enemy.esfsm' });   // 一个编辑器编排的资产
 ```
 
 | `StateMachineAgent` 字段 | 说明 |
@@ -311,7 +311,7 @@ import { BehaviorTreeAgent } from 'esengine';
 cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perception, {})
-  .insert(BehaviorTreeAgent, { bt: 'ai/enemy.esbt' });   // 一个编辑器编排的资产
+  .insert(BehaviorTreeAgent, { bt: 'assets/ai/enemy.esbt' });   // 一个编辑器编排的资产
 ```
 
 | `BehaviorTreeAgent` 字段 | 说明 |

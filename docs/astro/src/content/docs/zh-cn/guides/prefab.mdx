@@ -86,7 +86,7 @@ Prefab Mode 暂不支持:就地编辑**嵌套**预制体,或基不是扁平的�
 import { defineSystem, Res, Prefabs } from 'esengine';
 
 const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
-  const { root } = await prefabs.instantiate('prefabs/enemy.esprefab');
+  const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab');
   // `root` is the new entity — move it, tag it, give it a Transform position…
 });
 ```
@@ -96,7 +96,7 @@ const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
 把实例嵌套到另一个实体下,并用返回的 `entities` map 按预制体局部 id 访问子项:
 
 ```typescript
-const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', {
+const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.esprefab', {
   parent: mountPointEntity,
 });
 // root      → the instance root
@@ -110,7 +110,7 @@ const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', 
 组件 + 属性:
 
 ```typescript
-const { root } = await prefabs.instantiate('prefabs/enemy.esprefab', {
+const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
   overrides: [
     { prefabEntityId: '0', type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
   ],

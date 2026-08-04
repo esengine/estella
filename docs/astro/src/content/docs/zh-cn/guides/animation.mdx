@@ -76,7 +76,7 @@ import { defineSystem, Res, SpriteAnimation } from 'esengine';
 
 const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
   anim.onEvent(playerEntity, (e) => {
-    if (e.name === 'footstep') audio.playSFX('sfx/step.wav');
+    if (e.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
   });
 });
 ```
@@ -149,14 +149,14 @@ import {
 } from 'esengine';
 
 const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (assets, sprites) => {
-  const tex = await assets.loadTexture('textures/run-sheet.png');
+  const tex = await assets.loadTexture('assets/textures/run-sheet.png');
 
   // A 32×32 grid over the sheet; frames reference grid cells (row-major).
-  const data = createAnimClip('textures/run-sheet.png', 32, 32, tex.width, tex.height);
+  const data = createAnimClip('assets/textures/run-sheet.png', 32, 32, tex.width, tex.height);
   data.fps = 10;
   for (let cell = 0; cell < 6; cell++) data.frames.push({ cell });
 
-  const handles = new Map([['textures/run-sheet.png', tex.handle]]);
+  const handles = new Map([['assets/textures/run-sheet.png', tex.handle]]);
   sprites.registerClip(parseAnimClipData('run', data, handles));
   // Any SpriteAnimator can now set clip = 'run'.
 });

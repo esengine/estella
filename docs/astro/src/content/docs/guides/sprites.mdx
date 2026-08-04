@@ -20,7 +20,7 @@ sprite:
 import { defineSystem, Commands, Res, Query, Mut, Transform, Sprite, Assets } from 'esengine';
 
 const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets) => {
-  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
+  const tex = await assets.loadTexture('assets/textures/player.png');   // { handle, width, height }
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
     .insert(Sprite, { texture: tex.handle, size: { x: tex.width, y: tex.height } });

@@ -184,6 +184,22 @@ export interface SceneAssetResult {
 
 export type AssetRefResolver = (ref: string) => string | null;
 
+/**
+ * The asset server: one typed loader per asset type, over one ref vocabulary.
+ *
+ * Every `ref` a loader takes is one of two spellings, and both land on the same
+ * file:
+ *
+ *  - a **project-root-relative path** — `'assets/textures/player.png'`. Relative
+ *    to the project root, NOT to the assets folder, so it carries the `assets/`
+ *    segment: it is the path the Content Browser shows, the key the cook's
+ *    manifest is built on, and what the backend appends to its base url. A ref
+ *    that drops the root resolves just the same and 404s, because nothing lives
+ *    at the project root.
+ *  - an **`@uuid:` ref** — what the editor serializes into scenes and prefabs so
+ *    renaming or moving the file breaks nothing. Not hand-written; the realm's
+ *    resolver turns it back into the path above before any fetch.
+ */
 export class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;

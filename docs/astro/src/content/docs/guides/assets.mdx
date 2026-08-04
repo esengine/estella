@@ -14,11 +14,16 @@ used. This guide covers each piece.
 ## Referencing assets
 
 In code, reference an asset by its **project-relative path** — readable, and what
-you'll normally write:
+you'll normally write. The path is relative to the **project root**, not to the
+assets folder, so it starts with `assets/` — the spelling the Content Browser
+shows and the one the cook's manifest keys on:
 
 ```typescript
-const tex = await assets.loadTexture('textures/player.png');
+const tex = await assets.loadTexture('assets/textures/player.png');
 ```
+
+A ref that drops the root (`'textures/player.png'`) resolves against the project
+root all the same, finds nothing there, and fails the load with a 404.
 
 The editor, by contrast, serializes references into scenes and prefabs as a
 **stable UUID** (`@uuid:<uuid>`) so a reference survives the file being renamed or
@@ -35,7 +40,7 @@ id you put on a component. For example, load a texture and show it on a `Sprite`
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
 
 const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
-  const tex = await assets.loadTexture('textures/player.png');   // { handle, width, height }
+  const tex = await assets.loadTexture('assets/textures/player.png');   // { handle, width, height }
   for (const [entity, sprite] of q) {
     sprite.texture = tex.handle;
   }
@@ -60,7 +65,7 @@ A `.json` that is not a Spine skeleton or a DragonBones pair is a **data asset**
 game's own tables, tuning and dialogue. It loads like anything else:
 
 ```typescript
-const { data } = await assets.loadJson<LevelTable>('data/levels.json');
+const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 ```
 
 `T` is what you expect the file to hold; nothing validates it, so this is `JSON.parse`'s
@@ -127,7 +132,7 @@ and loads through the same typed channels with bounded concurrency:
 
 ```typescript
 const { failed } = await assets.preload(
-  ['textures/boss.png', 'audio/boss-theme.mp3', 'maps/arena.estilemap'],
+  ['assets/textures/boss.png', 'assets/audio/boss-theme.mp3', 'assets/maps/arena.estilemap'],
   (loaded, total) => console.log(`${loaded}/${total}`),
 );
 ```

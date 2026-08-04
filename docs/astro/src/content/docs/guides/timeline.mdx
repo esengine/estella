@@ -21,7 +21,7 @@ import { defineSystem, Commands, TimelinePlayer } from 'esengine';
 
 const attach = defineSystem([Commands()], (cmds) => {
   cmds.spawn().insert(TimelinePlayer, {
-    timeline: 'timelines/intro.estimeline',
+    timeline: 'assets/timelines/intro.estimeline',
     playing: true,
     speed: 1.0,
     wrapMode: 'once',

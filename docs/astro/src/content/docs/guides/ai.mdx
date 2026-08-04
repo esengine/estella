@@ -274,7 +274,7 @@ cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perceiver, { range: 240 })
   .insert(Perception, {})
-  .insert(StateMachineAgent, { fsm: 'ai/enemy.esfsm' });   // an editor-authored asset
+  .insert(StateMachineAgent, { fsm: 'assets/ai/enemy.esfsm' });   // an editor-authored asset
 ```
 
 | `StateMachineAgent` field | Description |
@@ -337,7 +337,7 @@ import { BehaviorTreeAgent } from 'esengine';
 cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perception, {})
-  .insert(BehaviorTreeAgent, { bt: 'ai/enemy.esbt' });   // an editor-authored asset
+  .insert(BehaviorTreeAgent, { bt: 'assets/ai/enemy.esbt' });   // an editor-authored asset
 ```
 
 | `BehaviorTreeAgent` field | Description |
