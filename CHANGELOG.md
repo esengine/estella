@@ -14,6 +14,249 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-04
+
+A release about a game that is no longer alone once it ships. Four more of the
+things a mini-game host can do for it — sign a player in, take a payment, draw a
+friends leaderboard, and run the second JS runtime that leaderboard needs — two
+things a project can now bring in for itself — an npm package, and a WASM runtime
+the engine has never heard of — and, for the day after it ships, what the package
+weighs and what went wrong on somebody else's phone.
+
+### Added
+
+- **A player can sign in through the host, and the engine refuses to fake the
+  half that matters.** A mini-game host signs a player in and hands back a
+  one-time CODE; turning that into an identity takes the app secret, and an app
+  secret in a client is an app secret anyone can read. So the exchange belongs to
+  the game's own server and the engine's job ends at the code — `Identity.login()`
+  resolves with `{ code }` rather than a string, because destructuring makes the
+  call site say the word, which is what stops `if (await Identity.login())` from
+  reading like "I am now signed in". It rejects with the host's own words when
+  the round trip fails, rejects immediately where there is no sign-in rather than
+  awaiting a promise that never settles, and `sessionValid()` exists to SKIP a
+  login. Unlike ads and the leaderboard there is deliberately no local stand-in:
+  a pretend ad is still a real pause, but a pretend code is a string no server
+  can exchange.
+
+- **In-game purchase, and the device it is not allowed on.** Buying inside a
+  mini-game is a permission, not a feature — on WeChat it is Android-only, and
+  the same call on an iPhone is refused by the platform — so `Payment.available`
+  answers for the DEVICE rather than for the API's existence, and a shop can stay
+  shut instead of opening and failing at the tap. It does not interpret the
+  host's error codes (they differ between vendors, and a cancel and a failure
+  need different UI), and it grants nothing: a purchase the client believes in is
+  a purchase an attacker can claim, so `request()` resolving is the cue to go and
+  ask your server, not to add coins.
+
+- **A friends leaderboard, including the half that runs somewhere else.** This is
+  the one thing a team cannot build on top of the engine, for a structural
+  reason: a player's friends are readable only inside the open data context — a
+  second JS runtime with no engine, no WebGL and no wasm — which talks to the
+  game through a canvas the game samples and a message channel with no way back.
+  So the façade states the constraint instead of hiding it. `submit` writes the
+  player's own row (the one cloud operation the main domain may do), `show` is a
+  request rather than a question — what comes back is pixels, never rows, never a
+  count — and `texture` is those pixels as an engine handle a UIVisual can wear,
+  stable across every redraw. An API returning `Promise<Row[]>` would be the
+  honest-looking one, and the one no host can implement. A working board ships as
+  its own context bundle and the exporter uses it whenever a project supplies
+  none; a project that supplies one wins. Play mode installs a local board that
+  runs the ENGINE'S OWN board code against an offscreen canvas and invented
+  friends, so the UI whose whole job is to look right can be looked at before
+  there is a phone.
+
+- **The open data context is a capability, and an export bundles one.** The
+  platform half is three optional members under the same probing convention as
+  share and ads — post a message in, take the shared canvas out, write this
+  player's own cloud rows — implemented once for every mini-game vendor that has
+  them. The export half is a second bundle for that second runtime, and the
+  `esengine` alias is deliberately withheld from it: a context that imports the
+  engine now fails to resolve at export instead of throwing on a device, which is
+  the only other place that mistake would surface. `game.json` names the
+  directory only when one was actually written, since the host compiles what that
+  key points at.
+
+- **A project can ship its own native module.** A third-party runtime that
+  arrives as WASM — a vector-animation player, another solver — used to have to
+  be fetched and instantiated by the game itself, which works on exactly the
+  platform where doing it by hand is easiest and least necessary: a mini-game has
+  no `fetch` and needs the binary IN the package, and a playable has no files at
+  all. The machinery was already here and closed, so `SideModuleId` is opened the
+  way `ExportPlatform` already is, and a project drops a module in
+  `.esengine/modules/<id>/` with per-platform build directories — serving the web
+  glue to WeChat would produce a package that builds clean and dies on a device,
+  so it is refused rather than substituted. One invariant runs through the
+  export: a module is DECLARED only if it was STAGED. Play stages from the same
+  directory the export reads, so developing against a module no longer means
+  packaging the game to find out whether it loaded, and registering over an
+  engine id is refused rather than last-wins.
+
+- **A new project can take an `npm install` straight away.** Project scripts are
+  bundled with esbuild, which resolves out of the project's own `node_modules` —
+  so `npm install protobufjs` has always worked and shipped with the game on
+  every target. What did not work was the first step: no `package.json`, so npm
+  wanted an `npm init` that nothing told you was a prerequisite. It is generated
+  at creation now (slugged name, `private: true`), from one source rather than a
+  copy in each of the forty-odd templates. And reaching for a Node built-in no
+  longer fails with a bare `Could not resolve "crypto"` — the error names the
+  importer, says why a game is not Node, and gives advice that depends on WHO
+  reached: your own code gets pointed at web APIs, a dependency's import gets
+  pointed at the package, because advice about code you did not write is useless.
+
+- **Every packaging target now says what it weighs, and a build can be failed for
+  it.** A shipped game is refused for being too big far more often than for being
+  wrong, and the editor could say so for exactly one target; WeChat's 4MB main
+  package had nothing at all. A limit is data now — a number, WHAT it counts
+  (initial / total / deliverable), and where it came from, quoted verbatim so a
+  developer checks it against that platform's docs rather than trusting us — so a
+  host the editor has never heard of declares its own and is reported exactly
+  like WeChat's. Where the bytes sit is read off the manifest the build just
+  wrote, so 80KB of hot-updatable art is reported as costing the package nothing,
+  because it does. `--enforce-budget` makes the build CLI exit non-zero and name
+  the limit and the overage, opt-in because an oversized package is still a
+  package and whether that blocks a release is the caller's call.
+
+- **A shipped game can say what went wrong.** After a build ships the engine goes
+  blind: a device loses its GL context, an asset 404s in one region, a system
+  throws on frame 12,000, and all of it prints to a console on someone else's
+  phone. Every error the engine raises already goes through the logger, so the
+  bridge is a log handler and a game's own error handlers keep working untouched;
+  what the log cannot see is what happens outside the frame, so the platform grew
+  three optional subscriptions — uncaught host errors, a lost render context, and
+  OS memory pressure, the warning that arrives before the process is killed.
+  THE ENGINE NEVER PICKS A DESTINATION: no endpoint, no bundled vendor, nothing
+  here opens a socket, and with no sink installed this still does its whole job
+  locally. Aggregation is what makes it safe to leave on — a system that throws
+  does it sixty times a second from every player at once, so the unit is the
+  DISTINCT problem with a count, with numbers normalized away so "Entity 41 has
+  no Transform" does not file a new problem per entity. Native reports the two
+  signals only its shell can see; mini-games report neither, and the platform
+  table says so rather than leaving a gap someone re-investigates.
+
+- **A plugin can lend the agent a tool.** A plugin already extends what a PERSON
+  can do here; the agent's entire vocabulary is the tool catalog, so a capability
+  the agent cannot name is one added for half the editor.
+  `ctx.agentTools.register(…)` keeps the handler in the renderer and sends across
+  only what a session needs to describe the tool to a model, dispatching back
+  through one door — a transport per plugin would be a second way for an agent to
+  reach this editor. Namespacing is enforced rather than suggested (a tool named
+  `delete_entity` would be called by a model that believes it knows what happens
+  next), and refused out loud, since a plugin's docs will say the tool exists.
+
+- **How hard the agent thinks is a setting, not a constant.** The plumbing
+  reached the wire and no caller ever filled it in, so every turn ran at maximum
+  depth whether it was building a menu or renaming three entities. It is its own
+  setting rather than part of the model pick — the same model is worth running
+  shallower — narrowed on the way through so an edited settings file cannot send
+  an unknown depth to the endpoint, and shown beside the model in the picker,
+  because together they are what the next turn will cost.
+
+- **An entity the agent just touched says so, once.** The dot beside a touched
+  row is a standing fact that lasts until the checkpoint is answered, and a
+  standing mark cannot also carry "a second ago". Arrival now gets its own
+  moment: the dot grows in and a ring leaves from under it, on the channel that
+  is already the agent's — not a tint on the row, whose background belongs to
+  selection and the drop target. Reduced motion keeps the dot and drops the
+  travel. Nothing flashes when dots are cleared or when the panel is reopened; a
+  tree that lights up when you look at it teaches people to ignore the light.
+
+- **Sorting layers get all 32 nameable slots, not 8.** The settings page offered
+  eight, the store read back eight, and the manifest parser already accepted
+  thirty-two — so hand-editing the file past eight silently lost the rest. 32 is
+  the honest number, because y-sort is a 32-bit mask over layer indices. The
+  renderer was never the limit: `layer` is an i32 and sorts on any integer, and
+  the named slots are a readability feature over it.
+
+### Changed
+
+- **An enum source now says whether its options are the only legal values.** Six
+  sources feed the inspector's dynamic dropdowns and they are two different
+  things wearing one mechanism: a spine animation is EXHAUSTIVE, a sorting layer
+  is not — the names alias an i32 the renderer sorts on regardless — and neither
+  is a locale key, where binding one before its table entry exists is the normal
+  authoring order. Only the exhaustive reading was implemented, so naming a
+  single layer closed the field down to that one option. Sources declare it once
+  now and both writers read that declaration; an open enum's control is the
+  suggestions plus a way past them. The one behaviour change: a closed enum
+  refuses an ordinal it does not define, which is the rule that already governed
+  its name-valued twin.
+
+- **Whether a component may be authored is one answer, not the menu's.**
+  "Runtime-only state is never authorable" and "this one has its own authoring
+  door" existed only as filters while BUILDING the Add Component menu, so the
+  command underneath and the automation surface would both author an
+  `EventBinding` beside the one its panel owns, or write a transient runtime
+  component into the scene file. One predicate answers now, and the automation
+  door refuses out loud with the door to use instead.
+
+### Fixed
+
+- **Hiding a parent hides what it contains.** The eye writes a per-entity flag
+  and five places read that flag directly, so each answered for ONE entity:
+  hiding a group left every child drawing, still grabbable in the viewport, and
+  shown as visible in the Outliner. Visibility is inherited, so it is one rule
+  and now one function that all five ask. A toggle re-projects the SUBTREE, and a
+  reparent re-folds — dragged under a hidden group the subtree has to go, dragged
+  back out it has to return, and no visibility change is emitted for that. The
+  Outliner still reads the row's own flag for the eye, so clicking it is never a
+  no-op, while an inherited hide dims the row.
+
+- **Stop answers during a tool, and a stream no longer floods the window.** Two
+  reports with one cause between them: the window froze while the agent ran a
+  tool, would not scroll, and Stop appeared to do nothing. Stop was honoured only
+  BETWEEN tool calls — the abort signal never reached the dispatch — so the turn
+  ends now even though the in-flight call still finishes, and the transcript says
+  which of the two happened rather than implying the work was undone. The freeze
+  was the streaming: a scene edit's arguments arrive as hundreds of JSON
+  fragments, each costing an IPC message, a store update that rebuilt the run's
+  whole entry list, and a re-render — which is also why Stop looked dead, since a
+  blocked renderer cannot deliver the click. Consecutive deltas merge and leave
+  on a frame's delay, at the one place events leave for the window, because
+  transcript and status share a channel precisely because their order is meaning.
+
+- **The run header counts tokens while you are waiting for them.** Usage was
+  emitted once, after the response finished streaming — so the one number a
+  person is looking for during a long wait was blank for exactly as long as the
+  wait lasted. The input is known before a single token comes back, and the
+  output accrues as it goes; the deltas are computed in the provider, which is
+  the layer that knows the wire format, and the settle at the end pays whatever
+  the stream did not already account for.
+
+- **A field's declared constraints bind every way of writing it.** A ranged
+  number clamped when dragged and when nudged with an arrow key and not when
+  typed, so a slider stopped at its max while the box beside it wrote straight
+  past; the automation door read no range at all; and a bitmask took bits nothing
+  declares, which no layer can ever match. All three bind now, and the two doors
+  differ only in how they say no — the control clamps, because a drag that stops
+  at the end is what a person means, and the automation door REFUSES, because a
+  caller that asked for 5 wants to hear so rather than find 1 stored.
+
+- **A renamed sorting layer reaches the lists that label themselves with it.**
+  The y-sort checkboxes and the collision matrix took their labels from a
+  different setting than the one they subscribed to, so neither re-rendered when
+  you named a layer: the list kept whatever names the dialog opened with, and a
+  layer you had just named never became tickable.
+
+- **A schedule that is not one says which system, and which value.** Project code
+  is bundled with esbuild, which strips types without checking them, so a
+  registration TypeScript would have rejected still runs — and it failed with
+  "Cannot read properties of undefined (reading 'push')" from inside a minified
+  bundle, naming neither the system nor the value. A member that does not exist
+  and swapped arguments look nothing alike in the source and identical at
+  runtime, so the message tells them apart and lists what a schedule can be.
+
+### Documentation
+
+- **An asset ref is rooted at the project, not at the assets folder.** The
+  reference guide said "project-relative path" and then showed
+  `'textures/player.png'`, which reads as "relative to the assets folder" and
+  resolves to nothing. Six guides taught the rootless spelling while audio,
+  tilemap, video and localization taught the right one — so whichever page you
+  learned from decided whether your first load 404'd. Every example carries the
+  `assets/` segment now, and the rule is stated on the `Assets` class itself,
+  where someone writing code will actually be.
+
 ## [0.42.0] - 2026-08-03
 
 A release about the last mile: what a game needs on the way out the door, and
@@ -2872,7 +3115,10 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/esengine/estella/compare/v0.42.0...v0.43.0
+[0.42.0]: https://github.com/esengine/estella/compare/v0.41.0...v0.42.0
+[0.41.0]: https://github.com/esengine/estella/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/esengine/estella/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/esengine/estella/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/esengine/estella/compare/v0.37.0...v0.38.0
