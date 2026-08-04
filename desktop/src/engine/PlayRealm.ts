@@ -61,6 +61,11 @@ export class PlayRealmInstance {
   private iframe: HTMLIFrameElement | null = null;
   private payload: PlayPayload | null = null;
   private netPorts: MessagePort[] | null = null;
+  // The project's own native modules, learned when the realm was staged. Held
+  // across a warm re-Play because staging is what discovers them: a module added
+  // while a realm is warm reaches the game on the next COLD Play, the same rule
+  // every other file in the realm's wasm/ follows.
+  private sideModules: PlayPayload['sideModules'];
   private epoch = 0;
   // The realm's wasm + GL are alive in the (persistent) iframe from a prior Play,
   // so a re-Play hands over the new scene instead of cold-booting a fresh iframe
@@ -173,6 +178,10 @@ export class PlayRealmInstance {
         this.set({ error: realm.errors[0] ?? t('proj.playPrepareFailed') });
         return;
       }
+      this.sideModules = realm.sideModules?.length ? realm.sideModules : undefined;
+      // A module that could not be staged does not stop Play — but silence here
+      // is a plugin that mysteriously does nothing, so it reaches the log.
+      for (const w of realm.warnings ?? []) console.warn('[play]', w);
       frame.src = `estella://project/${realm.hostPath}?n=${++this.epoch}`;
     } catch (err) {
       this.set({ error: err instanceof Error ? err.message : String(err) });
@@ -184,7 +193,12 @@ export class PlayRealmInstance {
   private postInit(): void {
     if (!this.payload) return;
     const ports = this.netPorts ?? undefined;
-    this.post({ type: 'estella:play:init', ...this.payload, netPorts: ports }, ports);
+    this.post({
+      type: 'estella:play:init',
+      ...this.payload,
+      ...(this.sideModules ? { sideModules: this.sideModules } : {}),
+      netPorts: ports,
+    }, ports);
   }
 
   /** Stop the game. Single-player keeps the engine WARM (hide + pause, no reboot)
@@ -241,6 +255,10 @@ export class PlayRealmInstance {
     if (this.id !== 0 || this.warm || this.store.getState().playing) return;
     const realm = await window.estella.project.preparePlayRealm().catch(() => null);
     if (!realm?.ok || this.warm || this.store.getState().playing) return;
+    // Prewarm stages the realm too, so it is where the project's modules are
+    // first learned — and on the path that follows, `start()` finds the realm
+    // already warm and returns before it would have asked.
+    this.sideModules = realm.sideModules?.length ? realm.sideModules : undefined;
     const frame = this.ensureIframe();
     // Must be in the DOM to load; the viewport attaches it as the persistent play
     // host. Not attached yet ⇒ skip — a later prewarm tick warms it.

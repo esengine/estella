@@ -81,6 +81,15 @@ export interface PlayPayload {
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   /** Multiplayer preview role; absent = a plain single-player session. */
   net?: PlayNetConfig;
+  /**
+   * The project's own native modules (`.esengine/modules/<id>/`), staged into
+   * the realm by `buildPlayRealm` and declared here so `acquire(id)` resolves —
+   * the Play-side twin of what `game.config.json` carries in a shipped build.
+   *
+   * Without it a developer could only find out whether their module works by
+   * packaging the game, which is the feedback delay the editor exists to remove.
+   */
+  sideModules?: Array<{ id: string; file: string; globalName?: string }>;
 }
 
 /** A live inspect snapshot: a shallow entity tree (Outliner) + the selected entity's

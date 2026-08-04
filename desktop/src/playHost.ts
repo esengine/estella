@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
@@ -365,6 +365,11 @@ async function warm(): Promise<void> {
 
 async function boot(msg: InitMessage): Promise<void> {
   lastInit = msg;
+  // The project's own native modules, staged into this realm's wasm/ alongside
+  // the engine's. Registered before the App exists so a plugin acquiring during
+  // build finds them — the Play-side equivalent of what the packaged game host
+  // does with game.config.json.
+  registerPackagedSideModules({ sideModules: msg.sideModules });
   // Warm re-Play: wasm + GL are already alive from a prior Play, so rebuild the
   // World on them — no second instantiate, no bundle re-parse. (A multiplayer
   // realm can't hot-rebuild — its net ports were consumed — so it cold-boots.)

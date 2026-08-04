@@ -25,6 +25,7 @@ import { cp, mkdir, rm, writeFile, readFile, stat, readdir } from 'node:fs/promi
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 
 const PLAY_DIR = '.esengine/play';
 
@@ -81,6 +82,18 @@ export interface PlayRealmResult {
   /** Project-relative path to the host page → `estella://project/<hostPath>`. */
   hostPath: string;
   errors: string[];
+  /** Non-fatal: a project module with no web build, say. Play still runs. */
+  warnings: string[];
+  /**
+   * The project's own native modules, staged into the realm's `wasm/` and ready
+   * to be declared to it — the same shape `game.config.json` carries in an
+   * export, because it is the same fact told to a different realm.
+   *
+   * Play has to load these or the loop is broken: a developer would have to
+   * package the game to find out whether their module works, which is exactly
+   * the feedback delay the editor exists to remove.
+   */
+  sideModules: Array<{ id: string; file: string; globalName?: string }>;
 }
 
 /** Signature over a dir's top-level entries (name+size+mtime) — catches an
@@ -128,6 +141,8 @@ export async function buildPlayRealm(opts: {
       ok: false,
       hostPath: '',
       errors: [`play host bundle not found: ${opts.playHostArtifact} (built by vite build — see realm-hosts in vite.config.ts)`],
+      warnings: [],
+      sideModules: [],
     };
   }
   const hostStamp = path.join(out, '.host-stamp');
@@ -144,6 +159,15 @@ export async function buildPlayRealm(opts: {
   // 2. SDK + wasm copies (gated on a full dir signature, so an added file re-syncs).
   await syncDir(opts.sdkDistDir, path.join(out, 'sdk'), path.join(out, '.sdk-stamp'));
   await syncDir(opts.wasmDir, path.join(out, 'wasm'), path.join(out, '.wasm-stamp'));
+  // …and the project's own modules on top. AFTER the sync, which deletes its
+  // destination before copying — and unconditionally, because it is a handful of
+  // files and re-staging them is how an edited module reaches the next Play.
+  // The realm is a web one (fetch transport), so it takes the `web` build.
+  const projectModules = await loadProjectModules(opts.root, 'web');
+  // Not an error: a module with no web build leaves Play without it, and the
+  // rest of the game still runs. It is said out loud instead — the alternative
+  // is a plugin that quietly does nothing.
+  const warnings = await stageProjectModules(projectModules, path.join(out, 'wasm'), 'web');
 
   // 3. Host page (rewrite only on change — keeps mtimes stable).
   const htmlPath = path.join(out, 'play.html');
@@ -151,5 +175,11 @@ export async function buildPlayRealm(opts: {
     await writeFile(htmlPath, PLAY_HTML);
   }
 
-  return { ok: errors.length === 0, hostPath: `${PLAY_DIR}/play.html`, errors };
+  return {
+    ok: errors.length === 0,
+    hostPath: `${PLAY_DIR}/play.html`,
+    errors,
+    warnings,
+    sideModules: sideModuleDeclarations(projectModules, 'web'),
+  };
 }
