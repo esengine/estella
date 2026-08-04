@@ -118,6 +118,59 @@ before the file exists. A few things worth knowing:
   revealed in the Content Browser, not opened: the editor has no code editor of its
   own.
 
+## Using an npm package
+
+Your scripts are bundled with esbuild, and it resolves dependencies out of the
+project's own `node_modules` — so a library is an ordinary install:
+
+```bash
+cd my-game
+npm install protobufjs
+```
+
+```typescript
+import { Writer, Reader } from 'protobufjs/minimal';
+
+const packet = Writer.create().uint32(42).string('hello').finish();
+```
+
+It ships with the game on **every target** — the web and desktop builds, the
+mini-game package (down-levelled to the syntax that host accepts), the native
+content payload, and the editor's own Play realm. There is no separate step and
+no per-platform configuration: what you import is what gets bundled.
+
+New projects come with a `package.json`. An older project made before that may
+not have one — `npm init -y` once, and it works the same afterwards.
+
+### What cannot come along
+
+**Anything that needs Node.** A game runs in a browser or a mini-game host,
+neither of which has `fs`, `crypto`, `path` or the rest, so a package that
+reaches for one fails the build rather than shipping broken:
+
+```
+Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
+built-in, and a game does not run in Node…
+```
+
+If the import is yours, reach for a web API (`crypto.subtle`, `fetch`,
+`localStorage`) or the engine's own equivalent — [Assets](/guides/assets/) for
+files, [Save & Load](/guides/save/) for player data, both of which work
+everywhere. If a *dependency* is the one reaching, the fix is on the package:
+many publish a browser-safe entry point — `protobufjs/minimal` above is exactly
+that — and some ship a `browser` field that esbuild picks up on its own.
+
+**And it costs package size.** A dependency is bundled whole, which matters most
+where the limit is hardest: WeChat caps a mini-game's main package at 4MB. After
+a build, the [size report](/guides/build-export/#package-size) breaks the package
+down — a library that grew shows up under **Scripts**.
+
+<Aside type="tip">
+  Prefer packages that say they work in browsers. A library written for Node will
+  either fail the build outright (which is fine — you find out immediately) or
+  pull in a polyfill big enough to be its own problem on a 4MB budget.
+</Aside>
+
 ## The lifecycle
 
 Each hook is optional; define only the ones you need.

@@ -100,6 +100,54 @@ export * from './components/health';
 - **对话框一关,组件就已在 Add Component 里**——创建会立即重新提取 schema,不等文件
   监视器。新文件是在内容浏览器里**定位**而非打开:本编辑器自身没有代码编辑器。
 
+## 使用 npm 包
+
+你的脚本由 esbuild 打包,而它会从项目自己的 `node_modules` 解析依赖——所以装一个库就是
+普通的安装:
+
+```bash
+cd my-game
+npm install protobufjs
+```
+
+```typescript
+import { Writer, Reader } from 'protobufjs/minimal';
+
+const packet = Writer.create().uint32(42).string('hello').finish();
+```
+
+它会**随游戏发到每一个目标**——网页与桌面构建、小游戏包(并降级到该宿主接受的语法)、
+原生内容负载,以及编辑器自己的 Play。没有额外步骤,也没有逐平台配置:你 import 了什么,
+打包进去的就是什么。
+
+新建的项目自带 `package.json`。此前创建的老项目可能没有——`npm init -y` 一次即可,之后
+行为完全相同。
+
+### 哪些东西带不进来
+
+**任何需要 Node 的东西。** 游戏跑在浏览器或小游戏宿主里,两者都没有 `fs`、`crypto`、
+`path` 之类,所以伸手去拿它们的包会让构建失败,而不是发出一个坏掉的包:
+
+```
+Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
+built-in, and a game does not run in Node…
+```
+
+如果这个 import 是你自己写的,改用 Web API(`crypto.subtle`、`fetch`、`localStorage`)
+或引擎自己的等价物——文件用 [资产](/zh-cn/guides/assets/)、玩家数据用
+[存档](/zh-cn/guides/save/),它们在所有平台都能用。如果伸手的是**某个依赖**,那修法在
+包那一侧:很多包都发布了浏览器安全的入口——上面的 `protobufjs/minimal` 正是——还有些带
+`browser` 字段,esbuild 会自动选用。
+
+**而且它要占包体。** 依赖是被整个打进去的,而这在上限最紧的地方最要命:微信把小游戏主包
+限制在 4MB。构建完成后,[体积报告](/zh-cn/guides/build-export/#包体体积)会把包体拆开给你
+看——涨上去的库会出现在**脚本**那一类里。
+
+<Aside type="tip">
+  优先选明确支持浏览器的包。为 Node 写的库要么直接让构建失败(这其实是好事——你立刻就
+  知道了),要么拖进来一堆 polyfill,在 4MB 的预算下那本身就是个问题。
+</Aside>
+
 ## 生命周期
 
 每个钩子都是可选的;只定义你需要的那些。
