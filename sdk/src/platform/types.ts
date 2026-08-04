@@ -500,8 +500,24 @@ export interface PlatformAdapter {
      * Worth its own channel because it is invisible from everywhere else: no
      * error is thrown and no log is written, the frames simply stop containing
      * anything. A game whose players report "it went black" has no other way to
-     * find out that this is what happened. Optional — a platform whose surface
-     * cannot be lost (native, node) omits it.
+     * find out that this is what happened.
+     *
+     * Who can answer this, and who cannot:
+     *
+     *   web — yes. `webglcontextlost` does not bubble, but a non-bubbling event
+     *   still travels the capture phase, so one window-level listener sees every
+     *   canvas.
+     *
+     *   native — yes, IF the shell wired it (`NativeBridge.onContextLost`). The
+     *   surface belongs to the host binary and is not visible from JS at all, so
+     *   it has to be pushed in, like memory pressure and foreground/background.
+     *
+     *   mini-game — NO, and this is a platform limit rather than a gap here. A
+     *   mini-game canvas is not a DOM element: `MiniGameCanvas` is width, height
+     *   and getContext, with no listener registration and no vendor API for
+     *   context loss. Nothing to duck-type for. Left unimplemented rather than
+     *   approximated, because a hook that silently never fires reads as "this
+     *   never happens" — which on a phone is the opposite of true.
      */
     onContextLost?(callback: () => void): () => void;
 

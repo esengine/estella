@@ -175,6 +175,18 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return this.bridge_.onMemoryWarning?.(callback) ?? (() => {});
     }
 
+    // Device loss, pushed by the shell — invisible from JS on native, since the
+    // surface lives in the host binary. A bridge without it never fires.
+    onContextLost(callback: () => void): () => void {
+        return this.bridge_.onContextLost?.(callback) ?? (() => {});
+    }
+
+    // Same shape, same reason: QuickJS has no window.onerror, so an uncaught
+    // error is only visible to the shell's exception callback.
+    onUnhandledError(callback: (error: unknown) => void): () => void {
+        return this.bridge_.onUnhandledError?.(callback) ?? (() => {});
+    }
+
     getStorageItem(key: string): string | null {
         return this.bridge_.getStorageItem(key);
     }

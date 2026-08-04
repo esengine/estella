@@ -195,4 +195,19 @@ export interface NativeBridge {
      *  subscribe via the adapter's `onMemoryWarning` to drop evictable entries.
      *  Returns an unsubscribe. Optional. */
     onMemoryWarning?(callback: () => void): () => void;
+
+    /** An error that reached the host with nobody catching it. There is no DOM on
+     *  native and QuickJS has no `window.onerror`, so the shell's JS-engine
+     *  exception callback is the only thing that sees these — it pushes them in,
+     *  and diagnostics records them as `unhandled`. Returns an unsubscribe.
+     *  Optional. */
+    onUnhandledError?(callback: (error: unknown) => void): () => void;
+
+    /** The render device was lost — the WebGPU `device.lost` promise on the Dawn
+     *  side, an Android surface torn down on rotation or task-switch. The engine
+     *  cannot see this from JS: the surface belongs to the host binary, so this is
+     *  the shell pushing it in, the same way it pushes the two above. Diagnostics
+     *  records it; nothing recovers from it yet. Returns an unsubscribe. Optional —
+     *  a shell that has not wired it simply never fires. */
+    onContextLost?(callback: () => void): () => void;
 }

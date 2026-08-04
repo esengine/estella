@@ -4358,9 +4358,11 @@ getStorageItem: (key: string) => string | null
 language: (() => string) | undefined
 loadImagePixels: (path: string) => Promise<ImageLoadResult>
 now: (() => number) | undefined
+onContextLost: ((callback: () => void) => () => void) | undefined
 onHide: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShow: ((callback: () => void) => () => void) | undefined
+onUnhandledError: ((callback: (error: unknown) => void) => () => void) | undefined
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
@@ -4473,7 +4475,9 @@ name: "native"
 now: () => number
 onAppHide: (callback: () => void) => () => void
 onAppShow: (callback: () => void) => () => void
+onContextLost: (callback: () => void) => () => void
 onMemoryWarning: (callback: () => void) => () => void
+onUnhandledError: (callback: (error: unknown) => void) => () => void
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: (key: string) => Promise<ArrayBuffer | null>
 readFile: (path: string) => Promise<ArrayBuffer>
