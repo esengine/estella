@@ -681,7 +681,15 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
           {turn.model && <span className="ag-stat-model">{turn.model}</span>}
           <span className="ag-sp" />
           <Elapsed from={turn.startedAt} to={turn.endedAt} />
-          {tokens > 0 && <span>↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}</span>}
+          {/* Shown from the first reading, which now arrives before the answer
+              does — the input is known the moment the request is accepted, and
+              a blank counter through the whole wait hides the number someone is
+              waiting to see. A run that never got a reading stays blank. */}
+          {(tokens > 0 || running) && (
+            <span className={running ? 'ag-live' : undefined}>
+              ↑{compact(turn.inputTokens)} ↓{compact(turn.outputTokens)}
+            </span>
+          )}
           {turn.reason === 'aborted' && <span className="ag-warn">{t('agent.turn.aborted')}</span>}
           {turn.reason === 'refusal' && <span className="ag-warn">{t('agent.turn.refusal')}</span>}
           {turn.reason === 'max_rounds' && <span className="ag-warn">{t('agent.turn.maxRounds')}</span>}

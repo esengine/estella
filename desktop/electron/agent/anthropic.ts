@@ -555,7 +555,38 @@ class AnthropicSession implements AgentSession {
     stream: ReturnType<Anthropic['messages']['stream']> | ReturnType<Anthropic['beta']['messages']['stream']>,
     toolAt: Map<number, string>,
   ): AsyncIterable<StepEvent> {
+    // What this call has already been REPORTED as costing. The editor sums the
+    // usage events of a call, so reporting as we go means reporting deltas — and
+    // the wire gives cumulative figures (message_start the whole input,
+    // message_delta the output so far). Subtracting here keeps the arithmetic in
+    // the layer that knows the wire, and leaves the store additive.
+    let saidIn = 0;
+    let saidOut = 0;
+    const bill = (inTotal: number, outTotal: number): StepEvent | null => {
+      const dIn = Math.max(0, inTotal - saidIn);
+      const dOut = Math.max(0, outTotal - saidOut);
+      if (dIn === 0 && dOut === 0) return null;
+      saidIn += dIn;
+      saidOut += dOut;
+      return { type: 'usage', inputTokens: dIn, outputTokens: dOut };
+    };
+
     for await (const event of stream) {
+      // The input is known before a single token comes back, and waiting for the
+      // response to finish before saying so left the run header blank for the
+      // whole wait — which is exactly when someone is looking at it to find out
+      // what this is going to cost.
+      if (event.type === 'message_start') {
+        const u = bill(event.message.usage?.input_tokens ?? 0, event.message.usage?.output_tokens ?? 0);
+        if (u) yield u;
+        continue;
+      }
+      // Output as it accrues, so the counter moves while the answer is written.
+      if (event.type === 'message_delta') {
+        const u = bill(saidIn, event.usage?.output_tokens ?? 0);
+        if (u) yield u;
+        continue;
+      }
       if (event.type === 'content_block_start') {
         const block = event.content_block;
         if (block.type === 'tool_use') {
@@ -581,11 +612,11 @@ class AnthropicSession implements AgentSession {
 
     if (message.usage) {
       this.lastInputTokens = message.usage.input_tokens ?? this.lastInputTokens;
-      yield {
-        type: 'usage',
-        inputTokens: message.usage.input_tokens ?? 0,
-        outputTokens: message.usage.output_tokens ?? 0,
-      };
+      // Whatever the stream did not already account for. Usually nothing — but
+      // an endpoint that reports usage only at the end still gets it all here,
+      // and one that over-reported mid-stream is not charged twice.
+      const settle = bill(message.usage.input_tokens ?? 0, message.usage.output_tokens ?? 0);
+      if (settle) yield settle;
     }
     // Where the conversation stands now — separate from `usage`, which is what
     // this one call cost. A level and a cost project differently (the editor
