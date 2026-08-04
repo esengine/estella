@@ -399,8 +399,10 @@ describe('exportGame (wechat)', () => {
 describe('exportGame (wechat) — open data context', () => {
   const roots: string[] = [];
 
-  /** A minimal exportable project: one scene, one texture, stub SDK + runtime. */
-  function scaffold(openDataSource?: string): { root: string; out: string } {
+  /** A minimal exportable project: one scene, one texture, stub SDK + runtime.
+   *  `builtIn` puts the engine's own context bundle in the stub SDK dir, the way
+   *  a real `dist/` carries it. */
+  function scaffold(openDataSource?: string, builtIn?: string): { root: string; out: string } {
     const dir = mkdtempSync(path.join(tmpdir(), 'estella-export-opendata-'));
     roots.push(dir);
     mkdirSync(path.join(dir, 'assets'), { recursive: true });
@@ -414,6 +416,7 @@ describe('exportGame (wechat) — open data context', () => {
     writeFileSync(path.join(dir, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
     mkdirSync(path.join(dir, '_sdk'), { recursive: true });
     writeFileSync(path.join(dir, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+    if (builtIn !== undefined) writeFileSync(path.join(dir, '_sdk', 'open-data.js'), builtIn);
     mkdirSync(path.join(dir, '_wxwasm'), { recursive: true });
     writeFileSync(path.join(dir, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
     writeFileSync(path.join(dir, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
@@ -462,6 +465,29 @@ describe('exportGame (wechat) — open data context', () => {
     // the optional chaining the source is written with.
     const code = readFileSync(bundled, 'utf8');
     expect(code).not.toContain('?.');
+  }, 60_000);
+
+  it('ships the engine\'s built-in board when the project wrote none', async () => {
+    // The context is the hardest part of a mini-game to write, and a game that
+    // just wants a friends board should not have to. So the capability arrives
+    // working rather than as a directory you are expected to fill.
+    const { root: r, out: o } = scaffold(undefined, '/* built-in board */ globalThis.__ESTELLA_BOARD__ = 1;\n');
+    const res = await exportIt(r, o);
+    expect(res.ok).toBe(true);
+    expect(readFileSync(path.join(o, 'open-data', 'index.js'), 'utf8')).toContain('__ESTELLA_BOARD__');
+    expect(JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8')).openDataContext).toBe('open-data');
+  }, 60_000);
+
+  it('the project\'s own context wins over the built-in', async () => {
+    const { root: r, out: o } = scaffold(
+      'declare const wx: { onMessage(cb: (m: unknown) => void): void };\nwx.onMessage(() => { (globalThis as Record<string, unknown>).__MINE__ = 1; });\n',
+      '/* built-in board */ globalThis.__ESTELLA_BOARD__ = 1;\n',
+    );
+    const res = await exportIt(r, o);
+    expect(res.ok).toBe(true);
+    const code = readFileSync(path.join(o, 'open-data', 'index.js'), 'utf8');
+    expect(code).toContain('__MINE__');
+    expect(code).not.toContain('__ESTELLA_BOARD__');
   }, 60_000);
 
   it('a context that imports the engine fails the export, not the device', async () => {
