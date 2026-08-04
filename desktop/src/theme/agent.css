@@ -584,6 +584,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ag-spin, .ag-skel, .ag-dots i { animation: none; }
+  /* The dot still lands — it just does not travel. Removing the animation
+     entirely would take the arrival with it, and the arrival is the message. */
+  .row.agent-fresh .rname::after { animation: none; }
+  .row.agent-fresh .rname::before { display: none; }
 }
 
 /* ── The checkpoint a finished turn leaves behind ────────────────────────────
@@ -651,6 +655,34 @@
   vertical-align: middle;
 }
 .row.agent-peek { box-shadow: inset 2px 0 0 var(--nebula); }
+
+/* The moment the dot lands, as distinct from the fact that it is there.
+   The dot's OWN channel, deliberately: the prototype flashed the row's
+   background, and the line above is the reason not to — even for a second, a
+   tint on a row that is also selected reads as neither. So the arrival is the
+   dot arriving: it grows in, and a ring leaves from under it. */
+.row.agent-fresh .rname::after { animation: ag-land 0.9s var(--e-out); }
+.row.agent-fresh .rname { position: relative; }
+.row.agent-fresh .rname::before {
+  content: '';
+  position: absolute;
+  right: -12px; top: 50%;
+  width: 4px; height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 var(--nebula);
+  animation: ag-land-ring 0.9s var(--e-out);
+  pointer-events: none;
+}
+@keyframes ag-land {
+  0% { transform: scale(0.2); opacity: 0; }
+  45% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ag-land-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--nebula) 55%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
 
 /* ── The rail button ────────────────────────────────────────────────────────
    A dot, because the rail is visible with the drawer closed and "it is still

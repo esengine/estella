@@ -28,6 +28,7 @@ import { createFromSource, type EntitySource } from '@/engine/entitySources';
 import { CreatePopover } from '@/components/CreatePopover';
 import { Segmented } from '@/components/Segmented';
 import { IconButton } from '@/components/IconButton';
+import { useAgentFresh } from '@/outliner/agentFresh';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
@@ -172,6 +173,12 @@ export function Outliner() {
   const agentPeeked = useAgent((s) => s.peeked);
   const agentAcked = useAgent((s) => s.checkpointDone);
   const agentTouched = useMemo(() => touchedEntities(agentTurns, agentAcked), [agentTurns, agentAcked]);
+  // The ones that JUST joined that set. The dot beside a touched row is a
+  // standing fact — "the agent has been here" — and a standing mark cannot also
+  // say "this happened just now": a row that appears while you are reading
+  // elsewhere in the tree arrives with no more emphasis than one from four
+  // turns ago. So the arrival gets its own moment, and then stops.
+  const agentFresh = useAgentFresh(agentTouched);
   const activeColumns = useMemo(() => OUTLINER_COLUMNS.filter((c) => !hiddenColumns.has(c.id)), [hiddenColumns]);
   const columnCtx = useMemo<OutlinerColumnContext>(
     () => ({
@@ -665,6 +672,7 @@ export function Outliner() {
       cursored={cursor === it.key}
       highlight={highlight}
       agentTouched={it.kind === 'entity' && agentTouched.has(it.id)}
+      agentFresh={it.kind === 'entity' && agentFresh.has(it.id)}
       agentPeeked={it.kind === 'entity' && agentPeeked.includes(it.id)}
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}

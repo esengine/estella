@@ -39,6 +39,8 @@ export interface OutlinerRowProps {
   selected: boolean;
   /** The built-in agent changed this entity in the open conversation. */
   agentTouched?: boolean;
+  /** …and it happened just now, rather than at some point in the conversation. */
+  agentFresh?: boolean;
   /** The pointer is over a transcript row that names this entity. */
   agentPeeked?: boolean;
   /** Keyboard-focus row (shows a focus ring; distinct from selection). */
@@ -105,6 +107,7 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${dropPos === 'before' ? ' drop-before' : ''}` +
         `${dropPos === 'after' ? ' drop-after' : ''}` +
         `${props.agentTouched ? ' agent-touched' : ''}` +
+        `${props.agentFresh ? ' agent-fresh' : ''}` +
         `${props.agentPeeked ? ' agent-peek' : ''}`
       }
       style={{ paddingLeft: depth * 14 }}
