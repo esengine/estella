@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseManifest, resolveLayout, resolveScripts, isTransientProjectPath, PROJECT_MANIFEST_FILE } from '@/project/format';
+import { scaffoldProjectFiles, npmPackageName } from '../electron/projectScaffold';
 
 // The bundled starter templates (shipped to resources/templates by
 // electron-builder) — every one must stay a complete, openable project:
@@ -66,5 +69,48 @@ describe('isTransientProjectPath (template-copy filter)', () => {
     expect(isTransientProjectPath('src/main.ts')).toBe(false);
     expect(isTransientProjectPath('thumbnail.png')).toBe(false);
     expect(isTransientProjectPath('.gitignore')).toBe(false);
+  });
+});
+
+// A project's scripts are bundled with esbuild, which resolves dependencies out
+// of the project's own node_modules — so `npm install <a-library>` works and the
+// library ships with the game. Without a package.json that starts with an
+// `npm init` nobody would guess is a prerequisite.
+describe('new-project scaffold', () => {
+  let dest: string;
+  beforeEach(async () => { dest = await mkdtemp(path.join(tmpdir(), 'es-scaffold-')); });
+  afterEach(async () => { await rm(dest, { recursive: true, force: true }); });
+
+  it('writes a package.json npm will accept', async () => {
+    await scaffoldProjectFiles(dest, 'My Game');
+    const pkg = JSON.parse(readFileSync(path.join(dest, 'package.json'), 'utf8'));
+    expect(pkg).toEqual({ name: 'my-game', version: '0.0.0', private: true, type: 'module' });
+  });
+
+  it('makes an npm-legal name out of one npm would refuse', () => {
+    expect(npmPackageName('My Game')).toBe('my-game');
+    expect(npmPackageName('拾星 Starfall')).toBe('starfall');       // non-ASCII collapses
+    expect(npmPackageName('_leading')).toBe('leading');             // npm bans a leading _
+    expect(npmPackageName('.hidden.')).toBe('hidden');
+    expect(npmPackageName('已经全是中文')).toBe('estella-game');     // nothing legal left
+    expect(npmPackageName('a'.repeat(300)).length).toBe(214);       // npm's cap
+  });
+
+  it('gitignores what the editor and the exporters actually write', async () => {
+    await scaffoldProjectFiles(dest, 'x');
+    const ignored = readFileSync(path.join(dest, '.gitignore'), 'utf8');
+    expect(ignored).toContain('node_modules/');
+    // The template's own copy listed `dist/` only, while every export writes
+    // dist-<platform>/ — which is how a packaged game ended up in git.
+    expect(ignored).toContain('dist-*/');
+    expect(ignored).toContain('.esengine/');
+  });
+
+  it('leaves a template\'s own files alone, and is a no-op run twice', async () => {
+    writeFileSync(path.join(dest, 'package.json'), '{"name":"chosen-by-the-template"}');
+    await scaffoldProjectFiles(dest, 'My Game');
+    await scaffoldProjectFiles(dest, 'My Game');
+    expect(JSON.parse(readFileSync(path.join(dest, 'package.json'), 'utf8')).name)
+      .toBe('chosen-by-the-template');
   });
 });

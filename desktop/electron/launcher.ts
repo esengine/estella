@@ -17,6 +17,7 @@ import {
   type RecentEntry,
   type TemplateEntry,
 } from '../src/project/format';
+import { scaffoldProjectFiles } from './projectScaffold';
 
 type StoredRecent = Pick<RecentEntry, 'name' | 'root' | 'openedAt'>;
 
@@ -158,5 +159,6 @@ export async function createFromTemplate(templateDir: string, location: string, 
   const m = parseManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
   m.name = name;
   await writeFile(manifestPath, JSON.stringify(m, null, 2) + '\n');
+  await scaffoldProjectFiles(dest, name);
   return dest;
 }
