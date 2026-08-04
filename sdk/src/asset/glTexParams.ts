@@ -4,9 +4,12 @@
  * @file    glTexParams.ts
  * @brief   Shared WebGL texture-parameter mapping. The wrap-mode → GL enum was
  *          duplicated byte-for-byte in the RGBA (TextureLoader) and compressed
- *          (compressed.ts) upload paths; this is its single source. (Filter →
- *          GL stays per-path: the RGBA path chooses mipmap min-filters, the
- *          single-level compressed path never does.)
+ *          (compressed.ts) upload paths; this is its single source.
+ *
+ *          Filter used to stay per-path, because only the RGBA path chose
+ *          mipmap min-filters. It no longer does: whole sampler state is
+ *          {@link ../glTextureUpload#applyBoundTextureSampling}, which takes
+ *          "has mipmaps" as the one input the two paths actually differed on.
  */
 
 export type TextureWrap = 'repeat' | 'clamp' | 'mirror';

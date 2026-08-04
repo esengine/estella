@@ -16,7 +16,7 @@
  */
 import type { ESEngineModule } from '../wasm';
 import { requireResourceManager } from '../wasm/resourceManager';
-import { glWrapMode } from './glTexParams';
+import { applyBoundTextureSampling } from './glTextureUpload';
 
 // =============================================================================
 // Format vocabulary
@@ -177,14 +177,10 @@ export interface UploadedTexture {
 }
 
 function applyParams(gl: WebGL2RenderingContext, opts?: CompressedUploadOptions): void {
-    // Single-level textures: never select a mipmap min-filter (would be incomplete).
-    const mag = opts?.filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
-    const min = mag;
-    const wrap = glWrapMode(gl, opts?.wrap);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, min);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mag);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+    // Single-level textures: never select a mipmap min-filter (would be
+    // incomplete) and never generate a chain — which is exactly what the shared
+    // sampler state does when told there are no mipmaps.
+    applyBoundTextureSampling(gl, { filter: opts?.filter, wrap: opts?.wrap, mipmaps: false });
 }
 
 /**

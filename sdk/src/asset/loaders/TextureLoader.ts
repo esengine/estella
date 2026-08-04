@@ -9,7 +9,7 @@ import { requireResourceManager } from '../../wasm/resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import { isKtx2, isKtx2Path, loadCompressedTexture, type BasisTranscoder } from '../compressed';
-import { glWrapMode } from '../glTexParams';
+import { uploadBoundTextureImage, applyBoundTextureSampling } from '../glTextureUpload';
 import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
 
 /**
@@ -290,15 +290,6 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, flip: boolean,
         settings?: TextureImportSettings,
     ): TextureResult {
-        const filter = settings?.filter ?? 'linear';
-        const wrap = settings?.wrap ?? 'repeat';
-        const useMipmaps = settings?.mipmaps ?? true;
-        const glMinFilter = filter === 'nearest'
-            ? (useMipmaps ? gl.NEAREST_MIPMAP_NEAREST : gl.NEAREST)
-            : (useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
-        const glMagFilter = filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
-        const glWrap = glWrapMode(gl, wrap);
-
         // createTexture returns null on a lost context — don't `!`-assert it
         // into the calls below.
         const texture = gl.createTexture();
@@ -307,22 +298,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         }
         try {
             gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
-            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-            // Linear pipeline: color textures store sRGB-encoded — the sampler
-            // linearizes in hardware. Data textures (normal maps) opt out via
-            // the importer's sRGB flag.
-            const internalFormat = linearColorSpace() && (settings?.srgb ?? true)
-                ? gl.SRGB8_ALPHA8 : gl.RGBA;
-            gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glMinFilter);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glMagFilter);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, glWrap);
-            if (useMipmaps) {
-                gl.generateMipmap(gl.TEXTURE_2D);
-            }
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+            uploadBoundTextureImage(gl, img, flip, settings?.srgb);
+            applyBoundTextureSampling(gl, settings);
         } catch (err) {
             // Upload threw (e.g. context lost mid-call); release the GL texture
             // instead of leaking it.
