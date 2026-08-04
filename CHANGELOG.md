@@ -34,6 +34,45 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A torn-down system no longer leaves a dangling callback in the registry — in
+  either direction.** Entity-destroy subscriptions are RAII now, end to end: the
+  subscriber's Connection removes the callback when the subscriber dies, and the
+  Connection itself is safe to outlive the registry (it holds a weak liveness flag,
+  not a bare pointer). The half-fix that existed covered only one teardown order,
+  and the order between a C++ system and the JS-owned registry is not guaranteed.
+  Held by an AddressSanitizer harness that exercises both orders.
+
+- **The renderer no longer interrogates the GPU about errors it isn't having.**
+  Every frame ended with a drain of `glGetError` — a debug facility that shipped
+  enabled, in every build, on every platform. Each call is a synchronous round
+  trip to the GPU process; on a fast machine it hides, and on a slow or contended
+  one it was the single largest item in the renderer's profile, starving the
+  editor's automation surface into timeouts. Error checking is opt-in now
+  (`GLDebug.enable()`), the on-demand probes still force a check, and the browser
+  already reports WebGL errors to the console on its own.
+
+- **Editor automation no longer times out when a call lands during a subframe
+  load.** Driving the editor (MCP tools, the agent, the e2e) goes through a guard
+  that waited for `did-finish-load` whenever the window reported loading — but
+  the play realm prewarms in an IFRAME seconds after a project opens, the loading
+  flag covers subframes, and that event only fires for the main frame. A call
+  that drew the short straw awaited an event that had already fired for the last
+  time. The guard polls now, bounded, and cannot be stranded.
+
+- **Hot reload now actually keeps the World — in projects that exist.** Two
+  gates rejected every real project while passing every unit test. Startup
+  systems are consumed when they run, so a re-imported bundle always has ones
+  the live side doesn't — structural mismatch, full restart, for anyone using
+  `addStartupSystem`. And "no owning subsystem" was read as "user system", which
+  swept up engine systems that register lazily outside a plugin build (the
+  physics event bridge among them) — phantom structure, full restart, for any
+  project with physics. User systems are now classified by the one boundary that
+  defines them — they came through the project bundle's drain — startup is
+  exempt in both directions, and every reload logs which path it took and why,
+  so a fallback is a stated fact instead of a mystery about lost state. Proven
+  live by the editor e2e: a logic edit mid-play swaps with state preserved, a
+  schema edit forces the clean restart it must.
+
 - **Compressed textures are no longer upside down.** Every uncompressed image is
   row-flipped at upload into the engine's texture orientation; a compressed KTX2
   cannot be — a 4x4 block has no row order to swap — so the cook's KTX2 came out
@@ -180,45 +219,6 @@ to.
   the world but not the App, and `engineApi(app)` answers with the App's module — so plugins that
   reach the engine optional-chained it away and their engine branches never ran under test. They
   passed, silently testing less than they read as testing.
-
-- **A torn-down system no longer leaves a dangling callback in the registry — in
-  either direction.** Entity-destroy subscriptions are RAII now, end to end: the
-  subscriber's Connection removes the callback when the subscriber dies, and the
-  Connection itself is safe to outlive the registry (it holds a weak liveness flag,
-  not a bare pointer). The half-fix that existed covered only one teardown order,
-  and the order between a C++ system and the JS-owned registry is not guaranteed.
-  Held by an AddressSanitizer harness that exercises both orders.
-
-- **The renderer no longer interrogates the GPU about errors it isn't having.**
-  Every frame ended with a drain of `glGetError` — a debug facility that shipped
-  enabled, in every build, on every platform. Each call is a synchronous round
-  trip to the GPU process; on a fast machine it hides, and on a slow or contended
-  one it was the single largest item in the renderer's profile, starving the
-  editor's automation surface into timeouts. Error checking is opt-in now
-  (`GLDebug.enable()`), the on-demand probes still force a check, and the browser
-  already reports WebGL errors to the console on its own.
-
-- **Editor automation no longer times out when a call lands during a subframe
-  load.** Driving the editor (MCP tools, the agent, the e2e) goes through a guard
-  that waited for `did-finish-load` whenever the window reported loading — but
-  the play realm prewarms in an IFRAME seconds after a project opens, the loading
-  flag covers subframes, and that event only fires for the main frame. A call
-  that drew the short straw awaited an event that had already fired for the last
-  time. The guard polls now, bounded, and cannot be stranded.
-
-- **Hot reload now actually keeps the World — in projects that exist.** Two
-  gates rejected every real project while passing every unit test. Startup
-  systems are consumed when they run, so a re-imported bundle always has ones
-  the live side doesn't — structural mismatch, full restart, for anyone using
-  `addStartupSystem`. And "no owning subsystem" was read as "user system", which
-  swept up engine systems that register lazily outside a plugin build (the
-  physics event bridge among them) — phantom structure, full restart, for any
-  project with physics. User systems are now classified by the one boundary that
-  defines them — they came through the project bundle's drain — startup is
-  exempt in both directions, and every reload logs which path it took and why,
-  so a fallback is a stated fact instead of a mystery about lost state. Proven
-  live by the editor e2e: a logic edit mid-play swaps with state preserved, a
-  schema edit forces the clean restart it must.
 
 - **Saves no longer live in a directory the platform may delete.** Key/value
   storage went to the host's cache directory, whose stated purpose was the
