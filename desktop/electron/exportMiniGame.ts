@@ -41,6 +41,7 @@ import {
   sceneUsesPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE,
 } from './sideModuleScan';
+import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 
 export interface ExportMiniGameResult {
@@ -334,6 +335,42 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
   }
 
+  // 4b. The open data context — a SECOND bundle, for a second JS runtime.
+  //
+  //     It has no WebGL, no wasm and almost none of the host API; it draws on a
+  //     2D canvas the main domain samples as a texture, and it is the only place
+  //     a player's friends can be read. So it cannot share the game bundle, and
+  //     the `esengine` alias is deliberately WITHHELD here: a context that
+  //     imports the engine fails to resolve at export instead of throwing on a
+  //     device, which is the only place that mistake would otherwise surface.
+  const openDataEntry = ['index.ts', 'index.js']
+    .map((f) => path.join(opts.root, OPEN_DATA_DIR, f))
+    .find((f) => existsSync(f));
+  if (openDataEntry) {
+    progress({ phase: 'Bundling open data context' });
+    try {
+      const { build } = await loadEsbuild();
+      const res = await build({
+        entryPoints: [openDataEntry],
+        bundle: true,
+        format: 'cjs',
+        platform: 'browser',
+        // Same syntax floor as the game bundle: the host compiles EVERY .js in
+        // the package, this one included.
+        target: profile.esTarget,
+        minify: opts.minify ?? false,
+        sourcemap: false,
+        outfile: path.join(absOut, OPEN_DATA_DIR, 'index.js'),
+        logLevel: 'silent',
+        write: true,
+      });
+      errors.push(...res.errors.map((e) => e.text));
+    } catch (err) {
+      const e = err as { errors?: { text: string }[]; message?: string };
+      errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
+    }
+  }
+
   // 5. Entry + config (vendor-specific emission).
   await writeFile(path.join(absOut, 'game.js'), profile.emitEntry({ sideModules, engineGlueFile }));
   const configFiles = profile.emitConfigFiles({
@@ -342,6 +379,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     orientation: opts.orientation ?? 'portrait',
     subPackages: subPackagesOf(cookEntries, profile.subpackageDir),
     includeSuffixes: packIncludeSuffixes(cookEntries, profile.nativeSuffixes),
+    // Only a bundle that was actually written counts: an entry that failed to
+    // build must not leave the config pointing at a directory with no index.js.
+    hasOpenData: !!openDataEntry && errors.length === 0,
+    openDataRoot: OPEN_DATA_DIR,
   });
   for (const { file, content } of configFiles) {
     await writeFile(path.join(absOut, file), content);

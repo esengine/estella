@@ -156,6 +156,29 @@ export interface MiniGameShareOptions {
     query?: string;
 }
 
+/**
+ * The open data context, seen from the MAIN domain.
+ *
+ * It is a second JS runtime with no WebGL, no wasm and almost none of the host
+ * API — and the only place a player's FRIENDS can be read at all. It draws on
+ * `canvas`, which the main domain samples as a texture; `postMessage` is how it
+ * is told what to draw. There is no channel back: no host offers sub→main
+ * messaging, which is why nothing in this engine's leaderboard asks the context
+ * a question.
+ */
+export interface MiniGameOpenDataContext {
+    postMessage(message: Record<string, unknown>): void;
+    /** The shared canvas. The context draws here; the main domain samples it. */
+    readonly canvas: MiniGameCanvas;
+}
+
+/** One entry of the host's per-player cloud store — the rows a leaderboard is
+ *  assembled from. Writable only for the player themselves. */
+export interface MiniGameKVData {
+    key: string;
+    value: string;
+}
+
 /** The socket task `connectSocket()` returns. WeChat's `SocketTask` fits. */
 export interface MiniGameSocketTask {
     send(opts: { data: string | ArrayBuffer }): void;
@@ -221,6 +244,19 @@ export interface MiniGameGlobal {
     /** Passive share: what the card says when the player shares from the host's
      *  own menu. The host calls `cb` at share time, not at registration. */
     onShareAppMessage?(cb: () => MiniGameShareOptions): void;
+
+    /** The open data context, if this host has one. Absent on a host without
+     *  friend data, and on a game whose package declares no context directory. */
+    getOpenDataContext?(): MiniGameOpenDataContext;
+    /** Write THIS player's rows into the host's cloud store. Writing is the main
+     *  domain's half of a leaderboard; reading — anyone's, including the
+     *  player's own — belongs to the open data context alone. */
+    setUserCloudStorage?(opts: {
+        KVDataList: MiniGameKVData[];
+        success?: () => void;
+        fail?: (err: unknown) => void;
+        complete?: () => void;
+    }): void;
 
     getStorageSync(key: string): unknown;
     setStorageSync(key: string, value: string): void;

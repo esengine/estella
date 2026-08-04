@@ -4761,6 +4761,8 @@ onAppHide: ((callback: () => void) => () => void) | undefined
 onAppShow: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShareRequest: ((provide: () => PlatformShareOptions) => void) | undefined
+openDataCanvas: (() => PlatformCanvas | null) | undefined
+openDataPostMessage: ((message: Record<string, unknown>) => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
@@ -4768,6 +4770,7 @@ readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 registerFont: ((family: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 removeStorageItem: (key: string) => void
+setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
 share: ((options: PlatformShareOptions) => void) | undefined
 unbindInputEvents: (() => void) | undefined

@@ -4135,6 +4135,7 @@ createInnerAudioContext: () => MiniGameInnerAudioContext
 createInterstitialAd: ((opts: { adUnitId: string; }) => MiniGameInterstitialAd) | undefined
 createRewardedVideoAd: ((opts: { adUnitId: string; }) => MiniGameRewardedVideoAd) | undefined
 getFileSystemManager: () => MiniGameFileSystemManager
+getOpenDataContext: (() => MiniGameOpenDataContext) | undefined
 getStorageInfoSync: () => MiniGameStorageInfo
 getStorageSync: (key: string) => unknown
 getSystemInfoSync: () => MiniGameSystemInfo
@@ -4159,6 +4160,7 @@ onTouchStart: (cb: (res: MiniGameTouchEvent) => void) => void
 removeStorageSync: (key: string) => void
 request: (opts: MiniGameRequestOptions) => void
 setStorageSync: (key: string, value: string) => void
+setUserCloudStorage: ((opts: { KVDataList: MiniGameKVData[]; success?: () => void; fail?: (err: unknown) => void; complete?: () => void; }) => void) | undefined
 shareAppMessage: ((opts: MiniGameShareOptions) => void) | undefined
 ```
 
@@ -4220,9 +4222,12 @@ name: PlatformName
 now: () => number
 onMemoryWarning: (callback: () => void) => () => void
 onShareRequest: (provide: () => PlatformShareOptions) => void
+openDataCanvas: () => PlatformCanvas | null
+openDataPostMessage: (message: Record<string, unknown>) => void
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 removeStorageItem: (key: string) => void
+setCloudKeyValues: (entries: Readonly<Record<string, string>>) => boolean
 setStorageItem: (key: string, value: string) => void
 share: (options: PlatformShareOptions) => void
 unbindInputEvents: () => void
@@ -4984,6 +4989,8 @@ onAppHide: ((callback: () => void) => () => void) | undefined
 onAppShow: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShareRequest: ((provide: () => PlatformShareOptions) => void) | undefined
+openDataCanvas: (() => PlatformCanvas | null) | undefined
+openDataPostMessage: ((message: Record<string, unknown>) => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
@@ -4991,6 +4998,7 @@ readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 registerFont: ((family: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 removeStorageItem: (key: string) => void
+setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
 share: ((options: PlatformShareOptions) => void) | undefined
 unbindInputEvents: (() => void) | undefined

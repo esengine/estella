@@ -389,3 +389,87 @@ describe('exportGame (wechat)', () => {
     expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });
   }, 60_000);
 });
+
+/**
+ * The open data context — a SECOND bundle for a second JS runtime, which is the
+ * only place a player's friends can be read. Its own project roots: the presence
+ * of an `open-data/` directory changes the emitted config, so a case that adds
+ * one must not be able to leak into a case that asserts its absence.
+ */
+describe('exportGame (wechat) — open data context', () => {
+  const roots: string[] = [];
+
+  /** A minimal exportable project: one scene, one texture, stub SDK + runtime. */
+  function scaffold(openDataSource?: string): { root: string; out: string } {
+    const dir = mkdtempSync(path.join(tmpdir(), 'estella-export-opendata-'));
+    roots.push(dir);
+    mkdirSync(path.join(dir, 'assets'), { recursive: true });
+    writeFileSync(path.join(dir, 'assets', 'hero.png'), 'PNGDATA');
+    writeFileSync(path.join(dir, 'assets', 'hero.png.meta'), meta(TEX, 'texture'));
+    mkdirSync(path.join(dir, 'scenes'), { recursive: true });
+    writeFileSync(
+      path.join(dir, 'scenes', 'main.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
+    );
+    writeFileSync(path.join(dir, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
+    mkdirSync(path.join(dir, '_sdk'), { recursive: true });
+    writeFileSync(path.join(dir, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+    mkdirSync(path.join(dir, '_wxwasm'), { recursive: true });
+    writeFileSync(path.join(dir, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(dir, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
+    if (openDataSource !== undefined) {
+      mkdirSync(path.join(dir, 'open-data'), { recursive: true });
+      writeFileSync(path.join(dir, 'open-data', 'index.ts'), openDataSource);
+    }
+    return { root: dir, out: path.join(dir, 'dist-wechat') };
+  }
+
+  const exportIt = (root: string, out: string) => exportGame({
+    root,
+    entryScene: 'scenes/main.esscene',
+    gameHostEntry: 'unused-for-wechat',
+    sdkDistDir: path.join(root, '_sdk'),
+    wasmDir: path.join(root, '_wxwasm'),
+    outDir: out,
+    platform: 'wechat',
+  });
+
+  afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true }); });
+
+  it('a project without one declares no context — an absent directory would fail the host compile', async () => {
+    const { root: r, out: o } = scaffold();
+    const res = await exportIt(r, o);
+    expect(res.ok).toBe(true);
+    expect(existsSync(path.join(o, 'open-data'))).toBe(false);
+    expect(JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8'))).not.toHaveProperty('openDataContext');
+  }, 60_000);
+
+  it('a project with one is bundled beside the game and named in game.json', async () => {
+    const { root: r, out: o } = scaffold(
+      'const draw = (n?: { rows?: string[] }) => n?.rows?.length ?? 0;\n'
+      + 'wx.onMessage((m: { rows?: string[] }) => { draw(m); });\n'
+      + 'declare const wx: { onMessage(cb: (m: unknown) => void): void };\n',
+    );
+    const res = await exportIt(r, o);
+    expect(res.ok).toBe(true);
+
+    const bundled = path.join(o, 'open-data', 'index.js');
+    expect(existsSync(bundled)).toBe(true);
+    expect(JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8')).openDataContext).toBe('open-data');
+
+    // Down-levelled to the vendor's syntax floor like every other .js in the
+    // package: the host compiles this file too, and real-device WeChat rejects
+    // the optional chaining the source is written with.
+    const code = readFileSync(bundled, 'utf8');
+    expect(code).not.toContain('?.');
+  }, 60_000);
+
+  it('a context that imports the engine fails the export, not the device', async () => {
+    const { root: r, out: o } = scaffold("import { Assets } from 'esengine';\nAssets.toString();\n");
+    const res = await exportIt(r, o);
+    expect(res.ok).toBe(false);
+    expect(res.errors.join('\n')).toMatch(/esengine/);
+    // And a failed context leaves the config pointing at nothing.
+    expect(JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8'))).not.toHaveProperty('openDataContext');
+  }, 60_000);
+});

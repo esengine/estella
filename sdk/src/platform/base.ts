@@ -299,6 +299,50 @@ export function platformOnShareRequest(provide: () => import('./types').Platform
     return true;
 }
 
+/**
+ * Whether this platform has a USABLE open data context — what a leaderboard
+ * reads to hide itself honestly (web, native and the editor have none).
+ *
+ * Method presence is not the answer here, the way it is for share: the
+ * mini-game family is ONE adapter, so every vendor defines these, and a game
+ * whose package declares no context directory has none even on a host that
+ * supports them. So the honest probe is the same one the ad path uses — ask
+ * for the thing and treat null as "not here".
+ */
+export function platformCanOpenData(): boolean {
+    if (!isPlatformInitialized()) return false;
+    const p = getPlatform();
+    return p.openDataPostMessage !== undefined && p.openDataCanvas?.() != null;
+}
+
+/**
+ * Send one message into the open data context; false where there is none.
+ * One way: the hosts offer no path back, so there is nothing to await.
+ *
+ * Gated on the same probe rather than on method presence — otherwise this
+ * reports a delivery it did not make, on every mini-game host without a
+ * context, which is the answer a caller is least able to check.
+ */
+export function platformOpenDataPostMessage(message: Record<string, unknown>): boolean {
+    if (!platformCanOpenData()) return false;
+    getPlatform().openDataPostMessage!(message);
+    return true;
+}
+
+/** The canvas the open data context draws on, for sampling as a texture. */
+export function platformOpenDataCanvas(): import('./types').PlatformCanvas | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().openDataCanvas?.() ?? null;
+}
+
+/** Write this player's own cloud rows; false where the host has no such store.
+ *  Unlike a share, "there was nowhere to write this" is knowable at call time,
+ *  so it is reported rather than swallowed. */
+export function platformSetCloudKeyValues(entries: Readonly<Record<string, string>>): boolean {
+    if (!isPlatformInitialized()) return false;
+    return getPlatform().setCloudKeyValues?.(entries) ?? false;
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform) {
         return currentPlatform.devicePixelRatio();

@@ -31,7 +31,25 @@ export interface MiniGameConfigContext {
     subPackages: ReadonlyArray<{ name: string; root: string }>;
     /** Custom suffixes the cook staged that need an explicit packer include rule. */
     includeSuffixes: string[];
+    /** Whether this export actually bundled an open data context. Declaring one
+     *  that is not there fails the host's compile, so the config names the
+     *  directory only when the directory exists. */
+    hasOpenData: boolean;
+    /** Where it was bundled — {@link OPEN_DATA_DIR}, handed in rather than read
+     *  from a constant so a project-authored profile emits the same name the
+     *  pipeline actually wrote to. */
+    openDataRoot: string;
 }
+
+/**
+ * The directory an open data context is authored in and bundled to.
+ *
+ * A family constant, not vendor data: the hosts that have this capability let
+ * the game pick the name, so the only thing a vendor could contribute is a
+ * different arbitrary string. It is the same on both sides — `<project>/open-data/`
+ * in, `<package>/open-data/` out — so there is one name to know.
+ */
+export const OPEN_DATA_DIR = 'open-data';
 
 /** Vendor-neutral facts the pipeline computes, handed to the entry emitter. */
 export interface MiniGameEntryContext {
@@ -136,6 +154,12 @@ export const wechatExportProfile: MiniGameExportProfile = {
             deviceOrientation: ctx.orientation,
             showStatusBar: false,
         };
+        // 开放数据域: named ONLY when this export bundled one. WeChat compiles
+        // the directory the key points at, so declaring an absent context is a
+        // build failure rather than a feature nobody uses.
+        if (ctx.hasOpenData) {
+            gameCfg.openDataContext = ctx.openDataRoot;
+        }
         // WeChat 分包: each lazy group is a subpackage rooted at subpackages/<name>/.
         // The game calls Assets.loadGroup(name) → wx.loadSubpackage at runtime.
         if (ctx.subPackages.length > 0) {

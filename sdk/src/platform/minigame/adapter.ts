@@ -32,7 +32,10 @@ import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { toBuildPath } from '../../assetTypes';
 import { log } from '../../util/logger';
-import type { MiniGameGlobal, MiniGameProfile, MiniGameCanvas, MiniGameFileSystemManager, MiniGameTouchEvent } from './api';
+import type {
+    MiniGameGlobal, MiniGameProfile, MiniGameCanvas, MiniGameFileSystemManager, MiniGameTouchEvent,
+    MiniGameOpenDataContext,
+} from './api';
 import { createPrimaryPointer } from '../primaryPointer';
 import { mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
 import { mgLoadImagePixels } from './image';
@@ -50,6 +53,8 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     private readonly g_: MiniGameGlobal;
     private fs_: MiniGameFileSystemManager | null = null;
     private inputCleanup_: (() => void) | null = null;
+    private openDataCtx_: MiniGameOpenDataContext | null = null;
+    private openDataResolved_ = false;
 
     constructor(profile: MiniGameProfile) {
         this.profile_ = profile;
@@ -179,6 +184,50 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     /** Register the passive-share card provider (the host's own share menu). */
     onShareRequest(provide: () => PlatformShareOptions): void {
         this.g_.onShareAppMessage?.call(this.g_, provide);
+    }
+
+    /**
+     * The open data context, resolved once and kept.
+     *
+     * `getOpenDataContext()` is documented as returning the same object every
+     * time, but it is not free — and this is asked on the frame a leaderboard
+     * opens, not at boot, because a host whose package declares no context
+     * throws rather than answering null. Caching a THROW as "absent" is the
+     * point: the second ask would throw again to no one's benefit.
+     */
+    private openData_(): MiniGameOpenDataContext | null {
+        if (this.openDataResolved_) return this.openDataCtx_;
+        this.openDataResolved_ = true;
+        try {
+            this.openDataCtx_ = this.g_.getOpenDataContext?.call(this.g_) ?? null;
+        } catch {
+            this.openDataCtx_ = null;
+        }
+        return this.openDataCtx_;
+    }
+
+    /** Send one message into the open data context. Absent context = no-op:
+     *  the caller already asked `available` if it cared. */
+    openDataPostMessage(message: Record<string, unknown>): void {
+        this.openData_()?.postMessage(message);
+    }
+
+    /** The shared canvas, for the main domain to sample as a texture. The same
+     *  honest cast {@link createCanvas} makes, for the same reason. */
+    openDataCanvas(): PlatformCanvas | null {
+        return (this.openData_()?.canvas as unknown as PlatformCanvas | undefined) ?? null;
+    }
+
+    /** Write this player's own rows to the host's cloud store. Whether there
+     *  was a store is reported; whether the write landed is not — that failure
+     *  (offline) is the one no host distinguishes for us. */
+    setCloudKeyValues(entries: Readonly<Record<string, string>>): boolean {
+        const set = this.g_.setUserCloudStorage;
+        if (!set) return false;
+        set.call(this.g_, {
+            KVDataList: Object.entries(entries).map(([key, value]) => ({ key, value })),
+        });
+        return true;
     }
 
     onMemoryWarning(callback: () => void): () => void {

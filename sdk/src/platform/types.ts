@@ -507,6 +507,20 @@ export interface PlatformAdapter {
      *  host asks at share time, so the provider can answer with live state. */
     onShareRequest?(provide: () => PlatformShareOptions): void;
 
+    /** Send a message into the open data context — the second JS runtime that
+     *  is the only place friend data can be read. ONE WAY by nature: no host
+     *  offers a channel back, so this returns nothing and nothing awaits it. */
+    openDataPostMessage?(message: Record<string, unknown>): void;
+    /** The canvas the open data context draws on, for the main domain to sample
+     *  as a texture. Null when the host has the capability but this game's
+     *  package declares no context to draw with. */
+    openDataCanvas?(): PlatformCanvas | null;
+    /** Write this player's own rows to the host's per-player cloud store — the
+     *  writable half of a leaderboard. Reading is the open data context's
+     *  alone, which is the whole reason that context exists. Returns whether
+     *  there was a store to write to; the write itself is fire-and-forget. */
+    setCloudKeyValues?(entries: Readonly<Record<string, string>>): boolean;
+
     devicePixelRatio(): number;
 
     getStorageItem(key: string): string | null;

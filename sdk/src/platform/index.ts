@@ -60,6 +60,10 @@ export {
     platformCanShare,
     platformShare,
     platformOnShareRequest,
+    platformCanOpenData,
+    platformOpenDataPostMessage,
+    platformOpenDataCanvas,
+    platformSetCloudKeyValues,
 } from './base';
 
 // Note: webAdapter is exported here for initialization

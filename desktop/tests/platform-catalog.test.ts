@@ -189,7 +189,7 @@ describe('createProjectPlatform — scaffolding', () => {
     const loaded = await loadProjectPlatform(root, 'acme-play', dirs());
     expect(loaded!.profile.runtimeProfileModule).toBe(path.join(root, 'src', 'platforms', 'acme-play.runtime.ts'));
     expect(loaded!.defaultOut).toBe('dist-acme-play');
-    expect(loaded!.profile.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [] })[0].file)
+    expect(loaded!.profile.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data' })[0].file)
       .toBe('game.json');
   });
 
@@ -239,7 +239,7 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     expect(entry).toContain("require('./game-bundle.js')");
 
     // And the project's own emitter is what runs for config.
-    expect(p.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [] }))
+    expect(p.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data' }))
       .toEqual([{ file: 'game.json', content: '{"t":"T"}' }]);
   });
 
