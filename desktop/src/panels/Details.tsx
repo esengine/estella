@@ -54,7 +54,7 @@ import { EventBindingSection } from '@/events/EventBindingSection';
 import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderConvert';
 import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { NineSliceEditor } from '@/components/NineSliceEditor';
-import { fsRefresh } from '@/project/fsWatch';
+import { fsRefresh } from '@/project/fsRefresh';
 import { Toasts } from '@/store/Toasts';
 import { baseName, IMAGE_RE } from '@/project/assetMeta';
 import { BUILTIN_PLATFORMS, type BuiltinPlatform } from '@/project/platforms';

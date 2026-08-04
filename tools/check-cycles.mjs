@@ -25,12 +25,19 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Lower these as cycles are broken; never raise them. 0 is the goal for both.
-// The editor's four are all inside one subsystem each (EngineHost/Reconciler,
-// ProjectStore/fsWatch) rather than across layers — real, but contained.
+// Lower these as cycles are broken; never raise them.
+//
+// The editor's remaining one is EngineHost → SceneLoader → Reconciler →
+// EngineHost, and it is PRINCIPLED rather than pending: the three are one
+// collaboration around the live World — the host owns it, the loader loads into
+// it, the reconciler projects the scene model into it. Breaking it means either
+// leaking the App out of EngineHost (worse encapsulation, for one caller) or
+// threading a world argument through six modules of call sites. Both are worse
+// than the cycle. Judge a NEW cycle on its own merits; do not read this budget
+// as permission for one.
 const BUDGETS = [
   { name: 'sdk', entry: 'sdk/src/index.ts', extensions: ['ts'], budget: 0 },
-  { name: 'editor', entry: 'desktop/src/main.tsx', extensions: ['ts', 'tsx'], budget: 4 },
+  { name: 'editor', entry: 'desktop/src/main.tsx', extensions: ['ts', 'tsx'], budget: 1 },
 ];
 
 let failed = false;

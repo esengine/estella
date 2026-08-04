@@ -9,7 +9,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import '@/settings';
 import { settingsRegistry } from '@/settings/registry';
-import { ENTITY_SOURCES, setCanvasDesignSeed } from '@/engine/entitySources';
+import { ENTITY_SOURCES } from '@/engine/entitySources';
+import { setCanvasDesignSeed } from '@/engine/projectSeams';
 import { ProjectStore } from '@/project/ProjectStore';
 
 async function canvasDesign(): Promise<{ x: number; y: number }> {

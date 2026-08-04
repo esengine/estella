@@ -16,7 +16,8 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, sourceById, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, sourceById, type EntitySource } from '@/engine/entitySources';
+import { setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources } from '@/engine/projectSeams';
 import { needsUIHost, hostPrefab, authoredEntities, type DocumentEntity } from '@/engine/prefabEnvironment';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
@@ -40,10 +41,10 @@ import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
-import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
-import { resetFsWatch, fsRefresh } from './fsWatch';
+import { projectReplacing } from './projectReplacing';
+import { fsRefresh } from './fsRefresh';
 import type { DocSnapshot } from '@/document/DirtyRegistry';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
@@ -278,7 +279,7 @@ class ProjectStoreImpl {
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
     installDragonBonesEnumSources();
     installSpineEnumSources();
-    installLocaleKeyEnumSource();
+    installLocaleKeyEnumSource(() => this.listAssets('locale'));
     // A skeleton re-exported outside the editor declares different animations —
     // drop what was parsed from the old file so the next render re-reads it.
     fsRefresh.subscribe(() => clearDragonBonesNameCache());
@@ -458,11 +459,11 @@ class ProjectStoreImpl {
     // late populateRegistry must not clobber this project's registry).
     this.projectGeneration++;
     this.revalidating = false;
-    // Drop any file-watch burst still queued for the previous project.
-    resetFsWatch();
-    // A play realm warmed for the PREVIOUS project holds its bundle + assets;
-    // cold-reset so the next prewarm/Play stages this project.
-    PlayRealms.resetPrimary();
+    // Anything the PREVIOUS project left in flight drops itself here: the
+    // file-watch burst still queued, the play realm warmed with its bundle and
+    // assets. Announced rather than phoned around, so a subsystem with
+    // in-flight state subscribes instead of being remembered by this method.
+    projectReplacing.announce();
     this.store.setState({
       project: {
         root: opened.root,

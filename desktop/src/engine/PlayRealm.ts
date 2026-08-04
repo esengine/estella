@@ -23,6 +23,7 @@ import { LogStore } from '@/store/LogStore';
 import { t } from '@/i18n';
 import { playProtocolMismatch } from './playProtocol';
 import { bootProfiler } from './bootProfiler';
+import { projectReplacing } from '@/project/projectReplacing';
 import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply } from './playProtocol';
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
@@ -498,3 +499,8 @@ export const PlayRealms = new PlayRealmsManager();
 /** The primary realm — the single-player surface every existing consumer
  *  (inspect, profiler, subsystems, viewport PIE) talks to. */
 export const PlayRealm = PlayRealms.primary;
+
+// A realm warmed for the previous project holds its bundle + assets, so it
+// cold-resets when the project is replaced — subscribed here rather than called
+// by the project store, which has no business knowing the realm exists.
+projectReplacing.subscribe(() => PlayRealms.resetPrimary());

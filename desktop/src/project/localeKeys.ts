@@ -21,18 +21,22 @@ import { parseLocaleTable } from 'esengine';
 import { setEnumSource } from '@/engine/schema';
 import { SceneStore } from '@/engine/SceneStore';
 import type { EnumOption } from '@/types';
-import { ProjectStore } from './ProjectStore';
-import { fsRefresh } from './fsWatch';
+
+import { fsRefresh } from './fsRefresh';
 import { editorLocale } from '@/i18n';
 
 let options: EnumOption[] = [];
 let stale = true;
 let scanning = false;
 
+/** Where the locale tables are, supplied at install time — see
+ *  {@link installLocaleKeyEnumSource}. */
+let listLocaleAssets: () => ReadonlyArray<{ path: string }> = () => [];
+
 async function scan(): Promise<EnumOption[]> {
   // key → per-locale preview text (plural entries preview their `other` form).
   const previews = new Map<string, Map<string, string>>();
-  for (const { path } of ProjectStore.listAssets('locale')) {
+  for (const { path } of listLocaleAssets()) {
     // Deleted between the listing and the read — the next bump rescans.
     const text = await window.estella.fs.readOptional(path);
     if (text === null) continue;
@@ -75,8 +79,17 @@ function kickScan(): void {
 // render (or directory re-read) kicks the rescan.
 fsRefresh.subscribe(() => { stale = true; });
 
-/** Register the `Text.i18nKey` picker's source. Called once, beside the others. */
-export function installLocaleKeyEnumSource(): void {
+/**
+ * Register the `Text.i18nKey` picker's source. Called once, beside the others.
+ *
+ * The locale tables are handed in rather than read from the project store: this
+ * module is one of the store's CONSUMERS, and importing it back to ask for a
+ * list made the two a dependency cycle for the sake of a single call.
+ */
+export function installLocaleKeyEnumSource(
+  listAssets: () => ReadonlyArray<{ path: string }>,
+): void {
+  listLocaleAssets = listAssets;
   setEnumSource('localeKeys', () => {
     kickScan();
     return options;

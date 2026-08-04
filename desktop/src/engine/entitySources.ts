@@ -14,6 +14,7 @@
  * catalog tests assert over); pickers read {@link entitySources} so a contributed
  * template shows up everywhere an entity can be born.
  */
+import { projectPrefabSources, projectDesignSeed } from './projectSeams';
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
@@ -177,33 +178,6 @@ function presetSource(id: string, label: string, category: string, icon: LucideI
   return { id, label, category, icon, build: () => prefab };
 }
 
-// Project reference resolution provider (ProjectStore wires this on open). A new
-// Canvas seeds its designResolution from it; injected rather than imported so
-// entitySources doesn't cycle with ProjectStore (as setPrefabBaseResolver does).
-let canvasDesignSeed: (() => { width: number; height: number }) | null = null;
-export function setCanvasDesignSeed(fn: () => { width: number; height: number }): void {
-  canvasDesignSeed = fn;
-}
-
-/** The project's reference (design) resolution, from the same provider that seeds new
- *  Canvases. Read by the editor's design/device preview so it works without a UI Canvas —
- *  exposed here (rather than importing ProjectStore) to keep the engine modules acyclic. */
-export function projectDesignSeed(): { width: number; height: number } {
-  return canvasDesignSeed?.() ?? { width: 1920, height: 1080 };
-}
-
-// Project camera fit provider (ProjectStore wires this). `scaleMode` is a CanvasScaleMode
-// (0..4) or -1 (off). Same injection pattern as canvasDesignSeed — the device preview
-// reads it so its letterbox matches the runtime fit (WYSIWYG), without importing ProjectStore.
-let projectCameraFitSeed: (() => { scaleMode: number; matchWidthOrHeight: number }) | null = null;
-export function setProjectCameraFit(fn: () => { scaleMode: number; matchWidthOrHeight: number }): void {
-  projectCameraFitSeed = fn;
-}
-/** The project's camera fit (scaleMode -1 ⇒ off). Read by ViewportController.screenInfo. */
-export function projectCameraFit(): { scaleMode: number; matchWidthOrHeight: number } {
-  return projectCameraFitSeed?.() ?? { scaleMode: -1, matchWidthOrHeight: 0.5 };
-}
-
 const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   Button: SquareMousePointer,
   Toggle: ToggleLeft,
@@ -298,7 +272,7 @@ export const ENTITY_SOURCES: EntitySource[] = [
     category: 'UI',
     icon: LayoutPanelTop,
     build: () => {
-      const d = canvasDesignSeed?.() ?? { width: 1920, height: 1080 };
+      const d = projectDesignSeed();
       return preset('Canvas', ['Transform', ['Canvas', { designResolution: { x: d.width, y: d.height } }], 'UINode']);
     },
   },
@@ -373,13 +347,6 @@ export function entitySources(): readonly EntitySource[] {
  */
 export function allEntitySources(): EntitySource[] {
   return [...entitySources(), ...userComponentSources(), ...projectPrefabSources()];
-}
-
-/** Project prefab sources, injected by ProjectStore (which owns the asset registry)
- *  so this module stays free of a project dependency. */
-let projectPrefabSources: () => EntitySource[] = () => [];
-export function setProjectPrefabSources(fn: () => EntitySource[]): void {
-  projectPrefabSources = fn;
 }
 
 /** The source with this id, or null — over the SAME list the pickers offer, so an

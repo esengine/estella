@@ -32,7 +32,7 @@ import { createMaterialInstance } from '@/material/openMaterial';
 import { NEW_ASSET_TYPES, type CreateAsset } from '@/project/newAssetTypes';
 import { ASSET_GROUP_MODES, type AssetGroupMode } from 'esengine';
 import { onAssetReveal } from '@/project/assetReveal';
-import { fsRefresh } from '@/project/fsWatch';
+import { fsRefresh } from '@/project/fsRefresh';
 import { t, type MsgKey } from '@/i18n';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';

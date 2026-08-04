@@ -14,7 +14,7 @@ import {
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
-import { projectDesignSeed, projectCameraFit } from './entitySources';
+import { projectDesignSeed, projectCameraFit } from './projectSeams';
 import { SceneModel } from './SceneModel';
 import {
   type OBB,

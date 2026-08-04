@@ -3,32 +3,17 @@
 /**
  * @file  Live filesystem ↔ editor-asset sync (renderer side).
  *
- * `fsRefresh` is a bump signal every `useDir` subscribes to (re-read directories).
  * `initFsWatch` subscribes ONCE to the main-process watcher so changes on disk —
  * including edits made OUTSIDE the editor (Finder, git, build output, cooking) —
  * refresh the asset registry + Content Browser, not just the editor's own ops.
+ * The signal subscribers listen to is {@link fsRefresh}, which lives on its own
+ * so listening costs nothing but the signal.
  */
 import { ProjectStore } from './ProjectStore';
+import { fsRefresh } from './fsRefresh';
+import { projectReplacing } from './projectReplacing';
 import { PlayRealm, PlayRealms } from '../engine/PlayRealm';
 import { pluginPathsChanged, isPluginPath } from '../plugins/init';
-
-const listeners = new Set<() => void>();
-let version = 0;
-
-/** A re-read signal shared by every mounted `useDir` (no prop/context threading). */
-export const fsRefresh = {
-  bump: () => {
-    version++;
-    for (const l of listeners) l();
-  },
-  subscribe: (fn: () => void) => {
-    listeners.add(fn);
-    return () => {
-      listeners.delete(fn);
-    };
-  },
-  get: () => version,
-};
 
 let inited = false;
 let debounce: ReturnType<typeof setTimeout> | null = null;
@@ -131,9 +116,10 @@ export function initFsWatch(): void {
   });
 }
 
-/** Drop pending debounced work + accumulated paths. Call on project switch so a
- *  burst captured for the old project can't flush against the new one. */
-export function resetFsWatch(): void {
+/** Drop pending debounced work + accumulated paths, so a burst captured for the
+ *  old project can't flush against the new one. Subscribed to the project swap
+ *  below rather than called by the store — the watcher owns this state. */
+function resetFsWatch(): void {
   for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce, pluginDebounce]) {
     if (t) clearTimeout(t);
   }
@@ -142,3 +128,7 @@ export function resetFsWatch(): void {
   pendingPluginPaths = new Set();
   sawOverflow = false;
 }
+
+// The watcher drops its own in-flight burst when the project is replaced; the
+// store announces the swap without knowing who is listening.
+projectReplacing.subscribe(resetFsWatch);
