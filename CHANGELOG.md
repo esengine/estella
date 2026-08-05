@@ -98,6 +98,22 @@ published separately; it ships inside the editor.
   every other door on that surface rejects, so an agent that picked an entity
   could not select it.
 
+- **A shipped build is told about depth layers.** 2.5D reached the play realm
+  and NO exported build — web, mini-game, playable or native — because the export
+  re-derives the project's settings in the main process and that list never
+  mentioned the depth mask. A game checked out as correct in Play and shipped in
+  paint order, which is the worst shape a bug can take. The settings a runtime is
+  told are now derived ONCE (`runtimeConfigOf`), shared by the play payload and
+  every packaged target, and `tools/check-project-settings.mjs` fails a build
+  where a setting does not reach a consumer — or is not declared there as a gap
+  with a reason. Two such gaps are declared and still open: the physics world
+  config and the mixer state reach Play and not a shipped build.
+
+- **The mixer applies when a project opens, not when its panel does.** Bus
+  volumes, effects and duck rules were applied by the Audio Mixer panel, so a
+  project's audio previewed at the wrong levels until someone happened to open
+  it. Every setting the edit session can show is applied from one place now.
+
 ## [0.43.0] - 2026-08-04
 
 A release about a game that is no longer alone once it ships. Four more of the
