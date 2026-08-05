@@ -666,9 +666,18 @@ export class EditorControlSurfaceImpl {
     return this.s.selection.subscribe(fn);
   }
 
-  /** Viewport pick at a client position (what a click would select), or null. */
+  /**
+   * Viewport pick at a client position (what a click would select), or null.
+   *
+   * Answers with the SOURCE id — the id every other door on this surface speaks
+   * (select, getEntity, worldComp, the scene tree). The viewport picks in runtime
+   * ids because that is what it hit-tests, but handing one out here gives a caller
+   * an id it cannot pass to anything, which reads as "pick returned the wrong
+   * entity" rather than "that was a different id space".
+   */
   pick(clientX: number, clientY: number): EntityId | null {
-    return ViewportController.pickEntity(clientX, clientY);
+    const rt = ViewportController.pickEntity(clientX, clientY);
+    return (rt == null ? null : this.s.model.sourceFor(rt)) ?? null;
   }
 
   /** Screen rect (CSS px rel. canvas) of an entity's selection bounds, or null. */
