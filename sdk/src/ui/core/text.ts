@@ -72,6 +72,21 @@ export interface TextData {
     shadowOffsetY: number;
     richText: boolean;
     renderMode: TextRenderMode;
+    /**
+     * Draw layer, for a text with NO layout box — a label standing in the world
+     * rather than inside a Canvas. It is read the same way Sprite.layer and
+     * ShapeRenderer.layer are, so a label can be put in front of (or behind) the
+     * world content around it.
+     *
+     * Ignored under a UINode: inside a Canvas the UI render order decides, and a
+     * second knob there would let a text sort against its own panel.
+     *
+     * It exists because world text was pinned to layer 0 with no way off it, so
+     * any ShapeRenderer or Sprite that also sat on layer 0 and drew later simply
+     * covered it — a board hiding its own pieces, a name tag behind the character
+     * it names — with nothing in the component to reach for.
+     */
+    layer: number;
     /** Render toggle — the editor's eye and runtime hiding both flip this. */
     enabled: boolean;
 }
@@ -98,6 +113,7 @@ export const Text = defineComponent<TextData>('Text', {
     shadowOffsetY: 0,
     richText: false,
     renderMode: TextRenderMode.Auto,
+    layer: 0,
     enabled: true,
 }, {
     // A shipped font is a real asset reference: declaring it here is what gives
@@ -112,5 +128,6 @@ export const Text = defineComponent<TextData>('Text', {
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
         overflow: { enum: enumOptions(TextOverflow) },
         renderMode: { enum: enumOptions(TextRenderMode) },
+        layer: { tooltip: 'Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides.' },
     },
 });

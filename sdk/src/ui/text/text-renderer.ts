@@ -109,6 +109,45 @@ export function tapAlpha(target: number, n: number): number {
 }
 
 /**
+ * How far a laid-out block sits from `originY`, once vertical alignment and
+ * half-leading are applied.
+ *
+ * Split out because the boxless case was wrong in a way only arithmetic shows:
+ * `rectTextBox` hands the boxed path an origin already carrying the baseline
+ * (`-0.8em`), and the boxless path started from a bare 0. Middle therefore
+ * centred the block on a baseline rather than on the entity, and every world
+ * label sat 0.8em high — half a square, on a chessboard.
+ *
+ * @param boxHeight  the layout box's height; 0 ⇒ boxless, the origin IS the box
+ * @param lineHeight the laid block's height
+ */
+export function textBlockOriginY(
+    originY: number, boxHeight: number, lineHeight: number, fontSizePx: number,
+    verticalAlign: number | undefined, lineHeightPx: number | undefined,
+): number {
+    let y = originY;
+    // Boxless: the entity origin is a zero-height box, so it gets the same
+    // baseline the boxed path already receives from rectTextBox. Applied for
+    // every alignment, not only the ones that then shift — otherwise Top means
+    // "baseline on the origin" while Middle means "block centred on it", and the
+    // three do not sit on one ladder.
+    if (boxHeight <= 0) y -= fontSizePx * 0.8;
+    // Shift the block down (y-up) by the slack between box and content. With a
+    // zero-height box the slack is -blockHeight, which anchors the block to the origin.
+    if (verticalAlign) {
+        const slack = boxHeight - lineHeight;
+        y -= verticalAlign === 1 ? slack / 2 : slack; // 1 middle, 2 bottom
+    }
+    // Half-leading. A lineHeight above 1em adds space around the text, and that
+    // space belongs half above the first baseline and half below the last — the
+    // caller hands us a baseline a flat 0.8em under the line top, which puts all
+    // of it below. The block then rides (lineHeight - 1em)/2 too high inside its
+    // own box: at the default 1.2, every centred label sits 0.1em above where it
+    // should, which on a 60px label is a visible 6px.
+    return y - Math.max(0, ((lineHeightPx ?? fontSizePx * 1.2) - fontSizePx) / 2);
+}
+
+/**
  * Lay out `text` against `atlas` and emit one quad batch per atlas page to
  * `sink`. Pure given the atlas — no engine/Canvas dependency — so the grouping
  * and geometry are unit-testable.
@@ -132,20 +171,9 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     const boxHeight = p.boxHeight ?? 0;
     const boxWidth = p.boxWidth ?? 0;
 
-    // Vertical: shift the block down (y-up) by the slack between box and content. With a
-    // zero-height box the slack is -blockHeight, which anchors the block to the origin.
-    let originY = p.originY ?? 0;
-    if (p.verticalAlign) {
-        const slack = boxHeight - layout.lineHeight;
-        originY -= p.verticalAlign === 1 ? slack / 2 : slack; // 1 middle, 2 bottom
-    }
-    // Half-leading. A lineHeight above 1em adds space around the text, and that
-    // space belongs half above the first baseline and half below the last — the
-    // caller hands us a baseline a flat 0.8em under the line top, which puts all
-    // of it below. The block then rides (lineHeight - 1em)/2 too high inside its
-    // own box: at the default 1.2, every centred label sits 0.1em above where it
-    // should, which on a 60px label is a visible 6px.
-    originY -= Math.max(0, ((p.lineHeight ?? p.fontSizePx * 1.2) - p.fontSizePx) / 2);
+    const originY = textBlockOriginY(
+        p.originY ?? 0, boxHeight, layout.lineHeight, p.fontSizePx, p.verticalAlign, p.lineHeight,
+    );
 
     // A string can reference glyphs across several atlas pages; each page is a
     // distinct texture, so group by page and emit one batch per page.

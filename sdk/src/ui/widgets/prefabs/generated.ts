@@ -407,6 +407,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowOffsetY": 0,
               "richText": false,
               "renderMode": 0,
+              "layer": 0,
               "enabled": true
             }
           },
@@ -2634,6 +2635,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowOffsetY": 0,
               "richText": false,
               "renderMode": 0,
+              "layer": 0,
               "enabled": true
             }
           },
@@ -2985,6 +2987,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "shadowOffsetY": 0,
               "richText": false,
               "renderMode": 0,
+              "layer": 0,
               "enabled": true
             }
           },

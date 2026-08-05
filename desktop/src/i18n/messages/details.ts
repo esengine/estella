@@ -14,9 +14,13 @@ export const detailsMessages = defineMessages({
         en: 'UI layout owns this position — it is recomputed every relayout. Move this widget with the UI Node anchors / offsets instead.',
         zh: '该位置由 UI 布局决定 —— 每次重新布局都会重算。请改用 UI 节点的锚点 / 偏移来移动此控件。',
     },
+    // Both readings are legitimate, and naming only the UI one sent world content
+    // (a label on a board, a name over a character) into a Canvas it does not
+    // belong in. So say what this text IS — a label standing in the world — and
+    // which knob orders it, before offering the UI route.
     'det.noticeTextNoLayoutBox': {
-        en: 'No layout box — align anchors the text to the entity origin. To align within a fixed area, add a UINode and place this Text under a Canvas.',
-        zh: '没有布局框 —— 对齐只会把文本吸附到实体原点。要在固定区域内对齐，请添加 UI 节点并把该文本放到画布下。',
+        en: 'No layout box — this is a label in the world, drawn at the entity origin and sorted by Text.layer (raise it to sit in front of nearby sprites / shapes). Align only anchors to that origin; to align within a fixed area, add a UINode and place this Text under a Canvas.',
+        zh: '没有布局框 —— 这是一段世界里的文字，画在实体原点，按 Text.layer 排序（调高它就能盖在附近的精灵 / 形状上面）。对齐只会把文本吸附到该原点；要在固定区域内对齐，请添加 UI 节点并把该文本放到画布下。',
     },
     'det.noticeLightNeedsTransform': {
         en: 'Point / Spot lights need a Transform for their position — this light is skipped.',

@@ -153,13 +153,15 @@ export class TextPlugin implements Plugin {
                 // The layout box: a UINode (CSS box, pivot-centered) or legacy
                 // UINode. Text is placed + aligned + wrapped inside it and sorted
                 // by the UI render order. No box ⇒ a world-space label at the
-                // entity origin, layer 0.
+                // entity origin, sorted by Text.layer like any other world
+                // renderer (it used to be pinned to 0, where anything else on
+                // layer 0 drawn later covered it).
                 let originX: number | undefined;
                 let originY: number | undefined;
                 let maxWidth: number | undefined;
                 let boxWidth: number | undefined;
                 let boxHeight: number | undefined;
-                let layer = 0;
+                let layer = t.layer | 0;
                 let w = 0, h = 0, hasBox = false;
                 if (world.has(entity, UINode)) {
                     w = getUINodeWidth(entity);

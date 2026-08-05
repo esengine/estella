@@ -7227,6 +7227,7 @@ fontFamily: string
 fontSize: number
 i18nKey: string
 italic: boolean
+layer: number
 lineHeight: number
 overflow: TextOverflow
 renderMode: TextRenderMode
@@ -7253,6 +7254,7 @@ fontFamily: string | undefined
 fontSize: number | undefined
 i18nKey: string | undefined
 italic: boolean | undefined
+layer: number | undefined
 lineHeight: number | undefined
 overflow: TextOverflow | undefined
 renderMode: TextRenderMode | undefined

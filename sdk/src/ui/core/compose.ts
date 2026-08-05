@@ -164,6 +164,7 @@ export function buildText(init: TextInit = {}): TextData {
         shadowOffsetY: init.shadowOffsetY ?? 0,
         richText: init.richText ?? false,
         renderMode: init.renderMode ?? TextRenderMode.Auto,
+        layer: init.layer ?? 0,
         enabled: init.enabled ?? true,
     };
 }

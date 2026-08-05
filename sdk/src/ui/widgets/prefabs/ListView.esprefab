@@ -335,6 +335,7 @@
             "shadowOffsetY": 0,
             "richText": false,
             "renderMode": 0,
+            "layer": 0,
             "enabled": true
           }
         },
