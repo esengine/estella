@@ -28,6 +28,9 @@ import { cookAssets, loadAssetGroups } from './cookAssets';
 import { buildAddressableManifest } from './addressableManifest';
 import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
+import {
+  DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
+} from '../src/project/runtimeConfig';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
@@ -415,17 +418,14 @@ export interface ExportGameOptions {
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
-  /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
-  ySortLayers?: number;
-  /** Project color space — 'linear' boots the shipped game on the linear-light pipeline. */
-  colorSpace?: 'gamma' | 'linear';
-  /** Project camera fit (Project Settings → Display) — the main camera letterboxes this
-   *  design resolution regardless of any UI Canvas. Absent ⇒ no fit (raw orthoSize). */
-  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-  /** Project widget theme (Project Settings → UI); absent = dark. */
-  uiTheme?: 'light';
-  /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
-  uiThemeColors?: Record<string, string>;
+  /**
+   * The project's runtime settings, derived ONCE from the manifest
+   * (`runtimeConfigOf`) rather than re-listed per target. Every packaged build
+   * writes the same slice of it (`packagedRuntimeFields`), which is what stopped
+   * the 2.5D depth mask from reaching the play realm and no shipped build.
+   * Absent ⇒ a project that declared nothing.
+   */
+  runtime?: RuntimeProjectConfig;
   /** Hot-update delivery baked into game.config.json: the CDN root `remote`-group
    *  assets resolve against + the storage key an applied update persists under.
    *  The addressable `asset-manifest.json` this export always emits enables it. */
@@ -532,6 +532,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // aspect) so a caller that omits it still ships consistently. The IPC handler resolves
   // it from the manifest (explicit setting, else the design resolution's aspect).
   const orientation: ScreenOrientation = opts.orientation ?? 'landscape';
+  // One derivation of the project's settings, forwarded whole. Every target used
+  // to take them as loose fields and each one had to remember the same list.
+  const runtime = opts.runtime ?? DEFAULT_RUNTIME_CONFIG;
   const progress = opts.onProgress ?? (() => {});
   const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
 
@@ -551,11 +554,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.wechatAppid,
       orientation,
-      ySortLayers: opts.ySortLayers,
-      colorSpace: opts.colorSpace,
-      screenFit: opts.screenFit,
-      uiTheme: opts.uiTheme,
-      uiThemeColors: opts.uiThemeColors,
+      runtime,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
@@ -578,11 +577,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.wechatAppid,
       orientation,
-      ySortLayers: opts.ySortLayers,
-      colorSpace: opts.colorSpace,
-      screenFit: opts.screenFit,
-      uiTheme: opts.uiTheme,
-      uiThemeColors: opts.uiThemeColors,
+      runtime,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
@@ -606,11 +601,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       orientation,
       minify: opts.minify,
-      ySortLayers: opts.ySortLayers,
-      colorSpace: opts.colorSpace,
-      screenFit: opts.screenFit,
-      uiTheme: opts.uiTheme,
-      uiThemeColors: opts.uiThemeColors,
+      runtime,
       adProfile: opts.playableAdProfile,
       onProgress: opts.onProgress,
     });
@@ -740,11 +731,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // spelled differently here — the two sides share one declaration.
   const gameConfig: PackagedGameConfig = {
     entryScene: opts.entryScene, scenes,
-    ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
-    ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
-    ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
-    ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
-    ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
+    ...packagedRuntimeFields(runtime),
     ...(hotUpdate ? { hotUpdate } : {}),
     ...(sideModuleDeclarations(projectModules, platform).length > 0
       ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),

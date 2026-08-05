@@ -74,7 +74,8 @@ import {
   listPlayableNetworks, loadPlayableProfile,
   type PlatformRuntimeDirs, type ProjectPlatformKind,
 } from './platformCatalog';
-import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, resolveAppId, type ExportPlatform } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation, resolveAppId, type ExportPlatform } from '../src/project/format';
+import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -1114,24 +1115,16 @@ ipcMain.handle(
         phase: `ad network "${plat?.playable?.network}" not found — packaging generic`,
       });
     }
-    const ySortLayers =
-      (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
-    const colorSpace = manifest.features?.rendering?.colorSpace === 'linear' ? 'linear' as const : undefined;
-    // Project camera fit → runtime screenFit (only when the project opts in; scaleMode < 0 = off).
-    const fit = resolveScreenFit(manifest);
-    const screenFit = fit.scaleMode >= 0 ? fit : undefined;
-    const uiTheme = manifest.features?.ui?.theme === 'light' ? 'light' as const : undefined;
-    const uiThemeColors = manifest.features?.ui?.colors;
+    // Every project setting a runtime is told, derived in ONE place shared with
+    // the play realm (see runtimeConfig.ts). Listing them here is what left the
+    // 2.5D depth mask out of every shipped build while Play had it.
+    const runtime = runtimeConfigOf(manifest);
     return exportGame({
       root,
       entryScene,
       scenesDir: resolveLayout(manifest).scenes,
       excludeScenes: manifest.packaging?.excludeScenes,
-      ySortLayers,
-      colorSpace,
-      screenFit,
-      uiTheme,
-      uiThemeColors,
+      runtime,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,

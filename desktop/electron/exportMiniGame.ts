@@ -29,6 +29,9 @@
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { loadEsbuild } from './esbuildRuntime';
+import {
+  DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
+} from '../src/project/runtimeConfig';
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -169,17 +172,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   appid?: string;
   /** Screen orientation (Project Settings) → game.json. */
   orientation?: 'portrait' | 'landscape';
-  /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
-  ySortLayers?: number;
-  /** Project color space — 'linear' boots the mini-game on the linear-light pipeline. */
-  colorSpace?: 'gamma' | 'linear';
-  /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
-   *  without a UI Canvas; absent = no fit. */
-  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-  /** Project widget theme (Project Settings → UI); absent = dark. */
-  uiTheme?: 'light';
-  /** Project theme color overrides (role → #rrggbbaa hex) — parsed by the generated boot. */
-  uiThemeColors?: Record<string, string>;
+  /** The project's runtime settings, derived once by `runtimeConfigOf`; the
+   *  generated boot passes the packaged slice of them to the vendor runtime. */
+  runtime?: RuntimeProjectConfig;
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
@@ -308,7 +303,18 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // which glue it staged (esengine.wxgame vs the web-aligned esengine), and the
   // runtime must instantiate the staged glue's .wasm twin, not guess a name.
   const engineWasmPath = `wasm/${engineGlueFile.replace(/\.js$/, '.wasm')}`;
-  const themeColors = opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? opts.uiThemeColors : undefined;
+  // The packaged slice of the project's settings, GENERATED rather than listed:
+  // a setting added to packagedRuntimeFields reaches this boot without anyone
+  // having to remember that this template exists. Theme colours are the one that
+  // is not a plain value — the runtime takes parsed overrides, so a call is
+  // emitted for them instead.
+  const packaged = packagedRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG);
+  const themeColors = packaged.uiThemeColors;
+  const runtimeArgs = Object.entries(packaged)
+    .map(([k, v]) => (k === 'uiThemeColors'
+      ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(v)})`
+      : `, ${k}: ${JSON.stringify(v)}`))
+    .join('');
   // A vendor whose SDK entry does not install a platform on import (the
   // family entry, esengine/minigame — it waits until the game names a host)
   // gets its runtime profile installed here, at the top of boot(). Without
@@ -326,7 +332,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''}${opts.uiTheme === 'light' ? `, uiTheme: 'light'` : ''}${themeColors ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(themeColors)})` : ''}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

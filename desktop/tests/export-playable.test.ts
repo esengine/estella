@@ -8,6 +8,7 @@
  *        by the user in a browser / ad preview (no playable simulator here).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { runtimeConfigOf } from '@/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -200,13 +201,19 @@ describe('exportGame (playable)', () => {
       root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
       playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
-      outDir: o, platform: 'playable', screenFit: { designWidth: 750, designHeight: 1334, scaleMode: 1, matchWidthOrHeight: 0.5 },
+      outDir: o, platform: 'playable',
+      runtime: runtimeConfigOf({
+        designResolution: { width: 750, height: 1334 },
+        features: { rendering: { cameraScaleMode: 'fixed-height', depthLayers: [2] } },
+      }),
     });
     expect(res.ok).toBe(true);
     const html = readFileSync(path.join(o, 'index.html'), 'utf8');
-    expect(html).toContain('__GAME_SCREENFIT__');
+    expect(html).toContain('__GAME_RUNTIME__');
     expect(html).toMatch(/"scaleMode":1/);
     expect(html).toMatch(/"designWidth":750/);
+    // The 2.5D opt-in ships too: it used to reach the play realm and no build.
+    expect(html).toMatch(/"depthLayers":4/);
   }, 60_000);
 
   // A portrait project must ALSO stay playable in a landscape container: the page

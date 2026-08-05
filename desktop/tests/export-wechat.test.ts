@@ -10,6 +10,7 @@
  *        simulator here.)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { runtimeConfigOf } from '@/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -66,7 +67,10 @@ describe('exportGame (wechat)', () => {
       platform: 'wechat',
       wechatAppid: 'wxTEST0123456789',
       orientation: 'landscape',
-      screenFit: { designWidth: 1280, designHeight: 720, scaleMode: 2, matchWidthOrHeight: 0.5 },
+      runtime: runtimeConfigOf({
+        designResolution: { width: 1280, height: 720 },
+        features: { rendering: { cameraScaleMode: 'expand', depthLayers: [1] } },
+      }),
     });
 
     expect(res.ok).toBe(true);
@@ -96,6 +100,9 @@ describe('exportGame (wechat)', () => {
     // The project camera fit rides the boot config into initWeChatRuntime.
     expect(bundle).toContain('screenFit');
     expect(bundle).toMatch(/"scaleMode":\s*2/);
+    // Same generated boot carries the 2.5D opt-in — one packaged slice, so a
+    // setting cannot reach one target and not another.
+    expect(bundle).toMatch(/depthLayers:\s*2/);
 
     // Config + runtime copy.
     const pcfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));

@@ -17,6 +17,9 @@
  *        + fs); IPC wiring in main.ts.
  */
 import { loadEsbuild } from './esbuildRuntime';
+import {
+  DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
+} from '../src/project/runtimeConfig';
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -182,17 +185,9 @@ export async function exportPlayable(opts: {
    *  reaches the ad-network profile, which may declare it to the platform. */
   orientation?: ScreenOrientation;
   minify?: boolean;
-  /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
-  ySortLayers?: number;
-  /** Project color space — 'linear' boots the playable on the linear-light pipeline. */
-  colorSpace?: 'gamma' | 'linear';
-  /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
-   *  without a UI Canvas; absent = no fit. */
-  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-  /** Project widget theme (Project Settings → UI); absent = dark. */
-  uiTheme?: 'light';
-  /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
-  uiThemeColors?: Record<string, string>;
+  /** The project's runtime settings, derived once by `runtimeConfigOf`; the page
+   *  carries the packaged slice of them as one global the host reads. */
+  runtime?: RuntimeProjectConfig;
   /** The ad network this package targets (Project Settings → Packaging → Playable):
    *  its size cap, its `<head>` markup and its click-through API. Absent ⇒ generic. */
   adProfile?: PlayableAdProfile;
@@ -314,11 +309,10 @@ export async function exportPlayable(opts: {
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
-    `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};` +
-    `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};` +
-    (opts.screenFit && opts.screenFit.scaleMode >= 0 ? `window.__GAME_SCREENFIT__=${JSON.stringify(opts.screenFit)};` : '') +
-    (opts.uiTheme === 'light' ? `window.__GAME_UITHEME__='light';` : '') +
-    (opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? `window.__GAME_UITHEMECOLORS__=${JSON.stringify(opts.uiThemeColors)};` : '');
+    // ONE global for the project's settings, in the same shape game.config.json
+    // carries them. Five separate globals meant the host and the export had to
+    // agree on five names, and a sixth setting simply never got a global.
+    `window.__GAME_RUNTIME__=${JSON.stringify(packagedRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG))};`;
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');

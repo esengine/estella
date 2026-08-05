@@ -12,6 +12,7 @@
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost, parseThemeOverrides } from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';
+import type { PackagedRuntimeFields } from '@/project/runtimeConfig';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
@@ -26,11 +27,10 @@ declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_PATHMAP__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
-declare const __GAME_YSORT__: number;
-declare const __GAME_COLORSPACE__: 'gamma' | 'linear';
-declare const __GAME_SCREENFIT__: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-declare const __GAME_UITHEME__: 'light';
-declare const __GAME_UITHEMECOLORS__: Record<string, string>;
+/** The project's settings, in the same shape game.config.json carries them —
+ *  one global, so a setting the export starts sending arrives without the host
+ *  learning a new name for it. Absent fields are their defaults. */
+declare const __GAME_RUNTIME__: PackagedRuntimeFields;
 
 function decodeBase64(b64: string): Uint8Array {
   const raw = atob(b64);
@@ -40,6 +40,9 @@ function decodeBase64(b64: string): Uint8Array {
 }
 
 async function boot(): Promise<void> {
+  // An export built before this global simply has no settings to apply.
+  const runtimeConfig: PackagedRuntimeFields =
+    typeof __GAME_RUNTIME__ !== 'undefined' ? __GAME_RUNTIME__ : {};
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const resize = (): void => {
     const dpr = window.devicePixelRatio || 1;
@@ -85,9 +88,9 @@ async function boot(): Promise<void> {
   const app = createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
     // Older exports predate the color-space global; treat it as optional.
-    colorSpace: typeof __GAME_COLORSPACE__ !== 'undefined' ? __GAME_COLORSPACE__ : undefined,
-    // Present only when the project opts into a camera fit; optional otherwise.
-    screenFit: typeof __GAME_SCREENFIT__ !== 'undefined' ? __GAME_SCREENFIT__ : undefined,
+    colorSpace: runtimeConfig.colorSpace,
+    // Present only when the project opts into a camera fit; absent otherwise.
+    screenFit: runtimeConfig.screenFit,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     // Physics + spine resolve from the inlined base64 registry (no fetch).
     sideModules: createEmbeddedSideModuleHost(typeof __SIDE_MODULES__ !== 'undefined' ? __SIDE_MODULES__ : {}),
@@ -118,11 +121,11 @@ async function boot(): Promise<void> {
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
-    // Older exports predate y-sort; treat the global as optional.
-    ySortLayers: typeof __GAME_YSORT__ !== 'undefined' ? __GAME_YSORT__ : undefined,
-    // Project widget theme + token overrides; optional like the rest.
-    uiTheme: typeof __GAME_UITHEME__ !== 'undefined' ? __GAME_UITHEME__ : undefined,
-    uiThemeOverrides: parseThemeOverrides(typeof __GAME_UITHEMECOLORS__ !== 'undefined' ? __GAME_UITHEMECOLORS__ : undefined),
+    ySortLayers: runtimeConfig.ySortLayers,
+    // The 2.5D opt-in, which a playable never used to be told at all.
+    depthLayers: runtimeConfig.depthLayers,
+    uiTheme: runtimeConfig.uiTheme,
+    uiThemeOverrides: parseThemeOverrides(runtimeConfig.uiThemeColors),
   });
 }
 

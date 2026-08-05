@@ -8,6 +8,7 @@
  *        proven separately by play:verify — gameHost reuses initPlayRealmRuntime.)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { runtimeConfigOf } from '@/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -141,7 +142,10 @@ describe('exportGame', () => {
     const res = await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: fitOut, title: 'Fit Game',
-      screenFit: { designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.5 },
+      runtime: runtimeConfigOf({
+        designResolution: { width: 1080, height: 1920 },
+        features: { rendering: { cameraScaleMode: 'expand' } },
+      }),
     });
     expect(res.ok).toBe(true);
     const cfg = JSON.parse(readFileSync(path.join(fitOut, 'game.config.json'), 'utf8'));
@@ -152,7 +156,7 @@ describe('exportGame', () => {
     await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: offOut,
-      screenFit: { designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 },
+      runtime: runtimeConfigOf({ designResolution: { width: 1920, height: 1080 } }),
     });
     expect(JSON.parse(readFileSync(path.join(offOut, 'game.config.json'), 'utf8')).screenFit).toBeUndefined();
   }, 60_000);
