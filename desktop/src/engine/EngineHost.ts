@@ -348,6 +348,17 @@ class EngineHostImpl {
     if (view) view.uiPreviewAspect = aspect;
   }
 
+  /**
+   * Whether the editor's own eye is a perspective one — the only way to look at
+   * 2.5D content while authoring it. Editor-only and never serialized, like the
+   * rest of EditorView; the shipped game sees its own scene camera. No-op
+   * pre-boot, and re-applied on each boot since a fresh EditorView defaults off.
+   */
+  setViewPerspective(on: boolean): void {
+    const view = this.getResource(EditorView);
+    if (view) view.perspective = on;
+  }
+
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */
   private readSceneCamera(): { x: number; y: number; orthoSize: number } | null {
     const world = this.world;

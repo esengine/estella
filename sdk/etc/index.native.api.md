@@ -2677,7 +2677,10 @@ ResourceDef<EditorViewData>
 ## EditorViewData — interface
 ```
 active: boolean
+distance: number
+fov: number
 orthoSize: number
+perspective: boolean
 uiPreviewAspect: number
 x: number
 y: number

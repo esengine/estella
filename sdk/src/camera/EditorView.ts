@@ -27,6 +27,27 @@ export interface EditorViewData {
   /** Half-height of the view in world units (zoom; smaller = more zoomed in). */
   orthoSize: number;
   /**
+   * `false` (default) is the 2D view: an orthographic projection where zoom is
+   * `orthoSize` and depth cannot be seen. `true` previews the scene the way a
+   * perspective game camera would — the only way to look at 2.5D content while
+   * authoring it.
+   *
+   * The view keeps its OWN projection rather than following the scene's camera,
+   * which is the same choice UE and Unity make: an orthographic view of a
+   * perspective scene is a working mode (a top-down or side elevation), not a
+   * mismatch to be corrected. What the game will look like is the Game view's
+   * job; this is the editor's own eye.
+   */
+  perspective: boolean;
+  /** Vertical field of view in degrees, used only when `perspective`. */
+  fov: number;
+  /**
+   * Camera distance along +z, used only when `perspective`. This is what zoom
+   * moves in that mode — a perspective view cannot zoom by widening a box, and
+   * changing the fov instead would alter the projection the user is previewing.
+   */
+  distance: number;
+  /**
    * Aspect ratio the editor lays UI out against, so the editor previews how UI adapts
    * on a simulated device: `> 0` fits the design resolution into this aspect (the device
    * simulator), `0` uses the authored design aspect — WYSIWYG at the design resolution.
@@ -35,6 +56,10 @@ export interface EditorViewData {
   uiPreviewAspect: number;
 }
 
-export const DEFAULT_EDITOR_VIEW: EditorViewData = { active: false, x: 0, y: 0, orthoSize: 360, uiPreviewAspect: 0 };
+export const DEFAULT_EDITOR_VIEW: EditorViewData = {
+  active: false, x: 0, y: 0, orthoSize: 360, uiPreviewAspect: 0,
+  // Off by default: an existing project opens on exactly the view it always had.
+  perspective: false, fov: 60, distance: 1000,
+};
 
 export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIEW }, 'EditorView');

@@ -74,6 +74,9 @@ interface EditorState {
   /** Gizmo pivot: the selection's centroid (center), or the active entity's own pivot. */
   pivotMode: 'center' | 'pivot';
   toggleCoordSpace: () => void;
+  /** Editor viewport projection: a perspective eye for authoring 2.5D. */
+  viewPerspective: boolean;
+  toggleViewPerspective: () => void;
   togglePivotMode: () => void;
   /** Axis of the gizmo handle currently being dragged (null = none) — drives the
    *  handle's active highlight. Set by the transform tool on grab, cleared on release. */
@@ -196,6 +199,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   coordSpace: 'world',
   pivotMode: 'center',
   toggleCoordSpace: () => set((s) => ({ coordSpace: s.coordSpace === 'world' ? 'local' : 'world' })),
+  viewPerspective: false,
+  toggleViewPerspective: () => set((s) => ({ viewPerspective: !s.viewPerspective })),
   togglePivotMode: () => set((s) => ({ pivotMode: s.pivotMode === 'center' ? 'pivot' : 'center' })),
   activeGizmoAxis: null,
   setActiveGizmoAxis: (activeGizmoAxis) => set({ activeGizmoAxis }),

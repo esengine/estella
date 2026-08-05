@@ -305,12 +305,16 @@ export function editorCameraInfo(
         isActive: true,
         x: view.x,
         y: view.y,
-        z: 0,
+        // Perspective needs the camera to stand somewhere: it is the distance that
+        // makes content near or far, where orthographically nothing depends on z.
+        z: view.perspective ? view.distance : 0,
         rotation: 0,
-        projection: ProjectionType.Orthographic,
+        projection: view.perspective ? ProjectionType.Perspective : ProjectionType.Orthographic,
         orthoSize: view.orthoSize,
-        fov: 0,
-        near: 0,
+        fov: view.fov,
+        // A perspective projection divides by z, so near must be > 0 — the
+        // orthographic path builds a symmetric [-far, far] box and ignores it.
+        near: view.perspective ? 0.1 : 0,
         far: 100000,
         viewport: { x: 0, y: 0, z: 1, w: 1 },
         clearFlags: ClearFlags.ColorAndDepth,

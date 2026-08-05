@@ -55,6 +55,7 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleColliders': { en: 'Show Physics Gizmos', zh: '显示物理 Gizmo' },
     'cmd.view.toggleTileCollision': { en: 'Show Tile Collision', zh: '显示瓦片碰撞' },
     'cmd.view.toggleCoordSpace': { en: 'Local Axes', zh: '局部坐标轴' },
+    'cmd.view.toggleViewPerspective': { en: 'Perspective View', zh: '透视视图' },
     'cmd.view.togglePivotMode': { en: 'Pivot (vs Center)', zh: '轴心（而非中心）' },
     'cmd.view.toggleSnapping': { en: 'Snapping', zh: '吸附' },
     'cmd.view.toggleMinimap': { en: 'Minimap', zh: '小地图' },

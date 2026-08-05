@@ -472,6 +472,13 @@ commands.register({
   run: () => editor().toggleCoordSpace(),
 });
 commands.register({
+  id: 'view.toggleViewPerspective',
+  label: t('cmd.view.toggleViewPerspective'),
+  category: t('cat.view'),
+  isChecked: () => editor().viewPerspective,
+  run: () => editor().toggleViewPerspective(),
+});
+commands.register({
   id: 'view.togglePivotMode',
   label: t('cmd.view.togglePivotMode'),
   category: t('cat.view'),

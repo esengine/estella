@@ -98,6 +98,9 @@ export const viewportMessages = defineMessages({
     },
     'vp.pivot.pivot': { en: 'Pivot', zh: '轴心' },
     'vp.pivot.center': { en: 'Center', zh: '中心' },
+    'vp.projectionTitle': { en: 'Editor viewport projection — perspective makes depth visible for 2.5D authoring. Does not change the game camera.', zh: '编辑器视口投影——透视可在编辑 2.5D 时看见深度。不影响游戏相机。' },
+    'vp.proj.ortho': { en: '2D', zh: '2D' },
+    'vp.proj.perspective': { en: '3D', zh: '3D' },
 
     // — Design-resolution + device-preview dropdowns (UI mode) —
     'vp.designResTitle': {

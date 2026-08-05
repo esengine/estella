@@ -136,6 +136,17 @@ export function App() {
     return () => { unsubMode(); unsubEngine(); };
   }, []);
 
+  // Same shape as the aspect sync above, and for the same reason: the store owns
+  // the toggle a person clicks, EditorView is what the renderer reads, and a
+  // fresh engine boots with a default-off view that has to be re-told.
+  useEffect(() => {
+    const apply = () => EngineHost.setViewPerspective(useEditorStore.getState().viewPerspective);
+    apply();
+    const unsubStore = useEditorStore.subscribe(apply);
+    const unsubEngine = EngineHost.subscribe(apply);
+    return () => { unsubStore(); unsubEngine(); };
+  }, []);
+
   // Route otherwise-silent renderer faults (rejected promises, uncaught errors)
   // into the Output Log + a rate-limited toast — LogStore only patches console.*.
   useEffect(() => installGlobalErrorHandlers(), []);

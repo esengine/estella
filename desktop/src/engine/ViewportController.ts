@@ -6,6 +6,7 @@ import {
   ParticleEmitter, OneWayPlatform, RigidBody,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
+  type EditorViewData,
   Marker,
   TilemapLayer, TilemapAPI, decodeTilemapChunks, CHUNK_SIZE, tileCollisionOutlines,
   tileCellCenter, tileCellOutline, isNonOrthogonal,
@@ -77,8 +78,27 @@ function cameraView(): CameraViewLike | null {
 // Navigation mutates this in place; the camera system renders + resolves
 // screen<->world through it in edit mode (see sdk EditorView / CameraPlugin), so
 // panning/zooming/framing never touches — or dirties — the scene's game Camera.
-function editorView(): { active: boolean; x: number; y: number; orthoSize: number } | null {
+function editorView(): EditorViewData | null {
   return EngineHost.getResource(EditorView) ?? null;
+}
+
+/**
+ * The quantity zoom scales, which differs by projection but behaves the same.
+ *
+ * Orthographically it is the half-height of the view box. In perspective it is
+ * the camera's distance — and on the z = 0 plane, where 2D content lives, the
+ * visible extent is proportional to distance exactly as it is to orthoSize. That
+ * is what lets one zoom formula serve both instead of two that drift.
+ */
+const ZOOM_MIN = 8;
+const ZOOM_MAX = 40000;
+function zoomAmount(view: EditorViewData): number {
+  return view.perspective ? view.distance : view.orthoSize;
+}
+function setZoomAmount(view: EditorViewData, value: number): void {
+  const v = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
+  if (view.perspective) view.distance = v;
+  else view.orthoSize = v;
 }
 
 /** DOM pointer position → engine screen space (buffer px, y-up). */
@@ -375,7 +395,7 @@ export const ViewportController = {
   zoomBy(factor: number): void {
     const view = editorView();
     if (!view) return;
-    view.orthoSize = Math.max(8, Math.min(40000, view.orthoSize * factor));
+    setZoomAmount(view, zoomAmount(view) * factor);
   },
 
   /** Zoom about the cursor: the world point under (clientX, clientY) stays put, so
@@ -387,9 +407,9 @@ export const ViewportController = {
     const view = editorView();
     if (!view) return;
     const w = this.canvasToWorld(clientX, clientY); // current matrices — read BEFORE zoom
-    const next = Math.max(8, Math.min(40000, view.orthoSize * factor));
-    const applied = next / view.orthoSize; // clamped factor
-    view.orthoSize = next;
+    const before = zoomAmount(view);
+    setZoomAmount(view, before * factor);
+    const applied = zoomAmount(view) / before; // clamped factor
     if (w) {
       view.x += (w.x - view.x) * (1 - applied);
       view.y += (w.y - view.y) * (1 - applied);

@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Frame,
-  Camera, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Monitor, Magnet, Axis3d, Hexagon, MapPin, type LucideIcon,
+  Camera, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Monitor, Magnet, Axis3d, Hexagon, MapPin, Box, type LucideIcon,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
   AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
@@ -690,6 +690,7 @@ export function Viewport() {
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const coordSpace = useEditorStore((s) => s.coordSpace);
   const pivotMode = useEditorStore((s) => s.pivotMode);
+  const viewPerspective = useEditorStore((s) => s.viewPerspective);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
   const snapAngle = useEditorStore((s) => s.snapAngle);
@@ -2026,6 +2027,18 @@ export function Viewport() {
           >
             <Crosshair size={13} strokeWidth={1.9} />
             <span className="val">{pivotMode === 'pivot' ? t('vp.pivot.pivot') : t('vp.pivot.center')}</span>
+          </button>
+          {/* The editor's own eye. Orthographic is the 2D default; perspective is
+              what makes depth visible while authoring 2.5D. It changes only this
+              view — the Game view always shows the scene's own camera. */}
+          <button
+            type="button"
+            className={`ovbtn${viewPerspective ? ' active' : ''}`}
+            title={t('vp.projectionTitle')}
+            onClick={() => commands.run('view.toggleViewPerspective')}
+          >
+            <Box size={13} strokeWidth={1.9} />
+            <span className="val">{viewPerspective ? t('vp.proj.perspective') : t('vp.proj.ortho')}</span>
           </button>
           {/* Screen controls — available in EVERY editor mode. Design resolution edits
               the scene Canvas when present, else the project reference resolution; the
