@@ -49,14 +49,32 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     if (indexCount == 0) return;
 
     DrawCommand cmd{};
-    const bool ysorted = key.layer >= 0 && key.layer < 32 &&
-                         ((drawList.ySortMask() >> key.layer) & 1u) != 0;
-    cmd.sort_key = ysorted
-        ? DrawCommand::buildSortKeyYSorted(key.stage, key.layer, key.y, key.shaderId,
+    const auto order = drawList.layerOrder(key.layer);
+
+    // A depth layer decides its own stage and depth state; every other layer takes
+    // what the caller resolved from the material. The rule is the physical one, so
+    // it is derived rather than declared: an opaque draw may write depth and sorts
+    // front-to-back (the key inverts its depth bits for the Opaque stage, which is
+    // what makes early-z pay off), while a blended draw MUST NOT write — writing is
+    // how translucent sprites clip each other into black edges — so it only tests,
+    // and stays in back-to-front painter's order. Nobody should have to declare a
+    // fact about alpha compositing per material.
+    RenderStage stage = key.stage;
+    bool depthTest = key.depthTest;
+    bool depthWrite = key.depthWrite;
+    if (order == DrawList::LayerOrder::Depth) {
+        const bool opaque = key.blend == BlendMode::None;
+        stage = opaque ? RenderStage::Opaque : RenderStage::Transparent;
+        depthTest = true;
+        depthWrite = opaque;
+    }
+
+    cmd.sort_key = order == DrawList::LayerOrder::YSort
+        ? DrawCommand::buildSortKeyYSorted(stage, key.layer, key.y, key.shaderId,
                                            key.blend, 0)
-        : DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
+        : DrawCommand::buildSortKey(stage, key.layer, key.shaderId,
                                     key.blend, 0, key.depth, key.materialId);
-    cmd.stage = key.stage;
+    cmd.stage = stage;
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
     cmd.vertex_byte_offset = vertexByteOffset;
@@ -66,8 +84,8 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.blend_mode = key.blend;
     cmd.layout_id = key.layoutId;
     cmd.material_id = key.materialId;
-    cmd.depth_test = key.depthTest;
-    cmd.depth_write = key.depthWrite;
+    cmd.depth_test = depthTest;
+    cmd.depth_write = depthWrite;
     cmd.cull = key.cull;
     // The Batch stream always samples a texture (white fallback at minimum); other
     // streams bind one only when the draw actually has one (the shape stream is

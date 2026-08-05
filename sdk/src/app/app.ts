@@ -1169,6 +1169,14 @@ export interface WebAppOptions {
      */
     ySortLayers?: number;
     /**
+     * Bitmask of render layers (bits 0..31) that resolve by real depth instead of
+     * painter's order — the 2.5D opt-in. Opaque draws in such a layer write the
+     * depth buffer and sort front-to-back; blended ones test without writing and
+     * stay back-to-front. A layer that also y-sorts keeps y-sorting.
+     * Project-level setting (Project Settings → Rendering).
+     */
+    depthLayers?: number;
+    /**
      * Project color space (Project Settings → Rendering). 'linear' renders in
      * linear light: sRGB decode on sample, linear blending in sRGB-format
      * intermediates, and an explicit linear→sRGB encode in the final blit.
@@ -1222,6 +1230,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // Always applied (not only when set): the renderer outlives the App on realm
     // reloads, so a fresh App must reset a prior session's y-sort state too.
     module.renderer_setYSortLayers?.((options?.ySortLayers ?? 0) >>> 0);
+    module.renderer_setDepthLayers?.((options?.depthLayers ?? 0) >>> 0);
 
     app.addPlugin(corePlugin);
     app.setPipeline(new RenderPipeline());

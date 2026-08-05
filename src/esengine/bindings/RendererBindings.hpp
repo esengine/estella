@@ -109,6 +109,8 @@ f64 renderer_getTextureBytes();
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);
+/** 2.5D opt-in: bit i ⇒ layer i resolves by real depth. Same shape as y-sort. */
+void renderer_setDepthLayers(u32 mask);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();

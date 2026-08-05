@@ -82,7 +82,7 @@ void PostProcessPipeline::ensureFBOs() {
         FramebufferSpec origSpec;
         origSpec.width = width_;
         origSpec.height = height_;
-        origSpec.depthStencil = false;
+        origSpec.depthStencil = scene_needs_depth_;
         origSpec.colorFormat = interFmt;
         // Bilinear intermediates: fullscreen passes sample at texel centers
         // (where LINEAR == NEAREST), but Kawase blur deliberately samples at

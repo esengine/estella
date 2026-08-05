@@ -569,6 +569,12 @@ void renderer_setYSortLayers(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setYSortLayers(mask);
 }
 
+// The 2.5D opt-in, per sorting layer. Same shape as setYSortLayers because it is
+// the same kind of declaration: how a layer resolves the draws inside it.
+void renderer_setDepthLayers(u32 mask) {
+    if (auto* frame = g_renderFrame) frame->setDepthLayers(mask);
+}
+
 void renderer_setColorSpace(u32 linear) {
     // Valid pre-init: the global reaches every later shader compile, and
     // RenderFrame::init adopts it. A live frame applies immediately (editor

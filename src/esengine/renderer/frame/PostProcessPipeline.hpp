@@ -179,6 +179,24 @@ public:
      *        carries the linear->sRGB encode. Overrides bypass.
      */
     void setLinearOutput(bool linear) { linear_output_ = linear; }
+
+    /**
+     * @brief Whether the scene target needs a depth attachment.
+     *
+     * @details A depth buffer is per-frame memory and clear bandwidth (≈8MB at 1080p),
+     *          which a project with no depth layer should not pay for a feature it does
+     *          not use. Drops the scene FBO when the answer changes so the next
+     *          ensureFBOs rebuilds it with the right attachments — the same way resize
+     *          handles a size change.
+     */
+    void setSceneNeedsDepth(bool needs) {
+        if (needs == scene_needs_depth_) return;
+        scene_needs_depth_ = needs;
+        if (fboOriginalCreated_) {
+            fboOriginal_.reset();
+            fboOriginalCreated_ = false;
+        }
+    }
     bool linearOutput() const { return linear_output_; }
 
     /**
@@ -285,6 +303,7 @@ private:
     bool inFrame_ = false;
     bool bypass_ = false;
     bool linear_output_ = false;
+    bool scene_needs_depth_ = false;
     u32 currentFBO_ = 0;
     TextureHandle sceneTexture_ = TextureHandle::Invalid;
 

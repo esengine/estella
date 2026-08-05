@@ -47,6 +47,8 @@ export interface PlayableRuntimeConfig {
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
+    /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
+    depthLayers?: number;
     manifest?: AddressableManifest | null;
 }
 
@@ -82,6 +84,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // The playable boot pre-creates the app, so the project's y-sort layers are
     // applied here rather than through createWebApp options.
     if (config.ySortLayers) module.renderer_setYSortLayers?.(config.ySortLayers >>> 0);
+    if (config.depthLayers) module.renderer_setDepthLayers?.(config.depthLayers >>> 0);
 
     // Alias logical paths onto the embedded map (both spellings the cook may
     // emit) — the aliases point at the SAME data-URL strings, so path refs cost

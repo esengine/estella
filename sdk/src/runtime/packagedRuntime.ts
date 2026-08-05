@@ -37,6 +37,8 @@ export interface PackagedGameConfig {
     scenes?: Array<{ name: string; path: string }>;
     /** Bitmask of render layers (0..31) that y-sort within the layer. */
     ySortLayers?: number;
+    /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
+    depthLayers?: number;
     /** Project color space — 'linear' boots the linear-light pipeline. */
     colorSpace?: 'gamma' | 'linear';
     /** Project camera fit (design resolution + scale mode) — letterboxes the main

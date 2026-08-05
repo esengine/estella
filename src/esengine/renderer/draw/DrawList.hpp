@@ -48,6 +48,34 @@ public:
     void setYSortMask(u32 mask) { ysort_mask_ = mask; }
     u32 ySortMask() const { return ysort_mask_; }
 
+    // Bit i set ⇒ layer i resolves its contents by real depth: opaque draws write
+    // the depth buffer and sort front-to-back, blended ones test against it without
+    // writing and stay in painter's order. This is the 2.5D opt-in.
+    void setDepthMask(u32 mask) { depth_mask_ = mask; }
+    u32 depthMask() const { return depth_mask_; }
+
+    /** @brief How one sorting layer resolves the draws inside it. */
+    enum class LayerOrder : u8 { Painter, YSort, Depth };
+
+    /**
+     * @brief The one answer for @p layer, from two masks that are two spellings of
+     *        the same question.
+     *
+     * @details Y-sort is a depth PROJECTED from world Y and depth is the real thing;
+     *          a layer declaring both has said two contradictory things, and there is
+     *          no order that satisfies them. Y-sort wins so that a project which had
+     *          it before renders exactly as it did — the resolution belongs here, in
+     *          one pure function, rather than in each caller's idea of precedence.
+     *          Layers outside 0..31 have no bit and are therefore painter-ordered.
+     */
+    LayerOrder layerOrder(i32 layer) const {
+        if (layer < 0 || layer >= 32) return LayerOrder::Painter;
+        const u32 bit = 1u << layer;
+        if (ysort_mask_ & bit) return LayerOrder::YSort;
+        if (depth_mask_ & bit) return LayerOrder::Depth;
+        return LayerOrder::Painter;
+    }
+
 private:
     struct SortEntry {
         u64 key;
@@ -60,6 +88,7 @@ private:
                                                // per-frame heap alloc in finalize()
     u32 merged_draw_calls_ = 0;
     u32 ysort_mask_ = 0;
+    u32 depth_mask_ = 0;
 };
 
 }  // namespace esengine

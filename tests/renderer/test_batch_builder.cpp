@@ -308,3 +308,63 @@ TEST_CASE("finalize: draws with different depth state never coalesce") {
 
     CHECK(h.list.mergedDrawCallCount() == 2);
 }
+
+// A depth layer resolves its own stage and depth state from the one physical fact
+// that decides them: whether the draw reads the destination. Nobody declares this
+// per material, because getting it wrong is not a preference — a blended draw that
+// writes depth clips its neighbours into black edges.
+TEST_CASE("depth layer: an opaque draw writes depth and lands in the Opaque stage") {
+    Harness h;
+    h.list.setDepthMask(1u << 4);
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey key = quadKey(42, /*layer=*/4);
+    key.blend = BlendMode::None;
+    appendQuad(h.pool, h.list, h.clips, quad, key);
+
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).stage == RenderStage::Opaque);
+    CHECK(h.list.command(0).depth_test == true);
+    CHECK(h.list.command(0).depth_write == true);
+}
+
+TEST_CASE("depth layer: a blended draw tests depth but never writes it") {
+    Harness h;
+    h.list.setDepthMask(1u << 4);
+    BatchVertex quad[4] = {};
+
+    appendQuad(h.pool, h.list, h.clips, quad, quadKey(42, /*layer=*/4));
+
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).stage == RenderStage::Transparent);
+    CHECK(h.list.command(0).depth_test == true);
+    CHECK(h.list.command(0).depth_write == false);
+}
+
+// The whole point of making it a layer property: a project that declares no depth
+// layer must render exactly as it did, down to the pipeline state.
+TEST_CASE("depth layer: a painter layer is untouched by the opt-in") {
+    Harness h;
+    h.list.setDepthMask(1u << 4);
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey key = quadKey(42, /*layer=*/5);  // not the depth layer
+    key.blend = BlendMode::None;
+    appendQuad(h.pool, h.list, h.clips, quad, key);
+
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).stage == RenderStage::Transparent);
+    CHECK(h.list.command(0).depth_test == false);
+}
+
+// Y-sort is a depth projected from world Y; real depth is the thing itself. A layer
+// claiming both has said two contradictory things, and y-sort wins so that a project
+// which had it keeps rendering as it did.
+TEST_CASE("depth layer: y-sort wins when a layer declares both") {
+    Harness h;
+    h.list.setYSortMask(1u << 4);
+    h.list.setDepthMask(1u << 4);
+
+    CHECK(h.list.layerOrder(4) == DrawList::LayerOrder::YSort);
+    CHECK(h.list.layerOrder(5) == DrawList::LayerOrder::Painter);
+}

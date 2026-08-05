@@ -160,6 +160,13 @@ public:
 
     /// Layers (bits 0..31) that sort by world Y within the layer — see DrawList::setYSortMask.
     void setYSortLayers(u32 mask) { draw_list_.setYSortMask(mask); }
+    void setDepthLayers(u32 mask) {
+        draw_list_.setDepthMask(mask);
+        // The scene target needs a depth attachment exactly when some layer resolves
+        // by depth; before init there is no pipeline yet, and it reads the mask itself.
+        if (post_process_) post_process_->setSceneNeedsDepth(mask != 0);
+    }
+    u32 depthLayers() const { return draw_list_.depthMask(); }
 
     /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).

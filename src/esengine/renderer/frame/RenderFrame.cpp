@@ -137,6 +137,9 @@ void RenderFrame::init(u32 width, u32 height) {
 #ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);
     post_process_->setLinearOutput(linear_color_);
+    // Depth layers may have been declared before the pipeline existed (the mask
+    // arrives with the project, init happens on the first frame).
+    post_process_->setSceneNeedsDepth(draw_list_.depthMask() != 0);
     post_process_->init(width, height);
 #endif
 

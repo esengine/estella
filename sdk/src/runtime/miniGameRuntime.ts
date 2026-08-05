@@ -90,6 +90,8 @@ export interface MiniGameRuntimeConfig {
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
+    /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
+    depthLayers?: number;
     /** Project color space — 'linear' boots the linear-light pipeline (Project Settings → Rendering). */
     colorSpace?: 'gamma' | 'linear';
     /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
@@ -150,6 +152,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const app = createWebApp(module, {
         renderSurface: { kind: 'gl-context', handle: glHandle },
         ySortLayers: config.ySortLayers,
+        depthLayers: config.depthLayers,
         colorSpace: config.colorSpace,
         screenFit: config.screenFit,
         getViewportSize: () => ({

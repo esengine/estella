@@ -105,6 +105,7 @@ export const RENDERER_BINDINGS = {
     setStage: 'es_renderer_setStage',
     setViewport: 'es_renderer_setViewport',
     setYSortLayers: 'es_renderer_setYSortLayers',
+    setDepthLayers: 'es_renderer_setDepthLayers',
     /** Host-specific: the drawable size, which no wasm entry point has. */
     surfaceSize: 'es_renderer_surfaceSize',
 } as const;
