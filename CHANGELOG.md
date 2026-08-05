@@ -65,7 +65,63 @@ published separately; it ships inside the editor.
   pixel assertions and the temp-project builder are shared
   (`scripts/lib/editorDriver.mjs`), so a check is only its claim.
 
+### Added
+
+- **Text standing in the world can be ordered.** A `Text` with no layout box is a
+  label in the world — the engine has always drawn one — but it was pinned to
+  layer 0 with nothing in the component to reach for, so anything else on layer 0
+  that drew later simply covered it: a board hiding its own pieces, a name tag
+  behind the character it names. `Text.layer` is read the same way `Sprite.layer`
+  and `ShapeRenderer.layer` are. Inside a Canvas the UI render order still
+  decides, so the field cannot fight its own panel.
+
 ### Fixed
+
+- **A world label lands where it is put.** `rectTextBox` hands the boxed text path
+  an origin already carrying the baseline (−0.8em); the boxless path started from
+  a bare 0, so `verticalAlign: Middle` centred the block on a *baseline* rather
+  than on the entity and every world label rode 0.8em high — half a square, on a
+  chessboard. The origin is now a zero-height box for every alignment, so Top,
+  Middle and Bottom sit on one ladder and each is the answer that box would give.
+
+- **A system that fails to start says why every frame, not once.** Building a
+  system's first query instances can throw — an unregistered component reaches
+  `resolveGetter`, and that is exactly where it says so. The runner published its
+  query cache before filling it, so whatever had been built before the throw
+  stayed; the next frame read a SHORT array, found `undefined` where a later
+  query belonged, and reported "cannot read properties of undefined (reading
+  'resetTick')" from then on, with the true error long scrolled away. The caches
+  are committed only once every parameter resolves.
+
+- **A web package carries the SDK it can load, not all five.** `sdk/dist` holds
+  every target's build side by side and the export copied the tree wholesale, so
+  a browser package shipped the Node, WeChat, mini-game and native SDKs — each
+  with a multi-megabyte source map — plus a megabyte of type declarations nothing
+  at runtime reads. A chess board came to 27.5 MB on disk; the same build is now
+  10.8 MB.
+
+- **A new component reaches the running game.** Reaching the declaration entry is
+  only half of a component being real: the editor reads that entry directly, so
+  the component appears in Add Component and the scene saves it, but the running
+  game only has what the startup entry imports. A project whose startup entry no
+  longer imports its declarations authored components the game had never heard
+  of, and said so only as "Unknown component type" in the play log, once per
+  entity, after the scene was already built on them.
+
+- **A new system knows where input comes from.** The system template named `Time`
+  and `Transform` and nothing about input, so a system that needs a click reached
+  for `document.querySelector('canvas')` — which works in a browser and nowhere
+  else the project ships to, and makes the game redo the screen-to-world
+  arithmetic the camera already knows. It now names `Res(Input)` and
+  `CameraView`, and which one is not the door.
+
+- **Two editor doors that had no honest answer.** `describe_component` for a name
+  nothing declares returned `[]`, which reads as "that component has no fields"
+  rather than "there is no such component"; it now refuses in the same words the
+  add door uses. `set_run_mode` drives the edit World, which in the editor app
+  does not have the project's scripts — its `false` meant "no Stop rebuild
+  happened", not "failed" — so it now says which door it is and names
+  `toggle_play`.
 
 - **A scene with no camera says so, before Play goes black.** The editor renders
   through a view of its own, so a scene full of content and no Camera looks
