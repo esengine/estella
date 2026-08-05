@@ -67,6 +67,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A scene with no camera says so, before Play goes black.** The editor renders
+  through a view of its own, so a scene full of content and no Camera looks
+  finished in the viewport and draws nothing the moment the game runs — the
+  sharpest way the editor can lie to you.
+
+- **A `play_probe` body is a program, not only an expression.** `a(); b();` came
+  back as a syntax error, and a driver that ignored the reply saw its clicks
+  quietly not happen. The tool also documents what the probe actually offers:
+  `getComponent` takes a NAME and returns a DEFINITION, `world.get` a COPY, and a
+  write only lands through `world.insert`.
+
 - **Play refuses to run a game whose code did not compile.** The realm built the
   project's scripts and threw the result away, and the host swallows a missing
   bundle (builtin-only is a real way to work) — so a project whose `src/main.ts`
