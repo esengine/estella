@@ -19,6 +19,7 @@
 import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { readTextInRoot } from './projectFs';
 import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
@@ -246,13 +247,13 @@ async function computeDeps(
     try {
       const refs = new Set<string>();
       if (isSpineAtlas) {
-        const content = await readFile(path.join(root, entry.path), 'utf8');
+        const content = await readTextInRoot(path.join(root, entry.path));
         for (const page of parseSpineAtlasPages(content)) {
           const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
           if (dep) refs.add(dep.uuid);
         }
       } else {
-        const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
+        const json = JSON.parse(await readTextInRoot(path.join(root, entry.path)));
         collectRefs(json, refs, (ref) => {
           if (ref.includes('://')) return null;
           const direct = byPath.get(normalizeRefPath(ref));
@@ -359,7 +360,7 @@ export async function scanAssetDatabase(
   const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, async (metaRel): Promise<WalkResult> => {
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
     try {
-      meta = JSON.parse(await readFile(path.join(root, metaRel), 'utf8'));
+      meta = JSON.parse(await readTextInRoot(path.join(root, metaRel)));
     } catch (err) {
       return { warning: `${metaRel}: ${err instanceof Error ? err.message : String(err)}` };
     }
@@ -488,7 +489,7 @@ export async function updateAssetIndex(
     }
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
     try {
-      meta = JSON.parse(await readFile(abs + META_EXT, 'utf8'));
+      meta = JSON.parse(await readTextInRoot(abs + META_EXT));
     } catch {
       continue; // unreadable/partial .meta — a later event will settle it
     }

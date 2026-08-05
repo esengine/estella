@@ -41,13 +41,32 @@ export function resolveInRoot(root: string, relPath: string): string {
   return resolved;
 }
 
+/**
+ * Read a project file as text, without the byte-order mark.
+ *
+ * A BOM is an encoding hint, not content — but `JSON.parse` treats it as a
+ * syntax error, and every Windows tool that touches a file can leave one:
+ * Notepad, `Out-File`, a spreadsheet export, an editor with "UTF-8 with BOM"
+ * selected. Reading a project someone had edited that way failed with
+ * `Unexpected token '﻿'` and nothing that named the file, which reads as
+ * "the editor cannot open my project".
+ *
+ * Stripped HERE — the one door every project read goes through, in both
+ * processes (the renderer's `fs.read` is this over IPC) — rather than at each
+ * JSON.parse, because the parses are many and the door is one.
+ */
+export async function readTextInRoot(abs: string): Promise<string> {
+  const text = await readFile(abs, 'utf8');
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 /** Require + parse a project's `project.esproject` manifest (no workspace load). */
 export async function readManifest(root: string): Promise<ProjectManifest> {
   const manifestPath = path.join(root, PROJECT_MANIFEST_FILE);
   if (!existsSync(manifestPath)) {
     throw new Error(`not an Estella project (missing ${PROJECT_MANIFEST_FILE}): ${root}`);
   }
-  return parseManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
+  return parseManifest(JSON.parse(await readTextInRoot(manifestPath)));
 }
 
 /** Open a project: require + parse `project.esproject`, load workspace if present. */
@@ -58,7 +77,7 @@ export async function openProject(root: string): Promise<OpenedProject> {
   const wsPath = path.join(root, WORKSPACE_DIR, WORKSPACE_FILE);
   if (existsSync(wsPath)) {
     try {
-      workspace = JSON.parse(await readFile(wsPath, 'utf8')) as WorkspaceState;
+      workspace = JSON.parse(await readTextInRoot(wsPath)) as WorkspaceState;
     } catch {
       // A corrupt workspace file is non-fatal — start clean.
     }
@@ -67,7 +86,7 @@ export async function openProject(root: string): Promise<OpenedProject> {
 }
 
 export function readInRoot(root: string, relPath: string): Promise<string> {
-  return readFile(resolveInRoot(root, relPath), 'utf8');
+  return readTextInRoot(resolveInRoot(root, relPath));
 }
 
 /**
@@ -82,7 +101,7 @@ export function readInRoot(root: string, relPath: string): Promise<string> {
  */
 export async function readOptionalInRoot(root: string, relPath: string): Promise<string | null> {
   try {
-    return await readFile(resolveInRoot(root, relPath), 'utf8');
+    return await readTextInRoot(resolveInRoot(root, relPath));
   } catch (e) {
     if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
     throw e;
@@ -129,9 +148,18 @@ async function* walkVisible(absDir: string, root: string): AsyncGenerator<string
 
 /** Project-relative paths of every browsable file under `relDir`, recursively —
  *  backs the Content Browser's project-wide (subtree) search. */
+/**
+ * Every visible file under a project directory. A directory that does not exist
+ * lists as EMPTY rather than throwing: "what is in src/?" is a question, and a
+ * project that has no src/ answers it with "nothing" — the raw
+ * `ENOENT ... scandir` that came back instead read as a broken tool to whoever
+ * asked, which is exactly how an agent's first orienting call failed.
+ */
 export async function listFilesInRoot(root: string, relDir: string): Promise<string[]> {
+  const abs = resolveInRoot(root, relDir);
+  if (!existsSync(abs)) return [];
   const out: string[] = [];
-  for await (const rel of walkVisible(resolveInRoot(root, relDir), root)) out.push(rel);
+  for await (const rel of walkVisible(abs, root)) out.push(rel);
   return out;
 }
 
@@ -161,7 +189,7 @@ export async function mkdirInRoot(root: string, relPath: string): Promise<void> 
 /** Assign a fresh uuid to a `.meta` file (a duplicated asset must not share one). */
 async function regenMetaUuid(metaAbs: string): Promise<void> {
   try {
-    const meta = JSON.parse(await readFile(metaAbs, 'utf8'));
+    const meta = JSON.parse(await readTextInRoot(metaAbs));
     meta.uuid = randomUUID();
     await writeFile(metaAbs, JSON.stringify(meta, null, 2) + '\n', 'utf8');
   } catch {
