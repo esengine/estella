@@ -332,6 +332,7 @@ renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
+renderer_setDepthLayers: ((mask: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
 renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
 renderer_setEntityStencilMask: (entity: number, refValue: number) => void

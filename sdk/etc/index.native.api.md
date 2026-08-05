@@ -1067,8 +1067,13 @@ value: string | number | boolean | undefined
 ## BlendMode — enum
 ```
 Additive = 1
+Darken = 7
+Lighten = 6
 Multiply = 2
+None = 9
 Normal = 0
+Overlay = 8
+PmaAdditive = 5
 PremultipliedAlpha = 4
 Screen = 3
 ```
@@ -1936,6 +1941,7 @@ world: World
 ## CreateWebAppOptions — interface
 ```
 colorSpace: "gamma" | "linear" | undefined
+depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 plugins: Plugin[] | undefined
 renderSurface: RenderSurfaceSource | undefined
@@ -2572,6 +2578,7 @@ renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
+renderer_setDepthLayers: ((mask: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
 renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
 renderer_setEntityStencilMask: (entity: number, refValue: number) => void
@@ -4699,6 +4706,7 @@ decodePixels: ((path: string, flip: boolean) => Promise<{ width: number; height:
 ## PackagedGameConfig — interface
 ```
 colorSpace: "gamma" | "linear" | undefined
+depthLayers: number | undefined
 entryScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
 scenes: { name: string; path: string; }[] | undefined
@@ -5297,6 +5305,7 @@ assetPathMap: Record<string, string> | undefined
 assets: Record<string, string>
 audioConfig: AudioProjectConfig | undefined
 canvas: HTMLCanvasElement
+depthLayers: number | undefined
 firstScene: string
 manifest: AddressableManifest | null | undefined
 module: ESEngineModule
@@ -8538,6 +8547,7 @@ static prototype: WeChatSocket
 ## WebAppOptions — interface
 ```
 colorSpace: "gamma" | "linear" | undefined
+depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 plugins: Plugin[] | undefined
 renderSurface: RenderSurfaceSource | undefined

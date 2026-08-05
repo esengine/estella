@@ -129,6 +129,9 @@ export interface ProjectFeatures {
     sortingLayers?: string[];
     /** Indices of sorting layers that y-sort within the layer (top-down occlusion). */
     ySortLayers?: number[];
+    /** Indices of sorting layers that resolve by real depth instead of painter's
+     *  order — the 2.5D opt-in. A layer listed in both keeps y-sorting. */
+    depthLayers?: number[];
     /** Render color space. 'linear' = linear-light pipeline (sRGB decode on
      *  sample, linear blending, OETF at the final blit). Fixed at engine boot —
      *  shaders compile against it. Absent ⇒ 'gamma'. */
@@ -461,6 +464,12 @@ export function parseManifest(raw: unknown): ProjectManifest {
       }
       if (Array.isArray(r.ySortLayers)) {
         rendering.ySortLayers = r.ySortLayers.filter(
+          (n): n is number =>
+            typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < SORTING_LAYER_COUNT,
+        );
+      }
+      if (Array.isArray(r.depthLayers)) {
+        rendering.depthLayers = r.depthLayers.filter(
           (n): n is number =>
             typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < SORTING_LAYER_COUNT,
         );

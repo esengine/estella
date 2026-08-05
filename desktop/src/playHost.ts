@@ -221,6 +221,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   app = createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
     ySortLayers: msg.ySortLayers,
+    depthLayers: msg.depthLayers,
     colorSpace: msg.colorSpace,
     screenFit: msg.screenFit,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),

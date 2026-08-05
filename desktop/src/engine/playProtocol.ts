@@ -74,6 +74,8 @@ export interface PlayPayload {
   uiThemeOverrides?: ThemeOverrides;
   /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
   ySortLayers?: number;
+  /** Bitmask of render layers (0..31) that resolve by real depth (2.5D) — forwarded. */
+  depthLayers?: number;
   /** Project color space — 'linear' boots the realm on the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
   /** Project camera fit (design resolution + scale mode) — letterboxes the realm's

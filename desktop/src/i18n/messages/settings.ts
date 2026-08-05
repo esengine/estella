@@ -176,6 +176,7 @@ export const settingsMessages = defineMessages({
     'set.group.designResolution': { en: 'Design Resolution', zh: '设计分辨率' },
     'set.group.sortingLayers': { en: 'Sorting Layers', zh: '排序层' },
     'set.group.ySort': { en: 'Y-Sort', zh: 'Y 轴排序' },
+    'set.group.depth': { en: 'Depth (2.5D)', zh: '深度（2.5D）' },
     'set.group.colorSpace': { en: 'Color Space', zh: '色彩空间' },
     'set.group.physics': { en: 'Physics', zh: '物理' },
     'set.group.gravity': { en: 'Gravity', zh: '重力' },
@@ -269,6 +270,11 @@ export const settingsMessages = defineMessages({
     'set.project.rendering.ySortLayers.desc': {
         en: 'Entities on a checked layer draw in world-Y order (lower on screen on top) — top-down occlusion. Within a y-sorted layer, paint order wins over material batching.',
         zh: '勾选层上的实体按世界 Y 排序绘制（屏幕位置越低越靠上）——俯视视角遮挡。同一 Y 排序层内，绘制顺序优先于材质合批。',
+    },
+    'set.project.rendering.depthLayers': { en: 'Depth-sorted layers', zh: '深度排序层' },
+    'set.project.rendering.depthLayers.desc': {
+        en: "Entities on a checked layer are resolved by the depth buffer using their Z, instead of by paint order. Opaque materials (blend mode None) write depth and occlude each other correctly at any angle; translucent ones test against it but stay in paint order. Use with a perspective camera for 2.5D. A layer that also y-sorts keeps y-sorting.",
+        zh: '勾选层上的实体按 Z 值经深度缓冲判定遮挡，而非绘制顺序。不透明材质（混合模式 None）写入深度，任意角度下互相遮挡都正确；半透明材质只测试不写入，仍按绘制顺序。配合透视相机即为 2.5D。同时勾选了 Y 轴排序的层仍按 Y 排序。',
     },
     'set.project.physics.enabled': { en: 'Enable physics', zh: '启用物理' },
     'set.project.physics.enabled.desc': {

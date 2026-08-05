@@ -1667,6 +1667,7 @@ class ProjectStoreImpl {
     uiTheme?: 'light';
     uiThemeOverrides?: ThemeOverrides;
     ySortLayers?: number;
+    depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   } | null {
@@ -1715,6 +1716,7 @@ class ProjectStoreImpl {
       physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
     }
     const ySortLayers = this.ySortMask();
+    const depthLayers = this.depthMask();
     const audioConfig = this.audioFeature();
     const colorSpace = this.renderingFeature().colorSpace;
     // Camera fit: only sent when the project opts in (scaleMode ≥ 0), so a played
@@ -1730,6 +1732,7 @@ class ProjectStoreImpl {
       ...(uiTheme === 'light' ? { uiTheme } : {}),
       ...(uiThemeOverrides ? { uiThemeOverrides } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
+      ...(depthLayers !== 0 ? { depthLayers } : {}),
       ...(colorSpace === 'linear' ? { colorSpace } : {}),
       ...(screenFit.scaleMode >= 0 ? { screenFit } : {}),
     };
@@ -1845,11 +1848,12 @@ class ProjectStoreImpl {
   }
 
   /** Named render sorting layers (z-order = slot index). Default empty list. */
-  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; colorSpace: 'gamma' | 'linear'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
+  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; depthLayers: number[]; colorSpace: 'gamma' | 'linear'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
     const r = this.state?.features?.rendering;
     return {
       sortingLayers: Array.from({ length: SORTING_LAYER_COUNT }, (_, i) => r?.sortingLayers?.[i] ?? ''),
       ySortLayers: r?.ySortLayers ?? [],
+      depthLayers: r?.depthLayers ?? [],
       colorSpace: r?.colorSpace === 'linear' ? 'linear' : 'gamma',
       cameraScaleMode: r?.cameraScaleMode ?? 'none',
       cameraMatch: r?.cameraMatch ?? 0.5,
@@ -1876,6 +1880,13 @@ class ProjectStoreImpl {
     return mask >>> 0;
   }
 
+  /** Bitmask over layers 0..31 that resolve by real depth (0 = feature off). */
+  depthMask(): number {
+    let mask = 0;
+    for (const i of this.renderingFeature().depthLayers) mask |= 1 << i;
+    return mask >>> 0;
+  }
+
   /** Sorting-layer dropdown options for render `layer` fields — only the NAMED
    *  slots (value = slot index = z-order); empty ⇒ the field stays a free number. */
   sortingLayerOptions(): Array<{ label: string; value: number }> {
@@ -1887,7 +1898,7 @@ class ProjectStoreImpl {
   /** Set rendering-feature config (sorting layers, y-sort, color space) and persist
    *  to the manifest. Sorting/y-sort live-apply; colorSpace is boot-fixed (shaders
    *  compile against it) — the settings page prompts for a reload, like the backend. */
-  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; colorSpace?: 'gamma' | 'linear'; cameraScaleMode?: CameraScaleMode; cameraMatch?: number }): Promise<void> {
+  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; depthLayers?: number[]; colorSpace?: 'gamma' | 'linear'; cameraScaleMode?: CameraScaleMode; cameraMatch?: number }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering };
@@ -1898,6 +1909,7 @@ class ProjectStoreImpl {
       else delete rendering.sortingLayers;
     }
     if (patch.ySortLayers) rendering.ySortLayers = patch.ySortLayers;
+    if (patch.depthLayers) rendering.depthLayers = patch.depthLayers;
     // 'gamma' is the default — expressed by ABSENCE so untouched manifests stay untouched.
     if (patch.colorSpace === 'linear') rendering.colorSpace = 'linear';
     else if (patch.colorSpace === 'gamma') delete rendering.colorSpace;

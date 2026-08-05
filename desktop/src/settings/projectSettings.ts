@@ -234,6 +234,23 @@ settingsRegistry.register({
 });
 
 settingsRegistry.register({
+  id: 'project.rendering.depthLayers',
+  type: 'flagList',
+  scope: 'project',
+  section: 'rendering',
+  group: t('set.group.depth'),
+  label: t('set.project.rendering.depthLayers'),
+  description: t('set.project.rendering.depthLayers.desc'),
+  count: SORTING_LAYER_COUNT,
+  labels: () => ProjectStore.renderingFeature().sortingLayers,
+  default: [],
+  bind: {
+    get: () => ProjectStore.renderingFeature().depthLayers,
+    set: (v) => void ProjectStore.setRendering({ depthLayers: v }),
+  },
+});
+
+settingsRegistry.register({
   id: 'project.physics.enabled',
   type: 'boolean',
   scope: 'project',
