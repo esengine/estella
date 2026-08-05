@@ -334,3 +334,49 @@ describe('Field metadata (editor presentation policy)', () => {
         expect(getComponentFieldMeta('Nonexistent')).toEqual({});
     });
 });
+
+/**
+ * A project's declarations are BUNDLED, not type-checked, on the path the editor
+ * extracts schemas through — so a call TypeScript would have refused reaches
+ * runtime intact. `defineComponent({ name: 'Piece', fields: {...} })` is the
+ * shape the API reads like, and it used to store that whole object as the
+ * component's NAME. Nothing noticed until the extractor sorted by it, a stack
+ * away, as "e.name.localeCompare is not a function" — naming neither the
+ * component nor the call. One dogfood run lost twenty minutes to it and came out
+ * believing the system scheduler was broken.
+ */
+describe('defineComponent refuses a call TypeScript would have caught', () => {
+    it('names the signature when handed the options-object form', () => {
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)(
+            { name: 'Piece', fields: { hp: 'number' } },
+        )).toThrow(/takes the NAME first/);
+        // And says which keys it actually got, so the caller sees their own object.
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)(
+            { name: 'Piece', fields: { hp: 'number' } },
+        )).toThrow(/name, fields/);
+    });
+
+    it('says the defaults are values, not a description of them', () => {
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)(
+            { name: 'Piece' },
+        )).toThrow(/real values/);
+    });
+
+    it('refuses an empty or non-string name', () => {
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)('', {}))
+            .toThrow(/takes the NAME first/);
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)(42, {}))
+            .toThrow(/number 42/);
+    });
+
+    it('refuses a missing or non-object defaults, naming the component', () => {
+        expect(() => (defineComponent as unknown as (a: unknown, b?: unknown) => unknown)('Piece'))
+            .toThrow(/Component "Piece".*was given nothing/s);
+    });
+
+    it('still accepts the real call', () => {
+        const def = defineComponent('GuardOk', { speed: 100 });
+        expect(def._name).toBe('GuardOk');
+        expect(def._default).toEqual({ speed: 100 });
+    });
+});

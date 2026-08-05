@@ -259,9 +259,22 @@ export async function extractProjectSchemas(
     const declared = await mod.__extract();
     // Deterministic output throughout — the artifact is compared byte-wise by
     // the incremental cache and read by humans in diffs.
-    const schemas = [...declared.components.values()]
-      .map(toSchema)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    // A declaration whose name is not a string cannot be sorted, serialized or
+    // looked up, and the sort is where it used to surface — as
+    // "e.name.localeCompare is not a function", a stack away from the call that
+    // caused it and naming neither the component nor the mistake. Newer SDKs
+    // refuse it at defineComponent; a project pinned to an older one still gets
+    // told which declaration is the bad one instead of a stray TypeError.
+    const schemas = [...declared.components.values()].map(toSchema);
+    const unnamed = schemas.find((s) => typeof s.name !== 'string' || s.name === '');
+    if (unnamed) {
+      throw new Error(
+        `a component was declared without a string name (got ${typeof unnamed.name}). `
+        + "defineComponent takes the NAME first and the defaults second — defineComponent('MyThing', "
+        + '{ speed: 100 }).',
+      );
+    }
+    schemas.sort((a, b) => a.name.localeCompare(b.name));
     const actions = declared.actions
       .map((a) => normalizeAction(a))
       .sort((a, b) => a.name.localeCompare(b.name));

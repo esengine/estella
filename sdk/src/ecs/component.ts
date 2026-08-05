@@ -219,6 +219,31 @@ function createComponentDef<T extends object>(
     defaults: T,
     metadata?: ComponentMetadata,
 ): ComponentDef<T> {
+    // TypeScript already refuses the wrong shapes — but a project's declarations
+    // are BUNDLED, not type-checked, on the path the editor extracts schemas
+    // through. So `defineComponent({ name: 'Piece', fields: {...} })`, the shape
+    // this reads like, sails through and stores an OBJECT as the component's
+    // name. Nothing notices until something sorts by it, a stack away and a
+    // second later, as "e.name.localeCompare is not a function" — naming neither
+    // the component nor the call. Say it here, where the mistake is.
+    if (typeof name !== 'string' || name === '') {
+        const got = name === null ? 'null'
+            : Array.isArray(name) ? 'an array'
+            : typeof name === 'object' ? `an object with keys ${Object.keys(name as object).join(', ')}`
+            : `${typeof name} ${JSON.stringify(name)}`;
+        throw new Error(
+            `defineComponent takes the NAME first and the defaults second — defineComponent('MyThing', `
+            + `{ speed: 100 }) — but was given ${got}. Each field's inspector control comes from the TYPE `
+            + 'of its default value, so the second argument is real values (speed: 100), not a description '
+            + "of them ({ speed: 'number' }).",
+        );
+    }
+    if (defaults === null || typeof defaults !== 'object') {
+        throw new Error(
+            `Component "${name}": the second argument is the defaults OBJECT — defineComponent('${name}', `
+            + `{ speed: 100 }) — but was given ${defaults === undefined ? 'nothing' : JSON.stringify(defaults)}.`,
+        );
+    }
     const keyInfo = classifyKeys(defaults);
     const defaultsRec = defaults as Record<string, unknown>;
     // A replicated name that matches no field would silently sync nothing — the
