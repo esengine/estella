@@ -1,6 +1,6 @@
 ---
 title: Sprites & Rendering
-description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax — plus texture filtering, hit-testing, cache-as-bitmap, ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
+description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, y-sort and depth layers (2.5D), parallax — plus texture filtering, hit-testing, cache-as-bitmap, ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -140,6 +140,39 @@ front of it — no manual `layer` or z juggling.
   Within a y-sorted layer, paint order wins over material batching — overlapping
   draws that alternate materials can't merge into one draw call. Keep y-sort to the
   gameplay layer(s) that need it.
+</Aside>
+
+### Depth layers (2.5D)
+
+Check a layer under **Project Settings → Rendering → Depth-sorted layers** and it
+stops using paint order entirely: what covers what is decided by the depth buffer,
+from each entity's `Transform` z. With a perspective camera that is 2.5D — sprites
+at different depths occlude each other correctly from any angle, with no sort order
+to maintain by hand.
+
+Which sprites take part is decided by their material's **blend mode**, because that
+is what says whether a draw reads what is already on screen:
+
+| Blend mode | In a depth layer |
+| --- | --- |
+| `None` (opaque) | Writes depth and is occluded by anything nearer, whatever order it was drawn in. |
+| Anything else (translucent) | Tests against depth but never writes it, and stays in back-to-front paint order. |
+
+That split is not a setting — a translucent sprite that wrote depth would clip the
+sprites behind it into hard black edges. So a sprite you want to occlude properly
+needs an opaque material; leave the blend mode alone and it behaves as it always has,
+just with things in front of it hiding it.
+
+To look at any of this while authoring, switch the viewport's **2D / 3D** button
+(scene toolbar) — the editor's own eye becomes a perspective one. It changes only
+your view: the Game view always shows the scene's camera. Picking and dragging follow,
+so a sprite at z = -400 is grabbable where it is drawn.
+
+<Aside type="note">
+  A layer is either y-sorted or depth-sorted, never both — y-sort *is* a depth
+  projected from world Y, and a layer that declares both keeps y-sorting. Usable z
+  range is ±`far` under an orthographic camera (±1000 by default) and `near`..`far`
+  under a perspective one; content outside it is clipped away entirely.
 </Aside>
 
 ## Flipping, atlases & scrolling

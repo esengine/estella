@@ -14,6 +14,57 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A sorting layer can resolve by depth instead of paint order — 2.5D.** Check a
+  layer under Project Settings → Rendering → Depth-sorted layers and what covers
+  what is decided by the depth buffer, from each entity's `Transform` z; with a
+  perspective camera, sprites at different depths occlude each other correctly
+  from any angle with no sort order to maintain by hand. Depth belongs to the
+  LAYER because half a layer sorted by depth and half by paint order is not a
+  thing that can be rendered — there is no single sequence satisfying both — and
+  a layer already works this way for y-sort. Inside such a layer the stage and
+  depth state are derived, not declared: an opaque draw (blend mode `None`, new)
+  writes depth and sorts front-to-back so early-z pays off, a blended one only
+  tests and stays back-to-front, because a translucent draw that wrote depth is
+  exactly how sprites clip each other into black edges. Y-sort and depth are one
+  answer resolved in one place — y-sort IS a depth projected from world Y, so a
+  layer claiming both keeps y-sorting. The scene target grows a depth attachment
+  only when some layer asks for one. Default off: a project with no depth layer
+  renders exactly as it did, to the pixel.
+
+- **The editor viewport has a perspective eye.** The scene toolbar's 2D / 3D
+  button switches the editor's own projection, which is the only way to look at
+  2.5D content while authoring it. It keeps its own projection rather than
+  following the scene camera — an orthographic view of a perspective scene is a
+  working mode, not a mismatch — and zoom moves the camera there instead of
+  widening a box, since changing the fov would alter the projection being
+  previewed. Picking and dragging follow onto the plane each entity actually sits
+  on, so a sprite at z = -400 is grabbable where it is drawn.
+
+### Fixed
+
+- **Compressed and uncompressed sprites no longer disagree about where a sprite
+  is.** A screen point is a ray, and `screenToWorld` multiplied only the x/y
+  columns of the inverse view-projection — correct orthographically, where a
+  screen point names the same world x/y at every depth, and wrong under any
+  perspective camera, where it answered with wherever the near plane happened to
+  be. It intersects the ray with a world plane now, with the orthographic case as
+  the degenerate form rather than a second branch.
+
+- **An optional native binding no longer declares older hosts rendererless.**
+  `hasRendererBindings` is an all-or-nothing probe: bind every renderer entry
+  point and the SDK drives the frame, miss one and it hands the frame back. A
+  capability added after a host shipped therefore has to stay out of it, or a
+  shell that was working goes blank on an SDK upgrade.
+
+- **A material's inherited vertex stage carries z.** A fragment-only `.esshader`
+  — which is what a material normally is — gets a vertex stage injected by the
+  shader parser, and that stage was flattening the position it was handed. On GL
+  it hid (a shader may read fewer components than the buffer supplies); in a
+  depth layer it would have resolved every fragment at z = 0, and on WebGPU the
+  entry simply did not match the vertex format.
+
 ## [0.43.0] - 2026-08-04
 
 A release about a game that is no longer alone once it ships. Four more of the
