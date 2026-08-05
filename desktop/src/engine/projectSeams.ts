@@ -46,6 +46,23 @@ export function projectCameraFit(): { scaleMode: number; matchWidthOrHeight: num
   return projectCameraFitSeed?.() ?? { scaleMode: -1, matchWidthOrHeight: 0.5 };
 }
 
+// -- How each sorting layer resolves its contents ------------------------------
+// The two bitmasks the renderer sorts by (y-sort, depth). Picking has to rank
+// overlapping entities the way the frame was drawn — a click that ranks them any
+// other way selects something the person cannot see — and the ranking runs in
+// the viewport, below the store that owns the project setting.
+
+let sortingLayerModesSeed: (() => { ySort: number; depth: number }) | null = null;
+
+export function setProjectSortingLayerModes(fn: () => { ySort: number; depth: number }): void {
+  sortingLayerModesSeed = fn;
+}
+
+/** Both masks; all-painter (0, 0) with no project — the pre-2.5D default. */
+export function projectSortingLayerModes(): { ySort: number; depth: number } {
+  return sortingLayerModesSeed?.() ?? { ySort: 0, depth: 0 };
+}
+
 // -- The project's own prefabs, as entity sources ------------------------------
 // Injected by the store, which owns the asset registry; they join the one list
 // every "create an entity" surface offers (see allEntitySources).

@@ -2,10 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  viewportMath.ts
- * @brief Pure 2D geometry for viewport picking, marquee, and gizmos — no engine /
- *        DOM coupling, so it unit-tests in isolation. The imperative shells
+ * @brief Pure 2D geometry for viewport picking, marquee, and gizmos — no engine
+ *        state or DOM, so it unit-tests in isolation. The imperative shells
  *        (ViewportController picking, the gizmo tools) layer on top of these.
+ *        The one import is the SDK's pure mirror of the renderer's layer rules,
+ *        which picking has to rank by rather than restate.
  */
+import { compareDrawRank, type DrawRank } from 'esengine';
 
 /** Oriented bounding box in world space: center, half-extents, Z rotation (radians). */
 export interface OBB {
@@ -93,3 +96,27 @@ export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo,
 
 /** Round to the nearest multiple of `step` (snap). `step <= 0` returns `v` unchanged. */
 export const snapTo = (v: number, step: number): number => (step > 0 ? Math.round(v / step) * step : v);
+
+/** One entity under the pointer, with everything its rank depends on. */
+export interface PickCandidate<T> {
+  entity: T;
+  /** Where the frame put it: layer, that layer's rule, and the world coords it uses. */
+  rank: DrawRank;
+  /** Position in the World's iteration order: the paint order for equal depth. */
+  index: number;
+}
+
+/**
+ * Candidates ranked topmost-first, the way the RENDERER stacked them — the layer
+ * rules via {@link compareDrawRank}, then later-drawn winning ties.
+ *
+ * Split out as a pure function because it is the part that can be wrong while
+ * every hit test is right — and it ranks what a person SEES, so getting it
+ * backwards means the click selects the thing hidden behind the thing they
+ * aimed at.
+ */
+export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>>): T[] {
+  return [...candidates]
+    .sort((a, b) => compareDrawRank(b.rank, a.rank) || b.index - a.index)
+    .map((c) => c.entity);
+}

@@ -16,7 +16,10 @@ import {
   snapTo,
   clamp,
   worldToLocal2D,
+  rankPickCandidates,
+  type PickCandidate,
 } from '@/engine/viewportMath';
+import { LayerOrder, layerOrderOf } from 'esengine';
 
 const box = (cx: number, cy: number, hw: number, hh: number, rot = 0): OBB => ({ cx, cy, hw, hh, rot });
 
@@ -122,5 +125,62 @@ describe('worldToLocal2D', () => {
     const p = worldToLocal2D(5, 6, { x: 0, y: 0, rot: 0, sx: 0, sy: 2 });
     expect(p.x).toBe(5);
     expect(p.y).toBe(3);
+  });
+});
+
+describe('rankPickCandidates', () => {
+  // Sprites listed near → far, so list order and depth order disagree on purpose.
+  // This is the exact shape that used to select the sprite BEHIND the cursor.
+  const cand = (entity: string, layer: number, z: number, index: number, ySort = 0, depth = 0, y = 0)
+    : PickCandidate<string> => ({
+    entity, index,
+    rank: { layer, order: layerOrderOf(layer, ySort, depth), worldY: y, worldZ: z },
+  });
+  const DEPTH12 = (1 << 1) | (1 << 2);
+
+  it('ranks the nearest first in a depth layer, whatever the list order', () => {
+    const near = cand('near', 1, 150, 0, 0, DEPTH12);
+    const mid = cand('mid', 1, 0, 1, 0, DEPTH12);
+    const far = cand('far', 1, -150, 2, 0, DEPTH12);
+    expect(rankPickCandidates([near, mid, far])).toEqual(['near', 'mid', 'far']);
+    expect(rankPickCandidates([far, mid, near])).toEqual(['near', 'mid', 'far']);
+  });
+
+  // The depth buffer resolves per pixel, so it beats the sorting layer — the very
+  // case the paired render check pins (near sprite in the LOWER layer wins).
+  it('lets a nearer sprite in a LOWER depth layer win the click', () => {
+    const near = cand('near', 1, 150, 0, 0, DEPTH12);
+    const far = cand('far', 2, -150, 1, 0, DEPTH12);
+    expect(rankPickCandidates([near, far])).toEqual(['near', 'far']);
+  });
+
+  // ... but only between two depth layers. A painter layer does not depth-test, so
+  // it is simply painted later and covers what is under it.
+  it('keeps the sorting layer in charge when a layer is not depth-resolved', () => {
+    const nearDepth = cand('nearDepth', 1, 150, 0, 0, 1 << 1);
+    const painterAbove = cand('painterAbove', 5, -900, 1);
+    expect(rankPickCandidates([nearDepth, painterAbove])).toEqual(['painterAbove', 'nearDepth']);
+  });
+
+  it('ranks by z inside a plain painter layer too — the renderer sorts on it', () => {
+    const near = cand('near', 1, 150, 0);
+    const mid = cand('mid', 1, 0, 1);
+    const far = cand('far', 1, -150, 2);
+    expect(rankPickCandidates([far, near, mid])).toEqual(['near', 'mid', 'far']);
+  });
+
+  it('ranks lower world Y first in a y-sorted layer, ignoring z', () => {
+    const top = cand('top', 1, 900, 0, 1 << 1, 0, 100);
+    const bottom = cand('bottom', 1, -900, 1, 1 << 1, 0, -100);
+    expect(rankPickCandidates([top, bottom])).toEqual(['bottom', 'top']);
+  });
+
+  it('falls back to later-drawn at equal depth, as paint order does', () => {
+    expect(rankPickCandidates([cand('a', 0, 0, 0), cand('b', 0, 0, 1)])).toEqual(['b', 'a']);
+  });
+
+  it('leaves an empty hit list empty', () => {
+    expect(rankPickCandidates([])).toEqual([]);
+    expect(LayerOrder.Painter).toBe(0);
   });
 });

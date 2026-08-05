@@ -11,11 +11,12 @@ import {
   TilemapLayer, TilemapAPI, decodeTilemapChunks, CHUNK_SIZE, tileCollisionOutlines,
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
+  layerOrderOf,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
-import { projectDesignSeed, projectCameraFit } from './projectSeams';
+import { projectDesignSeed, projectCameraFit, projectSortingLayerModes } from './projectSeams';
 import { SceneModel } from './SceneModel';
 import {
   type OBB,
@@ -27,6 +28,8 @@ import {
   screenAABB,
   clamp,
   worldToLocal2D,
+  rankPickCandidates,
+  type PickCandidate,
 } from './viewportMath';
 
 // World half-size of the pick/outline box for entities without renderable bounds
@@ -258,15 +261,24 @@ export const ViewportController = {
     return this.pickUIEntities(clientX, clientY)[0] ?? null;
   },
 
-  /** Selectable entities under the pointer, topmost-first (UI, then world by
-   *  descending layer, later-drawn winning ties). `pickEntity` is its head;
-   *  click-through cycling walks the rest. */
+  /**
+   * Selectable entities under the pointer, topmost-first: UI, then world entities
+   * ranked the way the RENDERER stacked them — descending sorting layer, then
+   * whatever is in front inside that layer, then later-drawn winning ties.
+   *
+   * "In front" is the layer's own rule (y-sort / depth / painter), read from the
+   * same two project masks the renderer sorts by, because a click that ranks
+   * overlapping entities any other way selects something the person cannot see.
+   * It used to rank on list order alone, so a sprite drawn on top by its z lost
+   * the click to whatever happened to be created after it.
+   */
   pickEntitiesAt(clientX: number, clientY: number): EntityId[] {
     const out: EntityId[] = [...this.pickUIEntities(clientX, clientY)];
 
     const world = EngineHost.world;
     if (world) {
-      const hits: { e: EntityId; layer: number; i: number }[] = [];
+      const masks = projectSortingLayerModes();
+      const hits: PickCandidate<EntityId>[] = [];
       // The cursor is tested against each candidate ON ITS OWN PLANE. One shared
       // world point would be the 2D projection of the cursor, which under a
       // perspective view is where a sprite's shadow falls rather than where the
@@ -282,10 +294,19 @@ export const ViewportController = {
         const b = this.entityBounds(e);
         if (!wp || !b || !pointInOBB(wp.x, wp.y, b)) continue;
         const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
-        hits.push({ e, layer, i: hits.length });
+        const t = world.get(e, Transform);
+        hits.push({
+          entity: e,
+          index: hits.length,
+          rank: {
+            layer,
+            order: layerOrderOf(layer, masks.ySort, masks.depth),
+            worldY: t.worldPosition.y,
+            worldZ: t.worldPosition.z,
+          },
+        });
       }
-      hits.sort((a, b) => b.layer - a.layer || b.i - a.i);
-      for (const h of hits) out.push(h.e);
+      for (const e of rankPickCandidates(hits)) out.push(e);
     }
     return out;
   },

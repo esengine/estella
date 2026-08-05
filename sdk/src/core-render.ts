@@ -40,7 +40,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // =============================================================================
 
 export { CameraView, CameraViewAPI } from './camera/Camera';
-export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
+export { EditorView, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
 export { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './camera/ScreenScaling';
 export type { ScreenScalingData } from './camera/ScreenScaling';
@@ -149,6 +149,14 @@ export {
     type RenderTargetHandle,
     type RenderStats,
 } from './render/renderer';
+
+export {
+    LayerOrder,
+    layerOrderOf,
+    layerFrontness,
+    compareDrawRank,
+    type DrawRank,
+} from './render/layerOrder';
 
 export {
     FlushReason,
