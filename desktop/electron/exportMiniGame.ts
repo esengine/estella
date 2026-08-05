@@ -115,9 +115,14 @@ async function scanSideModules(
   absOut: string,
   wasmDir: string,
   errors: string[],
+  physicsEnabled: boolean,
 ): Promise<Array<{ id: string; file: string }>> {
   const ids = new Set<string>();
-  if (sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
+  // The project's own declaration counts as a use: a game that spawns bodies from
+  // script has none in the scene, and shipping the enable flag without the binary
+  // would fail at the first spawn instead of at build time.
+  if (physicsEnabled
+    || sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
   if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
   if (sceneDatas.some((s) => s && sceneUsesDragonBones(s as Parameters<typeof sceneUsesDragonBones>[0]))) ids.add('dragonbones');
   // Any staged .esv also needs the decoder: script-driven playback
@@ -273,7 +278,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //     the generated entry requires exactly those — the export-time half of
   //     the runtime's self-gating. A dynamically switched scene must find its
   //     modules present, so the union over ALL shipped scenes counts.
-  const engineSideModules = await scanSideModules(profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
+  const engineSideModules = await scanSideModules(
+    profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors,
+    opts.runtime?.physicsEnabled ?? false,
+  );
   // …plus the ones the PROJECT supplies. They are not scanned for: a project put
   // them in `.esengine/modules/` in order to use them, and unlike physics or
   // spine there is no component in the scene the engine could recognize as the

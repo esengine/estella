@@ -44,7 +44,9 @@ beforeAll(() => {
   // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.js'),
-    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}\n`);
+    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
+export function packagedAppOptions(c){return c;}
+export function packagedRuntimeInit(c){return c;}\n`);
   // Stub web wasm runtime (glue text + wasm) — playable inlines these, no separate build.
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), `export default function(){}/*WEB_GLUE*/\n`);
@@ -257,7 +259,9 @@ describe('exportGame (playable) — side-module embedding', () => {
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(PSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}\n`);
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+export function packagedAppOptions(c){return c;}
+export function packagedRuntimeInit(c){return c;}\n`);
     mkdirSync(path.join(r, '_wasm'), { recursive: true });
     writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
     writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');
@@ -272,6 +276,31 @@ describe('exportGame (playable) — side-module embedding', () => {
     root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
     sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
   });
+
+  // A game that spawns its bodies from script has none in the scene, so the scan
+  // sees nothing — and the package used to ship without physics.wasm while the
+  // config told the runtime to install physics. Both halves or neither.
+  it('inlines physics for a declared physics project whose scene has no bodies', async () => {
+    const { r, o } = setupRoot(true);
+    try {
+      writeFileSync(path.join(r, 'scenes', 'main.esscene'),
+        JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [] }] }));
+      const res = await exportGame({
+        root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+        sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
+        runtime: runtimeConfigOf({ features: { physics: { enabled: true, gravity: { x: 0, y: -20 } } } }),
+      });
+      expect(res.ok).toBe(true);
+      const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+      expect(html).toContain('"physics"');
+      expect(html).toContain(Buffer.from('PHYSWASM').toString('base64'));
+      // ...and the runtime is told to install it, plus the world it declared.
+      expect(html).toMatch(/"physicsEnabled":true/);
+      expect(html).toMatch(/"y":-20/);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('inlines physics into __SIDE_MODULES__ when the scene uses physics', async () => {
     const { r, o } = setupRoot(true);
@@ -331,7 +360,9 @@ describe('exportGame (playable) — spine embedding', () => {
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(SSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}\n`);
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+export function packagedAppOptions(c){return c;}
+export function packagedRuntimeInit(c){return c;}\n`);
     mkdirSync(path.join(r, '_wasm'), { recursive: true });
     writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
     writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');

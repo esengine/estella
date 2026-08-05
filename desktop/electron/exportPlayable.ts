@@ -123,9 +123,13 @@ async function collectSideModules(
   cookDir: string,
   wasmDir: string,
   errors: string[],
+  physicsEnabled: boolean,
 ): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
   const ids = new Set<string>();
-  if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  // A declared physics project counts as a use even with no bodies in the scene:
+  // it spawns them from script, and the flag is worthless without the binary.
+  if (physicsEnabled
+    || (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
   if (sceneData && sceneUsesDragonBones(sceneData as Parameters<typeof sceneUsesDragonBones>[0])) ids.add('dragonbones');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so we discriminate by extension (as the runtime does via
@@ -297,7 +301,10 @@ export async function exportPlayable(opts: {
   //     A needed module missing from wasmDir is a HARD error — better a failed
   //     export than a playable that silently ships without physics.
   progress({ phase: 'Embedding modules' });
-  const sideModules = await collectSideModules(scenes[0]?.data, manifestEntries, cookDir, opts.wasmDir, errors);
+  const sideModules = await collectSideModules(
+    scenes[0]?.data, manifestEntries, cookDir, opts.wasmDir, errors,
+    opts.runtime?.physicsEnabled ?? false,
+  );
 
   // 6. Assemble the single HTML, then drop the temp cook dir.
   progress({ phase: 'Assembling HTML' });

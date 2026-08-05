@@ -43,17 +43,9 @@ const STORE = 'desktop/src/project/ProjectStore.ts';
 const DECLARED_GAPS = {
   physicsEnabled: {
     editor: 'edit mode does not simulate — bodies are authored, not stepped',
-    packaged: 'game.config.json has no physics field yet; a shipped build installs '
-      + 'physics only when a scene uses it, so a project that spawns bodies from '
-      + 'script still needs this carried (tracked follow-up)',
   },
   physicsConfig: {
     editor: 'edit mode does not simulate — see physicsEnabled',
-    packaged: 'same follow-up as physicsEnabled: gravity/solver reach Play and not a build',
-  },
-  audioConfig: {
-    packaged: 'the mixer state reaches Play and not a shipped build yet (same '
-      + 'follow-up: PackagedGameConfig has no audio field)',
   },
   colorSpace: {
     editor: 'boot-fixed — shaders compile against it, so the settings page asks '

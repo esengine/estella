@@ -135,6 +135,7 @@ export function runtimeConfigOf(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'screenFit' | 'uiTheme' | 'uiThemeColors'
+  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig'
 >;
 
 /**
@@ -154,8 +155,23 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.screenFit.scaleMode >= 0 ? { screenFit: rc.screenFit } : {}),
     ...(rc.uiTheme === 'light' ? { uiTheme: rc.uiTheme } : {}),
     ...(Object.keys(rc.uiThemeColors).length > 0 ? { uiThemeColors: rc.uiThemeColors } : {}),
+    // Physics and the mixer ride along only when the project actually declared
+    // something: a build whose settings are all defaults keeps the config it has
+    // always had, byte for byte, and the runtime falls back to the same values
+    // this would have spelled out.
+    ...(rc.physicsEnabled ? { physicsEnabled: true } : {}),
+    ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
+    ...(rc.audioConfig.buses?.length ? { audioConfig: rc.audioConfig } : {}),
   };
+}
+
+/** Whether the world config is exactly what a runtime would default to anyway. */
+function isDefaultPhysics(config: PhysicsPluginConfig): boolean {
+  return JSON.stringify(config) === JSON.stringify(DEFAULT_PHYSICS_CONFIG);
 }
 
 /** The effective settings of a project with nothing declared — every default. */
 export const DEFAULT_RUNTIME_CONFIG: RuntimeProjectConfig = runtimeConfigOf({});
+
+/** The physics world an undeclared project runs, for "is this worth shipping". */
+const DEFAULT_PHYSICS_CONFIG: PhysicsPluginConfig = DEFAULT_RUNTIME_CONFIG.physicsConfig;

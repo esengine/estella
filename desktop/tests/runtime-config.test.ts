@@ -94,6 +94,32 @@ describe('packagedRuntimeFields', () => {
     });
   });
 
+  // Physics and the mixer used to reach Play and no shipped build at all, so a
+  // game verified in Play could ship with different gravity and a silent mixer.
+  it('carries physics and the mixer, which used to reach Play and no build', () => {
+    const fields = packagedRuntimeFields(runtimeConfigOf({
+      features: {
+        physics: { enabled: true, gravity: { x: 0, y: -20 }, collisionLayerMasks: [0xfffe] },
+        audio: { buses: [{ name: 'sfx', volume: 0.5 }] },
+      },
+    }));
+    expect(fields.physicsEnabled).toBe(true);
+    expect(fields.physicsConfig?.gravity).toEqual({ x: 0, y: -20 });
+    expect(fields.physicsConfig?.collisionLayerMasks?.[0]).toBe(0xfffe);
+    expect(fields.audioConfig?.buses?.[0]).toEqual({ name: 'sfx', volume: 0.5 });
+  });
+
+  // ...but only when declared: a default world would otherwise be spelled out in
+  // every existing build's config, and a runtime falls back to the same values.
+  it('omits a physics world and a mixer that are just the defaults', () => {
+    const declaredButDefault = packagedRuntimeFields(runtimeConfigOf({
+      features: { physics: { gravity: { x: 0, y: -9.81 } }, audio: {} },
+    }));
+    expect(declaredButDefault.physicsConfig).toBeUndefined();
+    expect(declaredButDefault.audioConfig).toBeUndefined();
+    expect(declaredButDefault.physicsEnabled).toBeUndefined();
+  });
+
   // The editor's live project state is not a manifest object, but it has the two
   // fields this reads — that structural match is what lets one derivation serve
   // the renderer and the main process.
