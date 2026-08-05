@@ -38,7 +38,7 @@ promise 只在淡入完成后 resolve——加载失败则 reject。过渡进行
 | `duration` | number | `0.3` | 总淡出淡入时间(秒)——前一半出、后一半入(`RuntimeConfig.sceneTransitionDuration`)。 |
 | `color` | `Color` | 不透明黑 | 遮罩颜色(`RuntimeConfig.sceneTransitionColor`;构建配置里用十六进制字符串)。 |
 | `onStart` / `onComplete` | 回调 | – | 淡出开始时 / 淡入结束后触发。 |
-| `keepPersistent` | boolean | `true` | 让经 `SceneContext.setPersistent` 标记的实体在卸载中存活。 |
+| `keepPersistent` | boolean | `true` | 让[持久化实体](#持久化实体)在卸载中存活;`false` 则连它们一起拆掉。 |
 
 `transitionTo` 是同一套机制上的一步到位便捷函数,用 `TransitionConfig` 配置
 (`type: 'fade'`、`duration`、可选 `color`)。第一个参数接受 `App`(引导代码、菜单胶水)
@@ -74,6 +74,47 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 // …later
 await scenes.unload('pause-menu');
 ```
+
+## 持久化实体
+
+切换场景会销毁旧场景拥有的实体。想让某个实体跨过切换活下来——玩家、背景音乐源、
+不该被打断的相机——在场景上下文上标记它:
+
+```typescript
+import { defineSystem, Res, SceneManager } from 'esengine';
+
+const keepPlayer = defineSystem([Res(SceneManager)], (scenes) => {
+  const ctx = scenes.getScene(scenes.getActive()!);
+  ctx?.setPersistent(player, true);
+});
+```
+
+这个标记存在 `SceneOwner` 组件上,所以只对场景拥有的实体生效——经 `ctx.spawn()` 生成、
+经 `ctx.adopt()` 认领,或从场景文件加载进来的。代码定义的场景会把上下文交给 `setup(ctx)`;
+其他地方用 `getScene(name)` 取。
+
+卸载时被标记的实体不仅活下来,还会**被提升为全局**:它的 `SceneOwner.scene` 被清成 `''`,
+也就是引擎里「始终活动」的取值。这一步提升才是关键——否则每个按场景门控的消费者
+(相机渲染过滤、系统与 draw 回调门控)仍然认为它属于一个已经不存在的场景,于是把它孤立掉,
+一个持久化的相机会就此悄悄停止渲染。给 `switchTo` 或 `unload` 传 `keepPersistent: false`
+可以连持久化实体一起拆掉——回主菜单时你要的正是这种干净状态。
+
+有两样东西**不会**跟着走:
+
+- **场景的系统**。场景声明的每个系统都会在卸载时注销,所以持久化实体的行为必须来自注册在
+  `App` 上的系统,而不是场景 `systems` 列表里的。
+- **场景的资源引用**。卸载会释放场景声明的每一份纹理、材质、字体、音频、动画剪辑、瓦片地图
+  和时间轴的引用——持久化并不豁免它们。如果那是最后一份引用,资源就被释放了(好一点的情况是
+  留成一个可驱逐的缓存条目、等下次加载复活),哪怕活下来的实体还在用它绘制。要拿一份比场景
+  活得更久的引用:在引导时 `Assets.preload`,或者用一个永不卸载的叠加场景。
+
+<Aside type="caution">
+  Inspector 里没有这个勾选项。`SceneOwner` 是引擎内部组件,被刻意排除在项目组件 schema
+  之外,所以在编辑器里摆放的实体要在运行时用代码标记为持久化。
+</Aside>
+
+如果要跨场景的是**状态**而不是活实体——分数、背包、任务标记——请用[存档](/docs/zh-cn/guides/save/)。
+持久化是给那些必须跨过切换继续运行的对象;存档是给那些只需要在对面还在的数据。
 
 ## 场景流送(开放世界)
 
@@ -132,6 +173,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 | `switchTo(name, options?)` | 替换活动场景(异步;可选过渡)。 |
 | `loadAdditive(name, onProgress?)` | 在顶部加载一个场景;返回其上下文(异步)。 |
 | `unload(name, options?)` | 卸载一个场景(异步;可选过渡)。 |
+| `getScene(name)` | 已加载场景的 `SceneContext`(`spawn` / `adopt` / `despawn` / `setPersistent` / draw 回调 / 后处理绑定),或 `null`。 |
 | `getActive()` | 活动场景名,或 `null`。 |
 | `getActiveScenes()` | 所有活动(叠加)场景名。 |
 | `pause(name)` / `resume(name)` | 挂起 / 恢复一个已加载场景的更新。 |
@@ -225,12 +267,15 @@ registerSceneComponentCodec('MyVoxelChunk', {
 - 浮层(HUD、暂停、对话框)**用叠加**,让玩法留在下面。
 - **用系统而非标志门控逻辑**——场景里声明的系统只在它活动时运行,所以叠加 HUD 与玩法场景
   独立更新。
-- **有意地给长生命实体打标签**:因为场景共享一个世界,未打标签的实体可能在切换后存活。
-- **跨场景持久化用[存档](/docs/zh-cn/guides/save/)**,而不是泄漏实体。
+- **对你生成的每个实体确立归属**——在场景上下文之外创建的实体不带 `SceneOwner`,于是没有
+  任何场景会清理它。`ctx.adopt(entity)` 把它交给当前场景;`setPersistent` 是刻意的反面。
+- **跨切换带对象用[持久化](#持久化实体),跨切换带状态用[存档](/docs/zh-cn/guides/save/)**
+  ——一边是必须继续运行的实体,一边是切过去后还在就行的数据。
 
 <Aside type="note">
   场景共享一个世界,所以切换场景不会清空世界——管理器加载/卸载每个场景的实体并门控它的系统。
-  想跨切换存活的实体必须归属在场景之外。
+  因此「能不能跨过切换活下来」是个归属问题:要么它被标记为[持久化](#持久化实体),
+  要么根本没人拥有它(那是泄漏)。
 </Aside>
 
 ## 参见

@@ -44,7 +44,7 @@ instead of surfacing it as a load error.
 | `duration` | number | `0.3` | Total fade time in seconds — half out, half in (`RuntimeConfig.sceneTransitionDuration`). |
 | `color` | `Color` | opaque black | Overlay color (`RuntimeConfig.sceneTransitionColor`; the build config takes a hex string). |
 | `onStart` / `onComplete` | callback | – | Fired when the fade starts / after the fade-in finishes. |
-| `keepPersistent` | boolean | `true` | Keep entities marked via `SceneContext.setPersistent` alive through the unload. |
+| `keepPersistent` | boolean | `true` | Keep [persistent entities](#persistent-entities) alive through the unload; `false` tears them down with the rest. |
 
 `transitionTo` is a one-call convenience over the same machinery, configured
 with a `TransitionConfig` (`type: 'fade'`, `duration`, optional `color`). It
@@ -85,6 +85,59 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 // …later
 await scenes.unload('pause-menu');
 ```
+
+## Persistent entities
+
+A switch despawns the entities the outgoing scene owns. To carry one across —
+the player, a music source, a camera that shouldn't cut — mark it on the scene
+context:
+
+```typescript
+import { defineSystem, Res, SceneManager } from 'esengine';
+
+const keepPlayer = defineSystem([Res(SceneManager)], (scenes) => {
+  const ctx = scenes.getScene(scenes.getActive()!);
+  ctx?.setPersistent(player, true);
+});
+```
+
+The flag lives on the `SceneOwner` component, so it only takes on entities the
+scene owns — spawned via `ctx.spawn()`, adopted via `ctx.adopt()`, or loaded
+from the scene file. A code-defined scene gets its context handed to
+`setup(ctx)`; anywhere else, `getScene(name)` looks it up.
+
+On unload the marked entity survives **and is promoted to global**: its
+`SceneOwner.scene` is cleared to `''`, the engine's "always active" value.
+That promotion is the point — every scene-gated consumer (the camera render
+filter, system and draw-callback gating) would otherwise still see the entity
+owned by a scene that no longer exists and orphan it, so a persistent camera
+would quietly stop rendering. Pass `keepPersistent: false` to `switchTo` or
+`unload` to tear down everything anyway, persistent entities included — the
+clean slate you want when returning to a main menu.
+
+Two things do **not** come along with it:
+
+- **The scene's systems.** Every system a scene declares is unregistered on
+  unload, so a persistent entity's behavior has to come from a system
+  registered on the `App` itself, not from the scene's `systems` list.
+- **The scene's asset references.** Unload releases the refs the scene took on
+  every texture, material, font, audio clip, anim clip, tilemap and timeline it
+  declared — persistence doesn't exempt them. If that was the last reference,
+  the asset is freed (at best it lingers as an evictable cache entry that the
+  next load revives), even though the surviving entity still draws with it.
+  Take a reference that outlives the scene instead: `Assets.preload` at
+  bootstrap, or an additive scene that is never unloaded.
+
+<Aside type="caution">
+  There is no Inspector checkbox for this. `SceneOwner` is an engine-internal
+  component and is deliberately kept out of the project component schemas, so
+  entities placed in the editor are marked persistent from code at runtime.
+</Aside>
+
+For state rather than live entities — score, inventory, quest flags — reach for
+[saves](/docs/guides/save/) instead. Persistence is for objects that must keep
+running across the cut; a save is for data that merely has to be there on the
+other side.
 
 ## Scene streaming (open worlds)
 
@@ -151,6 +204,7 @@ ship the startup scene only. See
 | `switchTo(name, options?)` | Replace the active scene (async; optional transition). |
 | `loadAdditive(name, onProgress?)` | Load a scene on top; returns its context (async). |
 | `unload(name, options?)` | Unload a scene (async; optional transition). |
+| `getScene(name)` | A loaded scene's `SceneContext` (`spawn` / `adopt` / `despawn` / `setPersistent` / draw callbacks / post-process binding), or `null`. |
 | `getActive()` | The active scene name, or `null`. |
 | `getActiveScenes()` | All active (additive) scene names. |
 | `pause(name)` / `resume(name)` | Suspend / resume a loaded scene's updates. |
@@ -257,14 +311,18 @@ the owning plugin (see `tilemapPlugin`) does it at startup.
 - **Additive for overlays** (HUD, pause, dialogs) so gameplay stays loaded underneath.
 - **Gate logic with systems, not flags** — systems declared in a scene only run while
   it's active, so an additive HUD and the gameplay scene update independently.
-- **Tag long-lived entities** deliberately: because scenes share one world, an
-  untagged entity can outlive a scene switch.
-- **Persist across scenes with [saves](/docs/guides/save/)**, not by leaking entities.
+- **Own every entity you spawn** — an entity created outside a scene context carries
+  no `SceneOwner`, so no scene will ever clean it up. `ctx.adopt(entity)` hands one to
+  the current scene; `setPersistent` is the deliberate opposite.
+- **Carry objects across a switch with [persistence](#persistent-entities), carry
+  state with [saves](/docs/guides/save/)** — an entity that must keep running versus
+  data that just has to be there afterwards.
 
 <Aside type="note">
   Scenes share one world, so a scene switch doesn't wipe the world — the manager
-  loads/unloads each scene's entities and gates its systems. Entities you want to
-  survive a switch must be owned outside the scene.
+  loads/unloads each scene's entities and gates its systems. Surviving a switch is
+  therefore about ownership: an entity survives because it's marked
+  [persistent](#persistent-entities), or because nothing owns it (a leak).
 </Aside>
 
 ## See also
