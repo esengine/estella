@@ -18,6 +18,7 @@ import {
   mkdirInRoot,
   duplicateInRoot,
   statInRoot,
+  readSliceInRoot,
   snapshotForTrash,
   restoreTrashed,
 } from '../electron/projectFs';
@@ -230,5 +231,38 @@ describe('createAsset', () => {
     const p2 = await createAsset(root, 'assets', 'scene.esscene', '{}', 'scene');
     expect(p2).toBe('assets/scene 2.esscene');
     expect(read('assets/scene.esscene')).toBe('{"v":"1.0"}'); // original untouched
+  });
+});
+
+describe('readSliceInRoot (paging a file too big for one reply)', () => {
+  const LINES = 500;
+  const NL = String.fromCharCode(10);
+  beforeEach(() => {
+    writeFileSync(path.join(root, 'big.ts'), Array.from({ length: LINES }, (_, i) => `line ${i + 1}`).join(NL));
+  });
+
+  it('returns the whole file byte for byte when neither bound is given', async () => {
+    const all = await readSliceInRoot(root, 'big.ts');
+    expect(all).toBe(readFileSync(path.join(root, 'big.ts'), 'utf8'));
+  });
+
+  it('takes offset as a 1-based line and limit as a count', async () => {
+    expect(await readSliceInRoot(root, 'big.ts', 1, 2)).toBe(['line 1', 'line 2'].join(NL));
+    expect(await readSliceInRoot(root, 'big.ts', 100, 3)).toBe(['line 100', 'line 101', 'line 102'].join(NL));
+    // A limit past the end simply stops at the end.
+    expect(await readSliceInRoot(root, 'big.ts', 499, 50)).toBe(['line 499', 'line 500'].join(NL));
+    // An offset with no limit runs to the end.
+    expect(await readSliceInRoot(root, 'big.ts', 498)).toBe(['line 498', 'line 499', 'line 500'].join(NL));
+  });
+
+  it('refuses an offset past the end, naming the length', async () => {
+    // Empty would read as "the file ends here", which is how a caller decides it
+    // has seen everything — the exact wrong conclusion.
+    await expect(readSliceInRoot(root, 'big.ts', 501)).rejects.toThrow(/past the end/);
+    await expect(readSliceInRoot(root, 'big.ts', 501)).rejects.toThrow(/500 line/);
+  });
+
+  it('still refuses to leave the project root', async () => {
+    await expect(readSliceInRoot(root, '../outside.txt', 1, 1)).rejects.toThrow();
   });
 });

@@ -409,9 +409,11 @@ export const TOOLS = [
     schema: obj({ path: { type: 'string' }, patch: { type: 'object' } }, ['path', 'patch']),
     method: 'setImportSettings', args: (i) => [i.path, i.patch], root: 'editor' },
   { name: 'read_project_file',
-    description: 'Read a text file by project-relative path — game scripts (src/*.ts), project.esproject, .meta files, any project text. Complements get_inspector: scenes are model state, behaviour is code.',
-    schema: obj({ path: { type: 'string' } }, ['path']),
-    js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)})` },
+    description: 'Read a text file by project-relative path — game scripts (src/*.ts), project.esproject, .meta files, any project text. Complements get_inspector: scenes are model state, behaviour is code. '
+      + 'A big file comes back TRUNCATED; page through it with `offset` (1-based LINE number) and `limit` (how many lines), which is the "narrow the request" the truncation notice asks for. '
+      + 'An offset past the end is refused, naming the line count — so an empty reply always means those lines are empty, never that you have run off the end.',
+    schema: obj({ path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } }, ['path']),
+    js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)}, ${i.offset ?? 'undefined'}, ${i.limit ?? 'undefined'})` },
   { name: 'write_project_file', effect: 'irreversible',
     description: 'Write a text file by project-relative path, CREATING or OVERWRITING it. This is how game scripts (src/*.ts) are authored — create_asset only makes .meta-carrying asset types and refuses to overwrite (it uniquifies to "name 2"). '
       + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher.',

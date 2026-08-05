@@ -90,6 +90,37 @@ export function readInRoot(root: string, relPath: string): Promise<string> {
 }
 
 /**
+ * A WINDOW of a file's lines — `offset` 1-based, `limit` a count. Omit both and
+ * it is the whole file, byte for byte, so every existing caller is unchanged.
+ *
+ * A caller that cannot page a large file has only one move when its reply comes
+ * back truncated, which is to ask for the same thing again. A driver reading a
+ * 200 KB declaration file spent four rounds on `offset: 40000`, `offset: 160000`,
+ * `limit: 100` — every one of them silently dropped, every reply the identical
+ * first 24 000 characters — and concluded "the offset doesn't seem to work". It
+ * did not exist.
+ *
+ * An out-of-range offset is an ERROR naming the file's length rather than an
+ * empty string: empty reads as "the file ends here", which is how a caller
+ * decides it has seen everything.
+ */
+export async function readSliceInRoot(
+  root: string, relPath: string, offset?: number, limit?: number,
+): Promise<string> {
+  const text = await readTextInRoot(resolveInRoot(root, relPath));
+  if (offset === undefined && limit === undefined) return text;
+  const lines = text.split('\n');
+  const from = Math.max(1, Math.floor(offset ?? 1));
+  if (from > lines.length) {
+    throw new Error(
+      `offset ${from} is past the end of ${relPath}, which has ${lines.length} line(s)`,
+    );
+  }
+  const count = limit === undefined ? lines.length : Math.max(0, Math.floor(limit));
+  return lines.slice(from - 1, from - 1 + count).join('\n');
+}
+
+/**
  * Read a file that is allowed not to exist — `null` instead of a throw.
  *
  * Optional project config (delivery groups, build profiles) is absent in most

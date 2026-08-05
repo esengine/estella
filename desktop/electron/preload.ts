@@ -237,7 +237,10 @@ const api = {
   },
   // Filesystem, scoped to the open project root (paths are project-relative).
   fs: {
-    read: (relPath: string): Promise<string> => ipcRenderer.invoke('fs:read', relPath),
+    /** `offset` (1-based line) and `limit` (line count) page a large file; omit
+     *  both for the whole thing. */
+    read: (relPath: string, offset?: number, limit?: number): Promise<string> =>
+      ipcRenderer.invoke('fs:read', relPath, offset, limit),
     /** Read a file that may legitimately not exist (optional project config) —
      *  `null` when it isn't there, so "absent" never travels as a failed IPC call. */
     readOptional: (relPath: string): Promise<string | null> =>

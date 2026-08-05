@@ -8,7 +8,7 @@ import path from 'node:path';
 import {
   openProject,
   readManifest,
-  readInRoot,
+  readSliceInRoot,
   readOptionalInRoot,
   writeInRoot,
   readDirInRoot,
@@ -911,7 +911,8 @@ ipcMain.handle('project:thumbnail', async (_e, rect: { x: number; y: number; wid
   await writeFile(path.join(requireRoot(), 'thumbnail.png'), scaled.toPNG());
 });
 
-ipcMain.handle('fs:read', (_e, relPath: string) => readInRoot(requireRoot(), relPath));
+ipcMain.handle('fs:read', (_e, relPath: string, offset?: number, limit?: number) =>
+  readSliceInRoot(requireRoot(), relPath, offset, limit));
 ipcMain.handle('fs:readOptional', (_e, relPath: string) => readOptionalInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
   writeInRoot(requireRoot(), relPath, contents),
