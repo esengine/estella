@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.44.0] - 2026-08-05
 
 ### Added
 
@@ -27,6 +27,15 @@ published separately; it ships inside the editor.
   hundred lines at a time to learn one method name — which cost most of a context
   window per API. A dogfood run that built a game spent 17 lookups and stayed
   under 20k of context where the previous one passed 70k without writing a line.
+
+- **A probe can ask the running game what it thinks is going on.** `play_probe`
+  gains `find(NAME)` — every entity carrying a component, with its live data —
+  and `resource(NAME)` for the state that belongs to no entity (a score, a phase);
+  `componentNames()` lists what may be asked for. Before them the realm published
+  only `app` and `getComponent`, and `world.get` needs an entity id there was no
+  way to obtain — worse, it returns a ZEROED object for an entity that lacks the
+  component, so counting up from zero does not fail, it lies. Everyone who tried
+  ended up reading private fields off the App.
 
 - **A sorting layer can resolve by depth instead of paint order — 2.5D.** Check a
   layer under Project Settings → Rendering → Depth-sorted layers and what covers
@@ -88,6 +97,26 @@ published separately; it ships inside the editor.
   decides, so the field cannot fight its own panel.
 
 ### Fixed
+
+- **The first Play runs the code on disk, not the code from when you opened the
+  project.** The play realm prewarms when a project opens, and that prewarm
+  imports the project's script bundle; an ES module is evaluated once per URL, so
+  the first cold Play re-imported the same URL and got that same module back.
+  Everything written between opening the project and pressing Play was in the
+  bundle on disk and absent from the running game — which, in a project being
+  written, is all of it. A scene referencing components nothing had registered
+  loaded anyway, dropping them with one warning per entity: a board of bricks
+  that draws perfectly, has no Brick on it, and sits there while every system
+  idles. The rebuild path had always cache-busted for this reason; the cold path
+  now does too.
+
+- **The editor frames what the game will show, not just its height.** The editor
+  view adopted the scene camera's `orthoSize` as a half-height, which matches the
+  game only while the panel is at least as wide as the design aspect. Narrower
+  than that, the running game letterboxes — it keeps the design WIDTH — and the
+  editor kept the height, so it showed strictly less than the game would and the
+  design frame ran off the sides. It read as "stretched in the editor, fine after
+  Play"; nothing was stretched, the two were framing by different rules.
 
 - **The agent's brief taught an API that does not exist, and nothing compiled
   it.** It said to read the mouse with `input.isMouseButtonPressed(MouseButton.Left)`.
@@ -3405,7 +3434,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/esengine/estella/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/esengine/estella/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/esengine/estella/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/esengine/estella/compare/v0.40.0...v0.41.0
