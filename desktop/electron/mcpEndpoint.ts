@@ -94,12 +94,13 @@ export function mcpEndpointStatus(): McpEndpointStatus {
  */
 export async function startMcpEndpoint(
   getWin: () => BrowserWindow | null,
+  getRoot: () => string | null = () => null,
 ): Promise<McpEndpointStatus> {
   if (server) return mcpEndpointStatus();
   if (starting) return starting;
 
   starting = (async (): Promise<McpEndpointStatus> => {
-    const driver = createSurfaceDriver(getWin);
+    const driver = createSurfaceDriver(getWin, getRoot);
     try {
       server = await createExecEndpoint({
         token: TOKEN,

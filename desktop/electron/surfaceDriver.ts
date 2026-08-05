@@ -17,6 +17,8 @@
  * so an in-process caller and a remote MCP client cannot drift apart.
  */
 import type { BrowserWindow } from 'electron';
+import { scriptDiagnostics, lookupScriptSymbol, isScriptPath } from './scriptService';
+import { searchInRoot, writeInRoot } from './projectFs';
 
 /** What the tool registry calls: a surface/editor method, plus the two escape
  *  hatches it also knows about (`js` renderer code, `op` main-process routines). */
@@ -68,11 +70,19 @@ const encodeArgs = (args: readonly unknown[]): string =>
  * recreated window keeps working and a driver built before the window exists
  * is still valid.
  */
-export function createSurfaceDriver(getWin: () => BrowserWindow | null): SurfaceDriver {
+export function createSurfaceDriver(
+  getWin: () => BrowserWindow | null,
+  getRoot: () => string | null = () => null,
+): SurfaceDriver {
   const requireWin = (): BrowserWindow => {
     const win = getWin();
     if (!win) throw new Error('no editor window');
     return win;
+  };
+  const requireProjectRoot = (): string => {
+    const root = getRoot();
+    if (!root) throw new Error('no project open');
+    return root;
   };
 
   const exec = async (code: string): Promise<unknown> => {
@@ -153,6 +163,29 @@ export function createSurfaceDriver(getWin: () => BrowserWindow | null): Surface
           + `throw new Error('this play realm publishes no input door — it predates play_input'); `
           + `const i = p.input; ${call} return 'ok'; })()`,
         )));
+      }
+      // — What the TypeScript compiler knows. Main-process because the language
+      //   service lives here (scriptService.ts), reading the project off disk. —
+      case 'check_scripts':
+        return scriptDiagnostics(input.path ? String(input.path) : undefined);
+      case 'lookup_symbol':
+        return lookupScriptSymbol(String(input.name ?? ''), input.limit === undefined ? undefined : Number(input.limit));
+      case 'search_project_files':
+        return searchInRoot(requireProjectRoot(), {
+          query: String(input.query ?? ''),
+          regex: Boolean(input.regex),
+          glob: input.glob === undefined ? undefined : String(input.glob),
+          maxResults: input.maxResults === undefined ? undefined : Number(input.maxResults),
+        });
+      case 'write_project_file': {
+        // The write and the compiler's verdict on it are ONE answer. Split apart
+        // they are two tool calls, the second of which nobody makes: an agent
+        // that has just written a file believes it.
+        const relPath = String(input.path ?? '');
+        await writeInRoot(requireProjectRoot(), relPath, String(input.content ?? ''));
+        if (!isScriptPath(relPath)) return { ok: true, path: relPath };
+        const diagnostics = scriptDiagnostics(relPath).filter((d) => d.category === 'error');
+        return { ok: true, path: relPath, errors: diagnostics.length, diagnostics: diagnostics.slice(0, 40) };
       }
       default:
         throw new Error(`unknown main-process op: ${op}`);

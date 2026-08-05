@@ -194,6 +194,56 @@ export async function listFilesInRoot(root: string, relDir: string): Promise<str
   return out;
 }
 
+/** One matching line, with where it is. */
+export interface FileMatch {
+  file: string;
+  line: number;
+  text: string;
+}
+
+/**
+ * Lines matching `query` across the project's visible files — the door between
+ * "list every path" and "read a file whole".
+ *
+ * Without it the only way to find where something is written is to page files
+ * in a hundred lines at a time, which is what a 50k-line `.d.ts` turns into: the
+ * question was "what is on `Input`", and the cost was most of a context window.
+ *
+ * `glob` is a plain suffix/substring filter on the path, not a glob engine —
+ * `.ts` and `src/` both work, and a caller who wants more can filter results.
+ */
+export async function searchInRoot(
+  root: string,
+  opts: { query: string; regex?: boolean; glob?: string; maxResults?: number },
+): Promise<FileMatch[]> {
+  const query = opts.query ?? '';
+  if (!query) throw new Error('search needs a query');
+  const max = Math.max(1, Math.min(opts.maxResults ?? 100, 500));
+  const re = opts.regex
+    ? new RegExp(query, 'i')
+    : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const out: FileMatch[] = [];
+  for await (const rel of walkVisible(root, root)) {
+    if (opts.glob && !rel.includes(opts.glob)) continue;
+    let text: string;
+    try {
+      text = await readFile(resolveInRoot(root, rel), 'utf8');
+    } catch {
+      continue; // Unreadable or binary — a search is not the place to report it.
+    }
+    // A minified bundle or a generated .d.ts can hold one line of a megabyte;
+    // returning it verbatim is how a "search" becomes the thing it was meant to
+    // replace. The location still lands, the line is just clipped.
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (!re.test(lines[i])) continue;
+      out.push({ file: rel, line: i + 1, text: lines[i].trim().slice(0, 400) });
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}
+
 /**
  * Rename / move a file or folder within the project. A file's `.meta` sidecar
  * travels with it so rename preserves asset identity (uuid). Refuses to clobber

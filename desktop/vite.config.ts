@@ -87,6 +87,11 @@ export default defineConfig({
         // exportGame run it). Keep it external → required from node_modules at
         // runtime where its binary resolution works. (Vite 8 = Rolldown, so the
         // option is `rolldownOptions`, not `rollupOptions`.)
+        // typescript is external for the same shape of reason and one more: it is
+        // CommonJS, and bundling it into the ESM main broke the app on boot
+        // (`__filename is not defined in ES module scope`). It also ships as a
+        // RUNTIME dependency — the editor's language service (scriptService.ts)
+        // is a shipped feature, not a dev tool.
         // esbuild + the vendored Basis KTX2 encoder + ffmpeg-static all resolve
         // sibling binaries at runtime (native exe / wasm via import.meta.url /
         // module __dirname), so bundling them breaks that — keep them external,
@@ -97,7 +102,7 @@ export default defineConfig({
         vite: {
           build: {
             rolldownOptions: {
-              external: ['esbuild', 'ffmpeg-static', 'electron-updater', /[\\/]build-tools[\\/]basis[\\/]/],
+              external: ['esbuild', 'typescript', 'ffmpeg-static', 'electron-updater', /[\\/]build-tools[\\/]basis[\\/]/],
             },
           },
         },

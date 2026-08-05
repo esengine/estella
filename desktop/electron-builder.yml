@@ -36,6 +36,10 @@ asarUnpack:
   # The MCP front: an MCP client runs this with plain node (node cannot read
   # inside an asar), which spawns/attaches the editor as the MCP host.
   - dist-electron/mcp/**
+  # The TypeScript language service reads its own lib.*.d.ts off disk; keeping
+  # the package unpacked also keeps `getDefaultLibFilePath` returning a path that
+  # exists for anything that later shells out to it.
+  - "**/node_modules/typescript/**"
   - "**/node_modules/esengine/dist/**"
   - dist/wasm/**
   - dist/wasm-wechat/**

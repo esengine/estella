@@ -88,6 +88,14 @@ app.whenReady().then(async () => {
           const image = await win.webContents.capturePage();
           return image.toPNG().toString('base64');
         }
+        // Every other op is a main-process routine of the real app — the play
+        // realm, the project's files, its TypeScript service. Say which host has
+        // it, the way an editor-only surface call does, rather than falling
+        // through to a method lookup and reporting `api.undefined is not a
+        // function` for a tool that simply lives elsewhere.
+        if (op) {
+          throw new Error(`op "${op}" needs the live editor host — connect through editor-mcp.mjs --editor (or --attach)`);
+        }
         if (root === 'editor') {
           throw new Error(`${method} needs the live editor host — connect through editor-mcp.mjs --editor (or --attach)`);
         }

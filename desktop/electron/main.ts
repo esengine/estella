@@ -46,6 +46,7 @@ import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint, stopMcpEndpoint, mcpEndpointStatus } from './mcpEndpoint';
 import { secretStatus, setSecret, clearSecret, readSecret } from './secrets';
 import { createSurfaceDriver } from './surfaceDriver';
+import { adoptProjectScripts } from './scriptService';
 import { createAgentHost } from './agent/host';
 import type { ContributedTool } from './agent/kernel';
 import {
@@ -593,7 +594,7 @@ function createWindow() {
   if (pin !== null) win.webContents.on('did-finish-load', () => win?.webContents.setZoomFactor(pin));
 
   if (shotOut) void runScreenshot(win, shotOut);
-  if (mcpMode()) void startMcpEndpoint(() => win);
+  if (mcpMode()) void startMcpEndpoint(() => win, () => projectRoot);
 
   // Unsaved-changes quit guard: prompt before closing a window with dirty
   // documents (scene or asset editors — the renderer pushes the aggregate via
@@ -670,7 +671,7 @@ ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', stat
 // serve `--attach` at all; `--mcp` keeps its own way in and outranks the setting.
 ipcMain.handle('mcp:status', () => mcpEndpointStatus());
 ipcMain.handle('mcp:setEnabled', (_e, on: boolean) =>
-  on ? startMcpEndpoint(() => win) : stopMcpEndpoint());
+  on ? startMcpEndpoint(() => win, () => projectRoot) : stopMcpEndpoint());
 
 // — Credentials a setting holds (secrets.ts) —
 // Three handlers and deliberately no `get`: a secret crosses from the renderer
@@ -693,7 +694,7 @@ let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWi
 let agentPluginTools: ContributedTool[] = [];
 
 const agentHost = createAgentHost({
-  driver: createSurfaceDriver(() => win),
+  driver: createSurfaceDriver(() => win, () => projectRoot),
   push: (message) => win?.webContents.send('agent:message', message),
   // Which key, like which endpoint, is the window's to decide: it is the side
   // that knows which provider the user picked.
@@ -819,6 +820,9 @@ const platformRuntimeDirs = (): PlatformRuntimeDirs => ({
 async function adoptRoot(root: string): Promise<string | undefined> {
   projectRoot = root;
   if (win) startProjectWatch(root, win.webContents);
+  // The compiler follows the project. Built lazily on the first question, so an
+  // open pays nothing for a service it may never be asked one.
+  adoptProjectScripts(root);
   try {
     await ensureSdkTypes(root, SDK_TYPES_CANDIDATES, app.getVersion());
     return undefined;

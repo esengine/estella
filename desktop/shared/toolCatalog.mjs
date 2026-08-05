@@ -216,7 +216,12 @@ export const TOOLS = [
   //   `editor-mcp.mjs --editor`. —
   { name: 'list_project_templates',
     description: "New-project templates the editor ships. Each entry: { name, dir, kind: 'starter' | 'example', description?, tag? } — the blank starter has kind 'starter'. Use an entry's dir with create_project.",
-    schema: obj({}), js: () => `window.estella.templates.list()` },
+    // Without the thumbnails. Each is a data-URL PNG for the launcher's cards and
+    // they came to 1.4 MB of base64 in one reply — past any caller's truncation
+    // limit, and worth nothing to a caller that cannot look at a picture. The
+    // fields documented above are the whole answer.
+    schema: obj({}),
+    js: () => `window.estella.templates.list().then((all) => all.map(({ thumbnail, ...rest }) => rest))` },
   { name: 'create_project', effect: 'irreversible',
     description: 'Create a new project from a template directory (see list_project_templates) at <location>/<name>; returns the new project root. Follow with open_project.',
     schema: obj({ templateDir: { type: 'string' }, location: { type: 'string' }, name: { type: 'string' } },
@@ -416,9 +421,26 @@ export const TOOLS = [
     js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)}, ${i.offset ?? 'undefined'}, ${i.limit ?? 'undefined'})` },
   { name: 'write_project_file', effect: 'irreversible',
     description: 'Write a text file by project-relative path, CREATING or OVERWRITING it. This is how game scripts (src/*.ts) are authored — create_asset only makes .meta-carrying asset types and refuses to overwrite (it uniquifies to "name 2"). '
-      + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher.',
+      + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher. '
+      + 'Writing a .ts file returns the TypeScript errors in it — `{ ok, path, errors, diagnostics }` — so a script that does not compile says so HERE, not three steps later when the game plays black.',
     schema: obj({ path: { type: 'string' }, content: { type: 'string' } }, ['path', 'content']),
-    js: (i) => `window.estella.fs.write(${JSON.stringify(i.path)}, ${JSON.stringify(i.content)})` },
+    op: 'write_project_file' },
+  { name: 'check_scripts',
+    description: "TypeScript errors in the project's scripts — the whole of src/ by default, or one file with `path`. "
+      + 'Each entry is { file, line, column, code, category, message }. This is the same compiler the IDE runs, so an empty list means the code really does build.',
+    schema: obj({ path: { type: 'string' } }), op: 'check_scripts' },
+  { name: 'lookup_symbol',
+    description: "What an API actually IS, asked of the TypeScript compiler: `name` is a symbol (`Input`, `screenToWorld`, `MouseButton`) and the reply carries its rendered signature, its doc comment and where it is declared. "
+      + 'Use this INSTEAD of paging the SDK .d.ts — that file is tens of thousands of lines and reading it a hundred at a time costs a context window to learn one method name.',
+    schema: obj({ name: { type: 'string' }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
+  { name: 'search_project_files',
+    description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` keeps only paths containing that text (".ts", "src/"). '
+      + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole.',
+    schema: obj({
+      query: { type: 'string' }, regex: { type: 'boolean' },
+      glob: { type: 'string' }, maxResults: { type: 'number' },
+    }, ['query']),
+    op: 'search_project_files' },
   { name: 'list_project_files',
     description: 'Project-relative paths of every file under a project-relative directory (recursive). Use for source trees (src/) where list_assets — which only knows registered assets — sees nothing.',
     schema: obj({ dir: { type: 'string' } }, ['dir']),
@@ -565,7 +587,16 @@ function typeMatches(spec, val) {
 function validate(schema, raw) {
   const input = raw ?? {};
   for (const req of schema.required ?? []) {
-    if (input[req] === undefined) throw new Error(`missing required argument: ${req}`);
+    if (input[req] === undefined) {
+      // Name what DID arrive. A caller that wrote `file` for `path` reads "missing
+      // required argument: path", looks at a call that plainly has a path in it,
+      // and spends a round trip resending the same mistake.
+      const got = Object.keys(input);
+      throw new Error(
+        `missing required argument: ${req}`
+        + (got.length ? ` — received ${got.map((k) => `\`${k}\``).join(', ')}` : ' — received no arguments'),
+      );
+    }
   }
   for (const [key, spec] of Object.entries(schema.properties ?? {})) {
     if (input[key] !== undefined && spec.type && !typeMatches(spec.type, input[key])) {

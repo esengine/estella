@@ -171,15 +171,33 @@ describe('editor MCP tool registry', () => {
     expect(driver).toHaveBeenCalledWith('setImportSettings', ['assets/ui/frame.png', patch], 'editor');
   });
 
-  it('write_project_file targets the project fs door with an escaped payload', async () => {
-    const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
-    driver.js = vi.fn(async () => undefined);
+  it('write_project_file writes through main, which is what can answer with diagnostics', async () => {
+    // A main-process op rather than a renderer snippet: the write and the
+    // TypeScript verdict on it are one reply, and only main holds the language
+    // service. The payload crosses whole — a dropped `content` would write an
+    // empty file and report ok.
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({ ok: true, path: 'src/main.ts', errors: 0, diagnostics: [] }));
     const write = TOOLS.find((t: { name: string }) => t.name === 'write_project_file');
     await runTool(write, driver, { path: 'src/main.ts', content: 'const s = "hi";\n' });
-    const code = driver.js.mock.calls[0][0];
-    expect(code).toContain('window.estella.fs.write');
-    // The content is JSON-encoded into the snippet — quotes/newlines must not break it.
-    expect(code).toContain(JSON.stringify('const s = "hi";\n'));
+    expect(driver.op).toHaveBeenCalledWith('write_project_file', {
+      path: 'src/main.ts', content: 'const s = "hi";\n',
+    });
+  });
+
+  it('the compiler tools reach main, where the language service lives', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => []);
+    for (const [name, args] of [
+      ['check_scripts', { path: 'src/main.ts' }],
+      ['lookup_symbol', { name: 'Input' }],
+      ['search_project_files', { query: 'Gomoku' }],
+    ] as Array<[string, Record<string, unknown>]>) {
+      const tool = TOOLS.find((t: { name: string }) => t.name === name);
+      expect([name, !!tool]).toEqual([name, true]);
+      await runTool(tool, driver, args);
+      expect(driver.op).toHaveBeenCalledWith(name, args);
+    }
   });
 
   it('every resource maps to a surface method with a JSON mime', () => {
