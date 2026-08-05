@@ -173,11 +173,17 @@ function buildEditorAutomation(): unknown {
         );
       }
       useEditorStore.getState().enterEditor();
+      // Wait for a scene to be LOADED, which is not the same question as "does
+      // it have entities". An empty scene is where every new project starts, and
+      // asking for entities made that project stall the full 30s and then fail
+      // its very first tool call — the one place a driver has nothing to go on.
       const t0 = Date.now();
-      while (EditorControlSurface.getSceneTree().length === 0 && Date.now() - t0 < 30_000) {
+      const loaded = (): boolean =>
+        ProjectStore.getSnapshot()?.currentScene != null || EditorControlSurface.getSceneTree().length > 0;
+      while (!loaded() && Date.now() - t0 < 30_000) {
         await new Promise((r) => setTimeout(r, 100));
       }
-      if (EditorControlSurface.getSceneTree().length === 0) {
+      if (!loaded()) {
         throw new Error(
           `the project at ${root} opened but no scene loaded — it may have none yet. `
           + 'Name one with open_scene, or create one with create_scene_file.',
