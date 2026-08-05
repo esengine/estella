@@ -15,8 +15,22 @@ class FsmGraphDocumentImpl extends AssetDocument<FsmDefinition> {
   open(def: FsmDefinition, filePath: string | null): void {
     this.openAsset(def, filePath);
   }
+  /**
+   * Open whatever the file held, as a state machine.
+   *
+   * The cast used to be blind, so a `.esfsm` that was not one — hand-written,
+   * from another tool, half-migrated — reached the panel and crashed it on
+   * `def.states.map` with "Cannot read properties of undefined". A file the
+   * editor cannot read should open as an EMPTY machine you can see and repair,
+   * not take the panel down: the crash names neither the file nor the reason,
+   * and the panel is the only place to fix it from.
+   */
   openJson(raw: unknown, filePath: string | null): void {
-    this.open(raw as FsmDefinition, filePath);
+    const d = (raw ?? {}) as Partial<FsmDefinition>;
+    this.open({
+      initial: typeof d.initial === 'string' ? d.initial : '',
+      states: Array.isArray(d.states) ? d.states : [],
+    }, filePath);
   }
   close(): void {
     this.closeAsset();
