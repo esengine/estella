@@ -49,6 +49,59 @@ export interface ScaffoldScriptResult {
   wiredInto?: string;
   /** The line appended there — surfaced so the editor can say what it did. */
   wiredLine?: string;
+  /**
+   * The SECOND wiring, when a component's declaration entry was not reachable
+   * from the startup entry and had to be pulled in there too. Absent in the
+   * ordinary case, where the startup entry already imports the declarations.
+   */
+  alsoWiredInto?: string;
+  alsoWiredLine?: string;
+}
+
+/** Relative import/export specifiers a module names, in source order. */
+function relativeSpecifiers(source: string): string[] {
+  const out: string[] = [];
+  // `import x from './a'`, `import './a'`, `export * from './a'`, `export { x } from './a'`.
+  const re = /(?:^|[\s;}])(?:import|export)\s*(?:[^'"]*?\sfrom\s*)?['"](\.[^'"]*)['"]/g;
+  for (let m = re.exec(source); m; m = re.exec(source)) out.push(m[1]);
+  return out;
+}
+
+/** The project-relative module a specifier resolves to, or null. */
+function resolveRel(fromRel: string, spec: string): string | null {
+  const base = path.posix.join(path.posix.dirname(fromRel.replace(/\\/g, '/')), spec);
+  return base.replace(/^\.\//, '');
+}
+
+/**
+ * Whether the module graph rooted at `fromRel` reaches `targetRel` — the same
+ * question the bundler answers, asked with a walk over relative specifiers.
+ *
+ * Shallow on purpose: it follows only the project's own relative imports (a
+ * component's declarations are never reached through a package), and a file it
+ * cannot read is a leaf rather than a failure.
+ */
+async function entryReaches(root: string, fromRel: string, targetRel: string): Promise<boolean> {
+  const want = targetRel.replace(/\\/g, '/').replace(/\.tsx?$/, '');
+  const seen = new Set<string>();
+  const queue = [fromRel.replace(/\\/g, '/')];
+  while (queue.length) {
+    const rel = queue.shift()!;
+    const stem = rel.replace(/\.tsx?$/, '');
+    if (seen.has(stem)) continue;
+    seen.add(stem);
+    if (stem === want) return true;
+    const candidates = [rel, `${stem}.ts`, `${stem}.tsx`, `${stem}/index.ts`, `${stem}/index.tsx`];
+    const abs = candidates.map((c) => path.join(root, c)).find((p) => existsSync(p) && !p.endsWith(path.sep));
+    if (!abs) continue;
+    let source: string;
+    try { source = await readFile(abs, 'utf8'); } catch { continue; }
+    for (const spec of relativeSpecifiers(source)) {
+      const next = resolveRel(rel, spec);
+      if (next) queue.push(next);
+    }
+  }
+  return false;
 }
 
 // =============================================================================
@@ -99,6 +152,25 @@ export const ${fn} = defineSystem(
     { name: '${name}System' },
 );
 
+// Reading input: ask for it as a resource, alongside Time above.
+//
+//   import { CameraView, Input, MouseButton } from 'esengine';
+//   [Query(Mut(Transform)), Res(Input), Res(CameraView)]
+//   (query, input, camera) => {
+//       if (input.isMouseButtonPressed(MouseButton.Left)) {
+//           // input.mouseX/mouseY are SCREEN pixels (canvas-relative, y down).
+//           // Anything placed in the world needs them in world units:
+//           const at = camera.getWorldMousePosition();   // or camera.screenToWorld(x, y)
+//       }
+//   }
+//
+// This is the door for world-space content — a board, a token, a character —
+// whether or not it is under a Canvas; UINode/Interactable only answers for UI.
+// Do NOT reach for document.querySelector('canvas') and addEventListener: that
+// works in a browser and nowhere else this project can ship to (a mini-game
+// runtime and a native build have no DOM at all), and it makes the game do its
+// own screen→world arithmetic that the camera already knows.
+
 addSystemToSchedule(Schedule.Update, ${fn});
 `;
 }
@@ -147,6 +219,23 @@ export async function scaffoldScript(
     await mkdir(path.dirname(abs), { recursive: true });
     await writeFile(abs, source, 'utf8');
     await appendWiring(root, entry, line);
+    // Reaching the DECLARATION entry is only half of a component being real. The
+    // editor reads that entry directly — so the component shows up in Add
+    // Component and the scene saves it — but the running game only has the
+    // modules the STARTUP entry pulls in. A project whose startup entry no longer
+    // imports its declarations (the template ships the line; an entry rewritten
+    // since may not) therefore authors a component the game has never heard of,
+    // and says so only as "Unknown component type" in the play log, once per
+    // entity, after the scene is already built on it. Close it here, where the
+    // component is being made: this tool's promise is a script that is live.
+    if (opts.kind === 'component' && !await entryReaches(root, opts.entries.main, opts.entries.register)) {
+      const bridge = scriptWiring('system', opts.entries, opts.entries.register);
+      await appendWiring(root, bridge.entry, bridge.line);
+      return {
+        ok: true, path: moduleRel, wiredInto: entry, wiredLine: line,
+        alsoWiredInto: bridge.entry, alsoWiredLine: bridge.line,
+      };
+    }
     return { ok: true, path: moduleRel, wiredInto: entry, wiredLine: line };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

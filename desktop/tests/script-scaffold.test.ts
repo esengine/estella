@@ -88,6 +88,36 @@ describe('scaffoldScript — component', () => {
     expect(read('src/main.ts')).toBe("import './components';\n");
   });
 
+  it('also pulls the declarations into the STARTUP entry when nothing else does', async () => {
+    // The editor reads the declaration entry directly, so the component appears
+    // in Add Component and the scene saves it — but the running game only has
+    // what the startup entry imports. An entry rewritten since the template
+    // shipped therefore authors a component the game has never heard of, and
+    // says so only as "Unknown component type" in the play log, once per entity.
+    writeFileSync(path.join(root, 'src/main.ts'), "console.log('my own entry');\n");
+    const res = await scaffoldScript(root, { kind: 'component', name: 'Patrol', dir: 'src', entries: ENTRIES });
+    expect(res.ok).toBe(true);
+    expect(res.wiredInto).toBe('src/components.ts');
+    expect(res.alsoWiredInto).toBe('src/main.ts');
+    expect(read('src/main.ts')).toContain("import './components';");
+    expect(read('src/components.ts')).toContain("export * from './Patrol';");
+  });
+
+  it('leaves the startup entry alone when it already reaches the declarations', async () => {
+    const res = await scaffoldScript(root, { kind: 'component', name: 'Patrol', dir: 'src', entries: ENTRIES });
+    expect(res.alsoWiredInto).toBeUndefined();
+    expect(read('src/main.ts')).toBe("import './components';\n");
+  });
+
+  it('follows the import graph, not just the entry\'s own first line', async () => {
+    // main → game → components is reached; the bridge must not be added again.
+    writeFileSync(path.join(root, 'src/main.ts'), "import './game';\n");
+    writeFileSync(path.join(root, 'src/game.ts'), "export * from './components';\n");
+    const res = await scaffoldScript(root, { kind: 'component', name: 'Patrol', dir: 'src', entries: ENTRIES });
+    expect(res.alsoWiredInto).toBeUndefined();
+    expect(read('src/main.ts')).toBe("import './game';\n");
+  });
+
   it('redirects a create from an assets folder into the source root', async () => {
     const res = await scaffoldScript(root, { kind: 'component', name: 'Health', dir: 'assets/art', entries: ENTRIES });
     expect(res.path).toBe('src/Health.ts');
@@ -113,6 +143,20 @@ describe('scaffoldScript — system', () => {
     expect(read('src/main.ts')).toContain("import './Chase';");
     // The declaration entry is not touched — behaviour is not a declaration.
     expect(read('src/components.ts')).toBe('export {};\n');
+  });
+
+  it('names the door for reading input, so the DOM is not the obvious one', async () => {
+    // Left to the template as it was, a system that needs a click reaches for
+    // document.querySelector('canvas') — which works in a browser and nowhere
+    // else this project can ship to, and does its own screen→world arithmetic
+    // that the camera already knows.
+    await scaffoldScript(root, { kind: 'system', name: 'Pick', dir: 'src', entries: ENTRIES });
+    const src = read('src/Pick.ts');
+    expect(src).toContain('Res(Input)');
+    expect(src).toContain('CameraView');
+    expect(src).toMatch(/getWorldMousePosition|screenToWorld/);
+    expect(src).toMatch(/document\.querySelector/); // named, as the thing NOT to do
+    expect(src).toMatch(/no DOM|have no DOM/i);
   });
 });
 
