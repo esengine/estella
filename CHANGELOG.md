@@ -65,6 +65,39 @@ published separately; it ships inside the editor.
   depth layer it would have resolved every fragment at z = 0, and on WebGPU the
   entry simply did not match the vertex format.
 
+- **Depth-sorted layers now apply to the EDIT viewport, not only to Play.** The
+  setting rode every stop y-sort had cut except the one that makes it visible
+  while authoring, so a project could check the box, get 2.5D occlusion in the
+  game, and author against a viewport still painting in list order — the setting
+  was real everywhere except where it is set. `Renderer.setDepthLayers` is the
+  live twin of the app option, and the store now pushes both masks from one
+  place, since two call sites are how the second one gets forgotten.
+
+- **A click selects what is drawn on top.** Picking ranked overlapping entities
+  by sorting layer and list order, which is not the order the frame resolved:
+  a nearer sprite lost the click to whatever was created after it, and in a depth
+  layer — where the depth buffer beats the layer, per pixel — it lost to the
+  sprite behind it. Ranking now mirrors the renderer's own rule, from the same
+  two project masks (`layerOrderOf` / `compareDrawRank`, the JS mirror of
+  `DrawList::layerOrder`).
+
+- **Gizmos and selection outlines project through the entity's own plane.** The
+  unproject side learned to take a plane; the project side still assumed z = 0,
+  so under the perspective eye every overlay on off-plane content — outline,
+  move handles, collider shapes, light and emitter gizmos, joint anchors, the
+  tile overlays — was drawn at the entity's shadow rather than on the entity.
+
+- **The editor grid covers the perspective frame.** It sized its quad from
+  `orthoSize`, a field that view does not render through, and became a bounded
+  island in the middle of the panel. What a view SEES on the z = 0 plane is one
+  formula now (`editorViewHalfHeight`), so the grid, zoom, framing and the
+  minimap rect cannot disagree — framing under the perspective eye wrote
+  `orthoSize` too, which simply did nothing.
+
+- **The editor's `pick` answers in source ids.** It handed back a runtime id
+  every other door on that surface rejects, so an agent that picked an entity
+  could not select it.
+
 ## [0.43.0] - 2026-08-04
 
 A release about a game that is no longer alone once it ships. Four more of the
