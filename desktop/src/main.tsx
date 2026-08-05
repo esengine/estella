@@ -221,6 +221,13 @@ function buildEditorAutomation(): unknown {
      *  "returned ⇒ resolvable": programmatic create/import chain this so a
      *  follow-up `@uuid:`/path ref never races the debounced watcher refresh. */
     refreshAssets: () => ProjectStore.refreshAssets(),
+    /** The same contract for COMPONENT schemas: returned ⇒ the editor knows what
+     *  the project's components look like. The watcher debounces 250ms before
+     *  extracting, and a writer that uses the component it just declared beats
+     *  that easily — a person pauses between the two, a driver does not. What it
+     *  got back was `"GomokuState" has no field "currentPlayer" (fields: )`: an
+     *  empty field list, phrased as if the field name were wrong. */
+    refreshSchemas: () => ProjectStore.refreshUserSchemas(),
     play: () => useEditorStore.getState().togglePlay(),
     playState: () => PlayRealm.getSnapshot(),
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */

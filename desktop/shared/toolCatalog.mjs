@@ -434,7 +434,7 @@ export const TOOLS = [
       + 'Use this INSTEAD of paging the SDK .d.ts — that file is tens of thousands of lines and reading it a hundred at a time costs a context window to learn one method name.',
     schema: obj({ name: { type: 'string' }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
   { name: 'search_project_files',
-    description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` keeps only paths containing that text (".ts", "src/"). '
+    description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` filters paths — `*.ts`, `src/**`, `src/*.ts`, or a plain substring like ".ts". '
       + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole.',
     schema: obj({
       query: { type: 'string' }, regex: { type: 'boolean' },

@@ -182,8 +182,21 @@ export function createSurfaceDriver(
         // they are two tool calls, the second of which nobody makes: an agent
         // that has just written a file believes it.
         const relPath = String(input.path ?? '');
-        await writeInRoot(requireProjectRoot(), relPath, String(input.content ?? ''));
+        const content = String(input.content ?? '');
+        await writeInRoot(requireProjectRoot(), relPath, content);
         if (!isScriptPath(relPath)) return { ok: true, path: relPath };
+        // A file that DECLARES components changes what the editor knows an entity
+        // can carry, and the watcher only gets there after a 250ms debounce plus
+        // an extract. A writer uses what it just declared in the very next call —
+        // a person pauses between the two, nothing else does — and the reply it
+        // raced was "component X has no field Y (fields: )": an empty schema,
+        // worded as a typo. Same contract as the asset doors: returned ⇒ usable.
+        if (/\bdefine(Component|Tag)\s*\(/.test(content)) {
+          await exec('window.__estellaEditor.refreshSchemas()').catch(() => {
+            // No automation hook published (a host with no driver authorised) —
+            // the debounced watcher still gets there, just later.
+          });
+        }
         const diagnostics = scriptDiagnostics(relPath).filter((d) => d.category === 'error');
         return { ok: true, path: relPath, errors: diagnostics.length, diagnostics: diagnostics.slice(0, 40) };
       }

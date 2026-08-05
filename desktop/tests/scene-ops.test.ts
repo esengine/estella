@@ -119,6 +119,25 @@ describe('applySceneOps', () => {
     expect(calls).toContainEqual(['create', 'Bare', null]);
   });
 
+  it('says what to do when fields write to a component the create did not declare', async () => {
+    // `components` REPLACES the default ['Transform'], and the same op also takes
+    // x/y — so this is the easy mistake to make, and "component Transform is not
+    // on entity 3" is true and useless. A caller that cannot tell which of the
+    // two positioning routes it half-took spends its next round guessing.
+    await expect(applySceneOps([{
+      op: 'create', name: 'Line', components: ['ShapeRenderer'],
+      fields: { 'Transform.position.y': -224, 'ShapeRenderer.color': '#fff' },
+    }])).rejects.toThrow(/does not declare .*replaces the default .*or give x\/y/s);
+
+    // Declaring it is the other way out, and it works.
+    calls.length = 0;
+    await applySceneOps([{
+      op: 'create', name: 'Line', components: ['Transform', 'ShapeRenderer'],
+      fields: { 'Transform.position.y': -224 },
+    }]);
+    expect(calls).toContainEqual(['create', 'Line', null]);
+  });
+
   it('resolves an entity template before mutating, and rejects an unknown one', async () => {
     await applySceneOps([{ op: 'create', ref: 'img', template: 'ui-image', name: 'Icon' }]);
     expect(calls).toContainEqual(['create', 'Image', null]);
@@ -131,7 +150,13 @@ describe('applySceneOps', () => {
   });
 
   it('applies create-time fields to the entity it just made', async () => {
-    await applySceneOps([{ op: 'create', ref: 'n', fields: { 'Text.content': 'Alice' } }]);
+    // Text is declared: writing a field of a component the create did not make is
+    // its own error (below), and this case is about create-then-set reaching the
+    // NEW id. The fake surface accepted the undeclared form; the real one throws
+    // "component Text is not on entity 100" at the setField.
+    await applySceneOps([{
+      op: 'create', ref: 'n', components: ['Transform', 'Text'], fields: { 'Text.content': 'Alice' },
+    }]);
     expect(calls).toContainEqual(['setField', 100, 'Text', 'content', 'Alice']);
   });
 

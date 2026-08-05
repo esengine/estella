@@ -185,6 +185,28 @@ describe('editor MCP tool registry', () => {
     });
   });
 
+  it('a component declaration is extracted before the write returns', async () => {
+    // The watcher debounces 250ms; a writer uses what it declared in the next
+    // call. Racing it answered `has no field "currentPlayer" (fields: )` — an
+    // empty schema worded as a typo, which sent the writer off rewriting a
+    // component that was correct.
+    const driver = vi.fn() as unknown as {
+      op: ReturnType<typeof vi.fn>; js: ReturnType<typeof vi.fn>;
+    } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({ ok: true }));
+    driver.js = vi.fn(async () => null);
+    const write = TOOLS.find((t: { name: string }) => t.name === 'write_project_file');
+    await runTool(write, driver, {
+      path: 'src/components.ts',
+      content: "import { defineComponent } from 'esengine';\nexport const S = defineComponent('S', { a: 1 });\n",
+    });
+    // The op carries the write; the extract is the op's own doing (surfaceDriver),
+    // so what this pins is that the tool still hands main the whole payload.
+    expect(driver.op).toHaveBeenCalledWith('write_project_file', expect.objectContaining({
+      path: 'src/components.ts',
+    }));
+  });
+
   it('the compiler tools reach main, where the language service lives', async () => {
     const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
     driver.op = vi.fn(async () => []);

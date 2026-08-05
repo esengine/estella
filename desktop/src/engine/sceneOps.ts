@@ -187,7 +187,26 @@ export async function applySceneOps(
             created.push(id);
             if (op.ref) refs[op.ref] = id;
             if (op.name) EditorControlSurface.renameEntity(id, op.name);
-            if (op.fields) setFields(id, op.fields);
+            if (op.fields) {
+              // `components` REPLACES the default `['Transform']` rather than
+              // adding to it, so a create that names ShapeRenderer and then
+              // writes `Transform.position.y` fails with "component Transform is
+              // not on entity 3" — true, and no help at all when the same op
+              // supports `x`/`y`, which quietly supply the Transform this one
+              // just dropped. Say which side of that the caller landed on.
+              const declared = new Set(specs.map((c) => (typeof c === 'string' ? c : c.type)));
+              const missing = [...new Set(Object.keys(op.fields).map((k) => k.split('.')[0]))]
+                .filter((c) => !declared.has(c));
+              if (missing.length > 0) {
+                throw new Error(
+                  `fields write to ${missing.map((c) => `"${c}"`).join(', ')}, which this create does `
+                  + `not declare (it declares ${[...declared].map((c) => `"${c}"`).join(', ')}). Naming any `
+                  + '`components` replaces the default ["Transform"] — list every component your fields '
+                  + `write to${missing.includes('Transform') ? ', or give x/y instead of Transform.position' : ''}.`,
+                );
+              }
+              setFields(id, op.fields);
+            }
             break;
           }
           case 'set':

@@ -162,6 +162,19 @@ describe('project search', () => {
     await expect(searchInRoot(root, { query: '' })).rejects.toThrow(/needs a query/);
   });
 
+  it('answers to the name `glob`, and still takes a substring', async () => {
+    // The first real caller wrote `*.ts` — the thing the parameter's name
+    // promises — and a search that had matches returned nothing.
+    writeFileSync(path.join(root, 'src', 'globbed.ts'), 'const globTarget = 1;\n');
+    const forms = ['*.ts', 'src/*.ts', 'src/**', '.ts'];
+    for (const glob of forms) {
+      const hits = await searchInRoot(root, { query: 'globTarget', glob });
+      expect([glob, hits.some((h) => h.file.endsWith('globbed.ts'))]).toEqual([glob, true]);
+    }
+    // And still excludes what it should: a pattern that matches nothing matches nothing.
+    expect(await searchInRoot(root, { query: 'globTarget', glob: '*.json' })).toEqual([]);
+  });
+
   it('clips a very long line instead of returning it whole', async () => {
     writeFileSync(path.join(root, 'src', 'long.ts'), `// ${'x'.repeat(5000)} marker\n`);
     const hits = await searchInRoot(root, { query: 'xxxxx', glob: 'long.ts' });

@@ -209,9 +209,27 @@ export interface FileMatch {
  * in a hundred lines at a time, which is what a 50k-line `.d.ts` turns into: the
  * question was "what is on `Input`", and the cost was most of a context window.
  *
- * `glob` is a plain suffix/substring filter on the path, not a glob engine —
- * `.ts` and `src/` both work, and a caller who wants more can filter results.
+ * `glob` filters paths. It accepts what its NAME promises — `*.ts`, `src/**`,
+ * `src/*.ts` — and a plain substring (`.ts`, `src/`) still works, because that is
+ * what the description used to say and both readings are reasonable. It was a
+ * substring test alone, and the first caller wrote `*.ts`: a search that could
+ * have matched returned nothing at all, which is the worst way for a filter to be
+ * wrong. A parameter answers to its name.
  */
+export function pathMatchesGlob(rel: string, glob: string): boolean {
+  if (!glob.includes('*') && !glob.includes('?')) return rel.includes(glob);
+  // `**` crosses directory separators, `*` and `?` do not.
+  const pattern = glob
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, ' ')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(/ /g, '.*');
+  // Anchored, but a bare `*.ts` should match `src/main.ts` — a pattern naming no
+  // directory is about the file name, which is how every shell and editor reads it.
+  const re = new RegExp(`^${pattern}$`);
+  return re.test(rel) || (!glob.includes('/') && re.test(rel.split('/').pop() ?? ''));
+}
 export async function searchInRoot(
   root: string,
   opts: { query: string; regex?: boolean; glob?: string; maxResults?: number },
@@ -224,7 +242,7 @@ export async function searchInRoot(
     : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   const out: FileMatch[] = [];
   for await (const rel of walkVisible(root, root)) {
-    if (opts.glob && !rel.includes(opts.glob)) continue;
+    if (opts.glob && !pathMatchesGlob(rel, opts.glob)) continue;
     let text: string;
     try {
       text = await readFile(resolveInRoot(root, rel), 'utf8');
