@@ -42,6 +42,13 @@ published separately; it ships inside the editor.
   previewed. Picking and dragging follow onto the plane each entity actually sits
   on, so a sprite at z = -400 is grabbable where it is drawn.
 
+- **`describe_component` and `create_script`.** A component's fields could only
+  be learned by creating an entity and inspecting it, and "what components
+  exist?" had no door at all — so a driver guessed at both, a round trip per
+  guess. And a script could only be written as a raw file, which nothing
+  imports; `create_script` is the New Script dialog's scaffolder, wiring
+  included, which is what makes a component addable and a system run.
+
 - **The built-in agent can be driven.** Four driver-only tools — send, status,
   confirm, transcript — so a harness can run the editor's own agent against a
   real task and watch what it hits. Every fix above came out of the first three
@@ -59,6 +66,15 @@ published separately; it ships inside the editor.
   (`scripts/lib/editorDriver.mjs`), so a check is only its claim.
 
 ### Fixed
+
+- **Play refuses to run a game whose code did not compile.** The realm built the
+  project's scripts and threw the result away, and the host swallows a missing
+  bundle (builtin-only is a real way to work) — so a project whose `src/main.ts`
+  failed to compile played with none of its own code and no message anywhere.
+
+- **A `.esfsm` the editor cannot read opens empty, not fatal.** A hand-written
+  state machine took the panel down with "Cannot read properties of undefined",
+  in the one place the file could have been repaired from.
 
 - **A write the layout will overwrite says so, in its own reply.** Asked to build
   a chess game, the built-in agent spent ten minutes making a board out of UI
