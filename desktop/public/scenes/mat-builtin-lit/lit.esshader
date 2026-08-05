@@ -55,7 +55,7 @@ struct VertexOutput {
 var<private> unnamed: gl_PerVertex = gl_PerVertex(vec4<f32>(0f, 0f, 0f, 1f), 1f);
 @group(0) @binding(0) 
 var<uniform> unnamed_1: FrameConstants;
-var<private> a_position_1: vec2<f32>;
+var<private> a_position_1: vec3<f32>;
 var<private> v_color: vec4<f32>;
 var<private> a_color_1: vec4<f32>;
 var<private> v_texCoord: vec2<f32>;
@@ -71,20 +71,20 @@ var u_normalMap_est: texture_2d<f32>;
 var u_normalMap_ess: sampler;
 
 fn main_1() {
-    let _e16 = unnamed_1.u_projection;
-    let _e17 = a_position_1;
-    unnamed.gl_Position = (_e16 * vec4<f32>(_e17.x, _e17.y, 0f, 1f));
+    let _e15 = unnamed_1.u_projection;
+    let _e16 = a_position_1;
+    unnamed.gl_Position = (_e15 * vec4<f32>(_e16.x, _e16.y, _e16.z, 1f));
     let _e23 = a_color_1;
     v_color = _e23;
     let _e24 = a_texCoord_1;
     v_texCoord = _e24;
     let _e25 = a_position_1;
-    v_worldPos = _e25;
+    v_worldPos = _e25.xy;
     return;
 }
 
 @vertex 
-fn vs_main(@location(0) a_position: vec2<f32>, @location(1) a_color: vec4<f32>, @location(2) a_texCoord: vec2<f32>) -> VertexOutput {
+fn vs_main(@location(0) a_position: vec3<f32>, @location(1) a_color: vec4<f32>, @location(2) a_texCoord: vec2<f32>) -> VertexOutput {
     a_position_1 = a_position;
     a_color_1 = a_color;
     a_texCoord_1 = a_texCoord;

@@ -121,18 +121,18 @@ std::string canonical2DVertexStageWGSL(bool lit) {
     src +=
         "\n"
         "struct VSIn {\n"
-        "    @location(0) a_position : vec2f,\n"
+        "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
         "    @location(2) a_texCoord : vec2f,\n"
         "};\n"
         "\n"
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
-        "    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);\n"
+        "    out.pos = frame.projection * vec4f(v.a_position, 1.0);\n"
         "    out.v_color = v.a_color;\n"
         "    out.v_texCoord = v.a_texCoord;\n";
     if (lit) {
-        src += "    out.v_worldPos = v.a_position;\n";
+        src += "    out.v_worldPos = v.a_position.xy;\n";
     }
     src +=
         "    return out;\n"
@@ -189,7 +189,7 @@ std::string canonicalPPVertexStage() {
 // world transform into the vertices, so all 2D shaders share this pass-through.
 std::string canonical2DVertexStage(bool lit) {
     std::string src =
-        "layout(location = 0) in vec2 a_position;\n"
+        "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
         "layout(location = 2) in vec2 a_texCoord;\n"
         "\n"
@@ -205,11 +205,11 @@ std::string canonical2DVertexStage(bool lit) {
     src +=
         "\n"
         "void main() {\n"
-        "    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);\n"
+        "    gl_Position = u_projection * vec4(a_position, 1.0);\n"
         "    v_color = a_color;\n"
         "    v_texCoord = a_texCoord;\n";
     if (lit) {
-        src += "    v_worldPos = a_position;\n";
+        src += "    v_worldPos = a_position.xy;\n";
     }
     src += "}\n";
     return src;
