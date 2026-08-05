@@ -27,7 +27,7 @@ import type {
 import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields } from './schema';
+import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -606,7 +606,16 @@ export class EditorControlSurfaceImpl {
    * not `fill`) and that it takes 0/1/2 rather than "rectangle". The registry
    * knew all of that from the start.
    */
-  describeComponent(component: string): InspectorField[] {
+  describeComponent(
+    component?: string | null,
+  ): InspectorField[] | Array<{ name: string; label: string; category: string }> {
+    // No name: the catalog itself. "What can I put on an entity" had no door at
+    // all — a driver that did not already know a name guessed ("FSMComponent",
+    // "StateMachine") and was refused by each in turn. The Add Component menu
+    // has always had this list; it was reachable only by opening the menu.
+    if (!component) {
+      return modelAddableComponentEntries({ id: 0, name: '', parent: null, children: [], components: [] });
+    }
     return inspectorFields(component, {});
   }
   getFieldValue(entity: EntityId, component: string, key: string): InspectorFieldValue | null {
