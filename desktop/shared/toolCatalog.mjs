@@ -287,6 +287,17 @@ export const TOOLS = [
     }, ['entity']),
     js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)}, ${JSON.stringify({ replace: i.replace === true })})
       .then((ref) => { if (!ref) throw new Error('could not create a prefab from entity ${Number(i.entity)} — it may not exist'); return ref; })` },
+  { name: 'create_script', effect: 'irreversible',
+    description: "Create a project script the editor will actually LOAD. `kind`: 'component' — a declaration the editor "
+      + "reads without running the game, which is what makes a component ADDABLE (add_component / apply_scene_ops) — or "
+      + "'system', behaviour the play realm bundles and runs. It writes the module AND wires it into the project's "
+      + 'declaration / startup entry, which is the step write_project_file does not do: a .ts file nothing imports is a '
+      + 'file the editor never sees. `name` is the identifier and the file stem; `dir` is optional (defaults to the '
+      + "project's source root). Returns { ok, path, wiredInto, wiredLine } or { ok: false, error }.",
+    schema: obj({
+      kind: { type: 'string' }, name: { type: 'string' }, dir: { type: 'string' },
+    }, ['kind', 'name']),
+    js: (i) => `window.estella.project.createScript(${JSON.stringify(i.kind)}, ${JSON.stringify(i.name)}, ${JSON.stringify(i.dir ?? undefined)})` },
   { name: 'create_asset', effect: 'irreversible',
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({
