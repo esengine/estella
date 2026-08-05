@@ -105,7 +105,6 @@ export const RENDERER_BINDINGS = {
     setStage: 'es_renderer_setStage',
     setViewport: 'es_renderer_setViewport',
     setYSortLayers: 'es_renderer_setYSortLayers',
-    setDepthLayers: 'es_renderer_setDepthLayers',
     /** Host-specific: the drawable size, which no wasm entry point has. */
     surfaceSize: 'es_renderer_surfaceSize',
 } as const;
@@ -134,8 +133,24 @@ export const HOST_FLAGS = {
     ownsFrame: 'es_jsOwnsFrame',
 } as const;
 
+/**
+ * Renderer entry points a host may legitimately NOT have, and which therefore
+ * must stay out of `hasRendererBindings`.
+ *
+ * That probe is an all-or-nothing gate on the SDK driving the frame, so adding an
+ * entry to RENDERER_BINDINGS retroactively declares every host built before it
+ * rendererless — the SDK would hand the frame back and the game would go blank
+ * on a shell that was working. A capability added after a host shipped belongs
+ * here and is called through the optional path.
+ */
+export const RENDERER_OPTIONAL_BINDINGS = {
+    /** 2.5D depth layers; hosts predating the feature simply stay painter-ordered. */
+    setDepthLayers: 'es_renderer_setDepthLayers',
+} as const;
+
 /** Whether the host bound the whole frame surface — the gate for the SDK driving
- *  the frame (cameras and all) rather than the host hard-coding one. */
+ *  the frame (cameras and all) rather than the host hard-coding one. Optional
+ *  entry points (RENDERER_OPTIONAL_BINDINGS) are deliberately not part of it. */
 export function hasRendererBindings(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): boolean {

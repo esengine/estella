@@ -10412,7 +10412,7 @@ Plugin
 
 ## screenToWorld — function
 ```
-(screenX: number, screenY: number, inverseVP: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): { x: number; y: number; }
+(screenX: number, screenY: number, inverseVP: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number, planeZ?: number): { x: number; y: number; }
 ```
 
 ## selectBlendClip — function

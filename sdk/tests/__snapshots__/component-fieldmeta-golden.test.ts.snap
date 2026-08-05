@@ -262,6 +262,26 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           "label": "PremultipliedAlpha",
           "value": 4,
         },
+        {
+          "label": "PmaAdditive",
+          "value": 5,
+        },
+        {
+          "label": "Lighten",
+          "value": 6,
+        },
+        {
+          "label": "Darken",
+          "value": 7,
+        },
+        {
+          "label": "Overlay",
+          "value": 8,
+        },
+        {
+          "label": "None",
+          "value": 9,
+        },
       ],
     },
     "burstCount": {

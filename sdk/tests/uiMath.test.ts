@@ -479,3 +479,72 @@ describe('uiMath', () => {
         });
     });
 });
+
+// =============================================================================
+// screenToWorld under a perspective projection
+// =============================================================================
+
+/** Right-handed perspective, matching the engine's `perspective()` in mat4. */
+function perspective4(fovY: number, aspect: number, near: number, far: number): Float32Array {
+    const m = new Float32Array(16);
+    const f = 1 / Math.tan(fovY / 2);
+    m[0] = f / aspect;
+    m[5] = f;
+    m[10] = (far + near) / (near - far);
+    m[11] = -1;
+    m[14] = (2 * far * near) / (near - far);
+    return m;
+}
+
+/** Right-handed orthographic, the symmetric [-far, far] the 2D camera builds. */
+function ortho4(halfW: number, halfH: number, far: number): Float32Array {
+    const m = new Float32Array(16);
+    m[0] = 1 / halfW;
+    m[5] = 1 / halfH;
+    m[10] = -1 / far;
+    m[15] = 1;
+    return m;
+}
+
+describe('screenToWorld across projections', () => {
+    // The claim every 2D caller depends on: intersecting the ray costs nothing
+    // under an orthographic camera, because x/y do not vary along it.
+    it('is unchanged orthographically, whatever plane is asked for', () => {
+        const vp = ortho4(160, 120, 1000);
+        const inv = invertMatrix4(vp)!;
+        const atZero = screenToWorld(480, 180, inv, 0, 0, 640, 480);
+        const atFar = screenToWorld(480, 180, inv, 0, 0, 640, 480, -300);
+
+        expect(atZero.x).toBeCloseTo(80, 5);
+        expect(atZero.y).toBeCloseTo(-30, 5);
+        expect(atFar.x).toBeCloseTo(atZero.x, 5);
+        expect(atFar.y).toBeCloseTo(atZero.y, 5);
+    });
+
+    // And the claim that makes it necessary: under perspective the same screen
+    // point names different world points depending on the depth asked for, so a
+    // single answer would have been wrong for every plane but one.
+    it('follows the ray under perspective, so the plane decides the answer', () => {
+        // Camera at the origin looking down -z; the plane sits at z = -d.
+        const vp = perspective4(Math.PI / 2, 1, 0.1, 1000);
+        const inv = invertMatrix4(vp)!;
+
+        // Half a viewport to the right ⇒ the ray leaves at 45° with fov 90°,
+        // so it crosses z = -d at x = d exactly.
+        const near = screenToWorld(640, 240, inv, 0, 0, 640, 480, -10);
+        const far = screenToWorld(640, 240, inv, 0, 0, 640, 480, -100);
+
+        expect(near.x).toBeCloseTo(10, 3);
+        expect(far.x).toBeCloseTo(100, 3);
+        expect(near.y).toBeCloseTo(0, 3);
+    });
+
+    it('does not answer with the near plane when a depth is given', () => {
+        const vp = perspective4(Math.PI / 2, 1, 0.1, 1000);
+        const inv = invertMatrix4(vp)!;
+        // The pre-ray implementation ignored ndcZ, which under perspective is the
+        // near plane's answer — two orders of magnitude off at this depth.
+        const onPlane = screenToWorld(640, 240, inv, 0, 0, 640, 480, -100);
+        expect(Math.abs(onPlane.x)).toBeGreaterThan(50);
+    });
+});

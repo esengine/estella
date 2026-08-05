@@ -60,19 +60,59 @@ export function invertMatrix4(m: Float32Array, result?: Float32Array): Float32Ar
     return out;
 }
 
+/**
+ * Unprojects one NDC point, depth included.
+ *
+ * The full 4×4 product, unlike the x/y-only shortcut it replaces — under a
+ * perspective projection the third column is not zero, so a screen point does
+ * not name a world point at all until a depth is chosen.
+ */
+function unproject(
+    ndcX: number, ndcY: number, ndcZ: number, m: Float32Array,
+): { x: number; y: number; z: number } {
+    const x = m[0] * ndcX + m[4] * ndcY + m[8] * ndcZ + m[12];
+    const y = m[1] * ndcX + m[5] * ndcY + m[9] * ndcZ + m[13];
+    const z = m[2] * ndcX + m[6] * ndcY + m[10] * ndcZ + m[14];
+    const w = m[3] * ndcX + m[7] * ndcY + m[11] * ndcZ + m[15];
+    const inv = w !== 0 ? 1 / w : 0;
+    return { x: x * inv, y: y * inv, z: z * inv };
+}
+
+/**
+ * Where a screen point lands on the world plane at @p planeZ.
+ *
+ * @details A screen point is a RAY, not a position. Orthographically the ray's
+ *          x/y are constant along its length, which is why taking z = 0 worked
+ *          and why every 2D caller can keep calling this unchanged. Under a
+ *          perspective camera they are not constant, and the same call would
+ *          answer with wherever the near plane happened to be — off by more the
+ *          further the content sits from z = 0.
+ *
+ *          So the ray is intersected with the plane, which is one implementation
+ *          with the orthographic case as its degenerate form rather than two
+ *          branches that have to agree. `planeZ` defaults to the 2D plane, so a
+ *          caller that has no depth in mind keeps getting the 2D answer.
+ */
 export function screenToWorld(
     screenX: number, screenY: number,
     inverseVP: Float32Array,
-    vpX: number, vpY: number, vpW: number, vpH: number
+    vpX: number, vpY: number, vpW: number, vpH: number,
+    planeZ = 0,
 ): { x: number; y: number } {
     const ndcX = ((screenX - vpX) / vpW) * 2 - 1;
     const ndcY = ((screenY - vpY) / vpH) * 2 - 1;
 
-    const wx = inverseVP[0] * ndcX + inverseVP[4] * ndcY + inverseVP[12];
-    const wy = inverseVP[1] * ndcX + inverseVP[5] * ndcY + inverseVP[13];
-    const ww = inverseVP[3] * ndcX + inverseVP[7] * ndcY + inverseVP[15];
+    const near = unproject(ndcX, ndcY, -1, inverseVP);
+    const far = unproject(ndcX, ndcY, 1, inverseVP);
 
-    return { x: wx / ww, y: wy / ww };
+    const dz = far.z - near.z;
+    // A ray parallel to the plane it is being intersected with has no answer;
+    // the near point is the closest thing to one, and it is what the
+    // orthographic path returned before this existed.
+    if (dz === 0) return { x: near.x, y: near.y };
+
+    const t = (planeZ - near.z) / dz;
+    return { x: near.x + (far.x - near.x) * t, y: near.y + (far.y - near.y) * t };
 }
 
 export function pointInWorldRect(
