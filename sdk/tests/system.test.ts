@@ -201,6 +201,45 @@ describe('SystemRunner', () => {
         });
     });
 
+    describe('a first run that throws while building its params', () => {
+        /**
+         * The real shape of this: a system queries a component the world does not
+         * know, so building that query instance throws — naming the component,
+         * which is the useful error. The runner used to publish its query cache
+         * before filling it, so the next frame found a short array, read
+         * `undefined` where the failing query belonged, and reported
+         * "cannot read properties of undefined (reading 'resetTick')" from then
+         * on. Every frame after the first blamed the runner and the true cause
+         * scrolled out of the log.
+         */
+        it('re-raises the real error next frame instead of a resetTick TypeError', () => {
+            const Broken = defineComponent('SysTestBroken', { v: 0 });
+            (world.resolveGetter as ReturnType<typeof vi.fn>).mockImplementation(
+                (comp: { _name: string }) => {
+                    if (comp._name === 'SysTestBroken') throw new Error('component SysTestBroken is not registered');
+                    return null;
+                },
+            );
+            const fn = vi.fn();
+            const sys = defineSystem([Query(Position), Query(Broken)], fn);
+
+            expect(() => runner.run(sys)).toThrow(/SysTestBroken is not registered/);
+            expect(() => runner.run(sys)).toThrow(/SysTestBroken is not registered/);
+            expect(() => runner.run(sys)).not.toThrow(/resetTick/);
+            expect(fn).not.toHaveBeenCalled();
+        });
+
+        it('still caches query instances across runs when setup succeeds', () => {
+            const seen: unknown[] = [];
+            const sys = defineSystem([Query(Position), Query(Velocity)], (a, b) => { seen.push(a, b); });
+            runner.run(sys);
+            runner.run(sys);
+            expect(seen).toHaveLength(4);
+            expect(seen[0]).toBe(seen[2]);
+            expect(seen[1]).toBe(seen[3]);
+        });
+    });
+
     describe('parameter resolution', () => {
         it('should resolve Query parameter', () => {
             let received: unknown = null;

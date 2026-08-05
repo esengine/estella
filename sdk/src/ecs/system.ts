@@ -284,16 +284,20 @@ export class SystemRunner {
 
         this.currentLastRunTick_ = this.systemTicks_.get(system._id) ?? -1;
 
-        let queries = this.queryCache_.get(system._id);
-        let removeds = this.removedCache_.get(system._id);
-        const firstRun = !queries;
-
-        if (firstRun) {
-            queries = [];
-            removeds = [];
-            this.queryCache_.set(system._id, queries);
-            this.removedCache_.set(system._id, removeds);
-        }
+        // Published only once every param resolved. Building a system's first set
+        // of query instances can throw — an unregistered component reaches
+        // resolveGetter, and that is exactly when it says so — and a cache
+        // published up front kept whatever had been built before the throw. The
+        // next frame then read `firstRun === false` against a SHORT array, found
+        // `undefined` where a later query belonged, and reported
+        // "cannot read properties of undefined (reading 'resetTick')" forever:
+        // the true error scrolls away and every frame after it names the runner.
+        // Commit at the end instead, so a failed setup is simply not cached and
+        // the following frame re-raises the real one.
+        const cachedQueries = this.queryCache_.get(system._id);
+        const firstRun = !cachedQueries;
+        const queries = cachedQueries ?? [];
+        const removeds = this.removedCache_.get(system._id) ?? [];
 
         let qi = 0, ri = 0;
         for (let i = 0; i < system._params.length; i++) {
@@ -301,10 +305,10 @@ export class SystemRunner {
             if (param._type === 'query') {
                 if (firstRun) {
                     const inst = new QueryInstance(this.world_, param, this.currentLastRunTick_);
-                    queries!.push(inst);
+                    queries.push(inst);
                     args[i] = inst;
                 } else {
-                    const inst = queries![qi];
+                    const inst = queries[qi];
                     inst.resetTick(this.currentLastRunTick_);
                     args[i] = inst;
                 }
@@ -313,10 +317,10 @@ export class SystemRunner {
                 if (firstRun) {
                     const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
                     const inst = new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
-                    removeds!.push(inst);
+                    removeds.push(inst);
                     args[i] = inst;
                 } else {
-                    const inst = removeds![ri];
+                    const inst = removeds[ri];
                     inst.resetTick(this.currentLastRunTick_);
                     args[i] = inst;
                 }
@@ -324,6 +328,10 @@ export class SystemRunner {
             } else {
                 args[i] = this.resolveParam(param);
             }
+        }
+        if (firstRun) {
+            this.queryCache_.set(system._id, queries);
+            this.removedCache_.set(system._id, removeds);
         }
 
         const t0 = this.timings_ ? performance.now() : 0;
