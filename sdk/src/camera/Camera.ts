@@ -41,10 +41,17 @@ export class CameraViewAPI {
         return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH, planeZ);
     }
 
-    worldToScreen(worldX: number, worldY: number): { x: number; y: number } | null {
+    /**
+     * Where the world point lands on screen — the inverse of `screenToWorld`,
+     * taking the same third dimension. Under a perspective camera a point at
+     * @p worldZ projects nowhere near its shadow on the 2D plane, so anything
+     * drawing an overlay ON an entity (an outline, a gizmo, a screen rect) has to
+     * pass the entity's z or it draws where the entity is not.
+     */
+    worldToScreen(worldX: number, worldY: number, worldZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
-        const [sx, sy] = worldToScreen(worldX, worldY, cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        const [sx, sy] = worldToScreen(worldX, worldY, cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH, worldZ);
         return { x: sx, y: sy };
     }
 

@@ -69,7 +69,7 @@ function jointConnectedRuntime(j: JointGizmoData): EntityId | null {
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
   screenToWorld(x: number, y: number, planeZ?: number): { x: number; y: number } | null;
-  worldToScreen(x: number, y: number): { x: number; y: number } | null;
+  worldToScreen(x: number, y: number, worldZ?: number): { x: number; y: number } | null;
 }
 
 function cameraView(): CameraViewLike | null {
@@ -154,6 +154,10 @@ export interface ColliderGizmo {
   points: ColliderPointHandle[];
 }
 
+/** A tile-collision outline piece stamped with the plane its layer sits on, so an
+ *  overlay merged from several layers projects each through its own depth. */
+export type TilePiece = TileCollisionPiece & { planeZ?: number };
+
 /** World AABB union of the scene's content — the extent the minimap fits into. */
 export interface MinimapBounds { minX: number; minY: number; maxX: number; maxY: number; }
 /** One schematic box in the minimap: an entity's world AABB + a coarse kind for colour. */
@@ -189,15 +193,34 @@ export const ViewportController = {
     return (world.get(e, Transform) as { position?: { z?: number } }).position?.z ?? 0;
   },
 
-  /** World coordinates → CSS pixels relative to the canvas top-left (gizmo placement). */
-  worldToClient(wx: number, wy: number): { x: number; y: number } | null {
+  /**
+   * World coordinates → CSS pixels relative to the canvas top-left (gizmo placement).
+   *
+   * `wz` is the plane the point sits on, exactly as {@link canvasToWorld} takes
+   * one: an overlay drawn ON an entity — its outline, its handles, its screen
+   * rect — has to project through the entity's own depth, or under a perspective
+   * view it lands on the entity's shadow at z = 0 instead of on the entity.
+   */
+  worldToClient(wx: number, wy: number, wz = 0): { x: number; y: number } | null {
     const cv = cameraView();
     const canvas = EngineHost.canvas;
     if (!cv || !canvas) return null;
-    const s = cv.worldToScreen(wx, wy);
+    const s = cv.worldToScreen(wx, wy, wz);
     if (!s) return null;
     const dpr = window.devicePixelRatio || 1;
     return { x: s.x / dpr, y: (canvas.height - s.y) / dpr }; // un-flip, to CSS px
+  },
+
+  /**
+   * A projector onto ONE entity's plane: every overlay drawn on that entity —
+   * outline, handles, icon, collider shape — goes through this instead of
+   * `worldToClient`, so a gizmo cannot land on a different plane than the entity
+   * it belongs to. Reading the z once per gizmo also keeps it consistent across
+   * the several points one gizmo projects.
+   */
+  projectorFor(id: EntityId): (wx: number, wy: number) => { x: number; y: number } | null {
+    const z = this.entityPlaneZ(id);
+    return (wx, wy) => this.worldToClient(wx, wy, z);
   },
 
   /**
@@ -420,7 +443,8 @@ export const ViewportController = {
     if (EngineHost.world?.has(id, UINode)) return this.uiEntityScreenRect(id);
     const b = this.entityBounds(id);
     if (!b) return null;
-    return screenAABB(obbCorners(b).map(([wx, wy]) => this.worldToClient(wx, wy)));
+    const toClient = this.projectorFor(id);
+    return screenAABB(obbCorners(b).map(([wx, wy]) => toClient(wx, wy)));
   },
 
   /** Pan the editor view by a CSS-pixel drag (prev→cur). Moves only the editor camera. */
@@ -637,14 +661,15 @@ export const ViewportController = {
     const halfW = halfH * aspect;
     const x = t.worldPosition.x;
     const y = t.worldPosition.y;
-    const center = this.worldToClient(x, y);
+    const toClient = this.projectorFor(id);
+    const center = toClient(x, y);
     if (!center) return null;
     const corners = [
       [x - halfW, y - halfH],
       [x + halfW, y - halfH],
       [x + halfW, y + halfH],
       [x - halfW, y + halfH],
-    ].map(([wx, wy]) => this.worldToClient(wx, wy));
+    ].map(([wx, wy]) => toClient(wx, wy));
     if (corners.some((p) => !p)) return null;
     const xs = corners.map((p) => p!.x);
     const ys = corners.map((p) => p!.y);
@@ -681,13 +706,14 @@ export const ViewportController = {
       type: number; color: { r: number; g: number; b: number }; radius: number;
       direction: { x: number; y: number }; outerAngle: number; enabled: boolean; intensity: number;
     };
-    const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
+    const toClient = this.projectorFor(id);
+    const center = toClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
 
     // Point (0) / Spot (3) have a falloff radius; project a world-radius offset to CSS px.
     let radiusPx = 0;
     if (l.type === 0 || l.type === 3) {
-      const edge = this.worldToClient(t.worldPosition.x + l.radius, t.worldPosition.y);
+      const edge = toClient(t.worldPosition.x + l.radius, t.worldPosition.y);
       if (edge) radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
     }
     // Directional (1) / Spot (3) point along `direction`; flip world-Y to screen space. A Spot
@@ -709,7 +735,7 @@ export const ViewportController = {
     const on = l.enabled !== false && l.intensity > 0;
     // Radius handle at the top of the reach circle (Point/Spot only — drag = radius).
     const handle = (l.type === 0 || l.type === 3)
-      ? this.worldToClient(t.worldPosition.x, t.worldPosition.y + l.radius)
+      ? toClient(t.worldPosition.x, t.worldPosition.y + l.radius)
       : null;
     return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on, handle: handle ?? null };
   },
@@ -736,7 +762,7 @@ export const ViewportController = {
     if (!world || !world.valid(id) || !world.has(id, Marker) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
     const m = world.get(id, Marker) as { type?: string; properties?: Record<string, string> };
-    const p = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
+    const p = this.projectorFor(id)(t.worldPosition.x, t.worldPosition.y);
     return p ? {
       cx: p.x, cy: p.y,
       type: typeof m.type === 'string' ? m.type : '',
@@ -890,6 +916,7 @@ export const ViewportController = {
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
     const wp = { x: t.worldPosition.x, y: t.worldPosition.y };
+    const toClient = this.projectorFor(id);
 
     // readColliderShapes only reads (has/get); the editor world is the readonly view.
     const instances = readColliderShapes(world as unknown as Parameters<typeof readColliderShapes>[0], id);
@@ -902,15 +929,15 @@ export const ViewportController = {
       for (const line of o.polylines) {
         let seg = '';
         for (let i = 0; i < line.length; i++) {
-          const s = this.worldToClient(line[i].x, line[i].y);
+          const s = toClient(line[i].x, line[i].y);
           if (!s) { seg = ''; break; }
           seg += `${i ? 'L' : 'M'}${s.x},${s.y}`;
         }
         if (seg) d += `${seg} `;
       }
       for (const c of o.circles) {
-        const ctr = this.worldToClient(c.c.x, c.c.y);
-        const edge = this.worldToClient(c.c.x + c.r, c.c.y);
+        const ctr = toClient(c.c.x, c.c.y);
+        const edge = toClient(c.c.x + c.r, c.c.y);
         if (!ctr || !edge) continue;
         const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
         d += `M${ctr.x - r},${ctr.y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0 `;
@@ -919,7 +946,7 @@ export const ViewportController = {
     };
     // Entity-local (metre) point → CSS px, rotated by the entity angle about its origin.
     const localToClient = (lx: number, ly: number) =>
-      this.worldToClient(wp.x + lx * ppu * cos - ly * ppu * sin, wp.y + lx * ppu * sin + ly * ppu * cos);
+      toClient(wp.x + lx * ppu * cos - ly * ppu * sin, wp.y + lx * ppu * sin + ly * ppu * cos);
 
     let solid = '';
     let sensor = '';
@@ -938,31 +965,31 @@ export const ViewportController = {
       const outline = colliderShapeOutline(shape, center, rot, ppu);
       const d = outlinePath(outline);
       if (inst.isSensor) sensor += d; else solid += d;
-      if (!oneWayCenter) oneWayCenter = this.worldToClient(center.x, center.y);
+      if (!oneWayCenter) oneWayCenter = toClient(center.x, center.y);
 
       switch (shape.kind) {
         case 'box': {
           // Size handle at the +hx,+hy corner (drag = halfExtents), rotated with the entity.
           const hx = shape.halfExtents.x * ppu;
           const hy = shape.halfExtents.y * ppu;
-          const hs = this.worldToClient(center.x + hx * cos - hy * sin, center.y + hx * sin + hy * cos);
+          const hs = toClient(center.x + hx * cos - hy * sin, center.y + hx * sin + hy * cos);
           if (hs) sizeHandle = hs;
-          const os = this.worldToClient(center.x, center.y); // offset handle at the shape center
+          const os = toClient(center.x, center.y); // offset handle at the shape center
           if (os) points.push({ x: os.x, y: os.y, comp: 'BoxCollider', key: 'offset', index: null });
           break;
         }
         case 'circle': {
           // Radius handle at the shape's local top (drag = radius, in physics metres).
           const r = shape.radius * ppu;
-          const rs = this.worldToClient(center.x - r * sin, center.y + r * cos);
+          const rs = toClient(center.x - r * sin, center.y + r * cos);
           if (rs) radiusHandle = rs;
-          const os = this.worldToClient(center.x, center.y);
+          const os = toClient(center.x, center.y);
           if (os) points.push({ x: os.x, y: os.y, comp: 'CircleCollider', key: 'offset', index: null });
           break;
         }
         case 'capsule': {
           // radius / halfHeight stay Inspector-edited (rare shape); the offset is draggable.
-          const os = this.worldToClient(center.x, center.y);
+          const os = toClient(center.x, center.y);
           if (os) points.push({ x: os.x, y: os.y, comp: 'CapsuleCollider', key: 'offset', index: null });
           break;
         }
@@ -1000,7 +1027,7 @@ export const ViewportController = {
    * plugin's private map). Empty when the entity isn't a live infinite tilemap layer.
    * The per-frame projection is {@link projectTileCollision}; this is the cacheable half.
    */
-  tilemapColliderOutlines(sourceId: EntityId, model: TilesetModel): TileCollisionPiece[] {
+  tilemapColliderOutlines(sourceId: EntityId, model: TilesetModel): TilePiece[] {
     const world = EngineHost.world;
     const rt = SceneModel.runtimeFor(sourceId);
     if (!world || rt == null || !world.valid(rt) || !world.has(rt, TilemapLayer) || !world.has(rt, Transform)) return [];
@@ -1010,7 +1037,11 @@ export const ViewportController = {
     if (!(tw > 0) || !(th > 0)) return [];
     const t = world.get(rt, Transform);
     const chunks = decodeTilemapChunks(TilemapAPI.exportChunks(rt) || '');
-    return tileCollisionOutlines(chunks, model, tw, th, t.worldPosition.x, t.worldPosition.y);
+    // Stamped with the layer's plane, since several layers at several depths merge
+    // into one overlay and each has to project through its own (see TilePiece).
+    const planeZ = t.worldPosition.z;
+    return tileCollisionOutlines(chunks, model, tw, th, t.worldPosition.x, t.worldPosition.y)
+      .map((p) => ({ ...p, planeZ }));
   },
 
   /**
@@ -1021,7 +1052,7 @@ export const ViewportController = {
    * Null when there's no camera view.
    */
   projectTileCollision(
-    pieces: TileCollisionPiece[],
+    pieces: readonly TilePiece[],
   ): { solid: string; sensor: string; onewayLine: string; onewayHead: string } | null {
     const canvas = EngineHost.canvas;
     if (!canvas || !cameraView()) return null;
@@ -1051,19 +1082,20 @@ export const ViewportController = {
     let onewayHead = '';
     for (const piece of pieces) {
       if (cull && (piece.center.x < minX || piece.center.x > maxX || piece.center.y < minY || piece.center.y > maxY)) continue;
+      const toClient = (wx: number, wy: number) => this.worldToClient(wx, wy, piece.planeZ ?? 0);
 
       for (const line of piece.polylines) {
         let d = '';
         for (let i = 0; i < line.length; i++) {
-          const s = this.worldToClient(line[i].x, line[i].y);
+          const s = toClient(line[i].x, line[i].y);
           if (!s) { d = ''; break; }
           d += `${i ? 'L' : 'M'}${s.x},${s.y}`;
         }
         if (d) { if (piece.sensor) sensor += `${d} `; else solid += `${d} `; }
       }
       for (const c of piece.circles) {
-        const ctr = this.worldToClient(c.c.x, c.c.y);
-        const edge = this.worldToClient(c.c.x + c.r, c.c.y);
+        const ctr = toClient(c.c.x, c.c.y);
+        const edge = toClient(c.c.x + c.r, c.c.y);
         if (!ctr || !edge) continue;
         const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
         // A full circle as two half-arcs (SVG has no closed-circle path primitive).
@@ -1074,7 +1106,7 @@ export const ViewportController = {
       // → screen y-down). Screen-fixed length so it reads at any zoom, like the collider
       // gizmo's one-way arrow. The side a body can land on; it passes through from behind.
       if (piece.oneWay) {
-        const c = this.worldToClient(piece.center.x, piece.center.y);
+        const c = toClient(piece.center.x, piece.center.y);
         if (c) {
           const dx = piece.oneWay.nx;
           const dy = -piece.oneWay.ny;
@@ -1101,7 +1133,7 @@ export const ViewportController = {
   // ({@link tileCellCenter}/{@link tileCellOutline}), so overlay and rendered tiles line up.
 
   /** The selected layer's grid layout + world origin, or null (not a tilemap / no runtime). */
-  tileGridParams(id: EntityId): { params: TileGridParams; origin: { x: number; y: number } } | null {
+  tileGridParams(id: EntityId): { params: TileGridParams; origin: { x: number; y: number; z: number } } | null {
     const comp = SceneModel.entityBySource(id)?.components.find((c) => c.type === 'TilemapLayer');
     const d = comp?.data as {
       cellSize?: { x: number; y: number }; orientation?: number; hexSideLength?: number;
@@ -1109,8 +1141,11 @@ export const ViewportController = {
     } | undefined;
     if (!d?.cellSize) return null;
     const rt = SceneModel.runtimeFor(id);
-    const origin = rt != null ? this.getEntityWorldXY(rt) : null;
-    if (!origin) return null;
+    const xy = rt != null ? this.getEntityWorldXY(rt) : null;
+    if (!xy || rt == null) return null;
+    // The origin is a point in space, not on a plane: the overlay draws on the
+    // layer's own depth so it lands on the tiles under a perspective view.
+    const origin = { ...xy, z: this.entityPlaneZ(rt) };
     return {
       params: {
         orientation: d.orientation ?? 0,
@@ -1135,11 +1170,12 @@ export const ViewportController = {
    * off-canvas so the grid path stays small when zoomed in.
    */
   projectTileCellPaths(
-    params: TileGridParams, origin: { x: number; y: number },
+    params: TileGridParams, origin: { x: number; y: number; z?: number },
     cells: Iterable<{ x: number; y: number }>, cullPad = Infinity,
   ): string {
     const outline = tileCellOutline(params);
     const canvas = EngineHost.canvas;
+    const toClient = (wx: number, wy: number) => this.worldToClient(wx, wy, origin.z ?? 0);
     // The cull box is in the SAME frame worldToClient reports — canvas-relative CSS px,
     // origin at the canvas top-left — so it's [0..w, 0..h], NOT the page-relative
     // getBoundingClientRect() (whose left/top carry the canvas's page offset; comparing
@@ -1151,13 +1187,13 @@ export const ViewportController = {
       const cx = origin.x + c.x;
       const cy = origin.y + c.y;
       if (rect) {
-        const sc = this.worldToClient(cx, cy);
+        const sc = toClient(cx, cy);
         if (!sc || sc.x < -cullPad || sc.x > rect.width + cullPad
           || sc.y < -cullPad || sc.y > rect.height + cullPad) continue;
       }
       let sub = '';
       for (let i = 0; i < outline.length; i++) {
-        const s = this.worldToClient(cx + outline[i].x, cy + outline[i].y);
+        const s = toClient(cx + outline[i].x, cy + outline[i].y);
         if (!s) { sub = ''; break; }
         sub += `${i ? 'L' : 'M'}${s.x.toFixed(1)},${s.y.toFixed(1)}`;
       }
@@ -1235,7 +1271,9 @@ export const ViewportController = {
       const r = quatAngleZ(tt.worldRotation as { w: number; x: number; y: number; z: number });
       const cos = Math.cos(r);
       const sin = Math.sin(r);
-      return this.worldToClient(
+      // Each anchor projects on ITS OWN body's plane — the two ends of a joint can
+      // sit at different depths, and the line between them is drawn on screen.
+      return this.projectorFor(eid)(
         tt.worldPosition.x + anchor.x * cos - anchor.y * sin,
         tt.worldPosition.y + anchor.x * sin + anchor.y * cos,
       );
@@ -1351,7 +1389,8 @@ export const ViewportController = {
       shape: number; shapeRadius: number; shapeSize: { x: number; y: number }; shapeAngle: number;
       angleSpreadMin: number; angleSpreadMax: number; enabled: boolean;
     };
-    const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
+    const toClient = this.projectorFor(id);
+    const center = toClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
     const on = p.enabled !== false;
     const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
@@ -1375,7 +1414,7 @@ export const ViewportController = {
       for (let i = 0; i <= STEPS; i++) {
         const a = (p.angleSpreadMin + span * (i / STEPS)) * (Math.PI / 180);
         const w = toWorld(Math.cos(a) * reach, Math.sin(a) * reach);
-        const s = this.worldToClient(w.x, w.y);
+        const s = toClient(w.x, w.y);
         if (!s) return null;
         pts.push({ x: s.x, y: s.y });
       }
@@ -1384,17 +1423,17 @@ export const ViewportController = {
 
     switch (p.shape) {
       case 1: {  // Circle — spawn disk of shapeRadius
-        const edge = this.worldToClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
+        const edge = toClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
         const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
         // Radius handle at the top of the ring (drag to resize shapeRadius).
-        const handle = this.worldToClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
+        const handle = toClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
         return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], spread: null, on, handle: handle ?? null, sizeHandle: null, angleHandle: null };
       }
       case 2: {  // Rectangle — oriented spawn box of shapeSize
         const corners = obbCorners({
           cx: t.worldPosition.x, cy: t.worldPosition.y,
           hw: Math.abs(p.shapeSize.x) * 0.5, hh: Math.abs(p.shapeSize.y) * 0.5, rot,
-        }).map(([wx, wy]) => this.worldToClient(wx, wy));
+        }).map(([wx, wy]) => toClient(wx, wy));
         if (corners.some((s) => !s)) return null;
         const cs = corners.map((s) => ({ x: s!.x, y: s!.y }));
         const reach = Math.max(48, Math.hypot(p.shapeSize.x, p.shapeSize.y) * 0.5 + 16);
@@ -1409,16 +1448,16 @@ export const ViewportController = {
         for (let i = 0; i <= STEPS; i++) {
           const a = -half + (2 * half) * (i / STEPS);
           const w = toWorld(Math.sin(a) * rad, Math.cos(a) * rad);
-          const s = this.worldToClient(w.x, w.y);
+          const s = toClient(w.x, w.y);
           if (!s) return null;
           pts.push({ x: s.x, y: s.y });
         }
         // Radius handle at the wedge's forward tip (drag to resize shapeRadius/reach);
         // angle handle at the +half-angle edge (drag to widen/narrow shapeAngle).
         const tip = toWorld(0, rad);
-        const handleS = this.worldToClient(tip.x, tip.y);
+        const handleS = toClient(tip.x, tip.y);
         const edge = toWorld(Math.sin(half) * rad, Math.cos(half) * rad);
-        const angleS = this.worldToClient(edge.x, edge.y);
+        const angleS = toClient(edge.x, edge.y);
         return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, spread: null, on, handle: handleS ?? null, sizeHandle: null, angleHandle: angleS ?? null };
       }
       default:  // Point (0) — a marker at the emitter (the clickable icon) + its aim wedge

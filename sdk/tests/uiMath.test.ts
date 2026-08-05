@@ -574,3 +574,41 @@ describe('screenToWorld picking planes', () => {
         expect(Math.abs(far.x - near.x)).toBeGreaterThan(1);
     });
 });
+
+describe('worldToScreen carries the same third dimension', () => {
+    // The unproject took a plane; the project has to take the point's depth, or
+    // an overlay drawn ON an entity (outline, gizmo, screen rect) lands on the
+    // entity's shadow at z = 0 instead of on the entity.
+    it('is unchanged orthographically, whatever depth the point is at', () => {
+        const vp = ortho4(160, 120, 1000);
+        const flat = worldToScreen(80, -30, vp, 0, 0, 640, 480);
+        const deep = worldToScreen(80, -30, vp, 0, 0, 640, 480, -400);
+        expect(deep[0]).toBeCloseTo(flat[0], 6);
+        expect(deep[1]).toBeCloseTo(flat[1], 6);
+    });
+
+    it('projects nearer content further from the centre under perspective', () => {
+        const vp = perspective4(Math.PI / 2, 1, 0.1, 1000);
+        const near = worldToScreen(50, 0, vp, 0, 0, 640, 480, -100);
+        const far = worldToScreen(50, 0, vp, 0, 0, 640, 480, -400);
+        const centre = 320;
+        expect(Math.abs(near[0] - centre)).toBeGreaterThan(Math.abs(far[0] - centre) * 2);
+    });
+
+    // The round trip is the whole contract: project a point at its depth, ask the
+    // ray for that same plane, and get the point back. Dropping wz breaks this by
+    // a factor that grows with depth — which is exactly how a selection outline
+    // ends up the wrong size around a sprite it is supposed to trace.
+    it('round-trips with screenToWorld on the point own plane, under perspective', () => {
+        const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
+        const inv = invertMatrix4(vp)!;
+        // In front of the camera (which sits at the origin looking down -z); z = 0
+        // is the eye itself, where a projection divides by zero for anyone.
+        for (const z of [-1, -100, -400, -900]) {
+            const [sx, sy] = worldToScreen(37, -21, vp, 0, 0, 640, 480, z);
+            const back = screenToWorld(sx, sy, inv, 0, 0, 640, 480, z);
+            expect(back.x).toBeCloseTo(37, 3);
+            expect(back.y).toBeCloseTo(-21, 3);
+        }
+    });
+});

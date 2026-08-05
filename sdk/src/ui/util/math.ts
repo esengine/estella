@@ -132,13 +132,25 @@ export function quaternionToAngle2D(rz: number, rw: number): number {
     return 2 * Math.atan2(rz, rw);
 }
 
+/**
+ * Where a world point lands on screen — the inverse of {@link screenToWorld}, and
+ * it takes the same third dimension.
+ *
+ * @details A point off the z = 0 plane projects to a different place than its
+ *          shadow on it: nearer content is larger and further from the centre.
+ *          Dropping @p wz would put an entity's outline, gizmo and screen rect
+ *          where the entity is NOT drawn — the exact error the unproject side
+ *          already fixed by taking a plane. Defaults to the 2D plane, so every
+ *          existing 2D caller keeps its answer to the bit.
+ */
 export function worldToScreen(
     wx: number, wy: number,
-    vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number
+    vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number,
+    wz = 0,
 ): [number, number] {
-    const clipX = vp[0] * wx + vp[4] * wy + vp[12];
-    const clipY = vp[1] * wx + vp[5] * wy + vp[13];
-    const clipW = vp[3] * wx + vp[7] * wy + vp[15];
+    const clipX = vp[0] * wx + vp[4] * wy + vp[8] * wz + vp[12];
+    const clipY = vp[1] * wx + vp[5] * wy + vp[9] * wz + vp[13];
+    const clipW = vp[3] * wx + vp[7] * wy + vp[11] * wz + vp[15];
     const ndcX = clipX / clipW;
     const ndcY = clipY / clipW;
     return [
