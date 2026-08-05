@@ -77,6 +77,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The viewport still draws on a machine with no usable GPU.** Chromium refuses
+  WebGL2 outright ("WebGL2 blocklisted") where no hardware GL is available — a VM,
+  a remote desktop, a blocklisted driver, a CI runner — unless software rendering
+  is opted into, and the editor never opted in. The engine then never booted, so
+  the project opened onto a blank viewport that never loaded a scene, and every
+  question about the scene timed out. SwiftShader only ever takes over when
+  hardware GL is unavailable: a slow viewport where there was no viewport at all.
+
 - **A world label lands where it is put.** `rectTextBox` hands the boxed text path
   an origin already carrying the baseline (−0.8em); the boxless path started from
   a bare 0, so `verticalAlign: Middle` centred the block on a *baseline* rather

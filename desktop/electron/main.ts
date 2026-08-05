@@ -84,6 +84,13 @@ import type { WorkspaceState } from '../src/project/format';
 // switch the headless verify harness sets.
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
 
+// Where no usable GPU exists — a CI runner, a VM, a remote desktop, a blocklisted
+// driver — Chromium refuses WebGL2 outright ("WebGL2 blocklisted") unless software
+// rendering is opted into. The viewport IS the editor, so a refused context is a
+// dead app rather than a slow one; SwiftShader only ever takes over when hardware
+// GL is unavailable. Every headless harness here sets it for the same reason.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+
 // The window sets `backgroundThrottling: false`, but that only reaches ITS renderer —
 // and the game does not run there. The play realm is a cross-origin (estella://) frame,
 // so it lives in its own renderer process, which Chromium still backgrounds when the
