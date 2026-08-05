@@ -341,6 +341,19 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/ysort.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":30}]'
+        # Depth layers (2.5D): same scene twice, one project setting apart. The
+        # near sprite is in the LOWER layer and both merge into ONE draw call, so
+        # inside the batch the order is fixed by index — no amount of sorting can
+        # produce the depth answer, which is what makes the pair discriminating.
+        run_scene depth-on \
+          ESTELLA_VERIFY_DEPTH_LAYERS=6 \
+          ESTELLA_VERIFY_SCENE=/scenes/depth-layers.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/depth-layers.textures.json \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.573,"y":0.5,"rgb":[255,0,0],"tol":60}]'
+        run_scene depth-off \
+          ESTELLA_VERIFY_SCENE=/scenes/depth-layers.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/depth-layers.textures.json \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.573,"y":0.5,"rgb":[0,0,255],"tol":60}]'
         # Motion trail: move a TrailRenderer entity across the frame in play mode,
         # asserting the ribbon rasterizes as a green band (head/mid/tail) with black
         # above it — the CPU-ribbon-through-the-batch-face path.
