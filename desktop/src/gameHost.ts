@@ -12,9 +12,10 @@
  *        (shared with the play realm's import-map work).
  */
 import {
-  createWebApp, setEditorMode, setPlayMode, parseThemeOverrides, Assets,
+  createWebApp, setEditorMode, setPlayMode, Assets,
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
+  packagedAppOptions, packagedRuntimeInit,
 } from 'esengine';
 import type { ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 
@@ -78,9 +79,8 @@ async function boot(): Promise<void> {
 
   const app = createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
-    ySortLayers: cfg.ySortLayers,
-    colorSpace: cfg.colorSpace,
-    screenFit: cfg.screenFit,
+    // Everything the config says an App must be BUILT with (see packagedAppOptions).
+    ...packagedAppOptions(cfg),
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });
@@ -105,9 +105,9 @@ async function boot(): Promise<void> {
       },
     };
   }
-  // physics.wasm sits next to esengine.wasm; the runtime loads it when the scene
-  // uses physics. (Runtime-spawned bodies still need a build-time enable flag —
-  // a follow-up that cooks features.physics into game.config.json.)
+  // physics.wasm sits next to esengine.wasm; the runtime loads it when a scene
+  // uses physics, or when the project declared physics on for bodies it spawns
+  // from script (packagedRuntimeInit carries that flag).
   // The entry scene boots eagerly (already fetched); every other shipped scene
   // registers lazily by path, so SceneManager.switchTo('name') fetches it on
   // first use — the same registration shape the WeChat runtime uses.
@@ -134,8 +134,8 @@ async function boot(): Promise<void> {
     ],
     firstScene: entryName,
     aspectRatio: canvas.width / canvas.height,
-    uiTheme: cfg.uiTheme,
-    uiThemeOverrides: parseThemeOverrides(cfg.uiThemeColors),
+    // Everything the config APPLIES to a live app: physics, the mixer, the theme.
+    ...packagedRuntimeInit(cfg),
   });
   app.run();
 }

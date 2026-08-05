@@ -10,7 +10,10 @@
  *        (play == ship). Nothing is fetched — the whole game is one self-contained
  *        .html (ad-network ready).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost, parseThemeOverrides } from 'esengine';
+import {
+  createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
+  packagedAppOptions, packagedRuntimeInit,
+} from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';
 import type { PackagedRuntimeFields } from '@/project/runtimeConfig';
 
@@ -88,9 +91,8 @@ async function boot(): Promise<void> {
   const app = createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
     // Older exports predate the color-space global; treat it as optional.
-    colorSpace: runtimeConfig.colorSpace,
-    // Present only when the project opts into a camera fit; absent otherwise.
-    screenFit: runtimeConfig.screenFit,
+    // Everything the config says an App must be BUILT with (see packagedAppOptions).
+    ...packagedAppOptions(runtimeConfig),
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     // Physics + spine resolve from the inlined base64 registry (no fetch).
     sideModules: createEmbeddedSideModuleHost(typeof __SIDE_MODULES__ !== 'undefined' ? __SIDE_MODULES__ : {}),
@@ -121,11 +123,8 @@ async function boot(): Promise<void> {
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
-    ySortLayers: runtimeConfig.ySortLayers,
-    // The 2.5D opt-in, which a playable never used to be told at all.
-    depthLayers: runtimeConfig.depthLayers,
-    uiTheme: runtimeConfig.uiTheme,
-    uiThemeOverrides: parseThemeOverrides(runtimeConfig.uiThemeColors),
+    // Everything the config APPLIES to a live app: physics, the mixer, the theme.
+    ...packagedRuntimeInit(runtimeConfig),
   });
 }
 

@@ -27,7 +27,7 @@ import {
     registerPackagedSideModules,
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
-import type { Vec2 } from '../types';
+import type { PhysicsPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import { log } from '../util/logger';
 
@@ -80,7 +80,13 @@ export interface MiniGameRuntimeConfig {
     sceneNames: string[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
-    physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Install physics even when the scene shows no bodies — a project that
+     *  spawns them from script (Project Settings → Physics → Enabled). */
+    physicsEnabled?: boolean;
+    /** The physics world the project declared: gravity, solver, collision matrix.
+     *  The FULL config, not a three-field subset: a collision matrix that reached
+     *  Play and not a shipped build is a game that only collides in rehearsal. */
+    physicsConfig?: PhysicsPluginConfig;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */
@@ -201,6 +207,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         catalog,
         scenes,
         firstScene: config.firstScene,
+        physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,

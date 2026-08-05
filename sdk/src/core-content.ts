@@ -251,6 +251,8 @@ export {
     createPackagedAssetSource,
     applyAssetRefResolvers,
     registerPackagedSideModules,
+    packagedAppOptions,
+    packagedRuntimeInit,
     type PackagedAssetIndex,
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,

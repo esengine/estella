@@ -20,6 +20,9 @@ import { Catalog, atlasCatalogFields, type CatalogEntry } from '../asset/Catalog
 import { FileSystemBackend, type Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { Audio } from '../audio/Audio';
+import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
+import type { PhysicsPluginConfig } from '../physics/PhysicsTypes';
+import { parseThemeOverrides, type ThemeOverrides } from '../ui/theme/tokens';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
@@ -48,6 +51,18 @@ export interface PackagedGameConfig {
     uiTheme?: 'light';
     /** Project theme color overrides (role → #rrggbbaa hex). */
     uiThemeColors?: Record<string, string>;
+    /**
+     * Install physics even when the shipped scene shows no bodies — a project
+     * that spawns them from script (Project Settings → Physics → Enabled).
+     * Absent ⇒ physics installs only when a scene actually uses it.
+     */
+    physicsEnabled?: boolean;
+    /** The physics world the project declared: gravity, solver, collision matrix.
+     *  Absent ⇒ the engine's own defaults. */
+    physicsConfig?: PhysicsPluginConfig;
+    /** Project mixer state: bus volumes, custom buses, effects, duck rules.
+     *  Absent ⇒ the default mix. */
+    audioConfig?: AudioProjectConfig;
     /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
      *  the storage key an applied update persists under (both optional). */
     hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
@@ -102,6 +117,57 @@ export function registerPackagedSideModules(config: Pick<PackagedGameConfig, 'si
         if (!m?.id || !m.file) continue;
         registerSideModule(m.id, m.globalName ? { file: m.file, globalName: m.globalName } : { file: m.file });
     }
+}
+
+/**
+ * The app options a packaged config declares — everything an App must be built
+ * WITH (shaders compile against the colour space; the layer masks are renderer
+ * state set before the first frame).
+ *
+ * Every host projected these by hand and each list was a chance to miss one: the
+ * web host was still building its App without the 2.5D depth mask after the
+ * export had started shipping it, so a shipped game could carry the setting and
+ * ignore it. One projection, so a field added to the config reaches every realm
+ * that spreads it.
+ */
+export function packagedAppOptions(
+    config: Pick<PackagedGameConfig, 'ySortLayers' | 'depthLayers' | 'colorSpace' | 'screenFit'>,
+): {
+    ySortLayers?: number;
+    depthLayers?: number;
+    colorSpace?: 'gamma' | 'linear';
+    screenFit?: PackagedGameConfig['screenFit'];
+} {
+    return {
+        ySortLayers: config.ySortLayers,
+        depthLayers: config.depthLayers,
+        colorSpace: config.colorSpace,
+        screenFit: config.screenFit,
+    };
+}
+
+/**
+ * The {@link initRuntime} arguments a packaged config declares — everything
+ * applied to a LIVE app rather than baked into its construction. The twin of
+ * {@link packagedAppOptions}; between them a host names the config once.
+ */
+export function packagedRuntimeInit(
+    config: Pick<PackagedGameConfig,
+        'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'>,
+): {
+    physicsEnabled?: boolean;
+    physicsConfig?: PhysicsPluginConfig;
+    audioConfig?: AudioProjectConfig;
+    uiTheme?: 'light';
+    uiThemeOverrides?: ThemeOverrides;
+} {
+    return {
+        physicsEnabled: config.physicsEnabled,
+        physicsConfig: config.physicsConfig,
+        audioConfig: config.audioConfig,
+        uiTheme: config.uiTheme,
+        uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
+    };
 }
 
 export function catalogFromManifest(manifest: AddressableManifest): Catalog | undefined {
