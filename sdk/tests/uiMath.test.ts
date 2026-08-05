@@ -612,3 +612,60 @@ describe('worldToScreen carries the same third dimension', () => {
         }
     });
 });
+
+/**
+ * The property a game reads a click through, spelled out.
+ *
+ * A 2D camera fits by HEIGHT: orthoSize is the half-height, and the half-WIDTH
+ * follows from the viewport's aspect. So the visible world is `centre ± orthoSize`
+ * vertically but `centre ± orthoSize * aspect` horizontally, and only at the
+ * design aspect do those coincide with the design box.
+ *
+ * A game that assumes the design box instead — `worldX = px * (designW / rectW)`
+ * — is exact at the centre and wrong by more the further out the click is. On a
+ * chessboard in a maximised browser window that is a whole file: click the a-file,
+ * select the b-file. Hence CameraView.screenToWorld rather than arithmetic.
+ */
+describe('an orthographic 2D camera fits by height', () => {
+    const ORTHO = 360, CX = 640, CY = 360;
+    // What the camera builds: translate to the centre, then the ortho box.
+    const camera = (vpW: number, vpH: number) => {
+        const halfW = ORTHO * (vpW / vpH);
+        const vp = ortho4(halfW, ORTHO, 1000);
+        // Fold the centre in: world → view is a translation by -centre.
+        const m = new Float32Array(vp);
+        m[12] = -CX / halfW;
+        m[13] = -CY / ORTHO;
+        return { vp: m, inv: invertMatrix4(m)!, halfW };
+    };
+
+    it('shows centre ± orthoSize*aspect across, whatever the viewport shape', () => {
+        for (const [w, h] of [[1280, 720], [1600, 800], [1920, 950]]) {
+            const { inv, halfW } = camera(w, h);
+            const left = screenToWorld(0, h / 2, inv, 0, 0, w, h);
+            const right = screenToWorld(w, h / 2, inv, 0, 0, w, h);
+            expect(left.x).toBeCloseTo(CX - halfW, 3);
+            expect(right.x).toBeCloseTo(CX + halfW, 3);
+            // Vertically it is always the design height — that is what "fit by
+            // height" means, and why only the horizontal answer moves.
+            // screenY here is GL's (up from the BOTTOM), not the DOM's: a caller
+            // holding a MouseEvent has to flip it first, and one that forgets
+            // gets a board mirrored about its middle rank.
+            const atBottom = screenToWorld(w / 2, 0, inv, 0, 0, w, h);
+            const atTop = screenToWorld(w / 2, h, inv, 0, 0, w, h);
+            expect(atBottom.y).toBeCloseTo(CY - ORTHO, 3);
+            expect(atTop.y).toBeCloseTo(CY + ORTHO, 3);
+        }
+    });
+
+    it('disagrees with design-box arithmetic away from the centre', () => {
+        const [w, h] = [1600, 800];
+        const { inv } = camera(w, h);
+        const designX = (px: number) => px * (1280 / w); // what a hand-rolled game does
+        // Dead centre: the two agree, which is why the bug looks intermittent.
+        expect(screenToWorld(w / 2, h / 2, inv, 0, 0, w, h).x).toBeCloseTo(designX(w / 2), 3);
+        // A tenth of the way in: off by more than half a 80-unit board square.
+        const near = screenToWorld(w * 0.1, h / 2, inv, 0, 0, w, h).x;
+        expect(Math.abs(near - designX(w * 0.1))).toBeGreaterThan(40);
+    });
+});
