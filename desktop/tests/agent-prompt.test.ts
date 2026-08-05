@@ -34,7 +34,13 @@ describe('the agent is told where game input comes from', () => {
   });
 
   it('points at the way to read an API instead of guessing at it', () => {
-    expect(SYSTEM_PROMPT).toMatch(/offset.*limit|limit.*offset/);
+    // It used to point at paging the .d.ts with offset/limit, which is what the
+    // agent then did: 50k lines, a hundred at a time, most of a context window
+    // spent to learn one method name. The compiler answers the same question in
+    // one call, and knows whether the answer was used correctly.
+    expect(SYSTEM_PROMPT).toContain('lookup_symbol');
+    expect(SYSTEM_PROMPT).toContain('check_scripts');
+    expect(SYSTEM_PROMPT).toMatch(/do not guess/i);
   });
 
   it('names the two front doors, and that the underscore fields are not one', () => {
