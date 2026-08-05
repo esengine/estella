@@ -106,8 +106,20 @@ published separately; it ships inside the editor.
   told are now derived ONCE (`runtimeConfigOf`), shared by the play payload and
   every packaged target, and `tools/check-project-settings.mjs` fails a build
   where a setting does not reach a consumer — or is not declared there as a gap
-  with a reason. Two such gaps are declared and still open: the physics world
-  config and the mixer state reach Play and not a shipped build.
+  with a reason.
+
+- **A shipped build gets the project's physics world and its mixer.** Both
+  reached the play realm and stopped there: a game rehearsed at the gravity,
+  solver and collision matrix it was authored with, then shipped on the engine's
+  defaults, and a mixer whose buses were set previewed correctly and shipped
+  silent. `game.config.json` carries all three now (declared values only, so an
+  untouched project's config is unchanged byte for byte), and the mini-game and
+  playable packagers embed `physics.wasm` for a project that declares physics
+  even when no scene has a body — a game that spawns them from script used to
+  ship the flag without the binary. The three hosts stopped restating the config
+  by hand: `packagedAppOptions` is what an App is BUILT with and
+  `packagedRuntimeInit` what is APPLIED to it, which is also how the web host had
+  been quietly dropping the depth mask it was already being sent.
 
 - **The mixer applies when a project opens, not when its panel does.** Bus
   volumes, effects and duck rules were applied by the Audio Mixer panel, so a
