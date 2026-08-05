@@ -622,6 +622,13 @@ class ProjectStoreImpl {
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
 
     EngineHost.syncEditorViewToScene();
+    // …and widen it to the design rect if the panel is narrower than the game's
+    // aspect. The sync above adopts the scene camera's orthoSize as a HALF-HEIGHT,
+    // which is the game's framing only while the panel is at least as wide as the
+    // design; below that the running game letterboxes (it keeps the design WIDTH)
+    // and the editor did not, so the scene read as wrong until you pressed Play
+    // and it snapped into place. frameCanvas fits whichever axis binds.
+    ViewportController.frameCanvas();
     // Edit-world live settings: the theme re-resolves ThemeStyle-tagged widgets
     // and the mixer/sorting masks re-apply, matching what a shipped runtime
     // boots with.
