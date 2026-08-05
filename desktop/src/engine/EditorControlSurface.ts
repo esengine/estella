@@ -664,7 +664,25 @@ export class EditorControlSurfaceImpl {
         if (node.children?.length) visit(node.children);
       }
     };
-    visit(this.s.query.readSceneTree());
+    const tree = this.s.query.readSceneTree();
+    visit(tree);
+
+    // Scene-level: a scene with content and no camera renders NOTHING when the
+    // game runs. The editor has an eye of its own, so the viewport looks right
+    // and Play is black — the sharpest way the editor can lie to you, and one an
+    // author (or an agent) has no way to attribute. Only worth saying when there
+    // is something to look at: an empty scene is a scene being started.
+    const hasContent = (nodes: SceneNode[]): boolean =>
+      nodes.some((n) => n.kind !== 'camera' || (n.children?.length ? hasContent(n.children) : false));
+    const hasCamera = (nodes: SceneNode[]): boolean =>
+      nodes.some((n) => n.kind === 'camera' || (n.children?.length ? hasCamera(n.children) : false));
+    if (tree.length > 0 && hasContent(tree) && !hasCamera(tree)) {
+      issues.push({
+        entity: -1, entityName: '', component: 'Camera', problem: 'notice',
+        detail: 'this scene has no Camera — it draws in the editor (which has its own view) and '
+          + 'renders NOTHING when the game runs. Add a Camera entity.',
+      });
+    }
     return issues;
   }
   /** The lossless JSON-first scene truth (deep clone), or null if none loaded. */
