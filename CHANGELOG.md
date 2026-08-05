@@ -42,6 +42,12 @@ published separately; it ships inside the editor.
   previewed. Picking and dragging follow onto the plane each entity actually sits
   on, so a sprite at z = -400 is grabbable where it is drawn.
 
+- **The built-in agent can be driven.** Four driver-only tools — send, status,
+  confirm, transcript — so a harness can run the editor's own agent against a
+  real task and watch what it hits. Every fix above came out of the first three
+  runs. They stay out of the agent's own tool list: an agent handed a tool that
+  messages the agent is a loop with a bill attached.
+
 - **The editor's authoring surface is gated.** The engine has had a pixel gate
   for a long time; every check that opens the real EDITOR was a script somebody
   ran once, on the machine that wrote it — which is how depth layers shipped
@@ -53,6 +59,31 @@ published separately; it ships inside the editor.
   (`scripts/lib/editorDriver.mjs`), so a check is only its claim.
 
 ### Fixed
+
+- **A write the layout will overwrite says so, in its own reply.** Asked to build
+  a chess game, the built-in agent spent ten minutes making a board out of UI
+  nodes placed with `Transform.position` — a field the layout owns and rewrites —
+  and got an empty viewport with nothing failing anywhere. `apply_scene_ops`
+  returns `warnings` now, naming the way that does work. The agent's brief also
+  says where game content lives (the world, as Sprites; a Canvas is for HUD), and
+  `load_scene` no longer describes itself as the way to open a project's scene —
+  it is the headless fixtures door, and in a project it 404s.
+
+- **Reading a project file answers, or says what is wrong.** A manifest written
+  by a Windows tool (Notepad, `Out-File`) carries a byte-order mark, and
+  `JSON.parse` calls that a syntax error: the project would not open, with
+  nothing naming the file. Stripped at the one door every project read goes
+  through. And a directory that does not exist now lists as empty rather than
+  throwing `ENOENT` — "what is in src/?" is a question a project with no src/
+  answers with "nothing".
+
+- **An empty scene is a loaded scene.** `open_project` waited for the scene tree
+  to be non-empty, so a new project — where every project starts — stalled the
+  full thirty seconds and then reported that no scene had loaded.
+
+- **A run the endpoint dropped can be carried on.** Stop and out-of-steps both
+  offered "Carry on"; a turn killed mid-run by a dropped connection offered
+  nothing, which is the ending that most needs it.
 
 - **Compressed and uncompressed sprites no longer disagree about where a sprite
   is.** A screen point is a ray, and `screenToWorld` multiplied only the x/y
