@@ -42,6 +42,16 @@ published separately; it ships inside the editor.
   previewed. Picking and dragging follow onto the plane each entity actually sits
   on, so a sprite at z = -400 is grabbable where it is drawn.
 
+- **The editor's authoring surface is gated.** The engine has had a pixel gate
+  for a long time; every check that opens the real EDITOR was a script somebody
+  ran once, on the machine that wrote it — which is how depth layers shipped
+  reaching the play realm and neither the viewport nor a build. `verify:editor`
+  runs them all (each in its own editor), CI runs it alongside the MCP
+  end-to-end walks, and adding a check is adding one file to
+  `desktop/scripts/editor-checks/`: the JSON-RPC plumbing, the PNG reader for
+  pixel assertions and the temp-project builder are shared
+  (`scripts/lib/editorDriver.mjs`), so a check is only its claim.
+
 ### Fixed
 
 - **Compressed and uncompressed sprites no longer disagree about where a sprite
@@ -120,6 +130,12 @@ published separately; it ships inside the editor.
   by hand: `packagedAppOptions` is what an App is BUILT with and
   `packagedRuntimeInit` what is APPLIED to it, which is also how the web host had
   been quietly dropping the depth mask it was already being sent.
+
+- **Switching the viewport between 2D and 3D keeps the framing.** The two
+  projections zoom with different fields (a box half-height, a camera distance),
+  so flipping the toggle jumped to whatever the other field happened to hold —
+  the scene lurched about 2× on a button that is meant to change how depth looks,
+  not what you are looking at. Found by the new editor gate on its first run.
 
 - **The mixer applies when a project opens, not when its panel does.** Bus
   volumes, effects and duck rules were applied by the Audio Mixer panel, so a

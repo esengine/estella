@@ -399,6 +399,29 @@ jobs:
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":25},{"x":0.64,"y":0.5,"rgb":[0,255,0],"tol":35},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'
 
+    # The MCP surface itself, both hosts: the headless one (scene tools) and the
+    # real app (project → scene → entity → save → play → hot reload). Both have
+    # existed as scripts somebody ran by hand; nothing ran them.
+    - name: Run MCP end-to-end
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: |
+        xvfb-run -a node scripts/editor-mcp-e2e.mjs
+        xvfb-run -a node scripts/editor-mcp-editor-e2e.mjs
+
+    # The EDITOR's authoring surface, driven for real. The engine has had a pixel
+    # gate for years; the editor had none, which is how depth layers shipped
+    # reaching the play realm and neither the viewport nor a build. Each check
+    # opens the app over MCP and asks a question only the running editor can
+    # answer (does the project setting reach the viewport, does a click select
+    # what is drawn on top, does the grid cover a perspective frame).
+    - name: Run editor authoring checks
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a node scripts/editor-checks/run.mjs
+
     # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
     # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
     # runner verifies the second backend for real: WGSL twins, the reflected
