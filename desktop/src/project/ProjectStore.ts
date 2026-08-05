@@ -17,7 +17,7 @@ import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstanc
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
 import { spritePrefab, sourceById, type EntitySource } from '@/engine/entitySources';
-import { setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources } from '@/engine/projectSeams';
+import { setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, setProjectSortingLayerModes } from '@/engine/projectSeams';
 import { needsUIHost, hostPrefab, authoredEntities, type DocumentEntity } from '@/engine/prefabEnvironment';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
@@ -290,6 +290,10 @@ class ProjectStoreImpl {
     // The project's .esprefab assets join the one create-source list, so the picker
     // and the automation catalog offer them without either reassembling the list.
     setProjectPrefabSources(() => this.prefabSources());
+    // Picking ranks overlapping entities by the same two masks the renderer sorts
+    // by, so a click selects what is drawn on top rather than what is last in the
+    // list (see applySortingLayerModes).
+    setProjectSortingLayerModes(() => ({ ySort: this.ySortMask(), depth: this.depthMask() }));
     // The device preview reads the project camera fit so its letterbox matches the
     // runtime (WYSIWYG when the fit is on).
     setProjectCameraFit(() => {
@@ -532,7 +536,7 @@ class ProjectStoreImpl {
     if (!st) return;
     // Project-level render config (WYSIWYG in the edit viewport). Applied here —
     // the one path that runs both on project open and once the engine is ready.
-    Renderer.setYSortLayers(this.ySortMask());
+    this.applySortingLayerModes();
     const found = await this.firstReadableScene([
       st.workspace.lastOpenedScene,
       st.defaultScene,
@@ -1887,6 +1891,24 @@ class ProjectStoreImpl {
     return mask >>> 0;
   }
 
+  /**
+   * Push how each sorting layer resolves — y-sort and depth — into the edit
+   * viewport, so authoring shows what the game will show.
+   *
+   * BOTH masks, in ONE place. Depth used to reach only the play realm: a project
+   * could check "Depth-sorted layers", get 2.5D occlusion in the game, and author
+   * against an edit viewport still painting in list order — the setting was real
+   * everywhere except where it is set. And picking reads the same two masks (see
+   * projectSeams), because a click that ranks overlapping entities differently
+   * from the renderer selects what you cannot see.
+   */
+  private applySortingLayerModes(): void {
+    const ySort = this.ySortMask();
+    const depth = this.depthMask();
+    Renderer.setYSortLayers(ySort);
+    Renderer.setDepthLayers(depth);
+  }
+
   /** Sorting-layer dropdown options for render `layer` fields — only the NAMED
    *  slots (value = slot index = z-order); empty ⇒ the field stays a free number. */
   sortingLayerOptions(): Array<{ label: string; value: number }> {
@@ -1919,7 +1941,7 @@ class ProjectStoreImpl {
     if (patch.cameraMatch !== undefined) rendering.cameraMatch = patch.cameraMatch;
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
-    Renderer.setYSortLayers(this.ySortMask());
+    this.applySortingLayerModes();
     await this.patchManifest((raw) => {
         raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
     }, t('proj.saveSortingLayersFailed'));

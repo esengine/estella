@@ -18,7 +18,7 @@
 
 import type { CppRegistry } from '../../wasm';
 import type { RendererBackend, RenderStats } from '../../render/renderer';
-import { RENDERER_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
+import { RENDERER_BINDINGS, RENDERER_OPTIONAL_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are the frame contract — a missing one is a broken host, not a
@@ -76,6 +76,12 @@ export function createNativeRendererBackend(
         },
         setYSortLayers: (mask): void => {
             hostCall(scope, RENDERER_BINDINGS.setYSortLayers, [mask >>> 0]);
+        },
+        // Optional (RENDERER_OPTIONAL_BINDINGS): a host built before 2.5D simply
+        // stays painter-ordered rather than failing the whole frame contract.
+        setDepthLayers: (mask): void => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.setDepthLayers];
+            if (typeof fn === 'function') (fn as (m: number) => void)(mask >>> 0);
         },
         getStats: (): RenderStats => {
             const read = (name: string): number => {

@@ -58,6 +58,7 @@ export interface RendererBackend {
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
+    setDepthLayers(mask: number): void;
     getStats(): RenderStats;
 }
 
@@ -115,6 +116,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setStage: (stage) => m.renderer_setStage(stage),
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
+        setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
             triangles: m.renderer_getTriangles(),
@@ -224,6 +226,20 @@ export const Renderer = {
     /** Layers (bits 0..31) that sort by world Y within the layer — top-down occlusion. */
     setYSortLayers(mask: number): void {
         backend?.setYSortLayers(mask);
+    },
+
+    /**
+     * Layers (bits 0..31) that resolve their contents by the depth buffer instead
+     * of paint order — the 2.5D opt-in. Opaque draws (blend mode None) in such a
+     * layer write depth and occlude whatever is behind them whatever order they
+     * were drawn in; blended ones test without writing and stay back-to-front. A
+     * layer that also y-sorts keeps y-sorting (see `layerOrderOf`).
+     *
+     * The live twin of the `depthLayers` app option, so an editor can apply the
+     * project setting to a running view without rebooting the realm.
+     */
+    setDepthLayers(mask: number): void {
+        backend?.setDepthLayers(mask);
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {
