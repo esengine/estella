@@ -443,8 +443,18 @@ async function boot(msg: InitMessage): Promise<void> {
     // Register the project's own components/systems FIRST (side-effect import; its
     // `import 'esengine'` resolves through the import map to the shared instance).
     // Absent (a project with no scripts) → builtin-only, which is fine.
+    //
+    // Cache-busted like the rebuild path, and for the same reason: the prewarm
+    // (`warm()`) imported this URL when the project opened, and an ES module is
+    // evaluated ONCE per URL. Everything written between that moment and the
+    // first Play — which, in a project being built, is all of it — was already in
+    // the bundle on disk and still absent from the realm. The scene then loaded
+    // referencing components nothing had registered, and the loader dropped them
+    // with a per-entity warning: a board of bricks that draws perfectly and has no
+    // Brick on it, every system idle, nothing failed.
+    clearUserComponents();
     try {
-      await import(/* @vite-ignore */ bundleUrl);
+      await import(/* @vite-ignore */ `${bundleUrl}?v=${++reloadSeq}`);
     } catch {
       /* no project bundle — builtin components/systems only */
     }

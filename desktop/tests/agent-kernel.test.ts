@@ -609,3 +609,47 @@ describe('running out of rounds', () => {
     expect(warnings).toHaveLength(1);
   });
 });
+
+describe('what verification means for a model that cannot see', () => {
+  const mkDriver = () => {
+    const d = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      return null;
+    }) as ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+    (d as { js: unknown }).js = vi.fn(async () => null);
+    (d as { op: unknown }).op = vi.fn(async () => null);
+    return d;
+  };
+
+  it('asks a text-only model to RUN the game, not to screenshot it', async () => {
+    // Told to capture_viewport, a model that cannot receive images did the only
+    // sensible thing with the request — re-read its own source — and reported a
+    // game whose ball never launched. A screenshot it cannot see is not a check.
+    const s = fakeSession([asks(call('add_entity')), ends(), ends()]);
+    await runTurn({
+      driver: mkDriver() as never, session: s, model: 'text-only', acceptsImages: false,
+      confirm: (async () => ({ answer: 'once' })) as never, emit: () => {},
+    }, 'build a game', null, new AbortController().signal);
+    const nudge = s.context.find((c) => c.includes('never ran it'));
+    expect(nudge).toBeTruthy();
+    expect(nudge).toContain('toggle_play');
+    expect(nudge).toContain('play_probe');
+    expect(nudge).not.toContain('capture_viewport now');
+  });
+
+  it('counts running the game as having checked, for either kind of model', async () => {
+    for (const acceptsImages of [true, false]) {
+      const s = fakeSession([
+        asks(call('add_entity')), asks(call('toggle_play')), asks(call('play_probe')), ends(),
+      ]);
+      await runTurn({
+        driver: mkDriver() as never, session: s, model: 'm', acceptsImages,
+        confirm: (async () => ({ answer: 'once' })) as never, emit: () => {},
+      }, 'build', null, new AbortController().signal);
+      expect([acceptsImages, s.context.some((c) => c.includes('never ran it') || c.includes('not looked at it'))])
+        .toEqual([acceptsImages, false]);
+    }
+  });
+});

@@ -245,12 +245,26 @@ export async function runTurn(
       if (calls.length === 0) {
         if (builtSomething && !sawPixels && !askedToLook) {
           askedToLook = true;
+          // What to ask for depends on what this model can perceive. Told to
+          // "capture_viewport" a model that cannot receive images did the only
+          // sensible thing with the request — it re-read its own source — and
+          // reported a game whose ball never launched. A screenshot it cannot
+          // see is not verification; running the thing and reading values back
+          // is, and that door is open to every model.
           session.pushContext(
-            'You changed the scene this turn and have not looked at it once. Diagnostics only '
-            + 'cover what the editor can name — whether the content is ON CAMERA, whether it '
-            + 'reads, whether it is where you meant, are all things only the picture answers. '
-            + 'capture_viewport now; if it is something that has to be PLAYED, toggle_play, '
-            + 'drive it with play_input and screenshot that. Then fix what you see, or report.',
+            acceptsImages
+              ? 'You changed the scene this turn and have not looked at it once. Diagnostics only '
+                + 'cover what the editor can name — whether the content is ON CAMERA, whether it '
+                + 'reads, whether it is where you meant, are all things only the picture answers. '
+                + 'capture_viewport now; if it is something that has to be PLAYED, toggle_play, '
+                + 'drive it with play_input and screenshot that. Then fix what you see, or report.'
+              : 'You changed the scene this turn and never ran it. You cannot receive images, so '
+                + 'do not spend a call on capture_viewport — RUN it instead: toggle_play, then '
+                + 'play_probe to read the state back (`find(NAME)` gives every entity carrying a '
+                + 'component, with its data), play_input to drive the controls a player would use, '
+                + 'and play_probe again to prove they did something. get_logs shows what the '
+                + 'running game complained about. Reading your own source again is not this: it '
+                + 'is the thing that already convinced you it works.',
           );
           continue;
         }
@@ -472,9 +486,14 @@ async function execute(
   return { outcome, mutated: mutates(tool) && !outcome.isError };
 }
 
-/** The tools that put PIXELS in front of the model — the only answer to "does it
- *  look right", which no diagnostic can give. */
-const LOOKING_TOOLS = new Set(['capture_viewport', 'screenshot']);
+/**
+ * The tools that check work against something other than the code that produced
+ * it: pixels for a model that can see them, and the running game for every model.
+ * No diagnostic answers "does it actually do the thing".
+ */
+const LOOKING_TOOLS = new Set([
+  'capture_viewport', 'screenshot', 'toggle_play', 'play_probe', 'play_input',
+]);
 
 /** The scene's outstanding validation issues as one line of context, or null
  *  when there are none (silence is the "still clean" signal). */
