@@ -9,7 +9,7 @@ import {
   Transform,
   Sprite,
   Camera,
-  EditorView,
+  EditorView, editorViewHalfHeight, setEditorViewHalfHeight,
   EditorGrid,
   installEditorGrid,
   setEditorMode,
@@ -302,17 +302,21 @@ class EngineHostImpl {
     if (cam) {
       view.x = cam.x;
       view.y = cam.y;
-      view.orthoSize = cam.orthoSize;
+      // The scene camera's framing, as an extent the editor view SEES — under a
+      // perspective eye that is a distance, not an orthoSize.
+      setEditorViewHalfHeight(view, cam.orthoSize);
     }
     view.active = !this.playing_;
   }
 
-  /** The editor camera's current center + ortho half-height, or null pre-boot.
-   *  Prefab Mode saves this on enter so exit can return the user to the exact
-   *  scene view they left (syncEditorViewToScene would otherwise reframe). */
+  /** The editor camera's current center + the world half-height it SEES, or null
+   *  pre-boot. Prefab Mode saves this on enter so exit can return the user to the
+   *  exact scene view they left (syncEditorViewToScene would otherwise reframe).
+   *  The seen extent rather than the raw field, so a view saved in perspective and
+   *  restored in either projection comes back to the same framing. */
   editorViewState(): { x: number; y: number; orthoSize: number } | null {
     const view = this.getResource(EditorView);
-    return view ? { x: view.x, y: view.y, orthoSize: view.orthoSize } : null;
+    return view ? { x: view.x, y: view.y, orthoSize: editorViewHalfHeight(view) } : null;
   }
 
   /** Restore the editor camera to a saved center + zoom (the inverse read of
@@ -322,7 +326,7 @@ class EngineHostImpl {
     if (!view) return;
     view.x = v.x;
     view.y = v.y;
-    view.orthoSize = v.orthoSize;
+    setEditorViewHalfHeight(view, v.orthoSize);
   }
 
   /**

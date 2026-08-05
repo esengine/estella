@@ -62,4 +62,42 @@ export const DEFAULT_EDITOR_VIEW: EditorViewData = {
   perspective: false, fov: 60, distance: 1000,
 };
 
+/**
+ * Half-height, in world units, of what the view sees on the z = 0 plane — where
+ * 2D content lives and where the grid, the framing and the minimap all measure.
+ *
+ * Orthographically this IS `orthoSize`. In perspective the visible extent is the
+ * frustum's cross-section at the focus plane, `tan(fov/2) · distance` — merely
+ * proportional to the zoom value, not equal to it. Everything that needs "how
+ * much world is on screen" asks here rather than reading `orthoSize`, which
+ * answers for one of the two projections and silently mis-scales the other.
+ */
+export function editorViewHalfHeight(view: EditorViewData): number {
+  return view.perspective
+    ? Math.tan((view.fov * Math.PI) / 180 / 2) * view.distance
+    : view.orthoSize;
+}
+
+/** {@link editorViewHalfHeight} with the panel aspect applied — the visible world rect. */
+export function editorViewHalfExtent(
+  view: EditorViewData, aspect: number,
+): { halfW: number; halfH: number } {
+  const halfH = editorViewHalfHeight(view);
+  return { halfW: halfH * (aspect > 0 ? aspect : 1), halfH };
+}
+
+/**
+ * Zoom the view until it sees @p halfH world units of height, writing whichever
+ * field this projection zooms with. The inverse of {@link editorViewHalfHeight},
+ * so "frame this" and "how big is what I see" cannot disagree.
+ */
+export function setEditorViewHalfHeight(view: EditorViewData, halfH: number): void {
+  if (view.perspective) {
+    const t = Math.tan((view.fov * Math.PI) / 180 / 2);
+    view.distance = t > 0 ? halfH / t : halfH;
+  } else {
+    view.orthoSize = halfH;
+  }
+}
+
 export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIEW }, 'EditorView');

@@ -11,10 +11,11 @@
  * pre-scene pass, scene entities occlude the grid (UE5 / Unity behaviour).
  *
  * The quad is a unit quad placed by the `u_rect` param (centre = EditorView.x/y,
- * half-extents = orthoSize * aspect by orthoSize) to cover the camera's visible
- * world rect, so the fragment's interpolated world position is exact and no
- * inverse view-projection is needed. Line width and minor-line density fade are
- * driven by `worldPerPixel` (= 2·orthoSize / viewportHeight), so the grid stays
+ * half-extents = `editorViewHalfExtent`) to cover the camera's visible world rect
+ * on the z = 0 plane, so the fragment's interpolated world position is exact and
+ * no inverse view-projection is needed — under either projection, since that is
+ * the one place the extent is worked out. Line width and minor-line density fade
+ * are driven by `worldPerPixel` (= 2·halfH / viewportHeight), so the grid stays
  * crisp and moiré-free at every zoom without relying on GLSL derivatives.
  *
  * The shader is a dual-language `.esshader` (GLSL + WGSL twins) on the reflected
@@ -31,7 +32,7 @@ import { Geometry, type GeometryHandle } from '../render/geometry';
 import { Material, type MaterialHandle } from '../render/material';
 import { BlendMode } from '../render/blend';
 import { registerPreSceneDrawCallback } from '../render/customDraw';
-import { EditorView } from './EditorView';
+import { EditorView, editorViewHalfExtent } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
 
 /** The grid's dual-language material shader (exported for the twins structure guard). */
@@ -207,8 +208,11 @@ export function installEditorGrid(app: App): void {
     if (!grid.enabled || !view.active || grid.spacing <= 0) return;
     if (!ensureResources()) return;
 
-    const halfH = view.orthoSize;
-    const halfW = halfH * (width / height);
+    // The rect the camera actually sees on the z = 0 plane the quad sits on. Under
+    // a perspective eye that is NOT orthoSize — reading it there left the grid a
+    // bounded island floating in the middle of the viewport, since the quad was
+    // sized for a projection the view is no longer using.
+    const { halfW, halfH } = editorViewHalfExtent(view, width / height);
     const worldPerPixel = (2 * halfH) / height;
 
     setParam('u_rect', view.x, view.y, halfW, halfH);

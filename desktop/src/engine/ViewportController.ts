@@ -12,6 +12,7 @@ import {
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
+  editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -26,7 +27,6 @@ import {
   pointInOBB,
   rectsIntersect,
   screenAABB,
-  clamp,
   worldToLocal2D,
   rankPickCandidates,
   type PickCandidate,
@@ -86,22 +86,23 @@ function editorView(): EditorViewData | null {
 }
 
 /**
- * The quantity zoom scales, which differs by projection but behaves the same.
+ * What zoom scales: the world half-height the view SEES on the z = 0 plane.
  *
- * Orthographically it is the half-height of the view box. In perspective it is
- * the camera's distance — and on the z = 0 plane, where 2D content lives, the
- * visible extent is proportional to distance exactly as it is to orthoSize. That
- * is what lets one zoom formula serve both instead of two that drift.
+ * Orthographically that is `orthoSize`; in perspective it is the frustum's
+ * cross-section there, which the camera's distance moves. Working in the seen
+ * extent rather than in whichever field each projection zooms with is what lets
+ * one zoom, one framing and one minimap rect serve both — the SDK owns the
+ * conversion (editorViewHalfHeight / setEditorViewHalfHeight) so the grid, which
+ * has to cover exactly this rect, cannot disagree with the navigation that moved
+ * it.
  */
 const ZOOM_MIN = 8;
 const ZOOM_MAX = 40000;
 function zoomAmount(view: EditorViewData): number {
-  return view.perspective ? view.distance : view.orthoSize;
+  return editorViewHalfHeight(view);
 }
 function setZoomAmount(view: EditorViewData, value: number): void {
-  const v = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
-  if (view.perspective) view.distance = v;
-  else view.orthoSize = v;
+  setEditorViewHalfHeight(view, Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value)));
 }
 
 /** DOM pointer position → engine screen space (buffer px, y-up). */
@@ -489,9 +490,11 @@ export const ViewportController = {
     const spanX = maxX - minX;
     const spanY = maxY - minY;
     const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
-    // orthoSize is the view half-height; fit whichever axis is the binding constraint.
+    // Fit whichever axis is the binding constraint, in SEEN half-height — which
+    // the perspective view reaches by moving the camera, not by writing orthoSize
+    // (a field it does not render through: framing simply did nothing there).
     const halfH = Math.max(spanY / 2, aspect > 0 ? spanX / 2 / aspect : spanX / 2) * 1.2;
-    if (halfH > 1) view.orthoSize = clamp(halfH, 8, 40000);
+    if (halfH > 1) setZoomAmount(view, halfH);
   },
 
   /**
@@ -519,17 +522,17 @@ export const ViewportController = {
     view.y = ci.cy;
     const aspect = panel && panel.height > 0 ? panel.width / panel.height : 1;
     const halfH = Math.max(desHalfH, aspect > 0 ? desHalfW / aspect : desHalfW) * 1.1;
-    view.orthoSize = clamp(halfH, 8, 40000);
+    setZoomAmount(view, halfH);
   },
 
-  /** World center + half-extents of the editor camera's visible rect — the minimap's
-   *  camera indicator. Half-height = orthoSize; half-width = orthoSize × panel aspect. */
+  /** World center + half-extents of the editor camera's visible rect on the z = 0
+   *  plane — the minimap's camera indicator, from the same extent the grid covers. */
   editorViewRect(): { cx: number; cy: number; halfW: number; halfH: number } | null {
     const view = editorView();
     const canvas = EngineHost.canvas;
     if (!view) return null;
     const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
-    return { cx: view.x, cy: view.y, halfW: view.orthoSize * aspect, halfH: view.orthoSize };
+    return { cx: view.x, cy: view.y, ...editorViewHalfExtent(view, aspect) };
   },
 
   /** Recenter the editor view on a world point (minimap click / drag navigation). Leaves

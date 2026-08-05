@@ -59,7 +59,12 @@ describe('EditorView camera', () => {
 // Perspective preview (2.5D authoring)
 // =============================================================================
 
-import { DEFAULT_EDITOR_VIEW } from '../src/camera/EditorView';
+import {
+  DEFAULT_EDITOR_VIEW,
+  editorViewHalfExtent,
+  editorViewHalfHeight,
+  setEditorViewHalfHeight,
+} from '../src/camera/EditorView';
 
 const view = (over: Partial<typeof DEFAULT_EDITOR_VIEW>) =>
   ({ ...DEFAULT_EDITOR_VIEW, active: true, ...over });
@@ -109,5 +114,71 @@ describe('EditorView perspective preview', () => {
     // A wider field sees more world, so a given point sits closer to the centre.
     expect(Math.abs(ndc3(narrow.viewProjection, 100, 0, 0).x))
       .toBeGreaterThan(Math.abs(ndc3(wide.viewProjection, 100, 0, 0).x));
+  });
+});
+
+// =============================================================================
+// How much world the view SEES — the one extent the grid, the framing and the
+// minimap all measure with. Read from the projection itself, so the helper
+// cannot drift from the matrix it claims to describe.
+// =============================================================================
+
+describe('editorViewHalfHeight', () => {
+  // What "half-height" has to mean, under either projection: the world y that
+  // lands exactly on the top edge of the frame on the z = 0 plane.
+  const seenHalfHeight = (v: typeof DEFAULT_EDITOR_VIEW): number => {
+    const cam = editorCameraInfo(v, 800, 600, []);
+    let lo = 0;
+    let hi = 1e6;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (ndc3(cam.viewProjection, v.x, v.y + mid, 0).y <= 1) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  };
+
+  it('is orthoSize orthographically', () => {
+    const v = view({ orthoSize: 300 });
+    expect(editorViewHalfHeight(v)).toBe(300);
+    expect(seenHalfHeight(v)).toBeCloseTo(300, 1);
+  });
+
+  it('is the frustum cross-section at z = 0 in perspective — NOT the distance', () => {
+    const v = view({ perspective: true, fov: 60, distance: 1000 });
+    const expected = Math.tan((60 * Math.PI) / 180 / 2) * 1000; // ≈ 577.35
+    expect(editorViewHalfHeight(v)).toBeCloseTo(expected, 4);
+    expect(editorViewHalfHeight(v)).not.toBeCloseTo(1000, 0);
+    expect(seenHalfHeight(v)).toBeCloseTo(expected, 0);
+  });
+
+  it('scales with aspect on the horizontal, like an ortho box does', () => {
+    const v = view({ perspective: true, fov: 60, distance: 1000 });
+    const { halfW, halfH } = editorViewHalfExtent(v, 800 / 600);
+    expect(halfW).toBeCloseTo(halfH * (800 / 600), 4);
+  });
+
+  // Framing writes an extent; zooming reads one. If the two disagree, "frame
+  // selection" lands on a different zoom than it asked for — which is what
+  // writing orthoSize under a perspective view did (it did nothing at all).
+  it('round-trips through setEditorViewHalfHeight in both projections', () => {
+    for (const perspective of [false, true]) {
+      const v = view({ perspective, fov: 60, distance: 1000, orthoSize: 300 });
+      setEditorViewHalfHeight(v, 420);
+      expect(editorViewHalfHeight(v)).toBeCloseTo(420, 6);
+      expect(seenHalfHeight(v)).toBeCloseTo(420, 0);
+    }
+  });
+
+  it('moves the camera in perspective and the box orthographically', () => {
+    const p = view({ perspective: true, fov: 60, distance: 1000, orthoSize: 300 });
+    setEditorViewHalfHeight(p, 1154.7);
+    expect(p.distance).toBeCloseTo(2000, 0);
+    expect(p.orthoSize).toBe(300); // untouched — not the field this view renders through
+
+    const o = view({ orthoSize: 300, distance: 1000 });
+    setEditorViewHalfHeight(o, 500);
+    expect(o.orthoSize).toBe(500);
+    expect(o.distance).toBe(1000);
   });
 });
