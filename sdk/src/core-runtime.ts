@@ -206,6 +206,7 @@ export {
     InputState,
     InputPlugin,
     inputPlugin,
+    inputEventCallbacks,
     GamepadButton,
     GamepadAxis,
     type TouchPoint,

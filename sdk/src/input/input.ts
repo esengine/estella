@@ -4,7 +4,7 @@ import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
 import type { App, Plugin } from '../app/app';
 import { getPlatform, platformUnbindInputEvents } from '../platform';
-import type { GamepadSnapshot } from '../platform/types';
+import type { GamepadSnapshot, InputEventCallbacks } from '../platform/types';
 import { inputRouter } from './inputRouter';
 
 export interface TouchPoint {
@@ -280,6 +280,83 @@ export class InputState {
 
 export const Input = defineResource<InputState>(new InputState(), 'Input');
 
+/**
+ * The callbacks a platform's raw events arrive through — routed past the UI
+ * first, then recorded on `state`.
+ *
+ * Named and exported because the platform binding is not the only caller that
+ * should exist. A harness driving a running game has to be able to deliver a
+ * click, and the only faithful way to do that is through the same funnel the
+ * real event uses: a synthetic DOM event carries no usable `offsetX`, and
+ * poking `mouseX` and `mouseButtonsPressed` by hand skips the router, so UI
+ * that should have swallowed the click never sees it and gameplay behind a
+ * button reacts to presses the player never made.
+ *
+ * One implementation, so the injected event and the real one cannot diverge.
+ */
+export function inputEventCallbacks(state: InputState): InputEventCallbacks {
+    return {
+        onKeyDown(code) {
+            if (inputRouter.dispatchKeyDown(code)) return;
+            state.noteKeyDown(code);
+        },
+        onKeyUp(code) {
+            if (inputRouter.dispatchKeyUp(code)) return;
+            state.noteKeyUp(code);
+        },
+        onPointerMove(x, y) {
+            // Pointer position tracks the cursor even when consumed so
+            // gameplay code that reads `getMousePosition()` (e.g. HUD
+            // cursor rendering) doesn't freeze while the editor is
+            // dragging a gizmo.
+            state.mouseX = x;
+            state.mouseY = y;
+            inputRouter.dispatchPointerMove(x, y);
+        },
+        onPointerDown(button, x, y) {
+            state.mouseX = x;
+            state.mouseY = y;
+            if (inputRouter.dispatchPointerDown(button, x, y)) return;
+            state.noteMouseDown(button);
+        },
+        onPointerUp(button) {
+            if (inputRouter.dispatchPointerUp(button)) return;
+            state.noteMouseUp(button);
+        },
+        onWheel(deltaX, deltaY) {
+            if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
+            state.scrollDeltaX += deltaX;
+            state.scrollDeltaY += deltaY;
+        },
+        onTouchStart(id, x, y) {
+            if (inputRouter.dispatchTouchStart(id, x, y)) return;
+            const point = { id, x, y };
+            state.touches.set(id, point);
+            state.touchesStarted.set(id, point);
+        },
+        onTouchMove(id, x, y) {
+            if (inputRouter.dispatchTouchMove(id, x, y)) return;
+            const existing = state.touches.get(id);
+            if (existing) {
+                existing.x = x;
+                existing.y = y;
+            } else {
+                state.touches.set(id, { id, x, y });
+            }
+        },
+        onTouchEnd(id) {
+            if (inputRouter.dispatchTouchEnd(id)) return;
+            state.touches.delete(id);
+            state.touchesEnded.add(id);
+        },
+        onTouchCancel(id) {
+            if (inputRouter.dispatchTouchCancel(id)) return;
+            state.touches.delete(id);
+            state.touchesEnded.add(id);
+        },
+    };
+}
+
 export class InputPlugin implements Plugin {
     name = 'input';
     private target_: unknown;
@@ -293,66 +370,7 @@ export class InputPlugin implements Plugin {
         const state = new InputState();
         app.insertResource(Input, state);
 
-        getPlatform().bindInputEvents({
-            onKeyDown(code) {
-                if (inputRouter.dispatchKeyDown(code)) return;
-                state.noteKeyDown(code);
-            },
-            onKeyUp(code) {
-                if (inputRouter.dispatchKeyUp(code)) return;
-                state.noteKeyUp(code);
-            },
-            onPointerMove(x, y) {
-                // Pointer position tracks the cursor even when consumed so
-                // gameplay code that reads `getMousePosition()` (e.g. HUD
-                // cursor rendering) doesn't freeze while the editor is
-                // dragging a gizmo.
-                state.mouseX = x;
-                state.mouseY = y;
-                inputRouter.dispatchPointerMove(x, y);
-            },
-            onPointerDown(button, x, y) {
-                state.mouseX = x;
-                state.mouseY = y;
-                if (inputRouter.dispatchPointerDown(button, x, y)) return;
-                state.noteMouseDown(button);
-            },
-            onPointerUp(button) {
-                if (inputRouter.dispatchPointerUp(button)) return;
-                state.noteMouseUp(button);
-            },
-            onWheel(deltaX, deltaY) {
-                if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
-                state.scrollDeltaX += deltaX;
-                state.scrollDeltaY += deltaY;
-            },
-            onTouchStart(id, x, y) {
-                if (inputRouter.dispatchTouchStart(id, x, y)) return;
-                const point = { id, x, y };
-                state.touches.set(id, point);
-                state.touchesStarted.set(id, point);
-            },
-            onTouchMove(id, x, y) {
-                if (inputRouter.dispatchTouchMove(id, x, y)) return;
-                const existing = state.touches.get(id);
-                if (existing) {
-                    existing.x = x;
-                    existing.y = y;
-                } else {
-                    state.touches.set(id, { id, x, y });
-                }
-            },
-            onTouchEnd(id) {
-                if (inputRouter.dispatchTouchEnd(id)) return;
-                state.touches.delete(id);
-                state.touchesEnded.add(id);
-            },
-            onTouchCancel(id) {
-                if (inputRouter.dispatchTouchCancel(id)) return;
-                state.touches.delete(id);
-                state.touchesEnded.add(id);
-            },
-        }, this.target_ ?? undefined);
+        getPlatform().bindInputEvents(inputEventCallbacks(state), this.target_ ?? undefined);
 
         // Gamepads are polled (no DOM events). Web supplies pollGamepads; platforms
         // without it (WeChat, headless) skip gamepad input. Runs in First so the
