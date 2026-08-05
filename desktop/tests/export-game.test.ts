@@ -46,6 +46,17 @@ beforeAll(async () => {
   // Stand-in SDK dist + wasm runtime dirs to copy.
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;');
+  writeFileSync(path.join(root, '_sdk', 'index.js.map'), '{"version":3}');
+  writeFileSync(path.join(root, '_sdk', 'index.d.ts'), 'export declare const x: number;');
+  // sdk/dist holds every target's build side by side; a browser package must not
+  // carry the ones it cannot load (each with a multi-megabyte source map).
+  for (const dead of [
+    'index.node.js', 'index.node.js.map', 'index.wechat.js', 'index.wechat.cjs.js',
+    'index.wechat.cjs.js.map', 'index.minigame.js', 'index.native.js', 'index.native.bundled.js',
+    'index.bundled.js', 'index.bundled.js.map',
+  ]) writeFileSync(path.join(root, '_sdk', dead), '// other platform');
+  mkdirSync(path.join(root, '_sdk', 'shared'), { recursive: true });
+  writeFileSync(path.join(root, '_sdk', 'shared', 'resource.js'), 'export const r = 1;');
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'wasmbytes');
@@ -85,6 +96,18 @@ describe('exportGame', () => {
     expect(has('game.js')).toBe(true);
     expect(has('scripts.mjs')).toBe(true);
     expect(has('sdk/index.js')).toBe(true);
+    // The import map's target ships with its chunks and its map; the OTHER
+    // platforms' builds and the type declarations do not. Copying sdk/dist
+    // wholesale put the Node, WeChat, mini-game and native SDKs — each with a
+    // multi-megabyte source map — into a package for a browser.
+    expect(has('sdk/index.js.map')).toBe(true);
+    expect(has('sdk/shared/resource.js')).toBe(true);
+    expect(has('sdk/index.d.ts')).toBe(false);
+    for (const dead of [
+      'sdk/index.node.js', 'sdk/index.node.js.map', 'sdk/index.wechat.js', 'sdk/index.wechat.cjs.js',
+      'sdk/index.wechat.cjs.js.map', 'sdk/index.minigame.js', 'sdk/index.native.js',
+      'sdk/index.native.bundled.js', 'sdk/index.bundled.js', 'sdk/index.bundled.js.map',
+    ]) expect([dead, has(dead)]).toEqual([dead, false]);
     expect(has('game.config.json')).toBe(true);
     // The flat manifest is a build-time intermediate — only the addressable one ships.
     expect(has('assets.manifest.json')).toBe(false);

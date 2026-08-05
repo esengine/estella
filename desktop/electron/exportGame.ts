@@ -124,6 +124,33 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 }
 
 /**
+ * Entry bundles in sdk/dist that a BROWSER page can never load: the other
+ * platforms' builds. `dist` holds every target's output side by side, and the
+ * export used to copy the tree wholesale — so a web package shipped the Node,
+ * WeChat, mini-game and native SDKs, each with a multi-megabyte source map, next
+ * to the one the import map actually names.
+ */
+const OTHER_PLATFORM_ENTRIES = /^index\.(node|wechat|wechat\.cjs|minigame|native|native\.bundled|bundled)\.js(\.map)?$/;
+
+/**
+ * Whether a file under sdk/dist belongs in a browser package.
+ *
+ * Directories always pass — the per-file test decides what lands inside them,
+ * and refusing a directory would drop the shared chunks the entry imports.
+ * Type declarations go too: nothing at runtime reads a `.d.ts`, and they are a
+ * megabyte of a package whose whole point is what the player downloads.
+ *
+ * Deliberately a name test rather than a walk of the import graph: the graph
+ * would be exact but silent when it is wrong, and a bundle this drops that
+ * something did want is a 404 the moment the page loads, not a subtle bug.
+ */
+export function shipsToBrowser(src: string): boolean {
+  const base = path.basename(src);
+  if (base.endsWith('.d.ts')) return false;
+  return !OTHER_PLATFORM_ENTRIES.test(base);
+}
+
+/**
  * Warn about content this target cannot render. The editor authors every
  * subsystem the engine has, but a target may compile only some of them (the
  * native app leaves out tilemaps, particles and post-processing) — so an export
@@ -707,10 +734,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // 4. SDK (import-map target) + wasm runtime. The import map and the game
   //    host reference both unconditionally — a missing tree is not a degraded
   //    export but a package that cannot boot, so it fails the export.
+  //    Filtered, because sdk/dist holds every platform's build side by side.
   if (!nativeContent) {
     progress({ phase: 'Copying SDK + runtime' });
-    if (existsSync(opts.sdkDistDir)) await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true });
-    else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
+    if (existsSync(opts.sdkDistDir)) {
+      await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true, filter: shipsToBrowser });
+    } else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
     if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
     else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
   }
