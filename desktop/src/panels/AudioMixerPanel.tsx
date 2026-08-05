@@ -13,11 +13,9 @@
 import { useSyncExternalStore } from 'react';
 import { Plus, Trash2, VolumeX, Volume2 } from 'lucide-react';
 import {
-  Audio, applyAudioProjectConfig,
   type AudioProjectConfig, type AudioBusDecl, type BusEffectDef,
 } from 'esengine';
 import { ProjectStore } from '@/project/ProjectStore';
-import { EngineHost } from '@/engine/EngineHost';
 import { Select } from '@/components/Select';
 import { EmptyState } from '@/components/EmptyState';
 import { t } from '@/i18n';
@@ -42,11 +40,12 @@ function stripsOf(config: AudioProjectConfig): StripModel[] {
   return strips;
 }
 
-/** Persist + live-apply one new config state. */
+/** Persist one new config state; the store live-applies it to the edit session
+ *  (setAudio → applyEditorRuntimeConfig), the same way opening a project does —
+ *  this panel used to be the ONLY thing that applied the mixer, so a project's
+ *  bus levels were silent until someone opened it. */
 function commit(next: AudioProjectConfig): void {
   void ProjectStore.setAudio(next);
-  const audio = EngineHost.getResource(Audio);
-  if (audio) applyAudioProjectConfig(audio, next);
 }
 
 /** Replace/patch one bus's declaration inside the config. */

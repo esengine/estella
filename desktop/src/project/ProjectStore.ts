@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, setTextureSliceBorder, textureImportSettingsFrom, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, setTextureSliceBorder, textureImportSettingsFrom, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { importerDefaults, applyImporterEdit } from './assetImporter';
+import {
+  runtimeConfigOf, packagedRuntimeFields, normalizeCollisionLayers, normalizeCollisionLayerMasks,
+  type RuntimeProjectConfig,
+} from './runtimeConfig';
 import type { ParsedTextureImportSettings } from 'esengine';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -46,16 +50,6 @@ import { useEditorStore } from '@/store/editorStore';
 import { projectReplacing } from './projectReplacing';
 import { fsRefresh } from './fsRefresh';
 import type { DocSnapshot } from '@/document/DirtyRegistry';
-
-/** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
-function normalizeLayers(layers?: string[]): string[] {
-  return Array.from({ length: 16 }, (_, i) => layers?.[i] ?? (i === 0 ? 'Default' : ''));
-}
-
-/** Pad/truncate the collision matrix to 16 rows; absent rows default to all-collide. */
-function normalizeLayerMasks(masks?: number[]): number[] {
-  return Array.from({ length: 16 }, (_, i) => (typeof masks?.[i] === 'number' ? masks[i] & 0xffff : 0xffff));
-}
 
 /** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
 function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): boolean {
@@ -536,7 +530,7 @@ class ProjectStoreImpl {
     if (!st) return;
     // Project-level render config (WYSIWYG in the edit viewport). Applied here —
     // the one path that runs both on project open and once the engine is ready.
-    this.applySortingLayerModes();
+    this.applyEditorRuntimeConfig();
     const found = await this.firstReadableScene([
       st.workspace.lastOpenedScene,
       st.defaultScene,
@@ -628,9 +622,10 @@ class ProjectStoreImpl {
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
 
     EngineHost.syncEditorViewToScene();
-    // Edit-world live theme: re-resolve ThemeStyle-tagged widgets against the
-    // project's effective theme, matching what a shipped runtime boots with.
-    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
+    // Edit-world live settings: the theme re-resolves ThemeStyle-tagged widgets
+    // and the mixer/sorting masks re-apply, matching what a shipped runtime
+    // boots with.
+    this.applyEditorRuntimeConfig();
     // Surface any instance overrides the loader just dropped (they point at prefab
     // structure that no longer exists) — otherwise the customization loss is silent.
     this.detectPrefabConflicts(raw);
@@ -1699,46 +1694,21 @@ class ProjectStoreImpl {
       if (!/\.esscene$/i.test(q) || q === currentScene) continue;
       extraScenes.push({ name: exportSceneName(q), path: q });
     }
-    // Carry the project's physics world config so the realm installs physics (even for
-    // runtime-spawned bodies the static scene doesn't show) and matches the editor's
-    // Project Settings. The collision matrix is sent ONLY when configured — otherwise
-    // a layer's mask would override each collider's own maskBits (the two are exclusive).
-    const f = this.physicsFeature();
-    const physicsConfig: PhysicsPluginConfig = {
-      gravity: f.gravity,
-      fixedTimestep: f.fixedTimestep,
-      subStepCount: f.subStepCount,
-      contactHertz: f.contactHertz,
-      contactDampingRatio: f.contactDampingRatio,
-      contactSpeed: f.contactSpeed,
-      enableSleep: f.enableSleep,
-      enableContinuous: f.enableContinuous,
-    };
-    // Send the collision matrix ONLY when it actually restricts a pair — an all-collide
-    // matrix would otherwise override each single-layer collider's own maskBits for nothing.
-    if (f.collisionLayerMasks.some((m) => (m & 0xffff) !== 0xffff)) {
-      physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
-    }
-    const ySortLayers = this.ySortMask();
-    const depthLayers = this.depthMask();
-    const audioConfig = this.audioFeature();
-    const colorSpace = this.renderingFeature().colorSpace;
-    // Camera fit: only sent when the project opts in (scaleMode ≥ 0), so a played
-    // scene with no fit boots exactly as before.
-    const screenFit = this.screenFit();
-    const uiTheme = this.uiTheme();
+    // The project's settings, from the ONE derivation an exported build also uses
+    // — Play is a rehearsal of shipping, and a field only one of them carried is
+    // what made the rehearsal lie (the 2.5D depth mask reached here and no
+    // shipped build at all). Physics rides along whole: the realm installs it
+    // even for runtime-spawned bodies the static scene doesn't show.
+    const rc = this.runtimeConfig();
     const uiThemeOverrides = this.uiThemeOverrides();
     return {
-      sceneData, assetManifest, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
+      sceneData, assetManifest, manifest: this.buildPlayManifest(),
+      physicsEnabled: rc.physicsEnabled, physicsConfig: rc.physicsConfig,
       ...(currentScene ? { entrySceneName: exportSceneName(currentScene) } : {}),
       ...(extraScenes.length > 0 ? { extraScenes } : {}),
-      ...(audioConfig.buses ? { audioConfig } : {}),
-      ...(uiTheme === 'light' ? { uiTheme } : {}),
+      ...(rc.audioConfig.buses ? { audioConfig: rc.audioConfig } : {}),
       ...(uiThemeOverrides ? { uiThemeOverrides } : {}),
-      ...(ySortLayers !== 0 ? { ySortLayers } : {}),
-      ...(depthLayers !== 0 ? { depthLayers } : {}),
-      ...(colorSpace === 'linear' ? { colorSpace } : {}),
-      ...(screenFit.scaleMode >= 0 ? { screenFit } : {}),
+      ...packagedRuntimeFields(rc),
     };
   }
 
@@ -1796,7 +1766,7 @@ class ProjectStoreImpl {
     if (ui) features.ui = ui;
     else delete features.ui;
     this.store.setState({ project: { ...st, features } });
-    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
+    this.applyEditorRuntimeConfig();
     await this.patchManifest((raw) => {
         const rf = { ...(raw.features as Record<string, unknown> ?? {}) };
         if (ui) rf.ui = ui;
@@ -1815,6 +1785,7 @@ class ProjectStoreImpl {
     if (!st) return;
     const features: ProjectFeatures = { ...st.features, audio: config };
     this.store.setState({ project: { ...st, features } });
+    this.applyEditorRuntimeConfig();
     await this.patchManifest((raw) => {
         raw.features = { ...(raw.features as Record<string, unknown> ?? {}), audio: config };
     }, t('proj.saveAudioFailed'));
@@ -1829,19 +1800,24 @@ class ProjectStoreImpl {
     contactDampingRatio: number; contactSpeed: number;
     enableSleep: boolean; enableContinuous: boolean;
   } {
-    const p = this.state?.features?.physics;
+    // The solver values come from the SAME derivation the runtime is given, so
+    // the settings page cannot show one set of effective defaults while the game
+    // runs on another. The layer NAMES are editor-only (a runtime filters by
+    // bits), which is why they are added here rather than carried through.
+    const rc = this.runtimeConfig();
+    const c = rc.physicsConfig;
     return {
-      enabled: p?.enabled ?? false,
-      gravity: p?.gravity ?? { x: 0, y: -9.81 },
-      collisionLayers: normalizeLayers(p?.collisionLayers),
-      collisionLayerMasks: normalizeLayerMasks(p?.collisionLayerMasks),
-      fixedTimestep: p?.fixedTimestep ?? 1 / 60,
-      subStepCount: p?.subStepCount ?? 4,
-      contactHertz: p?.contactHertz ?? 120,
-      contactDampingRatio: p?.contactDampingRatio ?? 10,
-      contactSpeed: p?.contactSpeed ?? 10,
-      enableSleep: p?.enableSleep ?? true,
-      enableContinuous: p?.enableContinuous ?? true,
+      enabled: rc.physicsEnabled,
+      gravity: c.gravity ?? { x: 0, y: -9.81 },
+      collisionLayers: normalizeCollisionLayers(this.state?.features?.physics?.collisionLayers),
+      collisionLayerMasks: normalizeCollisionLayerMasks(this.state?.features?.physics?.collisionLayerMasks),
+      fixedTimestep: c.fixedTimestep ?? 1 / 60,
+      subStepCount: c.subStepCount ?? 4,
+      contactHertz: c.contactHertz ?? 120,
+      contactDampingRatio: c.contactDampingRatio ?? 10,
+      contactSpeed: c.contactSpeed ?? 10,
+      enableSleep: c.enableSleep ?? true,
+      enableContinuous: c.enableContinuous ?? true,
     };
   }
 
@@ -1877,36 +1853,49 @@ class ProjectStoreImpl {
     };
   }
 
+  /**
+   * The project's effective runtime settings — the ONE derivation the play realm,
+   * every exported build and the edit viewport all read (see runtimeConfig.ts).
+   * Defined with no project open too, so a bare editor answers with the defaults.
+   */
+  runtimeConfig(): RuntimeProjectConfig {
+    const st = this.state;
+    return runtimeConfigOf({ features: st?.features, designResolution: st?.designResolution });
+  }
+
   /** Bitmask over layers 0..31 that y-sort within the layer (0 = feature off). */
   ySortMask(): number {
-    let mask = 0;
-    for (const i of this.renderingFeature().ySortLayers) mask |= 1 << i;
-    return mask >>> 0;
+    return this.runtimeConfig().ySortLayers;
   }
 
   /** Bitmask over layers 0..31 that resolve by real depth (0 = feature off). */
   depthMask(): number {
-    let mask = 0;
-    for (const i of this.renderingFeature().depthLayers) mask |= 1 << i;
-    return mask >>> 0;
+    return this.runtimeConfig().depthLayers;
   }
 
   /**
-   * Push how each sorting layer resolves — y-sort and depth — into the edit
-   * viewport, so authoring shows what the game will show.
+   * Apply every project setting the EDIT session can show, so authoring shows
+   * what the game will show.
    *
-   * BOTH masks, in ONE place. Depth used to reach only the play realm: a project
-   * could check "Depth-sorted layers", get 2.5D occlusion in the game, and author
-   * against an edit viewport still painting in list order — the setting was real
-   * everywhere except where it is set. And picking reads the same two masks (see
-   * projectSeams), because a click that ranks overlapping entities differently
-   * from the renderer selects what you cannot see.
+   * One method, called wherever a setting can change, because a per-setting
+   * apply is how the list rots: depth layers used to reach only the play realm
+   * (author against paint order, ship 2.5D), and the mixer used to be applied by
+   * the Mixer PANEL — so a project whose buses were configured previewed audio
+   * at the wrong levels until someone happened to open it.
+   *
+   * What is NOT here is here on purpose: the colour space is boot-fixed (shaders
+   * compile against it, so the settings page asks for a reload), and physics is
+   * not simulated in edit mode at all. Picking reads the same two sorting masks
+   * through projectSeams, since a click that ranks overlapping entities
+   * differently from the renderer selects what you cannot see.
    */
-  private applySortingLayerModes(): void {
-    const ySort = this.ySortMask();
-    const depth = this.depthMask();
-    Renderer.setYSortLayers(ySort);
-    Renderer.setDepthLayers(depth);
+  private applyEditorRuntimeConfig(): void {
+    const rc = this.runtimeConfig();
+    Renderer.setYSortLayers(rc.ySortLayers);
+    Renderer.setDepthLayers(rc.depthLayers);
+    const audio = EngineHost.getResource(Audio);
+    if (audio) applyAudioProjectConfig(audio, rc.audioConfig);
+    applyWidgetTheme(rc.uiTheme, this.uiThemeOverrides());
   }
 
   /** Sorting-layer dropdown options for render `layer` fields — only the NAMED
@@ -1941,7 +1930,7 @@ class ProjectStoreImpl {
     if (patch.cameraMatch !== undefined) rendering.cameraMatch = patch.cameraMatch;
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
-    this.applySortingLayerModes();
+    this.applyEditorRuntimeConfig();
     await this.patchManifest((raw) => {
         raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
     }, t('proj.saveSortingLayersFailed'));
@@ -2488,7 +2477,7 @@ class ProjectStoreImpl {
     installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(raw, resolved);
     EngineHost.syncEditorViewToScene();
-    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
+    this.applyEditorRuntimeConfig();
   }
 
   /**
