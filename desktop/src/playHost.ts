@@ -322,6 +322,29 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       .flatMap((e) => app!.world.getComponentTypes(e as never))
       .filter((t, i, a) => a.indexOf(t) === i)
       .sort(),
+    /**
+     * A resource's live value by name — the other half of "what does the game
+     * think is going on", for state that belongs to no entity (a score, a life
+     * count, a phase).
+     *
+     * `app.getResource` takes the DEF, which a probe has no way to name, so the
+     * next move was reading `app.resources_.resources_` — a private map, reached
+     * by two different agents on two different days, which is how a probe surface
+     * turns into a dependency on internals.
+     */
+    resource: (name: string) => {
+      // Keyed by the def's symbol, whose description carries the name as
+      // `Resource_<n>_<Name>` — the only place the name survives at runtime.
+      const entries = [...(app as unknown as {
+        resources_: { resources_: Map<symbol, unknown> };
+      }).resources_.resources_];
+      const nameOf = (k: symbol): string => (/^Resource_\d+_(.+)$/.exec(k.description ?? '')?.[1] ?? k.description ?? '');
+      const hit = entries.find(([k]) => nameOf(k) === name);
+      if (!hit) {
+        return { error: `no resource named "${name}"`, available: entries.map(([k]) => nameOf(k)).filter(Boolean).sort() };
+      }
+      return hit[1];
+    },
     input: {
       move: (x: number, y: number) => injected.onPointerMove?.(x, y),
       down: (x: number, y: number, button = 0) => injected.onPointerDown?.(button, x, y),
