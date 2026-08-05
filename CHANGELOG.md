@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The editor asks the TypeScript compiler about your project, and so can the
+  agent.** The open project gets a language service (TypeScript's own, in the
+  editor process — no separate server), and three doors onto it: writing a `.ts`
+  file now **answers with that file's type errors**, `check_scripts` asks for them
+  at any time, and `lookup_symbol` gives a name's real signature, its doc comment
+  and where it is declared. `search_project_files` finds a line anywhere in the
+  project. Between them they replace the two things an agent had before: entering
+  play to find out whether its code compiled, and paging a 50 000-line `.d.ts` a
+  hundred lines at a time to learn one method name — which cost most of a context
+  window per API. A dogfood run that built a game spent 17 lookups and stayed
+  under 20k of context where the previous one passed 70k without writing a line.
+
 - **A sorting layer can resolve by depth instead of paint order — 2.5D.** Check a
   layer under Project Settings → Rendering → Depth-sorted layers and what covers
   what is decided by the depth buffer, from each entity's `Transform` z; with a
@@ -76,6 +88,34 @@ published separately; it ships inside the editor.
   decides, so the field cannot fight its own panel.
 
 ### Fixed
+
+- **The agent's brief taught an API that does not exist, and nothing compiled
+  it.** It said to read the mouse with `input.isMouseButtonPressed(MouseButton.Left)`.
+  `MouseButton` is the InputMap binding builder — a function, with no `.Left` — so
+  the call passed `undefined` and read false forever: every game the agent built
+  ignored the mouse, in silence, with nothing failing anywhere. The brief now
+  teaches `isMouseButtonPressed(0)` and says what `MouseButton` is for, and every
+  API it teaches is exercised by a fixture that CI compiles against the real SDK
+  types. Prose about an API is code that nothing checks.
+
+- **The agent has to look at what it built before it says it is done.** A turn
+  that changed the scene and never once captured the viewport is asked to, before
+  it can report. Diagnostics only cover what the editor can name; whether the
+  content is on camera, whether it reads, whether it is where it was meant to go
+  are things only the picture answers — and a dogfood run delivered a board half
+  off screen with every write compiling and every diagnostic clean.
+
+- **A turn that runs out of rounds lands its work instead of being cut off.** The
+  per-turn cap (a backstop against a model retrying a failing call forever) was
+  low enough that building a small game hit it, and it arrived without warning —
+  so the round in which the agent would have summarised where things stood was
+  the one it never got, and an unfinished turn looked exactly like a finished
+  one. The cap is higher, and eight rounds out the agent is told to wrap up.
+
+- **A long question stops eating the agent drawer.** The running turn's header is
+  pinned so you can see which request is in flight; unclamped, a pasted paragraph
+  of requirements held the top of the panel for the whole run and pushed the work
+  itself off screen. It clamps to two lines now, with the full text on hover.
 
 - **The viewport still draws on a machine with no usable GPU.** Chromium refuses
   WebGL2 outright ("WebGL2 blocklisted") where no hardware GL is available — a VM,

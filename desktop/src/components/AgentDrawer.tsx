@@ -657,7 +657,9 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
       <button type="button" className="ag-th" onClick={() => setFolded((f) => !f)}>
         <span className="ag-hrow">
           <ChevronRight size={12} strokeWidth={2} className="ag-fold" />
-          <span className="ag-req">{turn.prompt}</span>
+          {/* `title` because the pinned copy is clamped: the whole question is
+              still one hover away without giving it the screen. */}
+          <span className="ag-req" title={turn.prompt}>{turn.prompt}</span>
           {/* A bad answer three turns in should cost you that answer, not the
               whole conversation that led to it — and the reason to re-ask is
               usually that the question could have been put better, so this

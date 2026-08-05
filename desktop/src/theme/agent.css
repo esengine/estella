@@ -156,6 +156,18 @@
   transition: background var(--t-fast);
 }
 .ag-turn.current > .ag-th { position: sticky; top: 0; z-index: 3; }
+/* The pinned header exists to say WHICH turn is running, not to reprint the
+   question. Unclamped it grew with the prompt, and a long one (a paste, a spec,
+   a paragraph of requirements) held the top of the drawer for the whole run —
+   pushing the thing you actually wanted to watch, the work, off screen. Two
+   lines identify it; `title` on the span carries the rest. Only while pinned:
+   scrolled-back turns are ordinary content and print in full. */
+.ag-turn.current > .ag-th .ag-req {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .ag-th:hover { background: var(--elevated); }
 .ag-hrow { display: flex; align-items: flex-start; gap: 9px; }
 .ag-fold { color: var(--text-faint); margin-top: 3px; flex: none; transition: transform var(--t) var(--e-out); }
