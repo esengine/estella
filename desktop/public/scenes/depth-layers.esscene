@@ -1,0 +1,106 @@
+{
+ "version": "1.0",
+ "name": "DepthLayers",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 10
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 128,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ],
+   "visible": true
+  },
+  {
+   "id": 1,
+   "name": "Near red (layer 1, z=+5)",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 5
+      }
+     }
+    },
+    {
+     "type": "Sprite",
+     "data": {
+      "size": {
+       "x": 150,
+       "y": 150
+      },
+      "color": {
+       "r": 1,
+       "g": 0,
+       "b": 0,
+       "a": 1
+      },
+      "layer": 1,
+      "material": "/scenes/depth-layers/opaque.esmaterial"
+     }
+    }
+   ],
+   "visible": true
+  },
+  {
+   "id": 2,
+   "name": "Far blue (layer 2, z=-5)",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 50,
+       "y": 0,
+       "z": -5
+      }
+     }
+    },
+    {
+     "type": "Sprite",
+     "data": {
+      "size": {
+       "x": 150,
+       "y": 150
+      },
+      "color": {
+       "r": 0,
+       "g": 0,
+       "b": 1,
+       "a": 1
+      },
+      "layer": 2,
+      "material": "/scenes/depth-layers/opaque.esmaterial"
+     }
+    }
+   ],
+   "visible": true
+  }
+ ]
+}

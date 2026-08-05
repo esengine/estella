@@ -18,6 +18,7 @@
  *   ESTELLA_VERIFY_W / _H    capture size (default 640×480)
  *   ESTELLA_VERIFY_STEPS     fixed-dt frames to advance before capture (default 30)
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
+ *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -47,6 +48,8 @@ const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'we
 // ESTELLA_VERIFY_COLORSPACE=linear boots the linear-light pipeline (sRGB decode
 // + linear blending + final OETF) — point expectations must be linear-derived.
 const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear' : '';
+// ESTELLA_VERIFY_DEPTH_LAYERS=<mask> turns layers into depth-resolved ones (2.5D).
+const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -113,7 +116,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveDist();
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

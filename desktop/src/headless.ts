@@ -35,8 +35,11 @@ const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
 const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
 const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
+// A depth-layer mask, so the harness can exercise the 2.5D path the same way a
+// project setting would — the engine takes a mask, not a checkbox list.
+const depthLayers = Number(params.get('depthLayers')) || undefined;
 
 window.__estellaHeadless = {
-  ready: EngineHost.bootHeadless({ width, height, backend, colorSpace }),
+  ready: EngineHost.bootHeadless({ width, height, backend, colorSpace, depthLayers }),
   api: EditorControlSurface,
 };

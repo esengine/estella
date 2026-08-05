@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "opaque.esshader",
+  "blendMode": 9,
+  "depthTest": false,
+  "properties": {}
+}
