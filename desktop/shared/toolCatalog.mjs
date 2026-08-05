@@ -77,7 +77,9 @@ const CAPTURE_PNG_JS = `(() => {
 /** name → { description, schema (JSON Schema), method (surface), args(input)→[] }. */
 export const TOOLS = [
   { name: 'load_scene',
-    description: 'Load a scene (and optional asset manifest) into the headless World; returns the spawned entity count. Call first to set up a known scene.',
+    description: 'FIXTURES ONLY: fetch a scene by URL into the headless World; returns the spawned entity count. '
+      + 'With a project open this is the wrong door — a project path is not a URL and the fetch 404s: use open_scene, '
+      + 'which the project already knows how to resolve.',
     schema: obj({ sceneUrl: { type: 'string' }, manifestUrl: { type: 'string' } }, ['sceneUrl']),
     method: 'loadScene', args: (i) => [i.sceneUrl, i.manifestUrl] },
   { name: 'get_scene_tree',
@@ -298,9 +300,10 @@ export const TOOLS = [
       + 'or give `components` as ["Transform","UINode","UIVisual"] / [{type,data}]; '
       + '{op:"set", entity, fields}; {op:"add_component"|"remove_component", entity, component}; {op:"rename", entity, name}; {op:"parent", entity, parent}; {op:"delete", entity}. '
       + 'ENTITY ADDRESSING: an entity is a live numeric id, or "$name" naming an earlier create\'s `ref` — so a parent/child tree is one call with no round trip to learn ids. '
+      + 'A `$ref` lives for THIS call only; the returned `refs` map is how its ids reach the next one. '
       + 'FIELDS is a flat map of "Component.key" → value, e.g. {"Transform.position.x": 10, "UIVisual.color": "#ff0000ff", "Text.content": "Hi"} — same coercion and validation as set_field, '
       + 'including one member of a structural field ("FlexContainer.gap.x", "UINode.marginLeft"). '
-      + 'Give either `ops` inline or `opsPath` (a JSON file), never both. Returns { refs: {name: id}, created: [id], applied: n }. Check get_diagnostics afterwards.',
+      + 'Give either `ops` inline or `opsPath` (a JSON file), never both. Returns { refs: {name: id}, created: [id], applied: n, warnings? } — `warnings` names writes that were accepted and will NOT survive (a field the layout owns), so read it. Check get_diagnostics afterwards.',
     schema: obj({
       ops: { type: 'array', description: 'the op program, executed in order as one undo step' },
       opsPath: { type: 'string', description: 'project-relative path to a JSON file holding the op array, INSTEAD of `ops` — a panel of a few hundred entities is a few hundred KB of program, which does not belong in a message. Write it with write_project_file, then name it here.' },

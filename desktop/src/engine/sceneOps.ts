@@ -23,6 +23,7 @@
  */
 import type { EntityId } from '@/types';
 import type { PrefabData } from 'esengine';
+import { SceneModel } from './SceneModel';
 import { EditorControlSurface } from './EditorSession';
 import { prefabFromSpecs, sourceById } from './entitySources';
 
@@ -62,6 +63,37 @@ export interface SceneOpsResult {
   created: EntityId[];
   /** How many ops ran. */
   applied: number;
+  /**
+   * Writes that were accepted and will not survive — a field something else
+   * owns. Present only when there are any.
+   *
+   * A write that silently does nothing is worse than one that fails: an agent
+   * built a chess board out of forty UI nodes, set `Transform.position` on each,
+   * and got an empty viewport with no error anywhere. The inspector already says
+   * this on the entity card and the diagnostics sweep repeats it, but both are
+   * places you have to go LOOK — the answer belongs in the reply to the call
+   * that made the mistake.
+   */
+  warnings?: string[];
+}
+
+/**
+ * Why a field write will not stick, or null when it will.
+ *
+ * A UINode's placement is the LAYOUT's output: the layout pass writes the
+ * resolved box into `Transform.position` on every relayout, so an authored one
+ * holds until the next UI change and then vanishes. Moving a UI element means
+ * changing a layout INPUT — the anchor/offset in Absolute mode, or the flow it
+ * sits in.
+ */
+function layoutOwnedWarning(entity: EntityId, component: string, key: string): string | null {
+  if (component !== 'Transform' || !/^(position|rotation|scale)/.test(key)) return null;
+  const e = SceneModel.entityBySource(entity);
+  if (!e?.components.some((c) => c.type === 'UINode')) return null;
+  return `entity ${entity}: Transform.${key.split('.')[0]} is owned by the UI layout and will be overwritten `
+    + 'at the next relayout. Move a UI element with its layout INPUTS instead — set UINode.position to '
+    + 'Absolute (1) and give UINode.left / UINode.top — or place game content in the world as a Sprite, '
+    + 'where Transform.position is exactly how it is placed.';
 }
 
 /**
@@ -113,11 +145,14 @@ export async function applySceneOps(
     return id;
   };
 
+  const warnings: string[] = [];
   const setFields = (entity: EntityId, fields: Record<string, unknown>): void => {
     for (const [path, value] of Object.entries(fields)) {
       const { component, key } = splitFieldPath(path);
       // The declared inspector type wins inside setField; this argument is advisory.
       EditorControlSurface.setField(entity, component, key, 'string', value as never);
+      const warning = layoutOwnedWarning(entity, component, key);
+      if (warning && !warnings.includes(warning)) warnings.push(warning);
     }
   };
 
@@ -184,5 +219,5 @@ export async function applySceneOps(
     });
   });
 
-  return { refs, created, applied: ops.length };
+  return { refs, created, applied: ops.length, ...(warnings.length ? { warnings } : {}) };
 }
