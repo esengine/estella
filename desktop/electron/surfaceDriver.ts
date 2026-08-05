@@ -32,9 +32,26 @@ export interface SurfaceDriver {
  * surface error like `component "X" is not on entity 5` IS the caller's
  * feedback, not a debugging detail.
  */
-const carryError = (expr: string): string =>
-  `(async () => { try { return { v: await (${expr}) }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
-
+/**
+ * Wrap a snippet so its value comes back and its throw becomes ours.
+ *
+ * A probe body is a PROGRAM, not necessarily an expression — `a(); b(); "done"`
+ * is what anyone writes, and inside parentheses that is a syntax error. Which
+ * form to use is decided HERE, in the main process, by trying to parse it: the
+ * realm has a CSP and must not be asked to compile anything. An expression keeps
+ * its implicit value; a body returns what it returns.
+ */
+const carryError = (code: string): string => {
+  let isExpression = true;
+  try {
+    new Function(`return (${code})`);
+  } catch {
+    isExpression = false;
+  }
+  const value = isExpression ? `await (${code})` : `await (async () => { ${code} })()`;
+  return `(async () => { try { return { v: ${value} }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
+};
+
 function unwrap(res: unknown): unknown {
   const r = res as { v?: unknown; __estellaExecError?: string } | null;
   if (r && typeof r === 'object' && r.__estellaExecError !== undefined) throw new Error(r.__estellaExecError);

@@ -488,7 +488,7 @@ export const TOOLS = [
       return { total: t.length, from, events: t.slice(from) };
     })` },
   { name: 'play_probe', effect: 'irreversible',
-    description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. window.__estellaPlay = { app, getComponent } for state reads; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
+    description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. window.__estellaPlay = { app, getComponent }: `getComponent(NAME)` gives the component DEFINITION, `app.world.get(entity, def)` a COPY of its data, and a write only lands through `app.world.insert(entity, def, data)` — assigning to the copy changes nothing; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
     op: 'play_probe' },
   { name: 'world_component',
