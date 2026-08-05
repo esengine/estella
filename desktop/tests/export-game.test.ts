@@ -386,9 +386,15 @@ describe('where an export lands', () => {
     expect(existsSync(path.join(res.outDir, 'game.js'))).toBe(true);
   }, 60_000);
 
-  it('gives a driveless absolute path a drive, so every consumer means one place', async () => {
+  // Windows-only by nature: only there is a path absolute AND driveless. On POSIX
+  // `/estella-driveless-out` is fully qualified already, and exporting to it means
+  // asking to write at the filesystem root.
+  const onWindows = process.platform === 'win32' ? it : it.skip;
+  onWindows('gives a driveless absolute path a drive, so every consumer means one place', async () => {
     // The exact shape that split a package in two: absolute by isAbsolute(), and
-    // naming no drive, so fs and esbuild each picked a different one.
+    // naming no drive, so fs and esbuild each picked a different one. Taken from a
+    // writable temp dir so the export lands somewhere real once the drive is back.
+    const driveless = path.join(tmpdir(), 'estella-driveless-out').replace(/^[A-Za-z]:/, '');
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
@@ -396,7 +402,7 @@ describe('where an export lands', () => {
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
-      outDir: '/estella-driveless-out',
+      outDir: driveless,
       title: 'Driveless',
     });
     expect(res.ok).toBe(true);
