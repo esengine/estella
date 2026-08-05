@@ -425,16 +425,19 @@ async function warmRebuild(msg: InitMessage): Promise<void> {
   }
 }
 
-/** Bring up the project bundle + wasm + GL WITHOUT a scene (idle prewarm). A
- *  later `init` then only pays the scene load — the first Play is warm too.
- *  ensureEngine is idempotent, so a subsequent boot()/warmRebuild is a no-op here. */
+/** Bring up wasm + GL WITHOUT a scene or the project bundle (idle prewarm). A
+ *  later `init` then pays only the bundle and the scene — the first Play is warm
+ *  too. ensureEngine is idempotent, so a later boot()/warmRebuild no-ops here. */
 async function warm(): Promise<void> {
   try {
-    try {
-      await import(/* @vite-ignore */ bundleUrl);
-    } catch {
-      /* no project bundle — builtin-only */
-    }
+    // Deliberately NOT the project bundle — only wasm + GL, which is the part
+    // worth minutes. Importing the bundle here evaluated the project's
+    // registrations against a URL `boot()` must not reuse (it would then be
+    // running whatever the code was when the project opened), and importing it
+    // under a fresh URL there registered every system a SECOND time: eight live
+    // systems against four incoming, which the hot-reload structure check reads
+    // as "the structure changed" and answers with a full restart. Parsing the
+    // bundle is milliseconds; instantiating wasm is not.
     await ensureEngine();
     post({ type: 'estella:play:warmed' });
   } catch (err) {
