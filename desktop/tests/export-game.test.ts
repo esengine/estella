@@ -341,3 +341,69 @@ describe('exportGame', () => {
     rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
   }, 60_000);
 });
+
+/**
+ * On Windows a POSIX-style `/Users/me/out` IS absolute and yet names no DRIVE.
+ * The old `isAbsolute ? outDir : join(root, outDir)` passed it through unchanged,
+ * and every consumer then anchored it somewhere else — Node's fs at the current
+ * drive's root, esbuild at its own working directory. The cooked assets, the SDK
+ * tree and index.html went one way and `game.js` + `scripts.mjs` the other, and
+ * since neither half threw, the export reported ok with no errors: a package
+ * whose only script tag points at a file that is not in it.
+ */
+describe('where an export lands', () => {
+  it('writes ONE package — the host and scripts beside the assets', async () => {
+    const out = path.join(root, 'sibling-out');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: out,
+      title: 'One Package',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.errors).toEqual([]);
+    // The three that index.html cannot boot without, in the directory it reports.
+    for (const f of ['index.html', 'game.js', 'scripts.mjs']) {
+      expect([f, existsSync(path.join(res.outDir, f))]).toEqual([f, true]);
+    }
+  }, 60_000);
+
+  it('resolves a relative outDir against the PROJECT, not the process', async () => {
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: 'rel-out',
+      title: 'Relative',
+    });
+    expect(res.outDir).toBe(path.resolve(root, 'rel-out'));
+    expect(existsSync(path.join(res.outDir, 'game.js'))).toBe(true);
+  }, 60_000);
+
+  it('gives a driveless absolute path a drive, so every consumer means one place', async () => {
+    // The exact shape that split a package in two: absolute by isAbsolute(), and
+    // naming no drive, so fs and esbuild each picked a different one.
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: '/estella-driveless-out',
+      title: 'Driveless',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.outDir).toMatch(/^[A-Za-z]:/);
+    for (const f of ['index.html', 'game.js', 'scripts.mjs']) {
+      expect([f, existsSync(path.join(res.outDir, f))]).toEqual([f, true]);
+    }
+    rmSync(res.outDir, { recursive: true, force: true });
+  }, 60_000);
+});

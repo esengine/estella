@@ -634,7 +634,17 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     });
   }
 
-  const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
+  // path.resolve, not isAbsolute-or-join: on Windows `/Users/me/out` IS absolute
+  // and yet names no DRIVE, so it survived that branch unchanged — and then each
+  // consumer anchored it somewhere else. Node's fs took the current drive's root;
+  // esbuild took its own working directory. The cook, the SDK tree and the html
+  // landed in one place and `game.js` + `scripts.mjs` in another, and because
+  // neither half FAILED the export reported ok with no errors: a package whose
+  // index.html loads a script that is not in it. resolve() yields one
+  // fully-qualified path for every consumer, anchors a relative one at the
+  // project (which is what `dist-game` has always meant), and leaves a properly
+  // drive-qualified absolute path alone.
+  const absOut = path.resolve(opts.root, opts.outDir);
   // Desktop nests the web build under app/; the Electron shell sits beside it.
   const payloadDir = platform === 'desktop' ? path.join(absOut, 'app') : absOut;
   // The native app carries the runtime in its binary (engine core + SDK bundle),
