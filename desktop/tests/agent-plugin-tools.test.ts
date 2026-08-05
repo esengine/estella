@@ -28,6 +28,17 @@ describe('the catalog a session is given', () => {
         expect(agentTools().some((t) => t.name === 'get_scene_tree')).toBe(true);
     });
 
+    // The catalog also carries doors for an external DRIVER — a harness running
+    // the editor's agent as its subject. Handing those to the agent would let it
+    // message itself: a loop with a bill attached, and nothing it could learn
+    // that way is true.
+    it('withholds the driver-only doors from the agent itself', () => {
+        const names = agentTools().map((t) => t.name);
+        for (const door of ['agent_send', 'agent_status', 'agent_confirm', 'agent_transcript']) {
+            expect(names).not.toContain(door);
+        }
+    });
+
     it('appends what plugins offered, after the built-ins', () => {
         const merged = agentTools([tool()]);
         expect(merged).toHaveLength(agentTools().length + 1);

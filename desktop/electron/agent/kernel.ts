@@ -19,14 +19,18 @@ import type {
 // @ts-expect-error untyped shared module
 import { TOOLS, runTool, mutates, irreversible } from '../../shared/toolCatalog.mjs';
 
-const catalog = TOOLS as CatalogTool[];
+// `driverOnly` tools are doors for an EXTERNAL driver (a harness running the
+// editor's agent as a subject). The agent itself must not see them: a tool that
+// messages the agent, handed to the agent, is a loop with a bill attached.
+const catalog = (TOOLS as CatalogTool[]).filter((t) => !(t as { driverOnly?: boolean }).driverOnly);
 const byName = new Map(catalog.map((t) => [t.name, t]));
 
 /**
  * The tools an in-editor agent may call: the built-in catalog, plus whatever
  * loaded plugins contributed.
  *
- * Everything built-in is offered. The coarse ESTELLA_MCP_ALLOW_WRITES door
+ * Everything built-in is offered except the driver-only doors (see `catalog`).
+ * The coarse ESTELLA_MCP_ALLOW_WRITES door
  * exists because a REMOTE client has nobody to ask, and this one has the user
  * right there (see the confirm gate below).
  *

@@ -423,6 +423,48 @@ export const TOOLS = [
   { name: 'screenshot',
     description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',
     schema: obj({}), op: 'screenshot', image: true },
+  // — The editor's OWN agent, for a driver that wants to run it: an eval harness,
+  //   a dogfood session, a regression over its behaviour. `driverOnly` keeps these
+  //   out of the built-in agent's own tool list — an agent messaging itself is a
+  //   loop with a bill attached, and nothing it could learn that way is true.
+  { name: 'agent_send', effect: 'irreversible', driverOnly: true,
+    description: "Send a message to the editor's BUILT-IN agent (Settings › AI Agents supplies its key and model) and return its status. It works asynchronously: poll agent_status until phase is 'idle', or 'awaiting_confirm' when it is waiting on a batch preview.",
+    schema: obj({ text: { type: 'string' } }, ['text']),
+    js: (i) => `window.estella.agent.send(${JSON.stringify(i.text)})` },
+  { name: 'agent_status', driverOnly: true,
+    description: "The built-in agent's phase (idle / thinking / awaiting_confirm / error), its model, and how full its context is.",
+    schema: obj({}), js: () => `window.estella.agent.status().then(async (s) => {
+      if (s.phase !== 'awaiting_confirm') return s;
+      // What it is waiting ON, not just that it waits: a driver cannot answer a
+      // question it has to go digging through the transcript to read.
+      const t = await window.estella.agent.transcript();
+      const last = [...t].reverse().find((e) => e.type === 'awaiting_confirm');
+      return { ...s, pending: last?.request ?? null };
+    })` },
+  { name: 'agent_confirm', effect: 'irreversible', driverOnly: true,
+    description: "Answer the built-in agent's pending confirmation (agent_status reports it as `pending` while phase is 'awaiting_confirm'). `answer`: 'once' this call, 'turn' every call of that tool for the rest of the run, 'no' declined. `declined` strikes out lines of a previewed batch by index; the rest still runs.",
+    schema: obj({
+      answer: { type: 'string' }, callId: { type: 'string' },
+      declined: { type: 'array', items: { type: 'number' } },
+    }, ['answer']),
+    js: (i) => `(async () => {
+      let callId = ${JSON.stringify(i.callId ?? null)};
+      if (!callId) {
+        const t = await window.estella.agent.transcript();
+        callId = [...t].reverse().find((e) => e.type === 'awaiting_confirm')?.request?.callId ?? null;
+      }
+      if (!callId) return { ok: false, error: 'the agent is not waiting on a confirmation' };
+      await window.estella.agent.confirm(callId, ${JSON.stringify(i.answer)}, ${JSON.stringify(i.declined ?? undefined)});
+      return { ok: true, callId };
+    })()` },
+  { name: 'agent_transcript', driverOnly: true,
+    description: "The built-in agent's conversation as events (text deltas, tool calls, results, errors) — what it did and what came back. Returns `{ total, from, events }`: `tail` (default 40) is how many of the most recent to send, and `total` is how many exist, so a POLLING driver can tell what it missed rather than counting a rolling window and silently going blind.",
+    schema: obj({ tail: { type: 'number' } }),
+    js: (i) => `window.estella.agent.transcript().then((t) => {
+      const tail = ${Number(i.tail) > 0 ? Number(i.tail) : 40};
+      const from = Math.max(0, t.length - tail);
+      return { total: t.length, from, events: t.slice(from) };
+    })` },
   { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. window.__estellaPlay = { app, getComponent } for state reads; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
