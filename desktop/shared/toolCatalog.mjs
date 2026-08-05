@@ -495,6 +495,19 @@ export const TOOLS = [
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. window.__estellaPlay = { app, getComponent }: `getComponent(NAME)` gives the component DEFINITION, `app.world.get(entity, def)` a COPY of its data, and a write only lands through `app.world.insert(entity, def, data)` — assigning to the copy changes nothing; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
     op: 'play_probe' },
+  { name: 'play_input', effect: 'irreversible',
+    description: 'Deliver a pointer or key event to the RUNNING game — the only way to exercise the input a game actually ships with. '
+      + "`kind`: 'click' (down+up at x,y), 'move', 'down', 'up', 'wheel', 'key_down', 'key_up', 'tap' (touch down+up). "
+      + 'x/y are SCREEN pixels, canvas-relative, y DOWN — the same numbers a real pointer event carries and what `Input.mouseX/mouseY` then read; '
+      + 'ask the camera (CameraView.screenToWorld / UICameraInfo.worldMouseX) for where that is in the world rather than converting by hand. '
+      + '`code` is a KeyboardEvent code for the key kinds. It goes through the platform binding\'s own callbacks, so UI gets first refusal exactly as it would for a real event. '
+      + 'A pressed EDGE (isMouseButtonPressed / isKeyPressed) lasts one frame: call step() right after, then read the result. '
+      + 'Calling the game\'s own handler instead proves only that the handler works — not that a click reaches it.',
+    schema: obj({
+      kind: { type: 'string' }, x: { type: 'number' }, y: { type: 'number' },
+      button: { type: 'number' }, code: { type: 'string' }, frame: { type: 'number' },
+    }, ['kind']),
+    op: 'play_input' },
   { name: 'world_component',
     description: "A LIVE World component's data for a source entity, resolved by component name — verifies an edit actually reached the engine.",
     schema: obj({ id: { type: 'number' }, component: { type: 'string' } }, ['id', 'component']),

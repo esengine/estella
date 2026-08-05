@@ -103,11 +103,16 @@ export async function startMcpEndpoint(
     try {
       server = await createExecEndpoint({
         token: TOKEN,
-        run: async ({ method, args, root, js, op, code, frame }: {
+        // An op's payload is forwarded WHOLE. Naming its fields here (it used to
+        // pass `{ code, frame }`, the two play_probe wanted) means every field a
+        // later op adds is dropped in transit — the tool validates it, the
+        // catalog documents it, and the op sees undefined. That is the same
+        // silent-argument-loss that made `offset` on read_project_file a lie.
+        run: async (payload: {
           method?: string; args?: unknown[]; root?: string; js?: string; op?: string;
-          code?: string; frame?: number;
-        }) => {
-          if (op) return driver.op(op, { code, frame });
+        } & Record<string, unknown>) => {
+          const { method, args, root, js, op, ...rest } = payload;
+          if (op) return driver.op(op, rest);
           if (js) return driver.js(js);
           return driver(method as string, args ?? [], root);
         },

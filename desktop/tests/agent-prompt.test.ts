@@ -37,6 +37,16 @@ describe('the agent is told where game input comes from', () => {
     expect(SYSTEM_PROMPT).toMatch(/offset.*limit|limit.*offset/);
   });
 
+  it('names the two front doors, and that the underscore fields are not one', () => {
+    // A hand-assembled SystemDef happens to RUN, so nothing complains — it just
+    // leaves a project whose systems no tool of ours recognises.
+    expect(SYSTEM_PROMPT).toContain('defineSystem');
+    expect(SYSTEM_PROMPT).toContain('defineComponent');
+    expect(SYSTEM_PROMPT).toContain('addSystemToSchedule');
+    expect(SYSTEM_PROMPT).toMatch(/_params.*_fn|_fn.*_params/);
+    expect(SYSTEM_PROMPT).toMatch(/not an authoring surface/);
+  });
+
   it('stays one text — it sits in the cached prefix and must not vary per turn', () => {
     expect(typeof SYSTEM_PROMPT).toBe('string');
     expect(SYSTEM_PROMPT).toBe(SYSTEM_PROMPT);

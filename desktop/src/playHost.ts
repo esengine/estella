@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
@@ -277,7 +277,31 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   // host's __estellaHeadless): the editor can't reach into this OOPIF except by
   // main-process frame eval, and the eval needs SOMETHING to query. getComponent
   // lets a probe read component data by name (world.get needs the def).
-  (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app, getComponent };
+  // `input` delivers a pointer/key event through the SAME callbacks the platform
+  // binding hands raw events to, so an injected click is routed past the UI and
+  // recorded exactly like a real one. Without it a driver can build input
+  // handling and never test it: the realm is an out-of-process frame that
+  // sendInputEvent does not reach, a synthetic MouseEvent carries no usable
+  // offsetX, and poking mouseX / mouseButtonsPressed by hand skips the router.
+  // What that costs is not hypothetical — a chess game was "verified" by calling
+  // its own click handler directly, which is how a screen-to-world bug reached
+  // the player: the one path nobody could exercise was the one that was wrong.
+  const injected = inputEventCallbacks(app.getResource(Input));
+  (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = {
+    app,
+    getComponent,
+    input: {
+      move: (x: number, y: number) => injected.onPointerMove?.(x, y),
+      down: (x: number, y: number, button = 0) => injected.onPointerDown?.(button, x, y),
+      up: (button = 0) => injected.onPointerUp?.(button),
+      wheel: (dx: number, dy: number) => injected.onWheel?.(dx, dy),
+      keyDown: (code: string) => injected.onKeyDown?.(code),
+      keyUp: (code: string) => injected.onKeyUp?.(code),
+      touchStart: (id: number, x: number, y: number) => injected.onTouchStart?.(id, x, y),
+      touchMove: (id: number, x: number, y: number) => injected.onTouchMove?.(id, x, y),
+      touchEnd: (id: number) => injected.onTouchEnd?.(id),
+    },
+  };
   startFrameHeartbeat();
 
   // Surface a failed handshake as a boot error rather than a silent

@@ -23,7 +23,7 @@ import type { BrowserWindow } from 'electron';
 export interface SurfaceDriver {
   (method: string, args?: readonly unknown[], root?: string): Promise<unknown>;
   js(code: string): Promise<unknown>;
-  op(op: string, input?: { code?: string; frame?: number }): Promise<unknown>;
+  op(op: string, input?: Record<string, unknown>): Promise<unknown>;
 }
 
 /**
@@ -51,7 +51,7 @@ const carryError = (code: string): string => {
   const value = isExpression ? `await (${code})` : `await (async () => { ${code} })()`;
   return `(async () => { try { return { v: ${value} }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
 };
-
+
 function unwrap(res: unknown): unknown {
   const r = res as { v?: unknown; __estellaExecError?: string } | null;
   if (r && typeof r === 'object' && r.__estellaExecError !== undefined) throw new Error(r.__estellaExecError);
@@ -110,12 +110,49 @@ export function createSurfaceDriver(getWin: () => BrowserWindow | null): Surface
         // The play realm is an estella:// OOPIF — only a main-process frame eval
         // reaches it (window.__estellaPlay is the probe the realm publishes).
         const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
-        const at = input.frame ?? 0;
+        const at = Number(input.frame ?? 0);
         const frame = frames[at];
         if (!frame) {
           throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
         }
-        return unwrap(await frame.executeJavaScript(carryError(input.code ?? 'true')));
+        return unwrap(await frame.executeJavaScript(carryError(String(input.code ?? 'true'))));
+      }
+      case 'play_input': {
+        // Same frame lookup as play_probe — the realm is the only thing that has
+        // an InputState — but the code is OURS, so a caller cannot mistype the
+        // facade and get silence. Everything routes through the realm's
+        // `__estellaPlay.input`, which is the platform binding's own callbacks.
+        const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
+        const at = Number(input.frame ?? 0);
+        const frame = frames[at];
+        if (!frame) {
+          throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
+        }
+        const { kind } = input as { kind?: string };
+        const x = Number(input.x ?? 0), y = Number(input.y ?? 0);
+        const button = Number(input.button ?? 0);
+        const code = JSON.stringify(String(input.code ?? ''));
+        const id = 1;
+        const call = {
+          click: `i.down(${x},${y},${button}); i.up(${button});`,
+          move: `i.move(${x},${y});`,
+          down: `i.down(${x},${y},${button});`,
+          up: `i.up(${button});`,
+          wheel: `i.wheel(${x},${y});`,
+          key_down: `i.keyDown(${code});`,
+          key_up: `i.keyUp(${code});`,
+          tap: `i.touchStart(${id},${x},${y}); i.touchEnd(${id});`,
+        }[kind ?? ''];
+        if (!call) {
+          throw new Error(
+            `unknown play_input kind "${kind}" — one of click, move, down, up, wheel, key_down, key_up, tap`,
+          );
+        }
+        return unwrap(await frame.executeJavaScript(carryError(
+          `(() => { const p = window.__estellaPlay; if (!p || !p.input) `
+          + `throw new Error('this play realm publishes no input door — it predates play_input'); `
+          + `const i = p.input; ${call} return 'ok'; })()`,
+        )));
       }
       default:
         throw new Error(`unknown main-process op: ${op}`);
