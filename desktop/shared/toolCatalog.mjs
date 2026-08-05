@@ -92,6 +92,12 @@ export const TOOLS = [
   { name: 'get_inspector',
     description: "An entity's components and fields — the Details-panel data.",
     schema: obj({ entity: { type: 'number' } }, ['entity']), method: 'getInspector', args: (i) => [i.entity] },
+  { name: 'describe_component',
+    description: "A component TYPE's fields before you write any: key, label, inspector type, enum options and the default. "
+      + 'Ask this instead of guessing a field name — the registry knows that ShapeRenderer takes `shapeType` (0 Circle / 1 Capsule / 2 RoundedRect), not `shape` or `fill`. '
+      + 'get_inspector answers the same question about a LIVE entity; this one needs no entity to exist.',
+    schema: obj({ component: { type: 'string' } }, ['component']),
+    method: 'describeComponent', args: (i) => [i.component] },
   { name: 'get_field_value',
     description: "One component field's current value (null if the field does not exist).",
     schema: obj({ entity: { type: 'number' }, component: { type: 'string' }, key: { type: 'string' } },

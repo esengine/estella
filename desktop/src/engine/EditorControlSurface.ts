@@ -19,6 +19,7 @@ import type {
   EntityId,
   EnumOption,
   InspectorComponent,
+  InspectorField,
   InspectorFieldType,
   InspectorFieldValue,
   SceneNode,
@@ -26,7 +27,7 @@ import type {
 import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
-import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability } from './schema';
+import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -451,7 +452,17 @@ export class EditorControlSurfaceImpl {
    */
   addComponent(entity: EntityId, component: string): void {
     if (!componentByName(component) && !userSchema(component)) {
-      throw new Error(`no component schema named "${component}" — the editor cannot add it.`);
+      // A project's OWN components come from its declaration script, which the
+      // editor extracts schemas from — so a component that exists only as a file
+      // nobody imports is one the editor has never heard of. Said here because
+      // the caller has just written that file and is being refused by the door
+      // that knows exactly what is missing.
+      throw new Error(
+        `no component schema named "${component}" — the editor cannot add it. A project's own `
+        + 'components are picked up from its declaration script (src/components.ts by default, or '
+        + '`scripts.register` in project.esproject): define it there with defineComponent, or import '
+        + 'the file that does, and it becomes addable.',
+      );
     }
     // The Add Component list hides these; the command that performs the add drops
     // them too. Said out loud here because a driver that is refused deserves the
@@ -584,6 +595,19 @@ export class EditorControlSurfaceImpl {
   }
   getInspector(entity: EntityId): InspectorComponent[] {
     return this.s.query.readInspector(entity);
+  }
+  /**
+   * A component TYPE's fields — key, label, inspector type, enum options and the
+   * default value — WITHOUT needing an entity that already carries one.
+   *
+   * The only way to learn a component's schema was to create an entity, add the
+   * component and inspect it. A driver that skipped that guessed instead: three
+   * round trips to find out ShapeRenderer's field is `shapeType` (not `shape`,
+   * not `fill`) and that it takes 0/1/2 rather than "rectangle". The registry
+   * knew all of that from the start.
+   */
+  describeComponent(component: string): InspectorField[] {
+    return inspectorFields(component, {});
   }
   getFieldValue(entity: EntityId, component: string, key: string): InspectorFieldValue | null {
     return this.s.query.getFieldValue(entity, component, key);
