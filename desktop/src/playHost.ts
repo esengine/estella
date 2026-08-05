@@ -290,6 +290,38 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = {
     app,
     getComponent,
+    /**
+     * Every entity carrying `name`, with that component's data — "what does my
+     * game think is going on right now", which is the question a probe has.
+     *
+     * `world.get(entity, def)` needs an entity id, and there was no way to
+     * obtain one: an agent verifying the game it had just built tried
+     * `world.getComponentDef`, `world.entities`, then went digging in the wasm
+     * module's exports, and got a wrong answer from each. Worse, `get` on an
+     * entity WITHOUT the component returns a zeroed object rather than nothing,
+     * so counting up from 0 does not merely fail — it lies. `tryGet` is the one
+     * that answers honestly, and this is it, aimed at the whole world.
+     */
+    find: (name: string, limit = 200) => {
+      const world = app!.world;
+      const def = getComponent(name);
+      if (!def) {
+        return { error: `no component named "${name}" is registered in this realm` };
+      }
+      const out: Array<{ entity: number; data: unknown }> = [];
+      for (const e of world.getAllEntities()) {
+        const data = world.tryGet(e, def);
+        if (data === null || data === undefined) continue;
+        if (out.length >= limit) return { total: out.length, truncatedAt: limit, entities: out };
+        out.push({ entity: e as never as number, data });
+      }
+      return { total: out.length, entities: out };
+    },
+    /** What `find` can be asked about: the component names this realm knows. */
+    componentNames: () => app!.world.getAllEntities()
+      .flatMap((e) => app!.world.getComponentTypes(e as never))
+      .filter((t, i, a) => a.indexOf(t) === i)
+      .sort(),
     input: {
       move: (x: number, y: number) => injected.onPointerMove?.(x, y),
       down: (x: number, y: number, button = 0) => injected.onPointerDown?.(button, x, y),
