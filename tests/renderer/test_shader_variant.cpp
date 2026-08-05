@@ -240,7 +240,9 @@ static void testWGSLEmission() {
 
     ParsedShader lit = ShaderParser::parse(WGSL_TWIN_LIT);
     const std::string litVs = wgsl(lit, ShaderStage::Vertex);
-    CHECK(litVs.find("out.v_worldPos = v.a_position;") != std::string::npos,
+    // .xy, not the whole position: the batch vertex carries a z now, and the
+    // lighting varying is a vec2 because 2D lighting works in the XY plane.
+    CHECK(litVs.find("out.v_worldPos = v.a_position.xy;") != std::string::npos,
           "Lit2D canonical WGSL vertex forwards world position");
     const std::string litFs = wgsl(lit, ShaderStage::Fragment);
     CHECK(litFs.find("@location(2) v_worldPos : vec2f,") != std::string::npos,
