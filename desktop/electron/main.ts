@@ -1190,11 +1190,26 @@ ipcMain.handle('project:preparePlayRealm', async () => {
   const root = requireRoot();
   const manifest = await readManifest(root);
   const { main } = resolveScripts(manifest);
-  // Best-effort: a project with no scripts entry just runs builtin-only.
+  // A project with no scripts entry runs builtin-only, which is a real way to
+  // use the editor. A project that HAS one and cannot compile it is not: the
+  // realm would boot, the host would swallow the missing bundle, and the game
+  // would play with none of its own code and nothing said anywhere. That is how
+  // a finished chess game came out as a board nobody could click.
+  const hasEntry = existsSync(path.join(root, main));
+  let scripts: Awaited<ReturnType<typeof buildProjectScripts>> | null = null;
   try {
-    await buildProjectScripts(root, { entry: main });
-  } catch {
-    /* no bundle — builtin components/systems only */
+    scripts = await buildProjectScripts(root, { entry: main });
+  } catch (e) {
+    scripts = { ok: false, outputPath: null, errors: [String((e as Error)?.message ?? e)], warnings: [] };
+  }
+  if (hasEntry && !scripts.ok) {
+    return {
+      ok: false,
+      hostPath: '',
+      errors: [`"${main}" did not compile, so the game would run without its own code:`, ...scripts.errors],
+      warnings: scripts.warnings,
+      sideModules: [],
+    };
   }
   return buildPlayRealm({
     root,
