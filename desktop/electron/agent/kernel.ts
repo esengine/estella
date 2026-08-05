@@ -193,6 +193,11 @@ export async function runTurn(
     session.pushUser(text, images);
 
     // Bounded so a model that keeps calling tools cannot spin forever.
+    // Turn-level, not round-level: "did this turn build anything" and "did it
+    // ever look" are questions about the whole turn.
+    let builtSomething = false;
+    let sawPixels = false;
+    let askedToLook = false;
     let round = 0;
     for (; round < MAX_ROUNDS; round++) {
       // The editor is not frozen while a turn runs: the person can drag an
@@ -213,6 +218,16 @@ export async function runTurn(
         }
       }
 
+      // Running out of room is something the model can act on, but only if it
+      // learns before the last round rather than at it.
+      if (round === MAX_ROUNDS - ROUNDS_WARNING) {
+        session.pushContext(
+          `You have ${ROUNDS_WARNING} tool rounds left in this turn before it is cut off. `
+          + 'Land what you have: finish the step you are on, leave the project in a working '
+          + 'state, and tell the user where things stand and what is left.',
+        );
+      }
+
       const calls: ToolCall[] = [];
       let refused = false;
 
@@ -222,7 +237,25 @@ export async function runTurn(
         emit(ev);
       }
       if (refused) { reason = 'refusal'; break; }
-      if (calls.length === 0) break;
+      // No calls means it is about to answer. If it built something and never
+      // once looked at it, that answer is a report on work nobody has seen —
+      // which is how a board half off camera gets delivered as a finished game,
+      // with every write compiling and every diagnostic clean. Asked ONCE per
+      // turn: a second ask would be an argument, and the model may have a reason.
+      if (calls.length === 0) {
+        if (builtSomething && !sawPixels && !askedToLook) {
+          askedToLook = true;
+          session.pushContext(
+            'You changed the scene this turn and have not looked at it once. Diagnostics only '
+            + 'cover what the editor can name — whether the content is ON CAMERA, whether it '
+            + 'reads, whether it is where you meant, are all things only the picture answers. '
+            + 'capture_viewport now; if it is something that has to be PLAYED, toggle_play, '
+            + 'drive it with play_input and screenshot that. Then fix what you see, or report.',
+          );
+          continue;
+        }
+        break;
+      }
 
       // Reads have no side effects and no order among themselves, so a run of
       // them goes out together — three lookups become one wait instead of three.
@@ -241,6 +274,10 @@ export async function runTurn(
           outcomes.push(done.outcome);
           wrote ||= done.mutated;
         }
+        for (const c of calls.slice(i, i + batch.length)) {
+          if (LOOKING_TOOLS.has(c.name)) sawPixels = true;
+        }
+        builtSomething ||= wrote;
         i += batch.length;
       }
       if (signal.aborted) break;
@@ -274,7 +311,26 @@ export async function runTurn(
   return { mark, steps };
 }
 
-const MAX_ROUNDS = 48;
+/**
+ * The backstop against a turn that never ends — a model retrying a call that
+ * always fails would otherwise spend a balance before anyone noticed.
+ *
+ * Held high because the failure it prevents is rare and the one it CAUSES is
+ * not: building a small game takes some seventy tool calls, and at 48 both
+ * dogfood runs were cut off mid-build. A turn that stops here has spent real
+ * money to deliver half a thing.
+ */
+const MAX_ROUNDS = 128;
+
+/**
+ * How many rounds from the cap the model is told it is running out.
+ *
+ * The cap on its own truncates: the round where it would have said "the board is
+ * built, here is how to play it" is the round it never gets. Warned, it can land
+ * the work it has — which is the difference between an unfinished turn and an
+ * unfinished turn nobody explained.
+ */
+const ROUNDS_WARNING = 8;
 
 /** Undo steps recorded since `mark`, or 0 when the editor cannot say. */
 async function undoSteps(deps: KernelDeps, mark: unknown): Promise<number> {
@@ -415,6 +471,10 @@ async function execute(
   // A failed call changed nothing worth re-verifying.
   return { outcome, mutated: mutates(tool) && !outcome.isError };
 }
+
+/** The tools that put PIXELS in front of the model — the only answer to "does it
+ *  look right", which no diagnostic can give. */
+const LOOKING_TOOLS = new Set(['capture_viewport', 'screenshot']);
 
 /** The scene's outstanding validation issues as one line of context, or null
  *  when there are none (silence is the "still clean" signal). */

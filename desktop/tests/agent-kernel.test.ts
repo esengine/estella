@@ -143,7 +143,10 @@ describe('the agent turn', () => {
   });
 
   it('says nothing when the scene is clean — silence is the done signal', async () => {
-    const s = fakeSession([asks(call('add_entity')), ends()]);
+    // A clean sweep adds no diagnostics line. (The turn is still asked to LOOK
+    // once, which is a different reflex with its own cases below — this one is
+    // about what the DIAGNOSTICS say, so it looks first and leaves that quiet.)
+    const s = fakeSession([asks(call('add_entity')), asks(call('capture_viewport')), ends()]);
     await runTurn(deps(s), 'add', null, new AbortController().signal);
     expect(s.context).toHaveLength(0);
   });
@@ -188,7 +191,9 @@ describe('the agent turn', () => {
   // an end_turn here looks exactly like a run that finished, and the sentence
   // that would have told you otherwise is the one it never got to write.
   it('says the step budget ran out rather than reporting a finished run', async () => {
-    const s = fakeSession(Array.from({ length: 60 }, () => asks(call('get_scene_tree'))));
+    // Enough steps to outlast any cap: writing the cap's number here is how a
+    // test starts failing for the raise it was meant to be indifferent to.
+    const s = fakeSession(Array.from({ length: 400 }, () => asks(call('get_scene_tree'))));
     await runTurn(deps(s), 'build the whole game', null, new AbortController().signal);
     expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'max_rounds' });
   });
@@ -285,7 +290,12 @@ describe('the agent turn', () => {
     // the whole reason it is not persisted.
     it('expires with the run', async () => {
       confirm.mockResolvedValue({ answer: 'turn' });
-      const s = fakeSession([asks(call('save_scene')), ends(), asks(call('save_scene')), ends()]);
+      // capture_viewport in each turn: a turn that wrote and never looked spends
+      // an extra round being asked to, which would shift the scripted steps.
+      const s = fakeSession([
+        asks(call('save_scene')), asks(call('capture_viewport')), ends(),
+        asks(call('save_scene')), asks(call('capture_viewport')), ends(),
+      ]);
       await runTurn(deps(s), 'save', null, new AbortController().signal);
       await runTurn(deps(s), 'save again', null, new AbortController().signal);
       expect(confirm).toHaveBeenCalledTimes(2);
@@ -508,5 +518,94 @@ describe('the agent turn', () => {
       expect(events.some((e) => e.type === 'tool_start')).toBe(false);
       stuck.release();
     });
+  });
+});
+
+describe('looking before reporting', () => {
+  let events: AgentEvent[];
+  let driver: ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+
+  const deps = (session: AgentSession) => ({
+    driver: driver as never, session, model: 'fake-model', acceptsImages: true,
+    confirm: (async () => ({ answer: 'once' })) as never,
+    emit: (e: AgentEvent) => { events.push(e); },
+  });
+
+  beforeEach(() => {
+    events = [];
+    driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      return null;
+    }) as never;
+    (driver as { js: unknown }).js = vi.fn(async () => null);
+    (driver as { op: unknown }).op = vi.fn(async () => null);
+  });
+
+  it('sends a turn that built something but never looked back for a look', async () => {
+    // The gomoku turn: 71 calls, every write compiling, every diagnostic clean,
+    // and the board half off camera — because nothing in the loop ever put a
+    // picture in front of it.
+    const s = fakeSession([asks(call('add_entity', { name: 'Board' })), ends(), ends()]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport'))).toBe(true);
+  });
+
+  it('says nothing to a turn that already looked', async () => {
+    const s = fakeSession([
+      asks(call('add_entity', { name: 'Board' })),
+      asks(call('capture_viewport')),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(false);
+  });
+
+  it('says nothing to a turn that only read', async () => {
+    // Answering a question is not building something, and a question does not
+    // need a screenshot to be answered honestly.
+    const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+    await runTurn(deps(s), 'what is in the scene?', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport'))).toBe(false);
+  });
+
+  it('asks once, not every round', async () => {
+    // A second ask is an argument. The model may have a reason not to look, and
+    // a loop that insists cannot be ended by the model at all.
+    const s = fakeSession([asks(call('add_entity', { name: 'B' })), ends(), ends(), ends()]);
+    await runTurn(deps(s), 'build', null, new AbortController().signal);
+    expect(s.context.filter((c) => c.includes('capture_viewport')).length).toBe(1);
+  });
+});
+
+describe('running out of rounds', () => {
+  it('warns before the cap so the turn can be landed, not truncated', async () => {
+    // The cap used to arrive without notice: the round in which it would have
+    // summarised the work is the one it never got, so an unfinished turn and a
+    // finished one looked identical to whoever was reading.
+    const events: AgentEvent[] = [];
+    const driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      return null;
+    }) as ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+    (driver as { js: unknown }).js = vi.fn(async () => null);
+    (driver as { op: unknown }).op = vi.fn(async () => null);
+
+    // Never stops asking: the only way to reach the cap.
+    const forever: StepEvent[][] = Array.from({ length: 200 }, () => asks(call('get_scene_tree')));
+    const s = fakeSession(forever);
+    const out = await runTurn({
+      driver: driver as never, session: s, model: 'm', acceptsImages: true,
+      confirm: (async () => ({ answer: 'once' })) as never,
+      emit: (e: AgentEvent) => { events.push(e); },
+    }, 'go', null, new AbortController().signal);
+
+    expect(out).toBeTruthy();
+    expect(events.some((e) => e.type === 'turn_end' && e.reason === 'max_rounds')).toBe(true);
+    const warnings = s.context.filter((c) => c.includes('rounds left'));
+    expect(warnings).toHaveLength(1);
   });
 });
