@@ -176,7 +176,9 @@ export const TOOLS = [
     schema: obj({ clientX: { type: 'number' }, clientY: { type: 'number' } }, ['clientX', 'clientY']),
     method: 'pick', args: (i) => [i.clientX, i.clientY] },
   { name: 'set_run_mode',
-    description: 'Enter or leave play mode (playing=true runs gameplay; Stop rebuilds the edit World).',
+    description: 'Run gameplay against the EDIT World (Stop rebuilds it from the model). This is the headless host\'s play; '
+      + "in the editor app the project's scripts live in the play realm and not in this World, so there it refuses and names toggle_play — "
+      + 'which is the one to reach for when the question is "does the game work".',
     schema: obj({ playing: { type: 'boolean' }, paused: { type: 'boolean' } }, ['playing']),
     method: 'setRunMode', args: (i) => [i.playing, i.paused] },
   { name: 'step',

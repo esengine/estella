@@ -314,6 +314,21 @@ export class EditorControlSurfaceImpl {
    * boundary: EngineHost handles the pure engine flip, the session the rebuild.
    */
   setRunMode(playing: boolean, paused = false): boolean {
+    // In the EDITOR APP this door cannot do what its name promises. The game's
+    // scripts are bundled into the play realm, never into the edit World this
+    // flips, so "playing" here starts a world with no gameplay in it — and the
+    // honest `false` it returned (it means "no Stop rebuild happened", not
+    // "failed") reads as a refusal, so a caller retries, then reaches for
+    // toggle_play, and by then both notions of play are half-on. Say which door
+    // it is. The headless host has no realm and keeps this one.
+    if (typeof window !== 'undefined' && '__estellaEditor' in window) {
+      throw new Error(
+        'set_run_mode drives the edit World, which does not have the project\'s game scripts — '
+        + "in the editor they are bundled into the play realm. Use toggle_play to run the game "
+        + '(get_play_state reports it, screenshot sees it), and step() to advance the edit World '
+        + 'a frame without playing.',
+      );
+    }
     const wasStop = EngineHost.setRunMode(playing, paused);
     if (wasStop) this.s.reconciler.rebuildWorld();
     return wasStop;
@@ -615,6 +630,20 @@ export class EditorControlSurfaceImpl {
     // has always had this list; it was reachable only by opening the menu.
     if (!component) {
       return modelAddableComponentEntries({ id: 0, name: '', parent: null, children: [], components: [] });
+    }
+    // A name nothing declares used to answer `[]` — which reads as "that component
+    // has no fields", not "there is no such component". A driver that asked about
+    // the component it was ABOUT to write took the empty list for a description
+    // and carried on. Refuse in the same words the add door uses, so the two
+    // answers about one missing schema cannot disagree.
+    if (!componentByName(component) && !userSchema(component)) {
+      throw new Error(
+        `no component schema named "${component}" — nothing declares it, so there are no fields to `
+        + "describe. Call describe_component with no arguments for the list of what does exist. A "
+        + "project's own components are picked up from its declaration script (src/components.ts by "
+        + 'default, or `scripts.register` in project.esproject): define it there with defineComponent, '
+        + 'or import the file that does, and it becomes describable.',
+      );
     }
     return inspectorFields(component, {});
   }

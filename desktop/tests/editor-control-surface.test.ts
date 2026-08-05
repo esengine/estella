@@ -153,6 +153,17 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(() => S.surface.setField(id, 'Sprite', 'size', 'vec2', 'garbage')).toThrow(/expects/);
   });
 
+  it('describeComponent refuses a name nothing declares, rather than answering "no fields"', () => {
+    // The empty list was indistinguishable from a real component with nothing on
+    // it, so a caller asking about the component it was about to write read the
+    // answer as a description and carried on.
+    expect(S.surface.describeComponent('Sprite').length).toBeGreaterThan(0);
+    expect(() => S.surface.describeComponent('ChessPiece')).toThrow(/no component schema named/);
+    expect(() => S.surface.describeComponent('ChessPiece')).toThrow(/defineComponent/);
+    // No name at all is still the catalog, not a refusal.
+    expect(S.surface.describeComponent().length).toBeGreaterThan(0);
+  });
+
   it('setField writes ONE member of a structural field, leaving the rest', () => {
     const id = S.surface.addEntity()!;
     S.surface.addComponent(id, 'Sprite');
