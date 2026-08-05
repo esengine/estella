@@ -360,7 +360,15 @@ class EngineHostImpl {
    */
   setViewPerspective(on: boolean): void {
     const view = this.getResource(EditorView);
-    if (view) view.perspective = on;
+    if (!view || view.perspective === on) return;
+    // Switching projection keeps the FRAMING: the two modes zoom with different
+    // fields (a box half-height, a camera distance), so flipping the flag alone
+    // jumped to whatever the other field happened to hold — the scene lurched
+    // ~2× on a button that is supposed to change how depth looks, not what you
+    // are looking at. Carry the seen extent across; one formula owns both.
+    const seen = editorViewHalfHeight(view);
+    view.perspective = on;
+    setEditorViewHalfHeight(view, seen);
   }
 
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */
