@@ -1410,7 +1410,7 @@ ResourceDef<CameraViewAPI>
 ```
 getWorldBounds: () => { left: number; right: number; bottom: number; top: number; } | null
 getWorldMousePosition: () => { x: number; y: number; } | null
-screenToWorld: (screenX: number, screenY: number) => { x: number; y: number; } | null
+screenToWorld: (screenX: number, screenY: number, planeZ?: number) => { x: number; y: number; } | null
 worldToScreen: (worldX: number, worldY: number) => { x: number; y: number; } | null
 static new (app_: App): CameraViewAPI
 static prototype: CameraViewAPI

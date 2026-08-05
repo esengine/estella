@@ -23,6 +23,9 @@ vi.mock('@/engine/EngineHost', () => ({
 vi.mock('@/engine/ViewportController', () => ({
   ViewportController: {
     canvasToWorld: (x: number, y: number) => ({ x, y }), // identity: world == client px
+    // Flat scene: every plane is z = 0, which is what the orthographic editor
+    // answers anyway — the drag plane must not change these expectations.
+    entityPlaneZ: () => 0,
     worldToClient: (x: number, y: number) => ({ x, y }),
     getEntityWorldXY: (rt: number) => h.pos.get(rt) ?? { x: 0, y: 0 },
     getEntityWorldAngleRad: () => 0,

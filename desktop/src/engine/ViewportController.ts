@@ -65,7 +65,7 @@ function jointConnectedRuntime(j: JointGizmoData): EntityId | null {
 
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
-  screenToWorld(x: number, y: number): { x: number; y: number } | null;
+  screenToWorld(x: number, y: number, planeZ?: number): { x: number; y: number } | null;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
 }
 
@@ -162,12 +162,27 @@ const MINIMAP_BOX_CAP = 800;
 // Picking and screen<->world conversions for the viewport, all routed through
 // the engine's own camera matrices (no projection assumptions).
 export const ViewportController = {
-  /** DOM pointer position → world coordinates. */
-  canvasToWorld(clientX: number, clientY: number): { x: number; y: number } | null {
+  /**
+   * DOM pointer position → world coordinates on the plane at @p planeZ.
+   *
+   * The default plane is the 2D one, which is the whole answer under an
+   * orthographic view — a screen point's world x/y do not change with depth
+   * there. In a perspective view they do, so anything that hits or drags a
+   * specific entity should pass that entity's z; navigation (pan, zoom, framing)
+   * keeps the 2D plane, which is the plane it is navigating over.
+   */
+  canvasToWorld(clientX: number, clientY: number, planeZ = 0): { x: number; y: number } | null {
     const cv = cameraView();
     const s = clientToScreen(clientX, clientY);
     if (!cv || !s) return null;
-    return cv.screenToWorld(s.sx, s.sy);
+    return cv.screenToWorld(s.sx, s.sy, planeZ);
+  },
+
+  /** The world z an entity sits on — the plane its picking and dragging happen on. */
+  entityPlaneZ(e: EntityId): number {
+    const world = EngineHost.world;
+    if (!world || !world.has(e, Transform)) return 0;
+    return (world.get(e, Transform) as { position?: { z?: number } }).position?.z ?? 0;
   },
 
   /** World coordinates → CSS pixels relative to the canvas top-left (gizmo placement). */
@@ -250,16 +265,22 @@ export const ViewportController = {
     const out: EntityId[] = [...this.pickUIEntities(clientX, clientY)];
 
     const world = EngineHost.world;
-    const wp = this.canvasToWorld(clientX, clientY);
-    if (world && wp) {
+    if (world) {
       const hits: { e: EntityId; layer: number; i: number }[] = [];
+      // The cursor is tested against each candidate ON ITS OWN PLANE. One shared
+      // world point would be the 2D projection of the cursor, which under a
+      // perspective view is where a sprite's shadow falls rather than where the
+      // sprite is — so anything off the z = 0 plane would be unclickable at the
+      // place it is drawn. Orthographically every plane gives the same point, so
+      // this costs an unproject per candidate and changes no answer.
       for (const e of world.getAllEntities()) {
         if (!world.has(e, Transform)) continue;
         // Locked / editor-hidden / environment entities aren't click-selectable.
         const src = SceneModel.sourceFor(e);
         if (src != null && !SceneModel.isPickable(src)) continue;
+        const wp = this.canvasToWorld(clientX, clientY, this.entityPlaneZ(e));
         const b = this.entityBounds(e);
-        if (!b || !pointInOBB(wp.x, wp.y, b)) continue;
+        if (!wp || !b || !pointInOBB(wp.x, wp.y, b)) continue;
         const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
         hits.push({ e, layer, i: hits.length });
       }

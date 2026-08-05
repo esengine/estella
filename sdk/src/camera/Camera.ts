@@ -24,12 +24,21 @@ export class CameraViewAPI {
         return cam.valid ? cam : null;
     }
 
-    screenToWorld(screenX: number, screenY: number): { x: number; y: number } | null {
+    /**
+     * Where a screen point lands on the world plane at @p planeZ.
+     *
+     * A screen point is a ray. Orthographically its x/y do not vary along it, so
+     * the plane is irrelevant and the default answers for everyone. Under a
+     * perspective camera it decides the answer, and the right plane is the one
+     * the thing being hit or dragged actually sits on — z = 0 would place a
+     * sprite at z = -400 wherever its shadow on the 2D plane happens to fall.
+     */
+    screenToWorld(screenX: number, screenY: number, planeZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
         this.invVPCache.update(cam.viewProjection);
         const invVP = this.invVPCache.getInverse(cam.viewProjection);
-        return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH, planeZ);
     }
 
     worldToScreen(worldX: number, worldY: number): { x: number; y: number } | null {

@@ -52,6 +52,16 @@ interface Drag {
   axis: GizmoAxis;
   pivotWorld: Pt;
   pivotClient: Pt; // canvas-relative
+  /**
+   * The world plane this drag happens on — the active target's z.
+   *
+   * A drag converts screen motion into world motion, and under a perspective
+   * view that conversion depends on depth: the same pixels are a larger world
+   * distance further away. Measuring on the 2D plane would make anything with a
+   * z drift away from the cursor. Orthographically the plane is irrelevant and
+   * this changes nothing.
+   */
+  planeZ: number;
   downWorld: Pt;
   /** Where the press landed, in window-client px — what the slop is measured from. */
   downClient: Pt;
@@ -279,7 +289,12 @@ function beginDrag(
   armed = true,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
-  const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY) ?? { x: 0, y: 0 };
+  // The active target is the one the gizmo sits on, so it is the plane the user
+  // is reaching for; a mixed-depth selection still moves rigidly with it.
+  const planeZ = targets.length
+    ? ViewportController.entityPlaneZ(targets[targets.length - 1].sourceId)
+    : 0;
+  const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY, planeZ) ?? { x: 0, y: 0 };
   // Freeze React panel re-renders (Details/Outliner) for the drag — the model
   // mutates every frame while the viewport stays live via the Reconciler. Resumed
   // on commit (onPointerUp) or abort (cancel), flushing one final bump.
@@ -290,6 +305,7 @@ function beginDrag(
     axis,
     pivotWorld,
     pivotClient,
+    planeZ,
     downWorld,
     downClient: { x: p.clientX, y: p.clientY },
     startAngle: Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
@@ -517,7 +533,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           ? { x: p.clientX - origin.left, y: p.clientY - origin.top }
           : { x: p.clientX, y: p.clientY };
         if (drag.kind === 'move') {
-          const w = ViewportController.canvasToWorld(p.clientX, p.clientY);
+          const w = ViewportController.canvasToWorld(p.clientX, p.clientY, drag.planeZ);
           if (w) applyMove(drag, w);
         } else if (drag.kind === 'rotate') {
           applyRotate(drag, cur);

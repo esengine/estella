@@ -548,3 +548,29 @@ describe('screenToWorld across projections', () => {
         expect(Math.abs(onPlane.x)).toBeGreaterThan(50);
     });
 });
+
+describe('screenToWorld picking planes', () => {
+    // What the editor relies on when it tests each candidate on its own plane:
+    // under an orthographic view that costs an unproject and changes no answer,
+    // so 2D picking cannot regress.
+    it('gives one answer per screen point orthographically, at any entity depth', () => {
+        const vp = ortho4(160, 120, 1000);
+        const inv = invertMatrix4(vp)!;
+        const depths = [0, -5, 1, -400, 900];
+        const answers = depths.map((z) => screenToWorld(500, 200, inv, 0, 0, 640, 480, z));
+        for (const a of answers) {
+            expect(a.x).toBeCloseTo(answers[0].x, 6);
+            expect(a.y).toBeCloseTo(answers[0].y, 6);
+        }
+    });
+
+    // And why it is needed: perspective spreads those same depths apart, so a
+    // sprite off the 2D plane would be unclickable where it is drawn.
+    it('spreads them apart under perspective', () => {
+        const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
+        const inv = invertMatrix4(vp)!;
+        const near = screenToWorld(500, 200, inv, 0, 0, 640, 480, -10);
+        const far = screenToWorld(500, 200, inv, 0, 0, 640, 480, -400);
+        expect(Math.abs(far.x - near.x)).toBeGreaterThan(1);
+    });
+});
