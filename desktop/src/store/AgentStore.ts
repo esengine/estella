@@ -102,8 +102,17 @@ export type AgentEntry =
 
 export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
 
-/** Endings the run could have gone further from, so the person can say so. */
-export const RESUMABLE: ReadonlySet<TurnReason> = new Set<TurnReason>(['aborted', 'max_rounds']);
+/**
+ * Endings the run could have gone further from, so the person can say so.
+ *
+ * `error` is one of them. A turn that died because the endpoint dropped mid-run
+ * ("could not reach the endpoint: terminated" — seen in a real session) leaves
+ * half-built work and no way forward: the ending that most needs the offer was
+ * the one ending without it, and retyping the request starts the model over
+ * instead of continuing. A cause that has not cleared (a rejected key) simply
+ * says so again, which is honest.
+ */
+export const RESUMABLE: ReadonlySet<TurnReason> = new Set<TurnReason>(['aborted', 'max_rounds', 'error']);
 
 export interface AgentTurn {
   /** Position in the conversation; stable, so React keys are too. */

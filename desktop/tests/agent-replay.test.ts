@@ -10,7 +10,7 @@
  *        the session's own coordinate now, and the stream is replayed on attach.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { useAgent, attachAgentBridge } from '@/store/AgentStore';
+import { useAgent, attachAgentBridge, RESUMABLE } from '@/store/AgentStore';
 import type { AgentEvent } from '../electron/agent/types';
 import type { AgentStatus } from '../electron/agent/host';
 
@@ -88,5 +88,22 @@ describe('attaching to a conversation already in progress', () => {
     attachAgentBridge();
     await settle();
     expect(useAgent.getState().turns).toEqual([]);
+  });
+});
+
+describe('which endings offer to carry on', () => {
+  // A person's way forward from a run that stopped early. `error` belongs here:
+  // a turn that died because the endpoint dropped mid-run leaves half-built work
+  // and retyping the request starts the model over instead of continuing.
+  it('offers it for every ending the run could have gone further from', () => {
+    expect(RESUMABLE.has('aborted')).toBe(true);
+    expect(RESUMABLE.has('max_rounds')).toBe(true);
+    expect(RESUMABLE.has('error')).toBe(true);
+  });
+
+  // Not for the two that are DONE — an offer there reads as "that wasn't it?".
+  it('does not offer it for a run that finished or was declined', () => {
+    expect(RESUMABLE.has('end_turn')).toBe(false);
+    expect(RESUMABLE.has('refusal')).toBe(false);
   });
 });
