@@ -29,6 +29,13 @@ enum class BlendMode : u8 {
     Lighten = 6,    // GL_MAX blend equation (take brighter pixel)
     Darken = 7,     // GL_MIN blend equation (take darker pixel)
     Overlay = 8,    // Screen on light, Multiply on dark (requires shader)
+    // No blending: the source replaces the destination. Every other mode reads the
+    // destination for each fragment, which an opaque sprite pays for nothing, and
+    // — the reason this exists — an opaque draw is the only kind that may WRITE
+    // depth, since a blended one has to stay behind the painter's order. Last in
+    // the list rather than first because these values are serialized into material
+    // assets; Normal must stay 0.
+    None = 9,
 };
 
 }  // namespace esengine

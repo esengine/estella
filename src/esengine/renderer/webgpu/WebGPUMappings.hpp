@@ -75,6 +75,10 @@ inline BlendStateWGPU toWGPUBlend(BlendMode mode) {
     case BlendMode::Darken:
         return { comp(WGPUBlendOperation_Min, WGPUBlendFactor_One, WGPUBlendFactor_One),
                  comp(WGPUBlendOperation_Min, WGPUBlendFactor_One, WGPUBlendFactor_One) };
+    // None never reaches a live blend state — the pipeline drops the blend target
+    // entirely (WebGPUDevice: target.blend = blendEnabled ? &state : nullptr) — but
+    // it is spelled out so the mapping stays total rather than leaning on `default`.
+    case BlendMode::None:
     case BlendMode::Normal:
     case BlendMode::Overlay:
     default:

@@ -162,9 +162,21 @@ struct DrawCommand {
         if (shader_id != next.shader_id) return false;
         if (blend_mode != next.blend_mode) return false;
         if (layout_id != next.layout_id) return false;
-        // Same material handle => same uniforms/textures/depth/cull; different ones must not
+        // Same material handle => same uniforms/textures; different ones must not
         // coalesce. material_id 0 (no material) shares the path's defaults, so they still merge.
         if (material_id != next.material_id) return false;
+        // Depth state is checked on its own rather than trusted to follow from the
+        // material. It used to: every draw resolved its depth from a material, so equal
+        // material_id implied equal state, and material_id 0 meant one shared set of
+        // defaults. Once a layer derives depth from the stage instead, two material-0
+        // draws in the same layer can differ — one opaque and writing depth, one blended
+        // and not — and merging them would silently give one of them the other's state.
+        // The symptom would be a blended sprite occasionally clipping what is behind it,
+        // depending on whether the two happened to land adjacent. Compared here as render
+        // state, not as stage: the stage is the reason, these three are the effect.
+        if (depth_test != next.depth_test) return false;
+        if (depth_write != next.depth_write) return false;
+        if (cull != next.cull) return false;
         if (state_flags != next.state_flags) return false;
         if (state_flags & CMD_STATE_SCISSOR) {
             if (scissor != next.scissor) return false;

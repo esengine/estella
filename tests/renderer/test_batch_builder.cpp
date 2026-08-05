@@ -253,3 +253,58 @@ TEST_CASE("sort order: inside one layer, opaque draws before blended") {
     CHECK(h.list.command(0).texture_ids[0] == 61);
     CHECK(h.list.command(1).texture_ids[0] == 60);
 }
+
+// Opaque is a blend MODE, not a switch beside one — so "no blending" has to survive
+// the trip from the draw's blend field to the pipeline the device is handed. Without
+// this the scene path hardcoded blendEnabled, and an opaque material silently kept
+// reading the destination it was asking to replace.
+TEST_CASE("execute: BlendMode::None turns blending off in the resolved pipeline") {
+    Harness h;
+    MaterialStore materials;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey key = quadKey(42);
+    key.blend = BlendMode::None;
+    appendQuad(h.pool, h.list, h.clips, quad, key);
+    h.list.finalize(h.pool);
+    h.pool.upload();
+    h.list.execute(h.device, h.pool, materials);
+
+    CHECK(h.device.lastPipelineDesc.blend == BlendMode::None);
+    CHECK(h.device.lastPipelineDesc.blendEnabled == false);
+}
+
+TEST_CASE("execute: every other blend mode leaves blending on") {
+    Harness h;
+    MaterialStore materials;
+    BatchVertex quad[4] = {};
+
+    appendQuad(h.pool, h.list, h.clips, quad, quadKey(42));
+    h.list.finalize(h.pool);
+    h.pool.upload();
+    h.list.execute(h.device, h.pool, materials);
+
+    CHECK(h.device.lastPipelineDesc.blend == BlendMode::Normal);
+    CHECK(h.device.lastPipelineDesc.blendEnabled == true);
+}
+
+// Two draws that agree on everything the merge used to look at, and disagree on
+// whether they write depth. Before a layer could derive depth state from its stage,
+// equal material_id implied equal depth state and this could not arise; now it can,
+// and merging them would hand one of them the other's depth behaviour.
+TEST_CASE("finalize: draws with different depth state never coalesce") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey writes = quadKey(42);
+    writes.depthWrite = true;
+    appendQuad(h.pool, h.list, h.clips, quad, writes);
+
+    BatchDrawKey reads = quadKey(43);
+    reads.depthWrite = false;
+    appendQuad(h.pool, h.list, h.clips, quad, reads);
+
+    h.list.finalize(h.pool);
+
+    CHECK(h.list.mergedDrawCallCount() == 2);
+}

@@ -119,7 +119,13 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         desc.program = ShaderHandle{cmd.shader_id};
         desc.vertexLayout = buffers.layoutHandle(cmd.layout_id);
         desc.blend = cmd.blend_mode;
-        desc.blendEnabled = true;
+        // Opaque is a blend mode, not a second switch beside one: a material that
+        // says None is asking for the source to replace the destination, and any
+        // other value is asking to read it. Keeping it in the same field is what
+        // stops "Additive, blending off" from being expressible at all — and the
+        // sort key and canMergeWith already carry blend, so nothing else has to
+        // learn about this.
+        desc.blendEnabled = cmd.blend_mode != BlendMode::None;
         desc.depthTest = cmd.depth_test;
         desc.depthWrite = cmd.depth_write;
         desc.stencil = stencil;

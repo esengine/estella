@@ -14,6 +14,8 @@ namespace esengine {
 
 struct MockGfxDevice final : GfxDevice {
     // call counters
+    // The render state a draw resolved to, as the pipeline saw it.
+    PipelineDesc lastPipelineDesc{};
     int useProgramCalls = 0;
     int bindTextureCalls = 0;
     int beginRenderPassCalls = 0;
@@ -180,7 +182,10 @@ struct MockGfxDevice final : GfxDevice {
     u32 getUniformBlockIndex(ShaderHandle, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
     void uniformBlockBinding(ShaderHandle, u32, u32) override {}
 
-    PipelineHandle createPipeline(const PipelineDesc&) override { return static_cast<PipelineHandle>(++nextPipelineId); }
+    PipelineHandle createPipeline(const PipelineDesc& desc) override {
+        lastPipelineDesc = desc;
+        return static_cast<PipelineHandle>(++nextPipelineId);
+    }
     void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
     void setStencilReference(i32) override {}
     void invalidatePipelineCache() override {}

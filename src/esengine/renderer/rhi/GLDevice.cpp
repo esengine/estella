@@ -323,6 +323,13 @@ void GLDevice::setBlendMode(BlendMode mode) {
     case BlendMode::Overlay:
         glBlendFuncSeparate(GL_DST_COLOR, GL_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
         break;
+    case BlendMode::None:
+        // A pipeline asking for None disables GL_BLEND (PipelineDesc::blendEnabled),
+        // so this function is never sampled. Setting the default anyway keeps the
+        // cached state honest: current_blend_ is keyed on the mode, and a later
+        // pipeline that re-enables blending must not inherit whatever was left here.
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        break;
     }
 
     if (mode != BlendMode::Lighten && mode != BlendMode::Darken) {
