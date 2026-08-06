@@ -21,6 +21,8 @@ import { dirname, join, relative, sep } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const DIST = join(here, '..', 'dist');
 const BASE = '/docs';
+/** Root-relative paths that legitimately sit outside the docs base. */
+const EXTERNAL_ROOTS = ['/favicon', '/_astro/', '/pagefind/', '/sitemap'];
 
 /** Every .html file the build emitted. */
 function htmlFiles(dir) {
@@ -73,6 +75,18 @@ function main() {
     // every locale it gets mirrored into (hence a segment test, not a prefix).
     if (relative(DIST, page).split(sep).includes('api-ts')) continue;
     const html = readFileSync(page, 'utf8');
+    // Every page on this site lives under /docs. A root-relative href that does
+    // not is a typo that no amount of resolving will fix — `/zh-cn/docs/x/` for
+    // `/docs/zh-cn/x/` renders as a link off the site, and checking only
+    // well-formed ones is how two of those survived.
+    for (const m of html.matchAll(/href="(\/(?!docs\/)[^"?:]*)"/g)) {
+      const target = m[1];
+      if (target === '/' || EXTERNAL_ROOTS.some((p) => target.startsWith(p))) continue;
+      checked++;
+      const problem = `${target}  (root-relative, but every page is under ${BASE})`;
+      if (!dead.has(problem)) dead.set(problem, new Set());
+      dead.get(problem).add(relative(DIST, page).replaceAll(sep, '/'));
+    }
     for (const m of html.matchAll(/href="(\/docs\/[^"?]*)"/g)) {
       const [path, fragment] = m[1].split('#');
       checked++;

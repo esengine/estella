@@ -1,0 +1,32 @@
+---
+title: Asset editors
+description: "The document editors behind a double-click: the Sequencer, the tilemap painter, the tileset editor, and the state-machine, behavior-tree and material graphs."
+---
+Double-click an asset in the Content Browser to open its editor in a document tab.
+
+- **Sequencer** — a timeline / curve editor for keyframe animation. See
+  [Timeline](/docs/animation/timeline/).
+- **Tilemap painter** — tools for **brush, erase, rectangle, line, bucket, select,
+  eyedropper**, and **terrain (autotile)**, plus stamp **flip-H / flip-V / rotate-90°**
+  (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode** (`D`). The
+  palette selects with the arrow keys (`Shift` grows a multi-tile stamp), and maps can
+  be **orthogonal, isometric, staggered, or hexagonal**. See
+  [Tilemaps](/docs/world/tilemaps/).
+- **Tileset editor** — author per-tile **collision** (box, circle, polygon, slope
+  presets; one-way / sensor / material modifiers) with **direct-manipulation** shape
+  editors on a magnified tile: drag a circle's **centre or radius**, **click-add / drag /
+  click-delete** a polygon's **vertices**, and pick a **one-way** platform's solid side
+  (top / bottom / left / right) — resizing keeps the sensor / material / density modifiers.
+  Also **terrain** sets for autotiling (edge/corner peering or multi-color **corner
+  Wang**), per-tile **probability** weights and properties, and **animated tiles** — drag
+  frame thumbnails to **reorder**, or set the whole loop to **one uniform duration**, with
+  a live preview.
+- **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
+  for AI. See [Gameplay AI](/docs/gameplay/ai/).
+- **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
+  [Materials & Shaders](/docs/graphics/materials/).
+
+The State Machine and Behavior Tree editors share a common node canvas: **middle-drag**
+to pan, **wheel** to zoom toward the cursor, drag an output handle onto another node to
+connect them, click to select a node or edge, **Delete** to remove it, and right-click
+the canvas to add a node at the cursor.

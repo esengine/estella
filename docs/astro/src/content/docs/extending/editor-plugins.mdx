@@ -324,7 +324,7 @@ mysterious.
 ## Project platform profiles
 
 A `.esengine/platforms/<id>.mjs` packaging profile (see
-[Mini-Game Platforms](/guides/minigame-platforms/)) is imported into the editor's
+[Mini-Game Platforms](/docs/publishing/minigame-platforms/)) is imported into the editor's
 main process with full system access. It is listed in the Plugins panel and needs
 the same approval — until you approve it, its target shows as not ready in the
 Package dialog.
@@ -391,7 +391,7 @@ is unavailable. Gate on it the way gameplay code gates on `Ads.available`: a
 target without the module should degrade, not crash.
 
 To draw what such a runtime produces, hand its triangles to
-[Mesh2D](/guides/drawing/) — positions, UVs, colors and indices go through the
+[Mesh2D](/docs/graphics/drawing/) — positions, UVs, colors and indices go through the
 same path the engine's own Spine integration uses, so it renders on every backend
 the engine supports.
 

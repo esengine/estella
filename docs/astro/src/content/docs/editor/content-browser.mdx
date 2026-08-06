@@ -1,0 +1,31 @@
+---
+title: The Content Browser
+description: "Your project's asset explorer — creating and importing assets, per-asset actions, and Find Usages."
+---
+The Content Browser is your project's asset explorer. Its **create** menu makes new
+assets in place:
+
+- New Scene, New Animation, New Input Map, New Material, New Material Graph,
+  **New Shader**, New State Machine, New Behavior Tree, **New Script…**, New Folder.
+- Context actions per asset type: **Create Tileset** (from a texture), **Create
+  Tilemap** (from a tileset), **Create Material Instance** (from a material).
+
+**New Script…** is the one that writes more than a file: a module nothing imports is
+never bundled and its component never reaches Add Component, so the dialog also adds
+the one line in your project's script entry that pulls it in — which entry depending
+on whether you're making a component or a system. See
+[Scripting](/docs/scripting/overview/#the-new-script-dialog).
+
+**Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
+a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
+Duplicate, Copy Path, Copy Reference, **Find Usages**, Show in Explorer, and Delete.
+Rename, move, and duplicate each post a toast with an **Undo** action — and renaming or
+moving an asset rewrites its references in every open document, so nothing dangles.
+**Delete** first lists every scene, prefab, and asset that references the file (so you
+know exactly what breaks), then moves it to the OS trash — still recoverable with Undo.
+The folder tree is fully keyboard-driven — arrows walk and collapse/expand, Enter opens
+a folder.
+
+**Find Usages** — right-click an asset, or click the reference count in the Inspector's
+asset details — lists everywhere a texture, material, prefab, or scene is referenced,
+across the on-disk dependency graph *and* the unsaved open scene.

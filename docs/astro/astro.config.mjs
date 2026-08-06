@@ -137,7 +137,14 @@ export default defineConfig({
           translations: { 'zh-CN': '编辑器' },
           collapsed: true,
           items: [
-            { label: 'The Editor', translations: { 'zh-CN': '编辑器' }, slug: 'editor/overview' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'editor/overview' },
+            { label: 'Viewport & Editing Modes', translations: { 'zh-CN': '视口与编辑模式' }, slug: 'editor/viewport' },
+            { label: 'Building a Scene', translations: { 'zh-CN': '搭建场景' }, slug: 'editor/scenes' },
+            { label: 'Content Browser', translations: { 'zh-CN': '内容浏览器' }, slug: 'editor/content-browser' },
+            { label: 'Play in the Editor', translations: { 'zh-CN': '编辑器内运行' }, slug: 'editor/play' },
+            { label: 'Asset Editors', translations: { 'zh-CN': '专用编辑器' }, slug: 'editor/asset-editors' },
+            { label: 'Project Settings', translations: { 'zh-CN': '项目设置' }, slug: 'editor/settings' },
+            { label: 'Keyboard Shortcuts', translations: { 'zh-CN': '键盘快捷键' }, slug: 'editor/shortcuts' },
           ],
         },
         {

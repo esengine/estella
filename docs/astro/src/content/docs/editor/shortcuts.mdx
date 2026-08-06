@@ -1,0 +1,46 @@
+---
+title: Keyboard shortcuts
+description: "Every default shortcut, all of them rebindable, plus the Command Palette and the editor keyboard navigation model."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`mod` is **⌘** on macOS and **Ctrl** elsewhere. All of these are rebindable under
+Settings → Keyboard Shortcuts.
+
+| Action | Shortcut |
+|---|---|
+| New Scene | `mod + N` |
+| Open Project | `mod + O` |
+| Save Scene | `mod + S` |
+| Save Scene As | `mod + shift + S` |
+| Undo / Redo | `mod + Z` / `mod + shift + Z` |
+| Duplicate | `mod + D` |
+| Copy / Cut / Paste | `mod + C` / `mod + X` / `mod + V` |
+| Delete | `Delete` / `Backspace` |
+| Select All | `mod + A` |
+| Select / Move / Rotate / Scale tool | `Q` / `W` / `E` / `R` |
+| Nudge selection (×10 with Shift) | Arrow keys |
+| Frame Selected | `F` |
+| Play · Stop | `F5` · `Esc` |
+| Pause/Resume · Restart | `F6` · `shift + F5` |
+| Maximize / restore viewport | `F11` |
+| Command Palette | `mod + shift + P` |
+| Content Drawer | `Ctrl + Space` |
+| Project Settings | `mod + ,` |
+
+The **Command Palette** (`mod + shift + P`) fuzzy-searches every runnable command —
+the fastest way to reach any action without hunting through menus.
+
+Beyond the command shortcuts, the editor is keyboard-navigable throughout: menus
+and context menus move with the arrow keys (plus type-ahead, Home/End, and `→` /
+`←` for submenus), the Outliner jumps to entities as you type, the Content
+Browser's folder tree and the tile palette both walk with arrows, and keyboard
+focus is always shown with a visible focus ring.
+
+<Aside type="tip">
+  For headless automation and AI agents, the editor also exposes an
+  `EditorControlSurface` (load a scene, step the sim, read the scene tree/inspector,
+  capture the viewport) over an MCP server — a developer/automation surface driven from
+  scripts, separate from the visual editor above.
+</Aside>

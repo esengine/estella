@@ -286,7 +286,7 @@ ctx.scene.transact('Rename Markers', () => {
 ## 项目平台配置
 
 `.esengine/platforms/<id>.mjs` 打包配置（见
-[小游戏平台](/zh-cn/guides/minigame-platforms/)）会以完整系统权限被导入编辑器主
+[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)）会以完整系统权限被导入编辑器主
 进程。它同样列在插件面板里、同样需要批准——在你批准之前，它对应的目标在打包对话框
 里显示为未就绪。
 
@@ -345,7 +345,7 @@ const version = rive.cwrap('rive_version', 'string', [])() as string;
 的目标应当降级，而不是崩溃。
 
 要把这类运行时产出的东西画出来，把它的三角形交给
-[Mesh2D](/zh-cn/guides/drawing/)——顶点位置、UV、颜色和索引走的正是引擎内置 Spine 集成
+[Mesh2D](/docs/zh-cn/graphics/drawing/)——顶点位置、UV、颜色和索引走的正是引擎内置 Spine 集成
 所用的同一条路，因此引擎支持的每个后端上它都能渲染。
 
 <Aside type="note">

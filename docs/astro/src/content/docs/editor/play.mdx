@@ -1,0 +1,29 @@
+---
+title: Play in the editor
+description: "Running the game inside the editor in an isolated realm, the play-mode options, and autosave & crash recovery."
+---
+The **Play** controls in the toolbar run your game:
+
+- **Play** starts the game; while running the same button becomes **Stop**, with
+  **Restart** and **Pause/Resume** as side buttons.
+- The play-mode dropdown chooses **Play In Viewport** (the game hosts over the viewport)
+  or **Play In New Window** (a dedicated **Game** tab), and toggles **Maximize Viewport on
+  Play** — which hands the whole workspace to the running game and restores your layout on
+  Stop.
+- A running game reads as a soft accent ring around the viewport (amber, with the frame
+  dimmed, when paused) — not a badge over the game.
+- Shortcuts: **F5** play, **Esc** stop, **F6** pause/resume, **Shift+F5** restart, and
+  **F11** to maximize/restore the viewport at any time.
+
+Because play uses an isolated realm — the same runtime that ships your game — what you
+see in play is what a player gets.
+
+## Autosave & recovery
+
+The editor periodically snapshots your **unsaved** documents — only when there are
+unsaved changes and no Play session is running — so a crash or power loss never costs
+more than the last few moments of work. A snapshot is kept in your project's workspace
+folder and never counts as a real save. The next time you open the project, if a
+snapshot is newer than the file on disk, the editor offers to **restore** it; saving the
+document supersedes its snapshot. This sits alongside the crash minidump and the
+automatic reload if the GPU render process is lost.

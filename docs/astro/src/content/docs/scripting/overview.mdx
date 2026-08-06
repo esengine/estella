@@ -154,15 +154,15 @@ built-in, and a game does not run in Node…
 ```
 
 If the import is yours, reach for a web API (`crypto.subtle`, `fetch`,
-`localStorage`) or the engine's own equivalent — [Assets](/guides/assets/) for
-files, [Save & Load](/guides/save/) for player data, both of which work
+`localStorage`) or the engine's own equivalent — [Assets](/docs/assets/overview/) for
+files, [Save & Load](/docs/scripting/save/) for player data, both of which work
 everywhere. If a *dependency* is the one reaching, the fix is on the package:
 many publish a browser-safe entry point — `protobufjs/minimal` above is exactly
 that — and some ship a `browser` field that esbuild picks up on its own.
 
 **And it costs package size.** A dependency is bundled whole, which matters most
 where the limit is hardest: WeChat caps a mini-game's main package at 4MB. After
-a build, the [size report](/guides/build-export/#package-size) breaks the package
+a build, the [size report](/docs/publishing/overview/#package-size) breaks the package
 down — a library that grew shows up under **Scripts**.
 
 <Aside type="tip">
