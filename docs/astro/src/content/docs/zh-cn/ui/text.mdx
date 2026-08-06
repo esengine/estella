@@ -139,7 +139,7 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `<i>…</i>` | 斜体片段。 |
 | `<color=#RRGGBB>…</color>` | 着色片段;`#RRGGBBAA` 带 alpha。 |
 | `<font size=32>…</font>` | 另一字号的片段(`size="32"` 也能解析);共享基线。 |
-| `<img src="…" width=24 height=24 />` | 内联图片片段——目前能解析,**尚未渲染**(见下)。 |
+| `<img src="…" width=24 height=24 />` | 内联图片——随文本一起排布的图标(见[下文](#内联图片))。 |
 
 ```typescript
 import { defineSystem, addStartupSystem, GetWorld, spawnUIEntity, px } from 'esengine';
@@ -162,11 +162,19 @@ addStartupSystem(buildToast);
 `TextSegment`(`text`、`bold`、`italic`、`color`、`fontSize`)或
 `ImageSegment`——想用同一套标记驱动自定义管线时可用。
 
-<Aside type="caution">
-  `<img src="…" width=N height=N valign=baseline|middle|top|bottom offsetX=N
-  offsetY=N scale=N tint=#RRGGBB />` 会解析成 `ImageSegment`(标签必须自闭合且
-  必须有 `src`),但内置文本渲染器目前**跳过图片片段**——文本内联精灵还画不
-  出来。请改用 flexbox 把图片排在文本旁。
+## 内联图片
+
+`<img src="…" width=N height=N valign=baseline|middle|top|bottom offsetX=N
+offsetY=N scale=N tint=#RRGGBB />`(必须自闭合,`src` 必填)让一张图片随文本内联
+排布。摆放字形的那套富文本布局同时摆放图片盒——`valign` 决定它在行内如何对齐,
+`width`/`height`/`scale` 定尺寸,`offsetX/Y` 微调位置,`tint` 重新着色——最终作为
+`Text` 下的一个子图片 quad 渲染。`src` 经 `Assets.loadTexture` 解析,因此是项目
+相对的纹理路径。
+
+<Aside type="note">
+  内联图片在**不换行**的富文本上渲染(把 `Text` 的 `wordWrap` 设为 `false`);
+  换行的富文本目前只排文本,会丢弃图片片段。内联图片还要求 `Text` 有 `UINode`
+  盒子——无盒子的世界空间标签上画不出来。
 </Aside>
 
 ## 测量文本
