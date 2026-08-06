@@ -17,11 +17,15 @@ import {
   CameraView,
   Commands,
   Input,
+  Material,
+  Mesh2D,
+  Meshes2D,
   MouseButton,
   Mut,
   Query,
   Res,
   Schedule,
+  Sprite,
   Time,
   Transform,
 } from 'esengine';
@@ -45,8 +49,26 @@ const pointer = defineSystem(
   },
 );
 
+// A material parameter driven from a system: at run time the component's
+// `material` field IS the handle setUniform takes, which is the half of this the
+// brief has to say out loud — it reads like an asset ref everywhere else.
+const dissolve = defineSystem([Query(Sprite), Res(Time)], (q, time) => {
+  for (const [, sprite] of q) {
+    Material.setUniform(sprite.material, 'u_amount', Math.sin(time.elapsed));
+  }
+});
+
+// Mesh geometry: not a component field, uploaded through the resource.
+const mesh = defineSystem([Query(Mesh2D), Res(Meshes2D)], (q, meshes) => {
+  for (const [entity] of q) {
+    meshes.setGeometry(entity, { positions: [0, 0, 32, 0, 0, 32], indices: [0, 1, 2] });
+  }
+});
+
 // The binding builder the brief distinguishes from the raw button number.
 export const leftClickBinding = MouseButton(0);
 
 addSystemToSchedule(Schedule.Update, drift);
 addSystemToSchedule(Schedule.Update, pointer);
+addSystemToSchedule(Schedule.Update, dissolve);
+addSystemToSchedule(Schedule.Update, mesh);

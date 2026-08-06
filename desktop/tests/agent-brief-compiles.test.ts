@@ -63,6 +63,9 @@ describe("the agent's brief", () => {
       'addSystemToSchedule',
       'lookup_symbol',
       'check_scripts',
+      "Material.setUniform(sprite.material, 'u_amount', v)",
+      'Res(Meshes2D)',
+      'meshes.setGeometry(entity, { positions, indices })',
     ]) {
       expect([taught, SYSTEM_PROMPT.includes(taught)]).toEqual([taught, true]);
     }
