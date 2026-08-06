@@ -423,11 +423,16 @@ describe('the agent turn', () => {
   // A gateway that speaks the core format may still refuse image blocks. The
   // agent has no way to find that out except by spending a call on a screenshot
   // it will then be told it cannot see.
-  it('tells a blind endpoint\'s agent not to rely on looking', async () => {
+  //
+  // What it is told changed once there was something to tell it: the answer used to
+  // be "verify by reading fields back instead of by looking", which closed off the
+  // only question fields cannot answer — did anything DRAW. A screenshot in text
+  // form reaches any endpoint, so the blind agent is pointed at that instead.
+  it('points a blind endpoint\'s agent at the picture it CAN read', async () => {
     const s = fakeSession([ends()]);
     await runTurn({ ...deps(s), acceptsImages: false }, 'how does it look', null, new AbortController().signal);
     expect(s.context.some((c) => /cannot carry images/i.test(c))).toBe(true);
-    expect(s.context.some((c) => /get_diagnostics/.test(c))).toBe(true);
+    expect(s.context.some((c) => /format: 'grid'/.test(c))).toBe(true);
   });
 
   it('says nothing about it where images do cross', async () => {

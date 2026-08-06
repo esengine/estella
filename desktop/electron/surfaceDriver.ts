@@ -54,6 +54,86 @@ const carryError = (code: string, preamble = ''): string => {
   return `(async () => { try { ${preamble} return { v: ${value} }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
 };
 
+interface GameRect {
+  x: number; y: number; width: number; height: number;
+  windowWidth: number; windowHeight: number; playing: boolean;
+}
+
+/**
+ * A capture, as sixteen colour letters — the screenshot for a caller with no vision.
+ *
+ * Half the models an editor gets pointed at cannot receive an image, and for those the
+ * whole verifying-by-looking half of the job was closed: the agent kernel told them, in
+ * so many words, not to spend a call on a picture they could not see. So they verified
+ * by reading their own fields back, which is exactly the reading that cannot see a
+ * sprite that never drew, content off camera, or a shader that came out black.
+ *
+ * Coarse on purpose. At 64 columns a cell is a dozen-odd pixels, which is enough for
+ * "five rows of colour across the top, one white bar near the bottom, a dot between
+ * them" — a Breakout, recognisably — and small enough to read in a tool result. The
+ * palette is fixed rather than a per-capture legend, so the letters mean the same thing
+ * in every reply and can be reasoned about directly.
+ */
+const PALETTE: ReadonlyArray<[string, number, number, number]> = [
+  ['.', 0, 0, 0], ['r', 128, 0, 0], ['g', 0, 128, 0], ['y', 128, 128, 0],
+  ['b', 0, 0, 128], ['m', 128, 0, 128], ['c', 0, 128, 128], ['w', 170, 170, 170],
+  ['K', 85, 85, 85], ['R', 255, 0, 0], ['G', 0, 255, 0], ['Y', 255, 255, 0],
+  ['B', 0, 0, 255], ['M', 255, 0, 255], ['C', 0, 255, 255], ['W', 255, 255, 255],
+];
+
+function nearestInk(r: number, g: number, b: number): string {
+  let best = '.';
+  let bestDist = Infinity;
+  for (const [ink, pr, pg, pb] of PALETTE) {
+    const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+    if (d < bestDist) { bestDist = d; best = ink; }
+  }
+  return best;
+}
+
+function colorGrid(image: Electron.NativeImage, rect: GameRect | null, cols: number, rows: number): string {
+  const w = Math.max(8, Math.min(160, Math.round(cols)));
+  const h = Math.max(4, Math.min(90, Math.round(rows)));
+  const full = image.getSize();
+  let shot = image;
+  let what = 'the whole editor window';
+  if (rect && rect.windowWidth > 0) {
+    // capturePage is in device pixels and the rect is in CSS pixels.
+    const scale = full.width / rect.windowWidth;
+    const crop = {
+      x: Math.max(0, Math.round(rect.x * scale)),
+      y: Math.max(0, Math.round(rect.y * scale)),
+      width: Math.min(full.width, Math.round(rect.width * scale)),
+      height: Math.min(full.height, Math.round(rect.height * scale)),
+    };
+    if (crop.width > 8 && crop.height > 8) {
+      shot = image.crop(crop);
+      what = rect.playing ? 'the RUNNING GAME' : 'the edit viewport';
+    }
+  }
+  const small = shot.resize({ width: w, height: h, quality: 'good' });
+  const size = small.getSize();
+  // BGRA, row-major. Electron 42's own typings declare this `void`; it returns the
+  // buffer the docs promise, so the cast is over their declaration, not over reality.
+  const bitmap = small.getBitmap() as unknown as Buffer;
+  const lines: string[] = [];
+  for (let y = 0; y < size.height; y++) {
+    let line = '';
+    for (let x = 0; x < size.width; x++) {
+      const i = (y * size.width + x) * 4;
+      line += nearestInk(bitmap[i + 2], bitmap[i + 1], bitmap[i]);
+    }
+    lines.push(`${String(y).padStart(2, ' ')} ${line}`);
+  }
+  const px = rect ? `${Math.round(rect.width / size.width)}x${Math.round(rect.height / size.height)} css px` : 'unknown';
+  return [
+    `${size.width}x${size.height} colour grid of ${what} (one letter per ${px} cell).`,
+    'Palette: . black  r/R red  g/G green  y/Y yellow  b/B blue  m/M magenta  c/C cyan  w/W grey/white'
+    + ' (capitals are the bright form). Column 0 is the LEFT edge, row 0 the TOP.',
+    ...lines,
+  ].join('\n');
+}
+
 /**
  * What a play probe finds already in scope.
  *
@@ -128,7 +208,10 @@ export function createSurfaceDriver(
         // The composited window, not the viewport canvas: this is the only way to
         // see the play realm, which renders in its own frame.
         const image = await requireWin().webContents.capturePage();
-        return image.toPNG().toString('base64');
+        if (input.format !== 'grid') return image.toPNG().toString('base64');
+        // The same picture, in the only form a caller without vision can read.
+        const rect = await exec('window.__estellaEditor.gameRect()') as GameRect | null;
+        return colorGrid(image, rect, Number(input.cols ?? 64), Number(input.rows ?? 32));
       }
       case 'play_probe': {
         // The play realm is an estella:// OOPIF — only a main-process frame eval

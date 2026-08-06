@@ -71,5 +71,17 @@ export async function run(ed) {
   const shot = await ed.screenshot('play-stepping');
   check(shot.w > 0 && shot.h > 0, 'the window did not capture');
 
+  // And the same picture in the form a model without vision can read. Half the
+  // endpoints an editor gets pointed at cannot receive a PNG, and for those this is
+  // the ONLY answer to "did anything draw at all".
+  const grid = await ed.json('screenshot', { format: 'grid', cols: 48, rows: 24 }, 60000);
+  const rows = String(grid).split('\n').filter((l) => /^\s*\d+ /.test(l));
+  check(rows.length === 24, `the grid came back ${rows.length} rows deep, not 24`);
+  check(/colour grid of the RUNNING GAME/.test(String(grid)), 'the grid did not crop to the running game');
+  // A grid of one repeated letter is a capture of nothing — a black frame, or a crop
+  // that landed off the canvas. The example draws sprites, so it must have colour.
+  const inks = new Set(rows.flatMap((l) => [...l.replace(/^\s*\d+ /, '')]));
+  check(inks.size >= 3, `the grid is all one colour (${[...inks].join('')}) — nothing drew, or the crop missed`);
+
   return check.failures;
 }

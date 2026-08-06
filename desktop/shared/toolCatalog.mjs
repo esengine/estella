@@ -487,8 +487,11 @@ export const TOOLS = [
       + 'so a game that looks frozen (an animation that never advances, a tween stuck at its start) is usually a background window, not a bug. `fps` is null until the first heartbeat (~0.5s after Play).',
     schema: obj({}), method: 'playState', args: () => [], root: 'editor' },
   { name: 'screenshot',
-    description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',
-    schema: obj({}), op: 'screenshot', image: true },
+    description: 'Capture the composited editor window — the only capture that includes the play realm, so this is how you SEE gameplay (capture_viewport sees the edit viewport only). '
+      + "`format: 'grid'` returns the same picture as TEXT instead of a PNG: a coarse colour grid, cropped to the running game (or the edit viewport when nothing is playing), one letter per cell from a fixed 16-colour palette. "
+      + 'That is the form to ask for if you cannot receive images — it still answers the questions no amount of reading fields back can (did anything draw at all, is it on camera, what colour did it come out, did the picture change after that input). `cols`/`rows` set the resolution (default 64x32).',
+    schema: obj({ format: { type: 'string' }, cols: { type: 'number' }, rows: { type: 'number' } }),
+    op: 'screenshot', image: (i) => i.format !== 'grid' },
   // — The editor's OWN agent, for a driver that wants to run it: an eval harness,
   //   a dogfood session, a regression over its behaviour. `driverOnly` keeps these
   //   out of the built-in agent's own tool list — an agent messaging itself is a
@@ -647,9 +650,12 @@ export async function runTool(tool, driver, rawInput, allowWrites = true) {
       throw new Error(`tool ${tool.name} mutates the scene — start the server with ESTELLA_MCP_ALLOW_WRITES=1`);
     }
     const input = validate(tool.schema, rawInput);
+    // `image` may be a PREDICATE: one tool answers with a picture or with text
+    // depending on what the caller asked for (screenshot's `format: 'grid'`).
+    const wantsImage = typeof tool.image === 'function' ? tool.image(input) : tool.image;
     if (tool.op) {
       const data = await driver.op(tool.op, input);
-      if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
+      if (wantsImage) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
       return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
     }
     // A js template may DECLINE (return null) for inputs it has nothing special
@@ -658,7 +664,7 @@ export async function runTool(tool, driver, rawInput, allowWrites = true) {
     const js = tool.js ? tool.js(input) : null;
     if (js) {
       const data = await driver.js(js);
-      if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
+      if (wantsImage) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
       return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
     }
     const result = await driver(tool.method, tool.args(input), tool.root);

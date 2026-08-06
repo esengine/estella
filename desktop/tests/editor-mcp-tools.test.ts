@@ -46,6 +46,19 @@ describe('editor MCP tool registry', () => {
     expect(res.content[0]).toEqual({ type: 'image', data: 'cGpn', mimeType: 'image/png' });
   });
 
+  it("a screenshot asked for as a grid comes back as TEXT, because that is the point", async () => {
+    // Half the endpoints an editor gets pointed at cannot receive an image. Wrapped
+    // as one anyway, the grid would arrive as a base64 blob in an image block and
+    // reach the model as nothing at all.
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => '8x2 colour grid\n 0 RRRR\n 1 ....');
+    const shot = toolNamed('screenshot');
+    const res = await runTool(shot, driver, { format: 'grid', cols: 8, rows: 2 });
+    expect(driver.op).toHaveBeenCalledWith('screenshot', { format: 'grid', cols: 8, rows: 2 });
+    expect(res.content[0].type).toBe('text');
+    expect(res.content[0].text).toContain('colour grid');
+  });
+
   it('runTool validates input and calls the driver with (method, args)', async () => {
     const driver = vi.fn(async () => 42);
     const setField = TOOLS.find((t: { name: string }) => t.name === 'set_field');

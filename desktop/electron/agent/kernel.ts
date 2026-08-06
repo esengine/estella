@@ -185,9 +185,11 @@ export async function runTurn(
     if (context) session.pushContext(context);
     if (!acceptsImages) {
       session.pushContext(
-        'This endpoint cannot carry images, so capture_viewport and the other screenshot '
-        + 'tools will not let you SEE anything — their frames cannot reach you. Verify with '
-        + 'get_diagnostics and by reading fields back instead of by looking.',
+        'This endpoint cannot carry images: a PNG from screenshot or capture_viewport cannot '
+        + "reach you. `screenshot` with `format: 'grid'` can — it answers with the same picture "
+        + 'as a coarse colour grid in text, cropped to the running game. That is your eyes; use '
+        + 'it for the questions no field-read can answer (did anything draw, is it on camera, '
+        + 'what colour did it come out, did the picture change after that input).',
       );
     }
     session.pushUser(text, images);
@@ -258,13 +260,15 @@ export async function runTurn(
                 + 'reads, whether it is where you meant, are all things only the picture answers. '
                 + 'capture_viewport now; if it is something that has to be PLAYED, toggle_play, '
                 + 'drive it with play_input and screenshot that. Then fix what you see, or report.'
-              : 'You changed the scene this turn and never ran it. You cannot receive images, so '
-                + 'do not spend a call on capture_viewport — RUN it instead: toggle_play, then '
+              : 'You changed the scene this turn and never ran it. RUN it: toggle_play, then '
                 + 'play_probe to read the state back (`find(NAME)` gives every entity carrying a '
                 + 'component, with its data), play_input to drive the controls a player would use, '
-                + 'and play_probe again to prove they did something. get_logs shows what the '
-                + 'running game complained about. Reading your own source again is not this: it '
-                + 'is the thing that already convinced you it works.',
+                + 'step to advance the frames, and play_probe again to prove they did something. '
+                + "You cannot receive images, but `screenshot` with `format: 'grid'` gives you the "
+                + 'picture as text — take one, because whether anything DREW is not a question the '
+                + 'component values answer. get_logs shows what the running game complained about. '
+                + 'Reading your own source again is not this: it is the thing that already '
+                + 'convinced you it works.',
           );
           continue;
         }

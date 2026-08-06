@@ -304,6 +304,16 @@ export class PlayRealmInstance {
     });
   }
 
+  /** Where the running game is on screen, in CSS pixels — the crop a capture of the
+   *  window has to take to be a picture of the GAME rather than of the editor around
+   *  it. Null when nothing is playing. */
+  viewRect(): { x: number; y: number; width: number; height: number } | null {
+    const box = this.iframe?.getBoundingClientRect();
+    return box && box.width > 0 && box.height > 0
+      ? { x: box.left, y: box.top, width: box.width, height: box.height }
+      : null;
+  }
+
   /** The running game's subsystem (module) health, for the editor's Modules indicator.
    *  Null if not ready. */
   subsystems(): Promise<SubsystemStatus[] | null> {

@@ -271,6 +271,25 @@ function buildEditorAutomation(): unknown {
       }
     },
     playState: () => PlayRealm.getSnapshot(),
+    /**
+     * Where the picture worth taking is, in CSS pixels, with the window's own size so
+     * a capture (which is in device pixels) can be scaled to it: the running game if
+     * one is playing, else the edit viewport's canvas.
+     *
+     * A capture of the whole window is mostly panels. Cropping to this is what makes a
+     * COARSE capture — the text form a model without vision can actually read — carry
+     * anything: at 64 columns, the editor chrome would have eaten most of them.
+     */
+    gameRect: () => {
+      const rect = PlayRealm.viewRect()
+        ?? document.getElementById('estella-viewport-canvas')?.getBoundingClientRect();
+      if (!rect) return null;
+      return {
+        x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+        windowWidth: window.innerWidth, windowHeight: window.innerHeight,
+        playing: PlayRealm.getSnapshot().playing,
+      };
+    },
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */
     setPlayPlayers: (n: number) => useEditorStore.getState().setPlayPlayers(n),
     /** Advance the EDIT-realm engine n frames (headless drivers: rAF may stall). */
