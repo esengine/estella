@@ -215,6 +215,18 @@ function buildEditorAutomation(): unknown {
         );
       }
       await openSceneAwaited(rel);
+      // Say so when nothing opened. The open path can leave the document empty —
+      // an editor whose project fell out from under it answers every read with
+      // "no entities" and every open with "ok", and a caller reads that as a
+      // scene that really is empty. It then spends twenty calls looking for the
+      // entities it can see in the file.
+      const doc = documentState();
+      if (doc.kind !== 'scene' || !doc.path) {
+        throw new Error(
+          `"${rel}" did not open — the editor is not editing a scene afterwards. `
+          + 'The project may have been unloaded; re-open it with open_project.',
+        );
+      }
     },
     /** Resolves once the project's initial scene is in the tree (call after
      *  open + enterEditor; the boot pipeline loads the last-opened scene). */
