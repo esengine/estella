@@ -33,7 +33,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import { randomBytes } from 'node:crypto';
-import { writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import type { Server } from 'node:http';
 // Plain .mjs, shared with the headless host (scripts/editor-mcp-host.mjs) —
@@ -156,10 +156,20 @@ export async function startMcpEndpoint(
   return starting;
 }
 
+/**
+ * Retract the advertisement — but only if it is still OURS.
+ *
+ * The path is one per user, so two editors open at once both write it and the
+ * second one wins. An unconditional delete on quit then means the editor that
+ * closes takes the SURVIVING editor's advertisement with it: `--attach` reports
+ * "no running editor" while one sits there serving, and nothing says why. The
+ * file names its writer, so ask before removing it.
+ */
 function removeDiscoveryFile(): void {
   try {
-    rmSync(discoveryPath());
-  } catch { /* already gone */ }
+    const owner = JSON.parse(readFileSync(discoveryPath(), 'utf8')) as { pid?: number };
+    if (owner?.pid === process.pid) rmSync(discoveryPath());
+  } catch { /* already gone, or unreadable — leave it */ }
   discoveryFile = null;
 }
 
