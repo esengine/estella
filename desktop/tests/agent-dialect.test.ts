@@ -14,8 +14,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  buildStepRequest, createAnthropicProvider, toolResultContent, describeApiError,
+  buildStepRequest, createAnthropicProvider, toolResultContent,
 } from '../electron/agent/anthropic';
+import { describeApiError } from '../electron/agent/apiError';
 import { DEFAULT_MODEL } from '../src/settings/agentIds';
 import type { CatalogTool } from '../electron/agent/types';
 

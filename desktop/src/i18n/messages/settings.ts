@@ -125,10 +125,22 @@ export const settingsMessages = defineMessages({
         en: 'How hard the model is asked to think before it acts. `xhigh` is what agentic work is for and is the default; drop it when a turn costs more or takes longer than the task deserved. Applies to the next conversation.',
         zh: '模型动手之前被要求思考到什么程度。`xhigh` 是为 agent 类工作准备的,也是默认值;当一次运行的花费或耗时超过这件事本身的价值时,把它调低。对下一次对话生效。',
     },
+    'set.agents.providerModels': { en: '{provider} models', zh: '{provider} 型号' },
+    'set.agents.providerModels.desc': {
+        en: 'Which models to offer in the composer, comma- or newline-separated. Typed rather than shipped: a list here would be right until the vendor\'s next release, and a name that no longer exists is not refused — the endpoint serves something smaller instead, for the rest of the session.',
+        zh: '在输入框旁边可选的型号,用逗号或换行分隔。要自己填而不是内置:内置的列表只能正确到厂商下次发布为止,而写了个已经不存在的名字并不会被拒绝——接口会改用一个更小的模型顶上,并且一整个会话都是如此。',
+    },
+    'set.agents.customProtocol': { en: 'Protocol', zh: '协议' },
+    'set.agents.customProtocol.desc': {
+        en: 'Which API this endpoint speaks. The two formats differ in every message they send, so a wrong pick is refused rather than degraded. Chat Completions is what most gateways and every local runner implement.',
+        zh: '这个接口讲哪种 API。两种格式发出的每一条消息都不一样,所以选错会被直接拒绝,而不是降级运行。绝大多数网关和所有本地运行器讲的都是 Chat Completions。',
+    },
+    'set.agents.protocol.openai': { en: 'OpenAI (Chat Completions)', zh: 'OpenAI(Chat Completions)' },
+    'set.agents.protocol.anthropic': { en: 'Anthropic (Messages)', zh: 'Anthropic(Messages)' },
     'set.agents.customBaseUrl': { en: 'Endpoint', zh: 'API 地址' },
     'set.agents.customBaseUrl.desc': {
-        en: 'An Anthropic-compatible endpoint. Only needed for a provider not in the list — the built-in ones already know their address. The agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
-        zh: '兼容 Anthropic 的接口地址。只有列表里没有的提供方才需要填——内置的那些自己知道地址。此时 Agent 只发送基础 Messages 格式,不带扩展思考、提示缓存和自动回退。',
+        en: 'The address of an endpoint speaking the protocol above. Only needed for a provider not in the list — the built-in ones already know theirs. On the Anthropic protocol the agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
+        zh: '讲上面那个协议的接口地址。只有列表里没有的提供方才需要填——内置的那些自己知道地址。走 Anthropic 协议时,Agent 只发送基础 Messages 格式,不带扩展思考、提示缓存和自动回退。',
     },
     'set.agents.customModels': { en: 'Models', zh: '模型' },
     'set.agents.customModels.desc': {

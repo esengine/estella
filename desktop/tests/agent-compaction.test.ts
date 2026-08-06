@@ -9,10 +9,16 @@
  *        conversation, so they must outlive the messages they pointed at.
  */
 import { describe, it, expect } from 'vitest';
-import { compactHistory, createAnthropicProvider } from '../electron/agent/anthropic';
+import { compactHistory } from '../electron/agent/conversation';
+import { ANTHROPIC_SHAPE, createAnthropicProvider } from '../electron/agent/anthropic';
 import { KEEP_WHOLE_RUNS, COMPACT_AT } from '../src/settings/agentIds';
 
-type Message = Parameters<typeof compactHistory>[0][number];
+type Message = Parameters<typeof ANTHROPIC_SHAPE.weigh>[0];
+
+/** The shape under test is the real one — folding reads Anthropic content blocks. */
+const fold = (
+  messages: Message[], turnStarts: number[], dropped: number, keep: number, folded?: readonly string[],
+) => compactHistory(ANTHROPIC_SHAPE, messages, turnStarts, dropped, keep, folded);
 
 /** `runs` turns, each: the person's line, the model's reply, a tool result. */
 function history(runs: number): { messages: Message[]; turnStarts: number[] } {
@@ -30,13 +36,13 @@ function history(runs: number): { messages: Message[]; turnStarts: number[] } {
 describe('compacting a long conversation', () => {
   it('leaves a short one alone', () => {
     const { messages, turnStarts } = history(3);
-    expect(compactHistory(messages, turnStarts, 0, 3)).toBeNull();
-    expect(compactHistory(messages, turnStarts, 0, 5)).toBeNull();
+    expect(fold(messages, turnStarts, 0, 3)).toBeNull();
+    expect(fold(messages, turnStarts, 0, 5)).toBeNull();
   });
 
   it('keeps the last runs whole and folds the rest into one note', () => {
     const { messages, turnStarts } = history(6);
-    const out = compactHistory(messages, turnStarts, 0, 2)!;
+    const out = fold(messages, turnStarts, 0, 2)!;
 
     // Note + acknowledgement, then the last two runs verbatim (3 messages each).
     expect(out.messages).toHaveLength(2 + 6);
@@ -47,7 +53,7 @@ describe('compacting a long conversation', () => {
 
   it('carries what was asked, and says the rest was dropped', () => {
     const { messages, turnStarts } = history(5);
-    const note = String(compactHistory(messages, turnStarts, 0, 2)!.messages[0].content);
+    const note = String(fold(messages, turnStarts, 0, 2)!.messages[0].content);
 
     for (const asked of ['ask 0', 'ask 1', 'ask 2']) expect(note).toContain(asked);
     // Told it is a summary, and told to re-read rather than trust it — a model
@@ -59,7 +65,7 @@ describe('compacting a long conversation', () => {
   // gone, or "re-ask this one" rewinds the session to the wrong place.
   it('keeps turn coordinates counting from the start of the conversation', () => {
     const { messages, turnStarts } = history(6);
-    const out = compactHistory(messages, turnStarts, 0, 2)!;
+    const out = fold(messages, turnStarts, 0, 2)!;
 
     expect(out.dropped).toBe(4);
     // Next turn opens at 6 — the same number it would have without compaction.
@@ -68,7 +74,7 @@ describe('compacting a long conversation', () => {
 
   it('re-bases what is left so each start still points at that person\'s line', () => {
     const { messages, turnStarts } = history(6);
-    const out = compactHistory(messages, turnStarts, 0, 2)!;
+    const out = fold(messages, turnStarts, 0, 2)!;
 
     expect(out.turnStarts.map((s) => out.messages[s])).toEqual([
       { role: 'user', content: 'ask 4' },
@@ -78,7 +84,7 @@ describe('compacting a long conversation', () => {
 
   it('numbers the note from the runs already folded away, not from zero', () => {
     const { messages, turnStarts } = history(5);
-    const out = compactHistory(messages, turnStarts, 10, 2)!;
+    const out = fold(messages, turnStarts, 10, 2)!;
 
     expect(String(out.messages[0].content)).toContain('11. ask 0');
     expect(out.dropped).toBe(13);
@@ -89,14 +95,14 @@ describe('compacting a long conversation', () => {
   // earliest request vanishing one compaction at a time — which is exactly what
   // a real gateway showed happening: fold one kept the passphrase, fold two ate it.
   it('keeps what was asked in EVERY fold, not just the last one', () => {
-    const first = compactHistory(...Object.values(history(6)) as [Message[], number[]], 0, 2)!;
+    const first = fold(...Object.values(history(6)) as [Message[], number[]], 0, 2)!;
     expect(String(first.messages[0].content)).toContain('ask 0');
 
     const grown = {
       messages: [...first.messages, { role: 'user' as const, content: 'ask 6' }],
       turnStarts: [...first.turnStarts, first.messages.length],
     };
-    const second = compactHistory(grown.messages, grown.turnStarts, first.dropped, 1, first.folded)!;
+    const second = fold(grown.messages, grown.turnStarts, first.dropped, 1, first.folded)!;
 
     const note = String(second.messages[0].content);
     expect(note).toContain('ask 0');   // from the first fold
@@ -105,7 +111,7 @@ describe('compacting a long conversation', () => {
 
   it('elides the oldest once the note would grow unbounded', () => {
     const many = Array.from({ length: 40 }, (_, i) => `${i}. old ask ${i}`);
-    const out = compactHistory(...Object.values(history(5)) as [Message[], number[]], 0, 2, many)!;
+    const out = fold(...Object.values(history(5)) as [Message[], number[]], 0, 2, many)!;
     const note = String(out.messages[0].content);
     expect(note).toContain('earlier requests omitted');
     expect(note).not.toContain('old ask 0');
@@ -115,12 +121,12 @@ describe('compacting a long conversation', () => {
   // Compacting twice is the ordinary case in a conversation long enough to need
   // it once — the second pass must fold the note itself away with the rest.
   it('can be applied again to its own output', () => {
-    const first = compactHistory(...Object.values(history(6)) as [Message[], number[]], 0, 2)!;
+    const first = fold(...Object.values(history(6)) as [Message[], number[]], 0, 2)!;
     const grown = {
       messages: [...first.messages, { role: 'user' as const, content: 'ask 6' }],
       turnStarts: [...first.turnStarts, first.messages.length],
     };
-    const second = compactHistory(grown.messages, grown.turnStarts, first.dropped, 1)!;
+    const second = fold(grown.messages, grown.turnStarts, first.dropped, 1)!;
 
     expect(second.dropped).toBe(6);
     expect(second.turnStarts.map((s) => second.messages[s]))
@@ -146,11 +152,15 @@ describe('a session deciding to compact', () => {
       session.pushUser(`ask ${i}`);
       session.pushToolResults([{ id: `c${i}`, content: 'x'.repeat(4000), isError: false }]);
     }
-    return session as unknown as {
-      compactIfNeeded(): number;
-      contextUsed(): number;
-      lastInputTokens: number;
+    const reached = session as unknown as {
+      log: { compactIfNeeded(): number; contextUsed(): number; lastInputTokens: number };
       turnIndex: number;
+    };
+    return {
+      compactIfNeeded: () => reached.log.compactIfNeeded(),
+      contextUsed: () => reached.log.contextUsed(),
+      set lastInputTokens(n: number) { reached.log.lastInputTokens = n; },
+      get turnIndex() { return reached.turnIndex; },
     };
   };
 

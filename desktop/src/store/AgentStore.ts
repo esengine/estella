@@ -20,7 +20,9 @@ import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
 import type { AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
 import {
-  agentProviders, agentProvider, agentKeyId, parseModelList, CUSTOM_PROVIDER, DEFAULT_CONTEXT_WINDOW,
+  agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf, asProtocol,
+  modelsSettingId, CUSTOM_PROVIDER,
+  DEFAULT_CONTEXT_WINDOW,
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
@@ -279,10 +281,16 @@ function loadSelection(): AgentSelection | null {
 function resolveProvider(id: string) {
   const def = agentProvider(id);
   if (!def) return undefined;
-  if (id !== CUSTOM_PROVIDER) return def;
   const settings = useSettings.getState();
+  // A shipped provider whose model NAMES are not shippable — everything else
+  // about it still is, including its endpoint and its key row.
+  if (def.typedModels) {
+    return { ...def, models: parseModelList(String(settings.getValue(modelsSettingId(id)) ?? '')) };
+  }
+  if (id !== CUSTOM_PROVIDER) return def;
   return {
     ...def,
+    protocol: asProtocol(settings.getValue('agents.customProtocol')),
     baseUrl: String(settings.getValue('agents.customBaseUrl') ?? ''),
     models: parseModelList(String(settings.getValue('agents.customModels') ?? '')),
   };
@@ -318,6 +326,9 @@ export function syncAgentEndpoint(): void {
   const selection = effectiveSelection();
   const def = selection ? resolveProvider(selection.providerId) : undefined;
   void window.estella?.agent?.setEndpoint({
+    // Which wire format to speak. Travels with the endpoint for the same reason
+    // the window does: both are the one fact "which provider is this".
+    protocol: protocolOf(def),
     baseUrl: def?.baseUrl ?? '',
     model: selection?.model ?? '',
     keyId: selection ? agentKeyId(selection.providerId) : '',

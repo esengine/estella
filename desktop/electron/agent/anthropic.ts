@@ -24,10 +24,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import type {
   AgentProvider, AgentSession, CatalogTool, StepEvent, ToolOutcome, UserImage,
 } from './types';
-import {
-  DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, DEFAULT_EFFORT, KEEP_WHOLE_RUNS, shouldCompact,
-} from '../../src/settings/agentIds';
+import { ConversationLog, foldLine, type HistoryShape } from './conversation';
+import { describeApiError, isTransientApiError } from './apiError';
+import { DEFAULT_MODEL, DEFAULT_CONTEXT_WINDOW, DEFAULT_EFFORT } from '../../src/settings/agentIds';
 
+/** Names this history's wire format on disk, so it is never resumed into
+ *  another provider's session — see conversation.ts LogMemory. */
+export const ANTHROPIC_FORMAT = 'anthropic';
 
 
 /**
@@ -149,193 +152,50 @@ export function toolResultContent(
 }
 
 /**
- * What went wrong, said to the person who has to decide what to do about it.
- *
- * The SDK's own message is written for whoever is reading a stack trace — it
- * names a status code and a URL. In the transcript the only useful content is
- * which of four situations this is, because each has a different answer: wait,
- * fix the key, check the address, or nothing (it already retried).
- *
- * Exported so the phrasing is pinned by a test rather than by whichever error
- * happens to occur first in production.
+ * How the shared bookkeeping reads THIS format. Everything else about folding a
+ * conversation is in conversation.ts, which is not about a wire format.
  */
-/** The SDK hands back a `Headers` on some paths and a plain object on others;
- *  reading only one shape is how the useful half of a 429 goes missing. */
-function headerOf(error: unknown, name: string): string | undefined {
-  const headers = (error as { headers?: unknown })?.headers;
-  if (!headers) return undefined;
-  const get = (headers as Headers).get;
-  if (typeof get === 'function') return (headers as Headers).get(name) ?? undefined;
-  return (headers as Record<string, string>)[name];
-}
-
-/**
- * Whether asking again could plausibly work: the failure was the CONNECTION or
- * the far side, not the request.
- *
- * A stream that dies halfway is the common one, and it is not rare over a long
- * turn — a dogfood run lost eighty-seven rounds of work to a socket the gateway
- * closed. It arrives with no HTTP status at all, because the request had already
- * succeeded and the body stopped arriving.
- */
-export function isTransientApiError(error: unknown): boolean {
-  const status = (error as { status?: number })?.status;
-  if (status === undefined || status === null) return true;
-  return status === 408 || status === 429 || status >= 500;
-}
-
-export function describeApiError(error: unknown): string {
-  const status = (error as { status?: number })?.status;
-  const raw = (error as Error)?.message ?? String(error);
-  const retryAfter = Number(headerOf(error, 'retry-after'));
-
-  if (status === 429) {
-    // The SDK has already retried this with backoff by the time it reaches us,
-    // so "try again" is not advice — how long to wait is.
-    return Number.isFinite(retryAfter) && retryAfter > 0
-      ? `Rate limited, and the automatic retries did not clear it. The endpoint asks for ${retryAfter}s.`
-      : 'Rate limited, and the automatic retries did not clear it. Wait a moment and send again.';
-  }
-  if (status === 401 || status === 403) {
-    return 'The endpoint rejected the API key. Check it in Settings › AI Agents.';
-  }
-  if (status === 404) {
-    return 'The endpoint has no such model, or the address is wrong. Check both in Settings › AI Agents.';
-  }
-  if (status === 400) return `The endpoint refused the request: ${raw}`;
-  if (status && status >= 500) return 'The endpoint is having trouble. Nothing is wrong on this side — try again shortly.';
-  // Not an HTTP failure at all: DNS, offline, a gateway that is not running.
-  if (!status) return `Could not reach the endpoint: ${raw}`;
-  return raw;
-}
-
-/**
- * Fold the oldest runs into one note, keeping what the PERSON said.
- *
- * A conversation grows mostly by tool traffic — a scene tree, a diagnostics
- * list, the reasoning about them — and almost none of that is worth carrying
- * once the edits have landed. The intent is: "make it feel like dusk" governs
- * the ninth run as much as the first. So the person's own words survive verbatim
- * and everything around them becomes a line.
- *
- * Structural rather than model-written: asking a model to summarise costs a call
- * and a wait at exactly the moment the conversation is already long, and the
- * facts worth keeping (what was asked) are ones already held exactly.
- *
- * Pure and exported for the reason buildStepRequest is: it rewrites the history
- * everything else depends on, and the bookkeeping — turn COORDINATES outliving
- * the messages they named — is the part worth pinning by test rather than by
- * whichever long conversation happens to hit it first.
- *
- * @returns the rewritten history, or null when there is not enough to fold.
- */
-export function compactHistory(
-  messages: readonly Message[],
-  turnStarts: readonly number[],
-  dropped: number,
-  keepRuns: number,
-  folded: readonly string[] = [],
-): { messages: Message[]; turnStarts: number[]; dropped: number; folded: string[] } | null {
-  const cut = turnStarts.length - keepRuns;
-  if (cut <= 0) return null;
-  const at = turnStarts[cut];
-  // Everything ever folded, not only this pass. The note a fold produces is NOT
-  // in turnStarts, so the next one splices straight over it — carrying the asks
-  // in a value of their own is what stops the oldest request disappearing one
-  // compaction at a time. (Caught against a real gateway: the first fold kept
-  // "remember the passphrase", the second silently ate it.)
-  const asked = [
-    ...folded,
-    ...turnStarts.slice(0, cut).map((start, i) => `${dropped + i + 1}. ${firstText(messages[start])}`),
-  ];
-  // A conversation folded many times would otherwise grow a note that is itself
-  // the problem. The oldest go first: their edits are furthest downstream.
-  const shown = asked.length > MAX_FOLDED_ASKS
-    ? [`(${asked.length - MAX_FOLDED_ASKS} earlier requests omitted)`, ...asked.slice(-MAX_FOLDED_ASKS)]
-    : asked;
-  const note = 'Earlier in this conversation you were asked, in order:\n'
-    + `${shown.join('\n')}\n`
-    + 'The tool calls and results from those runs were dropped to keep this conversation '
-    + 'inside its context window. Whatever they changed is in the scene — read it back if '
-    + 'you need the current state rather than trusting this summary.';
-  const kept: Message[] = [
-    { role: 'user', content: note },
+export const ANTHROPIC_SHAPE: HistoryShape<Message> = {
+  askedIn: (message) => {
+    const content = message?.content;
+    const text = typeof content === 'string'
+      ? content
+      : content?.find((b) => b.type === 'text')?.text ?? '';
+    return foldLine(text);
+  },
+  foldNote: (text) => [
+    { role: 'user', content: text },
     { role: 'assistant', content: 'Understood.' },
-    ...messages.slice(at),
-  ];
-  const shift = at - 2;
-  return {
-    messages: kept,
-    turnStarts: turnStarts.slice(cut).map((s) => s - shift),
-    // Coordinates count from the start of the CONVERSATION, not of what is left.
-    dropped: dropped + cut,
-    folded: asked,
-  };
-}
-
-/** How many past requests the note quotes before it elides the oldest. */
-const MAX_FOLDED_ASKS = 20;
-
-/**
- * What a person's turn said, as one line for the compaction note.
- *
- * The FIRST text block only. A turn is pushed as a plain string and then gets
- * the editor context appended as a second block (flushContext), which is the
- * same paragraph every turn — joining them would quote the state of the editor
- * once per folded run and bury the sentence that was actually said.
- */
-function firstText(message: Message | undefined): string {
-  const content = message?.content;
-  const text = typeof content === 'string'
-    ? content
-    : content?.find((b) => b.type === 'text')?.text ?? '';
-  const flat = text.replace(/\s+/g, ' ').trim();
-  if (!flat) return '(no text)';
-  return flat.length > 200 ? `${flat.slice(0, 197)}…` : flat;
-}
-
-/** What a conversation's memory looks like on disk. Versioned: a shape this
- *  does not recognise is refused rather than half-read. */
-interface SessionMemory {
-  v: 1;
-  messages: Message[];
-  turnStarts: number[];
-  dropped: number;
-  folded: string[];
-  lastInputTokens: number;
-}
-
-const isSessionMemory = (value: unknown): value is SessionMemory => {
-  const m = value as Partial<SessionMemory> | null;
-  return !!m && m.v === 1 && Array.isArray(m.messages) && Array.isArray(m.turnStarts)
-    && typeof m.dropped === 'number' && Array.isArray(m.folded);
+  ],
+  weigh: (message) => (typeof message.content === 'string'
+    ? message.content.length
+    : JSON.stringify(message.content).length),
 };
 
 class AnthropicSession implements AgentSession {
-  private messages: Message[] = [];
+  private readonly log: ConversationLog<Message>;
   /** Context waiting for a legal spot — see {@link flushContext}. */
   private readonly pending: string[] = [];
-  /** Where each person's turn starts. A tool result is a `user` message too, so
-   *  counting roles would not find them. */
-  private turnStarts: number[] = [];
-  /** Runs folded away by {@link compactOldest}. Turn coordinates count from the
-   *  start of the CONVERSATION, so they must survive their messages. */
-  private dropped = 0;
-  /** What was asked in every folded run, oldest first — see compactHistory. */
-  private folded: string[] = [];
-  /** What the last call was billed for its input. Authoritative WHERE it counts
-   *  the whole request — see {@link contextUsed}, which does not assume it does. */
-  private lastInputTokens = 0;
 
   constructor(
     private readonly client: Anthropic,
     private readonly opts: { model: string; effort: string; dialect: Dialect; contextWindow: number },
     private readonly system: string,
     private readonly tools: readonly CatalogTool[],
-  ) {}
+  ) {
+    let fixedChars = system.length;
+    for (const tool of tools) {
+      fixedChars += tool.name.length + tool.description.length + JSON.stringify(tool.schema).length;
+    }
+    this.log = new ConversationLog(ANTHROPIC_SHAPE, { contextWindow: opts.contextWindow, fixedChars });
+  }
+
+  private get messages(): Message[] {
+    return this.log.messages;
+  }
 
   get turnIndex(): number {
-    return this.dropped + this.turnStarts.length;
+    return this.log.turnIndex;
   }
 
   /**
@@ -346,30 +206,18 @@ class AnthropicSession implements AgentSession {
    * anyway. Restoring it would replay a stale reading of the scene as if it were
    * current — the one thing the per-turn context exists to avoid.
    */
-  serialize(): SessionMemory {
-    return {
-      v: 1,
-      messages: this.messages,
-      turnStarts: this.turnStarts,
-      dropped: this.dropped,
-      folded: this.folded,
-      lastInputTokens: this.lastInputTokens,
-    };
+  serialize(): unknown {
+    return this.log.serialize(ANTHROPIC_FORMAT);
   }
 
   /** Put a serialized memory back. Anything else leaves the session empty —
    *  see AgentProvider.createSession on why that beats refusing. */
   restore(memory: unknown): void {
-    if (!isSessionMemory(memory)) return;
-    this.messages = memory.messages;
-    this.turnStarts = memory.turnStarts;
-    this.dropped = memory.dropped;
-    this.folded = memory.folded;
-    this.lastInputTokens = memory.lastInputTokens ?? 0;
+    this.log.restore(memory, ANTHROPIC_FORMAT);
   }
 
   pushUser(text: string, images?: readonly UserImage[]): void {
-    this.turnStarts.push(this.messages.length);
+    this.log.markTurnStart();
     if (!images?.length) {
       this.messages.push({ role: 'user', content: text });
       return;
@@ -403,69 +251,10 @@ class AnthropicSession implements AgentSession {
   }
 
   rewindTo(n: number): void {
-    const at = this.turnStarts[n - this.dropped];
-    // Rewinding into runs that have already been folded away is not something
-    // this can do — their messages are gone. Refusing beats half-doing it.
-    if (at === undefined) return;
-    this.messages.length = at;
-    this.turnStarts.length = n - this.dropped;
+    // Refuses a run already folded away — its messages are gone.
+    if (!this.log.rewindTo(n)) return;
     // Context buffered for a turn that is no longer going to happen.
     this.pending.length = 0;
-  }
-
-  /**
-   * How full the context is, in tokens — the larger of what the endpoint billed
-   * and what this conversation obviously weighs.
-   *
-   * Measured against a real gateway, `input_tokens` is NOT always the whole
-   * request: DeepSeek reported 33 for a first turn whose system prompt and 75
-   * tool schemas are thousands, so trusting it alone meant compaction would
-   * never fire and the conversation would hit the wall it exists to prevent.
-   * Nor can the estimate simply replace it — chars/4 is a rule of thumb that
-   * under-counts CJK badly, which is most of what this editor's users type.
-   *
-   * So: whichever is bigger. Both err by under-reporting, and the cost of
-   * over-reporting is one compaction that was not needed yet.
-   */
-  private contextUsed(): number {
-    let chars = this.system.length;
-    for (const tool of this.tools) {
-      chars += tool.name.length + tool.description.length + JSON.stringify(tool.schema).length;
-    }
-    for (const message of this.messages) {
-      chars += typeof message.content === 'string'
-        ? message.content.length
-        : JSON.stringify(message.content).length;
-    }
-    return Math.max(this.lastInputTokens, Math.ceil(chars / 4));
-  }
-
-  /**
-   * Fold the oldest runs away if this conversation has outgrown its budget.
-   *
-   * @returns how many runs went, 0 when none did. The caller SAYS it — a
-   *          conversation losing part of its memory with nothing on screen to
-   *          show for it is the thing this number exists to end.
-   */
-  private compactIfNeeded(): number {
-    if (!shouldCompact(this.contextUsed(), this.opts.contextWindow)) return 0;
-    const next = compactHistory(
-      this.messages, this.turnStarts, this.dropped, KEEP_WHOLE_RUNS, this.folded,
-    );
-    if (!next) return 0;
-    const runs = next.dropped - this.dropped;
-    this.messages.splice(0, this.messages.length, ...next.messages);
-    this.turnStarts.splice(0, this.turnStarts.length, ...next.turnStarts);
-    this.dropped = next.dropped;
-    this.folded = next.folded;
-    // What the endpoint billed describes a history that no longer exists, and
-    // it is the LARGER half of contextUsed() on an honest endpoint. Left in
-    // place it would report the conversation as still full immediately after
-    // emptying it: no visible drop, and the next step would fold again for a
-    // reason that had already been dealt with. The estimate carries the reading
-    // until the next call reports a real one.
-    this.lastInputTokens = 0;
-    return runs;
   }
 
   pushContext(text: string): void {
@@ -527,10 +316,10 @@ class AnthropicSession implements AgentSession {
     // conversation. The reading is stated here as well as after the answer
     // because this is the moment it moves DOWN, and a gauge that only ever
     // climbed would make the fold invisible in the one place it shows.
-    const folded = this.compactIfNeeded();
+    const folded = this.log.compactIfNeeded();
     if (folded > 0) {
       yield { type: 'compacted', runs: folded };
-      yield { type: 'context', used: this.contextUsed(), window: this.opts.contextWindow };
+      yield { type: 'context', used: this.log.contextUsed(), window: this.opts.contextWindow };
     }
 
     const request = buildStepRequest({
@@ -631,7 +420,7 @@ class AnthropicSession implements AgentSession {
     this.messages.push({ role: 'assistant', content: message.content as Message['content'] });
 
     if (message.usage) {
-      this.lastInputTokens = message.usage.input_tokens ?? this.lastInputTokens;
+      this.log.lastInputTokens = message.usage.input_tokens ?? this.log.lastInputTokens;
       // Whatever the stream did not already account for. Usually nothing — but
       // an endpoint that reports usage only at the end still gets it all here,
       // and one that over-reported mid-stream is not charged twice.
@@ -642,7 +431,7 @@ class AnthropicSession implements AgentSession {
     // this one call cost. A level and a cost project differently (the editor
     // replaces one and sums the other), and an endpoint that reports no usage
     // at all still has a context this can answer for from the estimate.
-    yield { type: 'context', used: this.contextUsed(), window: this.opts.contextWindow };
+    yield { type: 'context', used: this.log.contextUsed(), window: this.opts.contextWindow };
 
     // Again, now with the PARSED arguments — the streamed deltas are display
     // text, and the kernel needs a real object to dispatch. The editor treats a

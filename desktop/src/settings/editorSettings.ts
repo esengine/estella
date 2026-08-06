@@ -20,10 +20,12 @@ import { Toasts } from '@/store/Toasts';
 import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
 import { syncAgentEndpoint } from '@/store/AgentStore';
-import { agentProviders, agentKeyId, CUSTOM_PROVIDER } from '@/agent/providers';
+import {
+  agentProviders, agentKeyId, modelsSettingId, AGENT_PROTOCOLS, CUSTOM_PROVIDER,
+} from '@/agent/providers';
 import { AGENT_EFFORTS, DEFAULT_EFFORT } from '@/settings/agentIds';
 import { applyUiZoom, UI_SCALE_SETTING, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from '@/layout/uiZoom';
-import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
+import { t, type MsgKey, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
 
@@ -253,6 +255,22 @@ for (const provider of agentProviders()) {
     default: false,
     status: { read: () => secretStatusLine(agentKeyId(provider.id)), subscribe: subscribeSecrets },
   });
+  // A vendor whose address holds still but whose model NAMES do not: shipping a
+  // list would be right until its next release, and a name we get wrong is not
+  // an error — it is a gateway quietly serving something smaller all session.
+  if (!provider.typedModels) continue;
+  settingsRegistry.register({
+    id: modelsSettingId(provider.id),
+    type: 'string',
+    scope: 'editor',
+    section: 'agents',
+    group: t('set.group.builtinAgent'),
+    label: t('set.agents.providerModels', { provider: provider.label }),
+    description: t('set.agents.providerModels.desc', { provider: provider.label }),
+    placeholder: 'model-a, model-b',
+    default: '',
+    effect: () => syncAgentEndpoint(),
+  });
 }
 
 // How hard the model is asked to think. Its own setting rather than part of the
@@ -274,6 +292,24 @@ settingsRegistry.register({
 
 // The escape hatch, for a provider we have not heard of — which is exactly the
 // one we cannot ship an endpoint or a model list for.
+//
+// Which PROTOCOL it speaks has to be asked, not guessed: the two formats differ
+// in every message they send, so getting it wrong is a 400 about a field the
+// person never wrote. Chat Completions is offered first because it is what most
+// endpoints — and every local runner — implement.
+settingsRegistry.register({
+  id: 'agents.customProtocol',
+  type: 'enum',
+  scope: 'editor',
+  section: 'agents',
+  group: t('set.group.customProvider'),
+  label: t('set.agents.customProtocol'),
+  description: t('set.agents.customProtocol.desc'),
+  default: 'openai',
+  options: AGENT_PROTOCOLS.map((value) => ({ value, label: t(`set.agents.protocol.${value}` as MsgKey) })),
+  effect: () => syncAgentEndpoint(),
+});
+
 settingsRegistry.register({
   id: 'agents.customBaseUrl',
   type: 'string',
@@ -282,7 +318,7 @@ settingsRegistry.register({
   group: t('set.group.customProvider'),
   label: t('set.agents.customBaseUrl'),
   description: t('set.agents.customBaseUrl.desc'),
-  placeholder: 'https://example.com/anthropic',
+  placeholder: 'https://example.com/v1',
   default: '',
   effect: () => syncAgentEndpoint(),
 });

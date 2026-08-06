@@ -54,6 +54,7 @@ import {
 } from './agent/store';
 import type { ConfirmAnswer, UserImage } from './agent/types';
 import { createAnthropicProvider } from './agent/anthropic';
+import { createOpenAIProvider } from './agent/openai';
 
 import {
   discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
@@ -689,7 +690,7 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // settings live in its localStorage) and merged, since the two rows fire
 // separately; read at session creation, so a change lands on the next
 // conversation rather than under the one being read.
-let agentEndpoint: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string } = {};
+let agentEndpoint: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string } = {};
 /** Contributed agent tools, as the window last reported them. */
 let agentPluginTools: ContributedTool[] = [];
 
@@ -704,11 +705,26 @@ const agentHost = createAgentHost({
     // Phrased for the person who will read it in the transcript, and it names
     // where to fix it — a bare "401" or "missing apiKey" does neither.
     if (!apiKey) throw new Error('No API key is configured. Add one in Settings › AI Agents.');
+    const effort = agentEndpoint.effort as Parameters<typeof createAnthropicProvider>[0]['effort'];
+    // Which wire format, decided by the provider the window picked. The two are
+    // different protocols rather than dialects of one — see agent/openai.ts.
+    if (agentEndpoint.protocol === 'openai') {
+      if (!agentEndpoint.model) {
+        throw new Error('No model is selected. Pick one next to the composer, or add it in Settings › AI Agents.');
+      }
+      return createOpenAIProvider({
+        apiKey,
+        baseURL: agentEndpoint.baseUrl,
+        model: agentEndpoint.model,
+        effort,
+        contextWindow: agentEndpoint.contextWindow,
+      });
+    }
     return createAnthropicProvider({
       apiKey,
       baseURL: agentEndpoint.baseUrl,
       model: agentEndpoint.model,
-      effort: agentEndpoint.effort as Parameters<typeof createAnthropicProvider>[0]['effort'],
+      effort,
       contextWindow: agentEndpoint.contextWindow,
     });
   },
@@ -745,7 +761,7 @@ ipcMain.handle('agent:resumeConversation', async (_e, id: string) => {
 ipcMain.handle('agent:deleteConversation', async (_e, id: string) => {
   if (projectRoot) await deleteConversation(projectRoot, id);
 });
-ipcMain.handle('agent:setEndpoint', (_e, patch: { baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }) => {
+ipcMain.handle('agent:setEndpoint', (_e, patch: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.
   agentHost.announce();
