@@ -146,7 +146,21 @@ describe('structural field members (the "position.x" door)', () => {
 
     it('fills a short or missing value rather than writing past its end', () => {
         expect(patchFieldMember('vec3', [] as unknown as InspectorFieldValue, 'z', 7)).toEqual([0, 0, 7]);
-        expect(patchFieldMember('dimension', null as never, 'value', 3)).toEqual({ value: 3 });
+        // A unit comes with it: a dimension left on Auto ignores its value, so a
+        // bare `.value` write would be stored and have no effect.
+        expect(patchFieldMember('dimension', null as never, 'value', 3)).toEqual({ value: 3, unit: 0 });
+    });
+
+    it('gives a bare dimension value a unit, because Auto ignores the value', () => {
+        // `UINode.insetTop.value = 40` on a fresh node stored the 40 and moved
+        // nothing — every dimension defaults to Auto, and Auto means "ignore it".
+        expect(patchFieldMember('dimension', { value: 0, unit: 2 }, 'value', 40))
+            .toEqual({ value: 40, unit: 0 });
+        // An explicit unit still wins, in either order.
+        expect(patchFieldMember('dimension', { value: 0, unit: 1 }, 'value', 50))
+            .toEqual({ value: 50, unit: 1 });
+        expect(patchFieldMember('dimension', { value: 40, unit: 0 }, 'unit', 2))
+            .toEqual({ value: 40, unit: 2 });
     });
 
     it('refuses a member that is not a number, and one that does not exist', () => {

@@ -125,8 +125,22 @@ export function patchFieldMember(
     ? { ...(current as Record<string, unknown>) }
     : {};
   obj[at] = n;
+  // A dimension whose unit is Auto IGNORES its value — that is what Auto means.
+  // So `UINode.insetTop.value = 40` on a fresh node (every dimension defaults to
+  // Auto) stored the 40 and moved nothing, and reading the field back showed the
+  // 40 sitting there. A dogfood run put a whole HUD at one point that way: three
+  // labels with insets of 8, 40 and 260, all drawn on top of each other, and
+  // nothing anywhere said why. Naming the member IS the intent, so writing a
+  // value gives it a unit; writing `unit` yourself still wins.
+  if (type === 'dimension' && at === 'value' && (obj.unit === DIMENSION_AUTO || obj.unit === undefined)) {
+    obj.unit = DIMENSION_PX;
+  }
   return obj as InspectorFieldValue;
 }
+
+/** `DimensionUnit` from the SDK, spelled here so this stays a pure function. */
+const DIMENSION_PX = 0;
+const DIMENSION_AUTO = 2;
 
 /**
  * What a field will accept, as the inspector already describes it — structurally
