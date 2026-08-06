@@ -74,12 +74,22 @@ interface GameRect {
  * palette is fixed rather than a per-capture legend, so the letters mean the same thing
  * in every reply and can be reasoned about directly.
  */
-const PALETTE: ReadonlyArray<[string, number, number, number]> = [
-  ['.', 0, 0, 0], ['r', 128, 0, 0], ['g', 0, 128, 0], ['y', 128, 128, 0],
-  ['b', 0, 0, 128], ['m', 128, 0, 128], ['c', 0, 128, 128], ['w', 170, 170, 170],
-  ['K', 85, 85, 85], ['R', 255, 0, 0], ['G', 0, 255, 0], ['Y', 255, 255, 0],
-  ['B', 0, 0, 255], ['M', 255, 0, 255], ['C', 0, 255, 255], ['W', 255, 255, 255],
+const PALETTE: ReadonlyArray<[string, number, number, number, string]> = [
+  ['.', 0, 0, 0, 'black'], ['K', 85, 85, 85, 'dark grey'],
+  ['r', 128, 0, 0, 'dark red'], ['R', 255, 0, 0, 'red'],
+  ['g', 0, 128, 0, 'dark green'], ['G', 0, 255, 0, 'green'],
+  ['y', 128, 128, 0, 'olive'], ['Y', 255, 255, 0, 'yellow'],
+  ['b', 0, 0, 128, 'navy'], ['B', 0, 0, 255, 'blue'],
+  ['m', 128, 0, 128, 'purple'], ['M', 255, 0, 255, 'magenta'],
+  ['c', 0, 128, 128, 'teal'], ['C', 0, 255, 255, 'cyan'],
+  ['w', 170, 170, 170, 'grey'], ['W', 255, 255, 255, 'white'],
 ];
+
+/** The legend, WRITTEN FROM the palette — a hand-kept one drifts, and it did:
+ *  `K` (the dark grey between black and grey, and the commonest ink in a dim
+ *  scene) was missing from it, so the one channel a blind caller reads was
+ *  handing back a letter its own key did not explain. */
+const PALETTE_LEGEND = PALETTE.map(([ink, , , , name]) => `${ink} ${name}`).join('  ');
 
 function nearestInk(r: number, g: number, b: number): string {
   let best = '.';
@@ -111,25 +121,61 @@ function colorGrid(image: Electron.NativeImage, rect: GameRect | null, cols: num
       what = rect.playing ? 'the RUNNING GAME' : 'the edit viewport';
     }
   }
-  const small = shot.resize({ width: w, height: h, quality: 'good' });
-  const size = small.getSize();
   // BGRA, row-major. Electron 42's own typings declare this `void`; it returns the
   // buffer the docs promise, so the cast is over their declaration, not over reality.
-  const bitmap = small.getBitmap() as unknown as Buffer;
-  const lines: string[] = [];
-  for (let y = 0; y < size.height; y++) {
-    let line = '';
-    for (let x = 0; x < size.width; x++) {
-      const i = (y * size.width + x) * 4;
-      line += nearestInk(bitmap[i + 2], bitmap[i + 1], bitmap[i]);
-    }
-    lines.push(`${String(y).padStart(2, ' ')} ${line}`);
+  const src = shot.getSize();
+  const bitmap = shot.getBitmap() as unknown as Buffer;
+  const cols_ = Math.min(w, src.width);
+  const rows_ = Math.min(h, src.height);
+
+  // Each cell reports its most UNUSUAL pixel, not its average. Downscaling was
+  // the obvious way to build this grid and it hides precisely what a game is
+  // made of: a bullet, a thin sprite, a line of text is a few pixels inside a
+  // twenty-pixel cell, and averaged against the background it comes back as
+  // empty space. A dogfood run read a screen with a row of aliens across the
+  // top of it as blank and carried on. So: find the background (the commonest
+  // colour in the capture), then let whichever pixel is FURTHEST from it speak
+  // for the cell.
+  const ink = new Uint8Array(src.width * src.height);
+  const inkIndex = new Map(PALETTE.map(([letter], i) => [letter, i]));
+  const counts = new Array(PALETTE.length).fill(0);
+  for (let p = 0, n = src.width * src.height; p < n; p++) {
+    const i = p * 4;
+    const idx = inkIndex.get(nearestInk(bitmap[i + 2], bitmap[i + 1], bitmap[i])) ?? 0;
+    ink[p] = idx;
+    counts[idx]++;
   }
-  const px = rect ? `${Math.round(rect.width / size.width)}x${Math.round(rect.height / size.height)} css px` : 'unknown';
+  let bg = 0;
+  for (let i = 1; i < counts.length; i++) if (counts[i] > counts[bg]) bg = i;
+  const [, br, bgc, bb] = PALETTE[bg];
+
+  const lines: string[] = [];
+  for (let cy = 0; cy < rows_; cy++) {
+    const y0 = Math.floor((cy * src.height) / rows_);
+    const y1 = Math.max(y0 + 1, Math.floor(((cy + 1) * src.height) / rows_));
+    let line = '';
+    for (let cx = 0; cx < cols_; cx++) {
+      const x0 = Math.floor((cx * src.width) / cols_);
+      const x1 = Math.max(x0 + 1, Math.floor(((cx + 1) * src.width) / cols_));
+      let best = bg;
+      let bestDist = -1;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * src.width + x) * 4;
+          const d = (bitmap[i + 2] - br) ** 2 + (bitmap[i + 1] - bgc) ** 2 + (bitmap[i] - bb) ** 2;
+          if (d > bestDist) { bestDist = d; best = ink[y * src.width + x]; }
+        }
+      }
+      line += PALETTE[best][0];
+    }
+    lines.push(`${String(cy).padStart(2, ' ')} ${line}`);
+  }
+  const px = rect ? `${Math.round(rect.width / cols_)}x${Math.round(rect.height / rows_)} css px` : 'unknown';
   return [
-    `${size.width}x${size.height} colour grid of ${what} (one letter per ${px} cell).`,
-    'Palette: . black  r/R red  g/G green  y/Y yellow  b/B blue  m/M magenta  c/C cyan  w/W grey/white'
-    + ' (capitals are the bright form). Column 0 is the LEFT edge, row 0 the TOP.',
+    `${cols_}x${rows_} colour grid of ${what} (one letter per ${px} cell).`,
+    `Palette: ${PALETTE_LEGEND}. Column 0 is the LEFT edge, row 0 the TOP.`,
+    'Each cell is its most unusual pixel, not an average, so one bullet in a cell'
+    + ` still shows. The background here came out \`${PALETTE[bg][0]}\` (${PALETTE[bg][4]}).`,
     ...lines,
   ].join('\n');
 }
@@ -146,7 +192,7 @@ function colorGrid(image: Electron.NativeImage, rect: GameRect | null, cols: num
 const PROBE_SCOPE =
   'const p = window.__estellaPlay;'
   + " if (!p) throw new Error('this realm publishes no probe surface — enter play first');"
-  + ' const { app, getComponent, find, componentNames, resource, input, get, set, step } = p;';
+  + ' const { app, getComponent, find, componentNames, resource, setResource, input, get, set, step } = p;';
 
 function unwrap(res: unknown): unknown {
   const r = res as { v?: unknown; __estellaExecError?: string } | null;

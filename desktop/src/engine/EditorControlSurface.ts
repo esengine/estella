@@ -358,7 +358,18 @@ export class EditorControlSurfaceImpl {
    * that by hunting down `app.runFrame_` and stepping the realm through a private
    * method. The verb was right; it just went to the wrong world.
    */
-  async step(frames = 1, dt = 1 / 60): Promise<{ world: 'play' | 'edit'; frames: number; dt: number }> {
+  async step(
+    framesIn: number | null = 1,
+    dtIn: number | null = 1 / 60,
+  ): Promise<{ world: 'play' | 'edit'; frames: number; dt: number }> {
+    // A default parameter answers to `undefined` and not to `null`, and an
+    // omitted argument arrives here as null: it crosses a JSON hop, where
+    // `[60, undefined]` is written `[60, null]`. The step still ran at the real
+    // default further down, and the REPLY said `dt: null` — so a caller timing
+    // anything read the frame length as nothing at all. Normalise once, and
+    // report the numbers actually used.
+    const frames = Number(framesIn) > 0 ? Math.floor(Number(framesIn)) : 1;
+    const dt = Number(dtIn) > 0 ? Number(dtIn) : 1 / 60;
     if (this.liveGame?.running()) {
       await this.liveGame.step(frames, dt);
       return { world: 'play', frames, dt };

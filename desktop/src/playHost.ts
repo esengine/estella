@@ -37,6 +37,27 @@ function componentNamesOf(app_: App): string[] {
     .sort();
 }
 
+/**
+ * One resource by the name its `defineResource` was given, for the probe surface.
+ *
+ * Resources are keyed by the def's SYMBOL, whose description carries the name as
+ * `Resource_<n>_<Name>` — the only place the name survives at run time.
+ * `app.getResource` takes the def, which a probe has no way to name, so without
+ * this the next move is reading `app.resources_.resources_` — a private map,
+ * reached by two different agents on two different days.
+ */
+function resourceEntry(name: string): { value: unknown } | { error: string; available: string[] } {
+  const entries = [...(app as unknown as {
+    resources_: { resources_: Map<symbol, unknown> };
+  }).resources_.resources_];
+  const nameOf = (k: symbol): string => (/^Resource_\d+_(.+)$/.exec(k.description ?? '')?.[1] ?? k.description ?? '');
+  const hit = entries.find(([k]) => nameOf(k) === name);
+  if (!hit) {
+    return { error: `no resource named "${name}"`, available: entries.map(([k]) => nameOf(k)).filter(Boolean).sort() };
+  }
+  return { value: hit[1] };
+}
+
 function inspectableTypes(world: App['world'], entity: number): string[] {
   return world.getComponentTypes(entity as never).filter((t) => {
     if (LIVE_STRUCTURAL.has(t)) return false;
@@ -396,17 +417,27 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
      * turns into a dependency on internals.
      */
     resource: (name: string) => {
-      // Keyed by the def's symbol, whose description carries the name as
-      // `Resource_<n>_<Name>` — the only place the name survives at runtime.
-      const entries = [...(app as unknown as {
-        resources_: { resources_: Map<symbol, unknown> };
-      }).resources_.resources_];
-      const nameOf = (k: symbol): string => (/^Resource_\d+_(.+)$/.exec(k.description ?? '')?.[1] ?? k.description ?? '');
-      const hit = entries.find(([k]) => nameOf(k) === name);
-      if (!hit) {
-        return { error: `no resource named "${name}"`, available: entries.map(([k]) => nameOf(k)).filter(Boolean).sort() };
+      const hit = resourceEntry(name);
+      return 'error' in hit ? hit : hit.value;
+    },
+    /**
+     * Write fields of a resource — the staging door for state that belongs to
+     * no entity.
+     *
+     * `set` stages a COMPONENT, and the situations worth watching in a game are
+     * mostly not on an entity: game over, the wave number, the life count. With
+     * only a reader here, one probe tried `set(resource('GameState'), …)` and
+     * the next went back through `app.getResource` and the private map — the
+     * exact reach-into-internals this surface exists to make unnecessary.
+     */
+    setResource: (name: string, patch: Record<string, unknown>) => {
+      const hit = resourceEntry(name);
+      if ('error' in hit) return hit;
+      if (hit.value === null || typeof hit.value !== 'object') {
+        return { error: `resource "${name}" is not an object — setResource patches fields` };
       }
-      return hit[1];
+      Object.assign(hit.value as object, patch);
+      return hit.value;
     },
     input: {
       move: (x: number, y: number) => injected.onPointerMove?.(x, y),
