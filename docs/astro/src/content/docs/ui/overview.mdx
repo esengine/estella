@@ -123,7 +123,7 @@ cannot fix it by drawing a second image for every button size in the game.
 
 9-slice cuts the image into a 3×3 grid and scales each piece differently:
 
-![A source button texture stretched wide smears its corners; cut into a 3×3 grid the corners stay 1:1, the edges stretch along one axis and only the middle stretches both ways](../../../assets/guides/nine-slice.svg)
+![A source button texture stretched wide smears its corners; cut into a 3×3 grid the corners stay 1:1, the edges stretch along one axis and only the middle stretches both ways](@/assets/guides/nine-slice.svg)
 
 `sliceBorder` is those four numbers: how far in from each edge the "do not stretch" band
 reaches. Corners keep their exact pixels at any size, so one 100×112 texture serves a tiny
@@ -143,7 +143,7 @@ the node's **box** — a rectangle. That is enough for a list viewport, but it i
 circular avatar frame used to still cut a square: the mask graphic was round, the clip
 was not. `alphaCutoff` above 0 switches the clip to the shape the mask actually draws.
 
-![A square photo under a circular mask: clipped to the box it stays square; with alphaCutoff above zero it is clipped to the circle](../../../assets/guides/ui-mask.svg)
+![A square photo under a circular mask: clipped to the box it stays square; with alphaCutoff above zero it is clipped to the circle](@/assets/guides/ui-mask.svg)
 
 `UIVisual.enabled` hides this entity's visual only; `UINode.display = None`
 removes the node **and its whole subtree** from layout, rendering, and
@@ -155,7 +155,7 @@ until the whole image fits (the box keeps its layout size); `Cover` keeps the bo
 crops the UV instead. Neither ever distorts the artwork. `NineSlice` and `Tiled` ignore
 it — adapting to the box is their whole job.
 
-![Wide art in a square slot: Fill squashes it, Contain shrinks the whole image inside the box, Cover fills the box and crops the overflow](../../../assets/guides/object-fit.svg)
+![Wide art in a square slot: Fill squashes it, Contain shrinks the whole image inside the box, Cover fills the box and crops the overflow](@/assets/guides/object-fit.svg)
 
 **`UIMask.alphaCutoff` — clip to the shape, not the box.** A stencil mask clips to the
 mask's *rectangle*, so a circular avatar frame still cut a square. Above `0` it clips to
@@ -220,7 +220,7 @@ parts — the clipped box, the oversized child — without the one fact that it 
 
 ## Editor or code
 
-![A UI Canvas laid out in the editor viewport](../../../assets/guides/en/ui-screen.png)
+![A UI Canvas laid out in the editor viewport](@/assets/guides/en/ui-screen.png)
 
 *A UI Canvas in the editor — laid out against the design frame, with the selected node's gizmo. The same widgets author from code or the editor.*
 

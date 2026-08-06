@@ -51,7 +51,7 @@ physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
 
 ## 刚体与碰撞体
 
-![编辑器视口里的碰撞体 gizmo——选中的 Ground 轮廓加墙体与斜坡](../../../../assets/guides/zh/physics-collider.png)
+![编辑器视口里的碰撞体 gizmo——选中的 Ground 轮廓加墙体与斜坡](@/assets/guides/zh/physics-collider.png)
 
 *视口里的碰撞体 gizmo:选中的 **Ground** 的盒形轮廓(琥珀色),以及墙体与斜坡。用视口的物理显示开关切换。*
 
@@ -112,7 +112,7 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 ## 碰撞过滤
 
-![项目设置 → 物理——碰撞层名字与碰撞矩阵](../../../../assets/guides/zh/collision-matrix.png)
+![项目设置 → 物理——碰撞层名字与碰撞矩阵](@/assets/guides/zh/collision-matrix.png)
 
 *项目设置 → 物理:给 16 个碰撞层命名,再在矩阵里切换哪些层两两相撞(下方还有求解器调参)。*
 
@@ -230,7 +230,7 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 ## 关节
 
-![各关节类型及其约束——Revolute、Distance、Prismatic、Weld、Wheel、Motor](../../../../assets/guides/physics-joints.svg)
+![各关节类型及其约束——Revolute、Distance、Prismatic、Weld、Wheel、Motor](@/assets/guides/physics-joints.svg)
 
 *每种关节约束什么:**Revolute** 铰链(绕销钉转动)、**Distance** 弹簧/连杆、**Prismatic** 滑轨(单轴滑动)、刚性 **Weld** 焊接、**Wheel** 车轮(悬挂 + 自由旋转),以及 **Motor** 马达(驱向目标速度)。*
 
@@ -303,7 +303,7 @@ world.spawn(
 让平台恢复为普通实心体。在编辑器里,单向平台的碰撞体 gizmo 会沿实心侧法线多画一支箭头,
 朝向一眼可辨。
 
-![法线朝上的单向平台:从下方来的物体穿过,从上方来的物体落在上面](../../../../assets/guides/oneway-platform.svg)
+![法线朝上的单向平台:从下方来的物体穿过,从上方来的物体落在上面](@/assets/guides/oneway-platform.svg)
 
 ## 鼠标 / 拖拽关节
 

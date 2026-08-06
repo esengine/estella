@@ -30,7 +30,7 @@ Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移�
 <Aside type="note">
   这里的一切都是 `esengine` 内核里的纯 TypeScript(没有 WebAssembly 侧模块)。感知、FSM、BT、
   导航这四个插件都由编辑器和 Web 运行时**自动**加入。只有当你从一个裸的 `new App()` 起步时,
-  才需要自己加插件(见[自定义应用](/docs/zh-cn/gameplay/ai-advanced/#自定义应用))。
+  才需要自己加插件(见[自定义应用](/docs/zh-cn/gameplay/ai/advanced/#自定义应用))。
 </Aside>
 
 ## 共享注册表
@@ -60,7 +60,7 @@ registerAction('chase', (ctx) => {
 | `ctx.dt` | `number` | 帧间隔(秒)。 |
 | `ctx.world` | `World` | 完整世界访问,用于跨实体读取。 |
 | `ctx.commands` | `Commands` | 延迟的 spawn/despawn,tick 中调用安全。 |
-| `ctx.blackboard` | `Blackboard` | 该 agent 的 AI 数据面(见[黑板](/docs/zh-cn/gameplay/ai-blackboard/))。 |
+| `ctx.blackboard` | `Blackboard` | 该 agent 的 AI 数据面(见[黑板](/docs/zh-cn/gameplay/ai/blackboard/))。 |
 | `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
 | `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
 | `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
@@ -135,13 +135,13 @@ registerFsm('intro', {
 ## 四个部分
 
 <CardGrid>
-  <LinkCard title="感知" href="/docs/zh-cn/gameplay/ai-perception/" description="视锥,以及一个 agent 此刻看到了什么。" />
-  <LinkCard title="导航" href="/docs/zh-cn/gameplay/ai-navigation/" description="导航网格、A* 路径,以及让 agent 沿路径移动。" />
-  <LinkCard title="状态机" href="/docs/zh-cn/gameplay/ai-state-machines/" description="状态、带守卫的转移,以及一次性触发器。" />
-  <LinkCard title="行为树" href="/docs/zh-cn/gameplay/ai-behavior-trees/" description="选择、序列、装饰器与叶子。" />
-  <LinkCard title="黑板" href="/docs/zh-cn/gameplay/ai-blackboard/" description="两种范式共同读写的每-agent 数据面。" />
-  <LinkCard title="在编辑器里编排" href="/docs/zh-cn/gameplay/ai-authoring/" description="叶子在代码里注册,图在编辑器里搭。" />
-  <LinkCard title="组件层之下" href="/docs/zh-cn/gameplay/ai-advanced/" description="手动寻路、感知内幕,以及裸 App 接线。" />
+  <LinkCard title="感知" href="/docs/zh-cn/gameplay/ai/perception/" description="视锥,以及一个 agent 此刻看到了什么。" />
+  <LinkCard title="导航" href="/docs/zh-cn/gameplay/ai/navigation/" description="导航网格、A* 路径,以及让 agent 沿路径移动。" />
+  <LinkCard title="状态机" href="/docs/zh-cn/gameplay/ai/state-machines/" description="状态、带守卫的转移,以及一次性触发器。" />
+  <LinkCard title="行为树" href="/docs/zh-cn/gameplay/ai/behavior-trees/" description="选择、序列、装饰器与叶子。" />
+  <LinkCard title="黑板" href="/docs/zh-cn/gameplay/ai/blackboard/" description="两种范式共同读写的每-agent 数据面。" />
+  <LinkCard title="在编辑器里编排" href="/docs/zh-cn/gameplay/ai/authoring/" description="叶子在代码里注册,图在编辑器里搭。" />
+  <LinkCard title="组件层之下" href="/docs/zh-cn/gameplay/ai/advanced/" description="手动寻路、感知内幕,以及裸 App 接线。" />
 </CardGrid>
 
 ## 组合起来

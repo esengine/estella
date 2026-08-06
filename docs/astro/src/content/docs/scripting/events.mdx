@@ -16,11 +16,11 @@ click ─▶ ui.setPage(badge, on)           on "Card"
 
 Wires are deliberately **not** a visual programming language. A row has no branches and no
 expressions; when something genuinely needs logic, the row names an action that hands off to
-[a state machine](/docs/gameplay/ai/) — the editor Estella already has for graphs.
+[a state machine](/docs/gameplay/ai/overview/) — the editor Estella already has for graphs.
 
 ## A wire in the inspector
 
-![The Events section of the Details inspector](../../../assets/guides/en/events-section.png)
+![The Events section of the Details inspector](@/assets/guides/en/events-section.png)
 
 *Two wires on a button: both fire on `click`, one switches a controller on the button's own
 ancestor chain, the other targets the `Card` entity by name.*
@@ -81,7 +81,7 @@ runtime instead of failing silently.
 An action is a named function in the shared registry — the same one `.esfsm` state hooks and
 `.esbt` leaves resolve against. Register once, and the name shows up in all three palettes.
 
-![The action palette, grouped by namespace](../../../assets/guides/en/events-palette.png)
+![The action palette, grouped by namespace](@/assets/guides/en/events-palette.png)
 
 *The palette groups by `namespace.`, and the engine's own actions carry a one-line
 description.*
@@ -166,14 +166,14 @@ app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 
 A row runs one action; it has no "if" and no sequence. That is a deliberate ceiling, and
 `fsm.fire` is the way through it — the click fires a trigger, and the entity's
-[state machine](/docs/gameplay/ai/) decides what it means:
+[state machine](/docs/gameplay/ai/overview/) decides what it means:
 
 ```
 click ─▶ fsm.fire(start)  on "Hint"   →   Idle ──start──▶ Running
                                                           onEnter: property.set(…)
 ```
 
-![A state hook's declared parameters in the state machine editor](../../../assets/guides/en/events-fsm.png)
+![A state hook's declared parameters in the state machine editor](@/assets/guides/en/events-fsm.png)
 
 *The same parameter controls, in the state-machine editor: `property.set` declares `path`
 and `value`, so the hook shows two fields instead of one opaque string.*

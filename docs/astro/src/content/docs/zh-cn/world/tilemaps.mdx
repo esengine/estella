@@ -21,7 +21,7 @@ Tiled 文件导入,无需额外设置。
 
 ## 在编辑器里绘制
 
-![Estella 编辑器里,瓦片画笔面板与一张等距地图并排](../../../../assets/guides/zh/tilemap-overview.png)
+![Estella 编辑器里,瓦片画笔面板与一张等距地图并排](@/assets/guides/zh/tilemap-overview.png)
 
 *选中一个 `TilemapLayer`,**瓦片画笔**就在左侧打开——上面是工具,下面是图集调色板。直接在视口里作画。*
 
@@ -43,7 +43,7 @@ Tiled 文件导入,无需额外设置。
 绘制工具激活期间,`H` / `V` 翻转印章,`R` 旋转 90°。按 `Q`、`W` 或 `Esc` 离开绘制模式,
 键位交还给变换工具。
 
-![瓦片画笔面板特写——工具行与瓦片调色板](../../../../assets/guides/zh/tilemap-tools.png)
+![瓦片画笔面板特写——工具行与瓦片调色板](@/assets/guides/zh/tilemap-tools.png)
 
 *画笔面板特写:工具行(画笔、橡皮、矩形、椭圆、直线、油漆桶、框选、吸管、地形)、当前图集标签,以及你用来盖章的瓦片调色板。*
 
@@ -64,17 +64,17 @@ Tiled 文件导入,无需额外设置。
 轴/起始行与六边形边长;之后 Inspector 编辑同一组字段。视口完全跟随图层:网格覆盖层、
 画笔虚影、悬停/选区高亮和所有绘制工具在菱形或六边形网格上的表现与方格完全一致。
 
-![新建瓦片地图对话框——朝向选择器与图集列表](../../../../assets/guides/zh/tilemap-new.png)
+![新建瓦片地图对话框——朝向选择器与图集列表](@/assets/guides/zh/tilemap-new.png)
 
 ***新建瓦片地图**对话框在最开始就选好朝向与图集。*
 
 同一张地图画在六边形与交错网格上:
 
-![视口里的六边形瓦片地图](../../../../assets/guides/zh/orient-hex.png)
+![视口里的六边形瓦片地图](@/assets/guides/zh/orient-hex.png)
 
 *六边形——网格、画笔虚影和所有工具都跟随六边形布局。*
 
-![视口里的交错等距瓦片地图](../../../../assets/guides/zh/orient-staggered.png)
+![视口里的交错等距瓦片地图](@/assets/guides/zh/orient-staggered.png)
 
 *交错等距——隔行平移半格。*
 
@@ -182,7 +182,7 @@ tilemap.setTilesets(layer, [
 (毫秒)和删除/清空操作;带动画的瓦片在图集里有 ▶ 标记。帧数据保存进 `.estileset`,
 所有使用该图集的图层都会自动播放——编辑器视口和运行时皆然,无需一行代码。
 
-![图集编辑器的动画模式——某个瓦片的帧条带与逐帧时长](../../../../assets/guides/zh/tileset-animation.png)
+![图集编辑器的动画模式——某个瓦片的帧条带与逐帧时长](@/assets/guides/zh/tileset-animation.png)
 
 *动画模式:选一个瓦片(这里是 #34),点击图集瓦片追加帧,并以毫秒设置每帧时长。条带作为实时预览循环播放。*
 
@@ -207,7 +207,7 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 
 ## 地形自动拼接
 
-![图集编辑器的地形模式——带 Grass / Sand / Water 颜色的角 Wang 集](../../../../assets/guides/zh/tileset-terrain.png)
+![图集编辑器的地形模式——带 Grass / Sand / Water 颜色的角 Wang 集](@/assets/guides/zh/tileset-terrain.png)
 
 *地形模式里的**角 Wang** 集:定义地形颜色(Grass / Sand / Water),再给每个瓦片的四角上色——之后 `T` 画笔据此从邻居解析出正确的瓦片。*
 
@@ -232,7 +232,7 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 引擎的一等图集资源是 **`.estileset`**——它引用一张图集纹理,并携带逐瓦片的碰撞、动画、
 地形/自动拼接(auto-tile)数据与自定义键值属性。
 
-![图集编辑器的碰撞模式——形状标签、修饰、斜坡预设,以及图集上的碰撞覆盖](../../../../assets/guides/zh/tileset-collision.png)
+![图集编辑器的碰撞模式——形状标签、修饰、斜坡预设,以及图集上的碰撞覆盖](@/assets/guides/zh/tileset-collision.png)
 
 ***图集编辑器**的碰撞模式:选形状(**盒 / 多边形 / 圆**)、切换**单向 / 传感器**并设置摩擦 / 弹性 / 密度、放置**斜坡**预设——绿色覆盖标出每个瓦片的碰撞体。*
 
@@ -271,7 +271,7 @@ Tiled 地图享受同等待遇:在 **Tiled 瓦片碰撞编辑器** 里画的形�
 **Create → 2D → Collision Layer**(或 *New Collision Layer* 命令)创建一个,预置 32px
 网格,并打开画笔面板——此时调色板是碰撞笔刷而非图集。
 
-![碰撞笔刷调色板——实心、斜坡、半砖、单向、触发器,以及逐层的摩擦力与弹性字段](../../../../assets/guides/zh/collision-palette.png)
+![碰撞笔刷调色板——实心、斜坡、半砖、单向、触发器,以及逐层的摩擦力与弹性字段](@/assets/guides/zh/collision-palette.png)
 
 ***碰撞调色板**取代了图集:挑 **实心**、一个**斜坡**或**半砖**、**单向 ↑** 或
 **触发器**,然后在背景上刷。**摩擦力** 和 **弹性** 字段为整个图层设一份物理材质。*

@@ -3,7 +3,7 @@ title: 状态机
 description: "运行 .esfsm 图:带 enter/update/exit 钩子的状态、带守卫的转移,以及一次性触发器。"
 ---
 
-![状态机编辑器——Patrol 与 Chase 状态由带守卫的转移连接](../../../../assets/guides/zh/ai-fsm.png)
+![状态机编辑器——Patrol 与 Chase 状态由带守卫的转移连接](@/assets/guides/zh/ai-fsm.png)
 
 *状态机编辑器:状态(Patrol / Chase)由带守卫的转移(`?seesPlayer`、`?lostPlayer`)连接。*
 
@@ -25,7 +25,7 @@ cmds.spawn()
 | `fsm` | 要运行的机器的 key:一个 `registerFsm` 名字**或**一个 `.esfsm` 资产路径。 |
 | `current` | 当前激活状态名,每 tick 写入(只读;在检视面板可见)。 |
 
-推荐做法是**在编辑器里把图编排成 `.esfsm` 资产**(见[在编辑器里编排](/docs/zh-cn/gameplay/ai-authoring/))。
+推荐做法是**在编辑器里把图编排成 `.esfsm` 资产**(见[在编辑器里编排](/docs/zh-cn/gameplay/ai/authoring/))。
 状态用字符串引用你注册的动作/条件名。你也可以用代码构建一台机器:
 
 ```typescript

@@ -120,7 +120,7 @@ label — all four states, one mechanism.
 
 ## Authoring in the editor
 
-![The inline Controllers strip in the inspector](../../../assets/guides/en/controllers-strip.png)
+![The inline Controllers strip in the inspector](@/assets/guides/en/controllers-strip.png)
 
 *The Controllers strip: the active controller (here `theme`, inherited from the Canvas), its **pages** as chips (`sky` / `rose`), and **Gears on this entity** — every field bound to a controller.*
 
@@ -172,7 +172,7 @@ runs `ui.setPage` when it is clicked, targeting the entity that owns the control
 ```
 
 **From a state machine** — the `ui.setPage` action lets a data-driven
-[FSM / behavior tree](/docs/gameplay/ai/) (`.esfsm` / `.esbt`) switch a page with no code.
+[FSM / behavior tree](/docs/gameplay/ai/overview/) (`.esfsm` / `.esbt`) switch a page with no code.
 Its argument is `"controller:page"`:
 
 ```json
@@ -200,5 +200,5 @@ controller state → gear presentation.
 - [UI](/docs/ui/overview/) — the flexbox component model gears drive.
 - [UI Components](/docs/ui/widgets/) — the widget factories.
 - [Timeline](/docs/animation/timeline/) — keyframed transitions; gears use the same field addressing.
-- [Gameplay AI](/docs/gameplay/ai/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
+- [Gameplay AI](/docs/gameplay/ai/overview/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
 - [Event Binding](/docs/scripting/events/) — wire a click straight to `ui.setPage`, no code.

@@ -20,7 +20,7 @@ UI 布局里的每个 `px` 都是**设计像素**——项目设计分辨率(Pro
 
 ## 维度:`px`、`percent`、`auto`
 
-![px 是固定尺寸,percent 是父项的比例,auto 由内容决定](../../../../assets/guides/ui-units.svg)
+![px 是固定尺寸,percent 是父项的比例,auto 由内容决定](@/assets/guides/ui-units.svg)
 
 *三种长度单位:`px` 是固定的设计像素尺寸,`percent` 是父项对应轴的比例,`auto` 收缩到内容大小(或被容器拉伸)。*
 
@@ -100,25 +100,25 @@ flex 容器沿一条**主轴**(由 `direction` 决定)排布子项,**交叉轴**
 
 **`direction`** —— 主轴,以及子项流动的顺序:
 
-![FlexDirection 的四个值:Row、RowReverse、Column、ColumnReverse](../../../../assets/guides/flex-direction.svg)
+![FlexDirection 的四个值:Row、RowReverse、Column、ColumnReverse](@/assets/guides/flex-direction.svg)
 
-![同样四个盒子在编辑器里的真实渲染——一个 Row 容器和一个 Column 容器](../../../../assets/guides/flex-live.png)
+![同样四个盒子在编辑器里的真实渲染——一个 Row 容器和一个 Column 容器](@/assets/guides/flex-live.png)
 
 *同样四个盒子在编辑器里的真实渲染——一个 `Row` 容器、一个 `Column` 容器。上面的示意图不是近似:引擎画出来就是这样。*
 
 **`justifyContent`** —— 子项沿**主轴**如何排布,以及多出来的空间如何分配:
 
-![JustifyContent 的六个值:Start、Center、End、SpaceBetween、SpaceAround、SpaceEvenly](../../../../assets/guides/flex-justify.svg)
+![JustifyContent 的六个值:Start、Center、End、SpaceBetween、SpaceAround、SpaceEvenly](@/assets/guides/flex-justify.svg)
 
 **`alignItems`** —— 子项沿**交叉轴**如何对齐。`Stretch`(默认)只拉伸交叉轴尺寸为 `auto` 的子项;
 有固定尺寸的子项保持不变:
 
-![AlignItems 的四个值:Start、Center、End、Stretch](../../../../assets/guides/flex-align.svg)
+![AlignItems 的四个值:Start、Center、End、Stretch](@/assets/guides/flex-align.svg)
 
 **`wrap`** —— 当子项在主轴上放不下时,`NoWrap` 通过 `flexShrink` 把它们压缩进一行;`Wrap` 保持
 其尺寸、把溢出流到新行(这些行再由 `alignContent` 分配):
 
-![FlexWrap 的两个值:NoWrap 压进一行,Wrap 流到新行](../../../../assets/guides/flex-wrap.svg)
+![FlexWrap 的两个值:NoWrap 压进一行,Wrap 流到新行](@/assets/guides/flex-wrap.svg)
 
 ```typescript
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from 'esengine';
@@ -134,7 +134,7 @@ world.insert(panel, FlexContainer, {
 
 ## 绝对定位
 
-![Relative 节点参与排布、与兄弟共享空间;Absolute 节点由内偏移钉住、忽略兄弟](../../../../assets/guides/ui-position.svg)
+![Relative 节点参与排布、与兄弟共享空间;Absolute 节点由内偏移钉住、忽略兄弟](@/assets/guides/ui-position.svg)
 
 *`Relative` 节点参与排布、与兄弟共享空间;`Absolute` 节点被抬出排布流、由内偏移(inset)钉住,浮在其余内容之上。*
 
@@ -180,7 +180,7 @@ const panel = spawnUIEntity({
 
 ## 代码里的锚点预设
 
-![九个点锚排成 3×3 网格(四角、边中点、中心),外加每轴的 Stretch](../../../../assets/guides/ui-anchor.svg)
+![九个点锚排成 3×3 网格(四角、边中点、中心),外加每轴的 Stretch](@/assets/guides/ui-anchor.svg)
 
 *锚点选择器的九个点锚——各自把盒子钉到父项的某个角、边中点或正中心——外加每轴一个 **Stretch**,让盒子沿该轴铺满。*
 

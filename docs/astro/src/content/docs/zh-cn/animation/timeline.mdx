@@ -36,7 +36,7 @@ const attach = defineSystem([Commands()], (cmds) => {
 | `finished` | boolean | `false` | `'once'` 片段播完时闩为 true;下次播放时清除。运行时只读。 |
 
 组件旗标**就是**播放控制本身:引擎每帧把它们调和进内部时钟,所以任何翻动
-`playing` 的一方——你的代码、检视器、[AI 动作](/docs/zh-cn/gameplay/ai/#内建名字)——
+`playing` 的一方——你的代码、检视器、[AI 动作](/docs/zh-cn/gameplay/ai/overview/#内建名字)——
 都经同一条通道驱动片段。
 
 ## 控制播放
@@ -73,7 +73,7 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 <Aside type="tip">
   想做**零代码过场**,把组件和状态机配对:内建的 `timeline.play` 动作 +
   `timeline.finished` 条件就是一个"进入即播放、播完即转出"的 FSM 状态。见
-  [AI——内建名字](/docs/zh-cn/gameplay/ai/#内建名字)。
+  [AI——内建名字](/docs/zh-cn/gameplay/ai/overview/#内建名字)。
 </Aside>
 
 ## 轨道类型
@@ -111,13 +111,13 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 创作它。**摊开表(dope sheet)**把每条轨道及其关键帧沿一条共享、可拖动的播放头排开;加轨道、
 拖关键帧,然后 **Save**。
 
-![Sequencer 摊开表——一段过场时间轴的轨道与关键帧](../../../../assets/guides/zh/seq-dopesheet.png)
+![Sequencer 摊开表——一段过场时间轴的轨道与关键帧](@/assets/guides/zh/seq-dopesheet.png)
 
 *摊开表:一轨一行(这里是某 Transform 的 `position.x` / `position.y`,加两条黑边激活轨道),关键帧是菱形,播放头可拖动,顶部是走带控制。*
 
 切到 **Curves** 标签可塑形关键帧之间的插值——拖动值曲线及其切线手柄,做出摊开表表达不了的缓动:
 
-![Sequencer 曲线编辑器——带切线手柄的值曲线](../../../../assets/guides/zh/seq-curves.png)
+![Sequencer 曲线编辑器——带切线手柄的值曲线](@/assets/guides/zh/seq-curves.png)
 
 *曲线编辑器:每个关键帧通道变成一条可编辑曲线(这里 `position.x` 缓入、`position.y` 起伏),每个关键帧带切线手柄。*
 

@@ -47,7 +47,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 在**内容浏览器**中右键任意文件夹，选择 **交付方式 → 远端（CDN / 热更）**。这就是全部的配置动作——该文件夹下的每个资产（递归）从此改由 CDN 交付，而不再打进包内。
 
-![在内容浏览器右键文件夹并选择 交付方式 → 远端（CDN / 热更）](../../../../assets/guides/zh/hot-update-delivery-menu.png)
+![在内容浏览器右键文件夹并选择 交付方式 → 远端（CDN / 热更）](@/assets/guides/zh/hot-update-delivery-menu.png)
 
 *内容浏览器 → 右键文件夹 → **交付方式** → **本地 / 分包 / 远端（CDN / 热更）**。选择会写入 `.esengine/asset-groups.json`。*
 
@@ -56,7 +56,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 被指派到分包或远端组的文件夹会带一个角标**徽标**，让你一眼看清交付布局——`CDN`（蓝）表示远端，`分包`（紫）表示分包。
 
-![内容浏览器中一个文件夹图块，带蓝色 CDN 交付徽标](../../../../assets/guides/zh/hot-update-cdn-badge.png)
+![内容浏览器中一个文件夹图块，带蓝色 CDN 交付徽标](@/assets/guides/zh/hot-update-cdn-badge.png)
 
 *`cdn` 文件夹带着蓝色 **CDN** 徽标——它的资产以远端方式交付，可被热更新。*
 
@@ -66,7 +66,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是一个**构建 profile** 设置，因此 `dev` 与 `prod` 可以指向不同的 CDN，导出时会把活动 profile 的根地址烘进发布的游戏里。在**打包项目**对话框（**文件 → 构建…**）的**高级**里设置：
 
-![打包对话框的「高级」分组——CDN 地址、源码映射与完成后打开输出文件夹](../../../../assets/guides/zh/hot-update-build-cdn.png)
+![打包对话框的「高级」分组——CDN 地址、源码映射与完成后打开输出文件夹](@/assets/guides/zh/hot-update-build-cdn.png)
 
 ***CDN 地址** 字段会把活动 profile 的 `remoteRoot` 写入 `asset-groups.json`。留空则远端资产从游戏同源加载（例如本地测试时）。*
 

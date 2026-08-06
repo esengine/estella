@@ -16,7 +16,7 @@ element while a sprite loops.
 
 ## Sprite animation
 
-![The flipbook editor — a 4-frame walk clip with per-frame timing and a live preview](../../../assets/guides/en/flipbook.png)
+![The flipbook editor — a 4-frame walk clip with per-frame timing and a live preview](@/assets/guides/en/flipbook.png)
 
 *The flipbook editor: a 4-frame walk clip, per-frame durations, and a live preview with FPS / loop / onion-skin.*
 
@@ -187,7 +187,7 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 
 ### Driving clips from a state machine — no code
 
-The [FSM/BT built-ins](/docs/gameplay/ai/) drive flipbooks as data. An action's
+The [FSM/BT built-ins](/docs/gameplay/ai/overview/) drive flipbooks as data. An action's
 optional **argument** carries the clip, so idle/run/attack switching is pure
 `.esfsm` on the existing state-machine canvas:
 
@@ -243,7 +243,7 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 (`EaseIn*` / `EaseOut*` / `EaseInOut*`), `EaseOutBounce`, `Step`, and `CubicBezier`
 — use a custom bezier with the handle's `.bezier(p1x, p1y, p2x, p2y)`.
 
-![Every EasingType plotted as a curve from 0 to 1](../../../assets/guides/tween-easings.svg)
+![Every EasingType plotted as a curve from 0 to 1](@/assets/guides/tween-easings.svg)
 
 *Each easing plotted (progress `t` left→right, eased value bottom→top) — these are the engine's exact curves. `Back` and `Elastic` overshoot past the 0–1 band; `Step` holds until the end.*
 
@@ -314,7 +314,7 @@ storing a handle to pause, cancel, or observe the composition later.
 
 ## Animator state machine
 
-![The animator editor — Idle / Move / Hop states with conditions and a parameters panel](../../../assets/guides/en/animator-graph.png)
+![The animator editor — Idle / Move / Hop states with conditions and a parameters panel](@/assets/guides/en/animator-graph.png)
 
 *The animator: states (Idle / Move / Hop), transitions with conditions (`speed>20`, the `hop` trigger), and the **Parameters** panel that drives them.*
 
@@ -370,7 +370,7 @@ parameter and `eq` / `neq`.
 
 ### Blend trees
 
-![A 1D blend on speed selecting idle / walk / run by threshold](../../../assets/guides/blend-tree.svg)
+![A 1D blend on speed selecting idle / walk / run by threshold](@/assets/guides/blend-tree.svg)
 
 *A 1D blend: a float parameter picks the clip whose threshold is the highest one at or below it — here `idle` / `walk` / `run` as `speed` rises, with no transitions between them.*
 

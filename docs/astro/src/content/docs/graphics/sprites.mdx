@@ -70,7 +70,7 @@ Scale on the `Transform` multiplies on top of it. `pivot` is the normalized anch
 bottom-left corner, `{0.5, 0}` pins the bottom-center (handy for characters standing on
 the ground).
 
-![The same sprite rotated about three different pivots — the pivot dot stays fixed while the quad swings around it: center spins in place, a corner swings out, bottom-center pins the feet](../../../assets/guides/sprite-pivot.svg)
+![The same sprite rotated about three different pivots — the pivot dot stays fixed while the quad swings around it: center spins in place, a corner swings out, bottom-center pins the feet](@/assets/guides/sprite-pivot.svg)
 
 ## Units & coordinates
 
@@ -96,7 +96,7 @@ layer** (`sprite.layer`) — a named layer list you define in **Project Settings
 Rendering**, so the inspector shows a dropdown of *Background*, *Default*, *Foreground*,
 etc. instead of a raw number. Lower layers draw first (behind).
 
-![Left: three sorting layers stacked so a higher layer draws in front. Right: on a Y-sorted layer a sprite lower on screen draws in front of one higher up.](../../../assets/guides/sprite-sort.svg)
+![Left: three sorting layers stacked so a higher layer draws in front. Right: on a Y-sorted layer a sprite lower on screen draws in front of one higher up.](@/assets/guides/sprite-sort.svg)
 
 Naming is a readability feature, not a limit: name up to thirty-two slots (a slot's
 index *is* its z-order). The names are suggestions — type a number the list doesn't
@@ -189,7 +189,7 @@ so a sprite at z = -400 is grabbable where it is drawn.
 
 How a texture is sampled is set **per texture handle**, not per sprite:
 
-![The same 16×16 texture magnified: Nearest keeps hard pixel edges, Linear blends them into a smooth gradient](../../../assets/guides/texture-filter.png)
+![The same 16×16 texture magnified: Nearest keeps hard pixel edges, Linear blends them into a smooth gradient](@/assets/guides/texture-filter.png)
 
 *The same tiny texture magnified ~15×. **Nearest** keeps texel edges hard (pixel
 art); **Linear** interpolates between texels for a smooth look (the default).*
@@ -215,7 +215,7 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 surface — separate minification/magnification filters and per-axis wrap. `Repeat`
 is what makes `tileSize` tiling and UV-scroll effects seamless.
 
-![How each wrap mode samples UVs outside 0–1: Repeat tiles the texture, Clamp to edge extends the border pixel, Mirror flips every other tile](../../../assets/guides/texture-wrap.png)
+![How each wrap mode samples UVs outside 0–1: Repeat tiles the texture, Clamp to edge extends the border pixel, Mirror flips every other tile](@/assets/guides/texture-wrap.png)
 
 *What each wrap mode does with UVs outside the 0–1 range (centre tile = the
 texture): **Repeat** tiles it, **Clamp to edge** stretches the border pixel, and

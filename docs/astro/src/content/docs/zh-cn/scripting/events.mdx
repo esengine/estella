@@ -15,11 +15,11 @@ click ─▶ ui.setPage(badge, on)           目标「Card」
 ```
 
 连线**刻意不是**可视化编程语言。一行里没有分支、没有表达式；真的需要逻辑时，这行会指向一个
-把控制权交给[状态机](/docs/zh-cn/gameplay/ai/)的动作——Estella 已经有图编辑器了。
+把控制权交给[状态机](/docs/zh-cn/gameplay/ai/overview/)的动作——Estella 已经有图编辑器了。
 
 ## 检视器里的一根线
 
-![细节检视器中的「事件」区域](../../../../assets/guides/zh/events-section.png)
+![细节检视器中的「事件」区域](@/assets/guides/zh/events-section.png)
 
 *按钮上的两根线：都在 `click` 时触发，一根切换按钮自身祖先链上的控制器，另一根按名字指向
 `Card` 实体。*
@@ -78,7 +78,7 @@ world.insert(button, EventBinding, {
 动作是共享注册表里的一个具名函数——`.esfsm` 状态钩子和 `.esbt` 叶子解析的是**同一个**
 注册表。注册一次，三个候选列表里都能看到。
 
-![按命名空间分组的动作候选列表](../../../../assets/guides/zh/events-palette.png)
+![按命名空间分组的动作候选列表](@/assets/guides/zh/events-palette.png)
 
 *候选按 `namespace.` 分组，引擎自带的动作还带一行说明。*
 
@@ -156,14 +156,14 @@ app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 ## 当一根线需要逻辑时
 
 一行只跑一个动作，没有"如果"，也没有先后序列。这是**刻意**设的天花板，而 `fsm.fire` 就是
-突破口——点击发出一个触发器，实体的[状态机](/docs/zh-cn/gameplay/ai/)来决定它意味着什么：
+突破口——点击发出一个触发器，实体的[状态机](/docs/zh-cn/gameplay/ai/overview/)来决定它意味着什么：
 
 ```
 click ─▶ fsm.fire(start)  目标「Hint」   →   Idle ──start──▶ Running
                                                              onEnter: property.set(…)
 ```
 
-![状态机编辑器中，状态钩子的声明式参数](../../../../assets/guides/zh/events-fsm.png)
+![状态机编辑器中，状态钩子的声明式参数](@/assets/guides/zh/events-fsm.png)
 
 *同一套参数控件，出现在状态机编辑器里：`property.set` 声明了 `path` 和 `value`，于是钩子
 显示两个字段，而不是一个含义不明的字符串。*

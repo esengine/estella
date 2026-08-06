@@ -20,7 +20,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 编辑器不附带任何密钥，也不会自己发起任何调用。打开**设置 ▸ AI 代理**，
 配好一个提供方，配置就算做完了。
 
-![设置 ▸ AI 代理——每个提供方一个密钥字段，外加自定义接口地址与模型列表](../../../../assets/guides/zh/agent-settings.png)
+![设置 ▸ AI 代理——每个提供方一个密钥字段，外加自定义接口地址与模型列表](@/assets/guides/zh/agent-settings.png)
 
 <Steps>
 
@@ -46,7 +46,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 直接把问题打进命令面板。凡是读起来像一句话而不像命令的输入，面板都会给出
 **交给 Agent**，按 `Enter` 就发出去了。
 
-![一轮跑完的 Agent 对话：问题、两次工具调用，以及回答](../../../../assets/guides/zh/agent-turn.png)
+![一轮跑完的 Agent 对话：问题、两次工具调用，以及回答](@/assets/guides/zh/agent-turn.png)
 
 一轮对话从上往下读：
 
@@ -81,7 +81,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 一次调用就能搭出一整棵子树，上百个节点的改动值得在落地**之前**看一眼，
 而不是事后再读回来。
 
-![一批场景改动的预览：列出 6 项改动，每一行都能划掉，下面是全部应用 / 本轮都允许 / 跳过](../../../../assets/guides/zh/agent-preview.png)
+![一批场景改动的预览：列出 6 项改动，每一行都能划掉，下面是全部应用 / 本轮都允许 / 跳过](@/assets/guides/zh/agent-preview.png)
 
 每一行就是一项改动。点一行可以**划掉**它——划掉一个新建实体时，
 引用它的行会一并划掉——然后应用剩下的。**本轮都允许**会让它在这一轮里

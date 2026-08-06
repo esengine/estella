@@ -57,7 +57,7 @@ queries and the character controller = pixels.**
 
 ## Bodies & colliders
 
-![Collider gizmos in the editor viewport — the selected Ground's outline plus walls and a ramp](../../../assets/guides/en/physics-collider.png)
+![Collider gizmos in the editor viewport — the selected Ground's outline plus walls and a ramp](@/assets/guides/en/physics-collider.png)
 
 *Collider gizmos in the viewport: the selected **Ground**'s box outline (amber) plus the walls and ramp. Toggle them with the viewport's Physics show-flag.*
 
@@ -120,7 +120,7 @@ are in meters.
 
 ## Collision filtering
 
-![Project Settings → Physics — collision layer names and the collision matrix](../../../assets/guides/en/collision-matrix.png)
+![Project Settings → Physics — collision layer names and the collision matrix](@/assets/guides/en/collision-matrix.png)
 
 *Project Settings → Physics: name your 16 collision layers, then toggle which pairs collide in the matrix (alongside the solver tuning below).*
 
@@ -242,7 +242,7 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 ## Joints
 
-![The joint types and what each constrains — Revolute, Distance, Prismatic, Weld, Wheel, Motor](../../../assets/guides/physics-joints.svg)
+![The joint types and what each constrains — Revolute, Distance, Prismatic, Weld, Wheel, Motor](@/assets/guides/physics-joints.svg)
 
 *What each joint constrains: a **Revolute** hinge (rotate about a pin), a **Distance** spring/rod, a **Prismatic** slider (one axis), a rigid **Weld**, a **Wheel** (suspension + free spin), and a **Motor** (driven toward a target velocity).*
 
@@ -320,7 +320,7 @@ means "solid top". Set `enabled: false` to turn the platform back into a normal 
 In the editor, a one-way platform's collider gizmo grows an arrow along the solid-side
 normal, so which way it carries is visible at a glance.
 
-![A one-way platform with an upward normal: a body coming from below passes through, a body coming from above lands on top](../../../assets/guides/oneway-platform.svg)
+![A one-way platform with an upward normal: a body coming from below passes through, a body coming from above lands on top](@/assets/guides/oneway-platform.svg)
 
 ## Mouse / drag joint
 

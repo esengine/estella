@@ -1,16 +1,29 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
 const SITE = 'https://estellaengine.com';
 
-// Pages that used to live in one flat `guides/` folder, and now live in the
-// section the sidebar shows them under — a page's directory is its URL. Every
-// old address stays reachable: Astro emits a redirect page for each entry, in
-// both locales. Never delete a line from here; moving a page again means adding
-// one, so a URL published once keeps resolving.
-const MOVED_GUIDES = {
+// Every address this site has published that is not where its page lives now.
+// A page's directory path IS its sidebar path IS its URL — that is the rule the
+// structure follows, and this map is the cost of having changed it. Append-only:
+// moving a page again means adding lines here, never editing or deleting them,
+// so a URL published once keeps resolving. Astro emits a redirect page per entry
+// in both locales.
+const MOVED = {
+  // The AI guide grew into a chapter of its own.
+  'gameplay/ai': 'gameplay/ai/overview',
+  'gameplay/ai-perception': 'gameplay/ai/perception',
+  'gameplay/ai-navigation': 'gameplay/ai/navigation',
+  'gameplay/ai-state-machines': 'gameplay/ai/state-machines',
+  'gameplay/ai-behavior-trees': 'gameplay/ai/behavior-trees',
+  'gameplay/ai-blackboard': 'gameplay/ai/blackboard',
+  'gameplay/ai-authoring': 'gameplay/ai/authoring',
+  'gameplay/ai-advanced': 'gameplay/ai/advanced',
+
+  // One flat `guides/` folder became one directory per sidebar group.
   'guides/editor': 'editor/overview',
   'guides/scripting': 'scripting/overview',
   'guides/input': 'scripting/input',
@@ -31,7 +44,7 @@ const MOVED_GUIDES = {
   'guides/dragonbones': 'animation/dragonbones',
   'guides/physics': 'gameplay/physics',
   'guides/markers': 'gameplay/markers',
-  'guides/ai': 'gameplay/ai',
+  'guides/ai': 'gameplay/ai/overview',
   'guides/ui': 'ui/overview',
   'guides/ui-layout': 'ui/layout',
   'guides/ui-text': 'ui/text',
@@ -66,11 +79,21 @@ export default defineConfig({
   site: SITE,
   base: '/docs',
   outDir: './dist',
+  // `@/` is src, the same alias the editor uses. An image referenced as
+  // `../../../assets/…` encodes how deep its page sits, so a page could not move
+  // between directory levels without every picture on it going dark — which is
+  // why the guides were pinned one level deep. The alias is what lets the
+  // structure be chosen for the reader instead of for the asset paths.
+  vite: {
+    resolve: {
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    },
+  },
   // Astro prepends `base` to a redirect's SOURCE but not to its destination, so
   // the destination carries /docs itself — without it every old URL lands on a
   // 404 at the site root.
   redirects: Object.fromEntries(
-    Object.entries(MOVED_GUIDES).flatMap(([from, to]) => [
+    Object.entries(MOVED).flatMap(([from, to]) => [
       [`/${from}`, `/docs/${to}/`],
       [`/zh-cn/${from}`, `/docs/zh-cn/${to}/`],
     ]),
@@ -166,7 +189,7 @@ export default defineConfig({
           translations: { 'zh-CN': '脚本' },
           collapsed: true,
           items: [
-            { label: 'Scripting', translations: { 'zh-CN': '脚本' }, slug: 'scripting/overview' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'scripting/overview' },
             { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'scripting/input' },
             { label: 'Event Binding', translations: { 'zh-CN': '事件绑定' }, slug: 'scripting/events' },
             { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'scripting/save' },
@@ -193,7 +216,7 @@ export default defineConfig({
           translations: { 'zh-CN': '动画' },
           collapsed: true,
           items: [
-            { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'animation/overview' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'animation/overview' },
             { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'animation/timeline' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'animation/spine' },
             { label: 'DragonBones Animation', translations: { 'zh-CN': 'DragonBones 动画' }, slug: 'animation/dragonbones' },
@@ -211,14 +234,14 @@ export default defineConfig({
               translations: { 'zh-CN': '游戏 AI' },
               collapsed: true,
               items: [
-                { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'gameplay/ai' },
-                { label: 'Perception', translations: { 'zh-CN': '感知' }, slug: 'gameplay/ai-perception' },
-                { label: 'Navigation', translations: { 'zh-CN': '导航' }, slug: 'gameplay/ai-navigation' },
-                { label: 'State Machines', translations: { 'zh-CN': '状态机' }, slug: 'gameplay/ai-state-machines' },
-                { label: 'Behavior Trees', translations: { 'zh-CN': '行为树' }, slug: 'gameplay/ai-behavior-trees' },
-                { label: 'The Blackboard', translations: { 'zh-CN': '黑板' }, slug: 'gameplay/ai-blackboard' },
-                { label: 'Authoring in the Editor', translations: { 'zh-CN': '在编辑器里编排' }, slug: 'gameplay/ai-authoring' },
-                { label: 'Below the Components', translations: { 'zh-CN': '组件层之下' }, slug: 'gameplay/ai-advanced' },
+                { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'gameplay/ai/overview' },
+                { label: 'Perception', translations: { 'zh-CN': '感知' }, slug: 'gameplay/ai/perception' },
+                { label: 'Navigation', translations: { 'zh-CN': '导航' }, slug: 'gameplay/ai/navigation' },
+                { label: 'State Machines', translations: { 'zh-CN': '状态机' }, slug: 'gameplay/ai/state-machines' },
+                { label: 'Behavior Trees', translations: { 'zh-CN': '行为树' }, slug: 'gameplay/ai/behavior-trees' },
+                { label: 'The Blackboard', translations: { 'zh-CN': '黑板' }, slug: 'gameplay/ai/blackboard' },
+                { label: 'Authoring in the Editor', translations: { 'zh-CN': '在编辑器里编排' }, slug: 'gameplay/ai/authoring' },
+                { label: 'Below the Components', translations: { 'zh-CN': '组件层之下' }, slug: 'gameplay/ai/advanced' },
               ],
             },
           ],
@@ -255,7 +278,7 @@ export default defineConfig({
           translations: { 'zh-CN': '资源' },
           collapsed: true,
           items: [
-            { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'assets/overview' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'assets/overview' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'assets/audio' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'assets/localization' },
           ],
@@ -265,7 +288,7 @@ export default defineConfig({
           translations: { 'zh-CN': '发布' },
           collapsed: true,
           items: [
-            { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'publishing/overview' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'publishing/overview' },
             { label: 'Android & iOS', translations: { 'zh-CN': 'Android 与 iOS' }, slug: 'publishing/android-ios' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'publishing/wechat' },
             { label: 'Mini-Game Platforms', translations: { 'zh-CN': '小游戏平台' }, slug: 'publishing/minigame-platforms' },

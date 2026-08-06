@@ -114,7 +114,7 @@ world.insert(btn, UIGear, {
 
 ## 在编辑器里授权
 
-![检视器里的内联控制器条](../../../../assets/guides/zh/controllers-strip.png)
+![检视器里的内联控制器条](@/assets/guides/zh/controllers-strip.png)
 
 *控制器条:当前激活的控制器(这里是从 Canvas 继承来的 `theme`)、以芯片形式排列的**翻页**(`sky` / `rose`),以及**此实体的绑定**——每个绑定到控制器的字段。*
 
@@ -160,7 +160,7 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 ```
 
 **从状态机** —— `ui.setPage` 动作让数据驱动的
-[FSM / 行为树](/docs/zh-cn/gameplay/ai/)(`.esfsm` / `.esbt`)无需写码就切页。参数是 `"controller:page"`:
+[FSM / 行为树](/docs/zh-cn/gameplay/ai/overview/)(`.esfsm` / `.esbt`)无需写码就切页。参数是 `"controller:page"`:
 
 ```json
 { "onEnter": { "name": "ui.setPage", "arg": "hud:alert" } }
@@ -181,5 +181,5 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 - [UI](/docs/zh-cn/ui/overview/) —— 绑定所驱动的 flexbox 组件模型。
 - [UI 控件](/docs/zh-cn/ui/widgets/) —— 控件工厂。
 - [时间轴](/docs/zh-cn/animation/timeline/) —— 关键帧过渡;绑定用的是同一套字段寻址。
-- [游戏 AI](/docs/zh-cn/gameplay/ai/) —— 能调用 `ui.setPage` 的 `.esfsm` / `.esbt`。
+- [游戏 AI](/docs/zh-cn/gameplay/ai/overview/) —— 能调用 `ui.setPage` 的 `.esfsm` / `.esbt`。
 - [事件绑定](/docs/zh-cn/scripting/events/) —— 把点击直接接到 `ui.setPage`，不写代码。

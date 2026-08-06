@@ -83,16 +83,25 @@ This will:
 
 ## Writing Documentation
 
+### The one structural rule
+
+**A page's directory path is its sidebar path is its URL.** A sidebar group is a
+directory (`editor/`, `scripting/`, `graphics/`, …); a subgroup inside one is a
+directory inside it (`gameplay/ai/`); and a group's general page is
+`<dir>/overview.mdx`, labelled **Overview** in the sidebar because the group
+header already says the topic — its `title` stays descriptive, since that is the
+page's own heading. Nothing else decides where a file goes.
+
+Depth is free: images are referenced through the `@/` alias
+(`![](@/assets/guides/en/foo.png)`), not by counting `../`, so a page can move
+between levels without its pictures going dark.
+
 ### Adding a New Guide
 
-1. Create a new `.mdx` file under the section it belongs to —
-   `astro/src/content/docs/<section>/`, where `<section>` is one of
+1. Create the `.mdx` under the group it belongs to — sections today are
    `getting-started`, `editor`, `core-concepts`, `scripting`, `graphics`,
    `animation`, `gameplay`, `ui`, `world`, `assets`, `publishing`,
-   `performance` or `extending`. A page's directory IS its sidebar group and
-   its URL: keep them the same, and keep every page exactly one level deep
-   (`<section>/<page>.mdx`) so the relative `../../../../assets/` image paths
-   resolve.
+   `performance`, `extending` and `reference`.
 2. Add frontmatter:
    ```mdx
    ---
@@ -102,14 +111,23 @@ This will:
 
    Your content here...
    ```
-3. Add to the matching sidebar group in `astro/astro.config.mjs`, and write the
-   Simplified Chinese page at `astro/src/content/docs/zh-cn/<section>/<page>.mdx`
-4. If you rename or move a page, add its old path to `redirects` in
-   `astro/astro.config.mjs` — published URLs must keep working
-4. Keep code samples accurate: every symbol a guide imports from the main `esengine`
-   barrel must be a real SDK export. `npm run verify:imports` (from `docs/astro/`)
-   checks this against the exports declared in `sdk/src` and runs in CI before the
-   site build, so a renamed or fabricated API fails the docs deploy.
+3. Add it to the matching sidebar group in `astro/astro.config.mjs`, and write the
+   Simplified Chinese page at `astro/src/content/docs/zh-cn/<same path>.mdx`.
+4. If you move or rename a page, append its old path to `MOVED` in
+   `astro/astro.config.mjs`. That map is append-only — a URL published once keeps
+   resolving.
+
+### The gates
+
+Three checks keep the site honest; all three run in CI, and all three are worth
+running locally before a docs PR.
+
+| Check | Run from | Catches |
+|---|---|---|
+| `npm run verify:imports` | `docs/astro` | A guide importing a symbol the SDK does not export — a renamed or invented API. Runs before the build. |
+| `npm run verify:structure` | `docs/astro` | The rule above going soft: a page in no sidebar group, a sidebar entry with no page, a group page not labelled Overview, or a page that exists in only one language. Runs before the build. |
+| `npm run verify:links` | `docs/astro` | Any in-site link or `#anchor` that does not resolve against the pages the build emitted, including a root-relative link that forgot the `/docs` base. Runs **after** the build. |
+| `node tools/component-reference.mjs --check` | repo root | The component reference disagreeing with the engine's component registry, or a component with no entry in `src/data/componentDocs.ts`. Part of `pnpm run verify`, so pre-push catches it. Refresh with `--update` after building the SDK. |
 
 ### Available Components
 

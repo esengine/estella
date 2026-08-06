@@ -25,7 +25,7 @@ interface. See [Screen & Resolution](/docs/core-concepts/screen/) and
 
 ## Dimensions: `px`, `percent`, `auto`
 
-![px is a fixed size, percent is a fraction of the parent, auto is content-sized](../../../assets/guides/ui-units.svg)
+![px is a fixed size, percent is a fraction of the parent, auto is content-sized](@/assets/guides/ui-units.svg)
 
 *The three length units: `px` is a fixed design-pixel size, `percent` is a fraction of the parent's axis, and `auto` shrinks to content (or is stretched by the container).*
 
@@ -111,27 +111,27 @@ CSS-flexbox namesake — the engine runs Yoga, so if you know flexbox, you know 
 
 **`direction`** — the main axis, and the order children flow in:
 
-![The four FlexDirection values: Row, RowReverse, Column, ColumnReverse](../../../assets/guides/flex-direction.svg)
+![The four FlexDirection values: Row, RowReverse, Column, ColumnReverse](@/assets/guides/flex-direction.svg)
 
-![The same four boxes laid out live in the editor as a Row and as a Column](../../../assets/guides/flex-live.png)
+![The same four boxes laid out live in the editor as a Row and as a Column](@/assets/guides/flex-live.png)
 
 *The same four boxes rendered live in the editor — a `Row` container and a `Column` one. The diagrams here aren't an approximation: they're exactly what the engine draws.*
 
 **`justifyContent`** — how children pack along the **main axis**, and how any leftover
 space is shared out:
 
-![The six JustifyContent values: Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly](../../../assets/guides/flex-justify.svg)
+![The six JustifyContent values: Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly](@/assets/guides/flex-justify.svg)
 
 **`alignItems`** — how children line up across the **cross axis**. `Stretch` (the
 default) grows only the items whose cross-size is `auto`; items with a fixed size keep it:
 
-![The four AlignItems values: Start, Center, End, Stretch](../../../assets/guides/flex-align.svg)
+![The four AlignItems values: Start, Center, End, Stretch](@/assets/guides/flex-align.svg)
 
 **`wrap`** — when the children don't fit the main axis, `NoWrap` shrinks them onto one
 line (via `flexShrink`); `Wrap` keeps their size and flows the overflow onto new lines
 (those lines are then distributed by `alignContent`):
 
-![The two FlexWrap values: NoWrap shrinks to one line, Wrap flows to new lines](../../../assets/guides/flex-wrap.svg)
+![The two FlexWrap values: NoWrap shrinks to one line, Wrap flows to new lines](@/assets/guides/flex-wrap.svg)
 
 ```typescript
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from 'esengine';
@@ -147,7 +147,7 @@ world.insert(panel, FlexContainer, {
 
 ## Absolute positioning
 
-![Relative nodes flow and share space; an Absolute node is pinned by insets and ignores its siblings](../../../assets/guides/ui-position.svg)
+![Relative nodes flow and share space; an Absolute node is pinned by insets and ignores its siblings](@/assets/guides/ui-position.svg)
 
 *`Relative` nodes flow in the layout and share the space with their siblings; an `Absolute` node is lifted out of the flow and pinned by its insets, floating over the rest.*
 
@@ -199,7 +199,7 @@ const panel = spawnUIEntity({
 
 ## Anchor presets in code
 
-![The nine point anchors in a 3×3 grid (corners, edge midpoints, centre), plus per-axis Stretch](../../../assets/guides/ui-anchor.svg)
+![The nine point anchors in a 3×3 grid (corners, edge midpoints, centre), plus per-axis Stretch](@/assets/guides/ui-anchor.svg)
 
 *The anchor picker's nine point anchors — each pins the box to a corner, an edge midpoint, or the centre of its parent — plus a per-axis **Stretch** that makes the box fill that axis.*
 

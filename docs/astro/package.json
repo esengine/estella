@@ -9,6 +9,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "verify:imports": "node scripts/verify-doc-imports.mjs",
+    "verify:structure": "node scripts/verify-doc-structure.mjs",
     "verify:links": "node scripts/verify-doc-links.mjs"
   },
   "dependencies": {

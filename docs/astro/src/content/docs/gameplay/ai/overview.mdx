@@ -36,7 +36,7 @@ editor, not hardcoded. Perception feeds the decision; the decision drives naviga
   Everything here is pure TypeScript in the `esengine` core (no WebAssembly
   side-module). All four plugins — perception, FSM, BT, and navigation — are added
   automatically by the editor and the web runtime. You only wire plugins yourself in
-  a bare `new App()` (see [Custom app setup](/docs/gameplay/ai-advanced/#custom-app-setup)).
+  a bare `new App()` (see [Custom app setup](/docs/gameplay/ai/advanced/#custom-app-setup)).
 </Aside>
 
 ## The shared registry
@@ -68,7 +68,7 @@ is the same programming model as a [`defineBehavior`](/docs/scripting/overview/)
 | `ctx.dt` | `number` | Frame delta in seconds. |
 | `ctx.world` | `World` | Full world access for cross-entity reads. |
 | `ctx.commands` | `Commands` | Deferred spawn/despawn, safe mid-tick. |
-| `ctx.blackboard` | `Blackboard` | This agent's AI data plane (see [Blackboard](/docs/gameplay/ai-blackboard/)). |
+| `ctx.blackboard` | `Blackboard` | This agent's AI data plane (see [Blackboard](/docs/gameplay/ai/blackboard/)). |
 | `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
 | `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
 | `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
@@ -152,13 +152,13 @@ unlocks when it completes, and R replays it — with zero registered actions.
 ## The four pieces
 
 <CardGrid>
-  <LinkCard title="Perception" href="/docs/gameplay/ai-perception/" description="Sight cones, and what an agent currently sees." />
-  <LinkCard title="Navigation" href="/docs/gameplay/ai-navigation/" description="A navigation grid, A* paths, and moving an agent along one." />
-  <LinkCard title="State machines" href="/docs/gameplay/ai-state-machines/" description="States, guarded transitions, and one-shot triggers." />
-  <LinkCard title="Behavior trees" href="/docs/gameplay/ai-behavior-trees/" description="Selectors, sequences, decorators and leaves." />
-  <LinkCard title="The blackboard" href="/docs/gameplay/ai-blackboard/" description="The per-agent data plane both paradigms read and write." />
-  <LinkCard title="Authoring in the editor" href="/docs/gameplay/ai-authoring/" description="Register the leaves in code, build the graphs visually." />
-  <LinkCard title="Below the components" href="/docs/gameplay/ai-advanced/" description="Pathfinding by hand, perception internals, and bare-App wiring." />
+  <LinkCard title="Perception" href="/docs/gameplay/ai/perception/" description="Sight cones, and what an agent currently sees." />
+  <LinkCard title="Navigation" href="/docs/gameplay/ai/navigation/" description="A navigation grid, A* paths, and moving an agent along one." />
+  <LinkCard title="State machines" href="/docs/gameplay/ai/state-machines/" description="States, guarded transitions, and one-shot triggers." />
+  <LinkCard title="Behavior trees" href="/docs/gameplay/ai/behavior-trees/" description="Selectors, sequences, decorators and leaves." />
+  <LinkCard title="The blackboard" href="/docs/gameplay/ai/blackboard/" description="The per-agent data plane both paradigms read and write." />
+  <LinkCard title="Authoring in the editor" href="/docs/gameplay/ai/authoring/" description="Register the leaves in code, build the graphs visually." />
+  <LinkCard title="Below the components" href="/docs/gameplay/ai/advanced/" description="Pathfinding by hand, perception internals, and bare-App wiring." />
 </CardGrid>
 
 ## Putting it together

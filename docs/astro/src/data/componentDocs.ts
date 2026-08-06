@@ -129,12 +129,12 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   Marker: { category: 'world', summary: 'A named point or region of gameplay interest — spawn point, waypoint, trigger zone — queryable like any component.', doc: 'gameplay/markers', anchor: 'marker-component-reference', anchorZh: 'marker-组件参考' },
 
   // ── Gameplay ───────────────────────────────────────────────────────────────
-  NavAgent: { category: 'gameplay', summary: 'Steers an entity along a path found on the navigation grid.', doc: 'gameplay/ai-navigation' },
-  Perceiver: { category: 'gameplay', summary: 'Senses nearby perception targets within a sight cone and range.', doc: 'gameplay/ai-perception' },
-  Perception: { category: 'gameplay', summary: "What a perceiver currently sees — written each frame for the entity's own logic to read.", doc: 'gameplay/ai-perception' },
-  PerceptionTarget: { category: 'gameplay', summary: 'Tag: perceivers can see this entity.', doc: 'gameplay/ai-perception' },
-  StateMachineAgent: { category: 'gameplay', summary: 'Runs a gameplay state machine asset, calling registry actions as states enter, update and exit.', doc: 'gameplay/ai-state-machines' },
-  BehaviorTreeAgent: { category: 'gameplay', summary: 'Ticks a behavior tree asset against a blackboard, calling registry actions at its leaves.', doc: 'gameplay/ai-behavior-trees' },
+  NavAgent: { category: 'gameplay', summary: 'Steers an entity along a path found on the navigation grid.', doc: 'gameplay/ai/navigation' },
+  Perceiver: { category: 'gameplay', summary: 'Senses nearby perception targets within a sight cone and range.', doc: 'gameplay/ai/perception' },
+  Perception: { category: 'gameplay', summary: "What a perceiver currently sees — written each frame for the entity's own logic to read.", doc: 'gameplay/ai/perception' },
+  PerceptionTarget: { category: 'gameplay', summary: 'Tag: perceivers can see this entity.', doc: 'gameplay/ai/perception' },
+  StateMachineAgent: { category: 'gameplay', summary: 'Runs a gameplay state machine asset, calling registry actions as states enter, update and exit.', doc: 'gameplay/ai/state-machines' },
+  BehaviorTreeAgent: { category: 'gameplay', summary: 'Ticks a behavior tree asset against a blackboard, calling registry actions at its leaves.', doc: 'gameplay/ai/behavior-trees' },
   EventBinding: { category: 'gameplay', summary: 'Wires an event on this entity to named actions — gameplay authored in the inspector, with no script.', doc: 'scripting/events', anchor: 'the-data', anchorZh: '数据本身' },
   AudioSource: { category: 'gameplay', summary: 'Declarative playback attached to an entity, attenuated by distance when spatial.', doc: 'assets/audio', anchor: 'declarative-playback--audiosource', anchorZh: '声明式播放--audiosource' },
   AudioListener: { category: 'gameplay', summary: 'The ear spatial audio is mixed relative to — usually the camera or the player.', doc: 'assets/audio', anchor: 'spatial-audio', anchorZh: '空间音频' },

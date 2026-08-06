@@ -63,7 +63,7 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 1:1,或设成别的值来缩放。`Transform` 上的缩放会再乘上去。`pivot` 是精灵旋转/缩放所绕的归一化
 轴心(0–1):`{0.5, 0.5}` 居中,`{0, 0}` 是左下角,`{0.5, 0}` 钉住底部中心(适合站在地面上的角色)。
 
-![同一个精灵绕三个不同轴心旋转——轴心点(黄点)保持不动、四边形绕它摆动:居中=原地旋转,角点=甩出去,底部中心=钉住脚下](../../../../assets/guides/sprite-pivot.svg)
+![同一个精灵绕三个不同轴心旋转——轴心点(黄点)保持不动、四边形绕它摆动:居中=原地旋转,角点=甩出去,底部中心=钉住脚下](@/assets/guides/sprite-pivot.svg)
 
 ## 单位与坐标
 
@@ -86,7 +86,7 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 **项目设置 → 渲染**里定义的命名层列表,于是检视器显示 *Background*、*Default*、*Foreground* 等
 下拉,而不是裸数字。较低的层先画(在后面)。
 
-![左:三个排序层堆叠,更高的层画在前面。右:在 Y-排序层上,屏幕上更靠下的精灵画在更靠上的前面。](../../../../assets/guides/sprite-sort.svg)
+![左:三个排序层堆叠,更高的层画在前面。右:在 Y-排序层上,屏幕上更靠下的精灵画在更靠上的前面。](@/assets/guides/sprite-sort.svg)
 
 命名是为了可读性,不是层数上限:你可以命名最多三十二个槽位(槽位的下标**就是**它的 z 序)。
 名字只是建议——直接敲一个列表里没有的数字,字段照样接受;一个名字都不填时,`layer` 就是
@@ -162,7 +162,7 @@ world.applyEntityOrder([other, another, card]);
 
 纹理的采样方式按**纹理句柄**设置,而非按精灵:
 
-![同一张 16×16 纹理放大:Nearest 保留硬像素边缘,Linear 把它们混成平滑渐变](../../../../assets/guides/texture-filter.png)
+![同一张 16×16 纹理放大:Nearest 保留硬像素边缘,Linear 把它们混成平滑渐变](@/assets/guides/texture-filter.png)
 
 *同一张小纹理放大约 15×。**Nearest(最近邻)** 保留硬的纹素边缘(像素画);**Linear(线性)**
 在纹素间插值,得到平滑外观(默认)。*
@@ -188,7 +188,7 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 缩小/放大过滤分开,环绕逐轴设置。`tileSize` 平铺和 UV 滚动效果要无缝,靠的就是
 `Repeat`。
 
-![各环绕模式对 0–1 之外 UV 的采样:Repeat 平铺纹理,Clamp to edge 拉伸边缘像素,Mirror 每隔一块翻转](../../../../assets/guides/texture-wrap.png)
+![各环绕模式对 0–1 之外 UV 的采样:Repeat 平铺纹理,Clamp to edge 拉伸边缘像素,Mirror 每隔一块翻转](@/assets/guides/texture-wrap.png)
 
 *各环绕模式如何处理 0–1 之外的 UV(中间那块 = 纹理本身):**Repeat** 平铺,**Clamp to edge**
 拉伸边缘像素,**Mirror** 每隔一块镜像翻转。*

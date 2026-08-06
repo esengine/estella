@@ -15,7 +15,7 @@ Estella 有三套动画系统,各司其职:
 
 ## 精灵动画
 
-![翻页书编辑器——4 帧行走片段,带逐帧时长与实时预览](../../../../assets/guides/zh/flipbook.png)
+![翻页书编辑器——4 帧行走片段,带逐帧时长与实时预览](@/assets/guides/zh/flipbook.png)
 
 *翻页书编辑器:一个 4 帧行走片段、逐帧时长,以及带 FPS / 循环 / 洋葱皮的实时预览。*
 
@@ -173,7 +173,7 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 
 ### 用状态机驱动剪辑——零代码
 
-[FSM/BT 内置](/docs/zh-cn/gameplay/ai/)以数据驱动翻页动画。动作的可选**参数**
+[FSM/BT 内置](/docs/zh-cn/gameplay/ai/overview/)以数据驱动翻页动画。动作的可选**参数**
 携带剪辑,所以 idle/run/attack 切换是纯 `.esfsm` 数据,画在现有状态机画布上:
 
 | 名称 | 类型 | 说明 |
@@ -228,7 +228,7 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 `EaseInOut*`)、`EaseOutBounce`、`Step` 和 `CubicBezier`——自定义贝塞尔用句柄的
 `.bezier(p1x, p1y, p2x, p2y)`。
 
-![每种 EasingType 从 0 到 1 的曲线](../../../../assets/guides/tween-easings.svg)
+![每种 EasingType 从 0 到 1 的曲线](@/assets/guides/tween-easings.svg)
 
 *每条缓动曲线(进度 `t` 从左到右,缓动后的值从下到上)——这就是引擎的精确曲线。`Back` 和 `Elastic` 会冲出 0–1 区间;`Step` 一直保持到末尾才跳变。*
 
@@ -295,7 +295,7 @@ tween.sequence([
 
 ## 动画状态机
 
-![动画控制器编辑器——Idle / Move / Hop 状态,带条件与参数面板](../../../../assets/guides/zh/animator-graph.png)
+![动画控制器编辑器——Idle / Move / Hop 状态,带条件与参数面板](@/assets/guides/zh/animator-graph.png)
 
 *动画控制器:状态(Idle / Move / Hop)、带条件的转移(`speed>20`、`hop` 触发器),以及驱动它们的**参数**面板。*
 
@@ -345,7 +345,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 ### 混合树
 
-![一维 blend 按 speed 阈值在 idle / walk / run 之间选择](../../../../assets/guides/blend-tree.svg)
+![一维 blend 按 speed 阈值在 idle / walk / run 之间选择](@/assets/guides/blend-tree.svg)
 
 *一维 blend:float 参数挑出「阈值 ≤ 它」中最高的那个片段——这里随 `speed` 上升在 `idle` / `walk` / `run` 之间切换,彼此不做过渡。*
 

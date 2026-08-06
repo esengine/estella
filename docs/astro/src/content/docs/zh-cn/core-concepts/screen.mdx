@@ -60,7 +60,7 @@ const readCanvas = defineSystem([GetWorld()], (world) => {
 
 ## 缩放模式
 
-![在 4:3 屏幕上,FixedWidth/Expand 在 16:9 设计盒的上下露出额外世界,而 FixedHeight/Shrink 填满高度并裁掉两侧](../../../../assets/guides/scale-modes.svg)
+![在 4:3 屏幕上,FixedWidth/Expand 在 16:9 设计盒的上下露出额外世界,而 FixedHeight/Shrink 填满高度并裁掉两侧](@/assets/guides/scale-modes.svg)
 
 适配数学是一个纯函数,导出为 `computeEffectiveOrthoSize`。给定设计盒与实际屏幕宽高比,
 它产出**有效正交半高**——相机将显示的世界盒高度的一半,单位是世界单位(设计像素)。

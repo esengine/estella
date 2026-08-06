@@ -3,7 +3,7 @@ title: State machines
 description: "Running an .esfsm graph: states with enter/update/exit hooks, guarded transitions, and one-shot triggers."
 ---
 
-![The FSM editor — Patrol and Chase states linked by guarded transitions](../../../assets/guides/en/ai-fsm.png)
+![The FSM editor — Patrol and Chase states linked by guarded transitions](@/assets/guides/en/ai-fsm.png)
 
 *The state-machine editor: states (Patrol / Chase) linked by guarded transitions (`?seesPlayer`, `?lostPlayer`).*
 
@@ -27,7 +27,7 @@ cmds.spawn()
 | `current` | Active state name, written each tick (read-only; visible in the inspector). |
 
 The recommended path is to **author the graph in the editor** as an `.esfsm` asset
-(see [Authoring in the editor](/docs/gameplay/ai-authoring/)). The states reference your
+(see [Authoring in the editor](/docs/gameplay/ai/authoring/)). The states reference your
 registered action/condition names by string. You can also build a machine in code:
 
 ```typescript

@@ -54,6 +54,12 @@ jobs:
         working-directory: docs/astro
         run: npm run verify:imports
 
+      # Reads source, so it runs before the build: a page in no sidebar group, or
+      # one that exists in only one language, fails here rather than shipping.
+      - name: Verify the sidebar, the filesystem and both locales agree
+        working-directory: docs/astro
+        run: npm run verify:structure
+
       - name: Build Astro Site
         working-directory: docs/astro
         run: npm run build
