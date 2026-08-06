@@ -248,6 +248,29 @@ describe('editor MCP tool registry', () => {
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('deleteAsset("assets/fx/old.esshader")'));
   });
 
+  it('lookup_symbol takes a list, so learning an API is one round trip', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({}));
+    const lookup = toolNamed('lookup_symbol');
+    const res = await runTool(lookup, driver, { name: ['Query', 'Res', 'Mut'] });
+    expect(res.isError).toBeFalsy();
+    expect(driver.op).toHaveBeenCalledWith('lookup_symbol', { name: ['Query', 'Res', 'Mut'] });
+    // and one name still works, unchanged
+    await runTool(lookup, driver, { name: 'Input' });
+    expect(driver.op).toHaveBeenLastCalledWith('lookup_symbol', { name: 'Input' });
+  });
+
+  it('step says which world it advanced, because there are two', async () => {
+    // It used to advance the edit World unconditionally — the one with no gameplay
+    // in it — so a driver stepping a running game saw nothing move.
+    const driver = vi.fn(async () => ({ world: 'play', frames: 30, dt: 1 / 60 }));
+    const step = toolNamed('step');
+    const res = await runTool(step, driver, { frames: 30 });
+    expect(driver).toHaveBeenCalledWith('step', [30, undefined], undefined);
+    expect(res.content[0].text).toContain('play');
+    expect(step.description).toMatch(/RUNNING GAME/);
+  });
+
   it('every resource maps to a surface method with a JSON mime', () => {
     for (const r of RESOURCES as Array<{ uri: string; method: string; mimeType: string }>) {
       expect(r.uri.startsWith('editor://')).toBe(true);

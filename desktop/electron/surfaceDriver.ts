@@ -43,7 +43,7 @@ export interface SurfaceDriver {
  * realm has a CSP and must not be asked to compile anything. An expression keeps
  * its implicit value; a body returns what it returns.
  */
-const carryError = (code: string): string => {
+const carryError = (code: string, preamble = ''): string => {
   let isExpression = true;
   try {
     new Function(`return (${code})`);
@@ -51,8 +51,22 @@ const carryError = (code: string): string => {
     isExpression = false;
   }
   const value = isExpression ? `await (${code})` : `await (async () => { ${code} })()`;
-  return `(async () => { try { return { v: ${value} }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
+  return `(async () => { try { ${preamble} return { v: ${value} }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
 };
+
+/**
+ * What a play probe finds already in scope.
+ *
+ * The tool's own description says the surface IS `window.__estellaPlay = { find, … }`,
+ * and every driver so far has read that as "so `find(...)` works" and written exactly
+ * that. It did not, and the first four probes of a session went to discovering the
+ * prefix instead of the game. Destructuring here makes the obvious reading the true
+ * one; `window.__estellaPlay` keeps working for code that spells it out.
+ */
+const PROBE_SCOPE =
+  'const p = window.__estellaPlay;'
+  + " if (!p) throw new Error('this realm publishes no probe surface — enter play first');"
+  + ' const { app, getComponent, find, componentNames, resource, input, get, set, step } = p;';
 
 function unwrap(res: unknown): unknown {
   const r = res as { v?: unknown; __estellaExecError?: string } | null;
@@ -125,7 +139,7 @@ export function createSurfaceDriver(
         if (!frame) {
           throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
         }
-        return unwrap(await frame.executeJavaScript(carryError(String(input.code ?? 'true'))));
+        return unwrap(await frame.executeJavaScript(carryError(String(input.code ?? 'true'), PROBE_SCOPE)));
       }
       case 'play_input': {
         // Same frame lookup as play_probe — the realm is the only thing that has
@@ -168,8 +182,19 @@ export function createSurfaceDriver(
       //   service lives here (scriptService.ts), reading the project off disk. —
       case 'check_scripts':
         return scriptDiagnostics(input.path ? String(input.path) : undefined);
-      case 'lookup_symbol':
-        return lookupScriptSymbol(String(input.name ?? ''), input.limit === undefined ? undefined : Number(input.limit));
+      case 'lookup_symbol': {
+        // One call, any number of names. Learning an unfamiliar API means asking about
+        // a dozen symbols at once, and one-per-call turned that into a dozen round
+        // trips — a Breakout dogfood spent 32 of its calls here before writing a line.
+        const limit = input.limit === undefined ? undefined : Number(input.limit);
+        const names = Array.isArray(input.name)
+          ? (input.name as unknown[]).map(String)
+          : [String(input.name ?? '')];
+        if (names.length === 1) return lookupScriptSymbol(names[0], limit);
+        const out: Record<string, unknown> = {};
+        for (const name of names) out[name] = lookupScriptSymbol(name, limit);
+        return out;
+      }
       case 'search_project_files':
         return searchInRoot(requireProjectRoot(), {
           query: String(input.query ?? ''),

@@ -182,7 +182,9 @@ export const TOOLS = [
     schema: obj({ playing: { type: 'boolean' }, paused: { type: 'boolean' } }, ['playing']),
     method: 'setRunMode', args: (i) => [i.playing, i.paused] },
   { name: 'step',
-    description: 'Advance the engine by N fixed-dt frames deterministically (no rAF). Step before capturing for a settled frame.',
+    description: 'Advance by N frames of fixed dt, deterministically — the RUNNING GAME when one is playing, otherwise the edit World. Answers { world: "play" | "edit", frames, dt }, so you can tell which one moved. '
+      + 'This is how you watch a game do something: the realm\'s own loop is wall-clock and the editor window is not focused while you drive it, which throttles it to roughly one frame a second — two probes a second apart read identical and a healthy game looks frozen. '
+      + 'Step, then read (play_probe) or look (screenshot). A pressed edge from play_input lasts exactly one frame, so step 1 right after it.',
     schema: obj({ frames: { type: 'number' }, dt: { type: 'number' } }),
     method: 'step', args: (i) => [i.frames, i.dt] },
   { name: 'resize_viewport',
@@ -445,8 +447,9 @@ export const TOOLS = [
     schema: obj({ path: { type: 'string' } }), op: 'check_scripts' },
   { name: 'lookup_symbol',
     description: "What an API actually IS, asked of the TypeScript compiler: `name` is a symbol (`Input`, `screenToWorld`, `MouseButton`) and the reply carries its rendered signature, its doc comment and where it is declared. "
+      + '`name` also takes an ARRAY — ask about everything you are about to use in one call (["Query", "Res", "Mut", "Time"]) and the reply is keyed by name. Learning an API is a dozen symbols; a dozen calls is a dozen round trips. '
       + 'Use this INSTEAD of paging the SDK .d.ts — that file is tens of thousands of lines and reading it a hundred at a time costs a context window to learn one method name.',
-    schema: obj({ name: { type: 'string' }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
+    schema: obj({ name: { type: ['string', 'array'] }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
   { name: 'search_project_files',
     description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` filters paths — `*.ts`, `src/**`, `src/*.ts`, or a plain substring like ".ts". '
       + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole.',
@@ -494,7 +497,8 @@ export const TOOLS = [
     schema: obj({ text: { type: 'string' } }, ['text']),
     js: (i) => `window.estella.agent.send(${JSON.stringify(i.text)})` },
   { name: 'agent_status', driverOnly: true,
-    description: "The built-in agent's phase (idle / thinking / awaiting_confirm / error), its model, and how full its context is.",
+    description: "The built-in agent's phase (idle / running / awaiting_confirm), its model, and `lastTurn` — HOW the last turn ended. "
+      + "Check that before reading an idle agent as a finished one: 'max_rounds' means it ran out of tool rounds mid-task and the work is unfinished, 'aborted' that it was stopped, 'end_turn' that it chose to stop.",
     schema: obj({}), js: () => `window.estella.agent.status().then(async (s) => {
       if (s.phase !== 'awaiting_confirm') return s;
       // What it is waiting ON, not just that it waits: a driver cannot answer a
@@ -528,7 +532,16 @@ export const TOOLS = [
       return { total: t.length, from, events: t.slice(from) };
     })` },
   { name: 'play_probe', effect: 'irreversible',
-    description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. window.__estellaPlay = { app, getComponent, find, componentNames, resource, input }: **`find(NAME)` and `resource(NAME)` are the ones to reach for** — `find` returns every entity carrying that component with its live data, `resource` the live value of a resource (a score, a phase — state that belongs to no entity); together they are how you ask what the game currently thinks is going on. `componentNames()` lists what `find` accepts, and `resource` on an unknown name answers with the available ones. `getComponent(NAME)` gives the DEFINITION and `app.world.tryGet(entity, def)` one entity's data (`get` returns a ZEROED object for an entity that lacks the component, so it cannot be used to test for one); a write only lands through `app.world.insert(entity, def, data)` — assigning to a copy changes nothing. Use play_input, not synthetic DOM events, to drive input. frame picks the realm in multiplayer previews (0 = host).",
+    description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. "
+      + 'These are ALREADY IN SCOPE (no prefix, though `window.__estellaPlay` holds them too): '
+      + '**`find(NAME)`** — every entity carrying that component, with its live data; '
+      + '**`get(ENTITY, NAME)`** — one entity\'s component data, or null when it does not have it; '
+      + '**`set(ENTITY, NAME, PATCH)`** — write fields of one component, for staging the situation you want to watch; '
+      + '**`resource(NAME)`** — the live value of a resource (a score, a phase — state belonging to no entity); '
+      + '**`step(FRAMES, DT)`** — advance the game deterministically (the loop is throttled while the editor window is unfocused, so this is how anything moves); '
+      + '`componentNames()` lists what `find` accepts, `resource` on an unknown name answers with the available ones, and `app` / `getComponent` are there for what these do not cover. '
+      + 'Reach for find/get/resource first — they answer "what does the game think is going on right now", which is the question. Do NOT hand-roll a frame advance through app internals; `step` is the supported one. '
+      + 'Use play_input, not synthetic DOM events, to drive input. frame picks the realm in multiplayer previews (0 = host).',
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
     op: 'play_probe' },
   { name: 'play_input', effect: 'irreversible',
