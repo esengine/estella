@@ -11,15 +11,42 @@
  *          frame clock as tc.u_time / tc.u_viewport.
  */
 
+import { paramDefaultValue, reflectEsshader } from './shaderReflect';
+
 export interface BuiltinShaderTemplate {
     id: string;
     /** Menu / picker label, e.g. "Lit". */
     label: string;
     description: string;
     source: string;
-    /** Initial .esmaterial `properties` for a material born from this template. */
+    /** Initial .esmaterial `properties` for a material born from this template — DERIVED
+     *  from `source`, never written down beside it (see {@link templateDefaults}). */
     defaults: Record<string, unknown>;
 }
+
+/**
+ * The `properties` a new material of this template starts with: every declared non-texture
+ * param at its shader default.
+ *
+ * Derived rather than listed, because a hand-kept copy is a second place to remember. Five
+ * of the seven templates carried `defaults: {}` — their parameter vocabulary existed only
+ * inside the shader string, so a material made from Dissolve came out with no `u_progress`
+ * in it, and nothing anywhere named that word to whoever went looking for the slider.
+ *
+ * A texture param is skipped: its default is a name the engine resolves (`white`,
+ * `flatnormal`), and storing that as a property would make it look like an asset ref.
+ */
+function templateDefaults(source: string): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const param of reflectEsshader(source).params) {
+        if (param.type === 'texture') continue;
+        out[param.name] = paramDefaultValue(param);
+    }
+    return out;
+}
+
+const template = (id: string, label: string, description: string, source: string): BuiltinShaderTemplate =>
+    ({ id, label, description, source, defaults: templateDefaults(source) });
 
 const SPRITE_UNLIT = `#pragma shader "Sprite Unlit"
 #pragma version 300 es
@@ -282,55 +309,17 @@ void main() {
 `;
 
 export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
-    {
-        id: 'sprite-unlit',
-        label: 'Unlit',
-        description: 'Texture × vertex color × tint, no lighting.',
-        source: SPRITE_UNLIT,
-        defaults: { u_tint: { r: 1, g: 1, b: 1, a: 1 } },
-    },
-    {
-        id: 'sprite-lit',
-        label: 'Lit',
-        description: 'Lit by the scene\'s 2D lights; optional normal map.',
-        source: SPRITE_LIT,
-        defaults: { u_tint: { r: 1, g: 1, b: 1, a: 1 } },
-    },
-    {
-        id: 'sprite-hit-flash',
-        label: 'Hit Flash',
-        description: 'Blend toward a flash color; drive u_flash from code for damage blinks.',
-        source: SPRITE_HIT_FLASH,
-        defaults: {},
-    },
-    {
-        id: 'sprite-outline',
-        label: 'Outline',
-        description: 'Colored silhouette outline around the sprite\'s opaque pixels.',
-        source: SPRITE_OUTLINE,
-        defaults: {},
-    },
-    {
-        id: 'sprite-dissolve',
-        label: 'Dissolve',
-        description: 'Noise-driven burn-away with a glowing edge (u_progress 0→1).',
-        source: SPRITE_DISSOLVE,
-        defaults: {},
-    },
-    {
-        id: 'sprite-pixelate',
-        label: 'Pixelate',
-        description: 'Quantizes UVs to a coarse pixel grid.',
-        source: SPRITE_PIXELATE,
-        defaults: {},
-    },
-    {
-        id: 'sprite-uv-scroll',
-        label: 'UV Scroll',
-        description: 'Scrolls the texture over time (conveyors, water, clouds).',
-        source: SPRITE_UV_SCROLL,
-        defaults: {},
-    },
+    template('sprite-unlit', 'Unlit', 'Texture × vertex color × tint, no lighting.', SPRITE_UNLIT),
+    template('sprite-lit', 'Lit', 'Lit by the scene\'s 2D lights; optional normal map.', SPRITE_LIT),
+    template('sprite-hit-flash', 'Hit Flash',
+        'Blend toward a flash color; drive u_flash from code for damage blinks.', SPRITE_HIT_FLASH),
+    template('sprite-outline', 'Outline',
+        'Colored silhouette outline around the sprite\'s opaque pixels.', SPRITE_OUTLINE),
+    template('sprite-dissolve', 'Dissolve',
+        'Noise-driven burn-away with a glowing edge (u_progress 0→1).', SPRITE_DISSOLVE),
+    template('sprite-pixelate', 'Pixelate', 'Quantizes UVs to a coarse pixel grid.', SPRITE_PIXELATE),
+    template('sprite-uv-scroll', 'UV Scroll',
+        'Scrolls the texture over time (conveyors, water, clouds).', SPRITE_UV_SCROLL),
 ];
 
 export function builtinShaderTemplate(id: string): BuiltinShaderTemplate | undefined {

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { reflectEsshader } from '../src/material/shaderReflect';
+import { reflectEsshader, paramDefaultValue } from '../src/render/shaderReflect';
+import { BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate } from '../src/render/builtinShaders';
 
 const SRC = `
 #pragma shader "ParamTest"
@@ -68,5 +69,42 @@ describe('reflectEsshader', () => {
 
   it('returns the default domain when none is declared', () => {
     expect(reflectEsshader('#pragma param u_a float').domain).toBe('Unlit2D');
+  });
+});
+
+describe('a declared default in the shape a material stores it', () => {
+  it('maps each param type to its stored shape', () => {
+    const p = (name: string) => reflectEsshader(SRC).params.find((x) => x.name === name)!;
+    expect(paramDefaultValue(p('u_strength'))).toBe(1);
+    expect(paramDefaultValue(p('u_tint'))).toEqual({ r: 1, g: 0.5, b: 0.25, a: 1 });
+    expect(paramDefaultValue(p('u_offset'))).toEqual({ x: 3, y: 4 });
+    // A texture default is a NAME the engine resolves, not a ref to an asset.
+    expect(paramDefaultValue(p('u_noise'))).toBe('white');
+  });
+});
+
+describe('the built-in templates take their defaults from their own source', () => {
+  // Five of the seven used to carry `defaults: {}` while their shader declared four
+  // parameters: a material made from Dissolve came out empty, and the word `u_progress`
+  // appeared nowhere a caller could find it. Deriving them is why that cannot recur.
+  it('names every non-texture param a template declares', () => {
+    for (const tpl of BUILTIN_SHADER_TEMPLATES) {
+      const declared = reflectEsshader(tpl.source).params.filter((p) => p.type !== 'texture');
+      expect([tpl.id, Object.keys(tpl.defaults).sort()])
+        .toEqual([tpl.id, declared.map((p) => p.name).sort()]);
+    }
+  });
+
+  it('carries the dissolve slider the engine actually reads', () => {
+    expect(builtinShaderTemplate('sprite-dissolve')!.defaults).toEqual({
+      u_progress: 0,
+      u_edgeColor: { r: 1, g: 0.5, b: 0, a: 1 },
+      u_edgeWidth: 0.08,
+      u_noiseScale: 12,
+    });
+  });
+
+  it('leaves a texture param out — a stored "flatnormal" would read as an asset ref', () => {
+    expect(builtinShaderTemplate('sprite-lit')!.defaults).toEqual({ u_tint: { r: 1, g: 1, b: 1, a: 1 } });
   });
 });

@@ -731,6 +731,80 @@ describe('Material API', () => {
     // Uninitialized guard
     // =========================================================================
 
+    // =========================================================================
+    // A param name the shader does not declare
+    // =========================================================================
+
+    describe('writing a param the shader has no such name for', () => {
+        // The engine drops it: MaterialStore keys the std140 layout by the reflected
+        // name, so a value under any other name has nowhere to land. Silence made a
+        // typo look like a broken shader — `u_amount` on a shader whose slider is
+        // `u_progress` is a call that succeeds and an effect that never happens.
+        const SRC = '#pragma domain Unlit2D\n#pragma param u_progress float default(0)\n'
+            + '#pragma param u_edgeColor color default(1,0.5,0,1)\n';
+
+        it('names what the shader DOES declare', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const shader = Material.compileShader(SRC);
+            const mat = Material.create({ shader });
+
+            Material.setUniform(mat, 'u_amount', 0.5);
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            const said = String(warn.mock.calls[0][0]);
+            expect(said).toContain('u_amount');
+            expect(said).toContain('u_progress');
+            expect(said).toContain('u_edgeColor');
+            warn.mockRestore();
+        });
+
+        it('says nothing about a name the shader declares', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const mat = Material.create({ shader: Material.compileShader(SRC) });
+            Material.setUniform(mat, 'u_progress', 0.5);
+            expect(warn).not.toHaveBeenCalled();
+            warn.mockRestore();
+        });
+
+        it('complains once, not once per frame', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const mat = Material.create({ shader: Material.compileShader(SRC) });
+            for (let i = 0; i < 60; i++) Material.setUniform(mat, 'u_amount', i);
+            expect(warn).toHaveBeenCalledTimes(1);
+            warn.mockRestore();
+        });
+
+        it('checks the properties a material file arrives with, not only later writes', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const shader = Material.compileShader(SRC);
+            Material.createFromAsset(
+                { version: '1.0', type: 'material', shader: 'x.esshader', properties: { u_amount: 0 } } as MaterialAssetData,
+                shader,
+            );
+            expect(warn).toHaveBeenCalledTimes(1);
+            warn.mockRestore();
+        });
+
+        it('stays quiet for a shader built from raw GLSL — it declares no vocabulary', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const mat = Material.create({ shader: Material.createShader('v', 'f') });
+            Material.setUniform(mat, 'anything', 1);
+            expect(warn).not.toHaveBeenCalled();
+            warn.mockRestore();
+        });
+
+        it('judges an instance by the shader it inherits', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const base = Material.create({ shader: Material.compileShader(SRC) });
+            const instance = Material.createInstance(base);
+            Material.setUniform(instance, 'u_progress', 1); // declared — inherited from the base
+            expect(warn).not.toHaveBeenCalled();
+            Material.setUniform(instance, 'u_amount', 1);
+            expect(warn).toHaveBeenCalledTimes(1);
+            warn.mockRestore();
+        });
+    });
+
     describe('uninitialized guard', () => {
         it('should throw when createShader called without init', () => {
             shutdownMaterialAPI();

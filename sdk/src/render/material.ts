@@ -13,6 +13,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { awaitReadback, READBACK_READY } from './readback';
 import type { Vec2, Vec3, Vec4 } from '../types';
 import { BlendMode } from './blend';
+import { reflectEsshader } from './shaderReflect';
 
 export type { Vec2, Vec3, Vec4 } from '../types';
 
@@ -175,6 +176,15 @@ let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
 // Reverse index parent -> instances, so editing a base material re-flushes its instances.
 const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
+// What each compiled shader DECLARES, by handle. Recorded where the source enters the
+// engine (compileShader), so every route to a shader — a `.esmaterial`'s file, a built-in
+// template, a compiled material graph, a post-process effect — is covered by one door.
+// A shader built from raw GLSL (createShader) declares nothing and gets no entry: no
+// vocabulary, no verdict.
+const declaredParams = new Map<ShaderHandle, Set<string>>();
+// One complaint per (shader, param). A uniform driven from a system is written every
+// frame, and a warning that repeats 60 times a second is a log nobody can read.
+const warnedParams = new Set<string>();
 
 // =============================================================================
 // Initialization
@@ -194,9 +204,39 @@ export function initMaterialAPI(engine: NonNullable<EngineApi>): void {
 export function shutdownMaterialAPI(): void {
     materials.clear();
     childrenOf.clear();
+    declaredParams.clear();
+    warnedParams.clear();
     nextMaterialId = 1;
     bridge.disconnect();
     module = null;
+}
+
+/** The shader a material draws with — its own, or the one it inherits as an instance. */
+function shaderOf(handle: MaterialHandle): ShaderHandle | undefined {
+    let data = materials.get(handle);
+    // Bounded: a cycle in the parent chain would otherwise hang a per-write check.
+    for (let depth = 0; data?.parent !== undefined && depth < 16; depth++) data = materials.get(data.parent);
+    return data?.shader;
+}
+
+/**
+ * Say so when a param name is not one the shader declares.
+ *
+ * The engine drops an unknown param without a word — MaterialStore keys the std140 layout
+ * by the reflected name, so a value under any other name has nowhere to land. That makes a
+ * typo the most expensive kind of mistake here: the call succeeds, the value is stored, and
+ * the effect never happens. `Material.setUniform(m, 'u_amount', x)` against a shader whose
+ * slider is `u_progress` reads as a broken shader, and spelling is the last thing anyone
+ * checks. Naming what the shader DOES declare turns that into a one-line fix.
+ */
+function warnUndeclared(shader: ShaderHandle | undefined, name: string): void {
+    const declared = shader !== undefined ? declaredParams.get(shader) : undefined;
+    if (!declared || declared.has(name)) return;
+    const key = `${shader}:${name}`;
+    if (warnedParams.has(key)) return;
+    warnedParams.add(key);
+    const known = [...declared].join(', ') || '(none)';
+    console.warn(`[material] "${name}" is not a parameter of this shader — the value is ignored. It declares: ${known}`);
 }
 
 // Pack the render-state flags the engine store expects: depthTest (bit 0), depthWrite
@@ -316,6 +356,7 @@ export const Material = {
      */
     releaseShader(shader: ShaderHandle): void {
         if (shader > 0) {
+            declaredParams.delete(shader);
             requireResourceManager().releaseShader(shader);
         }
     },
@@ -343,6 +384,7 @@ export const Material = {
 
         if (options.uniforms) {
             for (const [key, value] of Object.entries(options.uniforms)) {
+                warnUndeclared(options.shader, key);
                 data.uniforms.set(key, value);
             }
         }
@@ -359,7 +401,13 @@ export const Material = {
      * should reach the GPU. Returns a shader handle, or 0 on failure.
      */
     compileShader(esshaderSource: string, features: string[] = []): ShaderHandle {
-        return module?.material_compileEsshader(esshaderSource, features.join(',')) ?? 0;
+        const handle = module?.material_compileEsshader(esshaderSource, features.join(',')) ?? 0;
+        // The same `#pragma param` lines the engine reflected into the layout, kept on this
+        // side so a write to a name that is not among them can be reported (warnUndeclared).
+        if (handle > 0) {
+            declaredParams.set(handle, new Set(reflectEsshader(esshaderSource).params.map((p) => p.name)));
+        }
+        return handle;
     },
 
     /** Gets an enabled static switch (false when unset). */
@@ -393,6 +441,7 @@ export const Material = {
     setUniform(material: MaterialHandle, name: string, value: UniformValue): void {
         const data = materials.get(material);
         if (data) {
+            warnUndeclared(shaderOf(material), name);
             // On an instance, the local uniforms map *is* the override set (presence = override).
             data.uniforms.set(name, value);
             data.dirty_ = true;  // immediate-mode mesh path re-encodes its uniform cache.

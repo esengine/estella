@@ -91,6 +91,16 @@ export {
     type BuiltinShaderTemplate,
 } from './render/builtinShaders';
 
+// What a `.esshader` declares, read from its source: the editor's parameter panel, the
+// built-in templates' defaults and setUniform's "no such param" all read the one parser.
+export {
+    reflectEsshader,
+    paramDefaultValue,
+    type ShaderParam,
+    type ShaderParamType,
+    type ShaderReflection,
+} from './render/shaderReflect';
+
 export {
     compileMaterialGraph,
     newMaterialGraph,

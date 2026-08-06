@@ -12,11 +12,13 @@
  *          handle for the live viewport preview. The engine stays the single source of the
  *          std140 layout; this is the editor view of the declarations.
  */
-import { BlendMode, CullMode, Material, builtinShaderTemplate, type MaterialAssetData, type UniformValue } from 'esengine';
+import {
+  BlendMode, CullMode, Material, builtinShaderTemplate, paramDefaultValue, reflectEsshader,
+  type MaterialAssetData, type ShaderParam, type ShaderReflection, type UniformValue,
+} from 'esengine';
 import type { InspectorComponent, InspectorField, InspectorFieldType, EnumOption, GradientValue, CurveValue, DimensionValue, MapValue } from '@/types';
 import { t } from '@/i18n';
 import { MaterialDocument } from './MaterialDocument';
-import { reflectEsshader, type ShaderParam, type ShaderReflection } from './shaderReflect';
 
 const BLEND_OPTIONS: EnumOption[] = [
   { label: t('mat.blendNormal'), value: BlendMode.Normal },
@@ -60,16 +62,10 @@ function arrayToVec(arr: number[], arity: number): Record<string, number> {
   return o;
 }
 
-/** A param's declared shader default, in the asset's stored shape (color/vec object, or scalar). */
-function shaderDefaultAsset(param: ShaderParam): unknown {
-  if (param.type === 'texture') return param.defaultTexture ?? 0;
-  if (param.type === 'color') {
-    const d = param.default;
-    return { r: d[0] ?? 0, g: d[1] ?? 0, b: d[2] ?? 0, a: d[3] ?? 1 };
-  }
-  if (param.type === 'float' || param.type === 'int') return param.default[0] ?? 0;
-  return arrayToVec(param.default, ARITY[param.type] ?? 1);
-}
+/** A param's declared shader default, in the asset's stored shape (color/vec object, or scalar).
+ *  The SDK's, because a material born from a built-in template gets its `properties` from the
+ *  same conversion — two of them and a template's default stops matching its own inspector row. */
+const shaderDefaultAsset = paramDefaultValue;
 
 /** Deep value equality for the asset's stored shapes (scalar / color obj / vec obj / ref). */
 function assetEquals(a: unknown, b: unknown): boolean {
