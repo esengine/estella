@@ -54,11 +54,11 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   Transform: { category: 'core', summary: 'Position, rotation and scale — plus the read-only world-space values the engine composes down the parent chain.', doc: 'core-concepts/transforms', anchor: 'the-transform-component', anchorZh: 'transform-组件' },
   Parent: { category: 'core', summary: 'The entity this one hangs under. The engine keeps it and `Children` in step; set it through the hierarchy API.', doc: 'core-concepts/transforms', anchor: 'parenting--hierarchy', anchorZh: '父子层级' },
   Children: { category: 'core', summary: "The entity's children, maintained by the engine alongside `Parent`. Its order is the order children draw in.", doc: 'core-concepts/transforms', anchor: 'parenting--hierarchy', anchorZh: '父子层级' },
-  Name: { category: 'core', summary: "The entity's display name — what the World Outliner shows and what name lookups resolve against.", doc: null },
+  Name: { category: 'core', summary: "The entity's display name — what the World Outliner shows and what name lookups resolve against.", doc: 'core-concepts/components', anchor: 'the-ones-the-engine-reads-about-your-entities', anchorZh: '引擎用来描述实体的那几个' },
   Velocity: { category: 'core', summary: 'Constant linear and angular motion applied every frame, with no physics body involved.', doc: 'scripting/overview', anchor: 'constant-motion-the-velocity-component', anchorZh: '匀速运动velocity-组件' },
   SceneOwner: { category: 'core', summary: 'Which additively-loaded scene owns the entity, and whether it survives that scene being unloaded.', doc: 'world/scenes', anchor: 'persistent-entities', anchorZh: '持久化实体' },
-  Disabled: { category: 'core', summary: 'Tag added by `setEntityActive(false)`: an entity counts as active exactly while it is absent.', doc: null },
-  RuntimeOnly: { category: 'core', summary: 'Tag for a world-only derived entity (the layers a `Tilemap` projects, runtime tile colliders). Scene saves skip it, because persisting one would duplicate it against the next derivation.', doc: null },
+  Disabled: { category: 'core', summary: 'Tag added by `setEntityActive(false)`: an entity counts as active exactly while it is absent.', doc: 'core-concepts/components', anchor: 'the-ones-the-engine-reads-about-your-entities', anchorZh: '引擎用来描述实体的那几个' },
+  RuntimeOnly: { category: 'core', summary: 'Tag for a world-only derived entity (the layers a `Tilemap` projects, runtime tile colliders). Scene saves skip it, because persisting one would duplicate it against the next derivation.', doc: 'core-concepts/components', anchor: 'the-ones-the-engine-reads-about-your-entities', anchorZh: '引擎用来描述实体的那几个' },
 
   // ── Graphics ───────────────────────────────────────────────────────────────
   Sprite: { category: 'graphics', summary: 'Draws a texture in the world — tint, size, pivot, sorting layer, flipping, tiling and parallax.', doc: 'graphics/sprites', anchor: 'sprite-fields', anchorZh: 'sprite-字段' },

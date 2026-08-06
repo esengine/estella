@@ -75,13 +75,32 @@ for per-frame runtime state), and `replicatedFields` (synced by
 
 ## Built-in components
 
-The SDK ships ~30 engine components you query alongside your own — `Transform`,
+The engine registers 77 components you query alongside your own — `Transform`,
 `Sprite`, `ShapeRenderer`, `Camera`, `Light2D`, `ParticleEmitter`,
 `SpineAnimation`, `TilemapLayer`, the UI set, the physics colliders, and more.
-Each is documented in its subsystem guide:
-[Sprites & Rendering](/docs/graphics/sprites/), [Camera](/docs/graphics/camera/),
-[2D Lighting](/docs/graphics/lighting/), [Physics](/docs/gameplay/physics/),
-[Tilemaps](/docs/world/tilemaps/), [UI](/docs/ui/overview/).
+Each subsystem guide teaches the ones it owns; the
+[component reference](/docs/reference/components/core/) lists every one of them
+with its fields, types and authoring defaults, derived from the same registry the
+editor's Details panel reads.
+
+### The ones the engine reads about your entities
+
+Four of them carry no subsystem of their own — they are how the engine and the
+editor describe an entity to themselves, and you will meet them in the Outliner
+and in scene files before you ever query them.
+
+| Component | What it is |
+|---|---|
+| `Name` | The entity's display name — what the World Outliner shows and what name lookups resolve against. |
+| `Parent` / `Children` | The hierarchy. The engine keeps the pair in step; see [Transforms](/docs/core-concepts/transforms/#parenting--hierarchy). |
+| `Disabled` | A tag. `setEntityActive(entity, false)` adds it and `isEntityActive` is simply its absence, so "active" is a question about one component rather than a flag to keep in sync. |
+| `RuntimeOnly` | A tag for an entity a system *derives* rather than one you authored — the layer entities a `Tilemap` projects, runtime tile colliders. Scene saving skips them, because persisting a derived entity would duplicate it against the next derivation. |
+
+Both tags are ordinary components: query them with `.with(Disabled)` /
+`.without(Disabled)` like any other, and add or remove them directly if you
+prefer that to `setEntityActive`. Note that the Outliner's eye is a *different*
+thing — an edit-time visibility fold that never touches `Disabled`, so hiding an
+entity while you work does not change what the running game does with it.
 
 ## Reading and writing
 
