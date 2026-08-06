@@ -36,7 +36,15 @@ export async function openMaterialGraph(path: string): Promise<void> {
   }
 }
 
-/** Write the graph + recompile its sibling `.esshader`. Throws on a graph that can't compile. */
+/**
+ * Write the graph + recompile its sibling `.esshader`.
+ *
+ * A failure both toasts AND rethrows. The toast is for the person who clicked
+ * Save; the throw is for everyone who cannot see one — the quit-save, which must
+ * not report a clean exit over a graph that never wrote, and a driver calling
+ * save_asset_document, which would otherwise be told the save succeeded while
+ * the compile that produces the shader had failed.
+ */
 export async function saveMaterialGraph(path: string, graph: MaterialGraph): Promise<void> {
   try {
     const shader = compileMaterialGraph(graph); // throws on a broken graph — surfaced below
@@ -46,6 +54,7 @@ export async function saveMaterialGraph(path: string, graph: MaterialGraph): Pro
     Toasts.push(t('mat.graphSaved'), 'info', 1400);
   } catch (e) {
     Toasts.push(t('mat.saveGraphFailed', { error: String(e) }), 'error');
+    throw e;
   }
 }
 

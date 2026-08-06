@@ -56,6 +56,14 @@ class DirtyRegistryImpl {
     };
   }
 
+  /** Whether a document registered under this id — i.e. whether {@link saveDoc}
+   *  can persist it at all. `saveDoc` answers false both for "clean" and for
+   *  "never registered", which a driver asked to SAVE something cannot tell
+   *  apart; this is how a caller turns the second one into an error. */
+  knows(id: string): boolean {
+    return this.docs.has(id);
+  }
+
   /** True when ANY registered document has unsaved changes. */
   isDirty(): boolean {
     for (const { doc } of this.docs.values()) if (doc.isDirty()) return true;

@@ -461,7 +461,9 @@ export function ContentBrowser() {
       go(path);
       return;
     }
-    openAssetOfType(typeAt(path), path, name);
+    // Awaitable for drivers; a double-click has nothing to wait for, and every
+    // opener already reports its own failure as a toast.
+    void openAssetOfType(typeAt(path), path, name).catch(() => {});
   };
 
   // After any fs mutation: re-read open directories + re-scan the asset registry

@@ -141,7 +141,9 @@ export function MaterialGraphEditor() {
       )}
       <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
-      <SaveButton dirty={dirty} onSave={() => void saveMaterialGraph(filePath, graph)} label={t('mat.save')} />
+      {/* The failure already reached this user as a toast; the rethrow is for the
+          callers who have no screen (quit-save, save_asset_document). */}
+      <SaveButton dirty={dirty} onSave={() => void saveMaterialGraph(filePath, graph).catch(() => {})} label={t('mat.save')} />
     </>
   );
 

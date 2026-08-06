@@ -222,6 +222,23 @@ describe('editor MCP tool registry', () => {
     }
   });
 
+  it('an asset editor has a save of its own — project.save is the ACTIVE panel', async () => {
+    // run_editor_command('project.save') routes by whichever dock panel the user
+    // last clicked: driven from outside, an edit to a material graph landed in
+    // the scene file, or nowhere. This tool names the document instead.
+    const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.js = vi.fn(async () => ({ docId: 'materialgraph', path: 'fx/fire.esmatgraph', saved: true }));
+    const save = toolNamed('save_asset_document');
+    expect([!!save, irreversible(save)]).toEqual([true, true]); // it writes a file: stop and ask
+
+    const res = await runTool(save, driver, { docId: 'materialgraph' });
+    expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('saveAssetDocument("materialgraph"'));
+    expect(res.isError).toBeFalsy();
+
+    await runTool(save, driver, {}); // no docId = the only one open
+    expect(driver.js).toHaveBeenLastCalledWith(expect.stringContaining('saveAssetDocument(null ?? undefined)'));
+  });
+
   it('every resource maps to a surface method with a JSON mime', () => {
     for (const r of RESOURCES as Array<{ uri: string; method: string; mimeType: string }>) {
       expect(r.uri.startsWith('editor://')).toBe(true);

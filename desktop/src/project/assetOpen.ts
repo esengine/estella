@@ -29,19 +29,24 @@ import { openBehaviorTree } from '@/bt/openBehaviorTree';
  * Open an asset by type — built-ins from the table below, contributed types from
  * their own registration (a plugin carries its open action on the type itself, since
  * it has no import cycle to design around). Returns false when nothing can open it.
+ *
+ * AWAITABLE, because most of these openers read the file before they have a
+ * document: a caller that did not wait — the MCP `open_asset` door — returned
+ * while the read was still in flight, so the very next call could be told that
+ * nothing was open. A double-click has no such caller and simply ignores it.
  */
-export function openAssetOfType(type: AssetType, path: string, name: string): boolean {
+export async function openAssetOfType(type: AssetType, path: string, name: string): Promise<boolean> {
   const builtin = ASSET_OPEN[type];
   if (builtin) {
-    builtin(path, name);
+    await builtin(path, name);
     return true;
   }
   const contributed = assetTypeRegistry.get(type);
   if (contributed?.open) {
-    contributed.open(path);
+    await contributed.open(path);
     return true;
   }
-  void openOutside(type, path);
+  await openOutside(type, path);
   return true;
 }
 
@@ -84,20 +89,23 @@ export function opensInEditor(type: AssetType): boolean {
   return !!ASSET_OPEN[type] || !!assetTypeRegistry.get(type)?.open;
 }
 
-/** Open action per built-in asset type; types absent here aren't double-click-openable. */
-export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
+/** Open action per built-in asset type; types absent here aren't double-click-openable.
+ *  An action that reads the file RETURNS its promise — see {@link openAssetOfType}. */
+export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void | Promise<void>>> = {
   scene: async (path, name) => {
     if (!(await confirmDiscard(t('discard.openScene', { name })))) return;
-    void ProjectStore.openScene(path);
+    await ProjectStore.openScene(path);
   },
-  prefab: (path) => void ProjectStore.openPrefab(path),
+  prefab: (path) => ProjectStore.openPrefab(path),
   audio: (path) => toggleAudioPreview(path),
-  animation: (path) => void openAnimationClip(path),
-  animclip: (path) => void openFlipbook(path),
-  tileset: (path) => void openTileset(path),
-  material: (path) => void openMaterial(path),
-  materialgraph: (path) => void openMaterialGraph(path),
-  statemachine: (path) => void openStateMachine(path),
-  animatorcontroller: (path) => void openAnimatorController(path),
-  behaviortree: (path) => void openBehaviorTree(path),
+  animation: (path) => openAnimationClip(path),
+  animclip: (path) => openFlipbook(path),
+  tileset: (path) => openTileset(path),
+  // Synchronous: a material is edited in the shared Details inspector, which
+  // loads it itself — there is no document to wait for here.
+  material: (path) => openMaterial(path),
+  materialgraph: (path) => openMaterialGraph(path),
+  statemachine: (path) => openStateMachine(path),
+  animatorcontroller: (path) => openAnimatorController(path),
+  behaviortree: (path) => openBehaviorTree(path),
 };

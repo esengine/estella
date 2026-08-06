@@ -306,7 +306,8 @@ export const TOOLS = [
     }, ['kind', 'name']),
     js: (i) => `window.estella.project.createScript(${JSON.stringify(i.kind)}, ${JSON.stringify(i.name)}, ${JSON.stringify(i.dir ?? undefined)})` },
   { name: 'create_asset', effect: 'irreversible',
-    description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
+    description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader (.esshader), material (.esmaterial), materialgraph (.esmatgraph), animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves). '
+      + 'A material graph is the ONE type whose file is not the whole asset: it compiles to a sibling `.esshader`, which is written by save_asset_document — so create it, open_asset it, and save it, rather than leaving a graph with no shader beside it.',
     schema: obj({
       destDir: { type: 'string' }, baseName: { type: 'string' },
       content: { type: 'string' }, type: { type: 'string' },
@@ -343,10 +344,10 @@ export const TOOLS = [
       : null),
     method: 'applyOps', args: (i) => [i.ops, i.label], root: 'editor' },
   // — The open asset editors. One set of doors for all eight kinds, because they
-  //   share AssetDocument: `open_asset` puts one on screen, these read and write
-  //   it. A clip, a timeline, a tileset and a material graph differ in what they
-  //   HOLD, not in how they are edited, so a tool set per kind would be the same
-  //   three verbs written eight times and drifting apart. —
+  //   share AssetDocument: `open_asset` puts one on screen, these read, write and
+  //   save it. A clip, a timeline, a tileset and a material graph differ in what
+  //   they HOLD, not in how they are edited, so a tool set per kind would be the
+  //   same three verbs written eight times and drifting apart. —
   { name: 'list_asset_documents', effect: 'read',
     description: 'Which asset editors are open right now (animation clip, timeline, tileset, material, material graph, animator/state/behaviour graph), with their file path and whether they have unsaved edits. Use it to learn the `docId` the other two tools take when more than one is open.',
     schema: obj({}),
@@ -366,6 +367,13 @@ export const TOOLS = [
       label: { type: 'string', description: 'undo-stack label (default "Edit asset")' },
     }, ['changes']),
     js: (i) => `window.__estellaEditor.editAssetDocument(${JSON.stringify(i.changes)}, ${JSON.stringify(i.docId ?? null)} ?? undefined, ${JSON.stringify(i.label ?? null)} ?? undefined)`,
+    root: 'editor' },
+  { name: 'save_asset_document', effect: 'irreversible',
+    description: 'Write an open asset editor\'s document to its file — the save its own panel performs, which for a MATERIAL GRAPH also recompiles the sibling `.esshader` every material on it reads. '
+      + 'This is the save for these files: `save_scene` writes the scene, and writing the bytes yourself with write_project_file skips the serializer (and, for a graph, leaves the shader stale — the edit appears to save and still renders the old thing). '
+      + 'Omit `docId` when only one is open. Returns { saved } — false means it was already clean, not that it failed.',
+    schema: obj({ docId: { type: 'string' } }),
+    js: (i) => `window.__estellaEditor.saveAssetDocument(${JSON.stringify(i.docId ?? null)} ?? undefined)`,
     root: 'editor' },
 
   // — Tilemaps. Painting is not a field write: a cell is addressed by grid

@@ -17,6 +17,7 @@
  * is what keeps a ninth editor from needing a ninth tool.
  */
 import { AssetDocument } from './AssetDocument';
+import { DirtyRegistry } from './DirtyRegistry';
 
 /** One open editor document, as the agent sees it in a listing. */
 export interface AssetDocumentInfo {
@@ -125,4 +126,40 @@ export function editAssetDocument(
     });
   });
   return { docId: doc.docId, applied: changes.length };
+}
+
+/**
+ * Persist an open asset document — the save its own panel performs.
+ *
+ * Not a JSON write of what {@link readAssetDocument} returns: a tileset and a
+ * timeline have their own serializers, and a material graph COMPILES a sibling
+ * `.esshader` that every material on it reads. Writing the file directly would
+ * leave that shader stale — an edit that saves, reloads, and still renders the
+ * old thing. So the one save per document lives in `dirtyDocs.ts` and this only
+ * says WHICH.
+ *
+ * Until this existed the only save a driver could reach was `project.save` via
+ * run_editor_command, which is context-aware: it saves the ACTIVE dock panel's
+ * document and otherwise the scene. Driving it from outside meant an edit landed
+ * in the scene file, or nowhere, depending on which tab the user last clicked.
+ */
+export async function saveAssetDocument(
+  docId?: string,
+): Promise<{ docId: string; path: string; saved: boolean }> {
+  const doc = resolve(docId);
+  if (!doc.filePath) {
+    throw new Error(
+      `asset document "${doc.docId}" has no file path — it has never been saved, and naming a new one `
+      + 'is a Save As dialog that nothing here can answer',
+    );
+  }
+  // A document nobody registered would report "did not save" for the same
+  // reason a clean one does. That is an editor bug, not an answer.
+  if (!DirtyRegistry.knows(doc.docId)) {
+    throw new Error(`asset document "${doc.docId}" registered no save with the editor — this is a bug`);
+  }
+  // false = it was already clean, which is not a failure: the caller asked for
+  // the file to match the document, and it does.
+  const saved = await DirtyRegistry.saveDoc(doc.docId);
+  return { docId: doc.docId, path: doc.filePath, saved };
 }

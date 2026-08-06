@@ -73,7 +73,7 @@ import { attachAgentBridge, agentDriving, subscribeAgent } from './store/AgentSt
 import { guardAutomationHook } from './engine/automationGate';
 import { activeMode } from './mode/activeMode';
 import {
-  openAssetDocuments, readAssetDocument, editAssetDocument, type AssetDocumentChange,
+  openAssetDocuments, readAssetDocument, editAssetDocument, saveAssetDocument, type AssetDocumentChange,
 } from './document/assetDocumentOps';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
@@ -418,7 +418,17 @@ function buildEditorAutomation(): unknown {
         await openSceneAwaited(path);
         return documentState();
       }
-      openAssetOfType(type, path, path.split('/').pop() ?? path);
+      await openAssetOfType(type, path, path.split('/').pop() ?? path);
+      // Every editor that OWNS a document binds the file to it. A read or parse
+      // failure inside one only toasts, which nobody here can see — so check the
+      // binding landed instead of reporting an open that did not happen and
+      // leaving the next call to say "no asset document is open".
+      // Two types own no document: a material is edited in the shared Details
+      // inspector (which loads the SELECTED asset), and audio is a preview.
+      const documentless = type === 'material' || type === 'audio';
+      if (!documentless && !openAssetDocuments().some((d) => d.path === path)) {
+        throw new Error(`${path} did not open — the editor logged the reason (get_logs)`);
+      }
       return documentState();
     },
     /**
@@ -437,6 +447,7 @@ function buildEditorAutomation(): unknown {
     getAssetDocument: (docId?: string) => readAssetDocument(docId),
     editAssetDocument: (changes: AssetDocumentChange[], docId?: string, label?: string) =>
       editAssetDocument(changes, docId, label),
+    saveAssetDocument: (docId?: string) => saveAssetDocument(docId),
     /** Leave Prefab Mode — the banner's "Back to Scene". Refuses on unsaved prefab
      *  changes unless `discardChanges` (see openAsset). */
     exitPrefabMode: async (discardChanges = false) => {
