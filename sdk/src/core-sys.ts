@@ -59,7 +59,7 @@ export {
 // Entity Utils
 // =============================================================================
 
-export { setEntityVisible, isEntityVisible, setEntityActive, isEntityActive } from './ecs/entityUtils';
+export { setEntityVisible, isEntityVisible, hasVisibility, setEntityActive, isEntityActive } from './ecs/entityUtils';
 export { CacheBitmap, type BitmapCache } from './render/cacheBitmap';
 export {
     CacheAsBitmap,

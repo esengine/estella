@@ -18,19 +18,11 @@ import { registerDrawCallback, unregisterDrawCallback } from '../render/customDr
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
-import {
-    SceneOwner, Disabled, Sprite, SpineAnimation, BitmapText,
-    ShapeRenderer, ParticleEmitter,
-    type AnyComponentDef,
-} from '../ecs/component';
-import { UIVisual } from '../ui/core/ui-visual';
+import { SceneOwner, Disabled, type AnyComponentDef } from '../ecs/component';
+import { RENDERABLE_COMPONENTS } from '../ecs/entityUtils';
 import { Assets } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
-
-const RENDERABLE_COMPONENTS: AnyComponentDef[] = [
-    Sprite, SpineAnimation, BitmapText, ShapeRenderer, ParticleEmitter, UIVisual,
-];
 
 // =============================================================================
 // Types
