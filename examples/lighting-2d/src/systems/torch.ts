@@ -8,16 +8,30 @@ import { Torch } from '../components';
 // world-space mouse position. UICameraInfo already projects the cursor through
 // the active camera, so no manual screen→world math is needed.
 //
-// Until the pointer has actually moved, leave the torch where the scene put it.
-// A cursor that has never been over the canvas reads as (0, 0) — the top-left
-// corner — and following that puts the room's only light off in a corner, so the
-// demo opens on a black screen and stays there for anyone who has not yet moved
-// the mouse (and for every screenshot taken of it).
+// Until the pointer has actually MOVED, leave the torch where the scene put it.
+// A pointer that has never been used still reports a position — (0, 0) on the
+// web, whatever the last touch left behind on a phone — and following it puts
+// the room's only light in a corner, so the demo opens on a black screen for
+// anyone who has not yet moved the mouse, and for every screenshot taken of it.
+// Movement is the signal, not any particular resting value: a device with no
+// mouse at all never produces one, which is the correct answer there.
+let originX: number | null = null;
+let originY: number | null = null;
+let moved = false;
+
 export const torchSystem = defineSystem(
     [Query(Mut(Transform), Torch), Res(UICameraInfo), Res(Input)],
     (torches, camera: UICameraData, input: InputState) => {
         if (!camera.valid) return;
-        if (input.mouseX === 0 && input.mouseY === 0) return;
+        if (!moved) {
+            if (originX === null) {
+                originX = input.mouseX;
+                originY = input.mouseY;
+                return;
+            }
+            if (input.mouseX === originX && input.mouseY === originY) return;
+            moved = true;
+        }
         for (const [, transform] of torches) {
             transform.position.x = camera.worldMouseX;
             transform.position.y = camera.worldMouseY;
