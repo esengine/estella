@@ -478,7 +478,8 @@ export const TOOLS = [
     method: 'createEntity',
     args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y }], root: 'editor' },
   { name: 'toggle_play',
-    description: 'Toggle play mode in the editor (check get_play_state first; play runs the game in an isolated realm and never dirties the edit scene).',
+    description: 'Enter or leave play mode, AWAITED — it resolves once the game realm is ready (or gone) and answers with its state, so there is nothing to poll afterwards. '
+      + 'Play runs the game in an isolated realm and never dirties the edit scene. Once in: `step` advances it, `play_input` drives it, `play_probe` reads it, `screenshot` shows it.',
     schema: obj({}), method: 'play', args: () => [], root: 'editor' },
   { name: 'get_play_state',
     description: 'The play realm state: { playing, ready, error, fps, frameCount }. '

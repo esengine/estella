@@ -237,20 +237,38 @@ function buildEditorAutomation(): unknown {
      *  got back was `"GomokuState" has no field "currentPlayer" (fields: )`: an
      *  empty field list, phrased as if the field name were wrong. */
     refreshSchemas: () => ProjectStore.refreshUserSchemas(),
-    /** Enter/leave Play. Answers with the realm state rather than "ok": a caller that
-     *  just started a game needs to know it is a REALM now — an unfocused editor
-     *  window throttles it to about a frame a second, so nothing observed by waiting
-     *  is worth anything, and `step` is what advances it. */
-    play: () => {
+    /**
+     * Enter/leave Play, AWAITED — the realm is up and ready (or gone) when this
+     * resolves, and the answer is its state rather than "ok".
+     *
+     * Both halves matter to a caller that is not a person. Entering play boots a
+     * separate realm asynchronously, so returning immediately handed back the state
+     * from BEFORE the toggle: a driver starting a game was told `playing: false` and
+     * one stopping it was told `playing: true`, which is worse than silence. Waiting
+     * here also removes the poll that followed every call — one dogfood run spent a
+     * dozen of its rounds asking get_play_state whether the thing had started yet.
+     */
+    play: async () => {
+      const wasPlaying = PlayRealm.getSnapshot().playing;
       useEditorStore.getState().togglePlay();
-      const state = PlayRealm.getSnapshot();
-      return state.playing
-        ? {
-          ...state,
-          note: 'the game runs in its own frame, throttled while the editor window is not focused — '
-            + 'use step to advance it deterministically, screenshot to see it, and play_input to drive it',
+      const deadline = Date.now() + 60_000;
+      for (;;) {
+        const state = PlayRealm.getSnapshot();
+        const settled = wasPlaying ? !state.playing : (state.playing && state.ready);
+        if (settled || state.error) {
+          return state.playing
+            ? {
+              ...state,
+              note: 'the game runs in its own frame, throttled while the editor window is not focused — '
+                + 'use step to advance it deterministically, screenshot to see it, and play_input to drive it',
+            }
+            : state;
         }
-        : state;
+        // A realm that never comes up is a boot error the caller should see as state,
+        // not as a hang: answer with whatever it managed to reach.
+        if (Date.now() > deadline) return { ...state, note: 'the realm did not settle within 60s' };
+        await new Promise((r) => setTimeout(r, 100));
+      }
     },
     playState: () => PlayRealm.getSnapshot(),
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */
