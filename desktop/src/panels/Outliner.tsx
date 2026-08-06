@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, Plus, FolderPlus, ArrowDownUp, Boxes } from 'lucide-react';
+import { Search, Plus, FolderPlus, ArrowDownUp, Boxes, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { SearchField } from '@/components/SearchField';
 import { EmptyState } from '@/components/EmptyState';
 import { useEditorStore } from '@/store/editorStore';
@@ -21,9 +21,11 @@ import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQ
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { useAgent, touchedEntities } from '@/store/AgentStore';
-import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
+import { usePlayOutliner, pruneToLiveEntities } from '@/outliner/playOutliner';
+import { OUTLINER_COLUMNS, TYPE_COLUMN, VIS_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
+import type { LiveVisibility } from '@/engine/playProtocol';
 import { createFromSource, type EntitySource } from '@/engine/entitySources';
 import { CreatePopover } from '@/components/CreatePopover';
 import { Segmented } from '@/components/Segmented';
@@ -34,9 +36,7 @@ import { useAgentFresh } from '@/outliner/agentFresh';
 const ROW_H = 24;
 const NO_EXPANSION: ReadonlySet<string> = new Set();
 // Stable props so the memoized game-tree rows don't all re-render on selection.
-const GAME_COLUMNS = [TYPE_COLUMN];
-const EMPTY_COL_CTX: OutlinerColumnContext = {};
-const NOOP = () => {};
+const GAME_COLUMNS = [TYPE_COLUMN, VIS_COLUMN];
 const gameOnClick = (item: OutlinerItem) => {
   if (item.kind === 'entity') PlayInspect.select(item.id);
 };
@@ -52,41 +52,79 @@ const COL_ID_LABEL: Record<string, string> = { lock: t('out.colLock'), vis: t('o
 const entityIds = (items: OutlinerItem[]): EntityId[] =>
   items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
 
-// One row of the live "Game" tree: a read-only, always-expanded
-// view of the running realm, sharing the editor's virtualization. No folders.
+// The live "Game" tree: the running realm, over the same builder, row and
+// virtualization as the editor tree. No folders (nothing organizes a running
+// game but its own hierarchy) and no authoring — what it does offer is the two
+// things you need to READ a world of a few thousand entities: rows that fold,
+// and an eye that turns one off to find out what it was.
 function GameTree() {
   const snapshot = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getTree);
   const selection = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSelection);
-  const items = useMemo(() => buildOutlinerItems(snapshot, { expanded: NO_EXPANSION, expandAll: true }), [snapshot]);
+  const expanded = usePlayOutliner((s) => s.expanded);
+  const query = usePlayOutliner((s) => s.query);
+  const setQuery = usePlayOutliner((s) => s.setQuery);
+  const toggleExpanded = usePlayOutliner((s) => s.toggleExpanded);
 
-  if (items.length === 0) {
-    return (
-      <div className="pbody">
-        <div className="empty">
-          <Search size={22} strokeWidth={1.4} />
-          <p>{t('out.waitingGame')}</p>
-        </div>
-      </div>
-    );
-  }
+  // Keyed on the snapshot REFERENCE, which PlayInspect holds stable unless the
+  // tree actually differs — so a steady game rebuilds neither set per sample.
+  const liveIds = useMemo(() => new Set((snapshot?.entities ?? []).map((e) => e.id)), [snapshot]);
+  const hideable = useMemo(
+    () => new Set((snapshot?.entities ?? []).filter((e) => (e as LiveVisibility).hideable).map((e) => e.id)),
+    [snapshot],
+  );
+  useEffect(() => pruneToLiveEntities(liveIds), [liveIds]);
+
+  const items = useMemo(() => buildOutlinerItems(snapshot, { expanded, query }), [snapshot, expanded, query]);
+  const highlight = useMemo(() => parseQuery(query).text, [query]);
+  const columnCtx = useMemo<OutlinerColumnContext>(
+    () => ({
+      onToggleVisible: (id, visible) => PlayInspect.setVisible(id, visible),
+      canToggleVisible: (id) => hideable.has(id),
+    }),
+    [hideable],
+  );
+  const expandAll = () => usePlayOutliner.getState().setExpanded(collectExpandableKeys(snapshot));
+
   return (
-    <VirtualTree
-      className="pbody"
-      items={items}
-      rowHeight={ROW_H}
-      getKey={(it) => it.key}
-      renderRow={(it) => (
-        <OutlinerRow
-          item={it}
-          selected={it.kind === 'entity' && selection === it.id}
-          collapsible={false}
-          columns={GAME_COLUMNS}
-          columnCtx={EMPTY_COL_CTX}
-          onToggle={NOOP}
-          onClick={gameOnClick}
+    <>
+      <div className="phead">
+        <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
+        <IconButton title={t('out.expandAll')} onClick={expandAll}>
+          <ChevronsUpDown size={14} strokeWidth={2} />
+        </IconButton>
+        <IconButton title={t('out.collapseAll')} onClick={() => usePlayOutliner.getState().setExpanded([])}>
+          <ChevronsDownUp size={14} strokeWidth={2} />
+        </IconButton>
+      </div>
+      {items.length === 0 ? (
+        <div className="pbody">
+          <EmptyState
+            icon={Search}
+            title={liveIds.size === 0 ? t('out.waitingGame') : t('out.noMatch', { query })}
+          />
+        </div>
+      ) : (
+        <VirtualTree
+          className="pbody"
+          role="tree"
+          aria-label={t('out.treeGame')}
+          items={items}
+          rowHeight={ROW_H}
+          getKey={(it) => it.key}
+          renderRow={(it) => (
+            <OutlinerRow
+              item={it}
+              selected={it.kind === 'entity' && selection === it.id}
+              highlight={highlight}
+              columns={GAME_COLUMNS}
+              columnCtx={columnCtx}
+              onToggle={toggleExpanded}
+              onClick={gameOnClick}
+            />
+          )}
         />
       )}
-    />
+    </>
   );
 }
 
@@ -640,9 +678,11 @@ export function Outliner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
 
-  // While playing, a world picker switches the outliner (+ Details)
-  // between the edit scene and the live running game.
-  const gameMode = inspectWorld === 'game';
+  // While playing, a world picker switches the outliner (+ Details) between the
+  // edit scene and the live running game. Gated on `isPlaying` as well as the
+  // choice: Stop takes the picker away, and a mode you can no longer leave would
+  // strand the panel on a world that no longer exists.
+  const gameMode = isPlaying && inspectWorld === 'game';
 
   // Stable handlers (latest-ref) so the memoized rows skip on a selection change.
   const rowFns = {

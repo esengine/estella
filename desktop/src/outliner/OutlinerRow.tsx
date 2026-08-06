@@ -168,7 +168,7 @@ function OutlinerRowInner(props: OutlinerRowProps) {
       )}
 
       {columns.map((col) =>
-        col.applies(item) ? (
+        col.applies(item, columnCtx) ? (
           <Fragment key={col.id}>{col.render(item, columnCtx)}</Fragment>
         ) : (
           <span key={col.id} className="rcol-spacer" data-col={col.id} style={{ width: col.width }} />

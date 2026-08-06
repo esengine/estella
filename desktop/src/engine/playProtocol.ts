@@ -18,7 +18,7 @@ import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides
  * compares it against its own and refuses a mismatch (P1) rather than failing
  * obscurely on a shape it doesn't understand. Bump on any incompatible message change.
  */
-export const PLAY_PROTOCOL_VERSION = 2;
+export const PLAY_PROTOCOL_VERSION = 3;
 
 /**
  * The handshake check: `null` if the realm's reported protocol version is compatible
@@ -97,10 +97,24 @@ export interface PlayPayload {
 /** A live inspect snapshot: a shallow entity tree (Outliner) + the selected entity's
  *  full data (Details). The reply payload of a `query { kind: 'snapshot' }`.
  *  `tree` is null for a detail-only sample (`withTree: false`) — the editor polls
- *  the selected entity faster than the O(entities) tree. */
+ *  the selected entity faster than the O(entities) tree.
+ *
+ *  Each tree entity carries {@link LiveVisibility} alongside the fields SceneData
+ *  declares, so the running world's Outliner reads the same `hidden` bit an
+ *  edited scene does and the shared tree builder needs no live-specific branch. */
 export interface PlaySnapshot {
   tree: SceneData | null;
   selected: SceneData['entities'][number] | null;
+}
+
+/** The visibility half of a live tree entity — what the Outliner's eye reads.
+ *  `hideable` is a separate bit from `hidden` because they answer different
+ *  questions: a bare transform is not hidden AND cannot be hidden (its children
+ *  draw, it doesn't), and a row that cannot act shows no eye rather than a
+ *  control that quietly does nothing. */
+export interface LiveVisibility {
+  hidden?: boolean;
+  hideable?: boolean;
 }
 
 export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats' | 'step';
@@ -148,7 +162,12 @@ export type PlayOutbound =
     // `step` only: how far to advance, and with what fixed delta.
     frames?: number; dt?: number;
   }
-  | { type: 'estella:play:setField'; entityId: number; comp: string; key: string; value: unknown };
+  | { type: 'estella:play:setField'; entityId: number; comp: string; key: string; value: unknown }
+  // Show/hide a live entity (the Outliner's eye). An operation rather than a
+  // field write: WHICH components carry visibility is the engine's knowledge, and
+  // the realm answers it with the SDK's own setEntityVisible so the editor never
+  // has to keep a second list of what counts as a renderer.
+  | { type: 'estella:play:setVisible'; entityId: number; visible: boolean };
 
 /** realm → editor. Discriminated by `type`. */
 export type PlayInbound =

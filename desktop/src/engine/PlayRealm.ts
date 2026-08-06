@@ -363,6 +363,11 @@ export class PlayRealmInstance {
     this.post({ type: 'estella:play:setField', entityId, comp, key, value });
   }
 
+  /** Show/hide a running entity (the Outliner's eye; reverts on Stop). */
+  setVisible(entityId: number, visible: boolean): void {
+    this.post({ type: 'estella:play:setVisible', entityId, visible });
+  }
+
   private post(message: PlayOutbound, transfer?: Transferable[]): void {
     this.iframe?.contentWindow?.postMessage(message, '*', transfer);
   }

@@ -39,9 +39,15 @@ const TREE_GAP_MS = 150;
 const DETAIL_GAP_MS = 33;
 
 /** A cheap structural signature of the shallow tree (ids / parent / name / component
- *  types) — drives keeping the tree reference stable when only values changed. */
+ *  types) — drives keeping the tree reference stable when only values changed.
+ *
+ *  `hidden` rides along despite being a value: it is the one value the TREE shows,
+ *  so leaving it out would hold the old reference and the eye you just clicked
+ *  would not change. */
 function treeSig(t: SceneData): string {
-  return t.entities.map((e) => `${e.id},${e.parent ?? ''},${e.name},${e.components.map((c) => c.type).join('+')}`).join('|');
+  return t.entities
+    .map((e) => `${e.id},${e.parent ?? ''},${e.name},${(e as { hidden?: boolean }).hidden ? 'h' : ''},${e.components.map((c) => c.type).join('+')}`)
+    .join('|');
 }
 
 class PlayInspectImpl {
@@ -102,6 +108,13 @@ class PlayInspectImpl {
   setField(id: EntityId, comp: string, key: string, value: unknown): void {
     PlayRealm.setField(id, comp, key, value);
     void this.poll(false);
+  }
+
+  /** Show/hide a running entity. The eye is a TREE fact, so this resamples the
+   *  tree — a detail-only poll would leave the row it was clicked on unchanged. */
+  setVisible(id: EntityId, visible: boolean): void {
+    PlayRealm.setVisible(id, visible);
+    void this.poll(true);
   }
 
   // Start the loop if it should run and isn't already (called on start + on the

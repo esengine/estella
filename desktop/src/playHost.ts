@@ -14,10 +14,10 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
-import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
+import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
 
 type LiveEntity = SceneData['entities'][number];
@@ -84,6 +84,14 @@ function liveSnapshot(world: App['world'], selectedId: number | null, withTree: 
   const nameOf = (e: number): string =>
     (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
 
+  // The one exception to the types-only rule: the Outliner's eye needs a value,
+  // and both halves are asked of the SDK, so the editor never keeps its own list
+  // of what counts as a renderer.
+  const visibilityOf = (e: number): LiveVisibility =>
+    hasVisibility(world, e as never)
+      ? { hideable: true, hidden: !isEntityVisible(world, e as never) }
+      : {};
+
   // The tree walk is O(entities) — a detail-only sample (withTree false) skips it
   // so the editor can poll the selected entity faster than the tree.
   const tree = withTree
@@ -93,7 +101,7 @@ function liveSnapshot(world: App['world'], selectedId: number | null, withTree: 
         entities: all.map((e): LiveEntity => {
           const id = e as never as number;
           // Component TYPES only — no data decode (the Outliner reads kind from types).
-          return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })) } as LiveEntity;
+          return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })), ...visibilityOf(id) } as LiveEntity;
         }),
       } as unknown as SceneData)
     : null;
@@ -781,6 +789,11 @@ window.addEventListener('message', (e: MessageEvent) => {
       break;
     case 'estella:play:setField':
       if (data.entityId != null && data.comp && data.key) setField(data.entityId, data.comp, data.key, data.value);
+      break;
+    case 'estella:play:setVisible':
+      if (app && data.entityId != null && app.world.valid(data.entityId as never)) {
+        setEntityVisible(app.world, data.entityId as never, data.visible);
+      }
       break;
   }
 });

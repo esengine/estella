@@ -3735,9 +3735,13 @@ function SourceInspector({ source }: { source: InspectSource }) {
 }
 
 // Dispatcher: the live game inspector during PIE, the edit inspector otherwise.
+// Both halves of "during PIE" matter — Stop takes the Outliner's world picker
+// away, so a choice that outlived the realm would strand this panel on a world
+// that no longer exists, with nothing on screen able to switch it back.
 export function Details() {
+  const isPlaying = useEditorStore((s) => s.isPlaying);
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
-  return inspectWorld === 'game' ? <GameDetails /> : <EditorDetails />;
+  return isPlaying && inspectWorld === 'game' ? <GameDetails /> : <EditorDetails />;
 }
 
 function EditorDetails() {

@@ -21,6 +21,11 @@ export interface OutlinerColumnContext {
   onToggleLock?: (id: EntityId, locked: boolean) => void;
   /** Whether an entity is a prefab instance (drives the Type column's "Prefab"). */
   isPrefab?: (id: EntityId) => boolean;
+  /** Whether hiding this entity would do anything. Absent ⇒ always (an edited
+   *  scene hides any entity, the flag being the editor's own). The running world
+   *  answers false for a bare transform — its children draw, it doesn't — and
+   *  that row gets no eye rather than one that quietly does nothing. */
+  canToggleVisible?: (id: EntityId) => boolean;
 }
 
 export interface OutlinerColumn {
@@ -28,8 +33,10 @@ export interface OutlinerColumn {
   /** Header label ('' = icon-only column, no header text). */
   header: string;
   width: number;
-  /** Whether this column shows a cell for `item` (else an aligned spacer). */
-  applies: (item: OutlinerItem) => boolean;
+  /** Whether this column shows a cell for `item` (else an aligned spacer). Takes
+   *  the same context `render` does, so "no cell here" can depend on the tree —
+   *  the running world has rows with nothing to hide. */
+  applies: (item: OutlinerItem, ctx: OutlinerColumnContext) => boolean;
   render: (item: OutlinerItem, ctx: OutlinerColumnContext) => ReactNode;
 }
 
@@ -94,7 +101,7 @@ export const VIS_COLUMN: OutlinerColumn = {
   id: 'vis',
   header: '',
   width: 24,
-  applies: (item) => item.kind === 'entity',
+  applies: (item, ctx) => item.kind === 'entity' && (ctx.canToggleVisible?.(item.id) ?? true),
   render: (item, ctx) => {
     if (item.kind !== 'entity') return null;
     const visible = item.node.visible;

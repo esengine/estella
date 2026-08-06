@@ -3,22 +3,36 @@
 /**
  * @file  OutlinerController.ts — the outliner's headless view-state.
  *
- * Owns the editor-tree state the SceneModel doesn't: which rows are expanded and
- * the search query. Kept OUT of the React panel so the tree is testable headless
- * and (later) drivable by EditorControlSurface / the editor MCP — the panel is a
- * thin renderer over this + {@link buildOutlinerItems}.
+ * Owns the tree state the source doesn't: which rows are expanded and the search
+ * query. Kept OUT of the React panel so the tree is testable headless and (later)
+ * drivable by EditorControlSurface / the editor MCP — the panel is a thin
+ * renderer over this + {@link buildOutlinerItems}.
  *
  * Expansion is keyed by stable string ITEM KEYS (`e<id>` for entities, `f:<path>`
- * for folders), so one set covers both row kinds. Model-anchored self-healing
- * (mirrors selectionStore): expansion is pruned when an entity is removed
- * (`entityRemoved`) and the whole view resets on a scene swap (`reset`). One per
- * EditorSession; the default instance binds the app's SceneModel.
+ * for folders), so one set covers both row kinds. One store per tree: the edited
+ * scene has one, the running world another — their ids come from different
+ * spaces (source ids vs realm runtime ids) and must never share an expansion set.
+ *
+ * Self-healing follows the shape of the source. A model announces a removal, so
+ * the scene store prunes on `entityRemoved` and resets on `reset`; a snapshot
+ * source announces nothing, so the live store prunes with {@link retainIds} on
+ * each arriving tree — the running world recycles entity ids, and a recycled id
+ * would otherwise inherit a dead entity's expansion.
  */
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import type { EntityId } from '@/types';
 import { entityKey, folderKey, type SortMode } from './OutlinerModel';
 import { folderPrefixes, normalizeFolder, rebaseFolder } from './folders';
+
+/** What the controller needs from the tree it is a view of. Both members serve
+ *  `revealEntity` alone — everything else here is pure view-state. */
+export interface OutlinerSource {
+  /** An entity's transform parent, or null at a root. */
+  parentOf(id: EntityId): EntityId | null;
+  /** A root's folder path; `''` for a source without folders (the live world). */
+  folderOf(id: EntityId): string;
+}
 
 interface OutlinerState {
   /** Expanded item keys (`e<id>` / `f:<path>`). */
@@ -56,12 +70,14 @@ interface OutlinerState {
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
+  /** Keep only these entities' keys — the snapshot-source self-heal. */
+  retainIds: (ids: ReadonlySet<EntityId>) => void;
   /** Reset the view on a scene swap (the model's `reset`). */
   reset: () => void;
 }
 
-/** Build an outliner controller bound to a model. One per EditorSession. */
-export function createOutlinerStore(model: SceneModelImpl) {
+/** Build an outliner controller over a source. One per tree. */
+export function createOutlinerStore(source: OutlinerSource) {
   const useStore = create<OutlinerState>((set) => ({
     expanded: new Set<string>(),
     query: '',
@@ -93,12 +109,12 @@ export function createOutlinerStore(model: SceneModelImpl) {
         const seen = new Set<number>();
         while (cur != null && !seen.has(cur)) {
           seen.add(cur);
-          const parent: number | null = model.entityBySource(cur)?.parent ?? null;
+          const parent: number | null = source.parentOf(cur);
           if (parent != null) next.add(entityKey(parent));
           else root = cur;
           cur = parent;
         }
-        for (const pre of folderPrefixes(normalizeFolder(model.folderOf(root)))) next.add(folderKey(pre));
+        for (const pre of folderPrefixes(normalizeFolder(source.folderOf(root)))) next.add(folderKey(pre));
         return { expanded: next };
       }),
     rebaseFolderKeys: (oldPath, newPath) =>
@@ -134,16 +150,34 @@ export function createOutlinerStore(model: SceneModelImpl) {
         next.delete(k);
         return { expanded: next, cursor };
       }),
+    retainIds: (ids) =>
+      set((s) => {
+        const stale = [...s.expanded].filter((k) => k.startsWith('e') && !ids.has(Number(k.slice(1))));
+        const cursor = s.cursor && stale.includes(s.cursor) ? null : s.cursor;
+        if (stale.length === 0) return cursor === s.cursor ? s : { cursor };
+        const next = new Set(s.expanded);
+        for (const k of stale) next.delete(k);
+        return { expanded: next, cursor };
+      }),
     reset: () => set({ expanded: new Set(), query: '', cursor: null, selectedFolder: null }),
   }));
-
-  model.subscribe((ev) => {
-    if (ev.kind === 'entityRemoved') useStore.getState().dropId(ev.sourceId);
-    else if (ev.kind === 'reset') useStore.getState().reset();
-  });
 
   return useStore;
 }
 
+/** A controller over an edited scene: the model is both the source and, because
+ *  it announces its own removals, the self-heal. One per EditorSession. */
+export function createSceneOutlinerStore(model: SceneModelImpl) {
+  const store = createOutlinerStore({
+    parentOf: (id) => model.entityBySource(id)?.parent ?? null,
+    folderOf: (id) => model.folderOf(id),
+  });
+  model.subscribe((ev) => {
+    if (ev.kind === 'entityRemoved') store.getState().dropId(ev.sourceId);
+    else if (ev.kind === 'reset') store.getState().reset();
+  });
+  return store;
+}
+
 /** The app's default-session outliner controller. Other sessions build their own. */
-export const useOutliner = createOutlinerStore(SceneModel);
+export const useOutliner = createSceneOutlinerStore(SceneModel);

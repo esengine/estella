@@ -31,6 +31,7 @@ export const outlinerMessages = defineMessages({
     'out.colVis': { en: 'vis', zh: '可见性' },
 
     'out.tree': { en: 'Scene hierarchy', zh: '场景层级' },
+    'out.treeGame': { en: 'Running world hierarchy', zh: '运行中世界的层级' },
     // — Empty states —
     'out.emptyScene': { en: 'No entities in scene.', zh: '场景中没有实体。' },
     'out.waitingEngine': { en: 'Waiting for engine…', zh: '正在等待引擎…' },
