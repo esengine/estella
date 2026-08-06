@@ -44,9 +44,16 @@ export interface BehaviorContext<S extends object> {
     readonly commands: CommandsInstance;
     /** The world, for cross-entity access. */
     readonly world: World;
-    /** Read another component on THIS entity. */
+    /**
+     * Read another component on THIS entity.
+     *
+     * For a script component this IS the stored object, so mutating it sticks.
+     * For an ENGINE component (Transform, Sprite, RigidBody — anything C++-backed)
+     * it is a copy decoded out of the wasm heap: mutating it changes nothing.
+     * Read it, change it, and hand it back through {@link set}.
+     */
     get<C extends AnyComponentDef>(component: C): ComponentData<C>;
-    /** Write another component on THIS entity. */
+    /** Write another component on THIS entity — how an engine component is changed. */
     set<C extends AnyComponentDef>(component: C, data: ComponentData<C>): void;
     /** Whether THIS entity has `component`. */
     has(component: AnyComponentDef): boolean;
@@ -88,7 +95,11 @@ interface MutableContext<S extends object> {
  * @example
  * export const Patrol = defineBehavior('Patrol', {
  *   state: { speed: 60 },
- *   update(ctx, dt) { ctx.get(Transform).position.x += ctx.self.speed * dt; },
+ *   update(ctx, dt) {
+ *     const t = ctx.get(Transform);          // a copy — Transform is C++-backed
+ *     t.position.x += ctx.self.speed * dt;
+ *     ctx.set(Transform, t);                 // …so hand it back
+ *   },
  * });
  */
 export function defineBehavior<S extends object>(name: string, def: BehaviorDef<S>): ComponentDef<S> {

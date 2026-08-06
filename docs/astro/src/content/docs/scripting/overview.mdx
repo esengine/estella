@@ -28,10 +28,21 @@ import { defineBehavior, Transform } from 'esengine';
 export const Patrol = defineBehavior('Patrol', {
   state: { speed: 60 },   // per-entity data, editable in the Details panel
   update(ctx, dt) {
-    ctx.get(Transform).position.x += ctx.self.speed * dt;
+    const t = ctx.get(Transform);
+    t.position.x += ctx.self.speed * dt;
+    ctx.set(Transform, t);
   },
 });
 ```
+
+<Aside type="caution">
+  **Engine components come back as a copy.** `ctx.get` hands you the stored object
+  for a *script* component — your own `defineComponent`, and `ctx.self` — so mutating
+  it sticks. `Transform`, `Sprite`, `RigidBody` and every other C++-backed component
+  are decoded out of the wasm heap on each read, so `ctx.get(Transform).position.x += …`
+  changes a value nobody keeps, silently. Read it, change it, hand it back with
+  `ctx.set`.
+</Aside>
 
 That single call registers the update system. To put the behavior on an entity, insert
 its component — optionally overriding the starting `state`:
@@ -227,7 +238,11 @@ export const PlayerController = defineBehavior('PlayerController', {
   update(ctx, dt) {
     const move = (ctx.input.isKeyDown('KeyD') ? 1 : 0) - (ctx.input.isKeyDown('KeyA') ? 1 : 0);
     if (move !== 0) ctx.self.facing = move;        // mutating self persists
-    ctx.get(Transform).position.x += move * ctx.self.speed * dt;
+    if (move !== 0) {
+      const t = ctx.get(Transform);                // a copy — Transform is C++-backed
+      t.position.x += move * ctx.self.speed * dt;
+      ctx.set(Transform, t);                       // …so hand it back
+    }
   },
 });
 ```

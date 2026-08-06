@@ -25,10 +25,20 @@ import { defineBehavior, Transform } from 'esengine';
 export const Patrol = defineBehavior('Patrol', {
   state: { speed: 60 },   // 每实体数据,可在 Details 面板里编辑
   update(ctx, dt) {
-    ctx.get(Transform).position.x += ctx.self.speed * dt;
+    const t = ctx.get(Transform);
+    t.position.x += ctx.self.speed * dt;
+    ctx.set(Transform, t);
   },
 });
 ```
+
+<Aside type="caution">
+  **引擎组件拿到的是拷贝。** 对*脚本*组件——你自己 `defineComponent` 出来的,以及 `ctx.self`
+  ——`ctx.get` 给的就是存储对象本身,改了就生效。而 `Transform`、`Sprite`、`RigidBody` 这些
+  C++ 支撑的组件,每次读都是从 wasm 堆里解出来的一份拷贝,所以
+  `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且**静默无效**。
+  读出来、改完、用 `ctx.set` 交回去。
+</Aside>
 
 这一次调用就注册了更新系统。要把行为放到实体上,insert 它的组件——还能顺便覆盖起始 `state`:
 
@@ -202,7 +212,11 @@ export const PlayerController = defineBehavior('PlayerController', {
   update(ctx, dt) {
     const move = (ctx.input.isKeyDown('KeyD') ? 1 : 0) - (ctx.input.isKeyDown('KeyA') ? 1 : 0);
     if (move !== 0) ctx.self.facing = move;        // 改 self 会持久化
-    ctx.get(Transform).position.x += move * ctx.self.speed * dt;
+    if (move !== 0) {
+      const t = ctx.get(Transform);                // 拷贝——Transform 由 C++ 支撑
+      t.position.x += move * ctx.self.speed * dt;
+      ctx.set(Transform, t);                       // ……所以要交回去
+    }
   },
 });
 ```
