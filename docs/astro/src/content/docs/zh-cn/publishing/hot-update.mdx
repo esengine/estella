@@ -38,10 +38,10 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | 模式 | Bundle | 徽标 | 交付方式 | 适用于 |
 | --- | --- | --- | --- | --- |
 | **本地** | eager | — | 打进包内，启动时加载 | 游戏的核心资产 |
-| **分包** | lazy | `分包`（紫） | 打进包内，按需加载 | 大体量可选内容、[微信分包](/docs/zh-cn/guides/wechat/) |
+| **分包** | lazy | `分包`（紫） | 打进包内，按需加载 | 大体量可选内容、[微信分包](/docs/zh-cn/publishing/wechat/) |
 | **远端** | remote | `CDN`（蓝） | 从 CDN 提供，**可热更新** | 任何你想在发布后改动的内容 |
 
-只有**远端**组会被热更新——它们是按环境根地址从你的 CDN 拉取的资产。本地与分包资产都被烘进构建里。（分包是包*内*的按需加载，见 [资源 → 寻址组](/docs/zh-cn/guides/assets/#寻址组懒加载)。）
+只有**远端**组会被热更新——它们是按环境根地址从你的 CDN 拉取的资产。本地与分包资产都被烘进构建里。（分包是包*内*的按需加载，见 [资源 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)。）
 
 ### 把文件夹标为 CDN 交付
 
@@ -52,7 +52,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 *内容浏览器 → 右键文件夹 → **交付方式** → **本地 / 分包 / 远端（CDN / 热更）**。选择会写入 `.esengine/asset-groups.json`。*
 
 同一个子菜单里还有**总是打进构建**——一个独立开关，即使文件夹里没有任何东西能从场景可达，
-也让它留在构建里。见[资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。
+也让它留在构建里。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
 
 被指派到分包或远端组的文件夹会带一个角标**徽标**，让你一眼看清交付布局——`CDN`（蓝）表示远端，`分包`（紫）表示分包。
 
@@ -94,7 +94,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | `groups` | `Record<name, {folder, mode}>` | 文件夹 → 交付方式的指派。 |
 | `groups.<name>.folder` | `string` | 项目相对文件夹；其下（递归）每个资产都归入该组。文件夹嵌套时，**最长**匹配前缀胜出。 |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
-| `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。 |
+| `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
 | `activeProfile` | `string` | 构建使用哪个 profile（`profiles` 的键）。 |
 | `profiles.<name>.remoteRoot` | `string` | 该 profile 的远端组资产的 CDN 根地址。留空 ⇒ 同源。 |
 
@@ -224,7 +224,7 @@ const bundle = await assets.loadGroup('world2', (loaded, total) => {
 assets.releaseGroup('world2');
 ```
 
-`loadGroup` 通过与其它一切相同的类型化加载器暖起缓存，`releaseGroup` 按引用计数释放——被另一个场景仍持有的资产会存活。完整的组模型见 [资源 → 寻址组](/docs/zh-cn/guides/assets/#寻址组懒加载)。
+`loadGroup` 通过与其它一切相同的类型化加载器暖起缓存，`releaseGroup` 按引用计数释放——被另一个场景仍持有的资产会存活。完整的组模型见 [资源 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)。
 
 ## 完整性、原子性与回滚
 
@@ -269,6 +269,6 @@ assets.releaseGroup('world2');
 
 ## 参见
 
-- [资源](/docs/zh-cn/guides/assets/)——引用、清单、类型化加载器与组模型。
-- [构建与导出](/docs/zh-cn/guides/build-export/)——CDN 根地址与 `asset-manifest.json` 从哪里来。
-- [微信小游戏](/docs/zh-cn/guides/wechat/)——分包如何映射到这里的交付组。
+- [资源](/docs/zh-cn/assets/overview/)——引用、清单、类型化加载器与组模型。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——CDN 根地址与 `asset-manifest.json` 从哪里来。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)——分包如何映射到这里的交付组。

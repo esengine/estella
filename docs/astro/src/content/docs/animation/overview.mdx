@@ -187,7 +187,7 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 
 ### Driving clips from a state machine — no code
 
-The [FSM/BT built-ins](/docs/guides/ai/) drive flipbooks as data. An action's
+The [FSM/BT built-ins](/docs/gameplay/ai/) drive flipbooks as data. An action's
 optional **argument** carries the clip, so idle/run/attack switching is pure
 `.esfsm` on the existing state-machine canvas:
 
@@ -359,7 +359,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `resetTrigger(entity, name)` | Clear a trigger before it's consumed. |
 | `getFloat(entity, name)` / `getBool(entity, name)` | Read a parameter back. |
 
-The controller can drive both sprite **and** [Spine](/docs/guides/spine/)
+The controller can drive both sprite **and** [Spine](/docs/animation/spine/)
 animations, so one state machine handles a whole character.
 
 Parameters come in three types (`AnimatorParamType`): `'float'`, `'bool'`, and
@@ -413,7 +413,7 @@ selects — handy for tooling or tests.
 
 For skeletal characters, a state can instead carry a `spine` motion
 (`AnimatorSpineMotion`, `{ animation, loop? }`): on entry the controller sets
-that [Spine](/docs/guides/spine/) animation (`loop` defaults `true`) and leaves
+that [Spine](/docs/animation/spine/) animation (`loop` defaults `true`) and leaves
 track playback and mixing to the Spine runtime — it never touches
 `SpriteAnimator`. States are exclusive: exactly one of `clip`, `blend`, `spine`,
 or `stateMachine`.
@@ -499,6 +499,6 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 
 ## See also
 
-- [Spine Animation](/docs/guides/spine/) — skeletal animation, also driveable by the state machine.
-- [Timeline](/docs/guides/timeline/) — keyframed cutscenes and sequenced events.
-- [Camera](/docs/guides/camera/) — tween `CameraOrthoSize` for smooth zooms.
+- [Spine Animation](/docs/animation/spine/) — skeletal animation, also driveable by the state machine.
+- [Timeline](/docs/animation/timeline/) — keyframed cutscenes and sequenced events.
+- [Camera](/docs/graphics/camera/) — tween `CameraOrthoSize` for smooth zooms.

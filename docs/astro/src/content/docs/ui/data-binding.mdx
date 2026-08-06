@@ -158,7 +158,7 @@ fires `change` identically.
 ## Binding controller pages
 
 `bindControllerPage(world, entity, controller, source)` drives a
-[UI controller's](/docs/guides/ui-controllers/) current page from a
+[UI controller's](/docs/ui/controllers/) current page from a
 `ReadonlySignal<string>` — the declarative path to a data-driven tab bar. Set
 the signal, the page switches, every geared element reflows:
 
@@ -175,7 +175,7 @@ returned. Unknown controllers/pages are ignored rather than throwing.
 
 ## Binding and lists
 
-A [ListView](/docs/guides/ui-lists/) is *already* data-driven — it renders
+A [ListView](/docs/ui/lists/) is *already* data-driven — it renders
 from a `DataSource` (e.g. `ArrayDataSource`) with fine-grained
 insert/remove/update notifications, which virtualization needs and a single
 value signal can't express. So: **collections go in a `DataSource`, scalar UI
@@ -190,9 +190,9 @@ Three ways to get game state onto the screen — pick by the shape of the state:
 | State shape | Use | Why |
 |---|---|---|
 | A **value** — score, health, a name, a slider position | `signal` + `bind` / `bindWidgetValue` | Push on change, no polling; two-way for value widgets. |
-| A **named state** out of a finite set — tab, open/closed, button state | [Controller + gears](/docs/guides/ui-controllers/) | Many elements reflow from one page switch; editor-authorable; tweens. Bridge from data with `bindControllerPage`. |
-| A **collection** — inventory rows, leaderboard | `DataSource` + [ListView](/docs/guides/ui-lists/) | Fine-grained change notifications drive virtualization. |
-| A **per-frame** value derived from simulation — cooldown sweep, follow-the-player markers | A plain [system](/docs/guides/scripting/) writing components | The value changes every frame anyway; a query is the natural reader. |
+| A **named state** out of a finite set — tab, open/closed, button state | [Controller + gears](/docs/ui/controllers/) | Many elements reflow from one page switch; editor-authorable; tweens. Bridge from data with `bindControllerPage`. |
+| A **collection** — inventory rows, leaderboard | `DataSource` + [ListView](/docs/ui/lists/) | Fine-grained change notifications drive virtualization. |
+| A **per-frame** value derived from simulation — cooldown sweep, follow-the-player markers | A plain [system](/docs/scripting/overview/) writing components | The value changes every frame anyway; a query is the natural reader. |
 
 Rule of thumb: if you're about to write a system that only copies a variable
 into a component when it changes, that's a `bind`. If you're about to hand-set
@@ -214,8 +214,8 @@ colors on five entities whenever a mode changes, that's a controller.
 
 ## See also
 
-- [UI](/docs/guides/ui/) — the component model bindings write into.
-- [UI Components](/docs/guides/ui-components/) — the value widgets (`createSlider`, `createToggle`, `createDropdown`).
-- [UI Controllers](/docs/guides/ui-controllers/) — named page state + gears; `bindControllerPage` bridges signals into it.
-- [UI Lists](/docs/guides/ui-lists/) — `DataSource`-driven virtualized lists.
-- [Theming](/docs/guides/ui-theme/) — design tokens and live re-theming.
+- [UI](/docs/ui/overview/) — the component model bindings write into.
+- [UI Components](/docs/ui/widgets/) — the value widgets (`createSlider`, `createToggle`, `createDropdown`).
+- [UI Controllers](/docs/ui/controllers/) — named page state + gears; `bindControllerPage` bridges signals into it.
+- [UI Lists](/docs/ui/lists/) — `DataSource`-driven virtualized lists.
+- [Theming](/docs/ui/theming/) — design tokens and live re-theming.

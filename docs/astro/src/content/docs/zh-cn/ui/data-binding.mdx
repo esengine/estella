@@ -146,7 +146,7 @@ addStartupSystem(buildVolumeRow);
 ## 绑定控制器页
 
 `bindControllerPage(world, entity, controller, source)` 用一个
-`ReadonlySignal<string>` 驱动 [UI 控制器](/docs/zh-cn/guides/ui-controllers/)
+`ReadonlySignal<string>` 驱动 [UI 控制器](/docs/zh-cn/ui/controllers/)
 的当前页——数据驱动页签栏的声明式路径。设置信号,页切换,所有 geared 元素
 随之重排:
 
@@ -163,7 +163,7 @@ activeTab.set('shop');
 
 ## 绑定与列表
 
-[ListView](/docs/zh-cn/guides/ui-lists/) 本身*已经*是数据驱动的——它渲染自
+[ListView](/docs/zh-cn/ui/lists/) 本身*已经*是数据驱动的——它渲染自
 `DataSource`(例如 `ArrayDataSource`),带细粒度的插入/删除/更新通知,这是
 虚拟化所必需、而单个值信号表达不了的。所以:**集合放进 `DataSource`,标量 UI
 状态放进信号**,两者组合使用——条目模板的 `bind` 回调可以读信号,而一个信号
@@ -176,9 +176,9 @@ activeTab.set('shop');
 | 状态形状 | 用 | 原因 |
 |---|---|---|
 | 一个**值**——分数、血量、名字、滑杆位置 | `signal` + `bind` / `bindWidgetValue` | 变化时推送,无轮询;值控件可双向。 |
-| 有限集合中的一个**命名状态**——页签、开/关、按钮状态 | [控制器 + gear](/docs/zh-cn/guides/ui-controllers/) | 一次翻页带动多元素重排;可在编辑器创作;支持补间。用 `bindControllerPage` 从数据接入。 |
-| 一个**集合**——背包行、排行榜 | `DataSource` + [ListView](/docs/zh-cn/guides/ui-lists/) | 细粒度变更通知驱动虚拟化。 |
-| 由模拟派生的**逐帧**值——冷却扫过、跟随玩家的标记 | 普通[系统](/docs/zh-cn/guides/scripting/)写组件 | 值本来每帧都变;query 是天然的读者。 |
+| 有限集合中的一个**命名状态**——页签、开/关、按钮状态 | [控制器 + gear](/docs/zh-cn/ui/controllers/) | 一次翻页带动多元素重排;可在编辑器创作;支持补间。用 `bindControllerPage` 从数据接入。 |
+| 一个**集合**——背包行、排行榜 | `DataSource` + [ListView](/docs/zh-cn/ui/lists/) | 细粒度变更通知驱动虚拟化。 |
+| 由模拟派生的**逐帧**值——冷却扫过、跟随玩家的标记 | 普通[系统](/docs/zh-cn/scripting/overview/)写组件 | 值本来每帧都变;query 是天然的读者。 |
 
 经验法则:如果你正要写一个只在变量变化时把它拷进组件的系统,那就是一条
 `bind`。如果你正要在模式切换时手动给五个实体设颜色,那就是一个控制器。
@@ -196,8 +196,8 @@ activeTab.set('shop');
 
 ## 参见
 
-- [UI](/docs/zh-cn/guides/ui/) —— 绑定所写入的组件模型。
-- [UI 控件](/docs/zh-cn/guides/ui-components/) —— 值控件(`createSlider`、`createToggle`、`createDropdown`)。
-- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 命名的页状态 + gear;`bindControllerPage` 把信号接进去。
-- [UI 列表](/docs/zh-cn/guides/ui-lists/) —— `DataSource` 驱动的虚拟化列表。
-- [主题](/docs/zh-cn/guides/ui-theme/) —— 设计令牌与实时换肤。
+- [UI](/docs/zh-cn/ui/overview/) —— 绑定所写入的组件模型。
+- [UI 控件](/docs/zh-cn/ui/widgets/) —— 值控件(`createSlider`、`createToggle`、`createDropdown`)。
+- [UI 控制器](/docs/zh-cn/ui/controllers/) —— 命名的页状态 + gear;`bindControllerPage` 把信号接进去。
+- [UI 列表](/docs/zh-cn/ui/lists/) —— `DataSource` 驱动的虚拟化列表。
+- [主题](/docs/zh-cn/ui/theming/) —— 设计令牌与实时换肤。

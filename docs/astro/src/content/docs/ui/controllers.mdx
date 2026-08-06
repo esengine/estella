@@ -11,9 +11,9 @@ value *per page*, so when the controller switches page, every geared element ref
 color, position, visibility, text, or any reflected field, snapping or tweening.
 
 One controller drives many elements, and the whole thing is plain ECS data (two
-components, `UIController` and `UIGear`) that travels with a [prefab](/docs/guides/prefab/)
+components, `UIController` and `UIGear`) that travels with a [prefab](/docs/world/prefabs/)
 and serializes into a scene. It is the shared, multi-page generalization of the
-per-widget state a [button](/docs/guides/ui-components/#button) uses — one mechanism for
+per-widget state a [button](/docs/ui/widgets/#button) uses — one mechanism for
 tabs, radio groups, button states, and show/hide panels.
 
 ## Controllers
@@ -70,7 +70,7 @@ world.insert(card, UIGear, {
 ```
 
 `gearBinding(controller, component, property, pages, tween?)` addresses a field the same
-way a [Timeline](/docs/guides/timeline/) property track does — a component name plus a
+way a [Timeline](/docs/animation/timeline/) property track does — a component name plus a
 dot-path `property` (`"color"`, `"color.a"`, `"scale.x"`). `pages` is a **sparse** map
 keyed by page name: a page with no entry leaves the field untouched.
 
@@ -134,7 +134,7 @@ root's controllers stay switchable while you work on a geared leaf:
   to rename, drag to reorder, and the hover × deletes — renames cascade into every
   gear binding that resolves to the controller, and deleting a page clears its
   recorded values.
-- Click a controller to make it **active**. In the [Details](/docs/guides/editor/) panel,
+- Click a controller to make it **active**. In the [Details](/docs/editor/overview/) panel,
   every field then shows a small **gear dot** — click it to bind that field to the active
   controller (seeding the current page with the field's value). Click a bound dot to open
   its settings: the page-change **transition** (duration + easing, 0 = snap) and unbind.
@@ -153,7 +153,7 @@ else, and instance with it.
 Two bridges switch pages from *data* or *logic*, each reusing an existing system.
 
 **From a signal** — `bindControllerPage` drives a controller's page from a
-[reactive signal](/docs/guides/ui/), the declarative path to a data-driven tab bar:
+[reactive signal](/docs/ui/overview/), the declarative path to a data-driven tab bar:
 
 ```typescript
 import { signal, bindControllerPage } from 'esengine';
@@ -164,7 +164,7 @@ bindControllerPage(world, root, 'tab', activeTab);  // the controller follows th
 activeTab.set('shop');   // page switches, every geared element reflows
 ```
 
-**From a button, with no code** — an [event wire](/docs/guides/events/) on the button
+**From a button, with no code** — an [event wire](/docs/scripting/events/) on the button
 runs `ui.setPage` when it is clicked, targeting the entity that owns the controller:
 
 ```json
@@ -172,7 +172,7 @@ runs `ui.setPage` when it is clicked, targeting the entity that owns the control
 ```
 
 **From a state machine** — the `ui.setPage` action lets a data-driven
-[FSM / behavior tree](/docs/guides/ai/) (`.esfsm` / `.esbt`) switch a page with no code.
+[FSM / behavior tree](/docs/gameplay/ai/) (`.esfsm` / `.esbt`) switch a page with no code.
 Its argument is `"controller:page"`:
 
 ```json
@@ -197,8 +197,8 @@ controller state → gear presentation.
 
 ## See also
 
-- [UI](/docs/guides/ui/) — the flexbox component model gears drive.
-- [UI Components](/docs/guides/ui-components/) — the widget factories.
-- [Timeline](/docs/guides/timeline/) — keyframed transitions; gears use the same field addressing.
-- [Gameplay AI](/docs/guides/ai/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
-- [Event Binding](/docs/guides/events/) — wire a click straight to `ui.setPage`, no code.
+- [UI](/docs/ui/overview/) — the flexbox component model gears drive.
+- [UI Components](/docs/ui/widgets/) — the widget factories.
+- [Timeline](/docs/animation/timeline/) — keyframed transitions; gears use the same field addressing.
+- [Gameplay AI](/docs/gameplay/ai/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
+- [Event Binding](/docs/scripting/events/) — wire a click straight to `ui.setPage`, no code.

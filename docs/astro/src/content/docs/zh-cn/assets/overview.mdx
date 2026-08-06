@@ -70,7 +70,7 @@ const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 
 把它当资源加载、而不是自己去 fetch 那个路径,不是走形式。数据资源有 uuid,所以移动文件不会
 让指向它的东西失效;它只解析一次并被引用计数;它可以放进惰性[分组](#寻址组懒加载)或者从 CDN 来;
-[热更新](/docs/zh-cn/guides/hot-update/)能在已发行的游戏里替换它。手写的 `fetch` 一样都拿不到——
+[热更新](/docs/zh-cn/publishing/hot-update/)能在已发行的游戏里替换它。手写的 `fetch` 一样都拿不到——
 而且它**在编辑器里是通的**(编辑器伺服整个项目),而构建只装资源。
 
 数据资源无论有没有人引用都会进包——见[只有代码点名的资产](#只有代码点名的资产),
@@ -109,7 +109,7 @@ assets.releaseGroup('level2');
 折返该区域时由热缓存吸收,而不是重走网络。
 
 `loadByLabel(...)` 按 label 标签加载资源,而不是按文件夹分组。正是这种分组映射到
-[微信分包](/docs/zh-cn/guides/wechat/),实现按需下载。
+[微信分包](/docs/zh-cn/publishing/wechat/),实现按需下载。
 
 当你想预热的资源集合不是一个组或标签时——比如玩家还在当前区域,就先加载下一区域的
 纹理——`preload` 接受显式的引用列表,自动推断每个资源的类型(清单优先,其次文件扩展名),
@@ -194,7 +194,7 @@ const { failed } = await assets.preload(
 
 纹理预算默认 **64 MB**(`RuntimeConfig.textureCacheBudget`,也可在构建配置里用
 `textureCacheBudget` 设置);解码音频有自己的 **32 MB** 镜像(`audioCacheBudget`,
-见[音频指南](/docs/zh-cn/guides/audio/))。
+见[音频指南](/docs/zh-cn/assets/audio/))。
 
 ## 纹理内存与预算
 
@@ -227,9 +227,9 @@ const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
 `{ width, height }`(首次查询后缓存在 TS 侧),`evictTextureDimensions(handle)` 丢弃那条
 缓存——资源系统在纹理真正释放时会这么做,所以只有绕过资源系统自己销毁重建纹理时才需要它。
 
-想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/guides/profiling/)。
+想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/performance/profiling/)。
 逐纹理的**采样/过滤**参数(像素风 nearest 还是平滑 linear)见
-[精灵指南](/docs/zh-cn/guides/sprites/)。
+[精灵指南](/docs/zh-cn/graphics/sprites/)。
 
 ## 最佳实践
 
@@ -249,6 +249,6 @@ const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
 
 ## 参见
 
-- [微信小游戏](/docs/zh-cn/guides/wechat/) —— 可寻址分组如何映射到子包。
-- [场景](/docs/zh-cn/guides/scene/) —— 场景引用资源,并作为入口点被 cook。
-- [材质与着色器](/docs/zh-cn/guides/material/) —— `loadMaterial` 与着色器句柄。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/) —— 可寻址分组如何映射到子包。
+- [场景](/docs/zh-cn/world/scenes/) —— 场景引用资源,并作为入口点被 cook。
+- [材质与着色器](/docs/zh-cn/graphics/materials/) —— `loadMaterial` 与着色器句柄。

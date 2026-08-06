@@ -28,7 +28,7 @@ A project is a folder on disk. The pieces the editor cares about:
 | `.esengine/workspace.json` | Editor-local state (last-opened scene, panel layout). Gitignored. |
 | `assets/scenes/*.esscene` | Your scenes. |
 | `assets/…` | Textures, materials, tilesets, and other assets, each with a `.meta` sidecar. |
-| `src/components.ts` | The **declaration entry** — the editor evaluates this module and everything it imports to learn your components. Declare them anywhere; re-export them from here. See [Scripting](/docs/guides/scripting/#where-declarations-live). |
+| `src/components.ts` | The **declaration entry** — the editor evaluates this module and everything it imports to learn your components. Declare them anywhere; re-export them from here. See [Scripting](/docs/scripting/overview/#where-declarations-live). |
 | `src/main.ts` | The **startup entry** — where you register systems. This is what runs the game; the editor never evaluates it. |
 
 Assets are referenced portably by UUID (`@uuid:…`) rather than by path, so moving or
@@ -238,10 +238,10 @@ widget** — most of them for UI nodes:
   **Stretch** toggles — with **padding** edited as a four-edge `sides` control;
 - an inline **Controllers** strip that pulls per-node state authoring into the inspector:
   pick a state page and *gear* a field to bind it, all without leaving the panel (see
-  [UI controllers](/docs/guides/ui-controllers/));
+  [UI controllers](/docs/ui/controllers/));
 - for a **material**, a **Shader** picker to swap the bound shader — a built-in template or
   a project `.esshader` — see
-  [Materials & Shaders](/docs/guides/material/#choosing--sharing-shaders-in-the-editor).
+  [Materials & Shaders](/docs/graphics/materials/#choosing--sharing-shaders-in-the-editor).
 
 ![The Details panel showing the anchor grid and layout controls for a UI node](../../../assets/guides/en/inspector-flex.png)
 
@@ -276,7 +276,7 @@ assets in place:
 never bundled and its component never reaches Add Component, so the dialog also adds
 the one line in your project's script entry that pulls it in — which entry depending
 on whether you're making a component or a system. See
-[Scripting](/docs/guides/scripting/#the-new-script-dialog).
+[Scripting](/docs/scripting/overview/#the-new-script-dialog).
 
 **Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
 a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
@@ -325,13 +325,13 @@ automatic reload if the GPU render process is lost.
 Double-click an asset in the Content Browser to open its editor in a document tab.
 
 - **Sequencer** — a timeline / curve editor for keyframe animation. See
-  [Timeline](/docs/guides/timeline/).
+  [Timeline](/docs/animation/timeline/).
 - **Tilemap painter** — tools for **brush, erase, rectangle, line, bucket, select,
   eyedropper**, and **terrain (autotile)**, plus stamp **flip-H / flip-V / rotate-90°**
   (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode** (`D`). The
   palette selects with the arrow keys (`Shift` grows a multi-tile stamp), and maps can
   be **orthogonal, isometric, staggered, or hexagonal**. See
-  [Tilemaps](/docs/guides/tilemap/).
+  [Tilemaps](/docs/world/tilemaps/).
 - **Tileset editor** — author per-tile **collision** (box, circle, polygon, slope
   presets; one-way / sensor / material modifiers) with **direct-manipulation** shape
   editors on a magnified tile: drag a circle's **centre or radius**, **click-add / drag /
@@ -342,9 +342,9 @@ Double-click an asset in the Content Browser to open its editor in a document ta
   frame thumbnails to **reorder**, or set the whole loop to **one uniform duration**, with
   a live preview.
 - **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
-  for AI. See [Gameplay AI](/docs/guides/ai/).
+  for AI. See [Gameplay AI](/docs/gameplay/ai/).
 - **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
-  [Materials & Shaders](/docs/guides/material/).
+  [Materials & Shaders](/docs/graphics/materials/).
 
 The State Machine and Behavior Tree editors share a common node canvas: **middle-drag**
 to pan, **wheel** to zoom toward the cursor, drag an output handle onto another node to
@@ -365,10 +365,10 @@ Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are g
     (how the main camera scales the design resolution without a UI Canvas; `None` = off).
   - **UI** — the project's widget **theme** (dark / light) and per-role **Theme
     Colors** overrides, applied identically in the editor, Play, and every export.
-    See [UI widgets — theming](/docs/guides/ui-components/#theming).
+    See [UI widgets — theming](/docs/ui/widgets/#theming).
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
-    speed, sleeping, continuous collision). See [Physics](/docs/guides/physics/).
+    speed, sleeping, continuous collision). See [Physics](/docs/gameplay/physics/).
   - **Rendering** — up to thirty-two named sorting layers that populate the inspector's
     layer dropdown, and which of them y-sort. The names are suggestions, not a limit:
     a render `layer` still accepts a number outside them.
@@ -379,7 +379,7 @@ Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are g
 The editor ships in **English** and **简体中文** and follows your system language on
 first launch. Switch it under **Settings → Appearance → Language** — the change
 applies after a reload (the editor prompts for one). The editor's UI strings run on
-the same [localization engine](/docs/guides/localization/) your game uses at runtime.
+the same [localization engine](/docs/assets/localization/) your game uses at runtime.
 
 ## Keyboard shortcuts
 
@@ -425,7 +425,7 @@ focus is always shown with a visible focus ring.
 
 ## See also
 
-- [Scenes](/docs/guides/scene/) — what a `.esscene` holds and how it loads.
-- [Scripting](/docs/guides/scripting/) — project components appear in the inspector automatically.
-- [Prefabs](/docs/guides/prefab/) — reusable entity templates with per-instance overrides.
-- [Building & Exporting](/docs/guides/build-export/) — ship the project to web, WeChat, or a playable ad.
+- [Scenes](/docs/world/scenes/) — what a `.esscene` holds and how it loads.
+- [Scripting](/docs/scripting/overview/) — project components appear in the inspector automatically.
+- [Prefabs](/docs/world/prefabs/) — reusable entity templates with per-instance overrides.
+- [Building & Exporting](/docs/publishing/overview/) — ship the project to web, WeChat, or a playable ad.

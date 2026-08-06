@@ -25,7 +25,7 @@ Estella 是一个 **2D 游戏引擎**：上层是 TypeScript SDK，底层由高�
 |----|------|
 | **TypeScript SDK**（`esengine`） | 你编写的界面：`App`、`World`、系统、组件、查询、插件。 |
 | **WasmBridge** | SDK 与引擎之间的唯一边界，内存布局由生成器产出并经哈希校验。 |
-| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。在[移动端](/docs/zh-cn/guides/mobile/)，同一份内核改为编译到 arm64。 |
+| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。在[移动端](/docs/zh-cn/publishing/android-ios/)，同一份内核改为编译到 arm64。 |
 
 完整架构见
 [`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md)。

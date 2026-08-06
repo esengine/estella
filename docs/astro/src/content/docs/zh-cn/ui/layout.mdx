@@ -7,7 +7,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 UI 几何是一套 CSS 盒模型,由 C++ 内核中的单趟 flexbox 引擎(Yoga)每帧针对相机的 UI
 框求解。本页是深入参考:单位、`Dimension` 类型、`UINode` 与 `FlexContainer` 的全部字段、
-绝对定位、锚点预设和配方。组件模型总览请从 [UI](/docs/zh-cn/guides/ui/) 开始。
+绝对定位、锚点预设和配方。组件模型总览请从 [UI](/docs/zh-cn/ui/overview/) 开始。
 
 ## 单位:设计像素
 
@@ -16,7 +16,7 @@ UI 布局里的每个 `px` 都是**设计像素**——项目设计分辨率(Pro
 **1 世界单位 = 1 设计像素**,一个 `px(320)` 的面板在任何设备上都是 320 设计像素宽;画布
 缩放模式决定这个设计框如何适配真实屏幕(letterbox、expand、match)。编辑器的自由缩放视图
 针对同一个固定设计框排布 UI,所以缩放视口永远不会让界面重排。见
-[屏幕与分辨率](/docs/zh-cn/core-concepts/screen/)和[相机](/docs/zh-cn/guides/camera/)。
+[屏幕与分辨率](/docs/zh-cn/core-concepts/screen/)和[相机](/docs/zh-cn/graphics/camera/)。
 
 ## 维度:`px`、`percent`、`auto`
 
@@ -256,7 +256,7 @@ const scrim = spawnUIEntity({
 ### 居中一个面板
 
 两种等价工具:给**父项**一个居中的 `FlexContainer`(`justifyContent: Center,
-alignItems: Center`——[UI](/docs/zh-cn/guides/ui/) 快速上手的模式),或把面板本身设为
+alignItems: Center`——[UI](/docs/zh-cn/ui/overview/) 快速上手的模式),或把面板本身设为
 `Absolute` 且内偏移**和**外边距全 `auto`([Center 锚点](#用-auto-居中)——不需要父容器)。
 
 ### HUD 角标
@@ -344,8 +344,8 @@ world.insert(e, UIVisual, buildUIVisual({ color: { r: 0.2, g: 0.2, b: 0.25, a: 1
 
 ## 另请参阅
 
-- [UI](/docs/zh-cn/guides/ui/)——组件模型总览与快速上手。
-- [UI 文本](/docs/zh-cn/guides/ui-text/)——`Text` 如何在盒内测量与对齐。
-- [UI 交互](/docs/zh-cn/guides/ui-interaction/)——对排布好的盒子做命中测试。
-- [UI 组件](/docs/zh-cn/guides/ui-components/)——建立在这些原语上的控件(含移动端安全区)。
-- [相机](/docs/zh-cn/guides/camera/)——相机、画布缩放模式与 UI 框。
+- [UI](/docs/zh-cn/ui/overview/)——组件模型总览与快速上手。
+- [UI 文本](/docs/zh-cn/ui/text/)——`Text` 如何在盒内测量与对齐。
+- [UI 交互](/docs/zh-cn/ui/interaction/)——对排布好的盒子做命中测试。
+- [UI 组件](/docs/zh-cn/ui/widgets/)——建立在这些原语上的控件(含移动端安全区)。
+- [相机](/docs/zh-cn/graphics/camera/)——相机、画布缩放模式与 UI 框。

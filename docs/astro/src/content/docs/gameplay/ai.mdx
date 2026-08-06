@@ -59,7 +59,7 @@ registerAction('chase', (ctx) => {
 ```
 
 Every action and condition receives an **`AiContext`** for the agent it runs on. It
-is the same programming model as a [`defineBehavior`](/docs/guides/scripting/) update
+is the same programming model as a [`defineBehavior`](/docs/scripting/overview/) update
 — entity, world, and commands access — plus a per-agent `blackboard`:
 
 | Member | Type | Description |
@@ -104,7 +104,7 @@ the agent entity (the same channel your code and the editor use):
 
 | Name | Kind | Effect |
 |---|---|---|
-| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/guides/timeline/) play flag. On a finished clip this replays it from the top. |
+| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/animation/timeline/) play flag. On a finished clip this replays it from the top. |
 | `timeline.pause` | action | Lower the play flag (resume with `timeline.play`). |
 | `timeline.finished` | condition | True once the clip has completed (a `once` clip that ran to its end) and is not playing. |
 | `spriteAnim.play` | action | Play the agent's sprite flipbook; the **argument** switches to that clip. |
@@ -585,8 +585,8 @@ code is the shared leaves above plus the one-time grid.
 
 ## See also
 
-- [Scripting](/docs/guides/scripting/) — behaviors are declarative systems; leaves are plain functions.
-- [Animation](/docs/guides/animation/) — drive sprite clips from a state machine.
-- [Scenes](/docs/guides/scene/) — `.esfsm` / `.esbt` assets load and serialize with the scene.
-- [Event Binding](/docs/guides/events/) — a click or a trigger can `fsm.fire` into a state
+- [Scripting](/docs/scripting/overview/) — behaviors are declarative systems; leaves are plain functions.
+- [Animation](/docs/animation/overview/) — drive sprite clips from a state machine.
+- [Scenes](/docs/world/scenes/) — `.esfsm` / `.esbt` assets load and serialize with the scene.
+- [Event Binding](/docs/scripting/events/) — a click or a trigger can `fsm.fire` into a state
   machine; actions and conditions come from this same registry.

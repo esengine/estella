@@ -284,7 +284,7 @@ Tiled 地图享受同等待遇:在 **Tiled 瓦片碰撞编辑器** 里画的形�
 | **Ramp ◢ / ◣(斜坡)** | 三角 | 向右 / 向左升的 45° 斜坡。 |
 | **Half(半砖:下 / 上 / 左 / 右)** | 半格盒 | 台沿、矮墙、薄地板。 |
 | **One-way ↑(单向)** | 顶部实心盒 | 可跳穿平台——上方实心、下方可穿过。翻转即可改朝向(天花板、墙)。 |
-| **Trigger(触发器)** | 传感器盒 | 非实心区域,触发重叠事件——见 [标记与触发区](/docs/zh-cn/guides/markers/)。 |
+| **Trigger(触发器)** | 传感器盒 | 非实心区域,触发重叠事件——见 [标记与触发区](/docs/zh-cn/gameplay/markers/)。 |
 
 像画瓦片一样画它们;**碰撞叠加层**画出的正是播放时会生成的东西。每个碰撞层还能携带自己的
 **物理材质**(摩擦力 / 弹性 / 密度),作用于它生成的每个格子——在 Inspector 里设置。
@@ -300,7 +300,7 @@ Tiled 地图享受同等待遇:在 **Tiled 瓦片碰撞编辑器** 里画的形�
 ## 对象层
 
 Tiled 的**对象层**(出生点、触发器、区域形状)随地图一起加载。现代的读法是
-`Query(Marker)`:加载时点对象汇聚成 [**Marker**](/docs/zh-cn/guides/markers/) 实体、形状对象汇聚成
+`Query(Marker)`:加载时点对象汇聚成 [**Marker**](/docs/zh-cn/gameplay/markers/) 实体、形状对象汇聚成
 **Trigger Area** 区域——正是你手工创建的那些实体——于是一条查询就能读到对象,无论它来自
 Tiled 还是 Estella 编辑器。
 
@@ -365,7 +365,7 @@ origin / 每单位像素 / 播放模式生命周期。
 
 ## 参见
 
-- [标记与触发区](/docs/zh-cn/guides/markers/) —— 把玩法点位和触发区作为可查询的真实体铺在关卡上。
-- [物理](/docs/zh-cn/guides/physics/) —— 瓦片碰撞体参与物理世界。
-- [资源](/docs/zh-cn/guides/assets/) —— 加载 `.tmj` 地图与 `.estileset` 图集。
-- [场景](/docs/zh-cn/guides/scene/) —— 瓦片图层随场景序列化。
+- [标记与触发区](/docs/zh-cn/gameplay/markers/) —— 把玩法点位和触发区作为可查询的真实体铺在关卡上。
+- [物理](/docs/zh-cn/gameplay/physics/) —— 瓦片碰撞体参与物理世界。
+- [资源](/docs/zh-cn/assets/overview/) —— 加载 `.tmj` 地图与 `.estileset` 图集。
+- [场景](/docs/zh-cn/world/scenes/) —— 瓦片图层随场景序列化。

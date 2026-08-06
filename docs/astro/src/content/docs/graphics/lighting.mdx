@@ -117,7 +117,7 @@ void main() {
 
 In the editor, **New Material (Lit)** in the Content Browser creates exactly this —
 a ready lit material with a tint and an optional normal map. From code, compile and
-assign it as in [Materials & Shaders](/docs/guides/material/):
+assign it as in [Materials & Shaders](/docs/graphics/materials/):
 
 ```typescript
 import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
@@ -130,7 +130,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 ```
 
 You can also build a lit material visually — set the **Material Graph**'s domain to
-`Lit2D` — see the [material graph](/docs/guides/material/) section.
+`Lit2D` — see the [material graph](/docs/graphics/materials/) section.
 
 <Aside type="tip">
   Every renderer that takes a `material` — `Sprite`, `SpineAnimation`,
@@ -144,7 +144,7 @@ The `N` you pass to `applyLighting2D` is the surface normal. Passing a constant
 `vec3(0, 0, 1)` gives flat, evenly-lit surfaces. For per-pixel relief, sample a
 **normal map** in the shader and use that as `N` instead — the same base color then
 catches highlights and shadow from each light's direction. Add the normal texture as a
-`#pragma param … texture` on your lit material (see [Materials & Shaders](/docs/guides/material/)).
+`#pragma param … texture` on your lit material (see [Materials & Shaders](/docs/graphics/materials/)).
 
 ## Casting shadows
 
@@ -186,7 +186,7 @@ your sprites; the difference shows wherever colors mix.
 Linear mode is also the door to **HDR**: where float render targets are available
 (WebGPU always; WebGL2 with `EXT_color_buffer_float`), the post-process chain runs in
 half-float, so a light with `intensity` above 1 pushes real over-range energy into
-[bloom and tonemap](/docs/guides/postprocess/) — bright lights glow.
+[bloom and tonemap](/docs/graphics/post-processing/) — bright lights glow.
 
 Enable it in **Project Settings → Rendering → Color space → Linear**. Shaders compile
 against the mode, so it is fixed at engine boot — the editor prompts for a reload. The
@@ -206,15 +206,15 @@ const app = createWebApp(module, { colorSpace: 'linear' });
 - **Add a light** via **Create… → Light**, or add a `Light2D` component to an existing
   entity in the Details panel.
 - Lights are drawn as **gizmos** in edit mode — an icon plus the reach circle and the
-  direction / cone — so you can aim and size them by eye. See [The Editor](/docs/guides/editor/).
+  direction / cone — so you can aim and size them by eye. See [The Editor](/docs/editor/overview/).
 - Tune `color` (a color picker), `intensity`, `radius`, and the spot angles live in
   Details; the results update in the viewport immediately.
 - All of a light's visual fields (`color`, `intensity`, `radius`, the angles, and the
-  shadow settings) are **animatable** — key them in the [Sequencer](/docs/guides/timeline/)
+  shadow settings) are **animatable** — key them in the [Sequencer](/docs/animation/timeline/)
   for flickering torches, day/night cycles, or a pulsing beacon.
 
 ## See also
 
-- [Materials & Shaders](/docs/guides/material/) — lit materials and custom shading.
-- [Post-processing](/docs/guides/postprocess/) — bloom and color grading over the lit scene.
-- [Sprites & Rendering](/docs/guides/sprites/) — normal maps that give 2D sprites depth under light.
+- [Materials & Shaders](/docs/graphics/materials/) — lit materials and custom shading.
+- [Post-processing](/docs/graphics/post-processing/) — bloom and color grading over the lit scene.
+- [Sprites & Rendering](/docs/graphics/sprites/) — normal maps that give 2D sprites depth under light.

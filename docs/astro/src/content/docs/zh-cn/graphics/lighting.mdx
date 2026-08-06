@@ -114,7 +114,7 @@ void main() {
 
 在编辑器里,内容浏览器的 **New Material (Lit)** 创建的正是这样一个现成的受光材质,
 自带色调参数和可选法线贴图。代码侧的编译与赋材质方式与
-[材质与着色器](/docs/zh-cn/guides/material/)里完全一致:
+[材质与着色器](/docs/zh-cn/graphics/materials/)里完全一致:
 
 ```typescript
 import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
@@ -127,7 +127,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 ```
 
 你也能可视化地做一个受光材质——把 **材质图** 的域设为 `Lit2D`——见
-[材质图](/docs/zh-cn/guides/material/)一节。
+[材质图](/docs/zh-cn/graphics/materials/)一节。
 
 <Aside type="tip">
   每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`、`Mesh2D`
@@ -140,7 +140,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 你传给 `applyLighting2D` 的 `N` 是表面法线。传一个常量 `vec3(0, 0, 1)` 得到平坦、均匀受光的
 表面。要有逐像素的凹凸感,就在着色器里采样一张**法线贴图**并用它作 `N`——同一张基础色便会随每盏
 灯的方向产生高光和阴影。把法线纹理作为一个 `#pragma param … texture` 加到你的受光材质上
-(见[材质与着色器](/docs/zh-cn/guides/material/))。
+(见[材质与着色器](/docs/zh-cn/graphics/materials/))。
 
 ## 投射阴影
 
@@ -177,7 +177,7 @@ cmds.spawn()
 
 线性模式也是 **HDR** 的入口:只要浮点渲染目标可用(WebGPU 恒可用;WebGL2 有
 `EXT_color_buffer_float`),后处理链就跑在半浮点上——`intensity` 大于 1 的灯把真正的超范围
-能量推进 [bloom 与 tonemap](/docs/zh-cn/guides/postprocess/),亮光会发辉光。
+能量推进 [bloom 与 tonemap](/docs/zh-cn/graphics/post-processing/),亮光会发辉光。
 
 在 **项目设置 → 渲染 → 色彩空间 → 线性** 启用。着色器按该模式编译,所以它在引擎启动时定死——
 编辑器会提示重新加载。设置随项目清单走:视口、运行预览和所有导出——web、桌面、微信、playable——
@@ -195,13 +195,13 @@ const app = createWebApp(module, { colorSpace: 'linear' });
 
 - 通过 **创建… → 光** 添加光源,或在 Details 面板里给已有实体加一个 `Light2D` 组件。
 - 光源在编辑模式下画成 **gizmo**——图标加上其范围圈和朝向/锥——所以你能凭眼睛瞄准和调尺寸。见
-  [编辑器](/docs/zh-cn/guides/editor/)。
+  [编辑器](/docs/zh-cn/editor/overview/)。
 - 在 Details 里实时调 `color`(取色器)、`intensity`、`radius` 和聚光角度;结果在视口里即时更新。
 - 一盏灯的全部视觉字段(`color`、`intensity`、`radius`、各角度、阴影设置)都**可动画**——在
-  [Sequencer](/docs/zh-cn/guides/timeline/)里给它们打关键帧,做闪烁的火把、昼夜循环或脉动的信标。
+  [Sequencer](/docs/zh-cn/animation/timeline/)里给它们打关键帧,做闪烁的火把、昼夜循环或脉动的信标。
 
 ## 参见
 
-- [材质与着色器](/docs/zh-cn/guides/material/) —— 受光材质与自定义着色。
-- [后处理](/docs/zh-cn/guides/postprocess/) —— 在受光场景上叠加辉光与调色。
-- [精灵与渲染](/docs/zh-cn/guides/sprites/) —— 让 2D 精灵在光下有立体感的法线贴图。
+- [材质与着色器](/docs/zh-cn/graphics/materials/) —— 受光材质与自定义着色。
+- [后处理](/docs/zh-cn/graphics/post-processing/) —— 在受光场景上叠加辉光与调色。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 让 2D 精灵在光下有立体感的法线贴图。

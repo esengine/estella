@@ -109,7 +109,7 @@ activates). Options: `disabled` (start with `Interactable.enabled = false`),
 `focusable` (default `true`), `tabIndex` (default `0` = document order). It
 deliberately does *not* insert `UIInteraction` — that stays transient. For
 hover/press **visuals**, bind fields to the built-in interaction controller
-pages — see [UI Controllers](/docs/guides/ui-controllers/).
+pages — see [UI Controllers](/docs/ui/controllers/).
 
 ## Drag & drop
 
@@ -197,7 +197,7 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 <Aside type="note">
   Gamepad navigation is not built into the focus system — the ring is driven by
   `Tab` / `Enter` / `Space` / `Escape` and the arrow keys. For gamepad menus,
-  drive selection yourself from an [input map](/docs/guides/input/) and call
+  drive selection yourself from an [input map](/docs/scripting/input/) and call
   widget state directly.
 </Aside>
 
@@ -274,8 +274,8 @@ a system must claim *raw* events before the `Input` resource sees them at all
 
 ## See also
 
-- [UI](/docs/guides/ui/) — the component model overview.
-- [UI Components](/docs/guides/ui-components/) — widget factories with events pre-wired.
-- [UI Controllers](/docs/guides/ui-controllers/) — hover/press **visual** states driven by the interaction controller.
-- [UI Binding](/docs/guides/ui-binding/) — two-way widget-value binding over `change` events.
-- [Input](/docs/guides/input/) — the `Input` resource, input maps, and gestures below the UI layer.
+- [UI](/docs/ui/overview/) — the component model overview.
+- [UI Components](/docs/ui/widgets/) — widget factories with events pre-wired.
+- [UI Controllers](/docs/ui/controllers/) — hover/press **visual** states driven by the interaction controller.
+- [UI Binding](/docs/ui/data-binding/) — two-way widget-value binding over `change` events.
+- [Input](/docs/scripting/input/) — the `Input` resource, input maps, and gestures below the UI layer.

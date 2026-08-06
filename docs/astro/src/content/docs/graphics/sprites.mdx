@@ -7,13 +7,13 @@ import { Aside } from '@astrojs/starlight/components';
 
 The **`Sprite`** is the workhorse 2D renderer: an entity with a `Sprite` component
 draws a textured quad in the world. For solid primitives without a texture there's
-**`ShapeRenderer`**. Everything is drawn through a [Camera](/docs/guides/camera/), and
+**`ShapeRenderer`**. Everything is drawn through a [Camera](/docs/graphics/camera/), and
 draw order is controlled by **sorting layers**.
 
 ## Your first sprite
 
 A sprite needs a `Transform` (where it is) and a `Sprite` (what it draws). Load a
-texture through the [`Assets`](/docs/guides/assets/) resource and put its handle on the
+texture through the [`Assets`](/docs/assets/overview/) resource and put its handle on the
 sprite:
 
 ```typescript
@@ -41,7 +41,7 @@ Content Browser onto an entity, or set the Sprite's texture field in Details.
 | `pivot` | `{0.5,0.5}` | Anchor point (0–1) the sprite rotates and scales about. |
 | `layer` | `0` | Sorting layer — controls draw order (see below). |
 | `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
-| `material` | `0` | A custom [material](/docs/guides/material/) handle (`0` = the default sprite shader). |
+| `material` | `0` | A custom [material](/docs/graphics/materials/) handle (`0` = the default sprite shader). |
 | `lit` | `false` | Receive 2D lights with a flat normal — the one-flag path to lit sprites (a custom `material` overrides it). |
 | `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | Sub-rectangle of the texture to show (for atlases / scrolling). |
 | `tileSize` / `tileSpacing` | `{0,0}` | Repeat the texture across the sprite (`0` = no tiling). |
@@ -59,7 +59,7 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% transparent
 ```
 
 `color` (and `size`) are **animatable** — key them in the
-[Sequencer](/docs/guides/timeline/) for flashes and fades.
+[Sequencer](/docs/animation/timeline/) for flashes and fades.
 
 ## Size & pivot
 
@@ -84,7 +84,7 @@ screen — which is why `pivot: {0, 0}` is the **bottom-left** corner, not the t
 <Aside type="note">
   `Canvas.pixelsPerUnit` (default `100`) does **not** scale sprites — it's the
   **physics meter scale**: how many design pixels make one Box2D meter (see
-  [Physics](/docs/guides/physics/)). A sprite's displayed size is `size` ×
+  [Physics](/docs/gameplay/physics/)). A sprite's displayed size is `size` ×
   `Transform` scale, nothing else. The full units-and-spaces picture is in
   [Transforms](/docs/core-concepts/transforms/).
 </Aside>
@@ -181,7 +181,7 @@ so a sprite at z = -400 is grabbable where it is drawn.
   a separate texture.
 - **Atlases**: show one cell of a packed sheet by setting `uvOffset` and `uvScale` to
   the cell's normalized rectangle. (For frame-by-frame animation, drive these from the
-  [Animator](/docs/guides/animation/) instead of by hand.)
+  [Animator](/docs/animation/overview/) instead of by hand.)
 - **Scrolling**: animate `uvOffset` over time to scroll a texture (water, conveyor
   belts), and set `tileSize` to repeat it across a large sprite.
 
@@ -226,7 +226,7 @@ texture): **Repeat** tiles it, **Clamp to edge** stretches the border pixel, and
   crisp, but a camera at a fractional position still lands sprites between screen
   pixels and shimmers as it moves. Pair it with the camera's `pixelPerfect` flag,
   which snaps the (orthographic) camera to the pixel grid — see
-  [Camera](/docs/guides/camera/).
+  [Camera](/docs/graphics/camera/).
 </Aside>
 
 ## Parallax backgrounds
@@ -239,12 +239,12 @@ background.
 ## Custom materials & lighting
 
 Assign `sprite.material` to draw the sprite with your own shader — a tint, a
-dissolve, a distortion — see [Materials & Shaders](/docs/guides/material/).
+dissolve, a distortion — see [Materials & Shaders](/docs/graphics/materials/).
 
 To make a sprite respond to `Light2D` lights, the simplest path is to set
 `sprite.lit = true` — no custom material needed (it's lit with a flat normal). For
 normal maps or a fully custom look, use a **Lit-2D material** instead. Either way,
-see [2D Lighting & Shadows](/docs/guides/lighting/).
+see [2D Lighting & Shadows](/docs/graphics/lighting/).
 
 ### Sprite filters (outline, glow, drop shadow)
 
@@ -330,13 +330,13 @@ numbers, name tags, retro UI. Point `font` at a **BMFont** asset (`.fnt` text or
 | `layer` / `parallax` | `0` / `{1,1}` | Same sorting layer / parallax semantics as `Sprite`. |
 
 For screen-space UI text (layout, wrapping, SDF sharpness), use the UI `Text`
-widget instead — see [UI](/docs/guides/ui/).
+widget instead — see [UI](/docs/ui/overview/).
 
 ## Hit-testing sprites
 
 "Did the click land on this sprite?" is two steps: convert the screen point to
 world space, then test it against the sprite's rectangle. The `CameraView`
-resource does the first (see [Camera](/docs/guides/camera/)); for the second the
+resource does the first (see [Camera](/docs/graphics/camera/)); for the second the
 SDK exports pivot-aware point tests:
 
 | Function | Tests |
@@ -381,7 +381,7 @@ const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hul
 matrix and a viewport rectangle) for code that manages its own camera math — the
 `CameraView` resource is the same function with the active camera filled in. For
 interactive **UI**, don't hand-roll any of this: `Interactable` + `UIEvents` do
-picking for you (see [UI](/docs/guides/ui/)).
+picking for you (see [UI](/docs/ui/overview/)).
 
 ## Cache as bitmap
 
@@ -423,7 +423,7 @@ Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
 ```
 
 `cache.textureId` is an ordinary texture handle — it also works as a
-`Sprite.texture`. Under the hood this is a [RenderTexture](/docs/guides/drawing/)
+`Sprite.texture`. Under the hood this is a [RenderTexture](/docs/graphics/drawing/)
 without a depth buffer.
 
 ## In the editor
@@ -431,10 +431,10 @@ without a depth buffer.
 - **Create → Sprite** adds a sprite entity, or **drag an image** from the Content
   Browser into the viewport to spawn one already textured.
 - Every field above is editable in **Details**; sprites, cameras, and lights show as
-  gizmos in the viewport. See [The Editor](/docs/guides/editor/).
+  gizmos in the viewport. See [The Editor](/docs/editor/overview/).
 
 ## See also
 
-- [Animation](/docs/guides/animation/) — sprite-sheet flipbooks and tweened properties.
-- [Custom Drawing](/docs/guides/drawing/) — meshes and immediate-mode shapes beyond sprites.
-- [2D Lighting & Shadows](/docs/guides/lighting/) — normal maps and per-sprite lighting.
+- [Animation](/docs/animation/overview/) — sprite-sheet flipbooks and tweened properties.
+- [Custom Drawing](/docs/graphics/drawing/) — meshes and immediate-mode shapes beyond sprites.
+- [2D Lighting & Shadows](/docs/graphics/lighting/) — normal maps and per-sprite lighting.

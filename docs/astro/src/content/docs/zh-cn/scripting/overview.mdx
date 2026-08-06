@@ -187,7 +187,7 @@ export const Enemy = defineBehavior('Enemy', {
 | `ctx.self` | `S` | 该行为自己的 `state`。**随意改——修改会持久化。** |
 | `ctx.entity` | `Entity` | 该实例所挂的实体。 |
 | `ctx.time` | `TimeData` | 帧计时:`delta`、`elapsed`、`frameCount`、`fixedDelta`。 |
-| `ctx.input` | `InputState` | 键盘 / 鼠标 / 触摸 / 手柄(见 [输入](/docs/zh-cn/guides/input/))。 |
+| `ctx.input` | `InputState` | 键盘 / 鼠标 / 触摸 / 手柄(见 [输入](/docs/zh-cn/scripting/input/))。 |
 | `ctx.commands` | `Commands` | 延迟的 spawn / despawn / insert——update 中调用安全。 |
 | `ctx.world` | `World` | 完整世界访问,用于跨实体读写。 |
 | `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
@@ -305,7 +305,7 @@ world.spawn()
 天然是*每实体*的(巡逻、抛射物、拾取物)时,用 `defineBehavior`;当你要一次处理整个查询、或在实体
 间协调时,用一个普通[系统](/docs/zh-cn/core-concepts/systems/)。
 
-钩子签名——`entity`、`world`、`commands`,外加 `self`——也和[游戏 AI](/docs/zh-cn/guides/ai/) 层
+钩子签名——`entity`、`world`、`commands`,外加 `self`——也和[游戏 AI](/docs/zh-cn/gameplay/ai/) 层
 的动作与行为树叶子是同一套编程模型,所以在 behavior 和 AI 动作之间搬逻辑很顺手。
 
 ## 热重载
@@ -326,4 +326,4 @@ world.spawn()
 
 - [系统](/docs/zh-cn/core-concepts/systems/) —— 完整的查询词汇、过滤器与调度。
 - [ECS 架构](/docs/zh-cn/core-concepts/ecs/) —— 实体、组件,以及系统如何遍历它们。
-- [输入](/docs/zh-cn/guides/input/) —— 在系统里读取键盘、指针与手势。
+- [输入](/docs/zh-cn/scripting/input/) —— 在系统里读取键盘、指针与手势。

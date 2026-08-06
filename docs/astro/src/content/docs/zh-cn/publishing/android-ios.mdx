@@ -207,12 +207,12 @@ Android 的下限是 29,因为引擎的字体路径调用 `AFontMatcher_create`,
 ```
 
 默认关闭,这是刻意的——正是可达性分析拦住了"什么都往包里塞"。
-见[资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。
+见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
 
 ### 为内存最紧张的平台单独调纹理
 
 逐资产的**导入设置**每个平台一个页签,移动目标也在其中——所以一张纹理可以为手机压得比
-网页端更狠,而不用动源 PNG。见[资源](/docs/zh-cn/guides/assets/)。
+网页端更狠,而不用动源 PNG。见[资源](/docs/zh-cn/assets/overview/)。
 
 ### 你的游戏脚本是解释执行的
 
@@ -301,7 +301,7 @@ adb logcat --pid=$(adb shell pidof <你的包名>)
 
 ## 另见
 
-- [构建与导出](/docs/zh-cn/guides/build-export/) —— 所有目标、cook 选项与打包对话框。
-- [资源](/docs/zh-cn/guides/assets/) —— 可达性剔除、交付分组与导入设置。
+- [构建与导出](/docs/zh-cn/publishing/overview/) —— 所有目标、cook 选项与打包对话框。
+- [资源](/docs/zh-cn/assets/overview/) —— 可达性剔除、交付分组与导入设置。
 - [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/) —— 为手机的宽高比做设计。
 - [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md) —— 宿主架构与完整构建配方。

@@ -55,7 +55,7 @@ The output directory contains `game.js` (the entry, which boots
 as `scenes/<name>.json`, and a `wasm/` folder holding the engine plus exactly
 the side modules your scenes need. Every scene in the build is a
 `SceneManager.switchTo` target — non-startup scenes load on their first switch
-(see [Scenes](/docs/guides/scene/)).
+(see [Scenes](/docs/world/scenes/)).
 
 <Aside type="caution">
   Don't hand-edit `game.js` or move files under `wasm/` — the boot sequence
@@ -95,7 +95,7 @@ levels download on demand rather than bloating the initial package:
 ## Best practices
 
 - **Stay under the 4 MB main-package limit** by moving on-demand content into
-  `subpackages/<name>/` — see [Assets](/docs/guides/assets/). The export sets
+  `subpackages/<name>/` — see [Assets](/docs/assets/overview/). The export sets
   `bigPackageSizeSupport`, so an oversized package still *previews* in
   DevTools — but upload enforces the cap.
 - **Compress textures** — see above; the single biggest package-size win.
@@ -106,7 +106,7 @@ levels download on demand rather than bloating the initial package:
 
 ## See also
 
-- [Assets](/docs/guides/assets/) — addressable groups and cooking map onto subpackages.
-- [Building & Exporting](/docs/guides/build-export/) — the Package Project dialog.
-- [Video](/docs/guides/video/) — the MPEG-1 wasm decode path shipped for WeChat.
-- [Networking](/docs/guides/networking/) — sockets use `wx.connectSocket` here.
+- [Assets](/docs/assets/overview/) — addressable groups and cooking map onto subpackages.
+- [Building & Exporting](/docs/publishing/overview/) — the Package Project dialog.
+- [Video](/docs/graphics/video/) — the MPEG-1 wasm decode path shipped for WeChat.
+- [Networking](/docs/scripting/networking/) — sockets use `wx.connectSocket` here.

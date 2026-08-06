@@ -9,7 +9,7 @@ UI geometry is a CSS box model solved by a single-pass flexbox engine (Yoga) in
 the C++ core, every frame, against the camera's UI box. This page is the deep
 reference: units, the `Dimension` type, every `UINode` and `FlexContainer`
 field, absolute positioning, anchor presets, and recipes. For the component
-model overview start at [UI](/docs/guides/ui/).
+model overview start at [UI](/docs/ui/overview/).
 
 ## Units: design pixels
 
@@ -21,7 +21,7 @@ every device; the canvas scale mode decides how that design box fits the real
 screen (letterbox, expand, match). The editor's free-zoom view lays UI out
 against the same fixed design box, so zooming the viewport never reflows your
 interface. See [Screen & Resolution](/docs/core-concepts/screen/) and
-[Camera](/docs/guides/camera/).
+[Camera](/docs/graphics/camera/).
 
 ## Dimensions: `px`, `percent`, `auto`
 
@@ -280,7 +280,7 @@ const scrim = spawnUIEntity({
 
 Two equivalent tools: give the **parent** a centering `FlexContainer`
 (`justifyContent: Center, alignItems: Center` — the quickstart pattern in
-[UI](/docs/guides/ui/)), or make the panel itself `Absolute` with all-`auto`
+[UI](/docs/ui/overview/)), or make the panel itself `Absolute` with all-`auto`
 insets **and** margins (the [Center anchor](#centering-with-auto) — no parent
 container needed).
 
@@ -377,8 +377,8 @@ world.insert(e, UIVisual, buildUIVisual({ color: { r: 0.2, g: 0.2, b: 0.25, a: 1
 
 ## See also
 
-- [UI](/docs/guides/ui/) — the component model overview and quickstart.
-- [UI Text](/docs/guides/ui-text/) — how `Text` measures and aligns inside the box.
-- [UI Interaction](/docs/guides/ui-interaction/) — hit-testing the laid-out boxes.
-- [UI Components](/docs/guides/ui-components/) — widgets built on these primitives (incl. mobile safe areas).
-- [Camera](/docs/guides/camera/) — cameras, canvas scale modes, and the UI box.
+- [UI](/docs/ui/overview/) — the component model overview and quickstart.
+- [UI Text](/docs/ui/text/) — how `Text` measures and aligns inside the box.
+- [UI Interaction](/docs/ui/interaction/) — hit-testing the laid-out boxes.
+- [UI Components](/docs/ui/widgets/) — widgets built on these primitives (incl. mobile safe areas).
+- [Camera](/docs/graphics/camera/) — cameras, canvas scale modes, and the UI box.

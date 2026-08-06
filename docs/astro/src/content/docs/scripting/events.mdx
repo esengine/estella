@@ -16,7 +16,7 @@ click ─▶ ui.setPage(badge, on)           on "Card"
 
 Wires are deliberately **not** a visual programming language. A row has no branches and no
 expressions; when something genuinely needs logic, the row names an action that hands off to
-[a state machine](/docs/guides/ai/) — the editor Estella already has for graphs.
+[a state machine](/docs/gameplay/ai/) — the editor Estella already has for graphs.
 
 ## A wire in the inspector
 
@@ -40,7 +40,7 @@ Select any entity that can emit — a UI node, an `Interactable`, a collider —
 ## The data
 
 A wire is the `EventBinding` component, so it serializes into scenes and travels with
-[prefabs](/docs/guides/prefab/) like any other component — no new asset type:
+[prefabs](/docs/world/prefabs/) like any other component — no new asset type:
 
 ```typescript
 import { EventBinding, UIEventType } from 'esengine';
@@ -90,12 +90,12 @@ These ship with the engine:
 
 | Action | What it does |
 |---|---|
-| `ui.setPage` | Switch a [UI controller](/docs/guides/ui-controllers/) to a page. |
+| `ui.setPage` | Switch a [UI controller](/docs/ui/controllers/) to a page. |
 | `ui.setVisible` | Show/hide a UI subtree (`UINode.display`). |
 | `property.set` | Write any component field, addressed as `Component.dot.path`. |
 | `fsm.fire` | Fire a trigger on the target's state machine. |
 | `blackboard.set` | Set a blackboard value. |
-| `timeline.play` · `timeline.pause` | Drive a [timeline](/docs/guides/timeline/) on the target. |
+| `timeline.play` · `timeline.pause` | Drive a [timeline](/docs/animation/timeline/) on the target. |
 | `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | Drive a sprite flipbook. |
 
 ### Your own actions
@@ -148,8 +148,8 @@ shown ─▶ fsm.fire(enter)  on "MissionPanel"   →   Hidden ──enter──
 The watching costs nothing until something listens for one of the two, and nothing again on a
 frame where no UI moved.
 
-[Physics](/docs/guides/physics/) contacts reach the same channel (`PhysicsEventType`), so a
-[trigger area](/docs/guides/markers/) is wired exactly like a button — both participants get
+[Physics](/docs/gameplay/physics/) contacts reach the same channel (`PhysicsEventType`), so a
+[trigger area](/docs/gameplay/markers/) is wired exactly like a button — both participants get
 the event, each told about the other:
 
 `collision_enter` · `collision_exit` · `collision_hit` · `trigger_enter` · `trigger_exit`
@@ -166,7 +166,7 @@ app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 
 A row runs one action; it has no "if" and no sequence. That is a deliberate ceiling, and
 `fsm.fire` is the way through it — the click fires a trigger, and the entity's
-[state machine](/docs/guides/ai/) decides what it means:
+[state machine](/docs/gameplay/ai/) decides what it means:
 
 ```
 click ─▶ fsm.fire(start)  on "Hint"   →   Idle ──start──▶ Running

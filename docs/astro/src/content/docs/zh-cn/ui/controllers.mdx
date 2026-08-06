@@ -11,8 +11,8 @@ import { Aside } from '@astrojs/starlight/components';
 或任何可反射的字段，可瞬切也可补间。
 
 一个控制器驱动多个元素,而整套东西就是普通的 ECS 数据(两个组件 `UIController` 和
-`UIGear`),会随 [预制体](/docs/zh-cn/guides/prefab/) 一起走、序列化进场景。它是
-[按钮](/docs/zh-cn/guides/ui-components/#button) 那种"单控件状态"的共享化、多页化推广——
+`UIGear`),会随 [预制体](/docs/zh-cn/world/prefabs/) 一起走、序列化进场景。它是
+[按钮](/docs/zh-cn/ui/widgets/#button) 那种"单控件状态"的共享化、多页化推广——
 页签、单选组、按钮状态、面板显隐,统一用一套机制。
 
 ## 控制器
@@ -67,7 +67,7 @@ world.insert(card, UIGear, {
 ```
 
 `gearBinding(controller, component, property, pages, tween?)` 寻址字段的方式和
-[时间轴](/docs/zh-cn/guides/timeline/) 属性轨道一致——组件名 + 点路径 `property`
+[时间轴](/docs/zh-cn/animation/timeline/) 属性轨道一致——组件名 + 点路径 `property`
 (`"color"`、`"color.a"`、`"scale.x"`)。`pages` 是按页名索引的 **稀疏** 映射:某页没有条目就
 不动这个字段。
 
@@ -125,7 +125,7 @@ world.insert(btn, UIGear, {
 - **添加控制器**(指针按钮预设一键添加带四页的 `$interaction`),页以 **chip** 管理:
   单击预览、双击重命名、拖拽排序、悬停 × 删除——重命名会级联进所有解析到该控制器的
   绑定,删页会清掉该页已录的值。
-- 点击某个控制器使其 **活动**。在 [细节](/docs/zh-cn/guides/editor/) 面板里,每个字段旁便出现一个小的
+- 点击某个控制器使其 **活动**。在 [细节](/docs/zh-cn/editor/overview/) 面板里,每个字段旁便出现一个小的
   **gear 点**——点它把该字段绑定到活动控制器(以当前页 + 字段当前值作种子)。再点已绑定的点,
   打开设置:切页 **过渡**(时长 + 缓动,0 = 瞬切)与解绑。
 - 打开 **录制**:此时每次编辑都写入控制器的 **当前页**——还没绑定的字段会当场自动
@@ -140,7 +140,7 @@ world.insert(btn, UIGear, {
 
 两座桥从 *数据* 或 *逻辑* 切页,各自复用一套已有系统。
 
-**从信号** —— `bindControllerPage` 用一个 [响应式信号](/docs/zh-cn/guides/ui/) 驱动控制器的页,
+**从信号** —— `bindControllerPage` 用一个 [响应式信号](/docs/zh-cn/ui/overview/) 驱动控制器的页,
 这是数据驱动页签的声明式路径:
 
 ```typescript
@@ -152,7 +152,7 @@ bindControllerPage(world, root, 'tab', activeTab);  // 控制器跟随信号
 activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 ```
 
-**从按钮，且不写代码** —— 在按钮上挂一根[事件连线](/docs/zh-cn/guides/events/)，点击时执行
+**从按钮，且不写代码** —— 在按钮上挂一根[事件连线](/docs/zh-cn/scripting/events/)，点击时执行
 `ui.setPage`，目标指向持有该控制器的实体：
 
 ```json
@@ -160,7 +160,7 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 ```
 
 **从状态机** —— `ui.setPage` 动作让数据驱动的
-[FSM / 行为树](/docs/zh-cn/guides/ai/)(`.esfsm` / `.esbt`)无需写码就切页。参数是 `"controller:page"`:
+[FSM / 行为树](/docs/zh-cn/gameplay/ai/)(`.esfsm` / `.esbt`)无需写码就切页。参数是 `"controller:page"`:
 
 ```json
 { "onEnter": { "name": "ui.setPage", "arg": "hud:alert" } }
@@ -178,8 +178,8 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 
 ## 参见
 
-- [UI](/docs/zh-cn/guides/ui/) —— 绑定所驱动的 flexbox 组件模型。
-- [UI 控件](/docs/zh-cn/guides/ui-components/) —— 控件工厂。
-- [时间轴](/docs/zh-cn/guides/timeline/) —— 关键帧过渡;绑定用的是同一套字段寻址。
-- [游戏 AI](/docs/zh-cn/guides/ai/) —— 能调用 `ui.setPage` 的 `.esfsm` / `.esbt`。
-- [事件绑定](/docs/zh-cn/guides/events/) —— 把点击直接接到 `ui.setPage`，不写代码。
+- [UI](/docs/zh-cn/ui/overview/) —— 绑定所驱动的 flexbox 组件模型。
+- [UI 控件](/docs/zh-cn/ui/widgets/) —— 控件工厂。
+- [时间轴](/docs/zh-cn/animation/timeline/) —— 关键帧过渡;绑定用的是同一套字段寻址。
+- [游戏 AI](/docs/zh-cn/gameplay/ai/) —— 能调用 `ui.setPage` 的 `.esfsm` / `.esbt`。
+- [事件绑定](/docs/zh-cn/scripting/events/) —— 把点击直接接到 `ui.setPage`，不写代码。

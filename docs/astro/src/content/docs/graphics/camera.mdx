@@ -66,7 +66,7 @@ the camera by moving its entity's `Transform`.
 ## Zoom & projection
 
 `orthoSize` is the zoom control — halve it to double the on-screen scale. Because
-it's `animatable`, the smoothest way to zoom is a [tween](/docs/guides/animation/):
+it's `animatable`, the smoothest way to zoom is a [tween](/docs/animation/overview/):
 
 ```typescript
 import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
@@ -308,6 +308,6 @@ split-screen, left and right halves:
 
 - [Screen & Design Resolution](/docs/core-concepts/screen/) — the design-resolution
   fit, scale modes, `ScreenScaling`, and `pixelPerfect` in depth.
-- [Animation](/docs/guides/animation/) — tween `orthoSize` for smooth zooms.
-- [Input](/docs/guides/input/) — `screenToWorld` with the mouse for picking.
-- [UI](/docs/guides/ui/) — UI renders in screen space, independent of the camera.
+- [Animation](/docs/animation/overview/) — tween `orthoSize` for smooth zooms.
+- [Input](/docs/scripting/input/) — `screenToWorld` with the mouse for picking.
+- [UI](/docs/ui/overview/) — UI renders in screen space, independent of the camera.

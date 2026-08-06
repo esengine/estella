@@ -58,6 +58,13 @@ jobs:
         working-directory: docs/astro
         run: npm run build
 
+      # After the build, because it resolves links against the pages that were
+      # actually emitted — a guide pointing at a renamed page, or an old URL
+      # whose redirect entry went missing, fails here instead of deploying a 404.
+      - name: Verify internal doc links resolve
+        working-directory: docs/astro
+        run: npm run verify:links
+
       - name: Merge Documentation
         run: |
           mkdir -p docs/dist/docs/api

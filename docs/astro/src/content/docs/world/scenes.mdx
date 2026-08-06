@@ -135,7 +135,7 @@ Two things do **not** come along with it:
 </Aside>
 
 For state rather than live entities — score, inventory, quest flags — reach for
-[saves](/docs/guides/save/) instead. Persistence is for objects that must keep
+[saves](/docs/scripting/save/) instead. Persistence is for objects that must keep
 running across the cut; a save is for data that merely has to be there on the
 other side.
 
@@ -195,7 +195,7 @@ on their first switch, so extra scenes don't slow the initial load.
 Scenes you untick in the Package dialog's **Scenes in build** list are left out of
 the export (they stay editable and playable in the editor), and Playable-ad builds
 ship the startup scene only. See
-[Building & Exporting](/docs/guides/build-export/).
+[Building & Exporting](/docs/publishing/overview/).
 
 ## `SceneManager` reference
 
@@ -219,7 +219,7 @@ ship the startup scene only. See
 The scene file format is a public surface: `SceneData` is plain JSON, and the
 primitives the editor and runtime use to read and write it are exported for game
 code. You reach for them to save a **snapshot of the live world** (a checkpoint
-richer than the [save-game API](/docs/guides/save/)), to load player-generated
+richer than the [save-game API](/docs/scripting/save/)), to load player-generated
 or downloaded scenes, or to ship components whose state doesn't fit their plain
 fields.
 
@@ -315,7 +315,7 @@ the owning plugin (see `tilemapPlugin`) does it at startup.
   no `SceneOwner`, so no scene will ever clean it up. `ctx.adopt(entity)` hands one to
   the current scene; `setPersistent` is the deliberate opposite.
 - **Carry objects across a switch with [persistence](#persistent-entities), carry
-  state with [saves](/docs/guides/save/)** — an entity that must keep running versus
+  state with [saves](/docs/scripting/save/)** — an entity that must keep running versus
   data that just has to be there afterwards.
 
 <Aside type="note">
@@ -327,6 +327,6 @@ the owning plugin (see `tilemapPlugin`) does it at startup.
 
 ## See also
 
-- [Prefabs](/docs/guides/prefab/) — spawn reusable entity trees within a scene.
-- [Saving & Loading](/docs/guides/save/) — persist state across scene switches.
-- [Assets](/docs/guides/assets/) — scenes are cook entry points.
+- [Prefabs](/docs/world/prefabs/) — spawn reusable entity trees within a scene.
+- [Saving & Loading](/docs/scripting/save/) — persist state across scene switches.
+- [Assets](/docs/assets/overview/) — scenes are cook entry points.

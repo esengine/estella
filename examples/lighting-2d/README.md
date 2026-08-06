@@ -32,7 +32,7 @@ unlit wall is nearly black — so a light does not just brighten the room, it
   they read as emissive dots. Kill every light and the whole room goes black;
   only the markers keep glowing. When a surface needs more than the flag (a
   tint, a normal map), give it a `Lit2D`
-  material instead — see the [lighting guide](../../docs/astro/src/content/docs/guides/lighting.mdx).
+  material instead — see the [lighting guide](../../docs/astro/src/content/docs/graphics/lighting.mdx).
 - **Shadow casters are lit like anything else**: an occluder box never shadows
   its own interior, so the pillars and obstacles take light on the side facing
   it while still throwing a shadow cone behind them.

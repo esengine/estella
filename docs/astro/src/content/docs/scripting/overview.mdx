@@ -212,7 +212,7 @@ the world around it:
 | `ctx.self` | `S` | This behavior's own `state`. **Mutate it freely — changes persist.** |
 | `ctx.entity` | `Entity` | The entity this instance is attached to. |
 | `ctx.time` | `TimeData` | Frame timing: `delta`, `elapsed`, `frameCount`, `fixedDelta`. |
-| `ctx.input` | `InputState` | Keyboard / mouse / touch / gamepad (see [Input](/docs/guides/input/)). |
+| `ctx.input` | `InputState` | Keyboard / mouse / touch / gamepad (see [Input](/docs/scripting/input/)). |
 | `ctx.commands` | `Commands` | Deferred spawn / despawn / insert — safe to call mid-update. |
 | `ctx.world` | `World` | Full world access for cross-entity reads and writes. |
 | `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
@@ -341,7 +341,7 @@ one `defineSystem`. Reach for `defineBehavior` when your logic is naturally
 coordinating across entities.
 
 The hook signature — `entity`, `world`, `commands`, plus `self` — is also the same
-programming model used by the [Gameplay AI](/docs/guides/ai/) layer's actions and
+programming model used by the [Gameplay AI](/docs/gameplay/ai/) layer's actions and
 behavior-tree leaves, so moving logic between a behavior and an AI action is
 straightforward.
 
@@ -365,4 +365,4 @@ documented in [App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#hot-rel
 
 - [Systems](/docs/core-concepts/systems/) — the full query vocabulary, filters, and schedules.
 - [ECS Architecture](/docs/core-concepts/ecs/) — entities, components, and how systems iterate them.
-- [Input](/docs/guides/input/) — read keyboard, pointer, and gestures from a system.
+- [Input](/docs/scripting/input/) — read keyboard, pointer, and gestures from a system.

@@ -5,15 +5,15 @@ description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropd
 
 import { Aside } from '@astrojs/starlight/components';
 
-控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` +
-`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,
+控件工厂用 [UI](/docs/zh-cn/ui/overview/) 组件模型(`UINode` + `Interactable` +
+`$interaction` [控制器与属性绑定](/docs/zh-cn/ui/controllers/))构建常见控件,
 免得你逐个手动接线。每个工厂接收一个选项对象,返回一个**句柄(handle)**——
 总是带 `entity` 和 `dispose()`,外加读取和驱动它的命令式方法。
 
 交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自
-`Res(UIEvents)`,和 [UI 指南](/docs/zh-cn/guides/ui/)里一样。它们都接受 `parent?`、
-一个 `node?`([`UINode`](/docs/zh-cn/guides/ui-layout/) 布局——**默认:填满父级**)
-和视觉覆盖;视觉默认值取自当前[主题](/docs/zh-cn/guides/ui-theme/)的角色,
+`Res(UIEvents)`,和 [UI 指南](/docs/zh-cn/ui/overview/)里一样。它们都接受 `parent?`、
+一个 `node?`([`UINode`](/docs/zh-cn/ui/layout/) 布局——**默认:填满父级**)
+和视觉覆盖;视觉默认值取自当前[主题](/docs/zh-cn/ui/theming/)的角色,
 主题热切换时会重新解析。交互式控件**默认键盘可达**:它们自带 `Focusable`,
 Tab 能到达、Enter/Space 能点击、方向键能驱动滑块——用 `focusable: false` 退出。
 
@@ -24,7 +24,7 @@ Tab 能到达、Enter/Space 能点击、方向键能驱动滑块——用 `focus
 
 <Aside type="note">
   需要跨多个元素的 **共享** 状态——页签、单选组、显隐面板、或从数据驱动的自定义按钮状态——
-  请用 [UI 控制器](/docs/zh-cn/guides/ui-controllers/):一个具名的"页"状态,加上声明式的每页字段
+  请用 [UI 控制器](/docs/zh-cn/ui/controllers/):一个具名的"页"状态,加上声明式的每页字段
   绑定,可在编辑器里授权。
 </Aside>
 
@@ -181,7 +181,7 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 
 <Aside type="note">
   **同一个填充原语。** 进度条就是一个 **`Filled`** 模式的
-  [`UIVisual`](/docs/zh-cn/guides/ui/)——滑块的填充也构建于同一原语,对应 Unity 的
+  [`UIVisual`](/docs/zh-cn/ui/overview/)——滑块的填充也构建于同一原语,对应 Unity 的
   "血条 = Filled Image"。`setValue()` 写 `fillAmount`,所以填充是渲染期裁剪,
   **没有逐帧布局**,精灵填充沿轴*揭示*而不是拉伸。`direction` 经共享的 `FILL_AXIS`
   表解析为 `Filled` 的裁剪轴与锚边,因此进度条、滑块以及任何基于 Filled 的控件填充方式
@@ -325,7 +325,7 @@ events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // E
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `font` | `0` | **本项目自带**的字体资源(`.ttf` / `.otf`),与 [`Text.font`](/docs/zh-cn/guides/ui-text/#自定义字体) 是同一个槽位。设了它就压过 `fontFamily`——于是画在游戏自有字体面板上的输入框也用那套字,而不是 Arial。 |
+| `font` | `0` | **本项目自带**的字体资源(`.ttf` / `.otf`),与 [`Text.font`](/docs/zh-cn/ui/text/#自定义字体) 是同一个槽位。设了它就压过 `fontFamily`——于是画在游戏自有字体面板上的输入框也用那套字,而不是 Arial。 |
 | `textAlign` | `Left` | 值在框内的位置:`Left` / `Center` / `Right`。单行**在放得下时**保持该对齐;放不下之后改为跟随光标横向滚动,与一向左对齐时的行为一致。多行按行对齐。 |
 | `renderMode` | `Auto` | 框内文本的字形管线——与 `Text.renderMode` 对应。 |
 
@@ -356,25 +356,25 @@ world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign:
 
 虚拟化的数据驱动列表与网格(`createListView`)、自由滚动面板(`createScrollView`)、
 数据源、布局提供者、自动行高以及惯性滚动 / 滚动条机制,单独成章:
-**[列表与滚动](/docs/zh-cn/guides/ui-lists/)**。
+**[列表与滚动](/docs/zh-cn/ui/lists/)**。
 
 ## 数据绑定
 
 控件值就是普通组件字段(`UISlider.value`、`UIToggle.isOn`……),信号层可直接绑定——
-`bindWidgetValue` 更把它做成双向。见 **[UI 数据绑定](/docs/zh-cn/guides/ui-binding/)**。
+`bindWidgetValue` 更把它做成双向。见 **[UI 数据绑定](/docs/zh-cn/ui/data-binding/)**。
 
 ## 拖放
 
 给任意可交互 UI 实体加 `Draggable`,指针拖拽即可移动它,附带
 `drag_start` / `drag_move` / `drag_end` 事件和实时的 `DragState` 组件。
-轴锁定与范围约束齐备。见 **[UI 交互](/docs/zh-cn/guides/ui-interaction/)**。
+轴锁定与范围约束齐备。见 **[UI 交互](/docs/zh-cn/ui/interaction/)**。
 
 ## 键盘焦点
 
 带 `Focusable` 的实体参与键盘焦点:Tab / Shift+Tab 按 `tabIndex` 轮换,
 Enter/Space 激活,滑块接管方向键,聚焦的控件显示其 `focused` 交互页。
 控件工厂自动加 `Focusable`(`focusable: false` 退出);`FocusManager` 资源提供
-程序化控制。详见 **[UI 交互](/docs/zh-cn/guides/ui-interaction/)**。
+程序化控制。详见 **[UI 交互](/docs/zh-cn/ui/interaction/)**。
 
 ## 安全区(移动端刘海)
 
@@ -386,7 +386,7 @@ Enter/Space 激活,滑块接管方向键,聚焦的控件显示其 `focused` 交�
 
 控件颜色来自共享的 token 集,角色如 `surface`、`control`、`primary`、`track`;
 `switchTheme(world, tokens)` 实时重刷屏上一切,项目在 **Project Settings → UI**
-一次声明调色板。见 **[UI 主题](/docs/zh-cn/guides/ui-theme/)**。
+一次声明调色板。见 **[UI 主题](/docs/zh-cn/ui/theming/)**。
 
 ## 编辑器预制体
 
@@ -396,7 +396,7 @@ Slider、Dialog、TextInput 等丢进场景,再在 Details 里编辑。活在组
 
 从调色板拖放会**嵌套**:落点会认指针下的布局容器为父级(拖拽时虚线框预览将要成为的
 父级),空画布落点则照旧落在根上。锚点选择器**按轴**编辑并保持控件原位——
-改水平锚点绝不扰动垂直布局,反之亦然。见[编辑器](/docs/zh-cn/guides/editor/)。
+改水平锚点绝不扰动垂直布局,反之亦然。见[编辑器](/docs/zh-cn/editor/overview/)。
 
 ## 最佳实践
 
@@ -413,9 +413,9 @@ Slider、Dialog、TextInput 等丢进场景,再在 Details 里编辑。活在组
 
 ## 另请参阅
 
-- [UI](/docs/zh-cn/guides/ui/) —— 组件模型:`UINode`、`Text`、`UIVisual` 与交互。
-- [列表与滚动](/docs/zh-cn/guides/ui-lists/) —— `createListView`、`createScrollView` 与虚拟化。
-- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 共享"页"状态 + 声明式每页字段绑定。
-- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 信号与控件双向绑定。
-- [UI 交互](/docs/zh-cn/guides/ui-interaction/) —— 焦点、拖放、指针事件。
-- [UI 主题](/docs/zh-cn/guides/ui-theme/) —— token、角色、主题热切换与项目主题。
+- [UI](/docs/zh-cn/ui/overview/) —— 组件模型:`UINode`、`Text`、`UIVisual` 与交互。
+- [列表与滚动](/docs/zh-cn/ui/lists/) —— `createListView`、`createScrollView` 与虚拟化。
+- [UI 控制器](/docs/zh-cn/ui/controllers/) —— 共享"页"状态 + 声明式每页字段绑定。
+- [UI 数据绑定](/docs/zh-cn/ui/data-binding/) —— 信号与控件双向绑定。
+- [UI 交互](/docs/zh-cn/ui/interaction/) —— 焦点、拖放、指针事件。
+- [UI 主题](/docs/zh-cn/ui/theming/) —— token、角色、主题热切换与项目主题。

@@ -38,7 +38,7 @@ time.
 ## Scenes in build
 
 Every scene in the project's scenes folder ships with the export and becomes a
-`SceneManager.switchTo` target — see [Scenes](/docs/guides/scene/) for how a game
+`SceneManager.switchTo` target — see [Scenes](/docs/world/scenes/) for how a game
 script switches between them. The dialog's **Scenes in build** list controls the
 set:
 
@@ -69,10 +69,10 @@ and opens it in your browser.
 |---|---|---|---|
 | **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
 | **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
-| **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/guides/wechat/). |
+| **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/publishing/wechat/). |
 | **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
-| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/guides/mobile/). |
-| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project when the engine is built for iOS here. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/guides/mobile/). |
+| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/publishing/android-ios/). |
+| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project when the engine is built for iOS here. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/publishing/android-ios/). |
 
 The mobile targets export app **content**, not a runnable payload: the engine, the
 SDK and the game runtime live in the app binary. That is also why they need a
@@ -159,7 +159,7 @@ WeChat export **fails fast** — naming the exact build command — rather than
 producing a package that breaks at runtime. WeChat also needs a matching side
 module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
 `basis-wechat` for compressed textures) — see
-[WeChat MiniGame](/docs/guides/wechat/).
+[WeChat MiniGame](/docs/publishing/wechat/).
 
 The dialog distinguishes **two kinds** of missing prerequisite, because they don't
 block the same amount:
@@ -175,7 +175,7 @@ block the same amount:
   Android and iOS are the one pair of targets the editor download does not carry
   end to end: the native host is built once from an engine source checkout (Dawn +
   QuickJS), plus the Android SDK/NDK or macOS with Xcode. See
-  [Android & iOS](/docs/guides/mobile/).
+  [Android & iOS](/docs/publishing/android-ios/).
 </Aside>
 
 ## Content a target cannot render
@@ -248,7 +248,7 @@ smaller downloads and less VRAM.
 
 **Content addressing** is on by default for Web/Desktop (each file named by a hash
 of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN root
-for [hot update](/docs/guides/hot-update/), source maps, and whether to open the
+for [hot update](/docs/publishing/hot-update/), source maps, and whether to open the
 output folder when the build finishes.
 
 <Aside type="caution" title="Assets only your code names are culled">
@@ -257,7 +257,7 @@ output folder when the build finishes.
   spawned by path — is culled, and the editor never notices because it serves the
   project straight off disk. Mark that folder **Delivery → Always include in
   builds** in the Content Browser. See
-  [Assets](/docs/guides/assets/#shipping-what-only-code-names).
+  [Assets](/docs/assets/overview/#shipping-what-only-code-names).
 </Aside>
 
 ## Packaging settings
@@ -292,7 +292,7 @@ asks for that), and the orientation is only *declared* to the platform where one
 it, e.g. Google's `ad.orientation` meta tag. Design for both aspects, or letterbox
 with [a camera fit](#) so the framing survives either one.
 
-See [The Editor](/docs/guides/editor/) for the settings UI.
+See [The Editor](/docs/editor/overview/) for the settings UI.
 
 ## Package size
 
@@ -305,7 +305,7 @@ Three figures, because where the bytes sit matters more than how many there are:
   the engine runtime, your scripts, and the assets in `local` groups.
 - **On demand** — subpackages, fetched when the game asks for that group.
 - **CDN (not packaged)** — assets in `remote` groups. Real bytes, but they live on
-  your CDN and cost the package nothing. See [Hot Update](/docs/guides/hot-update/).
+  your CDN and cost the package nothing. See [Hot Update](/docs/publishing/hot-update/).
 
 That split is read from the same manifest the runtime loads, so what the report says
 and what the game does cannot disagree. Moving a level behind a subpackage genuinely
@@ -371,13 +371,13 @@ node build-tools/cli.js native --target ios # …the native mobile host
 <Aside type="note">
   Most game developers never run the build CLI beyond the one-time WeChat
   runtime build — day-to-day work happens in the editor and the SDK. The
-  exception is [mobile](/docs/guides/mobile/), where the CLI is also what
+  exception is [mobile](/docs/publishing/android-ios/), where the CLI is also what
   assembles the app around an export.
 </Aside>
 
 ## See also
 
-- [Android & iOS](/docs/guides/mobile/) — the native app: prerequisites, assembling it, and what only bites on a device.
-- [WeChat MiniGame](/docs/guides/wechat/) — subpackage layout and platform-specific quirks.
-- [Assets](/docs/guides/assets/) — how the cook step bundles and content-addresses assets.
-- [Profiling & Diagnostics](/docs/guides/profiling/) — check frame time and draw calls before you ship.
+- [Android & iOS](/docs/publishing/android-ios/) — the native app: prerequisites, assembling it, and what only bites on a device.
+- [WeChat MiniGame](/docs/publishing/wechat/) — subpackage layout and platform-specific quirks.
+- [Assets](/docs/assets/overview/) — how the cook step bundles and content-addresses assets.
+- [Profiling & Diagnostics](/docs/performance/profiling/) — check frame time and draw calls before you ship.

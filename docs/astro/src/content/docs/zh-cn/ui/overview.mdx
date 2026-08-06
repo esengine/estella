@@ -15,14 +15,14 @@ flexbox,用 `px` / `percent` / `auto` 加 `Absolute` 内偏移(inset)来定尺�
 
 | 组件 | 职责 | 指南 |
 |---|---|---|
-| `UINode` | 布局盒;持有逐项的 flex 字段(尺寸、grow/shrink、margin、inset)。 | [UI 布局](/docs/zh-cn/guides/ui-layout/) |
-| `FlexContainer` | 用 flexbox 排布一个节点的子项(方向、justify、align、gap、padding)。 | [UI 布局](/docs/zh-cn/guides/ui-layout/) |
-| `Text` | 经动态字形图集渲染文本(内容、字体、颜色、对齐、描边、阴影、富文本)。 | [UI 文本](/docs/zh-cn/guides/ui-text/) |
+| `UINode` | 布局盒;持有逐项的 flex 字段(尺寸、grow/shrink、margin、inset)。 | [UI 布局](/docs/zh-cn/ui/layout/) |
+| `FlexContainer` | 用 flexbox 排布一个节点的子项(方向、justify、align、gap、padding)。 | [UI 布局](/docs/zh-cn/ui/layout/) |
+| `Text` | 经动态字形图集渲染文本(内容、字体、颜色、对齐、描边、阴影、富文本)。 | [UI 文本](/docs/zh-cn/ui/text/) |
 | `UIVisual` | 填充——纯色、纹理、九宫格、平铺或填充。 | 见下文 |
 | `UIMask` | 裁剪它的子项。 | 见下文 |
 | `UIScroll` | 让被裁剪的节点成为滚动视口:滚轮与拖拽移动它的内容。 | 见下文 |
-| `Interactable` | 标记节点可命中,从而能被悬停/点击。 | [UI 交互](/docs/zh-cn/guides/ui-interaction/) |
-| `UIInteraction` | 引擎每帧写入的指针状态(对你的逻辑只读)。 | [UI 交互](/docs/zh-cn/guides/ui-interaction/) |
+| `Interactable` | 标记节点可命中,从而能被悬停/点击。 | [UI 交互](/docs/zh-cn/ui/interaction/) |
+| `UIInteraction` | 引擎每帧写入的指针状态(对你的逻辑只读)。 | [UI 交互](/docs/zh-cn/ui/interaction/) |
 
 ## 快速上手:暂停菜单
 
@@ -72,29 +72,29 @@ addStartupSystem(buildPauseMenu);
 
 `spawnUIEntity({ world, parent?, node?, visual?, text? })` 返回实体;传 `parent` 来
 嵌套。尺寸用维度助手 `px`、`percent`、`auto`——单位都是**设计像素**(见
-[UI 布局](/docs/zh-cn/guides/ui-layout/#单位设计像素))。其余控件工厂用法相同:
+[UI 布局](/docs/zh-cn/ui/layout/#单位设计像素))。其余控件工厂用法相同:
 `createToggle`、`createSlider`、`createProgress`、`createDialog`、`createDropdown`——见
-[UI 组件](/docs/zh-cn/guides/ui-components/)。
+[UI 组件](/docs/zh-cn/ui/widgets/)。
 
 ## 各部分如何协作
 
 每一层都建立在前一层之上:
 
 1. **布局**——`UINode` 盒子由 flexbox 引擎求解;`FlexContainer` 排布子项,
-   `Absolute` 内偏移放置悬浮层。→ [UI 布局](/docs/zh-cn/guides/ui-layout/)
+   `Absolute` 内偏移放置悬浮层。→ [UI 布局](/docs/zh-cn/ui/layout/)
 2. **视觉与文本**——`UIVisual` 填充盒子,`UIMask` 裁剪,`Text` 绘制锐利字形。
-   → [UI 文本](/docs/zh-cn/guides/ui-text/)
+   → [UI 文本](/docs/zh-cn/ui/text/)
 3. **交互**——`Interactable` 让盒子可命中;引擎把指针状态写入 `UIInteraction`
    并发出冒泡的 `UIEvents`;拖放和键盘焦点建立在其上。
-   → [UI 交互](/docs/zh-cn/guides/ui-interaction/)
+   → [UI 交互](/docs/zh-cn/ui/interaction/)
 4. **控件**——工厂(`createButton`、`createSlider`……)把前三层组合成现成的控件;
    `createListView` 提供虚拟化列表。
-   → [UI 组件](/docs/zh-cn/guides/ui-components/)、[UI 列表](/docs/zh-cn/guides/ui-lists/)
+   → [UI 组件](/docs/zh-cn/ui/widgets/)、[UI 列表](/docs/zh-cn/ui/lists/)
 5. **控制器**——每个 UI 根一份命名"页面"状态加逐页字段绑定(标签页、按钮状态、
-   显示/隐藏)——零代码。→ [UI 控制器](/docs/zh-cn/guides/ui-controllers/)
+   显示/隐藏)——零代码。→ [UI 控制器](/docs/zh-cn/ui/controllers/)
 6. **主题与绑定**——设计 token 给所有控件换肤(可实时切换),响应式 signal 让 UI
    与游戏状态保持同步。
-   → [UI 主题](/docs/zh-cn/guides/ui-theme/)、[UI 绑定](/docs/zh-cn/guides/ui-binding/)
+   → [UI 主题](/docs/zh-cn/ui/theming/)、[UI 绑定](/docs/zh-cn/ui/data-binding/)
 
 ### `UIVisual` 与 `UIMask`
 
@@ -121,7 +121,7 @@ addStartupSystem(buildPauseMenu);
 `sliceBorder` 就是那四个数字:从每条边往内多远是"不该拉伸"的区带。四角在任何尺寸下都保留自己
 的精确像素,于是同一张 100×112 的纹理既能做小提示框,也能做通栏横幅。这个边框属于**图像**本身,
 而不属于用到它的实体,所以它是纹理的导入设置——设一次,引用该纹理的每个 `NineSlice` 都按同样
-方式切片。参见资产检视器中的[拖拽边框](/zh-cn/docs/guides/editor/#内容浏览器)。
+方式切片。参见资产检视器中的[拖拽边框](/zh-cn/docs/editor/overview/#内容浏览器)。
 
 #### 遮罩是用来做什么的
 
@@ -210,7 +210,7 @@ world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第�
 
 - **编辑器**——*Create… → UI* 放入控件预制件(Button、Toggle、Slider、Dialog……);
   拖拽嵌套,在 Details 里编辑每个字段,用逐轴锚点选择器摆放,并按项目的设计分辨率
-  和设备预设预览。见[编辑器](/docs/zh-cn/guides/editor/)。
+  和设备预设预览。见[编辑器](/docs/zh-cn/editor/overview/)。
 - **代码**——`spawnUIEntity` + 控件工厂,如上例在启动系统里构建。编辑器能写的,
   代码都能写。
 
@@ -218,14 +218,14 @@ world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第�
 
 | 你想…… | 打开 |
 |---|---|
-| 定尺寸摆盒子——`px`/`percent`/`auto`、flexbox、绝对内偏移、锚点 | [UI 布局](/docs/zh-cn/guides/ui-layout/) |
-| 绘制文本——字体、SDF/位图锐利度、换行、富文本 | [UI 文本](/docs/zh-cn/guides/ui-text/) |
-| 响应指针与键盘——点击、`UIEvents`、拖放、焦点 | [UI 交互](/docs/zh-cn/guides/ui-interaction/) |
-| 使用现成控件——按钮、开关、滑条、对话框、下拉、输入框 | [UI 组件](/docs/zh-cn/guides/ui-components/) |
-| 展示滚动数据——虚拟化列表与网格 | [UI 列表](/docs/zh-cn/guides/ui-lists/) |
-| 全局换肤——设计 token、项目主题、实时切换 | [UI 主题](/docs/zh-cn/guides/ui-theme/) |
-| 让 UI 与游戏状态同步——signal、`bind`、控件双向绑定 | [UI 绑定](/docs/zh-cn/guides/ui-binding/) |
-| 跨元素共享状态——标签页、单选组、页面驱动的视觉 | [UI 控制器](/docs/zh-cn/guides/ui-controllers/) |
+| 定尺寸摆盒子——`px`/`percent`/`auto`、flexbox、绝对内偏移、锚点 | [UI 布局](/docs/zh-cn/ui/layout/) |
+| 绘制文本——字体、SDF/位图锐利度、换行、富文本 | [UI 文本](/docs/zh-cn/ui/text/) |
+| 响应指针与键盘——点击、`UIEvents`、拖放、焦点 | [UI 交互](/docs/zh-cn/ui/interaction/) |
+| 使用现成控件——按钮、开关、滑条、对话框、下拉、输入框 | [UI 组件](/docs/zh-cn/ui/widgets/) |
+| 展示滚动数据——虚拟化列表与网格 | [UI 列表](/docs/zh-cn/ui/lists/) |
+| 全局换肤——设计 token、项目主题、实时切换 | [UI 主题](/docs/zh-cn/ui/theming/) |
+| 让 UI 与游戏状态同步——signal、`bind`、控件双向绑定 | [UI 绑定](/docs/zh-cn/ui/data-binding/) |
+| 跨元素共享状态——标签页、单选组、页面驱动的视觉 | [UI 控制器](/docs/zh-cn/ui/controllers/) |
 
 ## 最佳实践
 
@@ -239,7 +239,7 @@ world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第�
 
 ## 另请参阅
 
-- [输入](/docs/zh-cn/guides/input/)——UI 层之下的原始键盘/鼠标/触摸。
-- [本地化](/docs/zh-cn/guides/localization/)——把 `Text.content` 绑定到翻译键。
-- [动画](/docs/zh-cn/guides/animation/)——补间 UI 颜色/位置增加动感。
-- [编辑器](/docs/zh-cn/guides/editor/)——可视化编排、预制件、锚点选择器。
+- [输入](/docs/zh-cn/scripting/input/)——UI 层之下的原始键盘/鼠标/触摸。
+- [本地化](/docs/zh-cn/assets/localization/)——把 `Text.content` 绑定到翻译键。
+- [动画](/docs/zh-cn/animation/overview/)——补间 UI 颜色/位置增加动感。
+- [编辑器](/docs/zh-cn/editor/overview/)——可视化编排、预制件、锚点选择器。

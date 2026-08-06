@@ -113,7 +113,7 @@ const keepPlayer = defineSystem([Res(SceneManager)], (scenes) => {
   之外,所以在编辑器里摆放的实体要在运行时用代码标记为持久化。
 </Aside>
 
-如果要跨场景的是**状态**而不是活实体——分数、背包、任务标记——请用[存档](/docs/zh-cn/guides/save/)。
+如果要跨场景的是**状态**而不是活实体——分数、背包、任务标记——请用[存档](/docs/zh-cn/scripting/save/)。
 持久化是给那些必须跨过切换继续运行的对象;存档是给那些只需要在对面还在的数据。
 
 ## 场景流送(开放世界)
@@ -164,7 +164,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 不会拖慢首屏。
 
 在打包对话框的**构建场景**列表里取消勾选的场景不会进入导出(在编辑器里仍可正常编辑和
-运行),Playable 广告构建只带启动场景。见[构建与导出](/docs/zh-cn/guides/build-export/)。
+运行),Playable 广告构建只带启动场景。见[构建与导出](/docs/zh-cn/publishing/overview/)。
 
 ## `SceneManager` 参考
 
@@ -186,7 +186,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 ## 序列化与迁移
 
 场景文件格式是公开表面:`SceneData` 是纯 JSON,编辑器和运行时读写它所用的原语都导出给
-游戏代码。你会在这些时刻用到它们:保存**活世界的快照**(比[存档 API](/docs/zh-cn/guides/save/)
+游戏代码。你会在这些时刻用到它们:保存**活世界的快照**(比[存档 API](/docs/zh-cn/scripting/save/)
 更完整的检查点)、加载玩家生成或下载的场景,或发布状态放不进普通字段的组件。
 
 `serializeScene(world, name?)` 遍历活世界,产出能经加载器往返的 `SceneData`——层级折叠进
@@ -269,7 +269,7 @@ registerSceneComponentCodec('MyVoxelChunk', {
   独立更新。
 - **对你生成的每个实体确立归属**——在场景上下文之外创建的实体不带 `SceneOwner`,于是没有
   任何场景会清理它。`ctx.adopt(entity)` 把它交给当前场景;`setPersistent` 是刻意的反面。
-- **跨切换带对象用[持久化](#持久化实体),跨切换带状态用[存档](/docs/zh-cn/guides/save/)**
+- **跨切换带对象用[持久化](#持久化实体),跨切换带状态用[存档](/docs/zh-cn/scripting/save/)**
   ——一边是必须继续运行的实体,一边是切过去后还在就行的数据。
 
 <Aside type="note">
@@ -280,6 +280,6 @@ registerSceneComponentCodec('MyVoxelChunk', {
 
 ## 参见
 
-- [预制体](/docs/zh-cn/guides/prefab/) —— 在场景内生成可复用的实体树。
-- [存档与读档](/docs/zh-cn/guides/save/) —— 跨场景切换持久化状态。
-- [资源](/docs/zh-cn/guides/assets/) —— 场景是 cook 入口点。
+- [预制体](/docs/zh-cn/world/prefabs/) —— 在场景内生成可复用的实体树。
+- [存档与读档](/docs/zh-cn/scripting/save/) —— 跨场景切换持久化状态。
+- [资源](/docs/zh-cn/assets/overview/) —— 场景是 cook 入口点。

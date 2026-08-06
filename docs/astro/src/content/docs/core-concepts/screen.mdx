@@ -22,7 +22,7 @@ Estella's 2D units model is deliberately simple:
   half the design height — so at the design aspect the camera shows exactly one
   design box (1920×1080 world units).
 - The world is **Y-up**; screen coordinates are **Y-down** (converted for you by
-  [`CameraView`](/docs/guides/camera/)).
+  [`CameraView`](/docs/graphics/camera/)).
 - `Canvas.pixelsPerUnit` (default `100`) is the **physics scale** — world pixels
   per Box2D meter — **not** a display scale. Rendering never divides by it.
 
@@ -337,7 +337,7 @@ applyBuildRuntimeConfig(app, {
 
 ## See also
 
-- [Camera](/docs/guides/camera/) — orthoSize, follow, blending, split-screen.
-- [UI](/docs/guides/ui/) — the flexbox layout that consumes the design-pixel box.
-- [Physics](/docs/guides/physics/) — where `pixelsPerUnit` actually matters.
-- [Editor](/docs/guides/editor/) — the Display settings page and device preview.
+- [Camera](/docs/graphics/camera/) — orthoSize, follow, blending, split-screen.
+- [UI](/docs/ui/overview/) — the flexbox layout that consumes the design-pixel box.
+- [Physics](/docs/gameplay/physics/) — where `pixelsPerUnit` actually matters.
+- [Editor](/docs/editor/overview/) — the Display settings page and device preview.

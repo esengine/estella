@@ -5,7 +5,7 @@ description: 超出组件的绘制——用 Draw 画即时模式图元、用 Gra
 
 import { Aside } from '@astrojs/starlight/components';
 
-大多数视觉是组件——[精灵](/docs/zh-cn/guides/sprites/)、瓦片地图、粒子。当它们
+大多数视觉是组件——[精灵](/docs/zh-cn/graphics/sprites/)、瓦片地图、粒子。当它们
 表达不了你要的东西——调试覆盖层、程序化形状、自定义几何——引擎把绘制层直接暴露
 给你。
 
@@ -15,7 +15,7 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|
 | `Draw` | **即时模式**,全局——命令自动合批、每帧清空。 | 调试覆盖层、gizmo、任何每帧从头重画的东西。 |
 | `Graphics` | **保留式**路径记录器——构建一次,`flush()` 时经 `Draw` 回放。 | 带路径/贝塞尔/圆弧的矢量形状,不想每帧重新细分。 |
-| `ShapeRenderer` / `Mesh2D` | **组件**——带排序层、材质、编辑器 gizmo 的实体。 | 属于场景的形状/网格(见[精灵](/docs/zh-cn/guides/sprites/))。 |
+| `ShapeRenderer` / `Mesh2D` | **组件**——带排序层、材质、编辑器 gizmo 的实体。 | 属于场景的形状/网格(见[精灵](/docs/zh-cn/graphics/sprites/))。 |
 
 经验法则:视觉属于*场景*(参与排序、保存、可检视)就做成组件;属于*某一帧*
 (调试、类 HUD 覆盖、程序化效果)就在回调里画。
@@ -108,7 +108,7 @@ cmds.spawn()
 ## 自定义几何:`Geometry` API
 
 `Mesh2D` 是*组件*路径,`Geometry` 则是*即时*路径:它上传一个索引顶点缓冲,交回
-一个**句柄**由你自己绘制——配上[材质](/docs/zh-cn/guides/material/)用
+一个**句柄**由你自己绘制——配上[材质](/docs/zh-cn/graphics/materials/)用
 `Draw.drawMeshWithMaterial(geometry, material, transform?)`(或配原始着色器用
 `Draw.drawMesh(geometry, shader, transform)`)。
 
@@ -151,7 +151,7 @@ registerDrawCallback('custom-mesh', () => {
 
 ## 离屏目标:`RenderTexture`
 
-小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/guides/sprites/)的底层——
+小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/graphics/sprites/)的底层——
 `RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
 进去;得到的 `texture` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
 `Draw.texture`、材质纹理参数):
@@ -192,6 +192,6 @@ sprite.texture = rt.texture;
 
 ## 参见
 
-- [精灵与渲染](/docs/zh-cn/guides/sprites/) —— 图像与形状的组件路径。
-- [材质与着色器](/docs/zh-cn/guides/material/) —— 给任何渲染体上自定义着色器。
-- [相机](/docs/zh-cn/guides/camera/) —— 回调所用 view-projection 的来源。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 图像与形状的组件路径。
+- [材质与着色器](/docs/zh-cn/graphics/materials/) —— 给任何渲染体上自定义着色器。
+- [相机](/docs/zh-cn/graphics/camera/) —— 回调所用 view-projection 的来源。

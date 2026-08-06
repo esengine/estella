@@ -173,7 +173,7 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 
 ### 用状态机驱动剪辑——零代码
 
-[FSM/BT 内置](/docs/zh-cn/guides/ai/)以数据驱动翻页动画。动作的可选**参数**
+[FSM/BT 内置](/docs/zh-cn/gameplay/ai/)以数据驱动翻页动画。动作的可选**参数**
 携带剪辑,所以 idle/run/attack 切换是纯 `.esfsm` 数据,画在现有状态机画布上:
 
 | 名称 | 类型 | 说明 |
@@ -335,7 +335,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `resetTrigger(entity, name)` | 在被消费前清除一个 trigger。 |
 | `getFloat(entity, name)` / `getBool(entity, name)` | 读回一个参数。 |
 
-控制器可以同时驱动精灵**和** [Spine](/docs/zh-cn/guides/spine/) 动画,所以一套状态机就能
+控制器可以同时驱动精灵**和** [Spine](/docs/zh-cn/animation/spine/) 动画,所以一套状态机就能
 管一整个角色。
 
 参数有三种类型(`AnimatorParamType`):`'float'`、`'bool'`、`'trigger'`。条件用
@@ -384,7 +384,7 @@ const setup = defineSystem([Res(AnimatorController)], (anim) => {
 纯函数 `selectBlendClip(blend, value)` 返回某个值会选中的档位——方便做工具或测试。
 
 骨骼角色的状态可以改为携带 `spine` 运动(`AnimatorSpineMotion`,
-`{ animation, loop? }`):进入时控制器设置该 [Spine](/docs/zh-cn/guides/spine/)
+`{ animation, loop? }`):进入时控制器设置该 [Spine](/docs/zh-cn/animation/spine/)
 动画(`loop` 默认 `true`),轨道播放与混合交给 Spine 运行时——完全不碰
 `SpriteAnimator`。状态互斥:`clip`、`blend`、`spine`、`stateMachine` 四者取一。
 
@@ -464,6 +464,6 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 
 ## 参见
 
-- [Spine 动画](/docs/zh-cn/guides/spine/) —— 骨骼动画,也能被状态机驱动。
-- [时间轴](/docs/zh-cn/guides/timeline/) —— 关键帧过场与序列化事件。
-- [相机](/docs/zh-cn/guides/camera/) —— 补间 `CameraOrthoSize` 做平滑缩放。
+- [Spine 动画](/docs/zh-cn/animation/spine/) —— 骨骼动画,也能被状态机驱动。
+- [时间轴](/docs/zh-cn/animation/timeline/) —— 关键帧过场与序列化事件。
+- [相机](/docs/zh-cn/graphics/camera/) —— 补间 `CameraOrthoSize` 做平滑缩放。

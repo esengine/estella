@@ -5,7 +5,7 @@ description: Draw beyond components — immediate-mode primitives with Draw, vec
 
 import { Aside } from '@astrojs/starlight/components';
 
-Most visuals are components — [sprites](/docs/guides/sprites/), tilemaps,
+Most visuals are components — [sprites](/docs/graphics/sprites/), tilemaps,
 particles. When you need something they can't express — debug overlays, procedural
 shapes, custom geometry — the engine exposes its drawing layer directly.
 
@@ -15,7 +15,7 @@ shapes, custom geometry — the engine exposes its drawing layer directly.
 |---|---|---|
 | `Draw` | **Immediate**, global — commands batch and clear every frame. | Debug overlays, gizmos, anything redrawn from scratch each frame. |
 | `Graphics` | **Retained** path recorder — build once, replay through `Draw` with `flush()`. | Vector shapes with paths/béziers/arcs you don't want to re-tessellate per frame. |
-| `ShapeRenderer` / `Mesh2D` | **Components** — entities with sorting layers, materials, editor gizmos. | Shapes/meshes that are part of the scene (see [Sprites](/docs/guides/sprites/)). |
+| `ShapeRenderer` / `Mesh2D` | **Components** — entities with sorting layers, materials, editor gizmos. | Shapes/meshes that are part of the scene (see [Sprites](/docs/graphics/sprites/)). |
 
 Rule of thumb: if the visual belongs to the *scene* (sorted, saved, inspectable),
 make it a component; if it belongs to a *frame* (debug, HUD-ish overlays,
@@ -118,7 +118,7 @@ field alone are not change-detected.
 
 Where `Mesh2D` is the *component* path, `Geometry` is the *immediate* one: it
 uploads an indexed vertex buffer and hands back a **handle** you draw yourself —
-paired with a [material](/docs/guides/material/) via
+paired with a [material](/docs/graphics/materials/) via
 `Draw.drawMeshWithMaterial(geometry, material, transform?)` (or a raw shader via
 `Draw.drawMesh(geometry, shader, transform)`).
 
@@ -162,7 +162,7 @@ layout, so they pair directly with fragment-only `.esshader` materials.
 ## Offscreen targets: `RenderTexture`
 
 For minimaps, portraits, mirrors — and as the backing of
-[cache-as-bitmap](/docs/guides/sprites/) — `RenderTexture` allocates an offscreen
+[cache-as-bitmap](/docs/graphics/sprites/) — `RenderTexture` allocates an offscreen
 render target. Wrap draw commands in `begin`/`end` to render into it; the
 resulting `texture` is an ordinary texture handle usable anywhere (a
 `Sprite.texture`, `Draw.texture`, a material texture param):
@@ -203,6 +203,6 @@ whatever you draw between `begin`/`end`, under a view-projection matrix you buil
 
 ## See also
 
-- [Sprites & Rendering](/docs/guides/sprites/) — the component path for images and shapes.
-- [Materials & Shaders](/docs/guides/material/) — custom shaders for any renderable.
-- [Camera](/docs/guides/camera/) — where the view-projection your callbacks draw under comes from.
+- [Sprites & Rendering](/docs/graphics/sprites/) — the component path for images and shapes.
+- [Materials & Shaders](/docs/graphics/materials/) — custom shaders for any renderable.
+- [Camera](/docs/graphics/camera/) — where the view-projection your callbacks draw under comes from.

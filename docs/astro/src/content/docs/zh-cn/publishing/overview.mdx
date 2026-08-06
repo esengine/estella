@@ -34,7 +34,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 ## 构建场景
 
 项目场景目录下的每个场景都随导出发布,并成为 `SceneManager.switchTo` 的目标——游戏脚本
-如何切换见[场景](/docs/zh-cn/guides/scene/)。对话框的**构建场景**列表控制这个集合:
+如何切换见[场景](/docs/zh-cn/world/scenes/)。对话框的**构建场景**列表控制这个集合:
 
 - **启动场景**置顶并带播放徽标。它总是发布——点其他场景的播放按钮可把启动权移过去,
   或在内容浏览器里右键任意场景选**设为启动场景(Set as Startup Scene)**。
@@ -59,10 +59,10 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 |---|---|---|---|
 | **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
 | **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
-| **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/guides/wechat/)。 |
+| **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
 | **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
-| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/guides/mobile/)。 |
-| **iOS** | **原生** arm64 应用(Metal)的内容;若本机已为 iOS 构建过引擎,还会附带 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/guides/mobile/)。 |
+| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
+| **iOS** | **原生** arm64 应用(Metal)的内容;若本机已为 iOS 构建过引擎,还会附带 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
 
 移动目标导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在应用二进制里。
 这也是它们需要另外四个目标不需要的工具链的原因——见下文的[前置条件](#运行时前置条件)。
@@ -137,7 +137,7 @@ node build-tools/cli.js build -t wechat
 当某个目标的运行时缺失时,打包项目对话框会提醒你,而微信导出会**直接失败**并给出确切的
 构建命令——而不是产出一个运行时才崩的包。微信还需要为游戏用到的每个引擎特性构建对应的
 侧模块(`physics-wechat`、`spine-wechat`,压缩纹理用 `basis-wechat`)——见
-[微信小游戏](/docs/zh-cn/guides/wechat/)。
+[微信小游戏](/docs/zh-cn/publishing/wechat/)。
 
 对话框区分**两类**缺失的前置条件,因为它们挡住的程度并不一样:
 
@@ -149,7 +149,7 @@ node build-tools/cli.js build -t wechat
 <Aside type="caution" title="移动端需要引擎源码检出">
   Android 和 iOS 是唯一一对编辑器下载包没有端到端自带的目标:原生宿主需要先从引擎源码
   检出构建一次(Dawn + QuickJS),再加上 Android SDK/NDK,或装有 Xcode 的 macOS。见
-  [Android 与 iOS](/docs/zh-cn/guides/mobile/)。
+  [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。
 </Aside>
 
 ## 目标渲染不了的内容
@@ -205,14 +205,14 @@ KTX2 纹理由运行时转码为设备支持的最佳格式(ASTC → ETC2 → S3
 mip 链——下载更小、显存更省。
 
 **内容寻址** 对 Web/桌面默认开启(每个文件按字节哈希命名——URL 不可变、自动去重)。
-**高级**里放着[热更新](/docs/zh-cn/guides/hot-update/)的 CDN 根地址、source map,
+**高级**里放着[热更新](/docs/zh-cn/publishing/hot-update/)的 CDN 根地址、source map,
 以及构建结束后是否打开输出目录。
 
 <Aside type="caution" title="只有代码点名的资产会被剔除">
   cook 发布的是它能从构建场景**可达**的东西。只在代码里点名的东西——富文本标记里的纹理、
   按 url 播放的音频、按路径 spawn 的预制体——会被剔除,而编辑器直接从磁盘伺服项目,
   根本不会察觉。请在内容浏览器里把那个文件夹标记为 **交付方式 → 总是打进构建**。见
-  [资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。
+  [资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
 </Aside>
 
 ## 打包设置
@@ -231,7 +231,7 @@ mip 链——下载更小、显存更省。
 
 **试玩包是有意的例外**:它从不锁定页面方向。在广告 SDK 里,容器尺寸由 SDK 决定,因此"请旋转设备"这类遮罩可能把游戏永久挡住——玩家转了手机却毫无变化,因为那条 media query 一直在读容器而不是设备。试玩包保持自适应(各平台都要求如此),方向只在平台需要时**声明**出去,例如 Google 的 `ad.orientation` meta 标签。请为两种比例都设计,或用[相机适配](#)做 letterbox,让构图在任一比例下都成立。
 
-设置界面见 [编辑器](/docs/zh-cn/guides/editor/)。
+设置界面见 [编辑器](/docs/zh-cn/editor/overview/)。
 
 ## 包体体积
 
@@ -241,7 +241,7 @@ mip 链——下载更小、显存更省。
 
 - **首包** —— 玩家在能玩之前必须下载的部分:宿主页面、引擎运行时、你的脚本,以及 `local` 组里的资产。
 - **按需分包** —— 分包,在游戏请求那个组时才拉取。
-- **CDN(不进包)** —— `remote` 组里的资产。它们是真实存在的字节,但住在你的 CDN 上,对包体零成本。见[热更新](/docs/zh-cn/guides/hot-update/)。
+- **CDN(不进包)** —— `remote` 组里的资产。它们是真实存在的字节,但住在你的 CDN 上,对包体零成本。见[热更新](/docs/zh-cn/publishing/hot-update/)。
 
 这个划分读自运行时加载的同一份清单,所以报告说的和游戏做的不可能对不上。把一个关卡挪进分包是真的把它移出了主包,报告在你操作后立刻反映出来。
 
@@ -289,13 +289,13 @@ node build-tools/cli.js native --target ios # …原生移动宿主
 
 <Aside type="note">
   大多数游戏开发者除了那一次性的微信运行时构建外,从不需要动构建 CLI——日常工作都在
-  编辑器和 SDK 里。例外是[移动端](/docs/zh-cn/guides/mobile/):在那里,围绕导出组装应用
+  编辑器和 SDK 里。例外是[移动端](/docs/zh-cn/publishing/android-ios/):在那里,围绕导出组装应用
   也由这个 CLI 完成。
 </Aside>
 
 ## 参见
 
-- [Android 与 iOS](/docs/zh-cn/guides/mobile/) —— 原生应用:前置条件、如何组装,以及只在真机上才咬人的那些事。
-- [微信小游戏](/docs/zh-cn/guides/wechat/) —— 分包布局与平台差异。
-- [资源](/docs/zh-cn/guides/assets/) —— cook 步骤如何打包与内容寻址资产。
-- [性能剖析与诊断](/docs/zh-cn/guides/profiling/) —— 发布前检查帧时间与 draw call。
+- [Android 与 iOS](/docs/zh-cn/publishing/android-ios/) —— 原生应用:前置条件、如何组装,以及只在真机上才咬人的那些事。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/) —— 分包布局与平台差异。
+- [资源](/docs/zh-cn/assets/overview/) —— cook 步骤如何打包与内容寻址资产。
+- [性能剖析与诊断](/docs/zh-cn/performance/profiling/) —— 发布前检查帧时间与 draw call。

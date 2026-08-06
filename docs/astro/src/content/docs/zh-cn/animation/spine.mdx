@@ -126,7 +126,7 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 - **设一个默认混合**(`setDefaultMix`)让转移交叉淡入而非硬切;热点路径用 `setMixDuration` 覆盖。
 - **用轨道 + `setTrackAlpha` 分层**(例如在轨道 1 放一个瞄准/叠加,混合在轨道 0 的移动之上)。
 - **跨实体共享骨骼 + 图集**——它们引用计数同一份已加载骨骼。
-- **用 [Animator](/docs/zh-cn/guides/animation/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
+- **用 [Animator](/docs/zh-cn/animation/overview/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
 
 <Aside type="note">
   Estella 支持 Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3**——每个骨骼版本按需加载自己的
@@ -141,6 +141,6 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 
 ## 参见
 
-- [动画](/docs/zh-cn/guides/animation/) —— Animator 状态机可以驱动 Spine。
-- [资源](/docs/zh-cn/guides/assets/) —— 加载骨骼 + 图集资源。
-- [DragonBones 动画](/docs/zh-cn/guides/dragonbones/) —— 另一个骨骼运行时,MIT 许可。
+- [动画](/docs/zh-cn/animation/overview/) —— Animator 状态机可以驱动 Spine。
+- [资源](/docs/zh-cn/assets/overview/) —— 加载骨骼 + 图集资源。
+- [DragonBones 动画](/docs/zh-cn/animation/dragonbones/) —— 另一个骨骼运行时,MIT 许可。

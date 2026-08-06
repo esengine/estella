@@ -382,7 +382,7 @@ GLDebug.disable();
 ## GPU 资源预算与驻留
 
 已释放的贴图会驻留在一个按字节预算的温缓存里(完整模型见
-[资源指南](/docs/zh-cn/guides/assets/#生命周期与引用计数))。这里是它的诊断面:
+[资源指南](/docs/zh-cn/assets/overview/#生命周期与引用计数))。这里是它的诊断面:
 
 ```typescript
 import { getResourceStats, setTextureBudget, trimTextureCache } from 'esengine';
@@ -451,7 +451,7 @@ FPS。对游戏内构建,上面的 `statsPlugin` 就是对应物。
 
 ## 另请参阅
 
-- [资源](/docs/zh-cn/guides/assets/) — 资源统计所观察的贴图温缓存与预算。
+- [资源](/docs/zh-cn/assets/overview/) — 资源统计所观察的贴图温缓存与预算。
 - [App 与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/) — 插件、调度与子系统注册表。
 - [系统](/docs/zh-cn/core-concepts/systems/) — 调度与系统名(`systemTimings` 的键)。
-- [编辑器](/docs/zh-cn/guides/editor/) — 桌面编辑器,含其 Profiler 面板。
+- [编辑器](/docs/zh-cn/editor/overview/) — 桌面编辑器,含其 Profiler 面板。

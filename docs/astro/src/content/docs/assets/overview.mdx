@@ -74,7 +74,7 @@ guarantee and not a schema's.
 Loading it as an asset rather than fetching the path yourself is not ceremony. A data
 asset has a uuid, so moving the file does not break what points at it; it is parsed once
 and reference-counted; it can live in a lazy [group](#addressable-groups-lazy-loading) or
-come from a CDN; and [hot update](/docs/guides/hot-update/) can replace it in a shipped
+come from a CDN; and [hot update](/docs/publishing/hot-update/) can replace it in a shipped
 game. A hand-rolled `fetch` of a project path gets none of that — and it *works in the
 editor*, which serves the whole project, while the build ships only assets.
 
@@ -122,7 +122,7 @@ nobody holds drops to the evictable warm cache. Bouncing back into the area is
 then absorbed by the warm caches instead of the network.
 
 `loadByLabel(...)` loads assets tagged with a label instead of a folder group.
-This grouping is what maps onto [WeChat subpackages](/docs/guides/wechat/) for
+This grouping is what maps onto [WeChat subpackages](/docs/publishing/wechat/) for
 on-demand download.
 
 When the set of assets you want to warm isn't a group or label — say, the next
@@ -226,7 +226,7 @@ entities normally.
 The texture budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`,
 also settable as `textureCacheBudget` in the build config); decoded audio has
 its own **32 MB** mirror (`audioCacheBudget` — see the
-[audio guide](/docs/guides/audio/)).
+[audio guide](/docs/assets/audio/)).
 
 ## Texture memory & budgets
 
@@ -266,9 +266,9 @@ does this when a texture is truly freed, so you only need it if you destroy and
 recreate textures around the asset system's back.
 
 For watching these numbers frame-over-frame in the editor and at runtime, see
-[Profiling](/docs/guides/profiling/). Per-texture **sampling/filtering**
+[Profiling](/docs/performance/profiling/). Per-texture **sampling/filtering**
 parameters (pixel-art nearest vs. smooth linear) are covered in the
-[Sprites guide](/docs/guides/sprites/).
+[Sprites guide](/docs/graphics/sprites/).
 
 ## Best practices
 
@@ -293,6 +293,6 @@ parameters (pixel-art nearest vs. smooth linear) are covered in the
 
 ## See also
 
-- [WeChat MiniGame](/docs/guides/wechat/) — how addressable groups map to subpackages.
-- [Scenes](/docs/guides/scene/) — scenes reference assets and are cooked as entry points.
-- [Materials & Shaders](/docs/guides/material/) — `loadMaterial` and shader handles.
+- [WeChat MiniGame](/docs/publishing/wechat/) — how addressable groups map to subpackages.
+- [Scenes](/docs/world/scenes/) — scenes reference assets and are cooked as entry points.
+- [Materials & Shaders](/docs/graphics/materials/) — `loadMaterial` and shader handles.

@@ -8,7 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "verify:imports": "node scripts/verify-doc-imports.mjs"
+    "verify:imports": "node scripts/verify-doc-imports.mjs",
+    "verify:links": "node scripts/verify-doc-links.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.1",

@@ -22,25 +22,25 @@ defineSystem([Res(Audio)], (audio) => {
 
 | 子系统 | 资源 | 指南 |
 |---|---|---|
-| 输入 | `Res(Input)` | [输入](/docs/zh-cn/guides/input/) |
-| 音频 | `Res(Audio)` | [音频](/docs/zh-cn/guides/audio/) |
-| 资源 | `Res(Assets)` | [资源](/docs/zh-cn/guides/assets/) |
-| 瓦片地图 | `Res(Tilemaps)` | [瓦片地图](/docs/zh-cn/guides/tilemap/) |
-| 粒子 | `Res(Particle)` | [粒子](/docs/zh-cn/guides/particle/) |
-| 后处理 | `Res(PostProcess)` | [后处理](/docs/zh-cn/guides/postprocess/) |
-| 场景 | `Res(SceneManager)` | [场景](/docs/zh-cn/guides/scene/) |
-| 补间 | `Res(Tween)` | [动画](/docs/zh-cn/guides/animation/) |
-| 帧动画 | `Res(SpriteAnimation)` | [动画](/docs/zh-cn/guides/animation/) |
-| 动画机 | `Res(AnimatorController)` | [动画](/docs/zh-cn/guides/animation/) |
-| 计时器 | `Res(TimerRes)` | [脚本](/docs/zh-cn/guides/scripting/) |
-| 时间轴 | `Res(Timeline)` | [时间轴](/docs/zh-cn/guides/timeline/) |
-| 预制体 | `Res(Prefabs)` | [预制体](/docs/zh-cn/guides/prefab/) |
-| 导航 / AI | `Res(Nav)` | [游戏 AI](/docs/zh-cn/guides/ai/) |
-| 本地化 | `Res(Localization)` | [本地化](/docs/zh-cn/guides/localization/) |
-| 相机视图 | `Res(CameraView)` | [相机](/docs/zh-cn/guides/camera/) |
-| UI 事件 | `Res(UIEvents)` | [UI](/docs/zh-cn/guides/ui/) |
-| 物理 | `Res(Physics)` —— 来自 `esengine/physics` | [物理](/docs/zh-cn/guides/physics/) |
-| Spine | `Res(Spine)` —— 来自 `esengine/spine` | [Spine](/docs/zh-cn/guides/spine/) |
+| 输入 | `Res(Input)` | [输入](/docs/zh-cn/scripting/input/) |
+| 音频 | `Res(Audio)` | [音频](/docs/zh-cn/assets/audio/) |
+| 资源 | `Res(Assets)` | [资源](/docs/zh-cn/assets/overview/) |
+| 瓦片地图 | `Res(Tilemaps)` | [瓦片地图](/docs/zh-cn/world/tilemaps/) |
+| 粒子 | `Res(Particle)` | [粒子](/docs/zh-cn/world/particles/) |
+| 后处理 | `Res(PostProcess)` | [后处理](/docs/zh-cn/graphics/post-processing/) |
+| 场景 | `Res(SceneManager)` | [场景](/docs/zh-cn/world/scenes/) |
+| 补间 | `Res(Tween)` | [动画](/docs/zh-cn/animation/overview/) |
+| 帧动画 | `Res(SpriteAnimation)` | [动画](/docs/zh-cn/animation/overview/) |
+| 动画机 | `Res(AnimatorController)` | [动画](/docs/zh-cn/animation/overview/) |
+| 计时器 | `Res(TimerRes)` | [脚本](/docs/zh-cn/scripting/overview/) |
+| 时间轴 | `Res(Timeline)` | [时间轴](/docs/zh-cn/animation/timeline/) |
+| 预制体 | `Res(Prefabs)` | [预制体](/docs/zh-cn/world/prefabs/) |
+| 导航 / AI | `Res(Nav)` | [游戏 AI](/docs/zh-cn/gameplay/ai/) |
+| 本地化 | `Res(Localization)` | [本地化](/docs/zh-cn/assets/localization/) |
+| 相机视图 | `Res(CameraView)` | [相机](/docs/zh-cn/graphics/camera/) |
+| UI 事件 | `Res(UIEvents)` | [UI](/docs/zh-cn/ui/overview/) |
+| 物理 | `Res(Physics)` —— 来自 `esengine/physics` | [物理](/docs/zh-cn/gameplay/physics/) |
+| Spine | `Res(Spine)` —— 来自 `esengine/spine` | [Spine](/docs/zh-cn/animation/spine/) |
 
 物理和 Spine 是**可选 side-module**,按需加载,因此它们的 API 放在子路径上以保持基础
 包精简;其余都在主 `esengine` 包里。上表的基础子系统都随标准 App 附带——无需接线。

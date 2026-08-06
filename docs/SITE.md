@@ -85,7 +85,14 @@ This will:
 
 ### Adding a New Guide
 
-1. Create a new `.mdx` file in `astro/src/content/docs/guides/`
+1. Create a new `.mdx` file under the section it belongs to —
+   `astro/src/content/docs/<section>/`, where `<section>` is one of
+   `getting-started`, `editor`, `core-concepts`, `scripting`, `graphics`,
+   `animation`, `gameplay`, `ui`, `world`, `assets`, `publishing`,
+   `performance` or `extending`. A page's directory IS its sidebar group and
+   its URL: keep them the same, and keep every page exactly one level deep
+   (`<section>/<page>.mdx`) so the relative `../../../../assets/` image paths
+   resolve.
 2. Add frontmatter:
    ```mdx
    ---
@@ -95,7 +102,10 @@ This will:
 
    Your content here...
    ```
-3. Add to sidebar in `astro/astro.config.mjs`
+3. Add to the matching sidebar group in `astro/astro.config.mjs`, and write the
+   Simplified Chinese page at `astro/src/content/docs/zh-cn/<section>/<page>.mdx`
+4. If you rename or move a page, add its old path to `redirects` in
+   `astro/astro.config.mjs` — published URLs must keep working
 4. Keep code samples accurate: every symbol a guide imports from the main `esengine`
    barrel must be a real SDK export. `npm run verify:imports` (from `docs/astro/`)
    checks this against the exports declared in `sdk/src` and runs in CI before the

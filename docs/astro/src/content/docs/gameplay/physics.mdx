@@ -368,7 +368,7 @@ the character, a **Kinematic** `RigidBody`. The mover excludes the character's o
 body automatically, so its `maskBits` need not avoid its own collision layer. Drive
 `velocity` from a fixed-timestep system so motion is frame-rate independent; read the
 `isOnFloor` edge for jumps (delivered correctly to `FixedUpdate` — see
-[Input](/docs/guides/input/#fixed-timestep-physics)).
+[Input](/docs/scripting/input/#fixed-timestep-physics)).
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -394,7 +394,7 @@ stairs and slopes.</Aside>
 
 The physics plugin installs a **`PhysicsDebugDraw`** resource — an in-game overlay
 that strokes collider outlines, velocity vectors, and contact points through the
-[`Draw`](/docs/guides/drawing/) API. It ships disabled; flip `enabled` from any
+[`Draw`](/docs/graphics/drawing/) API. It ships disabled; flip `enabled` from any
 system to see exactly what the solver sees:
 
 ```typescript
@@ -439,5 +439,5 @@ collider/joint gizmos under the Physics Show Flag (see
 
 ## See also
 
-- [Scenes](/docs/guides/scene/) — physics components serialize with the scene.
-- [Math Helpers](/docs/guides/math/) — vector math for velocities and directions.
+- [Scenes](/docs/world/scenes/) — physics components serialize with the scene.
+- [Math Helpers](/docs/scripting/math/) — vector math for velocities and directions.

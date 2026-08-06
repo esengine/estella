@@ -39,7 +39,7 @@ const attach = defineSystem([Commands()], (cmds) => {
 
 The component flags **are** the playback control: the engine reconciles them into
 its internal clock every frame, so anything that flips `playing` — your code, the
-inspector, an [AI action](/docs/guides/ai/#built-in-names) — drives the
+inspector, an [AI action](/docs/gameplay/ai/#built-in-names) — drives the
 clip through the same channel.
 
 ## Control playback
@@ -77,7 +77,7 @@ These methods write through to the `TimelinePlayer` flags — `timeline.play(e)`
   For a **code-free cutscene**, pair the component with a state machine: the
   built-in `timeline.play` action and `timeline.finished` condition make an FSM
   state that plays a clip on enter and transitions out when it completes. See
-  [AI — built-in names](/docs/guides/ai/#built-in-names).
+  [AI — built-in names](/docs/gameplay/ai/#built-in-names).
 </Aside>
 
 ## Track types
@@ -235,7 +235,7 @@ events) fire edge-detected during playback, not on a sample.
 - **`wrapMode: 'once'`** for cutscenes, `'loop'` for ambient/idle sequences.
 - **Scrub with `setTime`** to preview or sync a cutscene to gameplay state.
 - **Use a timeline (not tweens)** when many properties/entities animate in lockstep;
-  reach for [tweens](/docs/guides/animation/) for one-off single-property juice.
+  reach for [tweens](/docs/animation/overview/) for one-off single-property juice.
 
 <Aside type="note">
   Timeline playback is gameplay — it advances in play mode and the standalone
@@ -244,5 +244,5 @@ events) fire edge-detected during playback, not on a sample.
 
 ## See also
 
-- [Animation](/docs/guides/animation/) — tweens and the animator state machine.
-- [Spine Animation](/docs/guides/spine/) — timelines can drive Spine clips.
+- [Animation](/docs/animation/overview/) — tweens and the animator state machine.
+- [Spine Animation](/docs/animation/spine/) — timelines can drive Spine clips.

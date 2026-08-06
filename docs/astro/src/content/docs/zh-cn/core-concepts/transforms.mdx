@@ -38,9 +38,9 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 });
 ```
 
-`position.x/y/z`、`rotation.z`、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/guides/timeline/)
-和[补间](/docs/zh-cn/guides/animation/#补间tween)可以打关键帧),而 `position` /
-`rotation` / `scale` 会被[网络](/docs/zh-cn/guides/networking/)的状态复制同步。
+`position.x/y/z`、`rotation.z`、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/animation/timeline/)
+和[补间](/docs/zh-cn/animation/overview/#补间tween)可以打关键帧),而 `position` /
+`rotation` / `scale` 会被[网络](/docs/zh-cn/scripting/networking/)的状态复制同步。
 
 <Aside type="note">
   `LocalTransform` 和 `WorldTransform` 是**同一个组件的别名导出**——
@@ -59,13 +59,13 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
   (`Math.atan2(dy, dx)` 可直接得到指向目标的角度)。
 - **`position.z` 是绘制顺序,不是透视**:2D 渲染先按各渲染器的排序层 `layer` 粗排;
   同一层内用 `z` 做精细排序(俯视角深度请用
-  [y 排序层](/docs/zh-cn/guides/sprites/#绘制顺序与排序层))。它不会使精灵产生
+  [y 排序层](/docs/zh-cn/graphics/sprites/#绘制顺序与排序层))。它不会使精灵产生
   透视缩放。
 - **屏幕空间 Y 轴向下**:指针坐标(`Input.mouseX/mouseY`、UI 命中测试)是从画布
   **左上角**起算的像素,Y 向下增大。
 
 用 `CameraView` 资源在两个空间之间转换(完整 API 见
-[相机](/docs/zh-cn/guides/camera/#屏幕--世界坐标)):
+[相机](/docs/zh-cn/graphics/camera/#屏幕--世界坐标)):
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -175,10 +175,10 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 
 想动画化旋转,`TweenTarget.RotationZ` 以**弧度**驱动 Z 角度(引擎每步重建四元数),
 Sequencer 给 `rotation.z` 打关键帧也是同样的语义——见
-[动画](/docs/zh-cn/guides/animation/#补间tween)。
+[动画](/docs/zh-cn/animation/overview/#补间tween)。
 
 <Aside type="tip">
-  如果只需要瞄准数学而完全不碰旋转,[数学辅助](/docs/zh-cn/guides/math/)里的
+  如果只需要瞄准数学而完全不碰旋转,[数学辅助](/docs/zh-cn/scripting/math/)里的
   `v2.fromAngle(angle, len)` 和 `v2.rotate(v, angle)` 可以直接产出方向向量。
 </Aside>
 
@@ -273,7 +273,7 @@ world = parentWorld × T(position) × R(rotation) × S(scale)
 ## 另请参阅
 
 - [组件](/docs/zh-cn/core-concepts/components/)——组件如何声明与存储数据。
-- [相机](/docs/zh-cn/guides/camera/)——orthoSize、跟随与屏幕 ↔ 世界转换。
-- [精灵与渲染](/docs/zh-cn/guides/sprites/)——排序层、y 排序与绘制顺序。
-- [物理](/docs/zh-cn/guides/physics/)——单位制中以米为单位的那一侧。
-- [数学辅助](/docs/zh-cn/guides/math/)——在规范类型上做向量与旋转数学。
+- [相机](/docs/zh-cn/graphics/camera/)——orthoSize、跟随与屏幕 ↔ 世界转换。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/)——排序层、y 排序与绘制顺序。
+- [物理](/docs/zh-cn/gameplay/physics/)——单位制中以米为单位的那一侧。
+- [数学辅助](/docs/zh-cn/scripting/math/)——在规范类型上做向量与旋转数学。

@@ -101,7 +101,7 @@ makeWidgetInteractable(world, myWidgetRoot, { tabIndex: 2 });
 `Interactable.enabled = false` 起步)、`focusable`(默认 `true`)、`tabIndex`
 (默认 `0` = 文档顺序)。它刻意*不*插入 `UIInteraction`——那是 transient 状态。
 悬停/按下的**视觉**状态请把字段绑到内置交互控制器的页——见
-[UI 控制器](/docs/zh-cn/guides/ui-controllers/)。
+[UI 控制器](/docs/zh-cn/ui/controllers/)。
 
 ## 拖放
 
@@ -183,7 +183,7 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 
 <Aside type="note">
   手柄导航未内置于焦点系统——焦点环由 `Tab` / `Enter` / `Space` / `Escape` 和
-  方向键驱动。手柄菜单请用[输入映射](/docs/zh-cn/guides/input/)自行驱动选择,
+  方向键驱动。手柄菜单请用[输入映射](/docs/zh-cn/scripting/input/)自行驱动选择,
   直接调用控件状态。
 </Aside>
 
@@ -252,8 +252,8 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 ## 另请参阅
 
-- [UI](/docs/zh-cn/guides/ui/) —— 组件模型总览。
-- [UI 组件](/docs/zh-cn/guides/ui-components/) —— 事件已接好线的控件工厂。
-- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 由交互控制器驱动的悬停/按下**视觉**状态。
-- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 基于 `change` 事件的控件值双向绑定。
-- [输入](/docs/zh-cn/guides/input/) —— UI 层之下的 `Input` 资源、输入映射与手势。
+- [UI](/docs/zh-cn/ui/overview/) —— 组件模型总览。
+- [UI 组件](/docs/zh-cn/ui/widgets/) —— 事件已接好线的控件工厂。
+- [UI 控制器](/docs/zh-cn/ui/controllers/) —— 由交互控制器驱动的悬停/按下**视觉**状态。
+- [UI 数据绑定](/docs/zh-cn/ui/data-binding/) —— 基于 `change` 事件的控件值双向绑定。
+- [输入](/docs/zh-cn/scripting/input/) —— UI 层之下的 `Input` 资源、输入映射与手势。

@@ -33,7 +33,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 
 ## HDR(线性色彩空间)
 
-当项目以**线性色彩空间**渲染时(见[光照](/docs/zh-cn/guides/lighting/)),只要浮点渲染目标
+当项目以**线性色彩空间**渲染时(见[光照](/docs/zh-cn/graphics/lighting/)),只要浮点渲染目标
 可用——WebGPU 恒可用,WebGL2 上是几乎无处不在的 `EXT_color_buffer_float`——效果链就跑在
 **半浮点 HDR** 上。超过 `1.0` 的光照累积(`intensity` 大于 1 的 `Light2D`)会*存活*进效果链,
 而不是在 8 位存储处被压平:
@@ -123,5 +123,5 @@ stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
 
 ## 参见
 
-- [材质与着色器](/docs/zh-cn/guides/material/) —— 逐物体着色器(独立的路径)。
-- [相机](/docs/zh-cn/guides/camera/) —— 为每个相机绑定一个栈。
+- [材质与着色器](/docs/zh-cn/graphics/materials/) —— 逐物体着色器(独立的路径)。
+- [相机](/docs/zh-cn/graphics/camera/) —— 为每个相机绑定一个栈。

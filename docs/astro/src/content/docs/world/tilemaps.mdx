@@ -326,7 +326,7 @@ The brushes:
 | **Ramp ◢ / ◣** | Triangle | 45° slopes rising to the right / left. |
 | **Half** (bottom / top / left / right) | Half box | Ledges, low walls, thin floors. |
 | **One-way ↑** | Solid-top box | Jump-through platforms — solid from above, pass-through from below. Flip to reorient it (a ceiling, a wall). |
-| **Trigger** | Sensor box | A non-solid region that fires overlap events — see [Markers & Trigger Areas](/docs/guides/markers/). |
+| **Trigger** | Sensor box | A non-solid region that fires overlap events — see [Markers & Trigger Areas](/docs/gameplay/markers/). |
 
 Paint them like tiles; the **collision overlay** draws exactly what Play will spawn.
 Each collision layer can also carry its own **physics material** (friction / bounce /
@@ -347,7 +347,7 @@ cells came from the built-in palette.
 
 Tiled **object layers** (spawn points, triggers, region shapes) load with the map. The
 modern way to read them is `Query(Marker)`: on load, point objects converge into
-[**Marker**](/docs/guides/markers/) entities and shape objects into **Trigger Area**
+[**Marker**](/docs/gameplay/markers/) entities and shape objects into **Trigger Area**
 regions — the very same entities you author by hand — so one query reads objects
 whether they came from Tiled or the Estella editor.
 
@@ -422,8 +422,8 @@ specially), and `tileCollisionAtWorld(...)` addresses in world pixels.
 
 ## See also
 
-- [Markers & Trigger Areas](/docs/guides/markers/) — place gameplay points and trigger
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — place gameplay points and trigger
   zones over your level as real, queryable entities.
-- [Physics](/docs/guides/physics/) — tile colliders participate in the physics world.
-- [Assets](/docs/guides/assets/) — loading `.tmj` maps and `.estileset` tilesets.
-- [Scenes](/docs/guides/scene/) — tilemap layers serialize with the scene.
+- [Physics](/docs/gameplay/physics/) — tile colliders participate in the physics world.
+- [Assets](/docs/assets/overview/) — loading `.tmj` maps and `.estileset` tilesets.
+- [Scenes](/docs/world/scenes/) — tilemap layers serialize with the scene.

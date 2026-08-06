@@ -15,7 +15,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `properties` 映射),挂在一个
 同时带 `Transform` 的实体上。单独存在时它是一个点——游戏通过查询某个 `type` 的标记来问“该在
-哪里生成玩家?”。给同一个实体加上一个静态 [`RigidBody`](/docs/zh-cn/guides/physics/) 和一个
+哪里生成玩家?”。给同一个实体加上一个静态 [`RigidBody`](/docs/zh-cn/gameplay/physics/) 和一个
 传感器碰撞体,它就变成一块触发区;**Trigger Area** 预设会替你把这些一次接好。
 
 因为 Marker 是纯 ECS,没有任何特殊的东西要加载或解析:
@@ -23,7 +23,7 @@ Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `p
 - 它和任何组件一样**随场景序列化**。
 - 它出现在 **Inspector** 里,包括一个键→值属性编辑器。
 - 它**可 `Query`**——同一条代码路径既读你手工放置的标记,*也*读从
-  [Tiled](/docs/zh-cn/guides/tilemap/) `.tmj` 对象层导入的标记。
+  [Tiled](/docs/zh-cn/world/tilemaps/) `.tmj` 对象层导入的标记。
 
 `type` 的词汇完全由你定义:`spawn`、`waypoint`、`door`、`chest`、`checkpoint`——字符串的含义由
 游戏说了算。
@@ -31,7 +31,7 @@ Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `p
 ## 安装
 
 `Marker` 在主 `esengine` barrel 里——放置或查询它无需任何插件。**Trigger Area** 带一个传感器
-碰撞体,因此需要[物理](/docs/zh-cn/guides/physics/):在编辑器和 Web 运行时,当场景用到物理
+碰撞体,因此需要[物理](/docs/zh-cn/gameplay/physics/):在编辑器和 Web 运行时,当场景用到物理
 组件时物理模块会自动加载;在自定义 app 里,请自己加上插件:
 
 ```typescript
@@ -45,7 +45,7 @@ app.addPlugin(new PhysicsPlugin('physics.js'));
 **Create → Common → Marker** 在场景原点放一个命名点;**Create → Physics → Trigger Area**
 放一块传感区域(Transform + 静态 RigidBody + 传感器 BoxCollider + Marker)。Marker 在视口里显示
 一个**图钉 gizmo**;Trigger Area 还会画出它的碰撞体轮廓,你用与任何其他刚体相同的
-[碰撞体 gizmo](/docs/zh-cn/guides/physics/) 来塑形。
+[碰撞体 gizmo](/docs/zh-cn/gameplay/physics/) 来塑形。
 
 在 Inspector 里设置标记的 **Type**,并添加任意多个自定义 **properties**(一个键→值映射——
 `targetScene: "level2"`、`team: "red"` 等等)。二者都能存/读并进入构建。
@@ -116,12 +116,12 @@ const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, mar
 ```
 
 在繁忙的世界里让传感器保持廉价:把触发区和应当感知它们的刚体放到专门的
-[碰撞层](/docs/zh-cn/guides/physics/#碰撞过滤)上,让每个传感器的掩码收窄它要考虑的范围。完整
-事件面见 [碰撞与传感事件](/docs/zh-cn/guides/physics/#碰撞与传感事件)。
+[碰撞层](/docs/zh-cn/gameplay/physics/#碰撞过滤)上,让每个传感器的掩码收窄它要考虑的范围。完整
+事件面见 [碰撞与传感事件](/docs/zh-cn/gameplay/physics/#碰撞与传感事件)。
 
 ## 从 Tiled 导入
 
-当 [`Tilemap`](/docs/zh-cn/guides/tilemap/) 加载一张 `.tmj` 地图时,它的**对象层**汇聚到你
+当 [`Tilemap`](/docs/zh-cn/world/tilemaps/) 加载一张 `.tmj` 地图时,它的**对象层**汇聚到你
 手工创建的同一批实体上——没有单独的结构要遍历:
 
 | Tiled 对象 | 变成 |
@@ -141,11 +141,11 @@ const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, mar
 - **能查一次就查一次。** 出生点、路点图、巡逻路线通常在场景开始时读一次;缓存结果,别每帧重查。
 - **复用同一套标记词汇**,横跨手工创建的场景与导入的 Tiled 地图——查询代码不关心标记从哪来。
 - **Trigger Area 是传感器**——要*挡住*的东西(墙、台沿),请画一块
-  [碰撞层](/docs/zh-cn/guides/tilemap/#碰撞障碍层)或用非传感器碰撞体。
+  [碰撞层](/docs/zh-cn/world/tilemaps/#碰撞障碍层)或用非传感器碰撞体。
 
 ## 参见
 
-- [瓦片地图](/docs/zh-cn/guides/tilemap/) —— 碰撞(障碍)层与喂给同一批 Marker 的 Tiled 对象层。
-- [物理](/docs/zh-cn/guides/physics/) —— 传感器、碰撞过滤,以及 Trigger Area 背后的 `PhysicsEvents` 资源。
-- [场景](/docs/zh-cn/guides/scene/) —— Marker 与 Trigger Area 随场景序列化。
-- [事件绑定](/docs/zh-cn/guides/events/) —— 有东西进入 Trigger Area 时执行一个动作，直接挂在触发区上，不写代码。
+- [瓦片地图](/docs/zh-cn/world/tilemaps/) —— 碰撞(障碍)层与喂给同一批 Marker 的 Tiled 对象层。
+- [物理](/docs/zh-cn/gameplay/physics/) —— 传感器、碰撞过滤,以及 Trigger Area 背后的 `PhysicsEvents` 资源。
+- [场景](/docs/zh-cn/world/scenes/) —— Marker 与 Trigger Area 随场景序列化。
+- [事件绑定](/docs/zh-cn/scripting/events/) —— 有东西进入 Trigger Area 时执行一个动作，直接挂在触发区上，不写代码。

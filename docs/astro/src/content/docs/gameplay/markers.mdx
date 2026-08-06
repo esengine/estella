@@ -18,7 +18,7 @@ entities you select, edit in the Inspector, serialize with the scene, and read w
 A Marker is just the `Marker` component (a `type` string and a free-form
 `properties` map) on an entity that also has a `Transform`. On its own it's a
 point — the game asks "where do I spawn the player?" by querying markers of a given
-`type`. Add a static [`RigidBody`](/docs/guides/physics/) and a sensor collider and
+`type`. Add a static [`RigidBody`](/docs/gameplay/physics/) and a sensor collider and
 the same entity becomes a trigger zone; the **Trigger Area** preset wires all of
 that up for you.
 
@@ -27,7 +27,7 @@ Because a Marker is pure ECS, there is nothing special to load or parse:
 - It **serializes** with the scene like any component.
 - It shows in the **Inspector**, including a key→value editor for its properties.
 - It's **`Query`-able** — one code path reads markers you placed by hand *and*
-  markers imported from a [Tiled](/docs/guides/tilemap/) `.tmj` object layer.
+  markers imported from a [Tiled](/docs/world/tilemaps/) `.tmj` object layer.
 
 The `type` vocabulary is entirely yours: `spawn`, `waypoint`, `door`, `chest`,
 `checkpoint` — the game defines what the strings mean.
@@ -35,7 +35,7 @@ The `type` vocabulary is entirely yours: `spawn`, `waypoint`, `door`, `chest`,
 ## Setup
 
 `Marker` lives in the main `esengine` barrel — no plugin needed to place or query
-one. A **Trigger Area** carries a sensor collider, so it needs [physics](/docs/guides/physics/):
+one. A **Trigger Area** carries a sensor collider, so it needs [physics](/docs/gameplay/physics/):
 in the editor and web runtime the physics module loads automatically when a scene
 uses physics components; in a custom app, add the plugin yourself:
 
@@ -51,7 +51,7 @@ app.addPlugin(new PhysicsPlugin('physics.js'));
 Physics → Trigger Area** drops a sensor region (Transform + static RigidBody + sensor
 BoxCollider + Marker). A Marker shows a **pin gizmo** in the viewport; a Trigger Area
 also draws its collider outline, which you shape with the same
-[collider gizmo](/docs/guides/physics/) as any other body.
+[collider gizmo](/docs/gameplay/physics/) as any other body.
 
 In the Inspector, set the marker's **Type** and add any number of custom
 **properties** (a key→value map — `targetScene: "level2"`, `team: "red"`, and so on).
@@ -127,14 +127,14 @@ const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, mar
 ```
 
 Keep sensors cheap in a busy world by putting triggers and the bodies that should
-notice them on dedicated [collision layers](/docs/guides/physics/#collision-filtering),
+notice them on dedicated [collision layers](/docs/gameplay/physics/#collision-filtering),
 so each sensor's mask narrows what it considers. See
-[Collision & sensor events](/docs/guides/physics/#collision--sensor-events) for the
+[Collision & sensor events](/docs/gameplay/physics/#collision--sensor-events) for the
 full event surface.
 
 ## Imported from Tiled
 
-When a [`Tilemap`](/docs/guides/tilemap/) loads a `.tmj` map, its **object layers**
+When a [`Tilemap`](/docs/world/tilemaps/) loads a `.tmj` map, its **object layers**
 converge onto the same entities you author by hand — no separate structure to walk:
 
 | Tiled object | Becomes |
@@ -159,15 +159,15 @@ if you need a shape's exact vertices.
 - **Reuse one marker vocabulary** across hand-authored scenes and imported Tiled maps
   — the query code doesn't care where the marker came from.
 - **Trigger Areas are sensors** — for anything you want to *block* (a wall, a ledge),
-  paint a [collision layer](/docs/guides/tilemap/#collision-obstacle-layers) or use a
+  paint a [collision layer](/docs/world/tilemaps/#collision-obstacle-layers) or use a
   non-sensor collider instead.
 
 ## See also
 
-- [Tilemaps](/docs/guides/tilemap/) — collision (obstacle) layers and Tiled object
+- [Tilemaps](/docs/world/tilemaps/) — collision (obstacle) layers and Tiled object
   layers that feed the same Markers.
-- [Physics](/docs/guides/physics/) — sensors, collision filtering, and the
+- [Physics](/docs/gameplay/physics/) — sensors, collision filtering, and the
   `PhysicsEvents` resource behind Trigger Areas.
-- [Scenes](/docs/guides/scene/) — Markers and Trigger Areas serialize with the scene.
-- [Event Binding](/docs/guides/events/) — run an action when something enters a Trigger
+- [Scenes](/docs/world/scenes/) — Markers and Trigger Areas serialize with the scene.
+- [Event Binding](/docs/scripting/events/) — run an action when something enters a Trigger
   Area, authored on the area itself with no code.

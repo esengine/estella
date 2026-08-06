@@ -51,13 +51,13 @@ to one of three modes:
 | Mode | Bundle | Badge | Ships… | Use for |
 | --- | --- | --- | --- | --- |
 | **Local** | eager | — | inside the package, loaded at boot | the game's core assets |
-| **Subpackage** | lazy | `PKG` (purple) | inside the package, loaded on demand | large optional content, [WeChat subpackages](/docs/guides/wechat/) |
+| **Subpackage** | lazy | `PKG` (purple) | inside the package, loaded on demand | large optional content, [WeChat subpackages](/docs/publishing/wechat/) |
 | **Remote** | remote | `CDN` (blue) | from a CDN, **hot-updatable** | anything you want to change after shipping |
 
 Only **Remote** groups are hot-updated — they're the assets fetched from your CDN
 against a per-environment root. Local and Subpackage assets are baked into the
 build. (Subpackages are on-demand *within* the package; see
-[Assets → Addressable groups](/docs/guides/assets/#addressable-groups-lazy-loading).)
+[Assets → Addressable groups](/docs/assets/overview/#addressable-groups-lazy-loading).)
 
 ### Mark a folder for CDN delivery
 
@@ -71,7 +71,7 @@ In the **Content Browser**, right-click any folder and pick **Delivery → Remot
 
 The same submenu carries **Always include in builds** — an independent toggle that
 keeps the folder in a build even when nothing in it is reachable from a scene. See
-[Assets](/docs/guides/assets/#shipping-what-only-code-names).
+[Assets](/docs/assets/overview/#shipping-what-only-code-names).
 
 A folder assigned to a Subpackage or Remote group carries a corner **badge** so
 you can see the delivery layout at a glance — `CDN` (blue) for remote, `PKG`
@@ -123,7 +123,7 @@ never disagree about where an asset ships):
 | `groups` | `Record<name, {folder, mode}>` | Folder → delivery assignments. |
 | `groups.<name>.folder` | `string` | Project-relative folder; every asset under it (recursively) joins the group. The **longest** matching prefix wins when folders nest. |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | Delivery mode. |
-| `groups.<name>.alwaysInclude` | `boolean` | Ship the group even when nothing in the build *reaches* it — for assets only your code names (a url, a path, rich-text markup). Off by default. See [Assets](/docs/guides/assets/#shipping-what-only-code-names). |
+| `groups.<name>.alwaysInclude` | `boolean` | Ship the group even when nothing in the build *reaches* it — for assets only your code names (a url, a path, rich-text markup). Off by default. See [Assets](/docs/assets/overview/#shipping-what-only-code-names). |
 | `activeProfile` | `string` | Which profile the build uses (key into `profiles`). |
 | `profiles.<name>.remoteRoot` | `string` | CDN root that this profile's remote-group assets are served from. Empty ⇒ same-origin. |
 
@@ -275,7 +275,7 @@ assets.releaseGroup('world2');
 
 `loadGroup` warms the cache through the same typed loaders as everything else, and
 `releaseGroup` reference-counts the release — an asset another scene still holds
-survives. See [Assets → Addressable groups](/docs/guides/assets/#addressable-groups-lazy-loading)
+survives. See [Assets → Addressable groups](/docs/assets/overview/#addressable-groups-lazy-loading)
 for the group model in full.
 
 ## Integrity, atomicity & rollback
@@ -342,6 +342,6 @@ disk-cache primitives differ per platform, and the runtime picks the right one.
 
 ## See also
 
-- [Assets](/docs/guides/assets/) — references, the manifest, typed loaders, and the group model.
-- [Building & Exporting](/docs/guides/build-export/) — where the CDN root and `asset-manifest.json` come from.
-- [WeChat MiniGame](/docs/guides/wechat/) — how subpackages map to the delivery groups here.
+- [Assets](/docs/assets/overview/) — references, the manifest, typed loaders, and the group model.
+- [Building & Exporting](/docs/publishing/overview/) — where the CDN root and `asset-manifest.json` come from.
+- [WeChat MiniGame](/docs/publishing/wechat/) — how subpackages map to the delivery groups here.

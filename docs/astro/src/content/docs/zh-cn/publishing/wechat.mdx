@@ -47,7 +47,7 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
 `game.json` / `project.config.json`（微信配置）、`asset-manifest.json`、以
 `scenes/<名字>.json` 存放的场景，以及 `wasm/` 目录 —— 引擎加上场景实际需要的
 侧模块。构建里的每个场景都是 `SceneManager.switchTo` 的切换目标——非启动场景在
-首次切换时才加载（见[场景](/docs/zh-cn/guides/scene/)）。
+首次切换时才加载（见[场景](/docs/zh-cn/world/scenes/)）。
 
 <Aside type="caution">
   不要手改 `game.js` 或移动 `wasm/` 下的文件——引导序列按暂存时的确切文件名
@@ -84,7 +84,7 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
 ## 最佳实践
 
 - **保持在 4 MB 主包限制以内**：把按需内容移到 `subpackages/<name>/`——见
-  [资源](/docs/zh-cn/guides/assets/)。导出会设置 `bigPackageSizeSupport`，超限的包
+  [资源](/docs/zh-cn/assets/overview/)。导出会设置 `bigPackageSizeSupport`，超限的包
   在开发者工具里仍可*预览*——但上传照样卡限制。
 - **压缩纹理** —— 见上文；这是包体最大的一笔节省。
 - **在微信开发者工具里测试**，而不只是浏览器——文件系统、存储与套接字后端都与 Web 不同。
@@ -92,7 +92,7 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
 
 ## 参见
 
-- [资源](/docs/zh-cn/guides/assets/) —— 可寻址分组与 cook 映射到分包。
-- [构建与导出](/docs/zh-cn/guides/build-export/) —— Package Project 对话框。
-- [视频](/docs/zh-cn/guides/video/) —— 为微信随包发布的 MPEG-1 wasm 解码路径。
-- [联网](/docs/zh-cn/guides/networking/) —— 那里套接字用 `wx.connectSocket`。
+- [资源](/docs/zh-cn/assets/overview/) —— 可寻址分组与 cook 映射到分包。
+- [构建与导出](/docs/zh-cn/publishing/overview/) —— Package Project 对话框。
+- [视频](/docs/zh-cn/graphics/video/) —— 为微信随包发布的 MPEG-1 wasm 解码路径。
+- [联网](/docs/zh-cn/scripting/networking/) —— 那里套接字用 `wx.connectSocket`。

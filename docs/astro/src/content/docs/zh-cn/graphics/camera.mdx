@@ -61,7 +61,7 @@ SDK 默认值为 2D 调好(正交、活动、`orthoSize` 540)。移动相机就�
 ## 缩放与投影
 
 `orthoSize` 是缩放控制——减半即让屏上尺寸翻倍。因为它是 `animatable` 的,最平滑的缩放方式
-是用一个 [tween](/docs/zh-cn/guides/animation/):
+是用一个 [tween](/docs/zh-cn/animation/overview/):
 
 ```typescript
 import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
@@ -283,6 +283,6 @@ updateCameraAspectRatio(app.world, canvas.width / canvas.height);
 
 - [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/) —— 设计分辨率适配、缩放模式、
   `ScreenScaling` 与 `pixelPerfect` 的深入讲解。
-- [动画](/docs/zh-cn/guides/animation/) —— 用 tween 缩放 `orthoSize`。
-- [输入](/docs/zh-cn/guides/input/) —— 用鼠标配 `screenToWorld` 做拾取。
-- [UI](/docs/zh-cn/guides/ui/) —— UI 在屏幕空间渲染,与相机无关。
+- [动画](/docs/zh-cn/animation/overview/) —— 用 tween 缩放 `orthoSize`。
+- [输入](/docs/zh-cn/scripting/input/) —— 用鼠标配 `screenToWorld` 做拾取。
+- [UI](/docs/zh-cn/ui/overview/) —— UI 在屏幕空间渲染,与相机无关。

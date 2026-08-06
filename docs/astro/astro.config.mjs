@@ -3,12 +3,78 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
+const SITE = 'https://estellaengine.com';
+
+// Pages that used to live in one flat `guides/` folder, and now live in the
+// section the sidebar shows them under — a page's directory is its URL. Every
+// old address stays reachable: Astro emits a redirect page for each entry, in
+// both locales. Never delete a line from here; moving a page again means adding
+// one, so a URL published once keeps resolving.
+const MOVED_GUIDES = {
+  'guides/editor': 'editor/overview',
+  'guides/scripting': 'scripting/overview',
+  'guides/input': 'scripting/input',
+  'guides/events': 'scripting/events',
+  'guides/save': 'scripting/save',
+  'guides/networking': 'scripting/networking',
+  'guides/math': 'scripting/math',
+  'guides/sprites': 'graphics/sprites',
+  'guides/camera': 'graphics/camera',
+  'guides/material': 'graphics/materials',
+  'guides/lighting': 'graphics/lighting',
+  'guides/postprocess': 'graphics/post-processing',
+  'guides/drawing': 'graphics/drawing',
+  'guides/video': 'graphics/video',
+  'guides/animation': 'animation/overview',
+  'guides/timeline': 'animation/timeline',
+  'guides/spine': 'animation/spine',
+  'guides/dragonbones': 'animation/dragonbones',
+  'guides/physics': 'gameplay/physics',
+  'guides/markers': 'gameplay/markers',
+  'guides/ai': 'gameplay/ai',
+  'guides/ui': 'ui/overview',
+  'guides/ui-layout': 'ui/layout',
+  'guides/ui-text': 'ui/text',
+  'guides/ui-components': 'ui/widgets',
+  'guides/ui-lists': 'ui/lists',
+  'guides/ui-interaction': 'ui/interaction',
+  'guides/ui-theme': 'ui/theming',
+  'guides/ui-binding': 'ui/data-binding',
+  'guides/ui-controllers': 'ui/controllers',
+  'guides/scene': 'world/scenes',
+  'guides/prefab': 'world/prefabs',
+  'guides/tilemap': 'world/tilemaps',
+  'guides/particle': 'world/particles',
+  'guides/assets': 'assets/overview',
+  'guides/audio': 'assets/audio',
+  'guides/localization': 'assets/localization',
+  'guides/build-export': 'publishing/overview',
+  'guides/mobile': 'publishing/android-ios',
+  'guides/wechat': 'publishing/wechat',
+  'guides/minigame-platforms': 'publishing/minigame-platforms',
+  'guides/hot-update': 'publishing/hot-update',
+  'guides/services': 'publishing/ads-sharing',
+  'guides/profiling': 'performance/profiling',
+  'guides/editor-plugins': 'extending/editor-plugins',
+  'guides/agent': 'extending/built-in-agent',
+  'guides/mcp': 'extending/mcp',
+};
+
 // The site is deployed under estellaengine.com/docs (docs.yml merges this build
 // into docs/dist/docs/), so everything is served from the /docs base path.
 export default defineConfig({
-  site: 'https://estellaengine.com',
+  site: SITE,
   base: '/docs',
   outDir: './dist',
+  // Astro prepends `base` to a redirect's SOURCE but not to its destination, so
+  // the destination carries /docs itself — without it every old URL lands on a
+  // 404 at the site root.
+  redirects: Object.fromEntries(
+    Object.entries(MOVED_GUIDES).flatMap(([from, to]) => [
+      [`/${from}`, `/docs/${to}/`],
+      [`/zh-cn/${from}`, `/docs/zh-cn/${to}/`],
+    ]),
+  ),
   integrations: [
     starlight({
       title: 'Estella',
@@ -52,20 +118,32 @@ export default defineConfig({
       editLink: {
         baseUrl: 'https://github.com/esengine/estella/edit/master/docs/astro/',
       },
+      // The sidebar is the table of contents of a manual, not a list of files:
+      // grouped by the task a reader came to do, every group collapsed but the
+      // first, so the rail shows ~17 rows instead of every page at once.
+      // Starlight still auto-expands whichever group holds the current page.
       sidebar: [
         {
-          label: 'Getting Started',
+          label: 'Get Started',
           translations: { 'zh-CN': '快速开始' },
           items: [
             { label: 'Introduction', translations: { 'zh-CN': '简介' }, slug: 'getting-started/introduction' },
             { label: 'Installation', translations: { 'zh-CN': '安装' }, slug: 'getting-started/installation' },
             { label: 'Quick Start', translations: { 'zh-CN': '快速上手' }, slug: 'getting-started/quick-start' },
-            { label: 'The Editor', translations: { 'zh-CN': '编辑器' }, slug: 'guides/editor' },
+          ],
+        },
+        {
+          label: 'Editor',
+          translations: { 'zh-CN': '编辑器' },
+          collapsed: true,
+          items: [
+            { label: 'The Editor', translations: { 'zh-CN': '编辑器' }, slug: 'editor/overview' },
           ],
         },
         {
           label: 'Core Concepts',
           translations: { 'zh-CN': '核心概念' },
+          collapsed: true,
           items: [
             { label: 'ECS Architecture', translations: { 'zh-CN': 'ECS 架构' }, slug: 'core-concepts/ecs' },
             { label: 'Components', translations: { 'zh-CN': '组件' }, slug: 'core-concepts/components' },
@@ -77,87 +155,133 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Gameplay',
-          translations: { 'zh-CN': '玩法' },
+          label: 'Scripting',
+          translations: { 'zh-CN': '脚本' },
+          collapsed: true,
           items: [
-            { label: 'Scripting', translations: { 'zh-CN': '脚本' }, slug: 'guides/scripting' },
-            { label: 'Event Binding', translations: { 'zh-CN': '事件绑定' }, slug: 'guides/events' },
-            { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'guides/input' },
-            { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'guides/camera' },
-            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'guides/physics' },
-            { label: 'Markers & Trigger Areas', translations: { 'zh-CN': '标记与触发区' }, slug: 'guides/markers' },
-            { label: 'Gameplay AI', translations: { 'zh-CN': '游戏 AI' }, slug: 'guides/ai' },
-            { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'guides/animation' },
-            { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'guides/timeline' },
-            { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'guides/spine' },
-            { label: 'DragonBones Animation', translations: { 'zh-CN': 'DragonBones 动画' }, slug: 'guides/dragonbones' },
+            { label: 'Scripting', translations: { 'zh-CN': '脚本' }, slug: 'scripting/overview' },
+            { label: 'Input', translations: { 'zh-CN': '输入' }, slug: 'scripting/input' },
+            { label: 'Event Binding', translations: { 'zh-CN': '事件绑定' }, slug: 'scripting/events' },
+            { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'scripting/save' },
+            { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'scripting/networking' },
+            { label: 'Math Helpers', translations: { 'zh-CN': '数学辅助' }, slug: 'scripting/math' },
           ],
         },
         {
           label: 'Graphics',
           translations: { 'zh-CN': '图形' },
+          collapsed: true,
           items: [
-            { label: 'Sprites & Rendering', translations: { 'zh-CN': '精灵与渲染' }, slug: 'guides/sprites' },
-            { label: 'Video', translations: { 'zh-CN': '视频' }, slug: 'guides/video' },
-            { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
-            { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
-            { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'guides/postprocess' },
-            { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/material' },
-            { label: '2D Lighting & Shadows', translations: { 'zh-CN': '2D 光照与阴影' }, slug: 'guides/lighting' },
-            { label: 'Custom Drawing', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/drawing' },
+            { label: 'Sprites & Rendering', translations: { 'zh-CN': '精灵与渲染' }, slug: 'graphics/sprites' },
+            { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'graphics/camera' },
+            { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'graphics/materials' },
+            { label: '2D Lighting & Shadows', translations: { 'zh-CN': '2D 光照与阴影' }, slug: 'graphics/lighting' },
+            { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'graphics/post-processing' },
+            { label: 'Custom Drawing', translations: { 'zh-CN': '自定义绘制' }, slug: 'graphics/drawing' },
+            { label: 'Video', translations: { 'zh-CN': '视频' }, slug: 'graphics/video' },
+          ],
+        },
+        {
+          label: 'Animation',
+          translations: { 'zh-CN': '动画' },
+          collapsed: true,
+          items: [
+            { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'animation/overview' },
+            { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'animation/timeline' },
+            { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'animation/spine' },
+            { label: 'DragonBones Animation', translations: { 'zh-CN': 'DragonBones 动画' }, slug: 'animation/dragonbones' },
+          ],
+        },
+        {
+          label: 'Gameplay',
+          translations: { 'zh-CN': '玩法' },
+          collapsed: true,
+          items: [
+            { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'gameplay/physics' },
+            { label: 'Markers & Trigger Areas', translations: { 'zh-CN': '标记与触发区' }, slug: 'gameplay/markers' },
+            { label: 'Gameplay AI', translations: { 'zh-CN': '游戏 AI' }, slug: 'gameplay/ai' },
           ],
         },
         {
           label: 'UI',
           translations: { 'zh-CN': 'UI' },
+          collapsed: true,
           items: [
-            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'guides/ui' },
-            { label: 'Layout', translations: { 'zh-CN': '布局' }, slug: 'guides/ui-layout' },
-            { label: 'Text', translations: { 'zh-CN': '文本' }, slug: 'guides/ui-text' },
-            { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'guides/ui-components' },
-            { label: 'Lists & Scrolling', translations: { 'zh-CN': '列表与滚动' }, slug: 'guides/ui-lists' },
-            { label: 'Interaction', translations: { 'zh-CN': '交互' }, slug: 'guides/ui-interaction' },
-            { label: 'Theming', translations: { 'zh-CN': '主题' }, slug: 'guides/ui-theme' },
-            { label: 'Data Binding', translations: { 'zh-CN': '数据绑定' }, slug: 'guides/ui-binding' },
-            { label: 'Controllers', translations: { 'zh-CN': '控制器' }, slug: 'guides/ui-controllers' },
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'ui/overview' },
+            { label: 'Layout', translations: { 'zh-CN': '布局' }, slug: 'ui/layout' },
+            { label: 'Text', translations: { 'zh-CN': '文本' }, slug: 'ui/text' },
+            { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'ui/widgets' },
+            { label: 'Lists & Scrolling', translations: { 'zh-CN': '列表与滚动' }, slug: 'ui/lists' },
+            { label: 'Interaction', translations: { 'zh-CN': '交互' }, slug: 'ui/interaction' },
+            { label: 'Theming', translations: { 'zh-CN': '主题' }, slug: 'ui/theming' },
+            { label: 'Data Binding', translations: { 'zh-CN': '数据绑定' }, slug: 'ui/data-binding' },
+            { label: 'Controllers', translations: { 'zh-CN': '控制器' }, slug: 'ui/controllers' },
           ],
         },
         {
-          label: 'Content & Flow',
-          translations: { 'zh-CN': '内容与流程' },
+          label: 'World Building',
+          translations: { 'zh-CN': '世界搭建' },
+          collapsed: true,
           items: [
-            { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'guides/assets' },
-            { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'guides/prefab' },
-            { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'guides/audio' },
-            { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'guides/scene' },
-            { label: 'Saving & Loading', translations: { 'zh-CN': '存档与读档' }, slug: 'guides/save' },
-            { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'guides/localization' },
-            { label: 'Ads & Sharing', translations: { 'zh-CN': '广告与分享' }, slug: 'guides/services' },
-            { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'guides/build-export' },
-            { label: 'Android & iOS', translations: { 'zh-CN': 'Android 与 iOS' }, slug: 'guides/mobile' },
-            { label: 'Hot Update', translations: { 'zh-CN': '热更新' }, slug: 'guides/hot-update' },
-            { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
-            { label: 'Mini-Game Platforms', translations: { 'zh-CN': '小游戏平台' }, slug: 'guides/minigame-platforms' },
-            { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'guides/networking' },
-            { label: 'Editor Plugins', translations: { 'zh-CN': '编辑器插件' }, slug: 'guides/editor-plugins' },
-            { label: 'The Built-in Agent', translations: { 'zh-CN': '内置 Agent' }, slug: 'guides/agent' },
-            { label: 'AI Agents (MCP)', translations: { 'zh-CN': 'AI 代理 (MCP)' }, slug: 'guides/mcp' },
+            { label: 'Scenes', translations: { 'zh-CN': '场景' }, slug: 'world/scenes' },
+            { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'world/prefabs' },
+            { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'world/tilemaps' },
+            { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'world/particles' },
           ],
         },
         {
-          label: 'Utilities',
-          translations: { 'zh-CN': '工具' },
+          label: 'Assets',
+          translations: { 'zh-CN': '资源' },
+          collapsed: true,
           items: [
-            { label: 'Math Helpers', translations: { 'zh-CN': '数学辅助' }, slug: 'guides/math' },
-            { label: 'Profiling & Diagnostics', translations: { 'zh-CN': '性能剖析与诊断' }, slug: 'guides/profiling' },
+            { label: 'Assets', translations: { 'zh-CN': '资源' }, slug: 'assets/overview' },
+            { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'assets/audio' },
+            { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'assets/localization' },
+          ],
+        },
+        {
+          label: 'Publishing',
+          translations: { 'zh-CN': '发布' },
+          collapsed: true,
+          items: [
+            { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'publishing/overview' },
+            { label: 'Android & iOS', translations: { 'zh-CN': 'Android 与 iOS' }, slug: 'publishing/android-ios' },
+            { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'publishing/wechat' },
+            { label: 'Mini-Game Platforms', translations: { 'zh-CN': '小游戏平台' }, slug: 'publishing/minigame-platforms' },
+            { label: 'Hot Update', translations: { 'zh-CN': '热更新' }, slug: 'publishing/hot-update' },
+            { label: 'Ads & Sharing', translations: { 'zh-CN': '广告与分享' }, slug: 'publishing/ads-sharing' },
+          ],
+        },
+        {
+          label: 'Performance',
+          translations: { 'zh-CN': '性能与调试' },
+          collapsed: true,
+          items: [
+            { label: 'Profiling & Diagnostics', translations: { 'zh-CN': '性能剖析与诊断' }, slug: 'performance/profiling' },
+          ],
+        },
+        {
+          label: 'Extending the Editor',
+          translations: { 'zh-CN': '扩展编辑器' },
+          collapsed: true,
+          items: [
+            { label: 'Editor Plugins', translations: { 'zh-CN': '编辑器插件' }, slug: 'extending/editor-plugins' },
+            { label: 'The Built-in Agent', translations: { 'zh-CN': '内置 Agent' }, slug: 'extending/built-in-agent' },
+            { label: 'AI Agents (MCP)', translations: { 'zh-CN': 'AI 代理 (MCP)' }, slug: 'extending/mcp' },
           ],
         },
         {
           label: 'Reference',
           translations: { 'zh-CN': '参考' },
+          collapsed: true,
           items: [
             typeDocSidebarGroup,
-            { label: 'C++ API (Doxygen)', link: '/docs/api/html/', attrs: { target: '_blank' } },
+            // Doxygen output is merged in beside the Astro build, not routed by
+            // it, and it isn't translated. A root-relative link would get BOTH
+            // the /docs base and the active locale prepended (which is how this
+            // one used to render as the dead /docs/zh-cn/docs/api/html/), so it
+            // has to be absolute to escape them.
+            { label: 'C++ API (Doxygen)', link: `${SITE}/docs/api/html/`, attrs: { target: '_blank' } },
             { label: 'Architecture', link: 'https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md' },
           ],
         },

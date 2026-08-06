@@ -6,12 +6,12 @@ description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、�
 import { Aside } from '@astrojs/starlight/components';
 
 **`Sprite`** 是 2D 渲染的主力:一个带 `Sprite` 组件的实体在世界里绘制一个带纹理的四边形。要绘制
-不带纹理的实心图元,有 **`ShapeRenderer`**。一切都经由 [相机](/docs/zh-cn/guides/camera/) 绘制,
+不带纹理的实心图元,有 **`ShapeRenderer`**。一切都经由 [相机](/docs/zh-cn/graphics/camera/) 绘制,
 而绘制顺序由**排序层**控制。
 
 ## 你的第一个精灵
 
-一个精灵需要 `Transform`(在哪)和 `Sprite`(画什么)。通过 [`Assets`](/docs/zh-cn/guides/assets/)
+一个精灵需要 `Transform`(在哪)和 `Sprite`(画什么)。通过 [`Assets`](/docs/zh-cn/assets/overview/)
 资源加载一张纹理,把它的句柄放到精灵上:
 
 ```typescript
@@ -38,7 +38,7 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 | `pivot` | `{0.5,0.5}` | 精灵旋转/缩放所绕的轴心点(0–1)。 |
 | `layer` | `0` | 排序层——控制绘制顺序(见下)。 |
 | `flipX` / `flipY` | `false` | 水平 / 垂直镜像。 |
-| `material` | `0` | 自定义[材质](/docs/zh-cn/guides/material/)句柄(`0` = 默认精灵着色器)。 |
+| `material` | `0` | 自定义[材质](/docs/zh-cn/graphics/materials/)句柄(`0` = 默认精灵着色器)。 |
 | `lit` | `false` | 用平面法线接收 2D 光照——让精灵变"受光"的一键路径(自定义 `material` 会覆盖它)。 |
 | `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | 要显示的纹理子矩形(用于图集 / 滚动)。 |
 | `tileSize` / `tileSpacing` | `{0,0}` | 把纹理在精灵上平铺重复(`0` = 不平铺)。 |
@@ -54,7 +54,7 @@ sprite.color = { r: 1, g: 0.4, b: 0.4, a: 1 };   // 泛红
 sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 ```
 
-`color`(和 `size`)都**可动画**——在 [Sequencer](/docs/zh-cn/guides/timeline/) 里给它们打关键帧
+`color`(和 `size`)都**可动画**——在 [Sequencer](/docs/zh-cn/animation/timeline/) 里给它们打关键帧
 做闪烁和淡入淡出。
 
 ## 尺寸与轴心
@@ -75,7 +75,7 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 
 <Aside type="note">
   `Canvas.pixelsPerUnit`(默认 `100`)**不会**缩放精灵——它是**物理米尺度**:
-  多少设计像素等于一个 Box2D 米(见[物理](/docs/zh-cn/guides/physics/))。精灵的
+  多少设计像素等于一个 Box2D 米(见[物理](/docs/zh-cn/gameplay/physics/))。精灵的
   显示尺寸只由 `size` × `Transform` 缩放决定,别无其他。完整的单位与坐标空间图景见
   [变换](/docs/zh-cn/core-concepts/transforms/)。
 </Aside>
@@ -155,7 +155,7 @@ world.applyEntityOrder([other, another, card]);
 
 - 用 `flipX` / `flipY` **翻转**精灵——例如让角色朝左或朝右,而不用另一张纹理。
 - **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格。(逐帧动画
-  请用 [Animator](/docs/zh-cn/guides/animation/) 驱动这些,而非手动。)
+  请用 [Animator](/docs/zh-cn/animation/overview/) 驱动这些,而非手动。)
 - **滚动**:随时间改 `uvOffset` 来滚动纹理(水面、传送带),并设 `tileSize` 把它在大精灵上重复平铺。
 
 ## 纹理过滤与环绕
@@ -197,7 +197,7 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
   对像素画来说 `TextureFilter.Nearest` 只解决一半问题:它让**纹素**锐利,但相机
   停在小数位置时精灵仍会落在屏幕像素之间,移动时闪烁。把它和相机的
   `pixelPerfect` 标志配合使用——它把(正交)相机吸附到像素网格——见
-  [相机](/docs/zh-cn/guides/camera/)。
+  [相机](/docs/zh-cn/graphics/camera/)。
 </Aside>
 
 ## 视差背景
@@ -208,11 +208,11 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 ## 自定义材质与光照
 
 给 `sprite.material` 赋值,用你自己的着色器绘制精灵——染色、溶解、扭曲——见
-[材质与着色器](/docs/zh-cn/guides/material/)。
+[材质与着色器](/docs/zh-cn/graphics/materials/)。
 
 要让精灵响应 `Light2D` 光源,最简单的路径是设 `sprite.lit = true`——无需自定义材质
 (用平面法线受光)。需要法线贴图或完全自定义的观感时,改用 **Lit-2D 材质**。两种方式都见
-[2D 光照与阴影](/docs/zh-cn/guides/lighting/)。
+[2D 光照与阴影](/docs/zh-cn/graphics/lighting/)。
 
 ### 精灵滤镜(描边、发光、投影)
 
@@ -294,12 +294,12 @@ UI。把 `font` 指向一个 **BMFont** 资产(`.fnt` 文本或 `.bmfont` JSON),
 | `layer` / `parallax` | `0` / `{1,1}` | 与 `Sprite` 相同的排序层 / 视差语义。 |
 
 屏幕空间的 UI 文字(布局、换行、SDF 锐度)请用 UI 的 `Text` 控件——见
-[UI](/docs/zh-cn/guides/ui/)。
+[UI](/docs/zh-cn/ui/overview/)。
 
 ## 精灵点击检测
 
 "这次点击落在这个精灵上了吗?"分两步:把屏幕点转到世界空间,再对精灵的矩形做测试。
-第一步由 `CameraView` 资源完成(见[相机](/docs/zh-cn/guides/camera/));第二步 SDK
+第一步由 `CameraView` 资源完成(见[相机](/docs/zh-cn/graphics/camera/));第二步 SDK
 导出了感知轴心的点测试:
 
 | 函数 | 测试 |
@@ -342,7 +342,7 @@ const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hul
 `screenToWorld` 也有独立导出(接收逆 view-projection 矩阵和视口矩形),供自己管理
 相机数学的代码使用——`CameraView` 资源就是同一个函数、替你填好了当前相机。至于
 交互式 **UI**,别手写这些:`Interactable` + `UIEvents` 会替你做拾取(见
-[UI](/docs/zh-cn/guides/ui/))。
+[UI](/docs/zh-cn/ui/overview/))。
 
 ## 位图缓存(Cache as bitmap)
 
@@ -380,16 +380,16 @@ Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
 ```
 
 `cache.textureId` 是普通的纹理句柄——也可以直接当 `Sprite.texture` 用。底层就是一个
-不带深度缓冲的 [RenderTexture](/docs/zh-cn/guides/drawing/)。
+不带深度缓冲的 [RenderTexture](/docs/zh-cn/graphics/drawing/)。
 
 ## 在编辑器里
 
 - **创建 → 精灵** 添加一个精灵实体,或从内容浏览器**把图拖**进视口,生成一个已带纹理的精灵。
 - 上面每个字段都能在 **Details** 里编辑;精灵、相机、光源在视口里显示为 gizmo。见
-  [编辑器](/docs/zh-cn/guides/editor/)。
+  [编辑器](/docs/zh-cn/editor/overview/)。
 
 ## 参见
 
-- [动画](/docs/zh-cn/guides/animation/) —— 精灵表帧动画与属性补间。
-- [自定义绘制](/docs/zh-cn/guides/drawing/) —— 精灵之外的网格与即时模式图形。
-- [2D 光照与阴影](/docs/zh-cn/guides/lighting/) —— 法线贴图与逐精灵光照。
+- [动画](/docs/zh-cn/animation/overview/) —— 精灵表帧动画与属性补间。
+- [自定义绘制](/docs/zh-cn/graphics/drawing/) —— 精灵之外的网格与即时模式图形。
+- [2D 光照与阴影](/docs/zh-cn/graphics/lighting/) —— 法线贴图与逐精灵光照。

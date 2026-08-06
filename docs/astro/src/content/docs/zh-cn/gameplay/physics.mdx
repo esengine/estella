@@ -342,7 +342,7 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 给实体加一个碰撞体(mover 形状由它推导——盒子会内接成沿长轴的胶囊);若希望别的刚体能撞到角色,
 再加一个**运动学(Kinematic)** `RigidBody`。mover 会自动排除角色自身的刚体,所以它的 `maskBits`
 不必刻意避开自身的碰撞层。用固定步长的系统驱动 `velocity` 让运动与帧率无关;跳跃读 `isOnFloor`
-边沿(会正确投递到 `FixedUpdate`——见 [输入](/docs/zh-cn/guides/input/#固定步长物理))。
+边沿(会正确投递到 `FixedUpdate`——见 [输入](/docs/zh-cn/scripting/input/#固定步长物理))。
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -365,7 +365,7 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 ## 调试绘制
 
 物理插件会安装一个 **`PhysicsDebugDraw`** 资源——一个游戏内叠加层,通过
-[`Draw`](/docs/zh-cn/guides/drawing/) API 描出碰撞体轮廓、速度向量和接触点。
+[`Draw`](/docs/zh-cn/graphics/drawing/) API 描出碰撞体轮廓、速度向量和接触点。
 它默认关闭;在任何系统里翻转 `enabled`,就能看见求解器眼中的世界:
 
 ```typescript
@@ -404,5 +404,5 @@ gizmo(见[关节——在编辑器里](#在编辑器里));两者互相独立。<
 
 ## 参见
 
-- [场景](/docs/zh-cn/guides/scene/) —— 物理组件随场景序列化。
-- [数学辅助](/docs/zh-cn/guides/math/) —— 速度与方向的向量运算。
+- [场景](/docs/zh-cn/world/scenes/) —— 物理组件随场景序列化。
+- [数学辅助](/docs/zh-cn/scripting/math/) —— 速度与方向的向量运算。

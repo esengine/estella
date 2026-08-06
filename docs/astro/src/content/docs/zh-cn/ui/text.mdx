@@ -74,7 +74,7 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `align` | `TextAlign` | `Left` | 水平对齐:`Left` / `Center` / `Right`。 |
 | `verticalAlign` | `TextVerticalAlign` | `Top` | 垂直对齐:`Top` / `Middle` / `Bottom`。 |
 | `wordWrap` | boolean | `true` | 按盒宽换行(需要 `UINode` 盒)。 |
-| `overflow` | `TextOverflow` | `Visible` | `Visible` / `Clip` / `Ellipsis`。当前渲染器始终按 `Visible` 绘制;要裁剪溢出,给盒加 [`UIMask`](/docs/zh-cn/guides/ui/)。 |
+| `overflow` | `TextOverflow` | `Visible` | `Visible` / `Clip` / `Ellipsis`。当前渲染器始终按 `Visible` 绘制;要裁剪溢出,给盒加 [`UIMask`](/docs/zh-cn/ui/overview/)。 |
 | `lineHeight` | number | `1.2` | 行距,为 **`fontSize` 的比率**(基线间距 = `lineHeight × fontSize`)。 |
 | `bold` / `italic` | boolean | `false` | 基础字体样式(富文本 `<b>`/`<i>` 在其上叠加)。 |
 | `strokeColor` | Color | `{0,0,0,1}` | 描边颜色。 |
@@ -237,7 +237,7 @@ addStartupSystem(buildBubble);
 不要手写 `content`,改设 `i18nKey`:存在 Localization 资源时(安装
 `localizationPlugin`),每帧有系统把键经目录解析并写入 `content`——因此
 `setLocale` 下一帧就重排所有绑定的标签。缺失的键解析为键本身(可见、可 grep);
-没有 Localization 资源时按原作 `content` 显示。见[本地化](/docs/zh-cn/guides/localization/)。
+没有 Localization 资源时按原作 `content` 显示。见[本地化](/docs/zh-cn/assets/localization/)。
 
 ## 最佳实践
 
@@ -255,9 +255,9 @@ addStartupSystem(buildBubble);
 
 ## 另请参阅
 
-- [UI](/docs/zh-cn/guides/ui/) —— 组件模型总览。
-- [UI 布局](/docs/zh-cn/guides/ui-layout/) —— 文本对齐与换行所依的 `UINode` 盒。
-- [UI 组件](/docs/zh-cn/guides/ui-components/) —— 可编辑文本的 `createTextInput`。
-- [UI 主题](/docs/zh-cn/guides/ui-theme/) —— 主题化的文本颜色角色与字号阶梯。
-- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 用响应式 signal 驱动 `content`。
-- [本地化](/docs/zh-cn/guides/localization/) —— 目录、语言与 `i18nKey` 解析。
+- [UI](/docs/zh-cn/ui/overview/) —— 组件模型总览。
+- [UI 布局](/docs/zh-cn/ui/layout/) —— 文本对齐与换行所依的 `UINode` 盒。
+- [UI 组件](/docs/zh-cn/ui/widgets/) —— 可编辑文本的 `createTextInput`。
+- [UI 主题](/docs/zh-cn/ui/theming/) —— 主题化的文本颜色角色与字号阶梯。
+- [UI 数据绑定](/docs/zh-cn/ui/data-binding/) —— 用响应式 signal 驱动 `content`。
+- [本地化](/docs/zh-cn/assets/localization/) —— 目录、语言与 `i18nKey` 解析。

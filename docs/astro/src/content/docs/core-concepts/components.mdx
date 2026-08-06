@@ -68,10 +68,10 @@ Useful `fields` options: `min` / `max` / `step`, `slider`, `unit`, `enum`
 (dropdown storing the option's int), `flags` (bitmask multi-select), `tooltip`.
 Other component-level metadata: `assetFields` (marks a field as an asset
 reference, so Details renders a picker and the cook ships the dependency),
-`animatableFields` (which fields the [Sequencer](/docs/guides/timeline/) can
+`animatableFields` (which fields the [Sequencer](/docs/animation/timeline/) can
 key — defaults to all numeric fields), `transient` (never saved into the scene —
 for per-frame runtime state), and `replicatedFields` (synced by
-[networking](/docs/guides/networking/)'s state replication).
+[networking](/docs/scripting/networking/)'s state replication).
 
 ## Built-in components
 
@@ -79,9 +79,9 @@ The SDK ships ~30 engine components you query alongside your own — `Transform`
 `Sprite`, `ShapeRenderer`, `Camera`, `Light2D`, `ParticleEmitter`,
 `SpineAnimation`, `TilemapLayer`, the UI set, the physics colliders, and more.
 Each is documented in its subsystem guide:
-[Sprites & Rendering](/docs/guides/sprites/), [Camera](/docs/guides/camera/),
-[2D Lighting](/docs/guides/lighting/), [Physics](/docs/guides/physics/),
-[Tilemaps](/docs/guides/tilemap/), [UI](/docs/guides/ui/).
+[Sprites & Rendering](/docs/graphics/sprites/), [Camera](/docs/graphics/camera/),
+[2D Lighting](/docs/graphics/lighting/), [Physics](/docs/gameplay/physics/),
+[Tilemaps](/docs/world/tilemaps/), [UI](/docs/ui/overview/).
 
 ## Reading and writing
 

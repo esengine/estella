@@ -307,8 +307,8 @@ host 用 `acquire(id)` 应答,返回已实例化模块的 promise(按 id 缓存,
   主 `esengine` barrel 恰好镜像了物理/Spine 的**接线**层——`PhysicsPlugin`、
   `PhysicsEvents`、`Physics`、`loadPhysicsModule`、`SpinePlugin`、
   `SpineEvents`、`Spine`——宿主无需子路径导入即可注册这些插件。完整 API 在
-  `esengine/physics` 与 `esengine/spine` 子路径上。见[物理](/docs/zh-cn/guides/physics/)
-  与 [Spine](/docs/zh-cn/guides/spine/)。
+  `esengine/physics` 与 `esengine/spine` 子路径上。见[物理](/docs/zh-cn/gameplay/physics/)
+  与 [Spine](/docs/zh-cn/animation/spine/)。
 </Aside>
 
 ## 热重载
@@ -326,7 +326,7 @@ import 你的 bundle,返回一个 `ProbedRegistrations`:
 `defineComponent('Health', …)` 解析到*同一个*组件身份,因此重新导入的系统的
 查询能命中存活的存储。相应地,给组件或 behavior 改名是结构性变更(整体重载 +
 该数据的状态丢失),且重载后每实体的 `start` 钩子会再次运行——请把它写成幂等
-的初始化(见[脚本](/docs/zh-cn/guides/scripting/))。
+的初始化(见[脚本](/docs/zh-cn/scripting/overview/))。
 
 ## 最佳实践
 
@@ -347,6 +347,6 @@ import 你的 bundle,返回一个 `ProbedRegistrations`:
 - [插件与资源](/docs/zh-cn/core-concepts/plugins-resources/)——用 `Res(...)`
   触达子系统 API。
 - [系统](/docs/zh-cn/core-concepts/systems/)——调度与系统参数。
-- [构建与导出](/docs/zh-cn/guides/build-export/)——侧模块产物在各目标如何发布。
-- [物理](/docs/zh-cn/guides/physics/)与 [Spine](/docs/zh-cn/guides/spine/)——
+- [构建与导出](/docs/zh-cn/publishing/overview/)——侧模块产物在各目标如何发布。
+- [物理](/docs/zh-cn/gameplay/physics/)与 [Spine](/docs/zh-cn/animation/spine/)——
   侧模块背后的两个子路径 API。

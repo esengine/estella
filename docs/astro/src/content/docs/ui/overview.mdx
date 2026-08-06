@@ -17,14 +17,14 @@ detailed UI guides. Deep reference for each area lives in its own chapter.
 
 | Component | Role | Guide |
 |---|---|---|
-| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). | [UI Layout](/docs/guides/ui-layout/) |
-| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). | [UI Layout](/docs/guides/ui-layout/) |
-| `Text` | Text via a dynamic glyph atlas (content, font, color, align, stroke, shadow, rich text). | [UI Text](/docs/guides/ui-text/) |
+| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). | [UI Layout](/docs/ui/layout/) |
+| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). | [UI Layout](/docs/ui/layout/) |
+| `Text` | Text via a dynamic glyph atlas (content, font, color, align, stroke, shadow, rich text). | [UI Text](/docs/ui/text/) |
 | `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. | below |
 | `UIMask` | Clips its children. | below |
 | `UIScroll` | Makes a clipped node a scroll viewport: the wheel and drags move its content. | below |
-| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. | [UI Interaction](/docs/guides/ui-interaction/) |
-| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). | [UI Interaction](/docs/guides/ui-interaction/) |
+| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. | [UI Interaction](/docs/ui/interaction/) |
+| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). | [UI Interaction](/docs/ui/interaction/) |
 
 ## Quickstart: a pause menu
 
@@ -75,10 +75,10 @@ addStartupSystem(buildPauseMenu);
 
 `spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity; pass
 `parent` to nest. Sizes use the dimension helpers `px`, `percent`, `auto` — all
-in **design pixels** (see [UI Layout](/docs/guides/ui-layout/#units-design-pixels)).
+in **design pixels** (see [UI Layout](/docs/ui/layout/#units-design-pixels)).
 The other widget factories work the same way: `createToggle`, `createSlider`,
 `createProgress`, `createDialog`, `createDropdown` — see
-[UI Components](/docs/guides/ui-components/).
+[UI Components](/docs/ui/widgets/).
 
 ## How the pieces fit
 
@@ -86,21 +86,21 @@ Each layer builds on the one before it:
 
 1. **Layout** — `UINode` boxes, solved by the flexbox engine; `FlexContainer`
    arranges children, `Absolute` insets place overlays.
-   → [UI Layout](/docs/guides/ui-layout/)
+   → [UI Layout](/docs/ui/layout/)
 2. **Visuals & text** — `UIVisual` fills the box, `UIMask` clips, `Text` draws
-   crisp glyphs. → [UI Text](/docs/guides/ui-text/)
+   crisp glyphs. → [UI Text](/docs/ui/text/)
 3. **Interaction** — `Interactable` makes a box hit-testable; the engine writes
    pointer state into `UIInteraction` and emits bubbling `UIEvents`; drag & drop
-   and keyboard focus sit on top. → [UI Interaction](/docs/guides/ui-interaction/)
+   and keyboard focus sit on top. → [UI Interaction](/docs/ui/interaction/)
 4. **Widgets** — factories (`createButton`, `createSlider`, …) compose the three
    layers into ready-made controls; `createListView` adds virtualized lists.
-   → [UI Components](/docs/guides/ui-components/), [UI Lists](/docs/guides/ui-lists/)
+   → [UI Components](/docs/ui/widgets/), [UI Lists](/docs/ui/lists/)
 5. **Controllers** — a named "page" state per UI root with per-page field
    bindings (tabs, button states, show/hide) — no code.
-   → [UI Controllers](/docs/guides/ui-controllers/)
+   → [UI Controllers](/docs/ui/controllers/)
 6. **Theme & binding** — design tokens skin every widget (live-switchable), and
    reactive signals keep UI in sync with game state.
-   → [UI Theme](/docs/guides/ui-theme/), [UI Binding](/docs/guides/ui-binding/)
+   → [UI Theme](/docs/ui/theming/), [UI Binding](/docs/ui/data-binding/)
 
 ### `UIVisual` and `UIMask`
 
@@ -130,7 +130,7 @@ reaches. Corners keep their exact pixels at any size, so one 100×112 texture se
 tooltip and a full-width banner. The border belongs to the **image**, not to the entity
 using it, so it is a texture import setting — set it once and every `NineSlice` that
 references the texture is sliced the same way. See
-[dragging the border](/docs/guides/editor/#the-content-browser) in the asset inspector.
+[dragging the border](/docs/editor/overview/#the-content-browser) in the asset inspector.
 
 #### What a mask is for
 
@@ -229,7 +229,7 @@ Both author the **same components** — there is no separate editor format:
 - **Editor** — *Create… → UI* drops widget prefabs (Button, Toggle, Slider,
   Dialog, …); nest by dragging, edit every field in Details, place with the
   per-axis anchor picker, and preview against the project's design resolution
-  and device presets. See [The Editor](/docs/guides/editor/).
+  and device presets. See [The Editor](/docs/editor/overview/).
 - **Code** — `spawnUIEntity` + the widget factories, from a startup system as
   above. Anything the editor writes, code can write too.
 
@@ -237,14 +237,14 @@ Both author the **same components** — there is no separate editor format:
 
 | You want to… | Open |
 |---|---|
-| Size and place boxes — `px`/`percent`/`auto`, flexbox, absolute insets, anchors | [UI Layout](/docs/guides/ui-layout/) |
-| Draw text — fonts, SDF/bitmap crispness, wrapping, rich text | [UI Text](/docs/guides/ui-text/) |
-| React to pointer & keyboard — clicks, `UIEvents`, drag & drop, focus | [UI Interaction](/docs/guides/ui-interaction/) |
-| Use ready-made controls — button, toggle, slider, dialog, dropdown, input | [UI Components](/docs/guides/ui-components/) |
-| Show scrolling data — virtualized lists and grids | [UI Lists](/docs/guides/ui-lists/) |
-| Skin everything — design tokens, project theme, live switching | [UI Theme](/docs/guides/ui-theme/) |
-| Keep UI in sync with game state — signals, `bind`, two-way widget binding | [UI Binding](/docs/guides/ui-binding/) |
-| Share state across elements — tabs, radio groups, page-driven visuals | [UI Controllers](/docs/guides/ui-controllers/) |
+| Size and place boxes — `px`/`percent`/`auto`, flexbox, absolute insets, anchors | [UI Layout](/docs/ui/layout/) |
+| Draw text — fonts, SDF/bitmap crispness, wrapping, rich text | [UI Text](/docs/ui/text/) |
+| React to pointer & keyboard — clicks, `UIEvents`, drag & drop, focus | [UI Interaction](/docs/ui/interaction/) |
+| Use ready-made controls — button, toggle, slider, dialog, dropdown, input | [UI Components](/docs/ui/widgets/) |
+| Show scrolling data — virtualized lists and grids | [UI Lists](/docs/ui/lists/) |
+| Skin everything — design tokens, project theme, live switching | [UI Theme](/docs/ui/theming/) |
+| Keep UI in sync with game state — signals, `bind`, two-way widget binding | [UI Binding](/docs/ui/data-binding/) |
+| Share state across elements — tabs, radio groups, page-driven visuals | [UI Controllers](/docs/ui/controllers/) |
 
 ## Best practices
 
@@ -259,7 +259,7 @@ Both author the **same components** — there is no separate editor format:
 
 ## See also
 
-- [Input](/docs/guides/input/) — raw keyboard/mouse/touch below the UI layer.
-- [Localization](/docs/guides/localization/) — bind `Text.content` to translated keys.
-- [Animation](/docs/guides/animation/) — tween UI color/position for juice.
-- [The Editor](/docs/guides/editor/) — visual authoring, prefabs, anchor picker.
+- [Input](/docs/scripting/input/) — raw keyboard/mouse/touch below the UI layer.
+- [Localization](/docs/assets/localization/) — bind `Text.content` to translated keys.
+- [Animation](/docs/animation/overview/) — tween UI color/position for juice.
+- [The Editor](/docs/editor/overview/) — visual authoring, prefabs, anchor picker.

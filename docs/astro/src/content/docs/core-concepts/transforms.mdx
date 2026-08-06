@@ -44,9 +44,9 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 ```
 
 `position.x/y/z`, `rotation.z`, and `scale.x/y/z` are animatable (the
-[Sequencer](/docs/guides/timeline/) and [tweens](/docs/guides/animation/#tweens)
+[Sequencer](/docs/animation/timeline/) and [tweens](/docs/animation/overview/#tweens)
 can key them), and `position` / `rotation` / `scale` are replicated by
-[networking](/docs/guides/networking/)'s state replication.
+[networking](/docs/scripting/networking/)'s state replication.
 
 <Aside type="note">
   `LocalTransform` and `WorldTransform` are exported as **aliases of the same
@@ -67,14 +67,14 @@ can key them), and `position` / `rotation` / `scale` are replicated by
   the angle toward a target directly).
 - **`position.z` is draw-order, not perspective**: 2D rendering orders coarsely
   by each renderer's sorting `layer`; within a layer, use `z` for fine ordering
-  (or a [y-sorted layer](/docs/guides/sprites/#draw-order--sorting-layers) for
+  (or a [y-sorted layer](/docs/graphics/sprites/#draw-order--sorting-layers) for
   top-down depth). It does not foreshorten or scale sprites.
 - **Screen space is Y-down**: pointer coordinates (`Input.mouseX/mouseY`, UI hit
   testing) are pixels from the **top-left** of the canvas, Y increasing
   downward.
 
 Convert between the two with the `CameraView` resource (see
-[Camera](/docs/guides/camera/#screen--world-coordinates) for the full API):
+[Camera](/docs/graphics/camera/#screen--world-coordinates) for the full API):
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -190,11 +190,11 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 
 To animate a rotation, `TweenTarget.RotationZ` drives the Z angle **in radians**
 (the engine rebuilds the quaternion each step), and the Sequencer keys
-`rotation.z` the same way — see [Animation](/docs/guides/animation/#tweens).
+`rotation.z` the same way — see [Animation](/docs/animation/overview/#tweens).
 
 <Aside type="tip">
   For aiming math without touching rotation at all, `v2.fromAngle(angle, len)`
-  and `v2.rotate(v, angle)` from the [math helpers](/docs/guides/math/) produce
+  and `v2.rotate(v, angle)` from the [math helpers](/docs/scripting/math/) produce
   direction vectors directly.
 </Aside>
 
@@ -302,7 +302,7 @@ world space).
 ## See also
 
 - [Components](/docs/core-concepts/components/) — how components declare and store data.
-- [Camera](/docs/guides/camera/) — orthoSize, follow, and screen ↔ world conversion.
-- [Sprites & Rendering](/docs/guides/sprites/) — sorting layers, y-sort, and draw order.
-- [Physics](/docs/guides/physics/) — the meter-based side of the unit system.
-- [Math Helpers](/docs/guides/math/) — vector and rotation math on the canonical types.
+- [Camera](/docs/graphics/camera/) — orthoSize, follow, and screen ↔ world conversion.
+- [Sprites & Rendering](/docs/graphics/sprites/) — sorting layers, y-sort, and draw order.
+- [Physics](/docs/gameplay/physics/) — the meter-based side of the unit system.
+- [Math Helpers](/docs/scripting/math/) — vector and rotation math on the canonical types.

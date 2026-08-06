@@ -243,13 +243,13 @@ delivery:
 ```
 
 Off by default, deliberately — reachability is what keeps a build from shipping
-everything. See [Assets](/docs/guides/assets/#shipping-what-only-code-names).
+everything. See [Assets](/docs/assets/overview/#shipping-what-only-code-names).
 
 ### Tune textures for the platform where memory is tightest
 
 Per-asset **Import Settings** have a tab per platform, mobile targets included —
 so a texture can be compressed harder for a phone than for the web without
-touching the source PNG. See [Assets](/docs/guides/assets/).
+touching the source PNG. See [Assets](/docs/assets/overview/).
 
 ### Your game script is interpreted
 
@@ -349,7 +349,7 @@ adb logcat --pid=$(adb shell pidof <your.package.id>)
 
 ## See also
 
-- [Building & Exporting](/docs/guides/build-export/) — every target, the cook options, and the Package dialog.
-- [Assets](/docs/guides/assets/) — reachability culling, delivery groups, and import settings.
+- [Building & Exporting](/docs/publishing/overview/) — every target, the cook options, and the Package dialog.
+- [Assets](/docs/assets/overview/) — reachability culling, delivery groups, and import settings.
 - [Screen & Design Resolution](/docs/core-concepts/screen/) — designing for a phone's aspect.
 - [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md) — the host's architecture and the full build recipe.

@@ -80,7 +80,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `align` | `TextAlign` | `Left` | Horizontal alignment: `Left` / `Center` / `Right`. |
 | `verticalAlign` | `TextVerticalAlign` | `Top` | Vertical alignment: `Top` / `Middle` / `Bottom`. |
 | `wordWrap` | boolean | `true` | Wrap lines at the box width (needs a `UINode` box). |
-| `overflow` | `TextOverflow` | `Visible` | `Visible` / `Clip` / `Ellipsis`. Currently the renderer always draws `Visible`; clip overflow with a [`UIMask`](/docs/guides/ui/) on the box. |
+| `overflow` | `TextOverflow` | `Visible` | `Visible` / `Clip` / `Ellipsis`. Currently the renderer always draws `Visible`; clip overflow with a [`UIMask`](/docs/ui/overview/) on the box. |
 | `lineHeight` | number | `1.2` | Line spacing as a **ratio of `fontSize`** (baseline-to-baseline = `lineHeight × fontSize`). |
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
@@ -274,7 +274,7 @@ exists (install `localizationPlugin`), a per-frame system resolves the key
 through the catalogs and writes the result into `content` — so `setLocale`
 re-flows every bound label on the next frame. A missing key resolves to the key
 itself (visible and greppable), and with no Localization resource the authored
-`content` stands. See [Localization](/docs/guides/localization/).
+`content` stands. See [Localization](/docs/assets/localization/).
 
 ## Best practices
 
@@ -293,9 +293,9 @@ itself (visible and greppable), and with no Localization resource the authored
 
 ## See also
 
-- [UI](/docs/guides/ui/) — the component model overview.
-- [UI Layout](/docs/guides/ui-layout/) — the `UINode` box that text aligns and wraps within.
-- [UI Components](/docs/guides/ui-components/) — `createTextInput` for editable text.
-- [UI Theme](/docs/guides/ui-theme/) — themed text color roles and type scale.
-- [UI Binding](/docs/guides/ui-binding/) — drive `content` from reactive signals.
-- [Localization](/docs/guides/localization/) — catalogs, locales, and `i18nKey` resolution.
+- [UI](/docs/ui/overview/) — the component model overview.
+- [UI Layout](/docs/ui/layout/) — the `UINode` box that text aligns and wraps within.
+- [UI Components](/docs/ui/widgets/) — `createTextInput` for editable text.
+- [UI Theme](/docs/ui/theming/) — themed text color roles and type scale.
+- [UI Binding](/docs/ui/data-binding/) — drive `content` from reactive signals.
+- [Localization](/docs/assets/localization/) — catalogs, locales, and `i18nKey` resolution.

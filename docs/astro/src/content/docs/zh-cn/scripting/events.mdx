@@ -15,7 +15,7 @@ click ─▶ ui.setPage(badge, on)           目标「Card」
 ```
 
 连线**刻意不是**可视化编程语言。一行里没有分支、没有表达式；真的需要逻辑时，这行会指向一个
-把控制权交给[状态机](/docs/zh-cn/guides/ai/)的动作——Estella 已经有图编辑器了。
+把控制权交给[状态机](/docs/zh-cn/gameplay/ai/)的动作——Estella 已经有图编辑器了。
 
 ## 检视器里的一根线
 
@@ -38,7 +38,7 @@ click ─▶ ui.setPage(badge, on)           目标「Card」
 
 ## 数据本身
 
-一根线就是 `EventBinding` 组件，因此它会序列化进场景、随[预制体](/docs/zh-cn/guides/prefab/)
+一根线就是 `EventBinding` 组件，因此它会序列化进场景、随[预制体](/docs/zh-cn/world/prefabs/)
 一起走，和任何组件一样——不新增资产类型：
 
 ```typescript
@@ -86,12 +86,12 @@ world.insert(button, EventBinding, {
 
 | 动作 | 作用 |
 |---|---|
-| `ui.setPage` | 把 [UI 控制器](/docs/zh-cn/guides/ui-controllers/)切到某一页。 |
+| `ui.setPage` | 把 [UI 控制器](/docs/zh-cn/ui/controllers/)切到某一页。 |
 | `ui.setVisible` | 显示/隐藏一棵 UI 子树（`UINode.display`）。 |
 | `property.set` | 写任意组件字段，按 `Component.dot.path` 寻址。 |
 | `fsm.fire` | 向目标的状态机发一个触发器。 |
 | `blackboard.set` | 设置一个黑板变量。 |
-| `timeline.play` · `timeline.pause` | 驱动目标上的[时间轴](/docs/zh-cn/guides/timeline/)。 |
+| `timeline.play` · `timeline.pause` | 驱动目标上的[时间轴](/docs/zh-cn/animation/timeline/)。 |
 | `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | 驱动精灵序列帧。 |
 
 ### 你自己的动作
@@ -140,8 +140,8 @@ shown ─▶ fsm.fire(enter)  挂在 "MissionPanel"   →   Hidden ──enter�
 
 在没有人监听这两个事件之前，这份「盯着」不花任何代价；有人监听、但这一帧 UI 没动过时，同样不花。
 
-[物理](/docs/zh-cn/guides/physics/)接触也走同一条通道（`PhysicsEventType`），所以
-[触发区](/docs/zh-cn/guides/markers/)的接线方式和按钮一模一样——双方都会收到事件，各自拿到对方：
+[物理](/docs/zh-cn/gameplay/physics/)接触也走同一条通道（`PhysicsEventType`），所以
+[触发区](/docs/zh-cn/gameplay/markers/)的接线方式和按钮一模一样——双方都会收到事件，各自拿到对方：
 
 `collision_enter` · `collision_exit` · `collision_hit` · `trigger_enter` · `trigger_exit`
 
@@ -156,7 +156,7 @@ app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 ## 当一根线需要逻辑时
 
 一行只跑一个动作，没有"如果"，也没有先后序列。这是**刻意**设的天花板，而 `fsm.fire` 就是
-突破口——点击发出一个触发器，实体的[状态机](/docs/zh-cn/guides/ai/)来决定它意味着什么：
+突破口——点击发出一个触发器，实体的[状态机](/docs/zh-cn/gameplay/ai/)来决定它意味着什么：
 
 ```
 click ─▶ fsm.fire(start)  目标「Hint」   →   Idle ──start──▶ Running

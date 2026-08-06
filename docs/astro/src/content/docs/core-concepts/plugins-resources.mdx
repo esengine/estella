@@ -24,25 +24,25 @@ Every subsystem's imperative API is reached the same way:
 
 | Subsystem | Resource | Guide |
 |---|---|---|
-| Input | `Res(Input)` | [Input](/docs/guides/input/) |
-| Audio | `Res(Audio)` | [Audio](/docs/guides/audio/) |
-| Assets | `Res(Assets)` | [Assets](/docs/guides/assets/) |
-| Tilemaps | `Res(Tilemaps)` | [Tilemaps](/docs/guides/tilemap/) |
-| Particles | `Res(Particle)` | [Particles](/docs/guides/particle/) |
-| Post-processing | `Res(PostProcess)` | [Post-processing](/docs/guides/postprocess/) |
-| Scenes | `Res(SceneManager)` | [Scenes](/docs/guides/scene/) |
-| Tweens | `Res(Tween)` | [Animation](/docs/guides/animation/) |
-| Frame animation | `Res(SpriteAnimation)` | [Animation](/docs/guides/animation/) |
-| Animator | `Res(AnimatorController)` | [Animation](/docs/guides/animation/) |
-| Timers | `Res(TimerRes)` | [Scripting](/docs/guides/scripting/) |
-| Timeline | `Res(Timeline)` | [Timeline](/docs/guides/timeline/) |
-| Prefabs | `Res(Prefabs)` | [Prefabs](/docs/guides/prefab/) |
-| Navigation / AI | `Res(Nav)` | [Gameplay AI](/docs/guides/ai/) |
-| Localization | `Res(Localization)` | [Localization](/docs/guides/localization/) |
-| Camera view | `Res(CameraView)` | [Camera](/docs/guides/camera/) |
-| UI events | `Res(UIEvents)` | [UI](/docs/guides/ui/) |
-| Physics | `Res(Physics)` — from `esengine/physics` | [Physics](/docs/guides/physics/) |
-| Spine | `Res(Spine)` — from `esengine/spine` | [Spine](/docs/guides/spine/) |
+| Input | `Res(Input)` | [Input](/docs/scripting/input/) |
+| Audio | `Res(Audio)` | [Audio](/docs/assets/audio/) |
+| Assets | `Res(Assets)` | [Assets](/docs/assets/overview/) |
+| Tilemaps | `Res(Tilemaps)` | [Tilemaps](/docs/world/tilemaps/) |
+| Particles | `Res(Particle)` | [Particles](/docs/world/particles/) |
+| Post-processing | `Res(PostProcess)` | [Post-processing](/docs/graphics/post-processing/) |
+| Scenes | `Res(SceneManager)` | [Scenes](/docs/world/scenes/) |
+| Tweens | `Res(Tween)` | [Animation](/docs/animation/overview/) |
+| Frame animation | `Res(SpriteAnimation)` | [Animation](/docs/animation/overview/) |
+| Animator | `Res(AnimatorController)` | [Animation](/docs/animation/overview/) |
+| Timers | `Res(TimerRes)` | [Scripting](/docs/scripting/overview/) |
+| Timeline | `Res(Timeline)` | [Timeline](/docs/animation/timeline/) |
+| Prefabs | `Res(Prefabs)` | [Prefabs](/docs/world/prefabs/) |
+| Navigation / AI | `Res(Nav)` | [Gameplay AI](/docs/gameplay/ai/) |
+| Localization | `Res(Localization)` | [Localization](/docs/assets/localization/) |
+| Camera view | `Res(CameraView)` | [Camera](/docs/graphics/camera/) |
+| UI events | `Res(UIEvents)` | [UI](/docs/ui/overview/) |
+| Physics | `Res(Physics)` — from `esengine/physics` | [Physics](/docs/gameplay/physics/) |
+| Spine | `Res(Spine)` — from `esengine/spine` | [Spine](/docs/animation/spine/) |
 
 Physics and Spine are **optional side-modules** loaded on demand, so their APIs
 live on subpaths to keep the base bundle small; everything else is in the main

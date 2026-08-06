@@ -337,8 +337,8 @@ from it when needed.
   layer — `PhysicsPlugin`, `PhysicsEvents`, `Physics`, `loadPhysicsModule`,
   `SpinePlugin`, `SpineEvents`, `Spine` — so hosts can register the plugins
   without a subpath import. The full APIs live on the `esengine/physics` and
-  `esengine/spine` subpaths. See [Physics](/docs/guides/physics/) and
-  [Spine](/docs/guides/spine/).
+  `esengine/spine` subpaths. See [Physics](/docs/gameplay/physics/) and
+  [Spine](/docs/animation/spine/).
 </Aside>
 
 ## Hot reload
@@ -362,7 +362,7 @@ component identity, so re-imported systems' queries reach the live storage.
 Consequently, renaming a component or behavior is a structural change (full
 reload + state loss for that data), and per-entity `start` hooks run again
 after a reload — write them as idempotent setup (see
-[Scripting](/docs/guides/scripting/)).
+[Scripting](/docs/scripting/overview/)).
 
 ## Best practices
 
@@ -388,7 +388,7 @@ after a reload — write them as idempotent setup (see
 - [Plugins & Resources](/docs/core-concepts/plugins-resources/) — reaching
   subsystem APIs with `Res(...)`.
 - [Systems](/docs/core-concepts/systems/) — schedules and system parameters.
-- [Building & Exporting](/docs/guides/build-export/) — how side-module
+- [Building & Exporting](/docs/publishing/overview/) — how side-module
   artifacts ship per target.
-- [Physics](/docs/guides/physics/) and [Spine](/docs/guides/spine/) — the two
+- [Physics](/docs/gameplay/physics/) and [Spine](/docs/animation/spine/) — the two
   subpath APIs behind side modules.

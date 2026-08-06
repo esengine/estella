@@ -19,7 +19,7 @@ Estella 的 2D 单位模型刻意保持简单:
 - 默认场景相机的 `orthoSize` 是 `designResolution.y / 2` = **540**——设计高度的一半——
   所以在设计宽高比下,相机恰好显示一个设计盒(1920×1080 世界单位)。
 - 世界是 **Y 向上**;屏幕坐标是 **Y 向下**(由
-  [`CameraView`](/docs/zh-cn/guides/camera/) 为你转换)。
+  [`CameraView`](/docs/zh-cn/graphics/camera/) 为你转换)。
 - `Canvas.pixelsPerUnit`(默认 `100`)是**物理缩放**——每 Box2D 米的世界像素数——
   **不是**显示缩放。渲染从不除以它。
 
@@ -301,7 +301,7 @@ applyBuildRuntimeConfig(app, {
 
 ## 参见
 
-- [相机](/docs/zh-cn/guides/camera/) —— orthoSize、跟随、混合、分屏。
-- [UI](/docs/zh-cn/guides/ui/) —— 消费设计像素盒的 flexbox 布局。
-- [物理](/docs/zh-cn/guides/physics/) —— `pixelsPerUnit` 真正起作用的地方。
-- [编辑器](/docs/zh-cn/guides/editor/) —— 显示设置页与设备预览。
+- [相机](/docs/zh-cn/graphics/camera/) —— orthoSize、跟随、混合、分屏。
+- [UI](/docs/zh-cn/ui/overview/) —— 消费设计像素盒的 flexbox 布局。
+- [物理](/docs/zh-cn/gameplay/physics/) —— `pixelsPerUnit` 真正起作用的地方。
+- [编辑器](/docs/zh-cn/editor/overview/) —— 显示设置页与设备预览。

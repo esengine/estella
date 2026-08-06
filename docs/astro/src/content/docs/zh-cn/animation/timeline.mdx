@@ -36,7 +36,7 @@ const attach = defineSystem([Commands()], (cmds) => {
 | `finished` | boolean | `false` | `'once'` 片段播完时闩为 true;下次播放时清除。运行时只读。 |
 
 组件旗标**就是**播放控制本身:引擎每帧把它们调和进内部时钟,所以任何翻动
-`playing` 的一方——你的代码、检视器、[AI 动作](/docs/zh-cn/guides/ai/#内建名字)——
+`playing` 的一方——你的代码、检视器、[AI 动作](/docs/zh-cn/gameplay/ai/#内建名字)——
 都经同一条通道驱动片段。
 
 ## 控制播放
@@ -73,7 +73,7 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 <Aside type="tip">
   想做**零代码过场**,把组件和状态机配对:内建的 `timeline.play` 动作 +
   `timeline.finished` 条件就是一个"进入即播放、播完即转出"的 FSM 状态。见
-  [AI——内建名字](/docs/zh-cn/guides/ai/#内建名字)。
+  [AI——内建名字](/docs/zh-cn/gameplay/ai/#内建名字)。
 </Aside>
 
 ## 轨道类型
@@ -216,7 +216,7 @@ API 里。映射与行为:
 - 过场用 **`wrapMode: 'once'`**,环境/待机序列用 `'loop'`。
 - **用 `setTime` scrub** 来预览,或把过场与玩法状态同步。
 - 当很多属性/实体需要同步动画时**用时间轴(而非补间)**;一次性的单属性手感用
-  [补间](/docs/zh-cn/guides/animation/)。
+  [补间](/docs/zh-cn/animation/overview/)。
 
 <Aside type="note">
   时间轴播放属于玩法——它在播放模式和独立运行时里推进,在编辑器编辑模式下冻结。
@@ -224,5 +224,5 @@ API 里。映射与行为:
 
 ## 参见
 
-- [动画](/docs/zh-cn/guides/animation/) —— 补间与动画状态机。
-- [Spine 动画](/docs/zh-cn/guides/spine/) —— 时间轴可以驱动 Spine 片段。
+- [动画](/docs/zh-cn/animation/overview/) —— 补间与动画状态机。
+- [Spine 动画](/docs/zh-cn/animation/spine/) —— 时间轴可以驱动 Spine 片段。

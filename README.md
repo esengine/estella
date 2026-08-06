@@ -98,8 +98,8 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 - [ECS Architecture](https://estellaengine.com/docs/core-concepts/ecs/)
 - [Components](https://estellaengine.com/docs/core-concepts/components/)
 - [Systems](https://estellaengine.com/docs/core-concepts/systems/)
-- [Building & Exporting](https://estellaengine.com/docs/guides/build-export/)
-- [Android & iOS](https://estellaengine.com/docs/guides/mobile/)
+- [Building & Exporting](https://estellaengine.com/docs/publishing/overview/)
+- [Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
 
 ## Contributing
 
