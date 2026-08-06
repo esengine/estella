@@ -30,6 +30,15 @@ describe('.meta type table (single source)', () => {
         expect(metaTypeFor('x.inputmap')).toBe('inputmap');
     });
 
+    // The graph is editor-side source that never ships — but an extension only
+    // the Content Browser knew about is one create_asset cannot name and the
+    // scan cannot adopt, so it belongs on the shared table like every other.
+    it('types a material graph (regression: only the renderer knew the extension)', () => {
+        expect(metaTypeFor('fire.esmatgraph')).toBe('materialgraph');
+        expect(metaTypeFor('fire.esshader')).toBe('shader');
+        expect(metaTypeFor('fire.esmaterial')).toBe('material');
+    });
+
     it('mints a type for an imported .esanimator (regression: was unknown → no meta)', () => {
         expect(metaTypeFor('player.esanimator')).toBe('animatorcontroller');
     });

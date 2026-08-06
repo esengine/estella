@@ -54,6 +54,13 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esshader': 'shader',
     '.esmaterial': 'material',
     '.esmat': 'material',
+    // The visual material graph. It never ships (it compiles to the sibling
+    // `.esshader` that materials actually reference), but it has to be TYPED
+    // here all the same: without an entry the create door cannot name it
+    // (`create_asset` derives its extension from this table, so a graph could
+    // only be made by the Content Browser's own button) and a graph written by
+    // any other hand is never adopted by the scan, which types orphans by name.
+    '.esmatgraph': 'materialgraph',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',
     '.estimeline': 'animation',
