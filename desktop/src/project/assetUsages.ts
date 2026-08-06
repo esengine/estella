@@ -8,7 +8,7 @@
  */
 import { SceneModel } from '@/engine/SceneModel';
 import { ProjectStore } from './ProjectStore';
-import { collectAssetUsages, type AssetUsage } from './assetRefs';
+import { collectAssetUsagesOfAll, type AssetUsage } from './assetRefs';
 
 export type { AssetUsage };
 
@@ -25,14 +25,31 @@ export async function findAssetUsages(
   path: string,
   opts?: { preferCache?: boolean },
 ): Promise<AssetUsage[]> {
+  return findAssetUsagesOfAll([path], opts);
+}
+
+/**
+ * The same question asked of a whole selection, on ONE scan.
+ *
+ * Deleting from the Content Browser asked it per selected file, and the walk is
+ * O(every file in the project) — seconds on an asset-heavy project, with the
+ * main process blocked throughout. Twenty selected sprites meant twenty of those
+ * back to back before the confirm dialog appeared at all, and a folder's worth
+ * meant the editor did not come back.
+ */
+export async function findAssetUsagesOfAll(
+  paths: readonly string[],
+  opts?: { preferCache?: boolean },
+): Promise<AssetUsage[]> {
+  if (paths.length === 0) return [];
   const index = opts?.preferCache
     ? (await window.estella.project.cachedAssetIndex().catch(() => null))
         ?? (await window.estella.project.scanAssets()).index
     : (await window.estella.project.scanAssets()).index;
   const data = SceneModel.current;
-  return collectAssetUsages(
+  return collectAssetUsagesOfAll(
     index,
-    path,
+    paths,
     data ? { path: ProjectStore.getSnapshot()?.currentScene ?? null, data } : null,
   );
 }

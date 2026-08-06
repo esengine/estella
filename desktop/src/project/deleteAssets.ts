@@ -13,6 +13,10 @@
  * the whole batch is the difference between a delete and a freeze on a folder of sprites. A
  * failure on one path is reported in its own row rather than aborting the rest — a permission
  * error on the third file must not leave the first two deleted and unaccounted for.
+ *
+ * The re-scan is INCREMENTAL: we know exactly which paths went, and a full walk is O(every
+ * file in the project) — seconds on an asset-heavy one. Removing a folder still falls back to
+ * the full walk (its children were never named), which the incremental door decides, not us.
  */
 import { ProjectStore } from './ProjectStore';
 
@@ -39,6 +43,7 @@ export async function deleteAssets(paths: readonly string[]): Promise<TrashedAss
       results.push({ path, token: null, error: err instanceof Error ? err.message : String(err) });
     }
   }
-  if (results.some((r) => r.token !== null)) await ProjectStore.refreshAssets();
+  const gone = results.filter((r) => r.token !== null).map((r) => r.path);
+  if (gone.length > 0) await ProjectStore.applyDiskChanges(gone);
   return results;
 }

@@ -531,7 +531,16 @@ export async function updateAssetIndex(
 
   const byPath = new Map(prev.entries.map((e) => [e.path, e] as const));
   const adopted: string[] = [];
-  let setChanged = false; // an add/remove/uuid/type change — path resolution is global
+  // An ADD or a uuid/type change makes path + bare-uuid resolution global again —
+  // a ref that used to dangle can now land. A REMOVAL cannot do that, so the two
+  // are tracked apart; see the deps branch below for what each costs.
+  let resolutionChanged = false;
+  const removedUuids = new Set<string>();
+  const drop = (entry: AssetEntry | undefined, content: string): void => {
+    if (!entry) return;
+    byPath.delete(content);
+    removedUuids.add(entry.uuid);
+  };
 
   for (const content of contentPaths) {
     const abs = path.join(root, content);
@@ -540,14 +549,14 @@ export async function updateAssetIndex(
     // content edit, a `.meta` edit, orphan adoption, and deletion (the same states
     // a full scan resolves per file).
     if (!existsSync(abs)) {
-      if (before) { byPath.delete(content); setChanged = true; }
+      drop(before, content);
       continue;
     }
     if (!existsSync(abs + META_EXT)) {
       // Orphan content with no sidecar: a full scan would mint one this pass
       // (unknown extensions are left alone). Mirror that so it enters the index now.
       if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
-      else { if (before) { byPath.delete(content); setChanged = true; } continue; }
+      else { drop(before, content); continue; }
     }
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
     try {
@@ -562,7 +571,7 @@ export async function updateAssetIndex(
       type: meta.type,
       importer: (meta.importer as Record<string, unknown>) ?? {},
     };
-    if (!before || before.uuid !== entry.uuid || before.type !== entry.type) setChanged = true;
+    if (!before || before.uuid !== entry.uuid || before.type !== entry.type) resolutionChanged = true;
     byPath.set(content, entry);
   }
 
@@ -572,21 +581,35 @@ export async function updateAssetIndex(
   // Before deps, which are keyed by uuid.
   const warnings: string[] = [];
   const reminted = await resolveDuplicateUuids(root, entries, warnings);
-  if (reminted.length > 0) setChanged = true;
+  if (reminted.length > 0) resolutionChanged = true;
 
-  // Deps: when the entry SET changed, path + bare-uuid resolution is global, so
-  // recompute the whole graph from the new entries (still bounded to ref-carrying
-  // assets — far fewer than every `.meta`). When only existing assets' CONTENT
-  // changed, other assets' edges can't have moved: patch just the touched
-  // ref-assets over the previous graph.
+  // Deps: recomputing the whole graph means READING AND PARSING every ref-carrying
+  // asset in the project — a second or more once a project has a few thousand, and
+  // the main process is blocked throughout. So it is reserved for the case that
+  // needs it: an ADDED entry (or a re-minted uuid, or a changed type) makes path +
+  // bare-uuid resolution global again, because a reference that used to resolve to
+  // nothing may now land somewhere.
+  //
+  // A REMOVAL cannot move an edge that isn't already pointing at what left: for
+  // every other document the same paths and uuids resolve the same way. So the
+  // patch set is the touched files plus whoever referenced something removed —
+  // those must be re-read, since a path or bare-uuid ref to a gone asset stops
+  // being an edge (an `@uuid:` one does not, and re-reading is how we tell).
   let deps: Record<string, string[]>;
-  if (setChanged) {
+  if (resolutionChanged) {
     const r = await computeDeps(root, entries);
     deps = r.deps;
     warnings.push(...r.warnings);
   } else {
     deps = { ...prev.deps };
-    const touched = entries.filter((e) => contentPaths.has(e.path));
+    const reresolve = new Set<string>();
+    for (const uuid of removedUuids) delete deps[uuid];
+    if (removedUuids.size > 0) {
+      for (const [uuid, refs] of Object.entries(deps)) {
+        if (refs.some((r) => removedUuids.has(r))) reresolve.add(uuid);
+      }
+    }
+    const touched = entries.filter((e) => contentPaths.has(e.path) || reresolve.has(e.uuid));
     for (const e of touched) delete deps[e.uuid]; // clear stale before recompute
     const r = await computeDeps(root, entries, touched);
     Object.assign(deps, r.deps);

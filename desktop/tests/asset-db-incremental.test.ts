@@ -120,6 +120,24 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     expect(inc.index.entries.some((e) => e.uuid === FONT)).toBe(false);
   });
 
+  // A removal doesn't recompute the whole graph any more — only the documents that
+  // referenced what left. A PATH-ref is the case that proves the set is right: it
+  // stops resolving when its target goes, so its referrer MUST be re-read (unlike
+  // an `@uuid:` one, which a full scan keeps dangling).
+  it('DELETING a path-ref target re-resolves its referrer, matching full', async () => {
+    writeAsset('assets/materials/wall.png', 'texture', TEX2, 'WALL');
+    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({ texture: 'wall.png' }));
+    const { index: prev } = await scanAssetDatabase(root, { write: false });
+    expect(prev.deps[MAT]).toEqual([TEX2]);
+
+    rmSync(path.join(root, 'assets/materials/wall.png'));
+    rmSync(path.join(root, 'assets/materials/wall.png.meta'));
+    await expectIncrementalEqualsFull(prev, ['assets/materials/wall.png', 'assets/materials/wall.png.meta']);
+
+    const inc = await updateAssetIndex(root, prev, ['assets/materials/wall.png'], { write: false });
+    expect(inc.index.deps[MAT]).toBeUndefined(); // the edge is gone, not left dangling
+  });
+
   it('DELETING a .meta while the content file stays re-adopts it, like a full scan', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     rmSync(path.join(root, 'assets/textures/player.png.meta')); // orphan the png

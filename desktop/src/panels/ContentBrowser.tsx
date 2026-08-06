@@ -19,7 +19,7 @@ import { openAssetOfType } from '@/project/assetOpen';
 import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
 import { syncAssetPaths } from '@/project/assetPathSync';
-import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
+import { findAssetUsagesOfAll, type AssetUsage } from '@/project/assetUsages';
 import { deleteAssets } from '@/project/deleteAssets';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { NewTilesetDialog } from '@/components/NewTilesetDialog';
@@ -555,14 +555,8 @@ export function ContentBrowser() {
   // aggregating each one's references so nothing gets deleted out from under a scene.
   const remove = async (paths: string[]) => {
     if (paths.length === 0) return;
-    const usages: AssetUsage[] = [];
-    for (const p of paths) {
-      try {
-        usages.push(...(await findAssetUsages(p)));
-      } catch {
-        // Best-effort: if the scan fails, confirm without that asset's warning.
-      }
-    }
+    // Best-effort: if the scan fails, confirm without the warnings.
+    const usages = await findAssetUsagesOfAll(paths).catch((): AssetUsage[] => []);
     setConfirmDel({ paths, names: paths.map((p) => baseName(p)), usages });
   };
   const doRemove = async () => {
@@ -1257,7 +1251,11 @@ export function ContentBrowser() {
                     >
                       <div className="th">
                         {isImg ? (
-                          <img src={`estella://project/${path}`} alt="" draggable={false} />
+                          // Deferred, because a folder is however many images the user put
+                          // in it: this grid mounts a tile per entry, and a full-size decode
+                          // per tile is how browsing an art dump costs hundreds of megabytes
+                          // of image memory for the twenty thumbnails actually on screen.
+                          <img src={`estella://project/${path}`} alt="" draggable={false} loading="lazy" decoding="async" />
                         ) : (
                           <AssetIcon type={type} size={30} />
                         )}
