@@ -33,16 +33,31 @@ function htmlFiles(dir) {
   return out;
 }
 
-/** Does this in-site path resolve to something the build emitted? */
-function resolves(urlPath) {
+/** The file a `/docs/...` path is served from, or null if nothing emits it. */
+function pageFile(urlPath) {
   const rel = urlPath.slice(BASE.length).replace(/^\/+/, '').replace(/\/+$/, '');
-  const asDir = join(DIST, ...rel.split('/'), 'index.html');
-  const asFile = join(DIST, ...rel.split('/'));
-  if (existsSync(asDir)) return true;
-  if (existsSync(asFile) && statSync(asFile).isFile()) return true;
   // The Doxygen C++ API is merged in by the site build script, not by Astro.
-  if (rel.startsWith('api/')) return true;
-  return false;
+  if (rel.startsWith('api/')) return 'external';
+  const asDir = join(DIST, ...rel.split('/'), 'index.html');
+  if (existsSync(asDir)) return asDir;
+  const asFile = join(DIST, ...rel.split('/'));
+  if (existsSync(asFile) && statSync(asFile).isFile()) return asFile;
+  return null;
+}
+
+/** Heading ids a page offers, so `#anchor` links are checked too — a heading's
+ *  slug is not guessable by hand ("Bodies & colliders" is `bodies--colliders`,
+ *  with two hyphens), which makes hand-written anchors quietly wrong. */
+const idCache = new Map();
+function idsOf(file) {
+  let ids = idCache.get(file);
+  if (!ids) {
+    ids = new Set();
+    const html = readFileSync(file, 'utf8');
+    for (const m of html.matchAll(/\sid="([^"]+)"/g)) ids.add(m[1]);
+    idCache.set(file, ids);
+  }
+  return ids;
 }
 
 function main() {
@@ -58,12 +73,18 @@ function main() {
     // every locale it gets mirrored into (hence a segment test, not a prefix).
     if (relative(DIST, page).split(sep).includes('api-ts')) continue;
     const html = readFileSync(page, 'utf8');
-    for (const m of html.matchAll(/href="(\/docs\/[^"#?]*)/g)) {
-      const target = m[1];
+    for (const m of html.matchAll(/href="(\/docs\/[^"?]*)"/g)) {
+      const [path, fragment] = m[1].split('#');
       checked++;
-      if (resolves(target)) continue;
-      if (!dead.has(target)) dead.set(target, new Set());
-      dead.get(target).add(relative(DIST, page).replaceAll(sep, '/'));
+      const file = pageFile(path);
+      let problem = null;
+      if (!file) problem = m[1];
+      else if (fragment && file !== 'external' && !idsOf(file).has(decodeURIComponent(fragment))) {
+        problem = `${path}#${fragment}  (page exists, no such heading)`;
+      }
+      if (!problem) continue;
+      if (!dead.has(problem)) dead.set(problem, new Set());
+      dead.get(problem).add(relative(DIST, page).replaceAll(sep, '/'));
     }
   }
   console.log(`checked ${checked} internal links across ${pages.length} pages`);

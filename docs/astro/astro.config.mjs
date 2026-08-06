@@ -275,6 +275,23 @@ export default defineConfig({
           translations: { 'zh-CN': '参考' },
           collapsed: true,
           items: [
+            {
+              // Look-up by component name — the question the Details panel
+              // provokes ("what does this field do?"), which the task-shaped
+              // guides answer only if you already know which guide to open.
+              label: 'Component Reference',
+              translations: { 'zh-CN': '组件参考' },
+              collapsed: true,
+              items: [
+                { label: 'Core', translations: { 'zh-CN': '核心' }, slug: 'reference/components/core' },
+                { label: 'Graphics', translations: { 'zh-CN': '图形' }, slug: 'reference/components/graphics' },
+                { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'reference/components/ui' },
+                { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'reference/components/physics' },
+                { label: 'Animation', translations: { 'zh-CN': '动画' }, slug: 'reference/components/animation' },
+                { label: 'World', translations: { 'zh-CN': '世界' }, slug: 'reference/components/world' },
+                { label: 'Gameplay', translations: { 'zh-CN': '玩法' }, slug: 'reference/components/gameplay' },
+              ],
+            },
             typeDocSidebarGroup,
             // Doxygen output is merged in beside the Astro build, not routed by
             // it, and it isn't translated. A root-relative link would get BOTH

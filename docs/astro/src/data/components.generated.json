@@ -1,0 +1,4088 @@
+{
+  "generatedBy": "tools/component-reference.mjs",
+  "abiLayoutHash": null,
+  "components": [
+    {
+      "name": "Animator",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "controller",
+          "type": "Asset<animatorcontroller>",
+          "default": "none"
+        },
+        {
+          "key": "currentState",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "AudioListener",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "AudioSource",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "clip",
+          "type": "Asset<audio>",
+          "default": "none"
+        },
+        {
+          "key": "bus",
+          "type": "string",
+          "default": "\"sfx\""
+        },
+        {
+          "key": "volume",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "pitch",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "loop",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "playOnAwake",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "spatial",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "minDistance",
+          "type": "number",
+          "default": "100"
+        },
+        {
+          "key": "maxDistance",
+          "type": "number",
+          "default": "1000"
+        },
+        {
+          "key": "attenuationModel",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "rolloff",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "priority",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "volume",
+        "pitch",
+        "minDistance",
+        "maxDistance",
+        "attenuationModel",
+        "rolloff",
+        "priority"
+      ]
+    },
+    {
+      "name": "BehaviorTreeAgent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "bt",
+          "type": "Asset<behaviortree>",
+          "default": "none"
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "default": "empty",
+          "doc": "Last root status (runtime, read-only).",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "BitmapText",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "text",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "fontSize",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 1"
+        },
+        {
+          "key": "align",
+          "type": "enum",
+          "default": "Left",
+          "values": [
+            "Left",
+            "Center",
+            "Right"
+          ]
+        },
+        {
+          "key": "spacing",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "parallax",
+          "type": "Vec2",
+          "default": "(1, 1)",
+          "doc": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+          "advanced": true
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "font",
+          "type": "Asset<font>",
+          "default": "none"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a"
+      ]
+    },
+    {
+      "name": "BoxCollider",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec2",
+          "default": "(0.5, 0.5)"
+        },
+        {
+          "key": "offset",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.05"
+        },
+        {
+          "key": "density",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "CacheAsBitmap",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "dirty",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "width",
+          "type": "number",
+          "default": "256"
+        },
+        {
+          "key": "height",
+          "type": "number",
+          "default": "256"
+        }
+      ],
+      "animatable": [
+        "width",
+        "height"
+      ]
+    },
+    {
+      "name": "Camera",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "projectionType",
+          "type": "enum",
+          "default": "Orthographic",
+          "doc": "Orthographic (2D) or Perspective projection.",
+          "values": [
+            "Perspective",
+            "Orthographic"
+          ]
+        },
+        {
+          "key": "fov",
+          "type": "number",
+          "default": "60",
+          "range": "1–179"
+        },
+        {
+          "key": "orthoSize",
+          "type": "number",
+          "default": "540",
+          "doc": "Half the visible height in world units (Orthographic).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "nearPlane",
+          "type": "number",
+          "default": "0.1",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "farPlane",
+          "type": "number",
+          "default": "1000",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "aspectRatio",
+          "type": "number",
+          "default": "1.77",
+          "advanced": true
+        },
+        {
+          "key": "isActive",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "priority",
+          "type": "number",
+          "default": "0",
+          "range": "step 1",
+          "advanced": true
+        },
+        {
+          "key": "viewport",
+          "type": "Vec4",
+          "default": "(0, 0, 1, 1)"
+        },
+        {
+          "key": "clearFlags",
+          "type": "number",
+          "default": "3",
+          "doc": "Which buffers to clear before rendering this camera."
+        },
+        {
+          "key": "pixelPerfect",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).",
+          "advanced": true
+        },
+        {
+          "key": "showFrustum",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "orthoSize"
+      ]
+    },
+    {
+      "name": "Canvas",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "designResolution",
+          "type": "Vec2",
+          "default": "(1920, 1080)"
+        },
+        {
+          "key": "pixelsPerUnit",
+          "type": "number",
+          "default": "100",
+          "doc": "World pixels per physics meter (Box2D + tile collider scale).",
+          "range": "≥ 1"
+        },
+        {
+          "key": "scaleMode",
+          "type": "enum",
+          "default": "FixedHeight",
+          "doc": "How the canvas adapts the design resolution to the screen.",
+          "values": [
+            "FixedWidth",
+            "FixedHeight",
+            "Expand",
+            "Shrink",
+            "Match"
+          ]
+        },
+        {
+          "key": "matchWidthOrHeight",
+          "type": "number",
+          "default": "0.5",
+          "doc": "0 matches width, 1 matches height (Match mode only).",
+          "range": "0–1"
+        },
+        {
+          "key": "backgroundColor",
+          "type": "Color",
+          "default": "#000000"
+        }
+      ]
+    },
+    {
+      "name": "CapsuleCollider",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.25"
+        },
+        {
+          "key": "halfHeight",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "offset",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "density",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "ChainCollider",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "points",
+          "type": "Vec2[]",
+          "default": "[{\"x\":-1,\"y\":0},{\"x\":0,\"y\":0.5},{\"x\":1,\"y\":0},{\"x\":0,\"y\":-0.5}]"
+        },
+        {
+          "key": "isLoop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.6"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "friction",
+        "restitution",
+        "categoryBits",
+        "maskBits"
+      ]
+    },
+    {
+      "name": "CharacterController",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "velocity",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "up",
+          "type": "Vec2",
+          "default": "(0, 1)",
+          "advanced": true
+        },
+        {
+          "key": "floorMaxAngle",
+          "type": "number",
+          "default": "0.7854",
+          "doc": "Max walkable slope from up (radians)",
+          "range": "0–1.5708, step 0.01"
+        },
+        {
+          "key": "maxSlides",
+          "type": "number",
+          "default": "4",
+          "range": "1–8, step 1",
+          "advanced": true
+        },
+        {
+          "key": "skinWidth",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0, step 0.25",
+          "advanced": true
+        },
+        {
+          "key": "snapLength",
+          "type": "number",
+          "default": "0",
+          "doc": "Floor-snap probe length; 0 disables stair/slope stick",
+          "range": "≥ 0, step 0.5"
+        },
+        {
+          "key": "slideOnCeiling",
+          "type": "boolean",
+          "default": "true",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        },
+        {
+          "key": "isOnFloor",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "isOnWall",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "isOnCeiling",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "floorNormal",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
+        },
+        {
+          "key": "realVelocity",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "velocity.x",
+        "velocity.y",
+        "up.x",
+        "up.y",
+        "floorMaxAngle",
+        "maxSlides",
+        "skinWidth",
+        "snapLength",
+        "maskBits",
+        "floorNormal.x",
+        "floorNormal.y",
+        "realVelocity.x",
+        "realVelocity.y"
+      ]
+    },
+    {
+      "name": "Children",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "entities",
+          "type": "Entity",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "name": "CircleCollider",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "offset",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "density",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "Disabled",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
+      "name": "DistanceJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "length",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "enableSpring",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "hertz",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "dampingRatio",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "minLength",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "maxLength",
+          "type": "number",
+          "default": "2"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "maxMotorForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "length",
+        "hertz",
+        "dampingRatio",
+        "minLength",
+        "maxLength",
+        "maxMotorForce",
+        "motorSpeed"
+      ]
+    },
+    {
+      "name": "DragState",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "isDragging",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "startWorldPos",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "currentWorldPos",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "deltaWorld",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "totalDeltaWorld",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "pointerStartWorld",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        }
+      ],
+      "transient": true,
+      "animatable": [
+        "startWorldPos.x",
+        "startWorldPos.y",
+        "currentWorldPos.x",
+        "currentWorldPos.y",
+        "deltaWorld.x",
+        "deltaWorld.y",
+        "totalDeltaWorld.x",
+        "totalDeltaWorld.y",
+        "pointerStartWorld.x",
+        "pointerStartWorld.y"
+      ]
+    },
+    {
+      "name": "Draggable",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "dragThreshold",
+          "type": "number",
+          "default": "5"
+        },
+        {
+          "key": "lockX",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lockY",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "constraintMin",
+          "type": "unknown",
+          "default": "—"
+        },
+        {
+          "key": "constraintMax",
+          "type": "unknown",
+          "default": "—"
+        }
+      ],
+      "animatable": [
+        "dragThreshold"
+      ]
+    },
+    {
+      "name": "DragonBonesAnimation",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "skeletonPath",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "atlasPath",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "armature",
+          "type": "enum (dragonbonesArmatures)",
+          "default": "empty"
+        },
+        {
+          "key": "animation",
+          "type": "enum (dragonbonesAnimations)",
+          "default": "empty"
+        },
+        {
+          "key": "timeScale",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "loop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "playing",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "fadeInTime",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "flipX",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "flipY",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "skeletonScale",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "EventBinding",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "rows",
+          "type": "array",
+          "default": "empty"
+        }
+      ]
+    },
+    {
+      "name": "FlexContainer",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "direction",
+          "type": "enum",
+          "default": "Row",
+          "values": [
+            "Row",
+            "Column",
+            "RowReverse",
+            "ColumnReverse"
+          ]
+        },
+        {
+          "key": "wrap",
+          "type": "enum",
+          "default": "NoWrap",
+          "values": [
+            "NoWrap",
+            "Wrap"
+          ]
+        },
+        {
+          "key": "justifyContent",
+          "type": "enum",
+          "default": "Start",
+          "values": [
+            "Start",
+            "Center",
+            "End",
+            "SpaceBetween",
+            "SpaceAround",
+            "SpaceEvenly"
+          ]
+        },
+        {
+          "key": "alignItems",
+          "type": "enum",
+          "default": "Stretch",
+          "values": [
+            "Start",
+            "Center",
+            "End",
+            "Stretch"
+          ]
+        },
+        {
+          "key": "alignContent",
+          "type": "enum",
+          "default": "Start",
+          "values": [
+            "Start",
+            "Center",
+            "End",
+            "Stretch",
+            "SpaceBetween",
+            "SpaceAround"
+          ]
+        },
+        {
+          "key": "gap",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "padding",
+          "type": "Padding",
+          "default": "{\"left\":0,\"top\":0,\"right\":0,\"bottom\":0}"
+        }
+      ]
+    },
+    {
+      "name": "Focusable",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "tabIndex",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isFocused",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "animatable": [
+        "tabIndex"
+      ]
+    },
+    {
+      "name": "FollowTarget",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "target",
+          "type": "number",
+          "default": "-1"
+        },
+        {
+          "key": "offsetX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "offsetY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "deadzone",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0.25"
+        }
+      ],
+      "animatable": [
+        "target",
+        "offsetX",
+        "offsetY",
+        "deadzone",
+        "damping"
+      ]
+    },
+    {
+      "name": "Interactable",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "blockRaycast",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "raycastTarget",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "Light2D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "type",
+          "type": "enum",
+          "default": "Point",
+          "doc": "Point, Directional, Ambient, or Spot.",
+          "values": [
+            "Point",
+            "Directional",
+            "Ambient",
+            "Spot"
+          ]
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "intensity",
+          "type": "number",
+          "default": "1",
+          "doc": "Brightness multiplier of the light.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "200",
+          "doc": "Falloff reach in world units (Point / Spot).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "direction",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Aim direction (Directional / Spot).",
+          "advanced": true
+        },
+        {
+          "key": "innerAngle",
+          "type": "number",
+          "default": "30",
+          "range": "0–180",
+          "advanced": true
+        },
+        {
+          "key": "outerAngle",
+          "type": "number",
+          "default": "45",
+          "range": "0–180",
+          "advanced": true
+        },
+        {
+          "key": "shadowSoftness",
+          "type": "number",
+          "default": "0",
+          "doc": "Shadow softness (light-source size); 0 = hard edge.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "shadowDistance",
+          "type": "number",
+          "default": "0",
+          "doc": "Directional shadow distance; 0 = no directional shadow.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a",
+        "intensity",
+        "radius",
+        "innerAngle",
+        "outerAngle",
+        "shadowSoftness",
+        "shadowDistance"
+      ]
+    },
+    {
+      "name": "Marker",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "type",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "properties",
+          "type": "object",
+          "default": "empty"
+        }
+      ]
+    },
+    {
+      "name": "Mesh2D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "texture",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff",
+          "doc": "Tint multiplied into the vertex colors (white = unchanged)."
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Sorting layer — controls draw order across renderables.",
+          "range": "step 1"
+        },
+        {
+          "key": "lit",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this."
+        },
+        {
+          "key": "parallax",
+          "type": "Vec2",
+          "default": "(1, 1)",
+          "doc": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+          "advanced": true
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "geometry",
+          "type": "object",
+          "default": "{\"positions\":[],\"indices\":[]}"
+        }
+      ],
+      "animatable": [
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a"
+      ]
+    },
+    {
+      "name": "MotorJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "linearVelocity",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "maxVelocityForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularVelocity",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxVelocityTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "linearHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "linearDampingRatio",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxSpringForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularDampingRatio",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxSpringTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "linearVelocity.x",
+        "linearVelocity.y",
+        "maxVelocityForce",
+        "angularVelocity",
+        "maxVelocityTorque",
+        "linearHertz",
+        "linearDampingRatio",
+        "maxSpringForce",
+        "angularHertz",
+        "angularDampingRatio",
+        "maxSpringTorque"
+      ]
+    },
+    {
+      "name": "Name",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "value",
+          "type": "string",
+          "default": "empty"
+        }
+      ]
+    },
+    {
+      "name": "NavAgent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "120",
+          "range": "≥ 0"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "12",
+          "range": "≥ 1"
+        },
+        {
+          "key": "arriveRadius",
+          "type": "number",
+          "default": "6",
+          "range": "≥ 0"
+        },
+        {
+          "key": "repathInterval",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Replan cadence while moving; 0 = only when the target changes.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "hasTarget",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "targetX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "targetY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "arrived",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "speed",
+        "radius",
+        "arriveRadius",
+        "repathInterval",
+        "targetX",
+        "targetY"
+      ]
+    },
+    {
+      "name": "NetGhost",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
+      "name": "OneWayPlatform",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "normal",
+          "type": "Vec2",
+          "default": "(0, 1)"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "normal.x",
+        "normal.y"
+      ]
+    },
+    {
+      "name": "Parent",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "entity",
+          "type": "Entity",
+          "default": "none"
+        }
+      ]
+    },
+    {
+      "name": "ParticleEmitter",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "rate",
+          "type": "number",
+          "default": "10",
+          "range": "≥ 0"
+        },
+        {
+          "key": "burstCount",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "burstInterval",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "duration",
+          "type": "number",
+          "default": "5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "looping",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "playOnStart",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "maxParticles",
+          "type": "number",
+          "default": "1000",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "lifetimeMin",
+          "type": "number",
+          "default": "5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "lifetimeMax",
+          "type": "number",
+          "default": "5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "shape",
+          "type": "enum",
+          "default": "Cone",
+          "values": [
+            "Point",
+            "Circle",
+            "Rectangle",
+            "Cone"
+          ]
+        },
+        {
+          "key": "shapeRadius",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "shapeSize",
+          "type": "Vec2",
+          "default": "(100, 100)"
+        },
+        {
+          "key": "shapeAngle",
+          "type": "number",
+          "default": "25"
+        },
+        {
+          "key": "speedMin",
+          "type": "number",
+          "default": "500"
+        },
+        {
+          "key": "speedMax",
+          "type": "number",
+          "default": "500"
+        },
+        {
+          "key": "angleSpreadMin",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angleSpreadMax",
+          "type": "number",
+          "default": "360"
+        },
+        {
+          "key": "startSizeMin",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "startSizeMax",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "endSizeMin",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "endSizeMax",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "sizeEasing",
+          "type": "enum",
+          "default": "Linear",
+          "values": [
+            "Linear",
+            "EaseIn",
+            "EaseOut",
+            "EaseInOut"
+          ]
+        },
+        {
+          "key": "startColor",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "endColor",
+          "type": "Color",
+          "default": "#ffffff00"
+        },
+        {
+          "key": "colorEasing",
+          "type": "enum",
+          "default": "Linear",
+          "values": [
+            "Linear",
+            "EaseIn",
+            "EaseOut",
+            "EaseInOut"
+          ]
+        },
+        {
+          "key": "rotationMin",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "rotationMax",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularVelocityMin",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularVelocityMax",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "gravity",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0"
+        },
+        {
+          "key": "noiseStrength",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0"
+        },
+        {
+          "key": "noiseFrequency",
+          "type": "number",
+          "default": "0.01",
+          "range": "≥ 0"
+        },
+        {
+          "key": "noiseScrollSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "noiseOctaves",
+          "type": "number",
+          "default": "1",
+          "range": "1–8, step 1"
+        },
+        {
+          "key": "texture",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "spriteColumns",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "spriteRows",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "spriteFPS",
+          "type": "number",
+          "default": "10",
+          "range": "≥ 0"
+        },
+        {
+          "key": "spriteLoop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "blendMode",
+          "type": "enum",
+          "default": "Additive",
+          "values": [
+            "Normal",
+            "Additive",
+            "Multiply",
+            "Screen",
+            "PremultipliedAlpha",
+            "PmaAdditive",
+            "Lighten",
+            "Darken",
+            "Overlay",
+            "None"
+          ]
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none"
+        },
+        {
+          "key": "simulationSpace",
+          "type": "enum",
+          "default": "World",
+          "values": [
+            "World",
+            "Local"
+          ]
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "subEmitterTrigger",
+          "type": "enum",
+          "default": "Death",
+          "values": [
+            "Death",
+            "Birth"
+          ]
+        },
+        {
+          "key": "subEmitterChance",
+          "type": "number",
+          "default": "1",
+          "range": "0–1"
+        },
+        {
+          "key": "subEmitterInheritVelocity",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "subEmitter",
+          "type": "Entity",
+          "default": "none"
+        },
+        {
+          "key": "trailEnabled",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "trailWidth",
+          "type": "number",
+          "default": "8",
+          "range": "≥ 0"
+        },
+        {
+          "key": "trailPoints",
+          "type": "number",
+          "default": "6",
+          "range": "2–12, step 1"
+        },
+        {
+          "key": "trailMinDistance",
+          "type": "number",
+          "default": "6",
+          "range": "≥ 0"
+        },
+        {
+          "key": "collisionEnabled",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "collisionFloor",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collisionBounce",
+          "type": "number",
+          "default": "0.5",
+          "range": "0–1"
+        },
+        {
+          "key": "collisionFriction",
+          "type": "number",
+          "default": "0.1",
+          "range": "0–1"
+        },
+        {
+          "key": "collisionLifetimeLoss",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "colorGradient",
+          "type": "object",
+          "default": "{\"stops\":[]}"
+        },
+        {
+          "key": "sizeCurve",
+          "type": "object",
+          "default": "{\"keys\":[]}"
+        }
+      ]
+    },
+    {
+      "name": "ParticleForceField",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "type",
+          "type": "enum",
+          "default": "Directional",
+          "values": [
+            "Directional",
+            "Point",
+            "Vortex",
+            "Drag"
+          ]
+        },
+        {
+          "key": "strength",
+          "type": "number",
+          "default": "200"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0"
+        },
+        {
+          "key": "direction",
+          "type": "Vec2",
+          "default": "(1, 0)"
+        },
+        {
+          "key": "falloff",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "Perceiver",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "range",
+          "type": "number",
+          "default": "220",
+          "range": "≥ 0"
+        },
+        {
+          "key": "fovDegrees",
+          "type": "number",
+          "default": "360",
+          "range": "0–360"
+        }
+      ],
+      "animatable": [
+        "range",
+        "fovDegrees"
+      ]
+    },
+    {
+      "name": "Perception",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "visible",
+          "type": "boolean",
+          "default": "false",
+          "doc": "A target is seen (runtime, read-only).",
+          "advanced": true
+        },
+        {
+          "key": "distance",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "targetX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "targetY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "dirX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "dirY",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "transient": true,
+      "animatable": [
+        "distance",
+        "targetX",
+        "targetY",
+        "dirX",
+        "dirY"
+      ]
+    },
+    {
+      "name": "PerceptionTarget",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
+      "name": "PolygonCollider",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "vertices",
+          "type": "Vec2[]",
+          "default": "[{\"x\":-0.5,\"y\":-0.5},{\"x\":0.5,\"y\":-0.5},{\"x\":0.5,\"y\":0.5},{\"x\":-0.5,\"y\":0.5}]"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "density",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "radius",
+        "density",
+        "friction",
+        "restitution",
+        "categoryBits",
+        "maskBits"
+      ]
+    },
+    {
+      "name": "PostProcessVolume",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "effects",
+          "type": "array",
+          "default": "empty"
+        },
+        {
+          "key": "isGlobal",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "shape",
+          "type": "string",
+          "default": "\"box\""
+        },
+        {
+          "key": "size",
+          "type": "Vec2",
+          "default": "(5, 5)"
+        },
+        {
+          "key": "priority",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "blendDistance",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "animatable": [
+        "size.x",
+        "size.y",
+        "priority",
+        "weight",
+        "blendDistance"
+      ]
+    },
+    {
+      "name": "PrismaticJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "axis",
+          "type": "Vec2",
+          "default": "(1, 0)"
+        },
+        {
+          "key": "enableSpring",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "hertz",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "dampingRatio",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "upperTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "maxMotorForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "axis.x",
+        "axis.y",
+        "hertz",
+        "dampingRatio",
+        "lowerTranslation",
+        "upperTranslation",
+        "maxMotorForce",
+        "motorSpeed"
+      ]
+    },
+    {
+      "name": "Replicated",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "netId",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "owner",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "animatable": [
+        "netId",
+        "owner"
+      ]
+    },
+    {
+      "name": "RevoluteJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxMotorTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerAngle",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "upperAngle",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "motorSpeed",
+        "maxMotorTorque",
+        "lowerAngle",
+        "upperAngle"
+      ]
+    },
+    {
+      "name": "RigidBody",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "bodyType",
+          "type": "enum",
+          "default": "Dynamic",
+          "values": [
+            "Static",
+            "Kinematic",
+            "Dynamic"
+          ]
+        },
+        {
+          "key": "gravityScale",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "linearDamping",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "angularDamping",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "fixedRotation",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "bullet",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "RuntimeOnly",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
+      "name": "SafeArea",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "applyTop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "applyBottom",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "applyLeft",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "applyRight",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "SceneOwner",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "scene",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "persistent",
+          "type": "boolean",
+          "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "SegmentCollider",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "point1",
+          "type": "Vec2",
+          "default": "(-0.5, 0)"
+        },
+        {
+          "key": "point2",
+          "type": "Vec2",
+          "default": "(0.5, 0)"
+        },
+        {
+          "key": "density",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "categoryBits",
+          "type": "number",
+          "default": "1",
+          "advanced": true
+        },
+        {
+          "key": "maskBits",
+          "type": "number",
+          "default": "65535",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "ShadowCaster2D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "size",
+          "type": "Vec2",
+          "default": "(32, 32)",
+          "doc": "Occluder box size in world units (centered on the entity).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "size.x",
+        "size.y"
+      ]
+    },
+    {
+      "name": "ShapeRenderer",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "shapeType",
+          "type": "enum",
+          "default": "Circle",
+          "values": [
+            "Circle",
+            "Capsule",
+            "RoundedRect"
+          ]
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "size",
+          "type": "Vec2",
+          "default": "(100, 100)"
+        },
+        {
+          "key": "cornerRadius",
+          "type": "number",
+          "default": "0",
+          "range": "≥ 0"
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "parallax",
+          "type": "Vec2",
+          "default": "(1, 1)",
+          "doc": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "SpineAnimation",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "skeletonPath",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "atlasPath",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "skin",
+          "type": "enum (spineSkins)",
+          "default": "empty"
+        },
+        {
+          "key": "animation",
+          "type": "enum (spineAnimations)",
+          "default": "empty"
+        },
+        {
+          "key": "timeScale",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "loop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "playing",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "flipX",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "flipY",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "skeletonScale",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "Sprite",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "texture",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff",
+          "doc": "Tint multiplied into the texture (white = unchanged)."
+        },
+        {
+          "key": "size",
+          "type": "Vec2",
+          "default": "(100, 100)"
+        },
+        {
+          "key": "pivot",
+          "type": "Vec2",
+          "default": "(0.5, 0.5)",
+          "doc": "Anchor point (0–1) the sprite rotates and scales about.",
+          "advanced": true
+        },
+        {
+          "key": "uvOffset",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
+        },
+        {
+          "key": "uvScale",
+          "type": "Vec2",
+          "default": "(1, 1)",
+          "advanced": true
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Sorting layer — controls draw order across sprites.",
+          "range": "step 1"
+        },
+        {
+          "key": "lit",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this."
+        },
+        {
+          "key": "flipX",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "flipY",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "tileSize",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
+        },
+        {
+          "key": "tileSpacing",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
+        },
+        {
+          "key": "parallax",
+          "type": "Vec2",
+          "default": "(1, 1)",
+          "doc": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+          "advanced": true
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a",
+        "size.x",
+        "size.y"
+      ]
+    },
+    {
+      "name": "SpriteAnimator",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "clip",
+          "type": "Asset<anim-clip>",
+          "default": "none"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "playing",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "loop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "currentFrame",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "frameTimer",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "finished",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "animatable": [
+        "speed",
+        "currentFrame",
+        "frameTimer"
+      ]
+    },
+    {
+      "name": "StateMachineAgent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "fsm",
+          "type": "Asset<statemachine>",
+          "default": "none"
+        },
+        {
+          "key": "current",
+          "type": "string",
+          "default": "empty",
+          "doc": "Active state (runtime, read-only).",
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "Text",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "content",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "i18nKey",
+          "type": "enum (localeKeys)",
+          "default": "empty",
+          "doc": "Localization key — when set, content is resolved from the Localization catalogs (and re-resolved on locale switch). Leave empty for plain text."
+        },
+        {
+          "key": "font",
+          "type": "Asset<font>",
+          "default": "none",
+          "doc": "A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has."
+        },
+        {
+          "key": "fontFamily",
+          "type": "string",
+          "default": "\"Arial\"",
+          "doc": "A font the HOST already has (system or page-loaded). Ignored when Font is set."
+        },
+        {
+          "key": "fontSize",
+          "type": "number",
+          "default": "24"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "align",
+          "type": "enum",
+          "default": "Left",
+          "doc": "Horizontal alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (left/center/right edge).",
+          "values": [
+            "Left",
+            "Center",
+            "Right"
+          ]
+        },
+        {
+          "key": "verticalAlign",
+          "type": "enum",
+          "default": "Top",
+          "doc": "Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).",
+          "values": [
+            "Top",
+            "Middle",
+            "Bottom"
+          ]
+        },
+        {
+          "key": "wordWrap",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "overflow",
+          "type": "enum",
+          "default": "Visible",
+          "values": [
+            "Visible",
+            "Clip",
+            "Ellipsis"
+          ]
+        },
+        {
+          "key": "lineHeight",
+          "type": "number",
+          "default": "1.2"
+        },
+        {
+          "key": "bold",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "italic",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "strokeColor",
+          "type": "Color",
+          "default": "#000000"
+        },
+        {
+          "key": "strokeWidth",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "shadowColor",
+          "type": "Color",
+          "default": "#000000"
+        },
+        {
+          "key": "shadowBlur",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "shadowOffsetX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "shadowOffsetY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "richText",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "renderMode",
+          "type": "enum",
+          "default": "Auto",
+          "values": [
+            "Auto",
+            "Bitmap",
+            "Sdf"
+          ]
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "doc": "Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides."
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "font",
+        "fontSize",
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a",
+        "align",
+        "verticalAlign",
+        "overflow",
+        "lineHeight",
+        "strokeColor.r",
+        "strokeColor.g",
+        "strokeColor.b",
+        "strokeColor.a",
+        "strokeWidth",
+        "shadowColor.r",
+        "shadowColor.g",
+        "shadowColor.b",
+        "shadowColor.a",
+        "shadowBlur",
+        "shadowOffsetX",
+        "shadowOffsetY",
+        "renderMode",
+        "layer"
+      ]
+    },
+    {
+      "name": "TextInput",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "value",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "placeholder",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "placeholderColor",
+          "type": "Color",
+          "default": "#999999"
+        },
+        {
+          "key": "font",
+          "type": "Asset<font>",
+          "default": "none",
+          "doc": "A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has."
+        },
+        {
+          "key": "fontFamily",
+          "type": "string",
+          "default": "\"Arial\"",
+          "doc": "A font the HOST already has (system or page-loaded). Ignored when Font is set."
+        },
+        {
+          "key": "fontSize",
+          "type": "number",
+          "default": "16"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "backgroundColor",
+          "type": "Color",
+          "default": "#262626"
+        },
+        {
+          "key": "padding",
+          "type": "number",
+          "default": "6"
+        },
+        {
+          "key": "maxLength",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "multiline",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "password",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "readOnly",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "focused",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "cursorPos",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "dirty",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "textAlign",
+          "type": "enum",
+          "default": "Left",
+          "doc": "Where the value sits in the field. A single line holds the alignment while it fits, then scrolls to follow the caret.",
+          "values": [
+            "Left",
+            "Center",
+            "Right"
+          ]
+        },
+        {
+          "key": "renderMode",
+          "type": "enum",
+          "default": "Auto",
+          "doc": "Glyph pipeline for the field text — Auto (hinted bitmap when unscaled, SDF once scaled), always Bitmap, or always SDF.",
+          "values": [
+            "Auto",
+            "Bitmap",
+            "Sdf"
+          ]
+        }
+      ],
+      "animatable": [
+        "placeholderColor.r",
+        "placeholderColor.g",
+        "placeholderColor.b",
+        "placeholderColor.a",
+        "font",
+        "fontSize",
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a",
+        "backgroundColor.r",
+        "backgroundColor.g",
+        "backgroundColor.b",
+        "backgroundColor.a",
+        "padding",
+        "maxLength",
+        "cursorPos",
+        "textAlign",
+        "renderMode"
+      ]
+    },
+    {
+      "name": "ThemeStyle",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "visual",
+          "type": "unknown",
+          "default": "—"
+        },
+        {
+          "key": "text",
+          "type": "unknown",
+          "default": "—"
+        },
+        {
+          "key": "states",
+          "type": "object",
+          "default": "empty"
+        },
+        {
+          "key": "input",
+          "type": "unknown",
+          "default": "—"
+        }
+      ]
+    },
+    {
+      "name": "Tilemap",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "source",
+          "type": "Asset<tilemap>",
+          "default": "none"
+        }
+      ]
+    },
+    {
+      "name": "TilemapLayer",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "cellSize",
+          "type": "Vec2",
+          "default": "(32, 32)"
+        },
+        {
+          "key": "orientation",
+          "type": "enum",
+          "default": "Orthogonal",
+          "doc": "Grid layout: orthogonal, isometric, staggered, or hexagonal.",
+          "values": [
+            "Orthogonal",
+            "Isometric",
+            "Staggered",
+            "Hexagonal"
+          ]
+        },
+        {
+          "key": "hexSideLength",
+          "type": "number",
+          "default": "0",
+          "doc": "Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "staggerAxis",
+          "type": "enum",
+          "default": "Y",
+          "doc": "Stagger axis (staggered/hex): Y shifts rows, X shifts columns.",
+          "values": [
+            "Y",
+            "X"
+          ]
+        },
+        {
+          "key": "staggerIndex",
+          "type": "enum",
+          "default": "Odd",
+          "doc": "Which lines carry the half-cell shift (staggered/hex).",
+          "values": [
+            "Odd",
+            "Even"
+          ]
+        },
+        {
+          "key": "originOffset",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "tileset",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "tilesetColumns",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "tilesetRows",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "renderLayer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "range": "step 1"
+        },
+        {
+          "key": "tintColor",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "opacity",
+          "type": "number",
+          "default": "1",
+          "doc": "Layer transparency (0 = invisible, 1 = opaque).",
+          "range": "0–1"
+        },
+        {
+          "key": "parallaxFactor",
+          "type": "Vec2",
+          "default": "(1, 1)"
+        },
+        {
+          "key": "visible",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "tintColor.r",
+        "tintColor.g",
+        "tintColor.b",
+        "tintColor.a",
+        "opacity"
+      ]
+    },
+    {
+      "name": "TimelinePlayer",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "timeline",
+          "type": "Asset<timeline>",
+          "default": "none"
+        },
+        {
+          "key": "playing",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "wrapMode",
+          "type": "string",
+          "default": "\"once\""
+        },
+        {
+          "key": "finished",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Clip completed (runtime, read-only). Raise Playing to replay.",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "speed"
+      ]
+    },
+    {
+      "name": "TrailRenderer",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "time",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Seconds each trail point lives before it fades out of the tail.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "minVertexDistance",
+          "type": "number",
+          "default": "5",
+          "doc": "Min world distance moved before a new trail point is recorded.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "emitting",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Record new points. False = freeze and let the streak fade in place."
+        },
+        {
+          "key": "startWidth",
+          "type": "number",
+          "default": "20",
+          "doc": "Full ribbon width at the head (newest point).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "endWidth",
+          "type": "number",
+          "default": "0",
+          "doc": "Full ribbon width at the tail (oldest point).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "startColor",
+          "type": "Color",
+          "default": "#ffffff",
+          "doc": "Color at the head (newest point)."
+        },
+        {
+          "key": "endColor",
+          "type": "Color",
+          "default": "#ffffff00",
+          "doc": "Color at the tail (oldest point) — usually alpha 0 to fade out."
+        },
+        {
+          "key": "texture",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "blendMode",
+          "type": "number",
+          "default": "0",
+          "doc": "Blend mode: 0 Normal, 1 Additive (glow), 2 Multiply, …"
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Sorting layer — controls draw order across renderables.",
+          "range": "step 1"
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "startColor.r",
+        "startColor.g",
+        "startColor.b",
+        "startColor.a",
+        "endColor.r",
+        "endColor.g",
+        "endColor.b",
+        "endColor.a"
+      ]
+    },
+    {
+      "name": "Transform",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "position",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Local position in world units, relative to the parent.",
+          "replicated": true
+        },
+        {
+          "key": "rotation",
+          "type": "Quat",
+          "default": "(0, 0, 0, 1)",
+          "doc": "Rotation about the Z axis, in degrees.",
+          "replicated": true
+        },
+        {
+          "key": "scale",
+          "type": "Vec3",
+          "default": "(1, 1, 1)",
+          "doc": "Local scale per axis (1 = original size; negative flips).",
+          "replicated": true
+        },
+        {
+          "key": "worldPosition",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "readonly": true
+        },
+        {
+          "key": "worldRotation",
+          "type": "Quat",
+          "default": "(0, 0, 0, 1)",
+          "readonly": true
+        },
+        {
+          "key": "worldScale",
+          "type": "Vec3",
+          "default": "(1, 1, 1)",
+          "readonly": true
+        }
+      ],
+      "animatable": [
+        "position.x",
+        "position.y",
+        "position.z",
+        "rotation.z",
+        "scale.x",
+        "scale.y",
+        "scale.z"
+      ]
+    },
+    {
+      "name": "UIController",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "controllers",
+          "type": "array",
+          "default": "empty"
+        }
+      ]
+    },
+    {
+      "name": "UIDialog",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "closeOnEscape",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "closeOnBackdrop",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "UIDropdown",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "options",
+          "type": "array",
+          "default": "empty"
+        },
+        {
+          "key": "selectedIndex",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "optionHeight",
+          "type": "number",
+          "default": "32"
+        },
+        {
+          "key": "label",
+          "type": "Entity",
+          "default": "none"
+        }
+      ],
+      "animatable": [
+        "selectedIndex",
+        "optionHeight",
+        "label"
+      ]
+    },
+    {
+      "name": "UIGear",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "bindings",
+          "type": "array",
+          "default": "empty"
+        }
+      ]
+    },
+    {
+      "name": "UIInteraction",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "hovered",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "pressed",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "justPressed",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "justReleased",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "transient": true
+    },
+    {
+      "name": "UIMask",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "mode",
+          "type": "enum",
+          "default": "Scissor",
+          "values": [
+            "Scissor",
+            "Stencil"
+          ]
+        },
+        {
+          "key": "alphaCutoff",
+          "type": "number",
+          "default": "0",
+          "doc": "Stencil only: above 0, clip to the mask sprite's shape instead of its box."
+        }
+      ]
+    },
+    {
+      "name": "UINode",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "position",
+          "type": "enum",
+          "default": "Relative",
+          "values": [
+            "Relative",
+            "Absolute"
+          ]
+        },
+        {
+          "key": "display",
+          "type": "enum",
+          "default": "Flex",
+          "doc": "None removes this node and its whole subtree from layout, rendering and input.",
+          "values": [
+            "Flex",
+            "None"
+          ]
+        },
+        {
+          "key": "opacity",
+          "type": "number",
+          "default": "1",
+          "doc": "Subtree opacity, multiplied down the tree. Fades this node and everything under it.",
+          "range": "0–1"
+        },
+        {
+          "key": "pointerEvents",
+          "type": "enum",
+          "default": "Auto",
+          "doc": "None makes this node and its subtree transparent to the pointer — hits pass through to what is behind.",
+          "values": [
+            "Auto",
+            "None"
+          ]
+        },
+        {
+          "key": "width",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "height",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "minWidth",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "minHeight",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "maxWidth",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "maxHeight",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "flexGrow",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "flexShrink",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "flexBasis",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "alignSelf",
+          "type": "enum",
+          "default": "Auto",
+          "values": [
+            "Auto",
+            "Start",
+            "Center",
+            "End",
+            "Stretch"
+          ]
+        },
+        {
+          "key": "marginLeft",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":0}"
+        },
+        {
+          "key": "marginTop",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":0}"
+        },
+        {
+          "key": "marginRight",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":0}"
+        },
+        {
+          "key": "marginBottom",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":0}"
+        },
+        {
+          "key": "insetLeft",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "insetTop",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "insetRight",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        },
+        {
+          "key": "insetBottom",
+          "type": "Dimension",
+          "default": "{\"value\":0,\"unit\":2}"
+        }
+      ]
+    },
+    {
+      "name": "UIScroll",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "content",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The child that scrolls inside this node. Leave empty to use the first child."
+        },
+        {
+          "key": "horizontal",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "vertical",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "movement",
+          "type": "enum",
+          "default": "Clamped",
+          "doc": "Clamped stops at the ends; Elastic overshoots and springs back.",
+          "values": [
+            "Clamped",
+            "Elastic"
+          ]
+        },
+        {
+          "key": "wheelSpeed",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "dragScroll",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "decelerationRate",
+          "type": "number",
+          "default": "0.135",
+          "doc": "Fraction of flick velocity kept per second. 0 stops on release.",
+          "range": "0–1"
+        }
+      ]
+    },
+    {
+      "name": "UISlider",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "min",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "step",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "value",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "fill",
+          "type": "Entity",
+          "default": "none"
+        },
+        {
+          "key": "handle",
+          "type": "Entity",
+          "default": "none"
+        }
+      ],
+      "animatable": [
+        "min",
+        "max",
+        "step",
+        "value",
+        "fill",
+        "handle"
+      ]
+    },
+    {
+      "name": "UIToggle",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "isOn",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "check",
+          "type": "Entity",
+          "default": "none"
+        }
+      ],
+      "animatable": [
+        "check"
+      ]
+    },
+    {
+      "name": "UIVisual",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "visualType",
+          "type": "enum",
+          "default": "None",
+          "values": [
+            "None",
+            "SolidColor",
+            "Image",
+            "NineSlice",
+            "Tiled",
+            "Filled"
+          ]
+        },
+        {
+          "key": "texture",
+          "type": "Asset<texture>",
+          "default": "none"
+        },
+        {
+          "key": "color",
+          "type": "Color",
+          "default": "#ffffff"
+        },
+        {
+          "key": "fit",
+          "type": "enum",
+          "default": "Fill",
+          "doc": "How the image fits its box: Fill stretches, Contain letterboxes it whole, Cover fills and crops.",
+          "values": [
+            "Fill",
+            "Contain",
+            "Cover"
+          ]
+        },
+        {
+          "key": "uvOffset",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "uvScale",
+          "type": "Vec2",
+          "default": "(1, 1)"
+        },
+        {
+          "key": "sliceBorder",
+          "type": "Vec4",
+          "default": "(0, 0, 0, 0)"
+        },
+        {
+          "key": "tileSize",
+          "type": "Vec2",
+          "default": "(32, 32)"
+        },
+        {
+          "key": "fillMethod",
+          "type": "enum",
+          "default": "Horizontal",
+          "values": [
+            "Horizontal",
+            "Vertical",
+            "Radial360",
+            "Radial90",
+            "Radial180"
+          ]
+        },
+        {
+          "key": "fillOrigin",
+          "type": "enum",
+          "default": "Left",
+          "values": [
+            "Left",
+            "Right",
+            "Bottom",
+            "Top"
+          ]
+        },
+        {
+          "key": "fillAmount",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "color.r",
+        "color.g",
+        "color.b",
+        "color.a",
+        "fillAmount"
+      ]
+    },
+    {
+      "name": "Velocity",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "linear",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "replicated": true
+        },
+        {
+          "key": "angular",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "replicated": true
+        }
+      ]
+    },
+    {
+      "name": "Video",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "source",
+          "type": "Asset<video>",
+          "default": "none"
+        },
+        {
+          "key": "autoplay",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "loop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "muted",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "volume",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "playbackRate",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "fitSize",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "volume",
+        "playbackRate"
+      ]
+    },
+    {
+      "name": "WeldJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "linearHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "linearDampingRatio",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "angularDampingRatio",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "linearHertz",
+        "angularHertz",
+        "linearDampingRatio",
+        "angularDampingRatio"
+      ]
+    },
+    {
+      "name": "WheelJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "axis",
+          "type": "Vec2",
+          "default": "(0, 1)"
+        },
+        {
+          "key": "enableSpring",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "hertz",
+          "type": "number",
+          "default": "5"
+        },
+        {
+          "key": "dampingRatio",
+          "type": "number",
+          "default": "0.7"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "upperTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "maxMotorTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "axis.x",
+        "axis.y",
+        "hertz",
+        "dampingRatio",
+        "lowerTranslation",
+        "upperTranslation",
+        "maxMotorTorque",
+        "motorSpeed"
+      ]
+    }
+  ]
+}

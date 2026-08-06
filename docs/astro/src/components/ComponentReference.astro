@@ -1,0 +1,133 @@
+---
+// One category of the component reference: every component the engine registers,
+// its fields, types and authoring defaults. The field data is derived from the
+// engine's own registry (tools/component-reference.mjs), so it cannot drift from
+// the code; the summary and the link to the guide come from the curated table.
+import { COMPONENT_DOCS, CATEGORY_LABELS, type ComponentCategory } from '../data/componentDocs';
+import snapshot from '../data/components.generated.json';
+
+interface Props {
+  category: ComponentCategory;
+}
+const { category } = Astro.props;
+
+interface Field {
+  key: string;
+  type: string;
+  default: string;
+  doc?: string;
+  range?: string;
+  values?: string[];
+  readonly?: boolean;
+  replicated?: boolean;
+  advanced?: boolean;
+}
+interface Entry {
+  name: string;
+  source: 'cpp' | 'ts';
+  tag?: boolean;
+  transient?: boolean;
+  fields: Field[];
+}
+
+const entries = (snapshot.components as Entry[])
+  .filter((c) => COMPONENT_DOCS[c.name]?.category === category)
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+// Chinese pages fall back to the English reference, the same way the generated
+// TypeScript API does, so links out of it must stay in the reader's locale.
+const zh = Astro.url.pathname.includes('/zh-cn/');
+const guide = (doc: { doc: string | null; anchor?: string; anchorZh?: string }) => {
+  // A translated heading has a translated id, so the English anchor would land
+  // on the right page at the wrong place — no anchor at all beats that.
+  const anchor = zh ? doc.anchorZh : doc.anchor;
+  return `/docs/${zh ? 'zh-cn/' : ''}${doc.doc}/${anchor ? `#${anchor}` : ''}`;
+};
+const id = (name: string) => name.toLowerCase();
+---
+
+<nav class="cr-index" aria-label={`${CATEGORY_LABELS[category]} components`}>
+  {entries.map((c) => <a href={`#${id(c.name)}`}><code>{c.name}</code></a>)}
+</nav>
+
+{entries.map((c) => {
+  const doc = COMPONENT_DOCS[c.name];
+  return (
+    <section class="cr-comp">
+      <h2 id={id(c.name)}>
+        <code>{c.name}</code>
+        {c.transient && <span class="cr-flag" title="Runtime-only state — scene saves omit it">transient</span>}
+      </h2>
+      <p class="cr-summary">{doc.summary}</p>
+      <p class="cr-where">
+        {doc.doc
+          ? <>Explained in <a href={guide(doc)}>{doc.doc}</a>.</>
+          : <em>No guide section covers this one yet.</em>}
+      </p>
+      {c.fields.length === 0
+        ? <p class="cr-where"><em>A tag — it carries no fields.</em></p>
+        : (
+          <div class="cr-table">
+            <table>
+              <thead>
+                <tr><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr>
+              </thead>
+              <tbody>
+                {c.fields.map((f) => (
+                  <tr>
+                    <td><code>{f.key}</code></td>
+                    <td><code>{f.type}</code></td>
+                    <td><code>{f.default}</code></td>
+                    <td>
+                      {f.doc}
+                      {f.values && <> One of {f.values.map((v, i) => <>{i > 0 && ', '}<code>{v}</code></>)}.</>}
+                      {f.range && <> Range {f.range}.</>}
+                      {f.readonly && <> <strong>Read-only</strong> — the engine computes it.</>}
+                      {f.replicated && <> Replicated.</>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+    </section>
+  );
+})}
+
+<style>
+  .cr-index {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+    margin-block: 1rem 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--sl-color-hairline);
+  }
+  .cr-index a {
+    text-decoration: none;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.35rem;
+    padding: 0.1rem 0.45rem;
+  }
+  .cr-index a:hover { border-color: var(--sl-color-accent); }
+  .cr-index code { background: none; font-size: var(--sl-text-sm); }
+  .cr-comp { margin-block: 2.5rem; }
+  .cr-comp h2 { margin-block: 0 0.5rem; }
+  .cr-summary { margin-block: 0 0.5rem; }
+  .cr-where { color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); margin-block: 0 0.75rem; }
+  .cr-flag {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-2);
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.35rem;
+    padding: 0.05rem 0.35rem;
+    margin-inline-start: 0.5rem;
+    vertical-align: middle;
+  }
+  /* Four columns of prose and code do not fit a phone; let the table scroll
+     inside its own box rather than the page scroll sideways. */
+  .cr-table { overflow-x: auto; }
+  .cr-table table { margin: 0; }
+  .cr-table td:nth-child(4) { min-width: 16rem; }
+</style>
