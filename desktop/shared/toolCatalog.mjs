@@ -470,13 +470,15 @@ export const TOOLS = [
     description: "The Create-popover catalog: every ready-made entity the editor can spawn (id, label, category). Use an id with create_entity.",
     schema: obj({}), method: 'listEntityTemplates', args: () => [], root: 'editor' },
   { name: 'create_entity', effect: 'undoable',
-    description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position and parent.',
+    description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position, parent and NAME. '
+      + '`name` matters most for a `prefab:<path>` template: without it every instance arrives called whatever the prefab is called, so ten enemies are ten entities you cannot tell apart. '
+      + 'It is applied as the entity is built (one undo step) and, on an instance, saves as an ordinary name override — the prefab keeps its own name.',
     schema: obj({
       template: { type: 'string' }, parent: { type: ['number', 'null'] },
-      x: { type: 'number' }, y: { type: 'number' },
+      x: { type: 'number' }, y: { type: 'number' }, name: { type: 'string' },
     }, ['template']),
     method: 'createEntity',
-    args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y }], root: 'editor' },
+    args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y, name: i.name }], root: 'editor' },
   { name: 'toggle_play',
     description: 'Enter or leave play mode, AWAITED — it resolves once the game realm is ready (or gone) and answers with its state, so there is nothing to poll afterwards. '
       + 'Play runs the game in an isolated realm and never dirties the edit scene. Once in: `step` advances it, `play_input` drives it, `play_probe` reads it, `screenshot` shows it.',
@@ -538,7 +540,7 @@ export const TOOLS = [
   { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. "
       + 'These are ALREADY IN SCOPE (no prefix, though `window.__estellaPlay` holds them too): '
-      + '**`find(NAME)`** — every entity carrying that component, with its live data; '
+      + '**`find(NAME)`** — an ARRAY of `{ entity, data }`, one per entity carrying that component (`.length`, `[0]`, `for..of` and `.map` all work; `.total` is the count, `.truncatedAt` is set when a limit cut it short, and returning the array itself serialises as a plain list); '
       + '**`get(ENTITY, NAME)`** — one entity\'s component data, or null when it does not have it; '
       + '**`set(ENTITY, NAME, PATCH)`** — write fields of one component, for staging the situation you want to watch; '
       + '**`resource(NAME)`** — the live value of a resource (a score, a phase — state belonging to no entity); '

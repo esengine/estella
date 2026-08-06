@@ -28,6 +28,15 @@ type LiveEntity = SceneData['entities'][number];
 // avoids serializing every entity's component data on every sample.
 const LIVE_STRUCTURAL = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
 
+/** Every component name this realm has an instance of — what `find` accepts, and what
+ *  a mistyped one is answered with. */
+function componentNamesOf(app_: App): string[] {
+  return app_.world.getAllEntities()
+    .flatMap((e) => app_.world.getComponentTypes(e as never))
+    .filter((t, i, a) => a.indexOf(t) === i)
+    .sort();
+}
+
 function inspectableTypes(world: App['world'], entity: number): string[] {
   return world.getComponentTypes(entity as never).filter((t) => {
     if (LIVE_STRUCTURAL.has(t)) return false;
@@ -305,17 +314,29 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     find: (name: string, limit = 200) => {
       const world = app!.world;
       const def = getComponent(name);
+      // THROWN, not returned as `{ error }`: a caller that does not check reads an
+      // error object as "no entities have it", which is the same shape a typo in the
+      // NAME produces and the opposite of the truth.
       if (!def) {
-        return { error: `no component named "${name}" is registered in this realm` };
+        throw new Error(
+          `no component named "${name}" is registered in this realm `
+          + `(componentNames() lists them: ${componentNamesOf(app!).slice(0, 40).join(', ')})`,
+        );
       }
-      const out: Array<{ entity: number; data: unknown }> = [];
+      // An ARRAY of { entity, data }, with `total` / `truncatedAt` hung off it.
+      // Every driver so far has written `find('Ball').length` and `[0]` first — the
+      // reading a list invites — and spent three or four calls discovering a wrapper
+      // object instead. Both readings now work: `.length`, `[0]`, `for..of` and
+      // `.map` on the list itself, `.total` when what you want is the count.
+      const out = [] as Array<{ entity: number; data: unknown }> & { total?: number; truncatedAt?: number };
       for (const e of world.getAllEntities()) {
         const data = world.tryGet(e, def);
         if (data === null || data === undefined) continue;
-        if (out.length >= limit) return { total: out.length, truncatedAt: limit, entities: out };
+        if (out.length >= limit) { out.truncatedAt = limit; break; }
         out.push({ entity: e as never as number, data });
       }
-      return { total: out.length, entities: out };
+      out.total = out.length;
+      return out;
     },
     /**
      * ONE entity's component data, honestly — null when it does not have it.
@@ -327,7 +348,9 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
      */
     get: (entity: number, name: string) => {
       const def = getComponent(name);
-      if (!def) return { error: `no component named "${name}" is registered in this realm` };
+      if (!def) throw new Error(`no component named "${name}" is registered in this realm`);
+      // null = this entity does not have it. A mistyped NAME throws above, so the two
+      // are never the same answer.
       return app!.world.tryGet(entity as never, def) ?? null;
     },
     /**
@@ -340,10 +363,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
      */
     set: (entity: number, name: string, patch: Record<string, unknown>) => {
       const def = getComponent(name);
-      if (!def) return { error: `no component named "${name}" is registered in this realm` };
+      if (!def) throw new Error(`no component named "${name}" is registered in this realm`);
       const current = app!.world.tryGet(entity as never, def);
       if (current === null || current === undefined) {
-        return { error: `entity ${entity} has no ${name}` };
+        throw new Error(`entity ${entity} has no ${name}`);
       }
       app!.world.insert(entity as never, def, { ...(current as object), ...patch } as never);
       return app!.world.tryGet(entity as never, def) ?? null;
@@ -361,10 +384,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       return { frames, dt, frameCount: time?.frameCount ?? 0, elapsed: time?.elapsed ?? 0 };
     },
     /** What `find` can be asked about: the component names this realm knows. */
-    componentNames: () => app!.world.getAllEntities()
-      .flatMap((e) => app!.world.getComponentTypes(e as never))
-      .filter((t, i, a) => a.indexOf(t) === i)
-      .sort(),
+    componentNames: () => componentNamesOf(app!),
     /**
      * A resource's live value by name — the other half of "what does the game
      * think is going on", for state that belongs to no entity (a score, a life

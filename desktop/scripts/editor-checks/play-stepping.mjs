@@ -49,6 +49,23 @@ export async function run(ed) {
     code: 'return resource("Time")',   // bare, no window.__estellaPlay prefix
   }, 60000)) ?? {};
 
+  // `find` is a LIST. Every driver writes `.length` and `[0]` first, so both those
+  // and the count have to work on the same value.
+  const shape = await ed.json('play_probe', {
+    code: 'const s = find("Transform"); return { isArray: Array.isArray(s), length: s.length, total: s.total, first: !!s[0]?.entity };',
+  }, 60000);
+  check(shape?.isArray === true, `find() is not an array: ${JSON.stringify(shape)}`);
+  check(shape?.length > 0 && shape.length === shape.total, `find().length ${shape?.length} vs .total ${shape?.total}`);
+  check(shape?.first === true, 'find()[0] carries no entity id');
+  // A name nothing is registered under is a TYPO, not an empty world.
+  let threw = false;
+  try {
+    await ed.json('play_probe', { code: 'return find("NoSuchComponent").length' }, 60000);
+  } catch {
+    threw = true;
+  }
+  check(threw, 'find("NoSuchComponent") answered instead of throwing — an unchecked caller reads that as "none"');
+
   const before = await clock();
   if (!check(typeof before.frameCount === 'number', `the probe scope has no bare resource(): ${JSON.stringify(before)}`)) {
     return check.failures;
