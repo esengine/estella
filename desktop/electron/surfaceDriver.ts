@@ -91,6 +91,26 @@ const PALETTE: ReadonlyArray<[string, number, number, number, string]> = [
  *  handing back a letter its own key did not explain. */
 const PALETTE_LEGEND = PALETTE.map(([ink, , , , name]) => `${ink} ${name}`).join('  ');
 
+/**
+ * The symbols a lookup was asking about, however the caller spelled the list.
+ *
+ * The array form sometimes arrives as TEXT — `'["Time"]'` rather than
+ * `["Time"]`. Taken literally that is a symbol named `["Time"]`, which nothing
+ * is, so the reply is an empty list and reads as "no such symbol" — the failure
+ * this whole surface keeps having to be taught not to have. Both spellings mean
+ * the same request.
+ */
+export function symbolNames(name: unknown): string[] {
+  let asked = name;
+  if (typeof asked === 'string' && /^\s*\[.*\]\s*$/.test(asked)) {
+    try {
+      const parsed: unknown = JSON.parse(asked);
+      if (Array.isArray(parsed)) asked = parsed;
+    } catch { /* not JSON after all — look it up as written */ }
+  }
+  return Array.isArray(asked) ? asked.map(String) : [String(asked ?? '')];
+}
+
 function nearestInk(r: number, g: number, b: number): string {
   let best = '.';
   let bestDist = Infinity;
@@ -316,9 +336,7 @@ export function createSurfaceDriver(
         // a dozen symbols at once, and one-per-call turned that into a dozen round
         // trips — a Breakout dogfood spent 32 of its calls here before writing a line.
         const limit = input.limit === undefined ? undefined : Number(input.limit);
-        const names = Array.isArray(input.name)
-          ? (input.name as unknown[]).map(String)
-          : [String(input.name ?? '')];
+        const names = symbolNames(input.name);
         if (names.length === 1) return lookupScriptSymbol(names[0], limit);
         const out: Record<string, unknown> = {};
         for (const name of names) out[name] = lookupScriptSymbol(name, limit);
