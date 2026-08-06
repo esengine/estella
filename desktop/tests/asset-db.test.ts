@@ -179,3 +179,41 @@ describe('scanAssetDatabase — orphan adoption', () => {
     rmSync(ts); rmSync(pkg);
   });
 });
+
+describe('two files that claim the same uuid', () => {
+  // A uuid IS the asset's identity: the registry is a uuid→path map, so a shared one
+  // keeps a single winner. The other file is then in no registry at all, and every
+  // reference to that uuid resolves to whichever the scan saw last — which reaches a
+  // user as "the sprite I dropped shows a different picture than the preview".
+  it('gives each file its own identity back, on disk, and says so', async () => {
+    const shared = '44444444-4444-4444-8444-444444444444';
+    writeAsset('assets/bulk/a.png', 'texture', shared, 'A');
+    writeAsset('assets/bulk/b.png', 'texture', shared, 'B');
+    writeAsset('assets/bulk/c.png', 'texture', shared, 'C');
+
+    const res = await scanAssetDatabase(root, { write: false });
+    const bulk = res.index.entries.filter((e) => e.path.startsWith('assets/bulk/'));
+    expect(bulk.map((e) => e.path)).toEqual(['assets/bulk/a.png', 'assets/bulk/b.png', 'assets/bulk/c.png']);
+    expect(new Set(bulk.map((e) => e.uuid)).size).toBe(3);
+
+    // The FIRST in path order keeps it, so a re-scan does not shuffle identities and
+    // whatever already referenced it still resolves.
+    expect(bulk[0].uuid).toBe(shared);
+    expect(res.reminted.sort()).toEqual(['assets/bulk/b.png', 'assets/bulk/c.png']);
+    expect(res.warnings.some((w) => /shared its uuid/.test(w))).toBe(true);
+
+    // Written through, not just fixed in memory — the next scan must agree.
+    const uuidOf = (p: string) => JSON.parse(readFileSync(path.join(root, `${p}.meta`), 'utf8')).uuid;
+    expect(uuidOf('assets/bulk/b.png')).not.toBe(shared);
+    expect(uuidOf('assets/bulk/c.png')).not.toBe(uuidOf('assets/bulk/b.png'));
+
+    const again = await scanAssetDatabase(root, { write: false });
+    expect(again.reminted).toEqual([]);
+    expect(new Set(again.index.entries.filter((e) => e.path.startsWith('assets/bulk/')).map((e) => e.uuid)).size).toBe(3);
+
+    for (const f of ['a.png', 'b.png', 'c.png']) {
+      rmSync(path.join(root, `assets/bulk/${f}`));
+      rmSync(path.join(root, `assets/bulk/${f}.meta`));
+    }
+  });
+});

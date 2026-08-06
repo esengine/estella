@@ -776,6 +776,17 @@ class ProjectStoreImpl {
           scan.adopted,
         );
       }
+      // Said out loud, because until now the symptom was a picture: a uuid two files
+      // claimed resolved to one of them, so a sprite showed something other than the
+      // asset it was pointed at, and nothing anywhere mentioned the sidecar.
+      if ((scan.reminted?.length ?? 0) > 0) {
+        console.warn(
+          `[assets] ${scan.reminted.length} file(s) carried a uuid another file already had — re-minted so each `
+          + 'is addressable. A reference written against the shared uuid resolved to whichever file the scan saw '
+          + 'last; re-check anything that pointed at these.',
+          scan.reminted,
+        );
+      }
       return scan.index.entries;
     } catch (err) {
       console.warn('[project] asset scan failed', err);

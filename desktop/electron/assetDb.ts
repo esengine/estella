@@ -18,6 +18,7 @@
  */
 import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { readTextInRoot } from './projectFs';
 import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './contentPolicy';
@@ -63,10 +64,68 @@ export interface ScanAssetsResult {
   warnings: string[];
   /** Orphan content files the scan adopted (minted a `.meta` for) this pass. */
   adopted: string[];
+  /** Files whose `.meta` carried a uuid another file already had, re-minted this
+   *  pass (see {@link resolveDuplicateUuids}). */
+  reminted: string[];
   /** Per-sub-phase wall time (ms) — surfaced in the renderer boot profile so the
    *  cost of this O(files) scan is visible and attributable (adopt vs meta-walk
    *  vs dependency graph vs write-back). */
   timingMs?: { adopt: number; walk: number; deps: number; write: number; total: number; files: number };
+}
+
+/**
+ * Give every file its own identity back when two `.meta`s claim the same uuid.
+ *
+ * A uuid IS the asset's identity: every stored reference is written against it, and
+ * the registry is a uuid→path map. Two files sharing one means the map keeps a
+ * single winner — so one of the files is not in the registry at all, and every ref
+ * to that uuid resolves to the other. Nothing about that is visible: the Content
+ * Browser lists files from disk and previews the path it selected, so the picture on
+ * screen is right, while the sprite in the scene shows a DIFFERENT image. That is
+ * how it gets reported — "what I dropped is not what I see" — and the last place
+ * anyone looks is the sidecar.
+ *
+ * Duplicates arrive in bulk: a folder copied in with its sidecars, a script that
+ * stamped one uuid into every meta it wrote, a file duplicated outside the editor.
+ *
+ * The first file in path order keeps the uuid (deterministic, so a re-scan does not
+ * shuffle identities); the rest are re-minted on disk. Re-minting is safe precisely
+ * BECAUSE the uuid was ambiguous: no reference to it could have been resolving
+ * reliably, and a ref that now fails to resolve says so in diagnostics instead of
+ * quietly drawing the wrong thing.
+ */
+async function resolveDuplicateUuids(
+  root: string,
+  entries: AssetEntry[],
+  warnings: string[],
+): Promise<string[]> {
+  const owner = new Map<string, string>();
+  const reminted: string[] = [];
+  for (const entry of entries) {
+    const first = owner.get(entry.uuid);
+    if (first === undefined) {
+      owner.set(entry.uuid, entry.path);
+      continue;
+    }
+    const fresh = randomUUID();
+    try {
+      const metaPath = path.join(root, `${entry.path}${META_EXT}`);
+      const meta = JSON.parse(await readTextInRoot(metaPath)) as Record<string, unknown>;
+      meta.uuid = fresh;
+      await writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
+    } catch (err) {
+      warnings.push(
+        `${entry.path}: shares its uuid with ${first} and could not be re-minted `
+        + `(${err instanceof Error ? err.message : String(err)}) — it is not addressable`,
+      );
+      continue;
+    }
+    warnings.push(`${entry.path}: shared its uuid with ${first}; re-minted as ${fresh}`);
+    entry.uuid = fresh;
+    owner.set(fresh, entry.path);
+    reminted.push(entry.path);
+  }
+  return reminted;
 }
 
 /** Recursively yield every `<file>.meta` path (project-relative, forward-slashed). */
@@ -382,6 +441,9 @@ export async function scanAssetDatabase(
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
+  // Sorted FIRST: which file keeps a shared uuid has to be the same answer on every
+  // machine and every re-scan, and path order is the only stable one here.
+  const reminted = await resolveDuplicateUuids(root, entries, warnings);
   t.walk = performance.now() - tWalk;
 
   const tDeps = performance.now();
@@ -405,7 +467,7 @@ export async function scanAssetDatabase(
     `adopt ${timingMs.adopt} / walk ${timingMs.walk} / deps ${timingMs.deps} / write ${timingMs.write}`,
   );
 
-  return { ok: true, outputPath, index, warnings, adopted, timingMs };
+  return { ok: true, outputPath, index, warnings, adopted, reminted, timingMs };
 }
 
 /** Above this many changed paths a full rescan is cheaper/safer than per-path
@@ -464,7 +526,7 @@ export async function updateAssetIndex(
     contentPaths.add(content);
   }
   if (contentPaths.size === 0) {
-    return { ok: true, outputPath: null, index: prev, warnings: [], adopted: [], fullRescan: false };
+    return { ok: true, outputPath: null, index: prev, warnings: [], adopted: [], reminted: [], fullRescan: false };
   }
 
   const byPath = new Map(prev.entries.map((e) => [e.path, e] as const));
@@ -505,6 +567,12 @@ export async function updateAssetIndex(
   }
 
   const entries = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
+  // Here too, and here MOST: a folder of assets dropped in with their sidecars
+  // arrives through the watcher, which is exactly where duplicate uuids come from.
+  // Before deps, which are keyed by uuid.
+  const warnings: string[] = [];
+  const reminted = await resolveDuplicateUuids(root, entries, warnings);
+  if (reminted.length > 0) setChanged = true;
 
   // Deps: when the entry SET changed, path + bare-uuid resolution is global, so
   // recompute the whole graph from the new entries (still bounded to ref-carrying
@@ -512,7 +580,6 @@ export async function updateAssetIndex(
   // changed, other assets' edges can't have moved: patch just the touched
   // ref-assets over the previous graph.
   let deps: Record<string, string[]>;
-  const warnings: string[] = [];
   if (setChanged) {
     const r = await computeDeps(root, entries);
     deps = r.deps;
@@ -528,5 +595,5 @@ export async function updateAssetIndex(
 
   const index: AssetIndex = { version: '1.0', entries, deps };
   const outputPath = opts?.write !== false ? await writeIndexIfChanged(root, index) : null;
-  return { ok: true, outputPath, index, warnings, adopted, fullRescan: false };
+  return { ok: true, outputPath, index, warnings, adopted, reminted, fullRescan: false };
 }
