@@ -125,17 +125,29 @@ const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.espr
 ## Per-instance overrides
 
 Pass `overrides` to change a value for **this instance only** without editing the
-prefab asset — spawn the same enemy with different health or tint. Each override
-targets a prefab entity by its **string** `prefabEntityId` (a UUID for
-editor-authored prefabs) and names the component + property:
+prefab asset — spawn the same enemy with different health or tint. An override
+names the component + property, and aims at the prefab's **root** unless you say
+otherwise:
 
 ```typescript
 const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
   overrides: [
-    { prefabEntityId: '0', type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
+    { type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
   ],
 });
 ```
+
+To reach a **child**, add its `prefabEntityId` — the entity's own **string** id,
+a UUID for editor-authored prefabs. Read it from the `.esprefab`, or from the
+`entities` map a previous instantiate returned.
+
+:::caution[`prefabEntityId: '0'` no longer matches anything]
+`'0'` is the id every prefab had before stable ids, and it appears in older
+sample code. A prefab saved by the editor since has a UUID instead, so an
+override carrying `'0'` aims at nobody. It now **throws**, naming the root and
+the ids that do exist — before, it was dropped in silence, and the only symptom
+was every instance appearing at the position the prefab was authored with.
+:::
 
 Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'component_added'`,
 `'component_replaced'`, `'component_removed'`, `'metadata_set'`, or `'metadata_removed'`

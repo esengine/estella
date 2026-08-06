@@ -1,4 +1,4 @@
-import { defineResource, type PrefabOverride } from 'esengine';
+import { defineResource, type SpawnOverride } from 'esengine';
 
 export const HALF_HEIGHT = 540;
 export const HALF_WIDTH = 300;
@@ -28,9 +28,12 @@ export const PREFAB_ENEMY_BULLET = 'assets/prefabs/EnemyBullet.esprefab';
 export const PREFAB_EXPLOSION = 'assets/prefabs/Explosion.esprefab';
 export const PREFAB_STAR = 'assets/prefabs/Star.esprefab';
 
-export function positionOverride(x: number, y: number): PrefabOverride {
+// These prefabs are one entity each, so neither helper names a `prefabEntityId`:
+// left out, an override aims at the prefab's root. Naming one is for reaching a
+// CHILD, and the id to use is that entity's own — not `'0'`, which is what prefabs
+// had before stable ids and now matches nothing.
+export function positionOverride(x: number, y: number): SpawnOverride {
     return {
-        prefabEntityId: '0',
         type: 'property',
         componentType: 'Transform',
         propertyName: 'position',
@@ -38,9 +41,8 @@ export function positionOverride(x: number, y: number): PrefabOverride {
     };
 }
 
-export function propOverride(componentType: string, propertyName: string, value: unknown): PrefabOverride {
+export function propOverride(componentType: string, propertyName: string, value: unknown): SpawnOverride {
     return {
-        prefabEntityId: '0',
         type: 'property',
         componentType,
         propertyName,

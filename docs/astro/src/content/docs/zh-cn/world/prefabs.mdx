@@ -106,16 +106,25 @@ const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.espr
 ## 逐实例覆盖
 
 传 `overrides` 来**仅为这个实例**改值,而不编辑预制体资源——用不同血量或着色生成同一个敌人。
-每条覆盖用**字符串** `prefabEntityId`(编辑器创作的预制体里是 UUID)定位一个预制体实体,并指明
-组件 + 属性:
+一条覆盖指明组件 + 属性,不另外说明的话就作用在预制体的**根实体**上:
 
 ```typescript
 const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
   overrides: [
-    { prefabEntityId: '0', type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
+    { type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
   ],
 });
 ```
+
+要作用到**子实体**,补上它的 `prefabEntityId`——即那个实体自己的**字符串** id,
+编辑器创作的预制体里是 UUID。可以从 `.esprefab` 里读,也可以从上一次 instantiate
+返回的 `entities` 映射里取。
+
+:::caution[`prefabEntityId: '0'` 已经匹配不到任何东西]
+`'0'` 是稳定 id 之前所有预制体的 id,旧的示例代码里还留着它。此后由编辑器保存的预制体
+拿到的是 UUID,所以带 `'0'` 的覆盖谁也指不到。现在它会**抛错**,并列出根实体和实际存在的
+id——在此之前它是被静默丢弃的,唯一的症状就是每个实例都出现在预制体被创作时的那个位置。
+:::
 
 除了 `'property'`,`type` 还可以是 `'name'`、`'visibility'`、`'component_added'`、
 `'component_replaced'`、`'component_removed'`、`'metadata_set'` 或 `'metadata_removed'`
