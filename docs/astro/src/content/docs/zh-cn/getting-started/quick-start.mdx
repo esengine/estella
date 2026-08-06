@@ -1,50 +1,72 @@
 ---
 title: 快速上手
-description: 创建项目并写下你的第一个系统。
+description: "五分钟做出一个能玩的东西——一个用方向键操控的图形,不需要美术,不需要配置。"
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-下面走一遍「让一个实体动起来」：在编辑器里把它加进场景，再用一段 TypeScript
-系统驱动它。
+五分钟,零美术。做完你会有一个项目、一个画面上看得见的东西,以及一段按键就让它动起来的
+脚本——全部用开箱即有的东西:**Blank** 模板一开始只有一个相机,而图形不需要纹理就能画。
 
 <Steps>
 
-1. **创建项目。** 在编辑器中点击 **New project**，选 **Blank** 起始模板，命名后点击
-   **Create project**。你会得到一个带相机实体的默认场景。（想直接看成品的话，
-   **Examples** 模板是完整的示例项目。）
+1. **创建项目。** 在启动器里点**新建项目**,选 **Blank** 起始模板,起个名字,点**创建项目**。
+   编辑器会打开 `assets/scenes/main.esscene`——里面只有一个实体:`Camera`。
 
-2. **添加实体。** 在场景层级里新建一个实体，在检视面板中给它加上 `Sprite` 与
-   `Transform` 组件。
+2. **在画面上放个东西。** 在视口里打开**创建…**,选 **Shape**。原点会出现一个白色圆形,
+   World Outliner 里多出一个带 `Transform` 和 `ShapeRenderer` 的实体。按 `F2` 把它改名为
+   **Player**。
 
-3. **编写系统。** 在项目的脚本里新建一个 TypeScript 文件，注册一个系统，让所有带
-   `Speed` 组件的实体移动：
+3. **写行为。** 打开 `src/components.ts`——Blank 模板的声明入口——把内容替换成:
 
-   ```typescript
-   import {
-       defineComponent, defineSystem, addSystem,
-       Query, Mut, Res, Time, Transform
-   } from 'esengine';
+   ```typescript title="src/components.ts"
+   import { defineBehavior, Transform } from 'esengine';
 
-   const Speed = defineComponent('Speed', { value: 200 });
+   export const Player = defineBehavior('Player', {
+     state: { speed: 300 },
+     update(ctx, dt) {
+       const x = (ctx.input.isKeyDown('ArrowRight') ? 1 : 0) - (ctx.input.isKeyDown('ArrowLeft') ? 1 : 0);
+       const y = (ctx.input.isKeyDown('ArrowUp') ? 1 : 0) - (ctx.input.isKeyDown('ArrowDown') ? 1 : 0);
+       if (x === 0 && y === 0) return;
 
-   addSystem(defineSystem(
-       [Res(Time), Query(Mut(Transform), Speed)],
-       (time, query) => {
-           for (const [entity, transform, speed] of query) {
-               transform.position.x += speed.value * time.delta;
-           }
-       }
-   ));
+       const t = ctx.get(Transform);           // 拷贝——Transform 活在引擎里
+       t.position.x += x * ctx.self.speed * dt;
+       t.position.y += y * ctx.self.speed * dt;
+       ctx.set(Transform, t);                  // ……所以要交回去
+     },
+   });
    ```
 
-4. **预览。** 保存脚本——编辑器会监视项目脚本，片刻后提取你的组件定义，于是 `Speed`
-   会自动出现在检视器的**添加组件**列表里。给实体加上 `Speed` 组件，然后按 **F5** 运行
-   场景，精灵就会移动。
+   保存。编辑器会监视你的脚本,过一小会儿就认出这个新组件。
+
+4. **挂上去。** 在 Outliner 里选中 **Player**,然后在 Details 面板点 **Add Component**,
+   选 **Player**。会出现一个 `speed` 字段,和别的字段一样可编辑——行为的 `state` **就是**
+   组件的数据。
+
+5. **运行。** 按 **F5**,按住一个方向键。**Esc** 停止,场景和你离开时一模一样:运行跑在
+   它自己的 realm 里,永远不会写回你正在编辑的场景。
 
 </Steps>
 
-<Aside type="tip">
-  `Res(Time)` 提供帧计时，`Query(...)` 遍历同时拥有列出的每个组件的实体，`Mut(...)`
-  标记一个你打算写入的组件。完整的查询词汇见[系统](/docs/zh-cn/core-concepts/systems/)。
+## 刚才发生了什么
+
+- **一次调用同时给了你一个组件和一个系统。** `defineBehavior` 把 `update` 钩子注册成系统,
+  *同时*返回一个组件——所以你什么都没多声明,**Player** 就出现在了 Add Component 里。
+- **`state` 就是组件的数据**,所以编辑器能编辑它。在 Details 里改 `speed`,下次运行就用你的
+  数——代码和检视器是通向同一个字段的两扇门。
+- **`ctx` 是这个实体对这一帧的视角**——`ctx.self` 是本实体自己的状态,`ctx.input` 是键盘,
+  `dt` 是距上一帧的秒数。乘以 `dt` 才让 300 表示*每秒 300 单位*,而不是每帧 300。
+
+<Aside type="caution">
+  第 3 步里那份拷贝不是多余的仪式。对你自己声明的组件,`ctx.get` 给的是存储对象本身;但
+  `Transform`、`Sprite`、`RigidBody` 这些引擎组件每次读都是从 wasm 堆里解出来的——所以
+  `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且是**静默**的。读出来、
+  改完、用 `ctx.set` 交回去。参见[脚本](/docs/zh-cn/scripting/overview/#你的第一个-behavior)。
 </Aside>
+
+## 下一步
+
+- [脚本](/docs/zh-cn/scripting/overview/) —— 行为、系统、声明放在哪里,以及热重载怎么认出它们。
+- [编辑器](/docs/zh-cn/editor/overview/) —— 你刚用过的工作区,完整版。
+- [ECS 架构](/docs/zh-cn/core-concepts/ecs/) —— 为什么组件是数据、系统是行为。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 当你准备好把圆形换成美术资源。

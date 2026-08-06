@@ -1,53 +1,88 @@
 ---
 title: Quick Start
-description: Create a project and write your first system.
+description: "Five minutes to something you can play — a shape you drive with the arrow keys, with no art and no setup."
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-This walks through a first moving entity: add it in the editor, then drive it
-with a system written in TypeScript.
+Five minutes, no art. By the end you will have a project, something on screen,
+and a script that moves it when you press a key — all of it from what ships in
+the box: the **Blank** template starts with a camera and nothing else, and a
+shape draws without needing a texture.
 
 <Steps>
 
-1. **Create a project.** In the editor, click **New project**, pick the
-   **Blank** starter template, name it, and click **Create project**. You get a
-   default scene with a Camera entity. (The **Examples** templates are full
-   sample projects if you'd rather explore a finished game.)
+1. **Create the project.** In the launcher, click **New project**, pick the
+   **Blank** starter, name it, and click **Create project**. The editor opens
+   `assets/scenes/main.esscene` — one entity, a `Camera`.
 
-2. **Add an entity.** In the scene hierarchy, add an entity and give it a
-   `Sprite` and a `Transform` component in the inspector.
+2. **Put something on screen.** In the viewport, open **Create…** and choose
+   **Shape**. A white circle appears at the origin and the World Outliner gains
+   an entity carrying a `Transform` and a `ShapeRenderer`. Press `F2` and rename
+   it **Player**.
 
-3. **Write a system.** Add a TypeScript file to your project's scripts and
-   register a system that moves everything with a `Speed` component:
+3. **Write the behaviour.** Open `src/components.ts` — the Blank template's
+   declaration entry — and replace its contents with:
 
-   ```typescript
-   import {
-       defineComponent, defineSystem, addSystem,
-       Query, Mut, Res, Time, Transform
-   } from 'esengine';
+   ```typescript title="src/components.ts"
+   import { defineBehavior, Transform } from 'esengine';
 
-   const Speed = defineComponent('Speed', { value: 200 });
+   export const Player = defineBehavior('Player', {
+     state: { speed: 300 },
+     update(ctx, dt) {
+       const x = (ctx.input.isKeyDown('ArrowRight') ? 1 : 0) - (ctx.input.isKeyDown('ArrowLeft') ? 1 : 0);
+       const y = (ctx.input.isKeyDown('ArrowUp') ? 1 : 0) - (ctx.input.isKeyDown('ArrowDown') ? 1 : 0);
+       if (x === 0 && y === 0) return;
 
-   addSystem(defineSystem(
-       [Res(Time), Query(Mut(Transform), Speed)],
-       (time, query) => {
-           for (const [entity, transform, speed] of query) {
-               transform.position.x += speed.value * time.delta;
-           }
-       }
-   ));
+       const t = ctx.get(Transform);           // a copy — Transform lives in the engine
+       t.position.x += x * ctx.self.speed * dt;
+       t.position.y += y * ctx.self.speed * dt;
+       ctx.set(Transform, t);                  // …so hand it back
+     },
+   });
    ```
 
-4. **Preview.** Save the script — the editor watches your project's scripts and, a
-   moment later, extracts your component definitions, so `Speed` appears in the
-   inspector's **Add Component** list automatically. Add `Speed` to your entity,
-   then press **F5** to run the scene. The sprite moves.
+   Save it. The editor watches your scripts and picks up the new component a
+   moment later.
+
+4. **Attach it.** Select **Player** in the Outliner, then in the Details panel
+   click **Add Component** and choose **Player**. A `speed` field appears,
+   editable like any other — a behaviour's `state` *is* the component's data.
+
+5. **Play.** Press **F5** and hold an arrow key. **Esc** stops, and the scene is
+   exactly as you left it: play runs in its own realm and never writes back to
+   the scene you are editing.
 
 </Steps>
 
-<Aside type="tip">
-  `Res(Time)` gives you frame timing, `Query(...)` iterates entities that have
-  every listed component, and `Mut(...)` marks a component you intend to write.
-  See [Systems](/docs/core-concepts/systems/) for the full query vocabulary.
+## What just happened
+
+- **One call gave you a component and a system.** `defineBehavior` registers the
+  `update` hook as a system *and* returns a component, which is why **Player**
+  showed up in Add Component without you declaring anything else.
+- **`state` is the component's data**, so the editor can edit it. Change `speed`
+  in Details and the next run uses your number — code and inspector are two doors
+  to the same field.
+- **`ctx` is the entity's view of the frame** — `ctx.self` is this entity's own
+  state, `ctx.input` is the keyboard, `dt` is the seconds since the last frame.
+  Multiplying by `dt` is what makes 300 mean *300 units per second* rather than
+  per frame.
+
+<Aside type="caution">
+  The copy in step 3 is not ceremony. `ctx.get` hands back the stored object for
+  a component you declared yourself, but `Transform`, `Sprite`, `RigidBody` and
+  every other engine component are decoded out of the wasm heap on each read —
+  so `ctx.get(Transform).position.x += …` changes a value nobody keeps, and does
+  it silently. Read it, change it, hand it back with `ctx.set`. See
+  [Scripting](/docs/scripting/overview/#your-first-behavior).
 </Aside>
+
+## Next steps
+
+- [Scripting](/docs/scripting/overview/) — behaviours, systems, where declarations
+  live, and how hot reload picks them up.
+- [The Editor](/docs/editor/overview/) — the workspace you just used, in full.
+- [ECS Architecture](/docs/core-concepts/ecs/) — why a component is data and a
+  system is behaviour.
+- [Sprites & Rendering](/docs/graphics/sprites/) — when you are ready to swap the
+  circle for artwork.
