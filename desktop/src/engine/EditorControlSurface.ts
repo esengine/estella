@@ -279,6 +279,18 @@ export function coerceFieldValue(
   }
 }
 
+/**
+ * The running game, as much of it as {@link EditorControlSurfaceImpl.step} needs.
+ *
+ * An interface rather than an import: the play realm is an editor-only thing (an
+ * OOPIF and a postMessage channel), and this surface is also the headless host's.
+ * The editor installs one; the headless host does not have one to install.
+ */
+export interface LiveGamePort {
+  running(): boolean;
+  step(frames: number, dt: number): Promise<unknown>;
+}
+
 /** The session parts the surface needs (the EditorSession satisfies this). */
 export interface SurfaceSession {
   model: SceneModelImpl;
@@ -335,13 +347,32 @@ export class EditorControlSurfaceImpl {
   }
 
   /**
-   * Advance the engine by exactly `frames` fixed-delta ticks — no rAF, no
-   * wall-clock — so a subsequent capture is reproducible. Use after loadScene /
-   * setRunMode and before captureViewport. Drives the engine directly, so it
-   * belongs to a host that does NOT run app.run()'s loop (the headless host).
+   * Advance whatever is RUNNING by exactly `frames` fixed-delta ticks — no rAF, no
+   * wall-clock — so what happens next is reproducible and what you capture is settled.
+   *
+   * "Whatever is running" is the point. There are two worlds here: the edit World this
+   * surface owns, and the play realm, which is where the project's game scripts
+   * actually live. A driver that pressed Play and then called this got the edit World —
+   * a world with no gameplay in it — so nothing moved, and the game (throttled to about
+   * a frame a second by an unfocused window) looked frozen. One dogfood run answered
+   * that by hunting down `app.runFrame_` and stepping the realm through a private
+   * method. The verb was right; it just went to the wrong world.
    */
-  async step(frames = 1, dt = 1 / 60): Promise<void> {
+  async step(frames = 1, dt = 1 / 60): Promise<{ world: 'play' | 'edit'; frames: number; dt: number }> {
+    if (this.liveGame?.running()) {
+      await this.liveGame.step(frames, dt);
+      return { world: 'play', frames, dt };
+    }
     for (let i = 0; i < frames; i++) await EngineHost.tick(dt);
+    return { world: 'edit', frames, dt };
+  }
+
+  /** The running game, when the host has one. Installed by the editor; the headless
+   *  host leaves it null and {@link step} keeps driving the edit World. */
+  private liveGame: LiveGamePort | null = null;
+
+  setLiveGame(port: LiveGamePort | null): void {
+    this.liveGame = port;
   }
 
   /** Project render config: bitmask of layers (0..31) that y-sort within the

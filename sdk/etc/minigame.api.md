@@ -519,6 +519,7 @@ setTargetFrameRate: (fps: number) => void
 sideModules: SideModuleHost | null
 spineInitPromise: Promise<unknown> | undefined
 stepFrame: () => void
+stepFrames: (frames?: number, dt?: number) => Promise<void>
 subsystems: SubsystemRegistry
 tick: (delta: number) => Promise<void>
 waitForPhysics: () => Promise<void>

@@ -728,6 +728,41 @@ export class App {
         await this.runFrame_(delta);
     }
 
+    /**
+     * Advance exactly `frames` frames of exactly `dt` seconds, with the rAF loop held
+     * off for the duration — "let the game run a bit", made reproducible.
+     *
+     * The loop it replaces is wall-clock and browser-scheduled: a backgrounded tab is
+     * throttled to about one frame a second, so an observer that steps by waiting sees
+     * a frozen game and concludes the game is broken. Worse, there was no other door —
+     * a driver that needed the next 30 frames of simulation had to reach for
+     * `runFrame_`, and reaching for a private method is a thing that keeps working
+     * until the day it doesn't.
+     *
+     * A PAUSED app still steps here: advancing frame by frame is exactly what stepping
+     * a paused game means. The pause (and the loop) are restored afterwards, with the
+     * clock re-based so the first resumed frame is not handed the whole excursion as
+     * its delta.
+     */
+    async stepFrames(frames = 1, dt = 1 / 60): Promise<void> {
+        const wasRunning = this.running_;
+        const wasPaused = this.user_paused_;
+        // The in-flight rAF callback returns without rescheduling, so nothing else
+        // ticks the world while this runs.
+        this.running_ = false;
+        this.user_paused_ = false;
+        try {
+            for (let i = 0; i < frames; i++) await this.tick(dt);
+        } finally {
+            this.user_paused_ = wasPaused;
+            if (wasRunning) {
+                this.lastTime_ = platformNow();
+                this.running_ = true;
+                void this.mainLoop();
+            }
+        }
+    }
+
     async run(): Promise<void> {
         if (this.running_) {
             return;

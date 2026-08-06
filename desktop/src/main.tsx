@@ -90,6 +90,13 @@ applySettings();
 initFsWatch();
 
 initBackgroundThrottle();
+// Teach the control surface about the play realm, so `step` advances the game when
+// one is running instead of the edit World, which holds no gameplay. The surface is
+// shared with the headless host, which has no realm — hence a port, installed here.
+EditorControlSurface.setLiveGame({
+  running: () => PlayRealm.getSnapshot().playing,
+  step: (frames, dt) => PlayRealm.step(frames, dt),
+});
 // Load the open project's editor plugins (and unload them when it closes).
 initPlugins();
 
@@ -230,7 +237,21 @@ function buildEditorAutomation(): unknown {
      *  got back was `"GomokuState" has no field "currentPlayer" (fields: )`: an
      *  empty field list, phrased as if the field name were wrong. */
     refreshSchemas: () => ProjectStore.refreshUserSchemas(),
-    play: () => useEditorStore.getState().togglePlay(),
+    /** Enter/leave Play. Answers with the realm state rather than "ok": a caller that
+     *  just started a game needs to know it is a REALM now — an unfocused editor
+     *  window throttles it to about a frame a second, so nothing observed by waiting
+     *  is worth anything, and `step` is what advances it. */
+    play: () => {
+      useEditorStore.getState().togglePlay();
+      const state = PlayRealm.getSnapshot();
+      return state.playing
+        ? {
+          ...state,
+          note: 'the game runs in its own frame, throttled while the editor window is not focused — '
+            + 'use step to advance it deterministically, screenshot to see it, and play_input to drive it',
+        }
+        : state;
+    },
     playState: () => PlayRealm.getSnapshot(),
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */
     setPlayPlayers: (n: number) => useEditorStore.getState().setPlayPlayers(n),

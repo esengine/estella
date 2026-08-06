@@ -317,6 +317,49 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       }
       return { total: out.length, entities: out };
     },
+    /**
+     * ONE entity's component data, honestly — null when it does not have it.
+     *
+     * `getComponent(name)` then `world.tryGet(entity, def)` is the two-step every
+     * probe was opening with, re-typed each time; a Breakout dogfood spent
+     * seventy-five probes and most of them carried that preamble. It is the same
+     * pair of calls, named once.
+     */
+    get: (entity: number, name: string) => {
+      const def = getComponent(name);
+      if (!def) return { error: `no component named "${name}" is registered in this realm` };
+      return app!.world.tryGet(entity as never, def) ?? null;
+    },
+    /**
+     * Write fields of one entity's component — for SETTING UP the situation you want
+     * to observe (put the ball above the paddle, then step).
+     *
+     * Through `insert`, because the object `get` hands back is a COPY for several
+     * component kinds: assigning to it changes what you are holding and nothing else,
+     * which is a probe that reports success and moves nothing.
+     */
+    set: (entity: number, name: string, patch: Record<string, unknown>) => {
+      const def = getComponent(name);
+      if (!def) return { error: `no component named "${name}" is registered in this realm` };
+      const current = app!.world.tryGet(entity as never, def);
+      if (current === null || current === undefined) {
+        return { error: `entity ${entity} has no ${name}` };
+      }
+      app!.world.insert(entity as never, def, { ...(current as object), ...patch } as never);
+      return app!.world.tryGet(entity as never, def) ?? null;
+    },
+    /**
+     * Advance the game exactly `frames` frames of `dt` seconds and answer with the
+     * clock afterwards — the loop is wall-clock and the editor window is usually not
+     * the focused one, which throttles it to about a frame a second. Two probes taken
+     * a second apart therefore read identical, and a game that is running fine looks
+     * frozen.
+     */
+    step: async (frames = 1, dt = 1 / 60) => {
+      await app!.stepFrames(Math.max(1, Math.min(600, Math.floor(frames))), dt);
+      const time = app!.getResourceByName('Time') as { frameCount?: number; elapsed?: number } | undefined;
+      return { frames, dt, frameCount: time?.frameCount ?? 0, elapsed: time?.elapsed ?? 0 };
+    },
     /** What `find` can be asked about: the component names this realm knows. */
     componentNames: () => app!.world.getAllEntities()
       .flatMap((e) => app!.world.getComponentTypes(e as never))
@@ -664,6 +707,25 @@ window.addEventListener('message', (e: MessageEvent) => {
       } else if (data.kind === 'subsystems') {
         // The running game's module health (for the editor's Modules indicator).
         post({ type: 'estella:play:reply', reqId: data.reqId, data: app ? app.subsystems.getStatuses() : [] });
+      } else if (data.kind === 'step') {
+        // Deterministic advance — see __estellaPlay.step. The reply carries the clock
+        // so a caller can tell the frames actually ran from a request that no-oped.
+        const { reqId } = data;
+        void (async () => {
+          if (!app) {
+            post({ type: 'estella:play:reply', reqId, data: null });
+            return;
+          }
+          const frames = Math.max(1, Math.min(600, Math.floor(data.frames ?? 1)));
+          const dt = data.dt ?? 1 / 60;
+          await app.stepFrames(frames, dt);
+          const time = app.getResourceByName('Time') as { frameCount?: number; elapsed?: number } | undefined;
+          post({
+            type: 'estella:play:reply',
+            reqId,
+            data: { frames, dt, frameCount: time?.frameCount ?? 0, elapsed: time?.elapsed ?? 0 },
+          });
+        })();
       }
       break;
     case 'estella:play:setField':

@@ -103,3 +103,45 @@ describe('App.tick()', () => {
         expect(capturedValue).toBe(42);
     });
 });
+
+describe('App.stepFrames()', () => {
+    // The rAF loop is wall-clock and the browser throttles it in a background tab
+    // to about a frame a second, so "wait and look again" cannot observe a game.
+    // This is the door that advances one on purpose; before it existed the only
+    // way through was App's private runFrame_, which a dogfood run duly found.
+    it('runs exactly the frames asked for, at exactly the delta asked for', async () => {
+        const app = App.new();
+        let frames = 0;
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => { frames++; }, { name: 'Count' },
+        ));
+
+        await app.stepFrames(30, 1 / 60);
+
+        expect(frames).toBe(30);
+        const time = app.getResource(Time);
+        expect(time.frameCount).toBe(30);
+        expect(time.delta).toBeCloseTo(1 / 60);
+        expect(time.elapsed).toBeCloseTo(0.5);
+    });
+
+    it('steps a PAUSED app — that is what stepping a paused game means — and leaves it paused', async () => {
+        const app = App.new();
+        let frames = 0;
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => { frames++; }, { name: 'Count' },
+        ));
+        app.setPaused(true);
+
+        await app.stepFrames(3);
+
+        expect(frames).toBe(3);
+        expect(app.isPaused()).toBe(true);
+    });
+
+    it('defaults to one frame', async () => {
+        const app = App.new();
+        await app.stepFrames();
+        expect(app.getResource(Time).frameCount).toBe(1);
+    });
+});

@@ -103,7 +103,16 @@ export interface PlaySnapshot {
   selected: SceneData['entities'][number] | null;
 }
 
-export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats';
+export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats' | 'step';
+
+/** What `query { kind: 'step' }` answers with: the clock AFTER the advance, so a
+ *  caller can tell frames that ran from a request that reached no app. */
+export interface PlayStepReply {
+  frames: number;
+  dt: number;
+  frameCount: number;
+  elapsed: number;
+}
 
 /** The running game's frame telemetry — reply payload of `query { kind: 'stats' }`.
  *  Feeds the editor profiler's engine segment while playing (PerfMonitor). */
@@ -133,7 +142,12 @@ export type PlayOutbound =
   | { type: 'estella:play:setPaused'; paused: boolean }
   | { type: 'estella:play:reload' }
   // `withTree: false` = detail-only snapshot (skip the O(entities) tree walk).
-  | { type: 'estella:play:query'; kind: PlayQueryKind; reqId: number; selectedId?: number | null; withTree?: boolean }
+  | {
+    type: 'estella:play:query'; kind: PlayQueryKind; reqId: number;
+    selectedId?: number | null; withTree?: boolean;
+    // `step` only: how far to advance, and with what fixed delta.
+    frames?: number; dt?: number;
+  }
   | { type: 'estella:play:setField'; entityId: number; comp: string; key: string; value: unknown };
 
 /** realm → editor. Discriminated by `type`. */

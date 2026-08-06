@@ -24,7 +24,7 @@ import { t } from '@/i18n';
 import { playProtocolMismatch } from './playProtocol';
 import { bootProfiler } from './bootProfiler';
 import { projectReplacing } from '@/project/projectReplacing';
-import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply } from './playProtocol';
+import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply, PlayStepReply } from './playProtocol';
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
 
@@ -313,6 +313,26 @@ export class PlayRealmInstance {
       this.pending.set(reqId, (data) => resolve((data as SubsystemStatus[]) ?? null));
       this.post({ type: 'estella:play:query', kind: 'subsystems', reqId });
       setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
+    });
+  }
+
+  /**
+   * Advance the RUNNING game by `frames` frames of `dt` seconds, deterministically.
+   * Null if no realm is running.
+   *
+   * The realm's own loop is wall-clock and browser-scheduled: with the editor window
+   * unfocused — which it is, for anything driving the editor from outside — it is
+   * throttled to roughly a frame a second, so "wait and look again" shows a game that
+   * never moves. This is the door that makes the next N frames happen on purpose.
+   * Generous timeout: 600 frames of gameplay is real work, not a query.
+   */
+  step(frames = 1, dt = 1 / 60): Promise<PlayStepReply | null> {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
+    const reqId = ++this.reqSeq;
+    return new Promise((resolve) => {
+      this.pending.set(reqId, (data) => resolve((data as PlayStepReply) ?? null));
+      this.post({ type: 'estella:play:query', kind: 'step', reqId, frames, dt });
+      setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 30000);
     });
   }
 
