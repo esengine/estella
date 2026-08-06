@@ -226,7 +226,7 @@ export {
     type ExternalEntityRef,
 } from './prefab/index';
 
-export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefab/prefabServer';
+export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin, type SpawnOverride } from './prefab/prefabServer';
 
 // =============================================================================
 // Runtime Loader
