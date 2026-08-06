@@ -230,6 +230,44 @@ export function pathMatchesGlob(rel: string, glob: string): boolean {
   const re = new RegExp(`^${pattern}$`);
   return re.test(rel) || (!glob.includes('/') && re.test(rel.split('/').pop() ?? ''));
 }
+/** The staged SDK types, which the content walk skips because they sit under a dot dir. */
+const SDK_TYPES_REL = '.esengine/sdk';
+
+/**
+ * What a code search reaches: the project's own files, then the staged SDK types.
+ *
+ * The dot rule that keeps `.esengine` out of the Content Browser was excluding it
+ * from search too — and search exists FOR that directory: the doc above names the
+ * 50k-line `.d.ts` as the thing nobody should have to page a hundred lines at a
+ * time, and it was the one file the walk could not see. `read_project_file` and
+ * `lookup_symbol` both hand out paths inside it, so "no matches" for a symbol
+ * those two had just named read as "it does not exist" — and the next twelve
+ * calls were blind offsets into the file the search would have pointed at.
+ * Project files come first so a hit in the user's own code still leads.
+ */
+async function* searchable(root: string): AsyncGenerator<string> {
+  yield* walkVisible(root, root);
+  const sdk = path.resolve(root, SDK_TYPES_REL);
+  if (existsSync(sdk)) {
+    for await (const abs of walkFiles(sdk)) yield toRel(root, abs);
+  }
+}
+
+/**
+ * A generated re-export line: `export { a as Foo, b as Bar, … }` — hundreds of
+ * aliases on one line, in five near-identical index files.
+ *
+ * It matches EVERY symbol anyone searches for and says nothing about any of
+ * them: the declaration is in another file, and the alias soup around the hit
+ * is a different file's alphabet (one reader took `d4 as GpAxis` from the
+ * wrong barrel and spent four calls on the wrong function). Clipped to 400
+ * characters it is also unreadable. The declaration is still found — it is a
+ * line in the file the barrel re-exports from.
+ */
+function isReExportBarrel(line: string): boolean {
+  return line.length > 400 && /^export\s+(type\s+)?\{/.test(line);
+}
+
 export async function searchInRoot(
   root: string,
   opts: { query: string; regex?: boolean; glob?: string; maxResults?: number },
@@ -241,7 +279,7 @@ export async function searchInRoot(
     ? new RegExp(query, 'i')
     : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   const out: FileMatch[] = [];
-  for await (const rel of walkVisible(root, root)) {
+  for await (const rel of searchable(root)) {
     if (opts.glob && !pathMatchesGlob(rel, opts.glob)) continue;
     let text: string;
     try {
@@ -255,7 +293,9 @@ export async function searchInRoot(
     const lines = text.split('\n');
     for (let i = 0; i < lines.length; i++) {
       if (!re.test(lines[i])) continue;
-      out.push({ file: rel, line: i + 1, text: lines[i].trim().slice(0, 400) });
+      const line = lines[i].trim();
+      if (isReExportBarrel(line)) continue;
+      out.push({ file: rel, line: i + 1, text: line.slice(0, 400) });
       if (out.length >= max) return out;
     }
   }

@@ -214,6 +214,61 @@ class ProjectScripts {
     return text.slice(from, end).replace(/\s+/g, ' ').trim().slice(0, 800);
   }
 
+  /** The innermost class/interface a position falls inside, if any. */
+  private enclosingType(
+    source: ts.SourceFile,
+    start: number,
+  ): ts.ClassDeclaration | ts.InterfaceDeclaration | undefined {
+    let found: ts.ClassDeclaration | ts.InterfaceDeclaration | undefined;
+    const visit = (node: ts.Node): void => {
+      if (start < node.getStart(source) || start >= node.getEnd()) return;
+      if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) found = node;
+      node.forEachChild(visit);
+    };
+    source.forEachChild(visit);
+    return found;
+  }
+
+  /**
+   * A type rendered as WHAT YOU CAN CALL ON IT: its public members, signatures only.
+   *
+   * The declaration text is the wrong answer for a class, and silently so. Every
+   * real class opens with its private state, so the first 800 characters of
+   * `AudioAPI` are a dozen `private readonly` fields and a comment — the asker
+   * learns nothing and cannot even tell they were cut off. The one question a
+   * class is ever asked is which methods it has, and the members answer it in
+   * less space than the fields wasted.
+   */
+  private memberSummary(source: ts.SourceFile, start: number): string | null {
+    const node = this.enclosingType(source, start);
+    if (!node?.name) return null;
+    const hidden = (m: ts.ClassElement | ts.TypeElement): boolean => {
+      const mods = ts.canHaveModifiers(m) ? ts.getModifiers(m) ?? [] : [];
+      if (mods.some((x) => x.kind === ts.SyntaxKind.PrivateKeyword
+        || x.kind === ts.SyntaxKind.ProtectedKeyword)) return true;
+      const name = m.name ? m.name.getText(source) : '';
+      // `_id` / `world_` are the two spellings the engine uses for "not yours".
+      return !name || name.startsWith('_') || name.endsWith('_');
+    };
+    const rendered: string[] = [];
+    let dropped = 0;
+    for (const m of node.members as ts.NodeArray<ts.ClassElement | ts.TypeElement>) {
+      if (hidden(m)) continue;
+      if (rendered.length >= 40) { dropped++; continue; }
+      const body = (m as ts.MethodDeclaration).body;
+      const text = body
+        ? m.getText(source).slice(0, body.getStart(source) - m.getStart(source))
+        : m.getText(source);
+      rendered.push(text.replace(/\s+/g, ' ').trim().replace(/[;,]$/, ''));
+    }
+    if (!rendered.length) return null;
+    const kind = ts.isClassDeclaration(node) ? 'class' : 'interface';
+    const heritage = node.heritageClauses?.map((h) => h.getText(source).replace(/\s+/g, ' ')).join(' ');
+    const head = `${kind} ${node.name.getText(source)}${heritage ? ` ${heritage}` : ''}`;
+    const tail = dropped ? `; … ${dropped} more` : '';
+    return `${head} { ${rendered.join('; ')}${tail} }`.slice(0, 2400);
+  }
+
   lookup(name: string, limit = 8): SymbolInfo[] {
     this.rescan();
     const items = this.service.getNavigateToItems(name, 64, undefined, false, true);
@@ -233,11 +288,16 @@ class ProjectScripts {
       // IS complete it is better than raw source — it carries the owning type
       // ("(method) InputState.isMouseButtonPressed(button: number): boolean").
       const useQuick = quick.includes('(') || quick.includes(':');
+      // A class or interface answers with its members, whatever quickInfo said:
+      // for `AudioAPI` quickInfo is "class AudioAPI", and the declaration text
+      // is its private fields.
+      const members = source && (item.kind === 'class' || item.kind === 'interface')
+        ? this.memberSummary(source, item.textSpan.start) : null;
       const declared = source ? this.declarationText(source, item.textSpan.start) : '';
       out.push({
         name: item.name,
         kind: item.kind,
-        signature: (useQuick ? quick : declared) || quick || `${item.kind} ${item.name}`,
+        signature: members || (useQuick ? quick : declared) || quick || `${item.kind} ${item.name}`,
         doc: info?.documentation?.length ? ts.displayPartsToString(info.documentation) : undefined,
         file: path.relative(this.root, item.fileName),
         line,

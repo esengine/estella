@@ -140,6 +140,18 @@ describe('the project script service', () => {
     }
   });
 
+  // A class is only ever asked what you can CALL on it, and the declaration text
+  // answered with its private field block — the first 800 characters of AudioAPI
+  // are a dozen `private readonly`s, so "how do I play a sound" came back empty
+  // and the asker fell back to paging the .d.ts by line offset.
+  it('answers a class with its public members', () => {
+    if (!existsSync(SDK_TYPES)) return;
+    const hit = lookupScriptSymbol('AudioAPI', 2).find((h) => h.name === 'AudioAPI');
+    expect(!!hit).toBe(true);
+    expect(hit!.signature).toContain('playSFX');
+    expect(hit!.signature).not.toMatch(/private/);
+  });
+
   it('knows which paths it has an opinion about', () => {
     expect([isScriptPath('src/a.ts'), isScriptPath('assets/a.png'), isScriptPath('a.json')])
       .toEqual([true, false, false]);

@@ -78,6 +78,27 @@ describe('editor MCP tool registry', () => {
     expect(driver).not.toHaveBeenCalled();
   });
 
+  // An argument nobody declared used to be dropped in silence, so a caller who
+  // assumed a parameter existed got `{ok:true}` proving it did — and
+  // `write_project_file` with an `offset` (which read_project_file really takes)
+  // overwrote the file it was meant to append to.
+  it('runTool refuses an argument the tool does not declare, naming the ones it does', async () => {
+    const driver = vi.fn();
+    const write = TOOLS.find((t: { name: string }) => t.name === 'write_project_file');
+    const res = await runTool(write, driver, { path: 'src/a.ts', content: 'x', offset: 40 });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain('offset');
+    expect(res.content[0].text).toContain('`path`');
+    expect(driver).not.toHaveBeenCalled();
+  });
+
+  it('runTool lets protocol metadata through', async () => {
+    const driver = vi.fn(async () => ({}));
+    const tree = TOOLS.find((t: { name: string }) => t.name === 'get_scene_tree');
+    const res = await runTool(tree, driver, { _meta: { progressToken: 1 } });
+    expect(res.isError).toBeUndefined();
+  });
+
   it('runTool wraps a driver throw as an error result', async () => {
     const driver = vi.fn(async () => { throw new Error('boom'); });
     const tree = TOOLS.find((t: { name: string }) => t.name === 'get_scene_tree');

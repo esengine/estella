@@ -19,6 +19,7 @@ import {
   duplicateInRoot,
   statInRoot,
   readSliceInRoot,
+  searchInRoot,
   snapshotForTrash,
   restoreTrashed,
 } from '../electron/projectFs';
@@ -86,6 +87,57 @@ describe('content visibility (contentPolicy)', () => {
 
   it('subtree search agrees with readDir (same policy)', async () => {
     expect(await listFilesInRoot(root, '')).toEqual(['assets/hero.png']);
+  });
+});
+
+describe('searchInRoot', () => {
+  beforeEach(() => {
+    mkdirSync(path.join(root, 'src'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'systems.ts'), 'const s = defineSystem([]);\n');
+    mkdirSync(path.join(root, '.esengine', 'sdk', 'shared'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.esengine', 'sdk', 'shared', 'app.d.ts'),
+      'interface PrefabOverride {\n  prefabEntityId: string;\n}\n',
+    );
+    mkdirSync(path.join(root, 'node_modules', 'dep'), { recursive: true });
+    writeFileSync(path.join(root, 'node_modules', 'dep', 'i.ts'), 'interface PrefabOverride {}\n');
+  });
+
+  it('finds the project\'s own source', async () => {
+    const hits = await searchInRoot(root, { query: 'defineSystem' });
+    expect(hits.map((h) => h.file)).toEqual(['src/systems.ts']);
+    expect(hits[0].line).toBe(1);
+  });
+
+  // The SDK types are what this tool exists for, and the dot-dir rule that keeps
+  // them out of the Content Browser was hiding them here too — so a search for a
+  // declaration the compiler had just named came back empty, which reads as "no
+  // such type" and sends the caller back to paging the .d.ts by line offset.
+  it('reaches the staged SDK types under .esengine/sdk', async () => {
+    const hits = await searchInRoot(root, { query: 'interface PrefabOverride' });
+    expect(hits.map((h) => h.file)).toContain('.esengine/sdk/shared/app.d.ts');
+  });
+
+  it('still stays out of node_modules', async () => {
+    const hits = await searchInRoot(root, { query: 'interface PrefabOverride' });
+    expect(hits.some((h) => h.file.startsWith('node_modules/'))).toBe(false);
+  });
+
+  it('skips the generated re-export barrels', async () => {
+    // One line of several hundred aliases matches every query and points at
+    // nothing; the declaration it re-exports is still found in its own file.
+    writeFileSync(
+      path.join(root, '.esengine', 'sdk', 'index.d.ts'),
+      `export { ${Array.from({ length: 60 }, (_, i) => `a${i} as Sym${i}, x${i} as PrefabOverride${i}`).join(', ')} } from './shared/app.js';\n`,
+    );
+    const hits = await searchInRoot(root, { query: 'PrefabOverride' });
+    expect(hits.map((h) => h.file)).toEqual(['.esengine/sdk/shared/app.d.ts']);
+  });
+
+  it('puts the project ahead of the SDK', async () => {
+    writeFileSync(path.join(root, 'src', 'own.ts'), 'interface PrefabOverride {}\n');
+    const hits = await searchInRoot(root, { query: 'interface PrefabOverride' });
+    expect(hits[0].file).toBe('src/own.ts');
   });
 });
 

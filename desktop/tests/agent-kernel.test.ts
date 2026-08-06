@@ -552,14 +552,14 @@ describe('looking before reporting', () => {
     // The gomoku turn: 71 calls, every write compiling, every diagnostic clean,
     // and the board half off camera — because nothing in the loop ever put a
     // picture in front of it.
-    const s = fakeSession([asks(call('add_entity', { name: 'Board' })), ends(), ends()]);
+    const s = fakeSession([asks(call('add_entity')), ends(), ends()]);
     await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
     expect(s.context.some((c) => c.includes('capture_viewport'))).toBe(true);
   });
 
   it('says nothing to a turn that already looked', async () => {
     const s = fakeSession([
-      asks(call('add_entity', { name: 'Board' })),
+      asks(call('add_entity')),
       asks(call('capture_viewport')),
       ends(),
     ]);
@@ -578,7 +578,7 @@ describe('looking before reporting', () => {
   it('asks once, not every round', async () => {
     // A second ask is an argument. The model may have a reason not to look, and
     // a loop that insists cannot be ended by the model at all.
-    const s = fakeSession([asks(call('add_entity', { name: 'B' })), ends(), ends(), ends()]);
+    const s = fakeSession([asks(call('add_entity')), ends(), ends(), ends()]);
     await runTurn(deps(s), 'build', null, new AbortController().signal);
     expect(s.context.filter((c) => c.includes('capture_viewport')).length).toBe(1);
   });

@@ -452,7 +452,8 @@ export const TOOLS = [
     schema: obj({ name: { type: ['string', 'array'] }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
   { name: 'search_project_files',
     description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` filters paths — `*.ts`, `src/**`, `src/*.ts`, or a plain substring like ".ts". '
-      + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole.',
+      + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole. '
+      + 'It searches the STAGED SDK TYPES too (`.esengine/sdk/**.d.ts`), so `query: "interface PrefabOverride"` finds the declaration and its line — that is the way to locate a type lookup_symbol did not answer, rather than paging the .d.ts by offset.',
     schema: obj({
       query: { type: 'string' }, regex: { type: 'boolean' },
       glob: { type: 'string' }, maxResults: { type: 'number' },
@@ -543,8 +544,9 @@ export const TOOLS = [
       + '**`find(NAME)`** — an ARRAY of `{ entity, data }`, one per entity carrying that component (`.length`, `[0]`, `for..of` and `.map` all work; `.total` is the count, `.truncatedAt` is set when a limit cut it short, and returning the array itself serialises as a plain list); '
       + '**`get(ENTITY, NAME)`** — one entity\'s component data, or null when it does not have it; '
       + '**`set(ENTITY, NAME, PATCH)`** — write fields of one component, for staging the situation you want to watch; '
-      + '**`resource(NAME)`** — the live value of a resource (a score, a phase — state belonging to no entity); '
-      + '**`step(FRAMES, DT)`** — advance the game deterministically (the loop is throttled while the editor window is unfocused, so this is how anything moves); '
+      + '**`resource(NAME)`** — the live value of a resource (a score, a phase — state belonging to no entity), and **`setResource(NAME, PATCH)`** to write its fields, which is how you stage a game state (`setResource("GameState", { lives: 1 })`) without playing up to it; '
+      + '**`await step(FRAMES, DT)`** — advance the game deterministically (the loop is throttled while the editor window is unfocused, so this is how anything moves). '
+      + 'AWAIT it: it is async, and unawaited it returns a promise while everything you read after it is still the state from BEFORE the step. '
       + '`componentNames()` lists what `find` accepts, `resource` on an unknown name answers with the available ones, and `app` / `getComponent` are there for what these do not cover. '
       + 'Reach for find/get/resource first — they answer "what does the game think is going on right now", which is the question. Do NOT hand-roll a frame advance through app internals; `step` is the supported one. '
       + 'Use play_input, not synthetic DOM events, to drive input. frame picks the realm in multiplayer previews (0 = host).',
@@ -616,9 +618,30 @@ function typeMatches(spec, val) {
       : true);
 }
 
-/** Light validation: required args present + declared scalar types match. */
+/**
+ * Light validation: required args present, declared scalar types match, and
+ * NOTHING ELSE came along.
+ *
+ * The unknown-argument check is the one that saves a file. An argument nobody
+ * declared used to be dropped in silence, so a caller who assumed a parameter
+ * existed got a successful reply proving it did — `write_project_file` handed an
+ * `offset` (which `read_project_file` really does take) answered `{ok:true}` to
+ * what the caller believed was an append, and had overwritten four hundred lines
+ * with the fragment. Say which arguments exist instead; the caller is one round
+ * trip from right, rather than one call from a truncated file.
+ */
 function validate(schema, raw) {
   const input = raw ?? {};
+  const declared = Object.keys(schema.properties ?? {});
+  // `_`-prefixed keys are protocol metadata some MCP clients attach, not arguments.
+  const unknown = Object.keys(input).filter((k) => !k.startsWith('_') && !declared.includes(k));
+  if (unknown.length) {
+    throw new Error(
+      `unknown argument${unknown.length > 1 ? 's' : ''}: ${unknown.map((k) => `\`${k}\``).join(', ')}`
+      + ` — this tool takes ${declared.length ? declared.map((k) => `\`${k}\``).join(', ') : 'no arguments'}`
+      + '. It was IGNORED, not applied.',
+    );
+  }
   for (const req of schema.required ?? []) {
     if (input[req] === undefined) {
       // Name what DID arrive. A caller that wrote `file` for `path` reads "missing
