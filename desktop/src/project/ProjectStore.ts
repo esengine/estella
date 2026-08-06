@@ -1190,6 +1190,7 @@ class ProjectStoreImpl {
     path: string,
     parent: number | null = null,
     position?: { x: number; y: number },
+    name?: string,
   ): Promise<number | null> {
     const uuid = this.pathToUuid.get(path);
     if (!uuid) return null;
@@ -1199,7 +1200,7 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.prefabLoadFailed', { name: path.split('/').pop() ?? path }), 'error');
       return null;
     }
-    const rootId = SceneCommands.instantiatePrefab(prefab, ref, parent, position);
+    const rootId = SceneCommands.instantiatePrefab(prefab, ref, parent, position, name);
     if (rootId != null) useSelection.getState().select(rootId);
     return rootId;
   }

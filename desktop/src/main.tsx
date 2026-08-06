@@ -403,12 +403,16 @@ function buildEditorAutomation(): unknown {
       if (patch.wangColor !== undefined) s.setWangColor(patch.wangColor);
     },
     /** Spawn a ready-made entity through the one create pipeline (menu/DnD parity). */
-    createEntity: async (sourceId: string, opts?: { parent?: number | null; x?: number; y?: number }) => {
+    createEntity: async (
+      sourceId: string,
+      opts?: { parent?: number | null; x?: number; y?: number; name?: string },
+    ) => {
       const source = sourceById(sourceId);
       if (!source) throw new Error(`unknown entity template: ${sourceId} (see listEntityTemplates)`);
       return createFromSource(source, {
         parent: opts?.parent ?? null,
         position: opts?.x != null && opts?.y != null ? { x: opts.x, y: opts.y } : undefined,
+        name: opts?.name,
       });
     },
     /** Author a whole subtree in ONE undoable batch (create/parent/component/field

@@ -909,7 +909,7 @@ export class SceneCommandsImpl {
    */
   create(
     prefab: PrefabData,
-    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string },
+    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string; name?: string },
   ): EntityId | null {
     if (!this.model.current) return null;
     const ref = opts.linkPrefabRef ?? '';
@@ -922,6 +922,11 @@ export class SceneCommandsImpl {
     const root = entities.find((e) => e.id === rootId);
     if (!root) return null;
     root.parent = opts.parent;
+    // Named HERE rather than renamed after: creating ten enemies from one prefab
+    // otherwise costs ten extra undo steps, and each of them briefly leaves an
+    // entity in the tree under the prefab's own name. On an instance this becomes
+    // an ordinary `name` override at save time, the same as renaming it later.
+    if (opts.name) root.name = opts.name;
 
     // Place the instance at the drop point — a Transform.position edit that
     // diffAgainstSource captures as a property override on save (so the prefab
@@ -976,14 +981,19 @@ export class SceneCommandsImpl {
    * Instantiate a prefab asset into the scene under `parent` (thin adapter over
    * {@link create} that links the subtree to its prefab origin). The caller loads
    * the PrefabData; stays synchronous + undoable. Returns the instance root's id.
+   *
+   * `name` names the INSTANCE (the prefab keeps its own): ten instances of one
+   * prefab otherwise arrive as ten entities called the same thing, which is a tree
+   * nobody can read and, for a driver, ten entities it cannot tell apart.
    */
   instantiatePrefab(
     prefab: PrefabData,
     ref: string,
     parent: EntityId | null,
     position?: { x: number; y: number },
+    name?: string,
   ): EntityId | null {
-    return this.create(prefab, { parent, position, linkPrefabRef: ref });
+    return this.create(prefab, { parent, position, linkPrefabRef: ref, name });
   }
 
   /** Plain, user-owned entities from a template prefab — {@link create} with no prefab link. */

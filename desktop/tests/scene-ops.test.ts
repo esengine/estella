@@ -31,12 +31,13 @@ vi.mock('@/engine/EditorSession', () => ({
       }
       calls.push(['transact:commit']);
     },
-    create: (prefab: { name: string }, opts: { parent: number | null; linkPrefabRef?: string }) => {
+    create: (prefab: { name: string }, opts: { parent: number | null; linkPrefabRef?: string; name?: string }) => {
       calls.push(['create', prefab.name, opts.parent]);
       // Recorded separately so the `create` tuple keeps its shape: a prefab link
-      // is a distinct fact about the create, not another positional argument every
-      // existing assertion has to know about.
+      // and a chosen name are distinct facts about the create, not more positional
+      // arguments every existing assertion has to know about.
       if (opts.linkPrefabRef) calls.push(['link', opts.linkPrefabRef]);
+      if (opts.name) calls.push(['named', opts.name]);
       return state.createReturnsNull ? null : state.nextId++;
     },
     setField: (entity: number, component: string, key: string, _t: string, value: unknown) => {
@@ -141,7 +142,11 @@ describe('applySceneOps', () => {
   it('resolves an entity template before mutating, and rejects an unknown one', async () => {
     await applySceneOps([{ op: 'create', ref: 'img', template: 'ui-image', name: 'Icon' }]);
     expect(calls).toContainEqual(['create', 'Image', null]);
-    expect(calls).toContainEqual(['rename', 100, 'Icon']);
+    // The name goes IN with the create rather than being a rename after it: on a
+    // prefab template that is one described change instead of two, and the tree
+    // never shows the template's own name in between.
+    expect(calls).toContainEqual(['named', 'Icon']);
+    expect(calls.some((c) => c[0] === 'rename')).toBe(false);
 
     calls.length = 0;
     await expect(applySceneOps([{ op: 'create', template: 'nope' }])).rejects.toThrow(/unknown entity template/);

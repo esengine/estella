@@ -182,11 +182,14 @@ export async function applySceneOps(
             const id = EditorControlSurface.create(prefab, {
               parent, position,
               linkPrefabRef: op.template ? links.get(op.template) : undefined,
+              // Named as it is built rather than renamed after — on a prefab
+              // template that is the difference between one described change and
+              // two, and the tree never shows the prefab's own name in between.
+              name: op.name,
             });
             if (id == null) throw new Error('entity creation returned no id');
             created.push(id);
             if (op.ref) refs[op.ref] = id;
-            if (op.name) EditorControlSurface.renameEntity(id, op.name);
             if (op.fields) {
               // `components` REPLACES the default `['Transform']` rather than
               // adding to it, so a create that names ShapeRenderer and then

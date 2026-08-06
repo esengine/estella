@@ -30,6 +30,9 @@ export interface CreateContext {
   parent: EntityId | null;
   position?: { x: number; y: number };
   assetPath?: string;
+  /** Name the new entity instead of taking the template's own — one undo step, and
+   *  for a prefab template it becomes an ordinary `name` override. */
+  name?: string;
 }
 
 /** How a new entity is parented when the request carries no explicit target. */
@@ -399,6 +402,7 @@ export async function createFromSource(source: EntitySource, ctx: CreateContext)
     parent,
     position: ctx.position,
     linkPrefabRef: source.linkPrefabRef?.(ctx),
+    name: ctx.name,
   });
   // A UI widget's on-screen spot is layout-owned (a flow node collapses to the Canvas
   // corner, tiny and easy to miss), so `create`'s Transform.position is a no-op for it.

@@ -427,11 +427,12 @@ export class EditorControlSurfaceImpl {
   /**
    * Create entities from a template/prefab through the one create pipeline (E5) —
    * so headless/automation can spawn any ready-made entity, not just a blank one.
-   * With `linkPrefabRef` the subtree is tagged as a prefab instance.
+   * With `linkPrefabRef` the subtree is tagged as a prefab instance; `name` names
+   * the root instead of taking the template's own.
    */
   create(
     prefab: PrefabData,
-    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string },
+    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string; name?: string },
   ): EntityId | null {
     return this.s.commands.create(prefab, opts);
   }
