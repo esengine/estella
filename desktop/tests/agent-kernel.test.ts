@@ -658,3 +658,74 @@ describe('what verification means for a model that cannot see', () => {
     }
   });
 });
+
+/**
+ * A round whose CONNECTION failed is not a turn that failed. The provider layer
+ * appends to the conversation only once a stream completes, so a stream that
+ * died left the session as it found it — two dogfood runs in three ended
+ * mid-build on a socket the gateway closed, with eighty-odd rounds of work on
+ * the floor.
+ */
+describe('a dropped connection', () => {
+  const mkDriver = () => {
+    const d = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 1 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      return null;
+    }) as ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+    (d as { js: unknown }).js = vi.fn(async () => null);
+    (d as { op: unknown }).op = vi.fn(async () => null);
+    return d;
+  };
+
+  /** A session that throws on its first `n` steps, then behaves. */
+  const flaky = (n: number, retryable: boolean, steps: StepEvent[][]) => {
+    const s = fakeSession(steps);
+    const real = s.step;
+    let thrown = 0;
+    s.step = async function* (...args: Parameters<typeof real>) {
+      if (thrown < n) {
+        thrown++;
+        const e = new Error('Could not reach the endpoint: terminated') as Error & { retryable?: boolean };
+        e.retryable = retryable;
+        throw e;
+      }
+      yield* real(...args);
+    } as typeof real;
+    return s;
+  };
+
+  it('is retried, and the turn goes on to finish', async () => {
+    const events: AgentEvent[] = [];
+    const s = flaky(1, true, [asks(call('add_entity')), ends(), ends()]);
+    const out = await runTurn({
+      driver: mkDriver() as never, session: s, model: 'm', acceptsImages: false,
+      confirm: (async () => ({ answer: 'once' })) as never, emit: (e) => { events.push(e); },
+    }, 'build', null, new AbortController().signal);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'end_turn' });
+    expect(events.some((e) => e.type === 'error' && e.message.includes('retrying (1/2)'))).toBe(true);
+    expect(out.mark).toBeTruthy();
+  });
+
+  it('gives up once the retries are spent, and says the turn ended in error', async () => {
+    const events: AgentEvent[] = [];
+    const s = flaky(9, true, [ends()]);
+    await runTurn({
+      driver: mkDriver() as never, session: s, model: 'm', acceptsImages: false,
+      confirm: (async () => ({ answer: 'once' })) as never, emit: (e) => { events.push(e); },
+    }, 'build', null, new AbortController().signal);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'error' });
+  });
+
+  it('does not retry a refusal or a bad request', async () => {
+    const events: AgentEvent[] = [];
+    const s = flaky(1, false, [ends()]);
+    await runTurn({
+      driver: mkDriver() as never, session: s, model: 'm', acceptsImages: false,
+      confirm: (async () => ({ answer: 'once' })) as never, emit: (e) => { events.push(e); },
+    }, 'build', null, new AbortController().signal);
+    expect(events.some((e) => e.type === 'error' && e.message.includes('retrying'))).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'error' });
+  });
+});

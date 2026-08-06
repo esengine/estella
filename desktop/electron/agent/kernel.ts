@@ -233,10 +233,30 @@ export async function runTurn(
       const calls: ToolCall[] = [];
       let refused = false;
 
-      for await (const ev of session.step(signal)) {
-        if (ev.type === 'tool_call') calls.push(ev.call);
-        if (ev.type === 'stop' && ev.reason === 'refusal') refused = true;
-        emit(ev);
+      // A dropped connection costs the ROUND, not the turn. The provider layer
+      // appends to the conversation only once a stream completes, so a stream
+      // that died left the session as it found it and asking again sends the
+      // same messages. Without this, an hour of work ends on a socket the
+      // gateway closed — twice in three dogfood runs, both times mid-build,
+      // with the reason buried in a transcript nobody reads until after.
+      for (let attempt = 0; ; attempt++) {
+        calls.length = 0;
+        try {
+          for await (const ev of session.step(signal)) {
+            if (ev.type === 'tool_call') calls.push(ev.call);
+            if (ev.type === 'stop' && ev.reason === 'refusal') refused = true;
+            emit(ev);
+          }
+          break;
+        } catch (e) {
+          const retryable = (e as { retryable?: boolean })?.retryable === true;
+          if (signal.aborted || !retryable || attempt >= STEP_RETRIES) throw e;
+          emit({
+            type: 'error',
+            message: `${(e as Error).message} — retrying (${attempt + 1}/${STEP_RETRIES}).`,
+          });
+          await new Promise((r) => { setTimeout(r, 1000 * (attempt + 1)); });
+        }
       }
       if (refused) { reason = 'refusal'; break; }
       // No calls means it is about to answer. If it built something and never
@@ -339,6 +359,9 @@ export async function runTurn(
  * money to deliver half a thing.
  */
 const MAX_ROUNDS = 128;
+/** Extra attempts for a round whose CONNECTION failed. Small: a provider that is
+ *  down stays down, and the point is only to survive a dropped socket. */
+const STEP_RETRIES = 2;
 
 /**
  * How many rounds from the cap the model is told it is running out.

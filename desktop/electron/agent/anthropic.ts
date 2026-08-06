@@ -169,6 +169,21 @@ function headerOf(error: unknown, name: string): string | undefined {
   return (headers as Record<string, string>)[name];
 }
 
+/**
+ * Whether asking again could plausibly work: the failure was the CONNECTION or
+ * the far side, not the request.
+ *
+ * A stream that dies halfway is the common one, and it is not rare over a long
+ * turn — a dogfood run lost eighty-seven rounds of work to a socket the gateway
+ * closed. It arrives with no HTTP status at all, because the request had already
+ * succeeded and the body stopped arriving.
+ */
+export function isTransientApiError(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status === undefined || status === null) return true;
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export function describeApiError(error: unknown): string {
   const status = (error as { status?: number })?.status;
   const raw = (error as Error)?.message ?? String(error);
@@ -546,7 +561,13 @@ class AnthropicSession implements AgentSession {
       // Rethrown, not swallowed — the kernel still has to end the turn. Only the
       // wording changes, and it changes HERE because this is the layer that
       // knows what an SDK error means.
-      throw new Error(describeApiError(e));
+      //
+      // `retryable` is safe to act on for one reason: the history is appended
+      // AFTER `finalMessage()` below, so a stream that died has left this
+      // session exactly as it found it. Re-asking sends the same messages.
+      const err = new Error(describeApiError(e)) as Error & { retryable?: boolean };
+      err.retryable = isTransientApiError(e);
+      throw err;
     }
   }
 
