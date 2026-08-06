@@ -206,7 +206,21 @@ export default defineConfig({
           items: [
             { label: 'Physics', translations: { 'zh-CN': '物理' }, slug: 'gameplay/physics' },
             { label: 'Markers & Trigger Areas', translations: { 'zh-CN': '标记与触发区' }, slug: 'gameplay/markers' },
-            { label: 'Gameplay AI', translations: { 'zh-CN': '游戏 AI' }, slug: 'gameplay/ai' },
+            {
+              label: 'Gameplay AI',
+              translations: { 'zh-CN': '游戏 AI' },
+              collapsed: true,
+              items: [
+                { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'gameplay/ai' },
+                { label: 'Perception', translations: { 'zh-CN': '感知' }, slug: 'gameplay/ai-perception' },
+                { label: 'Navigation', translations: { 'zh-CN': '导航' }, slug: 'gameplay/ai-navigation' },
+                { label: 'State Machines', translations: { 'zh-CN': '状态机' }, slug: 'gameplay/ai-state-machines' },
+                { label: 'Behavior Trees', translations: { 'zh-CN': '行为树' }, slug: 'gameplay/ai-behavior-trees' },
+                { label: 'The Blackboard', translations: { 'zh-CN': '黑板' }, slug: 'gameplay/ai-blackboard' },
+                { label: 'Authoring in the Editor', translations: { 'zh-CN': '在编辑器里编排' }, slug: 'gameplay/ai-authoring' },
+                { label: 'Below the Components', translations: { 'zh-CN': '组件层之下' }, slug: 'gameplay/ai-advanced' },
+              ],
+            },
           ],
         },
         {

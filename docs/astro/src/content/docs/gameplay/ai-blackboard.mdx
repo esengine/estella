@@ -1,0 +1,27 @@
+---
+title: The blackboard
+description: "Each agent's private key/value store and one-shot event triggers — how AI state flows between leaves and feeds transition guards."
+---
+
+Every FSM/BT agent owns a **`Blackboard`** — its private key/value store plus one-shot
+event triggers. Actions and conditions reach it through `ctx.blackboard`; it's how AI
+state flows between leaves and how transition guards get their values.
+
+```typescript
+registerAction('takeDamage', (ctx) => {
+  const hp = (ctx.blackboard.get<number>('health') ?? 100) - 10;
+  ctx.blackboard.set('health', hp);
+  if (hp <= 0) ctx.blackboard.fire('died');   // a transition keyed on 'died' fires once
+});
+```
+
+| Method | Description |
+|---|---|
+| `get<T>(key)` / `set(key, value)` | Read/write a value. |
+| `has(key)` / `delete(key)` | Test / remove a key. |
+| `fire(trigger)` | Fire a one-shot event; a transition keyed on it becomes enabled until taken. |
+| `isFired(trigger)` / `consume(trigger)` | Test / clear a trigger. |
+
+Blackboard values back the `guard` comparisons on FSM transitions, and the `trigger`
+mechanism is the Unity-style edge event: fired once, consumed by the transition that
+takes it.

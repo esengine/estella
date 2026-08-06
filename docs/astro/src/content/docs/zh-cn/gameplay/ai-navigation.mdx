@@ -1,0 +1,74 @@
+---
+title: 导航
+description: "导航网格与 A* 寻路——构建网格,以及把 NavAgent 移动到任意世界坐标并随目标重规划。"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+导航沿着一条避开被阻挡格子的路线,把 agent 移动到某个世界坐标,底层用 A\* 在一个 **`NavGrid`**
+上寻路。
+
+### 构建网格
+
+`NavGrid` 是一个由可走/被阻挡格子构成的矩形网格。把它装到 `Nav` 资源上,agent 才能对它寻路:
+
+```typescript
+import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({
+    width: 60,          // 列数
+    height: 44,         // 行数
+    cellSize: 20,       // 每格的世界像素
+    origin: { x: -600, y: -440 },  // 格子 (0,0) 中心的世界坐标
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` 选项 | 类型 | 说明 |
+|---|---|---|
+| `width` | number | 格子列数。 |
+| `height` | number | 格子行数。 |
+| `cellSize` | number | 每格的世界像素(正方形)。 |
+| `origin` | `Vec2` | 格子 `(0,0)` 中心的世界坐标。默认 `(0,0)`。 |
+| `walkable` | `Uint8Array` | 可选的行主序 `width*height` 掩码,`1` = 可走,`0` = 阻挡。省略则全部可走。 |
+
+若想从已绘制的瓦片地图推导网格,而不是手写掩码,用 `navGridFromTilemapLayer`(把某图层的
+实心瓦片视作阻挡)或 `navGridFromTiles`。
+
+<Aside type="tip">
+  `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点
+  (没有路线时返回 `null`),无需 `NavAgent`。
+</Aside>
+
+### 移动 agent
+
+加一个 `NavAgent`,然后给它指一个目的地。内置的导航插件会规划路径并每帧沿路径推进 agent——
+你只管设目标。
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// 从任何能访问 world 的系统/动作里——每帧调用都安全:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// ……以及原地停下:
+stopNavAgent(world, entity);
+```
+
+| `NavAgent` 字段 | 默认 | 说明 |
+|---|---|---|
+| `speed` | `120` | 移动速度(世界像素/秒)。 |
+| `radius` | `12` | agent 半径(到达容差 / 碰撞尺寸)。 |
+| `arriveRadius` | `6` | 距最终目标的停止距离。 |
+| `repathInterval` | `0.5` | 移动中两次重规划的间隔秒数;`0` = 只在目标改变时重规划。 |
+| `hasTarget` | `false` | 是否已设目的地(自动管理)。 |
+| `targetX`、`targetY` | `0` | 当前目的地(世界像素)。 |
+| `arrived` | `false` | agent 到达目标的那一帧被置真。 |
+
+`setNavDestination` 每帧调用都安全,可用于追一个移动的目标——只有当目标真的移动、或
+`repathInterval` 到点时,agent 才重新规划。读 `agent.arrived`(或 `Perception`)来判断何时
+切换行为。

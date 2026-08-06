@@ -1,0 +1,126 @@
+---
+title: Below the components
+description: "The primitives under the component layer — pathfinding by hand, perception internals, and wiring the plugins in a bare App."
+---
+
+`Nav`, `NavAgent`, and `Perceiver` — the component layer — cover the common cases.
+The primitives beneath them are exported too, all pure TypeScript with no engine
+or wasm dependency, for when you need a path without an agent or a sight check
+without a `Perceiver`.
+
+### Pathfinding by hand
+
+`findPath` is the A\* the nav plugin uses: uniform-cost search over `NavGrid`
+cells, 4- or 8-connected, with an octile/manhattan heuristic and no corner
+cutting (a diagonal step needs both shared orthogonal cells open). Drop to it
+when you steer movement yourself, draw a path preview, or compute reachability
+for turn-based ranges — or when one grid isn't enough, since the `Nav` resource
+holds a single grid:
+
+```typescript
+import { NavGrid, findPath, pathToWorld } from 'esengine';
+
+const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
+
+const path = findPath(
+  grid,
+  grid.worldToCell(hero.x, hero.y),      // Cell — integer grid coordinates
+  grid.worldToCell(chest.x, chest.y),
+  { diagonal: false },
+);
+if (path) {
+  const waypoints = pathToWorld(grid, path);   // Vec2[] — cell centers, world pixels
+}
+```
+
+`findPath(grid, start, goal, opts?)` returns the `Cell[]` path inclusive of both
+endpoints, or `null` when unreachable. A `Cell` is an integer grid coordinate
+`{ x, y }` (kept distinct from `Vec2` to flag cell space); convert with
+`grid.worldToCell` / `grid.cellToWorld`, or turn a whole path into world-space
+waypoints with `pathToWorld`.
+
+| `PathfindOptions` field | Default | Description |
+|---|---|---|
+| `diagonal` | `true` | Allow 8-connected diagonal moves. |
+| `snapRadius` | `8` | When start/goal lands on a blocked cell, snap to the nearest walkable cell within this ring radius before searching; `0` disables snapping. |
+
+`navGridFromTiles` builds the walkability mask from any tile reader — it is the
+core under `navGridFromTilemapLayer`, which just plugs in `TilemapAPI.getTile`:
+
+```typescript
+import { navGridFromTiles } from 'esengine';
+
+const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
+  width: 32, height: 24, cellSize: 32,
+  blockedTileIds: [WALL_TILE, WATER_TILE],
+});
+```
+
+| `BuildNavGridOptions` field | Description |
+|---|---|
+| `width` / `height` / `cellSize` / `origin?` | Same as the `NavGrid` options (see [Building a grid](/docs/gameplay/ai-navigation/#building-a-grid)). |
+| `blockedTileIds?` | Exact set of tile ids that block movement. |
+| `isBlocked?` | Custom predicate over the tile id (`0` = empty); overrides `blockedTileIds`. With neither given, any non-empty tile blocks. |
+
+### Perception internals
+
+The perception plugin is a thin wrapper over four exported functions — useful for
+one-off sight checks from an action, custom senses (memory, hearing, multiple
+targets), or unit tests against a fake world:
+
+- **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`** — the pure
+  geometry: a range check, a FOV cone check (`halfFov` is *half* the cone in
+  radians; ≥ π means omnidirectional), then the optional occlusion callback.
+- **`facingFromQuat(z, w)`** — 2D facing angle in radians from a `Transform`
+  rotation quaternion's z/w components.
+- **`makeLosCheck(physics)`** — builds the occlusion callback from a physics
+  raycast: occluded when any hit lands clearly short of the target
+  (`fraction < 0.98` — the last ~2% is the target itself).
+- **`stepPerception(world, isBlocked?)`** — the exact per-frame step the plugin
+  runs in `PreUpdate`: for every `Perceiver`, sense all `PerceptionTarget`s, keep
+  the nearest visible one, and write the `Perception` component.
+
+```typescript
+import { senseTarget, facingFromQuat, Transform, registerCondition } from 'esengine';
+
+// A one-off sight check against a POINT — no PerceptionTarget needed.
+registerCondition('seesShrine', (ctx) => {
+  const tf = ctx.get(Transform);
+  const facing = facingFromQuat(tf.rotation.z, tf.rotation.w);
+  return senseTarget(
+    tf.position.x, tf.position.y, facing,
+    SHRINE.x, SHRINE.y,
+    300, Math.PI / 3,            // 300 px range, 120° cone
+  ).visible;
+});
+```
+
+`senseTarget` returns a `SenseResult`:
+
+| `SenseResult` field | Description |
+|---|---|
+| `visible` | The target is within range, inside the cone, and not occluded. |
+| `distance` | Distance to the target — always set, even when not visible. |
+| `dirX` / `dirY` | Unit direction observer → target; `(0, 0)` when not visible. |
+
+The built-in system wires `makeLosCheck` in only when the physics module is
+loaded; otherwise sensing is range + FOV only — the AI layer has no hard physics
+dependency.
+
+## Custom app setup
+
+The perception, FSM, BT, and navigation plugins are part of the default plugin set,
+so the **editor and the `esengine` web runtime add them for you**. Only when you build
+an app from a bare `new App()` do you add them explicitly:
+
+```typescript
+import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine';
+
+app.addPlugin(perceptionPlugin);
+app.addPlugin(fsmPlugin);
+app.addPlugin(btPlugin);
+app.addPlugin(navPlugin);
+```
+
+Each is exported both as a ready-to-use singleton (`navPlugin`) and as a class
+(`NavPlugin`) if you need multiple instances.

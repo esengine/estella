@@ -1,0 +1,21 @@
+---
+title: Authoring in the editor
+description: "The intended workflow: register leaf logic once in code, then build and tune the graphs visually as .esfsm / .esbt assets."
+---
+
+The intended workflow is **data, not code** for the graphs themselves — you register
+the leaf logic once, then build and tune the machines/trees visually:
+
+1. In the **Content Browser**, create a **State Machine** (`.esfsm`) or **Behavior
+   Tree** (`.esbt`) asset and double-click it to open the node-graph editor.
+2. Add states/nodes, drag to connect them, and fill each leaf's **action** or
+   **condition** with one of your registered names. Set transition conditions,
+   triggers, and blackboard guards in the inspector.
+3. On the agent entity, set `StateMachineAgent.fsm` (or `BehaviorTreeAgent.bt`) to the
+   asset's path.
+
+The asset is referenced by path and **preloaded with the scene**, so the graph is
+registered before the agent first ticks — no `registerFsm`/`registerBt` call needed.
+Because both paradigms resolve leaves from the same registry, you can prototype an
+enemy as a state machine and later swap in a behavior tree (or run both) without
+touching your action/condition code.

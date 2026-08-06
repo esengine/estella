@@ -1,0 +1,77 @@
+---
+title: Navigation
+description: "A navigation grid and A* pathfinding — building the grid, and moving a NavAgent to any world point with replanning."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Navigation moves an agent to a world point along a route that avoids blocked cells,
+using A\* over a **`NavGrid`**.
+
+### Building a grid
+
+A `NavGrid` is a rectangular grid of walkable/blocked cells. Install it on the `Nav`
+resource so agents can path against it:
+
+```typescript
+import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setGrid(new NavGrid({
+    width: 60,          // columns
+    height: 44,         // rows
+    cellSize: 20,       // world pixels per cell
+    origin: { x: -600, y: -440 },  // world position of cell (0,0)'s center
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` option | Type | Description |
+|---|---|---|
+| `width` | number | Cell columns. |
+| `height` | number | Cell rows. |
+| `cellSize` | number | World pixels per cell (square). |
+| `origin` | `Vec2` | World position of cell `(0,0)`'s center. Defaults to `(0,0)`. |
+| `walkable` | `Uint8Array` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. |
+
+To derive a grid from a painted tilemap instead of hand-authoring the mask, use
+`navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
+`navGridFromTiles`.
+
+<Aside type="tip">
+  The `Nav` resource also answers one-off queries directly:
+  `nav.findWorldPath(from, to)` returns an array of world-space waypoints (or
+  `null` if there's no route) without needing a `NavAgent`.
+</Aside>
+
+### Moving an agent
+
+Attach a `NavAgent`, then point it at a destination. The built-in nav plugin plans
+the path and steps the agent along it each frame — you just set the goal.
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// From any system/action with world access — safe to call every frame:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// …and to halt in place:
+stopNavAgent(world, entity);
+```
+
+| `NavAgent` field | Default | Description |
+|---|---|---|
+| `speed` | `120` | Movement speed in world pixels per second. |
+| `radius` | `12` | Agent radius (arrival tolerance / collision size). |
+| `arriveRadius` | `6` | Stop distance from the final goal. |
+| `repathInterval` | `0.5` | Seconds between replans while moving; `0` = replan only when the target changes. |
+| `hasTarget` | `false` | Whether a destination is set (managed for you). |
+| `targetX`, `targetY` | `0` | Current destination in world pixels. |
+| `arrived` | `false` | Set true the frame the agent reaches its goal. |
+
+`setNavDestination` is safe to call every frame to chase a moving target — the agent
+only replans when the target actually moves or `repathInterval` elapses. Read
+`agent.arrived` (or `Perception`) to know when to switch behavior.

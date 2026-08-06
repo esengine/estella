@@ -1,0 +1,37 @@
+---
+title: Perception
+description: "A Perceiver senses nearby targets within a sight cone and writes what it sees into a Perception component."
+---
+
+A `Perceiver` scans for the nearest visible `PerceptionTarget` each frame and writes
+the result into a `Perception` component on the same entity. Decisions read
+`Perception`; sensing is just ECS data, not a side channel.
+
+```typescript
+import { Perceiver, PerceptionTarget, Perception } from 'esengine';
+
+// The hunter senses…
+cmds.spawn()
+  .insert(Transform, { position: { x: -200, y: 0, z: 0 } })
+  .insert(Perceiver, { range: 260, fovDegrees: 120 })
+  .insert(Perception, {});          // written every frame by the perception plugin
+
+// …anything tagged as a target.
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(PerceptionTarget, {});
+```
+
+| Component | Field | Default | Description |
+|---|---|---|---|
+| **`Perceiver`** | `range` | `220` | Sight range in world pixels. |
+| | `fovDegrees` | `360` | Field-of-view cone in degrees (`360` = omnidirectional). |
+| **`Perception`** | `visible` | `false` | A target is currently seen. |
+| | `distance` | `0` | Distance to the seen target. |
+| | `targetX`, `targetY` | `0` | Seen target position, world pixels. |
+| | `dirX`, `dirY` | `0` | Unit direction from observer to target. |
+| **`PerceptionTarget`** | *(tag)* | — | Marks an entity as sensable by `Perceiver`s. |
+
+The FOV cone is oriented by the perceiver's `Transform` rotation. `Perception` is a
+transient, runtime-only component — the plugin rewrites it every frame, so you never
+author its values.

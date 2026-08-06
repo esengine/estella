@@ -1,0 +1,35 @@
+---
+title: 感知
+description: "Perceiver 在视锥内感知附近目标,并把看到的写进 Perception 组件。"
+---
+
+`Perceiver` 每帧扫描最近的、可见的 `PerceptionTarget`,把结果写进同一实体上的 `Perception`
+组件。决策读 `Perception`;感知只是 ECS 数据,而不是一条旁路。
+
+```typescript
+import { Perceiver, PerceptionTarget, Perception } from 'esengine';
+
+// 猎手负责感知……
+cmds.spawn()
+  .insert(Transform, { position: { x: -200, y: 0, z: 0 } })
+  .insert(Perceiver, { range: 260, fovDegrees: 120 })
+  .insert(Perception, {});          // 由感知插件每帧写入
+
+// ……任何被标记为目标的实体。
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(PerceptionTarget, {});
+```
+
+| 组件 | 字段 | 默认 | 说明 |
+|---|---|---|---|
+| **`Perceiver`** | `range` | `220` | 视野范围(世界像素)。 |
+| | `fovDegrees` | `360` | 视野锥角度(`360` = 全向)。 |
+| **`Perception`** | `visible` | `false` | 当前是否看见一个目标。 |
+| | `distance` | `0` | 到所见目标的距离。 |
+| | `targetX`、`targetY` | `0` | 所见目标位置(世界像素)。 |
+| | `dirX`、`dirY` | `0` | 从观察者指向目标的单位方向。 |
+| **`PerceptionTarget`** | *(标签)* | — | 把实体标记为可被 `Perceiver` 感知。 |
+
+视野锥的朝向由感知者的 `Transform` 旋转决定。`Perception` 是一个瞬态、仅运行时的组件——
+插件每帧重写它,所以你从不需要手写它的值。

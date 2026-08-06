@@ -1,0 +1,63 @@
+---
+title: 状态机
+description: "运行 .esfsm 图:带 enter/update/exit 钩子的状态、带守卫的转移,以及一次性触发器。"
+---
+
+![状态机编辑器——Patrol 与 Chase 状态由带守卫的转移连接](../../../../assets/guides/zh/ai-fsm.png)
+
+*状态机编辑器:状态(Patrol / Chase)由带守卫的转移(`?seesPlayer`、`?lostPlayer`)连接。*
+
+状态机是一组由带守卫的**转移**连接起来的**状态**。任一时刻恰好一个状态处于激活;每个 tick,
+它的出边按顺序被检查,第一条满足条件的被采用。加一个 `StateMachineAgent` 并指向一个图:
+
+```typescript
+import { StateMachineAgent } from 'esengine';
+
+cmds.spawn()
+  .insert(NavAgent, {})
+  .insert(Perceiver, { range: 240 })
+  .insert(Perception, {})
+  .insert(StateMachineAgent, { fsm: 'assets/ai/enemy.esfsm' });   // 一个编辑器编排的资产
+```
+
+| `StateMachineAgent` 字段 | 说明 |
+|---|---|
+| `fsm` | 要运行的机器的 key:一个 `registerFsm` 名字**或**一个 `.esfsm` 资产路径。 |
+| `current` | 当前激活状态名,每 tick 写入(只读;在检视面板可见)。 |
+
+推荐做法是**在编辑器里把图编排成 `.esfsm` 资产**(见[在编辑器里编排](/docs/zh-cn/gameplay/ai-authoring/))。
+状态用字符串引用你注册的动作/条件名。你也可以用代码构建一台机器:
+
+```typescript
+import { registerFsm } from 'esengine';
+
+registerFsm('guard', {
+  initial: 'Patrol',
+  states: [
+    {
+      name: 'Patrol',
+      onUpdate: 'patrol',
+      transitions: [{ to: 'Chase', condition: 'seesPlayer' }],
+    },
+    {
+      name: 'Chase',
+      onEnter: 'startChase',
+      onUpdate: 'chase',
+      transitions: [{ to: 'Patrol', condition: 'lostPlayer' }],
+    },
+  ],
+});
+```
+
+每个状态最多带三个具名钩子——`onEnter`、`onUpdate`、`onExit`——以及一组 `transitions`。当一条
+转移所指定的机制**全部**成立时它才被启用;一条什么都不指定的转移是无条件的:
+
+| 转移字段 | 说明 |
+|---|---|
+| `to` | 目标状态名。 |
+| `trigger` | 必须被 fire 的一次性事件名(采用时消费)。 |
+| `condition` | 必须返回真的一个已注册条件。 |
+| `guard` | 一个或多个黑板比较,按 AND 组合。 |
+
+守卫用 `==`、`!=`、`<`、`<=`、`>`、`>=`、`truthy`、`falsy` 比较一个黑板 key——例如
+`{ key: 'health', op: '<', value: 20 }`。

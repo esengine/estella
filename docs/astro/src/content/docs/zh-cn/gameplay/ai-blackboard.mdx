@@ -1,0 +1,25 @@
+---
+title: 黑板
+description: "每个 agent 私有的键值存储与一次性事件触发器——AI 状态如何在叶子之间流动、如何喂给转移守卫。"
+---
+
+每个 FSM/BT agent 拥有一块 **`Blackboard`**(黑板)——它私有的键值存储加上一次性事件触发器。
+动作和条件通过 `ctx.blackboard` 访问它;这是 AI 状态在叶子间流动的方式,也是转移守卫取值的来源。
+
+```typescript
+registerAction('takeDamage', (ctx) => {
+  const hp = (ctx.blackboard.get<number>('health') ?? 100) - 10;
+  ctx.blackboard.set('health', hp);
+  if (hp <= 0) ctx.blackboard.fire('died');   // 一条以 'died' 为键的转移被 fire 一次
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `get<T>(key)` / `set(key, value)` | 读/写一个值。 |
+| `has(key)` / `delete(key)` | 测试 / 删除一个 key。 |
+| `fire(trigger)` | fire 一个一次性事件;以它为键的转移在被采用前保持启用。 |
+| `isFired(trigger)` / `consume(trigger)` | 测试 / 清除一个触发器。 |
+
+黑板的值支撑 FSM 转移上的 `guard` 比较,而 `trigger` 机制就是 Unity 式的边事件:fire 一次,
+被采用它的那条转移消费。
