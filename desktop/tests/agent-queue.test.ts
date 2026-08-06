@@ -20,7 +20,7 @@ const stop = vi.fn();
 const retry = vi.fn(async (_n: number, _text: string) => undefined);
 
 const status = (phase: AgentStatus['phase']): AgentStatus =>
-  ({ ready: true, conversation: true, phase, model: 'opus-5', error: null });
+  ({ ready: true, conversation: true, phase, model: 'opus-5', error: null, lastTurn: null });
 
 /** What main pushes when a turn starts or ends. */
 const pushStatus = (phase: AgentStatus['phase']) => applyAgentMessage({ kind: 'status', status: status(phase) });

@@ -15,7 +15,7 @@ import type { AgentEvent } from '../electron/agent/types';
 import type { AgentStatus } from '../electron/agent/host';
 
 const status: AgentStatus =
-  { ready: true, conversation: true, phase: 'idle', model: 'opus-5', error: null };
+  { ready: true, conversation: true, phase: 'idle', model: 'opus-5', error: null, lastTurn: null };
 
 /** A conversation of two finished runs, as main would have logged it. */
 const conversation = (from = 0): AgentEvent[] => [

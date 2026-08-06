@@ -87,6 +87,16 @@ describe("the agent's brief", () => {
     expect(SYSTEM_PROMPT).not.toContain('v_uv');
   });
 
+  it('names the loop that tests a game, not just the tools in it', () => {
+    // A Breakout dogfood spent 75 of its 158 calls probing component data and none
+    // looking, and delivered a game that is GAME OVER within half a second — every
+    // value it read was exactly what it should have been.
+    for (const taught of ['toggle_play', 'step', 'play_input', 'play_probe', 'screenshot']) {
+      expect([taught, SYSTEM_PROMPT.includes(taught)]).toEqual([taught, true]);
+    }
+    expect(SYSTEM_PROMPT).toMatch(/not tested until you have PLAYED it/);
+  });
+
   it('tells it to look at a visual change before calling it done', () => {
     // It built the material, wired the system, set the wrong param name, read the
     // component back at 1.0 and reported success — without ever taking a picture of

@@ -118,6 +118,17 @@ describe('the agent host', () => {
     expect(h.status().model).toBe('fake-model');
   });
 
+  // Idle says a turn stopped, not that it finished. A run cut off at the round cap
+  // idles exactly like one that answered the question, and a driver polling status
+  // read half a game as a delivered one.
+  it('says how the last turn ended, not only that it ended', async () => {
+    const h = host();
+    expect(h.status().lastTurn).toBeNull();
+    h.send('hi');
+    await settled(h);
+    expect(h.status().lastTurn).toBe('end_turn');
+  });
+
   // The conversation is the point of a session: a follow-up that built a second
   // one would drop everything said so far and re-bill the whole prefix.
   it('keeps one session across follow-ups, and drops it on reset', async () => {

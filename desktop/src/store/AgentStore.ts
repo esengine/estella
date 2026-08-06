@@ -149,7 +149,7 @@ export interface AgentTurn {
 const MAX_TURNS = 100;
 
 const IDLE: AgentStatus = {
-  ready: false, conversation: false, phase: 'idle', model: null, error: null,
+  ready: false, conversation: false, phase: 'idle', model: null, error: null, lastTurn: null,
 };
 
 interface AgentState {

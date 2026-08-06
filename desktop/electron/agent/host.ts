@@ -41,7 +41,20 @@ export interface AgentStatus {
   model: string | null;
   /** Why the last attempt did not happen. Cleared by one that does. */
   error: string | null;
+  /**
+   * How the last turn ENDED — null before the first one.
+   *
+   * `phase` going back to 'idle' says a turn stopped, not whether it finished:
+   * a run cut off at the round cap idles exactly like one that answered the
+   * question. The drawer shows the difference (a badge, and a Resume); a driver
+   * polling status could not see it at all, and read half a game as a delivered
+   * one.
+   */
+  lastTurn: TurnEndReason | null;
 }
+
+/** Why a turn stopped. `max_rounds` and `aborted` leave the work UNFINISHED. */
+export type TurnEndReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
 
 /** One push to the window: a transcript event, or the mirror's new state. */
 export type AgentMessage =
@@ -159,6 +172,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
   let acceptsImages = true;
   let phase: AgentPhase = 'idle';
   let error: string | null = null;
+  let lastTurn: TurnEndReason | null = null;
   let running: AbortController | null = null;
   const pending = new Map<string, (decision: ConfirmDecision) => void>();
 
@@ -168,6 +182,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
     phase,
     model,
     error,
+    lastTurn,
   });
 
   // Deltas out first: status and transcript share one channel BECAUSE the two
@@ -250,6 +265,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
   };
 
   const emit = (event: AgentEvent): void => {
+    // Every ending passes through here (invariant 1), so this is the one place
+    // that can answer "did the last run finish?" — see AgentStatus.lastTurn.
+    if (event.type === 'turn_end') lastTurn = event.reason;
     if (isDelta(event)) {
       if (buffered && mergeable(buffered, event)) {
         buffered = { ...buffered, delta: buffered.delta + event.delta };
