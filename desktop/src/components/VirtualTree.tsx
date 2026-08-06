@@ -6,20 +6,15 @@
  * Renders only the rows in the scroll window (plus overscan) over a spacer sized
  * to the full list, so a tree of thousands of entities stays a handful of DOM
  * nodes. The list MUST already be flattened to render order (see
- * {@link buildOutlinerItems}); this owns no hierarchy — just the scroll window.
+ * {@link buildOutlinerItems}); this owns no hierarchy — just the layout. Which
+ * rows are on screen is {@link useVirtualWindow}'s, shared with VirtualGrid.
  * Shared by the editor + live-game outliner trees (one virtualization path).
  *
  * Extra props (className / onDragOver / onDrop / …) spread onto the scroll
  * container, so the outliner can attach empty-space drag-drop to it.
  */
-import {
-  useEffect,
-  useRef,
-  useState,
-  type HTMLAttributes,
-  type Key,
-  type ReactNode,
-} from 'react';
+import type { HTMLAttributes, Key, ReactNode } from 'react';
+import { useVirtualWindow } from './virtualWindow';
 
 interface VirtualTreeProps<T> extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   items: T[];
@@ -37,58 +32,22 @@ interface VirtualTreeProps<T> extends Omit<HTMLAttributes<HTMLDivElement>, 'chil
 export function VirtualTree<T>({
   items,
   rowHeight,
-  overscan = 8,
+  overscan,
   renderRow,
   getKey,
   scrollToIndex,
   scrollNonce,
-  onScroll,
   ...rest
 }: VirtualTreeProps<T>) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewH, setViewH] = useState(600);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const update = () => setViewH(el.clientHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Controlled scroll-into-view (reveal-on-select / keyboard nav): only moves when
-  // the target row is outside the window, so an in-view selection never jumps.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || scrollToIndex == null || scrollToIndex < 0) return;
-    const top = scrollToIndex * rowHeight;
-    const bottom = top + rowHeight;
-    if (top < el.scrollTop) el.scrollTop = top;
-    else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollNonce]);
-
-  const total = items.length;
-  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-  const end = Math.min(total, Math.ceil((scrollTop + viewH) / rowHeight) + overscan);
+  const win = useVirtualWindow({ rows: items.length, rowHeight, overscan, scrollToIndex, scrollNonce });
 
   return (
-    <div
-      ref={scrollRef}
-      {...rest}
-      onScroll={(e) => {
-        setScrollTop(e.currentTarget.scrollTop);
-        onScroll?.(e);
-      }}
-    >
+    <div ref={win.scrollRef} {...rest}>
       {/* Virtualization sizer — presentational so it doesn't sit between a
           role="tree" container and its role="treeitem" rows. */}
-      <div role="presentation" style={{ height: total * rowHeight, position: 'relative' }}>
-        {items.slice(start, end).map((item, i) => {
-          const index = start + i;
+      <div ref={win.sizerRef} role="presentation" style={{ height: win.totalHeight, position: 'relative' }}>
+        {items.slice(win.start, win.end).map((item, i) => {
+          const index = win.start + i;
           return (
             <div
               key={getKey(item, index)}

@@ -6,6 +6,7 @@ import { AssetIcon, assetTint } from '@/components/icons';
 import { EmptyState } from '@/components/EmptyState';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { VirtualGrid } from '@/components/VirtualGrid';
 import { SearchField } from '@/components/SearchField';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
@@ -42,6 +43,10 @@ import type { AssetType } from '@/types';
 const TILE_MIN = 64;
 const TILE_MAX = 152;
 const TILE_KEY = 'estella.content.tileSize';
+// Must match the `gap` on .cb-grid in content.css — the grid lays its own rows out.
+const GRID_GAP = 10;
+// Must match .lr in content.css — the first-render guess, before one is measured.
+const LIST_ROW_H = 30;
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -446,14 +451,23 @@ export function ContentBrowser() {
   );
   const listLoading = searching ? scan.loading : dirLoading;
 
+  // Scrolling is by INDEX, not by finding the element: with the list windowed, the
+  // row being revealed is usually not in the DOM to be found.
+  const [scrollTo, setScrollTo] = useState<{ index: number; nonce: number }>({ index: -1, nonce: 0 });
+  const scrollNonce = useRef(0);
+  const revealIndex = useCallback(
+    (index: number) => setScrollTo({ index, nonce: ++scrollNonce.current }),
+    [],
+  );
+
   useEffect(() => {
-    if (!pendingReveal || !items.some((it) => it.path === pendingReveal)) return;
+    if (!pendingReveal) return;
+    const index = items.findIndex((it) => it.path === pendingReveal);
+    if (index < 0) return;
     selectAsset(pendingReveal);
     setPendingReveal(null);
-    requestAnimationFrame(() => {
-      document.querySelector(`[data-path="${CSS.escape(pendingReveal)}"]`)?.scrollIntoView({ block: 'nearest' });
-    });
-  }, [pendingReveal, items, selectAsset]);
+    revealIndex(index);
+  }, [pendingReveal, items, selectAsset, revealIndex]);
 
   // Double-click: enter folders; otherwise dispatch through the per-type open
   // table (scene/clip/tileset editors).
@@ -595,14 +609,10 @@ export function ContentBrowser() {
   // consumed even with nothing selected, so it can never fall through to the
   // global entity delete while the user is working in the browser.
   const scrollRef = useRef<HTMLDivElement>(null);
-  const gridColumns = () => {
-    const tiles = scrollRef.current?.querySelectorAll<HTMLElement>('[data-path]');
-    if (!tiles || tiles.length < 2) return 1;
-    const top0 = tiles[0].offsetTop;
-    let cols = 1;
-    while (cols < tiles.length && tiles[cols].offsetTop === top0) cols++;
-    return cols;
-  };
+  // Reported by the grid, which decides the count rather than reading it back off
+  // the laid-out tiles — with only a window of them mounted, there is no longer a
+  // full first row to measure where the wrap fell.
+  const [gridColumns, setGridColumns] = useState(1);
   const onGridKey = (e: React.KeyboardEvent) => {
     const el = e.target as HTMLElement;
     if (el.tagName === 'INPUT' || renaming != null) return; // typing / inline rename
@@ -613,11 +623,7 @@ export function ContentBrowser() {
       // Shift+arrow grows the multi-selection to the new item; plain arrow replaces.
       if (extend) selectAssets([...new Set([...selectedAssets, it.path])], it.path);
       else selectAsset(it.path);
-      requestAnimationFrame(() => {
-        scrollRef.current
-          ?.querySelector(`[data-path="${CSS.escape(it.path)}"]`)
-          ?.scrollIntoView({ block: 'nearest' });
-      });
+      revealIndex(items.indexOf(it));
     };
     switch (e.key) {
       case 'ArrowLeft':
@@ -626,7 +632,7 @@ export function ContentBrowser() {
       case 'ArrowDown': {
         e.preventDefault();
         e.stopPropagation(); // grid navigation, not the viewport's selection nudge
-        const rowStep = view === 'grid' ? gridColumns() : 1;
+        const rowStep = view === 'grid' ? gridColumns : 1;
         const step =
           e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? rowStep : -rowStep;
         focusIndex(idx < 0 ? 0 : idx + step, e.shiftKey);
@@ -1224,9 +1230,9 @@ export function ContentBrowser() {
                 <EmptyState icon={Folder} title={t('cb.emptyFolderTitle')} hint={t('cb.emptyFolder')} />
               )
             ) : view === 'grid' ? (
-              <div className="cb-grid" style={{ ['--tile' as string]: `${tileSize}px` } as React.CSSProperties}>
-                {listLoading &&
-                  Array.from({ length: 8 }, (_, i) => (
+              listLoading ? (
+                <div className="cb-grid" style={{ ['--tile' as string]: `${tileSize}px` } as React.CSSProperties}>
+                  {Array.from({ length: 8 }, (_, i) => (
                     <div key={i} className="asset is-skel" aria-hidden="true">
                       <div className="th skel" />
                       <div className="nm">
@@ -1234,7 +1240,17 @@ export function ContentBrowser() {
                       </div>
                     </div>
                   ))}
-                {!listLoading && items.map((it) => {
+                </div>
+              ) : (
+                <VirtualGrid
+                  items={items}
+                  scrollRef={scrollRef}
+                  tileSize={tileSize}
+                  gap={GRID_GAP}
+                  scrollToIndex={scrollTo.index}
+                  scrollNonce={scrollTo.nonce}
+                  onColumns={setGridColumns}
+                  renderItem={(it) => {
                   const path = it.path;
                   const type: AssetType = it.isDir ? 'folder' : typeAt(path);
                   const isImg = !it.isDir && IMAGE_RE.test(it.name);
@@ -1296,8 +1312,9 @@ export function ContentBrowser() {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  }}
+                />
+              )
             ) : (
               <div className="cb-list">
                 <div className="lh">
@@ -1315,7 +1332,17 @@ export function ContentBrowser() {
                       </span>
                     </div>
                   ))}
-                {!listLoading && items.map((it) => {
+                {!listLoading && (
+                  <VirtualGrid
+                    items={items}
+                    scrollRef={scrollRef}
+                    columns={1}
+                    tileSize={0}
+                    gap={0}
+                    estimatedRowHeight={LIST_ROW_H}
+                    scrollToIndex={scrollTo.index}
+                    scrollNonce={scrollTo.nonce}
+                    renderItem={(it) => {
                   const path = it.path;
                   const type: AssetType = it.isDir ? 'folder' : typeAt(path);
                   return (
@@ -1347,7 +1374,9 @@ export function ContentBrowser() {
                       <span className="c">{it.isDir ? '' : TYPE_CODE[type] || type}</span>
                     </div>
                   );
-                })}
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>
