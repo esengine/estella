@@ -12,6 +12,7 @@
 import { parseTileset, COLLISION_PALETTE_REF } from 'esengine';
 import { Grid3x3, Shapes } from 'lucide-react';
 import { createFromSource, tilemapPrefab, type EntitySource, type TileGridConfig } from '@/engine/entitySources';
+import type { EntityId } from '@/types';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -47,22 +48,32 @@ function tilesetSource(
   };
 }
 
-/** Create a TilemapLayer entity referencing the given .estileset, select it, and start
- *  painting. `grid` sets the orientation/stagger layout (defaults to orthogonal). */
-export async function createTilemapFromTileset(tilesetPath: string, grid?: TileGridConfig): Promise<void> {
+/**
+ * Create a TilemapLayer entity referencing the given .estileset, select it, and start
+ * painting. `grid` sets the orientation/stagger layout (defaults to orthogonal).
+ *
+ * Answers with the new entity, or NULL when it made none — an untracked tileset
+ * or one that will not parse. Both used to be a toast and a `return`, which is
+ * the right shape for a person watching the screen and no answer at all for a
+ * caller that is not: the headless door reported success for a tilemap that
+ * does not exist, and the next call went looking for it in the scene tree.
+ */
+export async function createTilemapFromTileset(
+  tilesetPath: string, grid?: TileGridConfig,
+): Promise<EntityId | null> {
   const tilesetRef = ProjectStore.assetRef(tilesetPath); // .estileset → @uuid
   if (!tilesetRef) {
     Toasts.push(t('tile.toast.untracked'), 'error');
-    return;
+    return null;
   }
   let asset;
   try {
     asset = parseTileset(JSON.parse(await window.estella.fs.read(tilesetPath)));
   } catch (e) {
     Toasts.push(t('tile.toast.readFailed', { error: String(e) }), 'error');
-    return;
+    return null;
   }
-  await createFromSource(
+  return createFromSource(
     tilesetSource(tilesetPath, tilesetRef, asset.tileWidth, asset.tileHeight, grid), { parent: null },
   );
 }

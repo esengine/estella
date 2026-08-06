@@ -346,7 +346,19 @@ function buildEditorAutomation(): unknown {
     listEntityTemplates: () => allEntitySources().map(({ id, label, category }) => ({ id, label, category })),
     /** Create a TilemapLayer from an .estileset with an optional grid layout
      *  (orientation/stagger/hex) — drives the New-Tilemap flow headlessly. */
-    createTilemap: (tilesetPath: string, grid?: TileGridConfig) => createTilemapFromTileset(tilesetPath, grid),
+    // Throws where the UI toasts: a headless caller has no screen to read the
+    // toast off, and `ok` for a tilemap that was never created sends it hunting
+    // through the scene tree for an entity nobody made.
+    createTilemap: async (tilesetPath: string, grid?: TileGridConfig) => {
+      const id = await createTilemapFromTileset(tilesetPath, grid);
+      if (id == null) {
+        throw new Error(
+          `could not create a tilemap from "${tilesetPath}" — it is not a tracked .estileset `
+          + 'in this project, or it does not parse. list_assets with type "tilemap" shows the ones that are.',
+        );
+      }
+      return id;
+    },
     /** Create a collision (obstacle) layer and return its selected source id — drives the
      *  obstacle-grid flow headlessly (no tileset needed). */
     createCollisionLayer: async () => { await createCollisionLayer(); return useSelection.getState().selectedId; },
