@@ -73,6 +73,43 @@ function resolveConfig(config: PhysicsPluginConfig): ResolvedPhysicsConfig {
 // Plugin
 // =============================================================================
 
+/**
+ * What the frame loop calls every step. A module missing any of it is a wasm
+ * built before the JS that drives it.
+ *
+ * `PhysicsWasmModule` is a TypeScript interface, so it is gone at run time and
+ * nothing was checking that the binary answered to it. A `physics.wasm` built
+ * hours before the commit that added pose interpolation therefore installed
+ * happily, and `PhysicsStepSystem` and `PhysicsInterpolateSystem` then threw
+ * `_physics_capturePoses is not a function` TWICE A FRAME, for the length of
+ * the session, at anyone who dropped a RigidBody into a scene and pressed Play.
+ * Two dogfood runs read that as "physics is broken" and turned it off.
+ *
+ * Not the whole interface — the per-frame contract, whose absence is the one
+ * that fails on every tick rather than once.
+ */
+const REQUIRED_EXPORTS = [
+    '_physics_init', '_physics_setWorldConfig', '_physics_step',
+    '_physics_capturePoses', '_physics_getInterpolatedCount', '_physics_getInterpolatedTransforms',
+    '_physics_collectEvents', '_physics_getDynamicBodyCount', '_physics_getDynamicBodyTransforms',
+    '_physics_setBodyTransform',
+] as const;
+
+function assertModuleContract(module: PhysicsWasmModule): void {
+    const missing = REQUIRED_EXPORTS.filter(
+        (name) => typeof (module as unknown as Record<string, unknown>)[name] !== 'function',
+    );
+    if (missing.length === 0) return;
+    // Thrown, so the plugin's own catch marks the subsystem in error and no
+    // system is registered: the game runs WITHOUT physics and says why once,
+    // rather than running with physics that cannot step and saying why forever.
+    throw new Error(
+        `physics.wasm is out of date — it does not export ${missing.join(', ')}. `
+        + 'It was built before the engine code that calls it; rebuild the physics module '
+        + '(the WASM build is a separate step from the editor build). Physics is not installed.',
+    );
+}
+
 export class PhysicsPlugin implements Plugin {
     name = 'physics';
     private config_: ResolvedPhysicsConfig;
@@ -113,6 +150,8 @@ export class PhysicsPlugin implements Plugin {
                 // guarded module has the same type, so every downstream call
                 // site (PhysicsSystem closures, the PhysicsAPI API wrapper) gains
                 // abort safety without changing a single call.
+                assertModuleContract(loaded);
+
                 this.bridge_.connect(loaded);
                 const module = this.bridge_.module;
                 this.module_ = module;
