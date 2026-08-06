@@ -17,6 +17,7 @@ import ts from 'typescript';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { SYSTEM_PROMPT } from '../electron/agent/prompt';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -71,5 +72,27 @@ describe("the agent's brief", () => {
     }
     // The wrong form must not come back. Named, because this one shipped.
     expect(SYSTEM_PROMPT).not.toContain('MouseButton.Left');
+  });
+
+  it('names the fragment stage the engine actually injects', () => {
+    // A shader is not TypeScript: the fixture cannot compile one, and the agent's
+    // first hand-written `.esshader` reached for `texture(u_texture, v_uv)` — two
+    // names that exist nowhere. The built-in templates ARE the contract, so they
+    // are what the prose is checked against.
+    for (const symbol of ['v_texCoord', 'u_textures[0]', 'fragColor', '#pragma param']) {
+      expect([symbol, SYSTEM_PROMPT.includes(symbol)]).toEqual([symbol, true]);
+      const used = BUILTIN_SHADER_TEMPLATES.some((t) => t.source.includes(symbol));
+      expect([symbol, used]).toEqual([symbol, true]);
+    }
+    expect(SYSTEM_PROMPT).not.toContain('v_uv');
+  });
+
+  it('tells it to look at a visual change before calling it done', () => {
+    // It built the material, wired the system, set the wrong param name, read the
+    // component back at 1.0 and reported success — without ever taking a picture of
+    // a sprite whose whole job was to disappear.
+    expect(SYSTEM_PROMPT).toMatch(/LOOK before you call a visual change done/);
+    expect(SYSTEM_PROMPT).toContain('capture_viewport');
+    expect(SYSTEM_PROMPT).toContain('screenshot');
   });
 });
