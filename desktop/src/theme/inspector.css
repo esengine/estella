@@ -74,9 +74,9 @@
 .comp.disabled .comp-icon, .comp.disabled .comp-name { opacity: .45; }
 .comp.disabled .comp-body { opacity: .5; }
 .comp-badge { font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); }
-.comp-menu { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast); }
-.comp-head:hover .comp-menu { opacity: 1; }
-.comp-menu:hover { color: var(--text); background: var(--srf-5); }
+.comp-menu, .comp-help { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast); }
+.comp-head:hover .comp-menu, .comp-head:hover .comp-help { opacity: 1; }
+.comp-menu:hover, .comp-help:hover { color: var(--text); background: var(--srf-5); }
 .comp-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--t-slow) var(--e-out); }
 .comp.open .comp-body { grid-template-rows: 1fr; }
 .comp-body > .cinner { overflow: hidden; }

@@ -128,6 +128,7 @@ export const detailsMessages = defineMessages({
     'det.enableComponent': { en: 'Enable component', zh: '启用组件' },
     'det.disableComponent': { en: 'Disable component', zh: '禁用组件' },
     'det.componentOptions': { en: 'Component options', zh: '组件选项' },
+    'det.componentDocs': { en: 'What this component does', zh: '这个组件是做什么的' },
     'det.advanced': { en: 'Advanced', zh: '高级' },
 
     // — Entity kind pill (mirrors the Outliner's kind labels) —

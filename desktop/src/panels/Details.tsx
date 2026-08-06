@@ -23,6 +23,7 @@ import {
   MousePointerClick,
   Filter,
   Hexagon,
+  HelpCircle,
   FolderOpen,
   Globe,
   Monitor,
@@ -89,7 +90,8 @@ import { findAssetUsages } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard, confirmDiscardDoc } from '@/project/discardGuard';
-import { t } from '@/i18n';
+import { t, editorLocale } from '@/i18n';
+import { componentDocUrl } from '@/engine/componentDocUrl';
 import { MaterialDocument } from '@/material/MaterialDocument';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
 import {
@@ -2418,6 +2420,7 @@ function ComponentSection({
   hideFields?: ReadonlySet<string>;
 }) {
   const Icon = componentIcon(comp.name);
+  const docUrl = componentDocUrl(comp.name, editorLocale);
   const overridden = comp.fields.some(isModified);
   // Categories default open, the Advanced fold defaults closed.
   const [openFolds, setOpenFolds] = useState<Record<string, boolean>>({});
@@ -2488,6 +2491,20 @@ function ComponentSection({
           <Icon size={13} strokeWidth={1.9} />
         </span>
         <span className="comp-name">{comp.label}</span>
+        {docUrl && (
+          // A real link, not an IPC call: the window's open handler already
+          // routes any http target to the browser and denies in-app navigation.
+          <a
+            className="comp-help"
+            href={docUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={t('det.componentDocs')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <HelpCircle size={13} strokeWidth={2} />
+          </a>
+        )}
         {onMore && (
           <button
             type="button"
