@@ -314,6 +314,12 @@ export const TOOLS = [
     }, ['destDir', 'baseName', 'content', 'type']),
     js: (i) => `window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, ${JSON.stringify(i.content)}, ${JSON.stringify(i.type)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
+  { name: 'delete_asset', effect: 'irreversible',
+    description: 'Delete a project file (or folder) to the OS trash — its `.meta` goes with it and the registry is re-scanned, so nothing is left half-removed. '
+      + 'This is how you take back an asset you created by mistake: the editor command behind the Content Browser\'s Delete acts on whatever is SELECTED there, which a driver cannot see. '
+      + 'Returns { path, type, restoreToken, usages } — `usages` is what still REFERENCES the asset (scenes, prefabs, materials); a non-empty list means you just left those refs dangling, and get_diagnostics will now report them. Recoverable from the OS trash.',
+    schema: obj({ path: { type: 'string' } }, ['path']),
+    js: (i) => `window.__estellaEditor.deleteAsset(${JSON.stringify(i.path)})`, root: 'editor' },
   { name: 'import_assets', effect: 'irreversible',
     description: 'Import files into the asset registry (textures, audio, fonts, spine, tilemaps...). External absolute paths are copied into project-relative destDir; paths already INSIDE the project are registered in place (no copy, no rename). Returns { imported, skipped }; imported paths are immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({ destDir: { type: 'string' }, sources: { type: 'object', description: 'array of absolute file paths' } },

@@ -239,6 +239,15 @@ describe('editor MCP tool registry', () => {
     expect(driver.js).toHaveBeenLastCalledWith(expect.stringContaining('saveAssetDocument(null ?? undefined)'));
   });
 
+  it('deleting an asset names the path, because the UI command reads a selection', async () => {
+    const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.js = vi.fn(async () => ({ path: 'assets/fx/old.esshader', type: 'shader', restoreToken: 't', usages: [] }));
+    const del = toolNamed('delete_asset');
+    expect([!!del, irreversible(del)]).toEqual([true, true]);
+    await runTool(del, driver, { path: 'assets/fx/old.esshader' });
+    expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('deleteAsset("assets/fx/old.esshader")'));
+  });
+
   it('every resource maps to a surface method with a JSON mime', () => {
     for (const r of RESOURCES as Array<{ uri: string; method: string; mimeType: string }>) {
       expect(r.uri.startsWith('editor://')).toBe(true);

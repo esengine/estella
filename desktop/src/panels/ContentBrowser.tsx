@@ -20,6 +20,7 @@ import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
 import { syncAssetPaths } from '@/project/assetPathSync';
 import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
+import { deleteAssets } from '@/project/deleteAssets';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { NewTilesetDialog } from '@/components/NewTilesetDialog';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
@@ -569,13 +570,11 @@ export function ContentBrowser() {
     setConfirmDel(null);
     if (!target) return;
     // Trash each; remember (path, token) pairs so one Undo restores the whole batch.
+    const results = await deleteAssets(target.paths);
     const trashed: { path: string; token: string }[] = [];
-    for (const path of target.paths) {
-      try {
-        trashed.push({ path, token: await window.estella.fs.trash(path) });
-      } catch (e) {
-        Toasts.push(t('cb.deleteFailed', { error: errMsg(e) }), 'error');
-      }
+    for (const r of results) {
+      if (r.token !== null) trashed.push({ path: r.path, token: r.token });
+      else Toasts.push(t('cb.deleteFailed', { error: r.error ?? '' }), 'error');
     }
     refreshFs();
     selectAsset(null);

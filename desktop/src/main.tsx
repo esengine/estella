@@ -66,6 +66,8 @@ import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
 import { initPlugins } from './plugins/init';
 import { openAssetOfType, opensInEditor } from './project/assetOpen';
+import { deleteAssets } from './project/deleteAssets';
+import { findAssetUsages } from './project/assetUsages';
 import { DirtyRegistry } from './document/DirtyRegistry';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 import { mcpStatus, subscribeMcp } from './store/McpStore';
@@ -448,6 +450,23 @@ function buildEditorAutomation(): unknown {
     editAssetDocument: (changes: AssetDocumentChange[], docId?: string, label?: string) =>
       editAssetDocument(changes, docId, label),
     saveAssetDocument: (docId?: string) => saveAssetDocument(docId),
+
+    /**
+     * Delete an asset to the OS trash, sidecar and registry entry with it.
+     *
+     * What the Content Browser's Delete does, minus its two pieces of UI: the confirm dialog
+     * (a modal with nobody to answer it hangs a driver for good) and the Undo toast. What the
+     * dialog SHOWS is not dropped, though — the usages come back in the result, because the
+     * thing an automated caller most needs to know about a delete is what still points at it.
+     */
+    deleteAsset: async (path: string) => {
+      const type = ProjectStore.assetTypeAt(path);
+      // Best-effort: a scan failure must not stop the delete the caller asked for.
+      const usages = await findAssetUsages(path).catch(() => []);
+      const [result] = await deleteAssets([path]);
+      if (result.token === null) throw new Error(`could not delete ${path}: ${result.error ?? 'unknown error'}`);
+      return { path, type, restoreToken: result.token, usages };
+    },
     /** Leave Prefab Mode — the banner's "Back to Scene". Refuses on unsaved prefab
      *  changes unless `discardChanges` (see openAsset). */
     exitPrefabMode: async (discardChanges = false) => {

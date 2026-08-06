@@ -108,5 +108,14 @@ export async function run(ed) {
   const paths = (assets?.assets ?? []).map((a) => a.path);
   check(paths.includes(graphPath), `the graph is not in the registry (${paths.join(', ')})`);
 
+  // And what a driver creates, a driver can take back. The Content Browser's own
+  // Delete acts on its SELECTION, which is not a thing a tool call can see; this
+  // takes the path, and the registry follows.
+  const deleted = await ed.json('delete_asset', { path: shaderPath }, 60000);
+  check(deleted?.restoreToken != null, `delete_asset returned ${JSON.stringify(deleted)}`);
+  const left = await ed.json('list_assets', { match: 'Fire' });
+  const stillThere = (left?.assets ?? []).map((a) => a.path);
+  check(!stillThere.includes(shaderPath), `${shaderPath} is still registered after delete_asset`);
+
   return check.failures;
 }
