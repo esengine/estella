@@ -515,6 +515,28 @@ export class SceneModelImpl {
     return out;
   }
 
+  /**
+   * The entities of a selection that nothing else in it contains — its roots.
+   *
+   * A selection made by dragging or shift-clicking down the Outliner routinely
+   * holds a parent AND some of its children, and almost every operation means the
+   * subtree rather than each entry: duplicating both copies the child twice, and a
+   * prefab of both is a prefab of the parent. Whoever asks "what did they actually
+   * pick" needs this, and asking it by hand is a parent-walk each time.
+   *
+   * Order follows the input, so a caller's notion of "the first one" survives.
+   */
+  selectionRoots(ids: Iterable<number>): number[] {
+    const selected = new Set(ids);
+    const covered = (id: number): boolean => {
+      for (let p = this.entityBySource(id)?.parent; p != null; p = this.entityBySource(p)?.parent) {
+        if (selected.has(p)) return true;
+      }
+      return false;
+    };
+    return [...selected].filter((id) => !covered(id));
+  }
+
   // ── Prefab instances ──────────────────────────────────────────────────────
 
   /** Tag an entity as part of a prefab instance (or pass undefined to clear). */

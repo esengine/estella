@@ -1337,12 +1337,32 @@ class ProjectStoreImpl {
   /**
    * Create a `.esprefab` asset from a live entity subtree (the "Create Prefab"
    * authoring path — the inverse of {@link instantiatePrefabFromPath}). Extracts
-   * the subtree rooted at `rootSourceId` into PrefabData, writes the asset +
-   * its `.meta` (a fresh uuid) under `assets/prefabs/`, and re-scans the asset
-   * DB so the prefab is immediately draggable. Non-destructive: the source
-   * entities are left as-is. Returns the new prefab's `@uuid:` ref, or null.
+   * the subtree into PrefabData, writes the asset + its `.meta` (a fresh uuid)
+   * under `assets/prefabs/`, and re-scans the asset DB so the prefab is
+   * immediately draggable. Non-destructive: the source entities are left as-is.
+   * Returns the new prefab's `@uuid:` ref, or null.
+   *
+   * Takes a SELECTION, because that is what the Outliner has when someone asks.
+   * A selection routinely holds a parent and some of its children, and the prefab
+   * they mean is the parent — so it resolves to the selection's roots, and the
+   * children come along as the subtree they already are.
+   *
+   * A prefab has exactly one root (`PrefabData.rootEntityId` is singular), so a
+   * selection with SEVERAL roots is not a prefab. That is refused and said out
+   * loud: it used to act on whichever entity happened to be right-clicked, which
+   * silently produced a prefab of one of them.
    */
-  async createPrefabFromEntity(rootSourceId: number, opts?: { replace?: boolean }): Promise<string | null> {
+  async createPrefabFromEntity(
+    target: number | readonly number[],
+    opts?: { replace?: boolean },
+  ): Promise<string | null> {
+    const roots = SceneModel.selectionRoots(typeof target === 'number' ? [target] : target);
+    if (roots.length === 0) return null;
+    if (roots.length > 1) {
+      Toasts.push(t('proj.prefabOneRoot', { count: roots.length }), 'warn', 4000);
+      return null;
+    }
+    const rootSourceId = roots[0]!;
     const root = SceneModel.entityBySource(rootSourceId);
     if (!root) return null;
     const entities = SceneModel.collectSubtree(rootSourceId)

@@ -652,7 +652,7 @@ export function Outliner() {
           if (dups.length > 0) useSelection.getState().selectMany(dups, dups[dups.length - 1]);
         },
       },
-      { label: t('out.createPrefab'), onClick: () => void ProjectStore.createPrefabFromEntity(id) },
+      { label: t('out.createPrefab'), onClick: () => void ProjectStore.createPrefabFromEntity(selectionOrTarget(id)) },
       ...prefabInstanceItems(id),
       {
         label: t('ui.delete'),

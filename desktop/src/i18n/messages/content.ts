@@ -138,6 +138,10 @@ export const contentMessages = defineMessages({
     'cb.newFolderFailed': { en: 'New folder failed: {error}', zh: '新建文件夹失败：{error}' },
     'cb.newSceneFailed': { en: 'New scene failed: {error}', zh: '新建场景失败：{error}' },
     'cb.newPrefabFailed': { en: 'New prefab failed: {error}', zh: '新建预制体失败：{error}' },
+    'proj.prefabOneRoot': {
+      en: 'A prefab has one root — the selection has {count}. Parent them under one entity first.',
+      zh: '预制体只能有一个根，当前选择有 {count} 个。请先把它们放到同一个父实体下。',
+    },
     'cb.newInputMapFailed': { en: 'New input map failed: {error}', zh: '新建输入映射失败：{error}' },
     'cb.newLocaleTableFailed': { en: 'New locale table failed: {error}', zh: '新建本地化表失败：{error}' },
     'cb.revealFailed': { en: 'Couldn’t reveal: {error}', zh: '无法在资源管理器中显示：{error}' },
