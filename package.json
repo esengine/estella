@@ -17,7 +17,7 @@
     "emsdk:setup": "node build-tools/toolchain/setup-emsdk.js",
     "asset-meta": "node tools/asset-meta.js",
     "migrate-asset-refs": "node tools/migrate-asset-refs.js",
-    "verify": "pnpm --filter ./sdk exec tsc --noEmit && node tools/api-surface.mjs --check && node tools/check-cycles.mjs && node tools/check-layers.mjs && node tools/check-project-settings.mjs && node tools/check-workflows.mjs && node tools/check-tool-calls.mjs && node tools/check-inspector-door.mjs && node tools/component-reference.mjs --check",
+    "verify": "pnpm --filter ./sdk exec tsc --noEmit && node tools/api-surface.mjs --check && node tools/check-cycles.mjs && node tools/check-layers.mjs && node tools/check-project-settings.mjs && node tools/check-workflows.mjs && node tools/check-tool-calls.mjs && node tools/check-inspector-door.mjs && node tools/check-dirty-source.mjs && node tools/component-reference.mjs --check",
     "perf": "node tools/perf-guard.mjs --check",
     "prepare": "git config core.hooksPath .githooks || true"
   },

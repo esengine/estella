@@ -48,7 +48,6 @@ import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { runContributedTool } from './plugins/agentTools';
-import { EditorHistory } from './engine/EditorHistory';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
 import { Particle, getComponent } from 'esengine';
@@ -116,6 +115,27 @@ function documentState(): { kind: 'scene' | 'prefab'; path: string | null; name:
   const dirty = DirtyRegistry.isDirty();
   if (pe) return { kind: 'prefab', path: pe.path, name: pe.name, dirty, isVariant: !!pe.isVariant, returnScene: pe.returnScene };
   return { kind: 'scene', path: st?.currentScene ?? null, name: st?.name ?? null, dirty };
+}
+
+/**
+ * Refuse a document swap that would throw away unsaved work, unless the caller
+ * says to throw it away.
+ *
+ * Every door that replaces the open document asks this ONE question, and the
+ * answer comes from the registry — the scene AND every open asset editor — never
+ * from one document. discardGuard states that rule for the UI prompts ("not just
+ * the scene's EditorHistory"), and four doors here each restated it by hand until
+ * one of them drifted: `openScene` asked EditorHistory alone, so opening a scene
+ * over an unsaved tileset or material graph was refused through open_asset and
+ * waved through here.
+ *
+ * A person gets a prompt for this. A driver gets a refusal, because a modal with
+ * nobody to answer it never resolves — so discarding is something the caller says
+ * out loud instead.
+ */
+function requireDiscardable(discardChanges: boolean, what: string): void {
+  if (discardChanges || !DirtyRegistry.isDirty()) return;
+  throw new Error(`${what} would discard unsaved changes — save first, or pass discardChanges to throw them away`);
 }
 
 /**
@@ -206,15 +226,9 @@ function buildEditorAutomation(): unknown {
      *  their own get_scene_tree polling): waits out the model-version bump the
      *  adopt performs, racing the engine boot on a freshly opened project. */
     openScene: async (rel: string, discardChanges = false) => {
-      // A person gets a "save your work?" prompt here. A driver got silence and
-      // lost whatever it had built — opening the scene it had just authored into
-      // reloads it from disk, and the hundred entities never written are gone.
-      // Refuse instead, and make discarding something the caller says out loud.
-      if (!discardChanges && EditorHistory.isDirty()) {
-        throw new Error(
-          'the open scene has unsaved changes — save_scene first, or pass discardChanges to throw them away',
-        );
-      }
+      // Opening a scene reloads from disk, so anything just authored and never
+      // written is gone. A driver used to get silence and lose it.
+      requireDiscardable(discardChanges, `opening ${rel}`);
       await openSceneAwaited(rel);
       // Say so when nothing opened. The open path can leave the document empty —
       // an editor whose project fell out from under it answers every read with
@@ -481,17 +495,18 @@ function buildEditorAutomation(): unknown {
           + 'external program. Read or write it as text instead (read_project_file / write_project_file).',
         );
       }
-      // A scene or prefab REPLACES the document, and both take `discardChanges` all the
-      // way down. An asset editor prompts about ITS OWN document, which nothing here can
-      // answer for — so it opens only from a clean state.
+      // A scene or prefab REPLACES the document, and both take `discardChanges` all
+      // the way down. An asset editor prompts about ITS OWN document, which nothing
+      // here can answer for — so it opens only from a clean state, and no
+      // `discardChanges` will buy its way past that.
       const swapsDocument = type === 'scene' || type === 'prefab';
-      if (DirtyRegistry.isDirty() && !(swapsDocument && discardChanges)) {
-        throw new Error(swapsDocument
-          ? `opening ${path} would discard unsaved changes — save first, or pass discardChanges to throw them away`
-          : `save the open documents before opening ${path} — an asset editor asks about its own unsaved changes, `
-            + 'and that prompt has nobody to answer it here',
+      if (!swapsDocument && DirtyRegistry.isDirty()) {
+        throw new Error(
+          `save the open documents before opening ${path} — an asset editor asks about its own unsaved changes, `
+          + 'and that prompt has nobody to answer it here',
         );
       }
+      requireDiscardable(discardChanges, `opening ${path}`);
       if (type === 'prefab') {
         await ProjectStore.openPrefab(path, { discardChanges: true });
         const doc = documentState();
@@ -560,9 +575,7 @@ function buildEditorAutomation(): unknown {
       if (!ProjectStore.getSnapshot()?.prefabEdit) {
         throw new Error('not editing a prefab — nothing to leave (see get_document)');
       }
-      if (!discardChanges && DirtyRegistry.isDirty()) {
-        throw new Error('the prefab has unsaved changes — save first, or pass discardChanges to throw them away');
-      }
+      requireDiscardable(discardChanges, 'leaving Prefab Mode');
       await ProjectStore.exitPrefabMode({ discardChanges: true });
       return documentState();
     },
@@ -570,9 +583,7 @@ function buildEditorAutomation(): unknown {
      *  Prefab") — the door that needs no ref→path lookup by the caller. */
     editPrefab: async (entity: number, discardChanges = false) => {
       requireInstance(entity);
-      if (!discardChanges && DirtyRegistry.isDirty()) {
-        throw new Error('editing the prefab would discard unsaved changes — save first, or pass discardChanges');
-      }
+      requireDiscardable(discardChanges, 'editing the prefab');
       await ProjectStore.editPrefabOfInstance(entity, { discardChanges: true });
       const doc = documentState();
       if (doc.kind !== 'prefab') {
