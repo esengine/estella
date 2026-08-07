@@ -175,6 +175,18 @@ enum class GfxPixelFormat : u8 {
     Depth24Stencil8,
 };
 
+/** @brief Bytes one pixel occupies in the CALLER's upload buffer — the single
+ *         source both backends size a read of caller-owned pixels with. A
+ *         backend's own texel size may differ (RGB8 widens to RGBA8 on WebGPU).
+ *         Depth formats are attachment-only and never uploaded. */
+inline u32 gfxBytesPerPixel(GfxPixelFormat fmt) {
+    switch (fmt) {
+    case GfxPixelFormat::RGB8:    return 3;
+    case GfxPixelFormat::RGBA16F: return 8;
+    default:                      return 4;
+    }
+}
+
 // =============================================================================
 // Compressed Texture Format (GPU-compressed internal formats)
 // =============================================================================

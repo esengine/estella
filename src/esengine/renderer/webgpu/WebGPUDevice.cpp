@@ -9,6 +9,7 @@
  */
 #include "WebGPUDevice.hpp"
 #include "WebGPUMappings.hpp"
+#include "../rhi/PixelUpload.hpp"
 #include "../../core/Log.hpp"
 
 #include <algorithm>
@@ -396,9 +397,8 @@ BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* init
 
     WGPUBufferDescriptor bd{};
     bd.usage = toWGPUBufferUsage(desc.usage);
-    // WriteBuffer requires 4-byte multiples; keep the GL-side size contract by
-    // rounding the allocation, never the caller's data.
-    bd.size = (desc.size + 3u) & ~3u;
+    // Round the allocation, never the caller's data — see alignedWriteSize.
+    bd.size = webgpu::alignedWriteSize(desc.size);
 
     WGPUBuffer buffer = wgpuDeviceCreateBuffer(device_, &bd);
     if (!buffer) {
@@ -410,19 +410,19 @@ BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* init
     buffers_[id] = BufferRec{buffer, desc.size, desc.usage};
 
     if (initialData && desc.size > 0) {
-        writeBufferFromStart(buffer, initialData, desc.size);
+        writeBufferPadded(buffer, 0, initialData, desc.size);
     }
     return BufferHandle{id};
 }
 
-void WebGPUDevice::writeBufferFromStart(WGPUBuffer buffer, const void* data, u32 size) {
+void WebGPUDevice::writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* data, u32 size) {
     if (!webgpu::needsWriteStaging(size)) {
-        wgpuQueueWriteBuffer(queue_, buffer, 0, data, size);
+        wgpuQueueWriteBuffer(queue_, buffer, offset, data, size);
         return;
     }
     std::vector<u8> padded(webgpu::alignedWriteSize(size), 0);
     std::memcpy(padded.data(), data, size);
-    wgpuQueueWriteBuffer(queue_, buffer, 0, padded.data(), padded.size());
+    wgpuQueueWriteBuffer(queue_, buffer, offset, padded.data(), padded.size());
 }
 
 void WebGPUDevice::deleteBuffer(BufferHandle buffer) {
@@ -453,8 +453,8 @@ void WebGPUDevice::evictBindGroups(u64 id) {
 
 void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) {
     auto it = buffers_.find(static_cast<u32>(buffer));
-    if (it == buffers_.end() || !data || sizeBytes == 0) return;
-    if (offsetBytes + sizeBytes > it->second.size) {
+    if (it == buffers_.end() || !it->second.buffer || !data || sizeBytes == 0) return;
+    if (!webgpu::writeFitsInBuffer(offsetBytes, sizeBytes, it->second.size)) {
         ES_LOG_ERROR("WebGPUDevice::updateBuffer: range {}+{} exceeds buffer size {}",
                      offsetBytes, sizeBytes, it->second.size);
         return;
@@ -464,20 +464,14 @@ void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void
         ES_LOG_ERROR("WebGPUDevice::updateBuffer: offset {} is not 4-byte aligned", offsetBytes);
         return;
     }
-    if (webgpu::needsWriteStaging(sizeBytes)) {
-        // Only a write ending at the logical end may pad, into the slack the rounded
-        // allocation already has. One ending mid-buffer would clobber the next field.
-        if (offsetBytes + sizeBytes != it->second.size) {
-            ES_LOG_ERROR("WebGPUDevice::updateBuffer: unaligned partial write {}+{} of {}",
-                         offsetBytes, sizeBytes, it->second.size);
-            return;
-        }
-        std::vector<u8> padded(webgpu::alignedWriteSize(sizeBytes), 0);
-        std::memcpy(padded.data(), data, sizeBytes);
-        wgpuQueueWriteBuffer(queue_, it->second.buffer, offsetBytes, padded.data(), padded.size());
+    // Only a write ending at the logical end may pad, into the slack the rounded
+    // allocation has. One ending mid-buffer would clobber the next field.
+    if (webgpu::needsWriteStaging(sizeBytes) && offsetBytes + sizeBytes != it->second.size) {
+        ES_LOG_ERROR("WebGPUDevice::updateBuffer: unaligned partial write {}+{} of {}",
+                     offsetBytes, sizeBytes, it->second.size);
         return;
     }
-    wgpuQueueWriteBuffer(queue_, it->second.buffer, offsetBytes, data, sizeBytes);
+    writeBufferPadded(it->second.buffer, offsetBytes, data, sizeBytes);
 }
 
 void WebGPUDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) {
@@ -490,12 +484,16 @@ void WebGPUDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* 
 
     WGPUBufferDescriptor bd{};
     bd.usage = toWGPUBufferUsage(it->second.usage);
-    bd.size = (sizeBytes + 3u) & ~3u;
+    bd.size = webgpu::alignedWriteSize(sizeBytes);
     it->second.buffer = wgpuDeviceCreateBuffer(device_, &bd);
     it->second.size = sizeBytes;
+    if (!it->second.buffer) {
+        ES_LOG_ERROR("WebGPUDevice::resizeBuffer: creation failed ({} bytes)", sizeBytes);
+        return;
+    }
 
-    if (data && sizeBytes > 0 && it->second.buffer) {
-        writeBufferFromStart(it->second.buffer, data, sizeBytes);
+    if (data && sizeBytes > 0) {
+        writeBufferPadded(it->second.buffer, 0, data, sizeBytes);
     }
 }
 
@@ -587,7 +585,7 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 
     const u32 id = next_id_++;
     textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
-                               desc.width, desc.height, td.format,
+                               desc.width, desc.height, td.format, desc.format,
                                packSamplerKey(desc.minFilter, desc.magFilter,
                                               desc.wrapS, desc.wrapT)};
 
@@ -637,7 +635,7 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
         const u32 blocksX = (lw + bi.blockWidth - 1) / bi.blockWidth;
         const u32 blocksY = (lh + bi.blockHeight - 1) / bi.blockHeight;
         const u32 levelBytes = blocksX * blocksY * bi.bytesPerBlock;
-        if (ptr + levelBytes > end) break;   // truncated pyramid: stop cleanly
+        if (levelBytes > static_cast<usize>(end - ptr)) break;   // truncated pyramid
         WGPUTexelCopyTextureInfo dst{};
         dst.texture = texture;
         dst.mipLevel = level;
@@ -652,7 +650,7 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
 
     const u32 id = next_id_++;
     textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
-                               desc.width, desc.height, wgpuFmt,
+                               desc.width, desc.height, wgpuFmt, desc.format,
                                packSamplerKey(desc.minFilter, desc.magFilter,
                                               desc.wrapS, desc.wrapT)};
     return TextureHandle{id};
@@ -688,33 +686,32 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
     dst.texture = it->second.texture;
     dst.origin = WGPUOrigin3D{static_cast<u32>(x), static_cast<u32>(y), 0};
 
-    const u32 bpp = it->second.format == WGPUTextureFormat_RGBA16Float ? 8u : 4u;
+    // Source rows are what the caller allocated; destination rows are the texel
+    // size WebGPU stores. They differ for RGB8, which has no WebGPU format and so
+    // lands in an RGBA8 texture — reading dstRow from the source is the over-read.
+    const u32 srcBpp = gfxBytesPerPixel(it->second.srcFormat);
+    const u32 dstBpp = wgpuBytesPerPixel(it->second.srcFormat);
+    const usize dstRow = static_cast<usize>(width) * dstBpp;
+
     WGPUTexelCopyBufferLayout layout{};
-    layout.bytesPerRow = width * bpp;
+    layout.bytesPerRow = static_cast<u32>(dstRow);
     layout.rowsPerImage = height;
 
-    // Decoded images arrive top-first while the engine samples v upward, so an
-    // upload is flipped. GL does it with UNPACK_FLIP_Y_WEBGL; WebGPU has no such
-    // pixel-store parameter, so the rows are reversed here — the same bytes GL
-    // would have sent, which is what keeps the two backends pixel-identical.
-    // Without this every texture on the WebGPU backend was upside down: invisible
-    // on a symmetric sprite, and glaring on a tileset atlas, where row 0 sampled
-    // the atlas's last row.
-    const usize rowBytes = static_cast<usize>(width) * bpp;
-    std::vector<u8> flipped;
+    // Decoded images arrive top-first while the engine samples v upward. GL flips
+    // with UNPACK_FLIP_Y_WEBGL; WebGPU has no pixel-store parameter, so rows are
+    // reversed here — the same bytes GL sends, which is what keeps the two equal.
+    const bool reverseRows = flipY && height > 1;
+    std::vector<u8> staged;
     const void* src = pixels;
-    if (flipY && height > 1) {
-        flipped.resize(rowBytes * height);
-        const u8* in = static_cast<const u8*>(pixels);
-        for (u32 row = 0; row < height; ++row) {
-            std::memcpy(flipped.data() + rowBytes * row,
-                        in + rowBytes * (height - 1 - row), rowBytes);
-        }
-        src = flipped.data();
+    if (reverseRows || srcBpp != dstBpp) {
+        staged.resize(dstRow * height);
+        stageTextureRows(staged.data(), static_cast<const u8*>(pixels),
+                         width, height, srcBpp, dstBpp, reverseRows);
+        src = staged.data();
     }
 
     WGPUExtent3D extent{width, height, 1};
-    wgpuQueueWriteTexture(queue_, &dst, src, rowBytes * height, &layout, &extent);
+    wgpuQueueWriteTexture(queue_, &dst, src, dstRow * height, &layout, &extent);
 }
 
 void WebGPUDevice::setTextureParams(TextureHandle texture, TextureFilter minFilter,

@@ -36,12 +36,7 @@ GfxPixelFormat toGfxPixelFormat(TextureFormat format) {
 }
 
 u32 bytesPerPixel(TextureFormat format) {
-    switch (format) {
-    case TextureFormat::RGBA16F: return 8u;
-    case TextureFormat::RGBA8:
-    case TextureFormat::SRGB8A8: return 4u;
-    default:                     return 3u;
-    }
+    return gfxBytesPerPixel(toGfxPixelFormat(format));
 }
 
 }  // namespace
@@ -231,7 +226,8 @@ void Texture::updateSubRegion(u32 xoffset, u32 yoffset, u32 width, u32 height,
                               const void* data, u32 sizeBytes, bool flipY) {
     // The sub-rect must lie fully inside the texture; otherwise the upload
     // writes outside the allocated texture storage (GL error / undefined).
-    if (xoffset + width > width_ || yoffset + height > height_) {
+    if (width > width_ || xoffset > width_ - width ||
+        height > height_ || yoffset > height_ - height) {
         ES_LOG_ERROR("Texture::updateSubRegion: rect {}x{} at ({},{}) exceeds texture {}x{}; skipping",
                      width, height, xoffset, yoffset, width_, height_);
         return;

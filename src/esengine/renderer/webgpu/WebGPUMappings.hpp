@@ -408,4 +408,10 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
 inline u32 alignedWriteSize(u32 size) { return (size + 3u) & ~3u; }
 inline bool needsWriteStaging(u32 size) { return (size & 3u) != 0; }
 
+/// Whether a write lands inside a buffer. Subtraction, not addition: `offset + size`
+/// can wrap past UINT32_MAX and compare as in-range.
+inline bool writeFitsInBuffer(u32 offset, u32 size, u32 capacity) {
+    return size <= capacity && offset <= capacity - size;
+}
+
 }  // namespace esengine::webgpu

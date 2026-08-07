@@ -245,3 +245,15 @@ TEST_CASE("write sizes round the ALLOCATION, never the read out of the caller's 
         else CHECK(alignedWriteSize(size) > size);
     }
 }
+
+TEST_CASE("a write range is checked without letting offset + size wrap") {
+    CHECK(writeFitsInBuffer(0, 64, 64));
+    CHECK(writeFitsInBuffer(60, 4, 64));
+    CHECK(!writeFitsInBuffer(60, 8, 64));
+    CHECK(!writeFitsInBuffer(0, 65, 64));
+    CHECK(!writeFitsInBuffer(64, 1, 64));
+
+    // offset + size == 0x100000000, which truncates to 0 and would read as in-range.
+    CHECK(!writeFitsInBuffer(0xFFFFFFF0u, 16u, 64));
+    CHECK(!writeFitsInBuffer(16u, 0xFFFFFFF0u, 64));
+}

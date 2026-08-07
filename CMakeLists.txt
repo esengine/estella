@@ -96,6 +96,7 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/draw/BlendMode.hpp
     src/esengine/renderer/draw/CustomGeometry.hpp
     src/esengine/renderer/rhi/GfxEnums.hpp
+    src/esengine/renderer/rhi/PixelUpload.hpp
     src/esengine/renderer/rhi/GfxDevice.hpp
     src/esengine/renderer/rhi/GLDevice.hpp
     src/esengine/renderer/rhi/TransientBufferPool.hpp

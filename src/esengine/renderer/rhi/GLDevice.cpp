@@ -182,6 +182,18 @@ GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     }
 }
 
+/// GL reads each source row padded up to UNPACK_ALIGNMENT (4 by default) while
+/// engine uploads are tightly packed, so a row whose byte count is not 4-aligned
+/// has to drop it to 1 — otherwise GL reads past the end of the last row.
+struct TightRowScope {
+    bool tightened;
+    TightRowScope(GfxPixelFormat fmt, u32 width)
+        : tightened((static_cast<u64>(width) * gfxBytesPerPixel(fmt)) % 4u != 0) {
+        if (tightened) glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    }
+    ~TightRowScope() { if (tightened) glPixelStorei(GL_UNPACK_ALIGNMENT, 4); }
+};
+
 GLenum toGLCompressedFormat(GfxCompressedFormat fmt) {
     switch (fmt) {
     case GfxCompressedFormat::ETC2_RGB8:  return GL_COMPRESSED_RGB8_ETC2;
@@ -883,6 +895,7 @@ TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixel
 
     auto gl = toGLPixelFormat(desc.format);
     bindTextureForEdit(id);
+    const TightRowScope rows(desc.format, desc.width);
     if (pixels && desc.flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
     glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(gl.internalFormat),
                  static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
@@ -919,7 +932,7 @@ TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxComp
         const u32 blocksX = (lw + bi.blockWidth - 1) / bi.blockWidth;
         const u32 blocksY = (lh + bi.blockHeight - 1) / bi.blockHeight;
         const u32 levelBytes = blocksX * blocksY * bi.bytesPerBlock;
-        if (ptr + levelBytes > end) break;
+        if (levelBytes > static_cast<usize>(end - ptr)) break;   // truncated pyramid
         glCompressedTexImage2D(GL_TEXTURE_2D, static_cast<GLint>(level), glFmt,
                                static_cast<GLsizei>(lw), static_cast<GLsizei>(lh),
                                0, static_cast<GLsizei>(levelBytes), ptr);
@@ -949,8 +962,10 @@ void GLDevice::deleteTexture(TextureHandle texture) {
 void GLDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
                              const void* pixels, bool flipY) {
     auto it = texture_formats_.find(static_cast<u32>(texture));
-    auto gl = toGLPixelFormat(it != texture_formats_.end() ? it->second : GfxPixelFormat::RGBA8);
+    const GfxPixelFormat fmt = it != texture_formats_.end() ? it->second : GfxPixelFormat::RGBA8;
+    auto gl = toGLPixelFormat(fmt);
     bindTextureForEdit(static_cast<u32>(texture));
+    const TightRowScope rows(fmt, width);
     if (flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
     glTexSubImage2D(GL_TEXTURE_2D, 0, x, y,
                     static_cast<GLsizei>(width), static_cast<GLsizei>(height),

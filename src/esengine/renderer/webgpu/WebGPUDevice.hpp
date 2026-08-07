@@ -221,6 +221,10 @@ private:
         u32 width = 0;
         u32 height = 0;
         WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
+        /// The RHI format the texture was created with — the layout an upload reads
+        /// the caller's pixels in. WebGPU has no 3-channel format, so RGB8 sources
+        /// land in an RGBA8 texture and `format` alone cannot size the source rows.
+        GfxPixelFormat srcFormat = GfxPixelFormat::RGBA8;
         u8 samplerKey = 0;  ///< Packed filter/wrap params (sampler cache key).
     };
     struct ProgramRec {
@@ -388,10 +392,10 @@ private:
     /// Drop every cached group referencing a dying resource id (see cache note).
     void evictBindGroups(u64 id);
 
-    /// Fill @p buffer from offset 0 with @p size bytes of @p data. WriteBuffer's size
-    /// must be a 4-byte multiple; the caller's allocation is only @p size bytes, so a
-    /// short tail is padded through a staging copy rather than over-read.
-    void writeBufferFromStart(WGPUBuffer buffer, const void* data, u32 size);
+    /// The single WriteBuffer call site. Its size must be a 4-byte multiple and the
+    /// caller's allocation is only @p size bytes, so a short tail is staged through a
+    /// zero-padded copy rather than over-read. @p offset must already be aligned.
+    void writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* data, u32 size);
 
     // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
     // profiler's gpuMs/gpuScopes populate on both backends. Active only when the

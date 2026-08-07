@@ -7,6 +7,7 @@
 #include "MockGfxDevice.hpp"
 #include "esengine/renderer/rhi/Texture.hpp"
 #include "esengine/renderer/rhi/Framebuffer.hpp"
+#include "esengine/renderer/rhi/PixelUpload.hpp"
 
 #include <cstdio>
 #include <vector>
@@ -126,6 +127,35 @@ int main() {
         }
         CHECK(d.deleteFramebufferCalls == 1, "destructor deletes the framebuffer via device");
         CHECK(d.deleteTextureCalls == 2, "destructor deletes both attachments via device");
+    }
+
+    // --- Upload row arithmetic: reads are sized by the SOURCE format ---
+    {
+        CHECK(gfxBytesPerPixel(GfxPixelFormat::RGB8) == 3, "RGB8 pixels are 3 source bytes");
+        CHECK(gfxBytesPerPixel(GfxPixelFormat::RGBA8) == 4, "RGBA8 pixels are 4 source bytes");
+        CHECK(gfxBytesPerPixel(GfxPixelFormat::SRGB8_ALPHA8) == 4, "sRGB8A8 pixels are 4 source bytes");
+        CHECK(gfxBytesPerPixel(GfxPixelFormat::RGBA16F) == 8, "RGBA16F pixels are 8 source bytes");
+
+        // Sized to the source EXACTLY: staging that reads a destination-sized row
+        // runs off the end here, which is what the sanitizer build is here to catch.
+        const u32 w = 3, h = 2;
+        std::vector<u8> rgb(static_cast<usize>(w) * h * 3);
+        for (usize i = 0; i < rgb.size(); ++i) rgb[i] = static_cast<u8>(i + 1);
+        std::vector<u8> out(static_cast<usize>(w) * h * 4, 0);
+
+        stageTextureRows(out.data(), rgb.data(), w, h, 3, 4, /*reverseRows=*/false);
+        CHECK(out[0] == 1 && out[1] == 2 && out[2] == 3 && out[3] == 0xFF,
+              "RGB8 widens to RGBA8 with opaque alpha");
+        CHECK(out[12] == 10 && out[15] == 0xFF, "row 1 starts at the destination stride");
+
+        stageTextureRows(out.data(), rgb.data(), w, h, 3, 4, /*reverseRows=*/true);
+        CHECK(out[0] == 10 && out[12] == 1, "reverseRows emits the last source row first");
+
+        std::vector<u8> rgba(static_cast<usize>(w) * h * 4);
+        for (usize i = 0; i < rgba.size(); ++i) rgba[i] = static_cast<u8>(i + 1);
+        std::vector<u8> same(rgba.size(), 0);
+        stageTextureRows(same.data(), rgba.data(), w, h, 4, 4, /*reverseRows=*/true);
+        CHECK(same[0] == 13 && same[12] == 1, "equal pixel sizes copy rows verbatim");
     }
 
     if (g_failures == 0) {
