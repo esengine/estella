@@ -38,7 +38,7 @@ export interface AgentRuntime {
 
 /** The slice of `World` the nav step needs — lets tests inject a fake. */
 export interface NavWorldView {
-    getEntitiesWithComponents(components: readonly AnyComponentDef[]): Entity[];
+    getEntitiesWithComponents(components: readonly AnyComponentDef[]): readonly Entity[];
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C>;
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void;
 }

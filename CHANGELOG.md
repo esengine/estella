@@ -27,6 +27,14 @@ published separately; it ships inside the editor.
   component and restore it afterwards. A name that matches no bool field on the
   component fails the build rather than reading as "draws nothing".
 
+### Changed
+
+- **`world.getEntitiesWithComponents()` returns a `readonly Entity[]`.** The array
+  it hands back is the query cache's own entry, not a copy — sorting or pushing to
+  it reorders or corrupts what every later reader of that query sees. Nothing in
+  the engine did (all sixty-odd call sites read it), and now nothing can: the type
+  says so. Reading, `for..of`, `.map`, `.filter` and indexing are unaffected.
+
 ### Fixed
 
 - **`Removed()` reported despawns from before anything was watching.** Losing a

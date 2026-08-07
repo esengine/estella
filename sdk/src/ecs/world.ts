@@ -750,7 +750,7 @@ export class World {
         precomputedKey?: string,
         filter?: QueryFilter,
         precomputedDepIds?: symbol[],
-    ): Entity[] {
+    ): readonly Entity[] {
         if (
             components.length === 0 && withFilters.length === 0 &&
             withoutFilters.length === 0 && !filter

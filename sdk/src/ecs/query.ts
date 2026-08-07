@@ -346,7 +346,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * its own. Every caller that asks "which entities match" goes through here,
      * so none of them can disagree about the cache key or the dep set.
      */
-    private candidates_(): Entity[] {
+    private candidates_(): readonly Entity[] {
         return this.world_.getEntitiesWithComponents(
             this.allRequired_,
             this.descriptor_._with,

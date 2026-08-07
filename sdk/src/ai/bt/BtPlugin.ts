@@ -37,7 +37,7 @@ interface BtAgentState {
 
 /** The slice of `World` the BT step needs — lets tests inject a fake. */
 export interface AiWorldView {
-    getEntitiesWithComponents(components: readonly AnyComponentDef[]): Entity[];
+    getEntitiesWithComponents(components: readonly AnyComponentDef[]): readonly Entity[];
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C>;
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void;
     has(entity: Entity, component: AnyComponentDef): boolean;
