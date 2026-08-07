@@ -178,11 +178,13 @@ published separately; it ships inside the editor.
 
 - **A destroyed entity's handle could come back as a live one.** An `Entity` is a
   22-bit slot index plus a 10-bit generation, and recycling a slot bumped the
-  generation with a wrap: after 1023 reuses the counter returned to 1 and the slot
-  issued an id byte-for-byte identical to one it had already handed out. Anything
-  still holding the old handle then pointed at a different entity, and `valid()`
-  agreed. 1023 sounds distant and is not — an entity rebuilt every frame gets
-  there in under a second, a pool of a hundred bullets at 60fps in about a minute.
+  generation with a wrap: once that counter had been through its thousand values
+  it returned to 1, and the slot issued an id byte-for-byte identical to one it
+  had already handed out. Anything still holding the old handle then pointed at a
+  different entity, and `valid()` agreed. A thousand sounds distant and is not:
+  measured on the real registry, the same raw id came back after 1022 recycles —
+  seventeen seconds at 60fps for anything recycling a slot once a frame, and
+  proportionally sooner for a pool that churns one several times within a frame.
   A slot on its last generation is now retired rather than recycled, so a handle
   is unique for the life of the registry. The `Entity` layout is unchanged: still
   4 bytes, still a plain JS number, still fits box2d's 32-bit user data. What it
