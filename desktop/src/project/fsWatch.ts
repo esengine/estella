@@ -81,10 +81,11 @@ export function initFsWatch(): void {
       fsRefresh.bump();
     }, 60);
 
-    // The open scene changed on disk (external edit, git, build output) → reload it.
-    if (ProjectStore.isOpenScenePath(paths)) {
+    // The open document — a scene, or the prefab being edited in Prefab Mode —
+    // changed on disk (external edit, git, build output) → reload it.
+    if (ProjectStore.isOpenDocumentPath(paths)) {
       if (sceneDebounce) clearTimeout(sceneDebounce);
-      sceneDebounce = setTimeout(() => void ProjectStore.reloadOpenSceneFromDisk(), 120);
+      sceneDebounce = setTimeout(() => void ProjectStore.reloadOpenDocumentFromDisk(), 120);
     }
 
     // An editor-plugin source edit → recompile + re-activate that plugin. Its own

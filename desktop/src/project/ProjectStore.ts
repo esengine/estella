@@ -178,8 +178,14 @@ class ProjectStoreImpl {
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
-  private knownSceneText: string | null = null;
-  private knownScenePath: string | null = null;
+  /** What the OPEN DOCUMENT looked like on disk the last time we read or wrote it —
+   *  a scene, or the `.esprefab` being edited in Prefab Mode. It answers one
+   *  question, "was that change ours", and it is per-document rather than
+   *  per-scene because both kinds are edited in the same world and overwritten by
+   *  the same Save. While it tracked only the scene, an external edit to a prefab
+   *  open in Prefab Mode was invisible and Save silently overwrote it. */
+  private diskText: string | null = null;
+  private diskPath: string | null = null;
   /** A disk-change discard prompt is showing — don't stack another. */
   private reloadPromptOpen = false;
   constructor() {
@@ -567,8 +573,8 @@ class ProjectStoreImpl {
     // Loading a scene always leaves Prefab Mode (if it was active).
     this.prefabSession = null;
     this.store.setState({ project: { ...st, currentScene: rel, prefabEdit: null } });
-    this.knownSceneText = text;
-    this.knownScenePath = rel;
+    this.diskText = text;
+    this.diskPath = rel;
   }
 
   /** A fresh, untitled scene document: a single orthographic Camera at the origin. */
@@ -2082,8 +2088,8 @@ class ProjectStoreImpl {
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
     const body = JSON.stringify(data, null, 2) + '\n';
     await window.estella.fs.write(relPath, body);
-    this.knownSceneText = body;
-    this.knownScenePath = relPath;
+    this.diskText = body;
+    this.diskPath = relPath;
   }
 
   /**
@@ -2189,6 +2195,11 @@ class ProjectStoreImpl {
       ViewportController.frameSelection(content);
     };
     requestAnimationFrame(() => requestAnimationFrame(frameContent));
+    // Seed the disk baseline from the file we just opened, so the first external
+    // change to it is recognised as one — and a watcher event that carries no
+    // actual change (a touch, a `.meta` write beside it) is not mistaken for one.
+    this.diskText = await window.estella.fs.read(path).catch(() => null);
+    this.diskPath = path;
     const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
     const baseRef = prefab.basePrefab ?? null;
     this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView, returnSelection, base, baseRef };
@@ -2296,12 +2307,18 @@ class ProjectStoreImpl {
     if (!built) return;
     const { prefab, idBySource, removedCount } = built;
     if (removedCount > 0) Toasts.push(t('proj.variantNoRemove', { count: removedCount }), 'warn');
+    const body = JSON.stringify(prefab, null, 2) + '\n';
     try {
-      await window.estella.fs.write(pe.path, JSON.stringify(prefab, null, 2) + '\n');
+      await window.estella.fs.write(pe.path, body);
     } catch {
       Toasts.push(t('proj.applyWriteFailed', { name: pe.path.split('/').pop() ?? pe.path }), 'error');
       return;
     }
+    // Our own write is not an external change — record it, or the watcher fires
+    // and offers to reload the file we just produced. `writeScene` does the same
+    // for a scene; this is the prefab half of the same rule.
+    this.diskText = body;
+    this.diskPath = pe.path;
     PrefabCache.put(pe.ref, prefab);
     this.prefabSession = { ...pe, idBySource };
     EditorHistory.markSaved();
@@ -2341,27 +2358,43 @@ class ProjectStoreImpl {
     }
   }
 
-  /** True if the changed paths include the open scene document. */
-  isOpenScenePath(paths: readonly string[]): boolean {
-    const cur = this.state?.currentScene;
+  /** The file the editor currently has open as its document: the prefab in Prefab
+   *  Mode, else the scene. One accessor, so nothing has to remember that
+   *  `currentScene` is null while a prefab is open. */
+  private openDocumentPath(): string | null {
+    return this.prefabSession?.path ?? this.state?.currentScene ?? null;
+  }
+
+  /** True if the changed paths include the open document — scene or prefab. */
+  isOpenDocumentPath(paths: readonly string[]): boolean {
+    const cur = this.openDocumentPath();
     if (!cur) return false;
     const norm = cur.replace(/\\/g, '/');
     return paths.some((p) => p.replace(/\\/g, '/') === norm);
   }
 
   /**
-   * Reconcile the open scene with an on-disk change made outside the editor —
+   * Reconcile the open DOCUMENT with an on-disk change made outside the editor —
    * seamless when clean, discard-guarded when there are unsaved edits. A change
-   * matching our own last write (or save) is a no-op.
+   * matching our own last write (or read) is a no-op.
+   *
+   * Both kinds, because both are edited in the same world and overwritten by the
+   * same Save. This asked about the scene alone, and `currentScene` is null in
+   * Prefab Mode — so a prefab changed on disk while open was invisible, and the
+   * next Save wrote the stale tree over it without a word. Reloading a prefab is
+   * re-entering Prefab Mode on it, which re-reads and re-flattens; the session
+   * carries its own return scene and view forward, so the way out is unchanged.
    */
-  async reloadOpenSceneFromDisk(): Promise<void> {
-    const st = this.state;
-    if (!st || !st.currentScene) return;
+  async reloadOpenDocumentFromDisk(): Promise<void> {
+    const target = this.openDocumentPath();
+    if (!this.state || !target) return;
     let text: string;
-    try { text = await window.estella.fs.read(st.currentScene); }
+    try { text = await window.estella.fs.read(target); }
     catch { return; }
-    if (text === this.knownSceneText && st.currentScene === this.knownScenePath) return;
-    const name = st.currentScene.split('/').pop() ?? st.currentScene;
+    if (text === this.diskText && target === this.diskPath) return;
+    const name = target.split('/').pop() ?? target;
+    // The document's OWN history, not the aggregate: reloading this file discards
+    // this file's edits and leaves every other open editor alone.
     if (EditorHistory.isDirty()) {
       // The confirm is async — further disk-change events while it's open must
       // not stack more dialogs for the same question.
@@ -2370,12 +2403,21 @@ class ProjectStoreImpl {
       const ok = await confirmDiscard(t('discard.reloadChanged', { name }));
       this.reloadPromptOpen = false;
       if (!ok) {
-        this.knownSceneText = text;
-        this.knownScenePath = st.currentScene;
+        // Declined: adopt the new bytes as the baseline so the same change is not
+        // asked about again, and the editor keeps the edits it was told to keep.
+        this.diskText = text;
+        this.diskPath = target;
         return;
       }
     }
-    await this.loadCurrentScene();
+    if (this.prefabSession) {
+      // Re-read, don't re-use: the rescan that evicts a changed prefab runs on its
+      // own debounce, and losing that race would reload the copy being replaced.
+      PrefabCache.forget(this.prefabSession.ref);
+      await this.openPrefab(target, { discardChanges: true });
+    } else {
+      await this.loadCurrentScene();
+    }
     Toasts.push(t('toast.reloadedFromDisk', { name }), 'info', 1600);
   }
 

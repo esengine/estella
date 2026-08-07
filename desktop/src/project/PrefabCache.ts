@@ -89,6 +89,13 @@ class PrefabCacheImpl {
     this.byRef.clear();
   }
 
+  /** Drop ONE prefab, so the next {@link load} re-reads it. For a caller that
+   *  knows the file changed and must not wait for the rescan that would also
+   *  notice — a reload racing an eviction reads the copy it is replacing. */
+  forget(ref: string): void {
+    this.byRef.delete(ref);
+  }
+
   /**
    * Evict only the prefabs whose FILE changed or went away, given the paths a
    * rescan reported and the set it still knows about.
