@@ -28,10 +28,13 @@ import { Query, Mut } from '../ecs/query';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { Physics, type PhysicsAPI } from './Physics';
+import { readPixelsPerUnit } from './PhysicsSystem';
 import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
+import { log } from '../util/logger';
 import type {
     BoxColliderData, CircleColliderData, CapsuleColliderData,
 } from './PhysicsComponents';
+import type { MoverResult } from './PhysicsTypes';
 import type { World } from '../ecs/world';
 
 // =============================================================================
@@ -273,6 +276,21 @@ function moverCapsuleFromShape(s: CastShape): MoverCapsule {
     return { c1: { x: s.ox + half, y: s.oy }, c2: { x: s.ox - half, y: s.oy }, radius: s.hy };
 }
 
+function isFiniteMove(r: MoverResult): boolean {
+    return Number.isFinite(r.dx) && Number.isFinite(r.dy)
+        && Number.isFinite(r.velX) && Number.isFinite(r.velY);
+}
+
+let warnedNonFiniteMove = false;
+
+function warnNonFiniteMove(entity: Entity, ppu: number, dt: number): void {
+    if (warnedNonFiniteMove) return;
+    warnedNonFiniteMove = true;
+    log.error('physics', `CharacterController move on entity ${entity} resolved to a non-finite pose `
+        + `(ppu=${ppu}, dt=${dt}); the Transform was left where it was. Check the entity's collider, `
+        + 'velocity and the Canvas pixelsPerUnit.');
+}
+
 /**
  * Register the character-controller system. Runs in FixedUpdate ahead of the
  * physics step so the resolved Transform is what gets pushed into a kinematic body.
@@ -281,6 +299,7 @@ function moverCapsuleFromShape(s: CastShape): MoverCapsule {
  * resting on the ground with valid contact normals instead of wedging on it.
  */
 export function registerCharacterControllerSystem(app: App): void {
+    warnedNonFiniteMove = false;
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
         defineSystem(
@@ -293,6 +312,9 @@ export function registerCharacterControllerSystem(app: App): void {
             ) => {
                 const dt = time.fixedDelta;
                 if (dt <= 0) return;
+                // Push before reading: this runs ahead of PhysicsStepSystem, the other
+                // caller, so on the first fixed step nobody has pushed one yet.
+                physics.setPixelsPerUnit(readPixelsPerUnit(app));
                 const ppu = physics.getPixelsPerUnit();
                 const invDt = 1 / dt;
 
@@ -316,6 +338,10 @@ export function registerCharacterControllerSystem(app: App): void {
                         ppu,
                     );
                     if (!r) continue;
+                    // A non-finite move is not survivable: the next move starts from the
+                    // position this writes, so one NaN frame kills the character for the
+                    // session. Keep the last good pose and say so once.
+                    if (!isFiniteMove(r)) { warnNonFiniteMove(entity, ppu, dt); continue; }
 
                     // Write both local and world position: PhysicsStepSystem runs next
                     // in this same FixedUpdate and pushes worldPosition into a kinematic

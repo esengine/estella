@@ -56,7 +56,8 @@ type PhysicsEngineApi = EngineApi & {
 // Canvas pixelsPerUnit live read
 // =============================================================================
 
-function readPixelsPerUnit(app: App): number {
+/** The scene's live pixels-per-unit — the one reader of Canvas.pixelsPerUnit. @internal */
+export function readPixelsPerUnit(app: App): number {
     const entities = app.world.getEntitiesWithComponents([Canvas]);
     for (const entity of entities) {
         const canvas = app.world.get(entity, Canvas) as CanvasData;

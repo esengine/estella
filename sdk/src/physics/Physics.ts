@@ -28,6 +28,9 @@ import {
 // Physics API Helper
 // =============================================================================
 
+/** World pixels per Box2D meter, until a Canvas says otherwise. */
+const DEFAULT_PIXELS_PER_UNIT = 100;
+
 /**
  * Unit contract: Box2D simulates in meters; the engine converts at the
  * pixels-per-unit (PPU) boundary. Spatial *queries* (`raycast` / `shapeCast` /
@@ -37,14 +40,24 @@ import {
  * component dimensions. Convert with {@link getPixelsPerUnit} when mixing the two.
  */
 export class PhysicsAPI {
-    private module_: PhysicsWasmModule;
+    private module_!: PhysicsWasmModule;
     // Live pixels-per-unit, pushed each frame by PhysicsSystem from the Canvas, so
     // a query that omits `ppu` is scaled correctly instead of silently assuming 100.
-    private ppu_ = 100;
+    private ppu_!: number;
+
+    /**
+     * Starting state for both construction paths. `_fromModule` uses `Object.create`,
+     * which runs no field initializer — a default declared as `ppu_ = 100` would be
+     * `undefined` there.
+     */
+    private init_(module: PhysicsWasmModule): void {
+        this.module_ = module;
+        this.ppu_ = DEFAULT_PIXELS_PER_UNIT;
+    }
 
     /** @internal Update the pixels-per-unit used to scale queries by default. */
     setPixelsPerUnit(ppu: number): void {
-        if (ppu > 0) this.ppu_ = ppu;
+        if (Number.isFinite(ppu) && ppu > 0) this.ppu_ = ppu;
     }
 
     /**
@@ -63,13 +76,13 @@ export class PhysicsAPI {
         if (!module) {
             throw new Error('Physics module not loaded. Ensure PhysicsPlugin init is complete.');
         }
-        this.module_ = module;
+        this.init_(module);
     }
 
     /** @internal */
     static _fromModule(module: PhysicsWasmModule): PhysicsAPI {
         const instance = Object.create(PhysicsAPI.prototype) as PhysicsAPI;
-        instance.module_ = module;
+        instance.init_(module);
         return instance;
     }
 
