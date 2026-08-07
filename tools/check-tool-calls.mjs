@@ -28,14 +28,19 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 /** Where the repo drives the editor through its own tool catalog. */
 const SCANNED = [path.join(DESKTOP, 'scripts')];
 
-const { TOOLS } = await import(path.join(DESKTOP, 'shared', 'toolCatalog.mjs'));
+// A bare absolute path is not a module specifier on Windows: `F:\...` reads as a
+// URL with scheme `f:`, and the ESM loader refuses it. pathToFileURL is the only
+// spelling that works on both.
+const { TOOLS } = await import(
+  pathToFileURL(path.join(DESKTOP, 'shared', 'toolCatalog.mjs')).href
+);
 const declared = new Map(
   TOOLS.map((t) => [t.name, new Set(Object.keys(t.schema?.properties ?? {}))]),
 );
