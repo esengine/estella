@@ -59,6 +59,7 @@ export interface RendererBackend {
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
     setDepthLayers(mask: number): void;
+    setCullingMask(mask: number): void;
     getStats(): RenderStats;
 }
 
@@ -117,6 +118,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
+        setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
             triangles: m.renderer_getTriangles(),
@@ -240,6 +242,15 @@ export const Renderer = {
      */
     setDepthLayers(mask: number): void {
         backend?.setDepthLayers(mask);
+    },
+
+    /**
+     * Sorting layers (bits 0..31) the NEXT collect draws — `Camera.cullingMask`.
+     * Set per camera before submitting it; a layer with no bit (outside 0..31) is
+     * drawn by every camera.
+     */
+    setCullingMask(mask: number): void {
+        backend?.setCullingMask(mask);
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

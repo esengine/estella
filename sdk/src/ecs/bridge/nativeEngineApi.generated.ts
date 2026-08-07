@@ -144,6 +144,7 @@ export interface NativeEngineApi {
     renderer_resize?(width: number, height: number): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
     renderer_setColorSpace?(linear: number): void;
+    renderer_setCullingMask?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
     renderer_setEntityClipRect?(entity: number, x: number, y: number, w: number, h: number): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
@@ -161,7 +162,7 @@ export interface NativeEngineApi {
     renderer_submitSpine?(registry: unknown): void;
     renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
     renderer_submitSprites?(registry: unknown): void;
-    renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number): void;
+    renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
     renderer_submitUIElements?(registry: unknown): void;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
@@ -227,6 +228,7 @@ export interface NativeEngineApi {
     uiNode_computedHeight?(registry: unknown, entity: number): number;
     uiNode_computedWidth?(registry: unknown, entity: number): number;
     uiRenderOrder_update?(registry: unknown): void;
+    ui_getCullBit?(registry: unknown, entity: number): number;
     ui_getRenderOrder?(registry: unknown, entity: number): number;
 }
 
@@ -374,6 +376,7 @@ export function createNativeEngineApi(
     bind('renderer_resize', 'es_renderer_resize', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
+    bind('renderer_setCullingMask', 'es_renderer_setCullingMask', false);
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
     bind('renderer_setEntityClipRect', 'es_renderer_setEntityClipRect', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
@@ -457,6 +460,7 @@ export function createNativeEngineApi(
     bind('uiNode_computedHeight', 'es_uiNode_computedHeight', true);
     bind('uiNode_computedWidth', 'es_uiNode_computedWidth', true);
     bind('uiRenderOrder_update', 'es_uiRenderOrder_update', true);
+    bind('ui_getCullBit', 'es_ui_getCullBit', true);
     bind('ui_getRenderOrder', 'es_ui_getRenderOrder', true);
     return api as NativeEngineApi;
 }

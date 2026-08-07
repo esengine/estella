@@ -47,6 +47,12 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       ],
       "tooltip": "Which buffers to clear before rendering this camera.",
     },
+    "cullingMask": {
+      "bitmask": {
+        "source": "sortingLayers",
+      },
+      "tooltip": "Which sorting layers this camera renders.",
+    },
     "farPlane": {
       "advanced": true,
       "min": 0,
@@ -90,6 +96,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "Canvas": {
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+      "tooltip": "Sorting layer this UI belongs to — cameras cull by it.",
+    },
     "matchWidthOrHeight": {
       "max": 1,
       "min": 0,

@@ -89,6 +89,11 @@ struct Canvas {
     ES_PROPERTY()
     glm::vec4 backgroundColor{0.0f, 0.0f, 0.0f, 1.0f};
 
+    /** @brief Sorting layer this canvas' UI belongs to, for Camera.cullingMask.
+     *         Membership only — UI draw order comes from the tree, not from this. */
+    ES_PROPERTY(step=1, enum_source=sortingLayers, tooltip="Sorting layer this UI belongs to — cameras cull by it.")
+    i32 layer{0};
+
     Canvas() = default;
 };
 

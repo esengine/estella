@@ -59,6 +59,7 @@ export function lerpPOV(a: CameraPOV, b: CameraPOV, t: number): CameraPOV {
     clearFlags: b.clearFlags,
     priority: b.priority,
     pixelPerfect: t < 0.5 ? a.pixelPerfect : b.pixelPerfect, // discrete: flip at the midpoint
+    cullingMask: b.cullingMask, // discrete: the target camera decides what it shows
   };
 }
 

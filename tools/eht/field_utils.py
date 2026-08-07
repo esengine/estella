@@ -102,12 +102,23 @@ def build_enum_value_map(enums) -> Dict[str, Dict[str, int]]:
 
 
 def format_number(raw: Optional[str]) -> str:
-    """Convert a C++ numeric literal to a clean string."""
+    """Convert a C++ numeric literal to a clean string.
+
+    Handles hex/binary bases and integer suffixes: `0xFFFFu` reaching TypeScript as
+    `0` is a silently wrong default, not a parse failure anyone sees.
+    """
     if not raw:
         return '0'
-    raw = raw.strip().rstrip('fF')
+    raw = raw.strip()
+    # Hex first: its digits include F, which the decimal suffix strip below would eat.
+    hexed = re.fullmatch(r'([+-]?0[xXbB][0-9a-fA-F]+)[uUlL]*', raw)
+    if hexed:
+        try:
+            return str(int(hexed.group(1), 0))
+        except ValueError:
+            return '0'
     try:
-        val = float(raw)
+        val = float(re.sub(r'[uUlLfF]+$', '', raw))
         if val == int(val):
             return str(int(val))
         return str(val)

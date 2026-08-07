@@ -81,6 +81,13 @@ i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity) {
     return ui ? ui->uiOrder : -1;
 }
 
+// Same walk, same reason: the text path submits its own draws, so it has to carry
+// the owning Canvas' culling bit itself. 0 = not a UI node, drawn by every camera.
+u32 ui_getCullBit(ecs::Registry& registry, u32 entity) {
+    auto* ui = registry.tryGet<ecs::UIVisual>(Entity::fromRaw(entity));
+    return ui ? ui->uiCullBit : 0u;
+}
+
 // UINode (CSS box) computed size — its internal computed_size_ is not
 // embind-readable, so expose it for TS uiHelpers.
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity) {

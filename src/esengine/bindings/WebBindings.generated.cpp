@@ -309,6 +309,7 @@ struct CameraJS {
     glm::vec4 viewport;
     i32 clearFlags;
     bool pixelPerfect;
+    u32 cullingMask;
 };
 
 esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
@@ -324,6 +325,7 @@ esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
     c.viewport = js.viewport;
     c.clearFlags = static_cast<ClearFlags>(js.clearFlags);
     c.pixelPerfect = js.pixelPerfect;
+    c.cullingMask = js.cullingMask;
     return c;
 }
 
@@ -340,6 +342,7 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
     js.viewport = c.viewport;
     js.clearFlags = static_cast<i32>(c.clearFlags);
     js.pixelPerfect = c.pixelPerfect;
+    js.cullingMask = c.cullingMask;
     return js;
 }
 
@@ -349,6 +352,7 @@ struct CanvasJS {
     i32 scaleMode;
     f32 matchWidthOrHeight;
     glm::vec4 backgroundColor;
+    i32 layer;
 };
 
 esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
@@ -358,6 +362,7 @@ esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
     c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
     c.matchWidthOrHeight = js.matchWidthOrHeight;
     c.backgroundColor = js.backgroundColor;
+    c.layer = js.layer;
     return c;
 }
 
@@ -368,6 +373,7 @@ CanvasJS canvasToJS(const esengine::ecs::Canvas& c) {
     js.scaleMode = static_cast<i32>(c.scaleMode);
     js.matchWidthOrHeight = c.matchWidthOrHeight;
     js.backgroundColor = c.backgroundColor;
+    js.layer = c.layer;
     return js;
 }
 
@@ -1082,14 +1088,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("priority", &CameraJS::priority)
         .field("viewport", &CameraJS::viewport)
         .field("clearFlags", &CameraJS::clearFlags)
-        .field("pixelPerfect", &CameraJS::pixelPerfect);
+        .field("pixelPerfect", &CameraJS::pixelPerfect)
+        .field("cullingMask", &CameraJS::cullingMask);
 
     value_object<CanvasJS>("Canvas")
         .field("designResolution", &CanvasJS::designResolution)
         .field("pixelsPerUnit", &CanvasJS::pixelsPerUnit)
         .field("scaleMode", &CanvasJS::scaleMode)
         .field("matchWidthOrHeight", &CanvasJS::matchWidthOrHeight)
-        .field("backgroundColor", &CanvasJS::backgroundColor);
+        .field("backgroundColor", &CanvasJS::backgroundColor)
+        .field("layer", &CanvasJS::layer);
 
     value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
         .field("radius", &esengine::ecs::CapsuleCollider::radius)
@@ -2132,11 +2140,13 @@ static_assert(offsetof(esengine::ecs::Camera, priority) == 28, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Camera, viewport) == 32, "ABI offset drift: esengine::ecs::Camera.viewport (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::Camera, clearFlags) == 48, "ABI offset drift: esengine::ecs::Camera.clearFlags (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Camera, pixelPerfect) == 49, "ABI offset drift: esengine::ecs::Camera.pixelPerfect (EHT expected 49)");
+static_assert(offsetof(esengine::ecs::Camera, cullingMask) == 52, "ABI offset drift: esengine::ecs::Camera.cullingMask (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::Canvas, designResolution) == 0, "ABI offset drift: esengine::ecs::Canvas.designResolution (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Canvas, pixelsPerUnit) == 8, "ABI offset drift: esengine::ecs::Canvas.pixelsPerUnit (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::Canvas, scaleMode) == 12, "ABI offset drift: esengine::ecs::Canvas.scaleMode (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::Canvas, matchWidthOrHeight) == 16, "ABI offset drift: esengine::ecs::Canvas.matchWidthOrHeight (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::Canvas, backgroundColor) == 20, "ABI offset drift: esengine::ecs::Canvas.backgroundColor (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::Canvas, layer) == 36, "ABI offset drift: esengine::ecs::Canvas.layer (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider.halfHeight (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider, offset) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider.offset (EHT expected 8)");
@@ -2398,7 +2408,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "638b897738f9c7db";
+static const char* kEsAbiLayoutHash = "7b8797b9ae911eeb";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

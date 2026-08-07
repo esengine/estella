@@ -44,6 +44,8 @@ export interface CameraRenderParams {
     cameraEntity?: Entity;
     /** Background for the camera's load-op clear (default opaque black). */
     clearColor?: { x: number; y: number; z: number; w: number };
+    /** Sorting layers this camera draws (`Camera.cullingMask`); omitted = all. */
+    cullingMask?: number;
 }
 
 export class RenderPipeline {
@@ -134,6 +136,8 @@ export class RenderPipeline {
         Renderer.beginFrame(elapsed);
         Renderer.setViewport(0, 0, width, height);
         Renderer.begin(viewProjection, 0, /*clear color+depth*/ 3, params.clearColor);
+        // The mask is sticky in the draw list; this path has no camera to own one.
+        Renderer.setCullingMask(0xFFFFFFFF);
         this.submitScene(registry, viewProjection, { x: 0, y: 0, w: width, h: height }, elapsed);
         Renderer.end();
     }
@@ -155,6 +159,8 @@ export class RenderPipeline {
         // The camera's clear rides begin as a region-scoped load-op — no scissor
         // dance, no sticky clear state at the boundary.
         Renderer.begin(viewProjection, 0, clearFlags, params.clearColor, vp);
+        // Set after begin (which clears the draw list) and before the collect it gates.
+        Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
         this.submitScene(registry, viewProjection, vp, elapsed);
         Renderer.end();
 

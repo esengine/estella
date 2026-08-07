@@ -134,7 +134,7 @@ public:
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, const f32* transform16,
-        Entity entity, i32 layer, f32 depth, bool sdf
+        Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit = 0
     );
 
 #ifdef ES_ENABLE_SPINE
@@ -167,6 +167,9 @@ public:
         if (post_process_) post_process_->setSceneNeedsDepth(mask != 0);
     }
     u32 depthLayers() const { return draw_list_.depthMask(); }
+
+    /// Layers the camera about to be collected renders — see DrawList::setCullingMask.
+    void setCullingMask(u32 mask) { draw_list_.setCullingMask(mask); }
 
     /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).

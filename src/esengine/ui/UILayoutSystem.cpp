@@ -437,24 +437,15 @@ bool anyUIAnimActive(Registry& registry) {
     return active;
 }
 
-/**
- * Whether a subtree root IS the screen rather than something standing in the
- * world. A root with no Transform parent has no other frame to sit in, so the
- * layout box places it and it tracks whatever the box tracks (in play, the
- * camera). Parenting the root to an entity is how a scene opts out and pins its
- * UI to a thing in the world — the box then only sizes it.
- */
+/** @brief Whether a subtree root IS the screen: no Transform parent, so the layout
+ *         box places it. A parented root rides its parent and the box only sizes it. */
 bool isScreenRoot(Registry& registry, Entity e) {
     auto* p = registry.tryGet<Parent>(e);
     return !p || p->entity == INVALID_ENTITY || !registry.valid(p->entity);
 }
 
-/**
- * Place every screen root at the box's world center. Authoritative for those
- * roots' position (it runs after the solve, which writes only the root's box
- * within the available area), and idempotent — it assigns rather than offsets,
- * so a pass that only moved the box can call it alone.
- */
+/** @brief Place every screen root at the box's world center — authoritative for those
+ *         roots' position, and idempotent, so a move-only pass may call it alone. */
 void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
                       const LayoutRect& box) {
     const f32 availW = box.width();

@@ -47,6 +47,9 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
                    u32 vertexByteOffset, u32 vertexCount, u32 indexOffset, u32 indexCount,
                    const BatchDrawKey& key) {
     if (indexCount == 0) return;
+    // The camera's culling mask, applied at the one place draws are produced, so no
+    // render path can be added that forgets it.
+    if (!drawList.layerVisible(key.cullBit ? key.cullBit : DrawList::layerBit(key.layer))) return;
 
     DrawCommand cmd{};
     const auto order = drawList.layerOrder(key.layer);

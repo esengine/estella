@@ -194,10 +194,39 @@ UI 在一个世界空间矩形(`uiLayoutRect`)内布局,对场景相机而言,�
 所以"让这个 HUD 跟随相机"不需要做任何事——那就是默认行为。反过来要把 UI 钉在世界里,
 给它的根加一个父级即可。
 
+### 哪些相机能看见:`Camera.cullingMask`
+
+每个可绘制物都属于**一个排序层**,而一个相机渲染其中的一个集合。`Camera.cullingMask`
+就是这个集合的位掩码——第 *i* 位 = 第 *i* 层,默认全开,所以从没配置过的相机和以前
+画得一模一样。
+
+UI 同样属于某一层,但**不是**通过那个给它排序的字段:UI 绘制的 `layer` 是它在树里的
+次序(`1000 + 树序),这正是 0–31 的层遮罩够不着它的原因。它的**归属**改由
+`Canvas.layer` 表达——一个普通的排序层,不影响任何绘制顺序,存在的唯一目的就是让相机
+能包含或排除这个画布的 UI。
+
+小地图因此才成立:把 HUD 的 `Canvas` 放到单独一层,然后在小地图相机上清掉那一位。
+
+```typescript
+import { defineSystem, GetWorld, Camera, Canvas } from 'esengine';
+
+const UI_LAYER = 1;
+
+const setupMinimap = defineSystem([GetWorld()], (world) => {
+  // HUD 声明自己属于哪一层……
+  world.set(hudCanvas, Canvas, { ...world.get(hudCanvas, Canvas), layer: UI_LAYER });
+  // ……小地图声明自己不画那一层。
+  const cam = world.get(minimapCamera, Camera);
+  world.set(minimapCamera, Camera, { ...cam, cullingMask: cam.cullingMask & ~(1 << UI_LAYER) });
+});
+```
+
+编辑器里这个遮罩是一个按**项目排序层名字**列出的多选框(项目设置 → 渲染 → 层名称)。
+编辑器自己的视口不受它影响、永远显示所有层,所以剔除不会在创作时挡住内容。
+
 <Aside type="caution">
-  每个相机都渲染整个场景,UI 也不例外——目前还没有逐相机的层遮罩。因此带子视口的第二个
-  相机(小地图、分屏)会在自己的视口里把 HUD 再画一遍,位置沿用主相机的摆放。在逐相机
-  UI 归属做出来之前,子视口相机请只对着场景内容。
+  子视口相机只清除自己那块矩形,但它的**绘制并不会被裁剪到该矩形内**——它画的东西可能
+  铺满整帧。剔除决定这类相机**画什么**,限定**画在哪**是另一个尚未合上的口子。
 </Aside>
 
 ## 屏幕尺寸与方向:`ScreenInfo`

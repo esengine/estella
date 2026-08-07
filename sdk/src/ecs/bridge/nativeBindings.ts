@@ -146,6 +146,8 @@ export const HOST_FLAGS = {
 export const RENDERER_OPTIONAL_BINDINGS = {
     /** 2.5D depth layers; hosts predating the feature simply stay painter-ordered. */
     setDepthLayers: 'es_renderer_setDepthLayers',
+    /** Camera culling mask; hosts predating it draw every layer, as they always did. */
+    setCullingMask: 'es_renderer_setCullingMask',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving
@@ -164,6 +166,7 @@ export function hasRendererBindings(
  */
 export const SCENE_QUERY_BINDINGS = {
     canvasEntity: 'es_registry_getCanvasEntity',
+    canvasEntities: 'es_registry_getCanvasEntities',
     cameraEntities: 'es_registry_getCameraEntities',
 } as const;
 

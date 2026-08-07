@@ -364,6 +364,12 @@
           "advanced": true
         },
         {
+          "key": "cullingMask",
+          "type": "number",
+          "default": "4294967295",
+          "doc": "Which sorting layers this camera renders."
+        },
+        {
           "key": "showFrustum",
           "type": "boolean",
           "default": "false",
@@ -414,6 +420,13 @@
           "key": "backgroundColor",
           "type": "Color",
           "default": "#000000"
+        },
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Sorting layer this UI belongs to — cameras cull by it.",
+          "range": "step 1"
         }
       ]
     },

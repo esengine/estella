@@ -54,6 +54,22 @@ public:
     void setDepthMask(u32 mask) { depth_mask_ = mask; }
     u32 depthMask() const { return depth_mask_; }
 
+    // Bit i set ⇒ the camera being rendered draws layer i. A camera property, not a
+    // scene one, so it is set per camera (RenderFrame::begin clears the list each time).
+    void setCullingMask(u32 mask) { culling_mask_ = mask; }
+    u32 cullingMask() const { return culling_mask_; }
+
+    /** @brief Whether a draw belonging to @p layerBit survives this camera's mask.
+     *         Bit 0 means "no layer" (outside 0..31) and is visible to every camera. */
+    bool layerVisible(u32 layerBit) const {
+        return layerBit == 0 || (culling_mask_ & layerBit) != 0;
+    }
+
+    /** @brief The mask bit of a sorting layer, or 0 when it has none (outside 0..31). */
+    static u32 layerBit(i32 layer) {
+        return (layer < 0 || layer >= 32) ? 0u : (1u << layer);
+    }
+
     /** @brief How one sorting layer resolves the draws inside it. */
     enum class LayerOrder : u8 { Painter, YSort, Depth };
 
@@ -89,6 +105,7 @@ private:
     u32 merged_draw_calls_ = 0;
     u32 ysort_mask_ = 0;
     u32 depth_mask_ = 0;
+    u32 culling_mask_ = 0xFFFFFFFFu;  // every layer, until a camera says otherwise
 };
 
 }  // namespace esengine

@@ -224,6 +224,7 @@ export class TextPlugin implements Plugin {
                     entity as number,
                     layer,
                     tr.worldPosition.z,
+                    api?.ui_getCullBit?.(registry, entity as number) ?? 0,
                 );
             }
 

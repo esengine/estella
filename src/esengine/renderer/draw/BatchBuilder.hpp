@@ -87,6 +87,9 @@ struct BatchDrawKey {
     // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
     // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.
     f32 y = 0.0f;
+    // Mask bit of the layer this draw belongs to for camera culling; 0 derives it from
+    // `layer`. UI sets it from its Canvas, whose `layer` is tree order, not membership.
+    u32 cullBit = 0;
     Entity entity = INVALID_ENTITY;
     RenderType type = RenderType::Sprite;
     // Material handle + the render state resolved from it (defaults when materialId == 0).

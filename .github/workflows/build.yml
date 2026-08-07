@@ -327,6 +327,16 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \
           ESTELLA_VERIFY_W=800 ESTELLA_VERIFY_H=600 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":60},{"x":0.9,"y":0.5,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.85,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,255],"tol":60}]'
+        # Camera.cullingMask over sorting layers, for world content AND for UI —
+        # whose `layer` encodes tree order, so it belongs to its Canvas' layer
+        # instead. Layers 1 (the Canvas) and 2 (blue) are cleared from the mask, so
+        # only green and yellow survive; unmasked, the full-screen HUD covers both.
+        run_scene camera-culling \
+          ESTELLA_VERIFY_PLAY=1 \
+          ESTELLA_VERIFY_SCENE=/scenes/camera-culling.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/camera-culling.textures.json \
+          ESTELLA_VERIFY_W=320 ESTELLA_VERIFY_H=180 ESTELLA_VERIFY_STEPS=4 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.25,"y":0.5,"rgb":[0,255,0],"tol":30},{"x":0.75,"y":0.5,"rgb":[255,255,0],"tol":30}]'
         # Where the UI layout box SITS. The camera is driven away from the origin
         # at runtime, so the box moves without resizing: the unparented Canvas
         # (a screen root) must travel with it — red/green stay in their quadrants —

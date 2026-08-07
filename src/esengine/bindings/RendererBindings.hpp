@@ -61,7 +61,7 @@ void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth, i32 sdf
+    u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
 );
 void mesh2d_setGeometry(
     ecs::Registry& registry, u32 entity,
@@ -111,6 +111,8 @@ void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);
 /** 2.5D opt-in: bit i ⇒ layer i resolves by real depth. Same shape as y-sort. */
 void renderer_setDepthLayers(u32 mask);
+/** Sorting layers the next collect draws (bit i = layer i). Set per camera. */
+void renderer_setCullingMask(u32 mask);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();
@@ -152,6 +154,7 @@ void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 
 
 i32 registry_getCanvasEntity(ecs::Registry& registry);
 #ifdef __EMSCRIPTEN__
+emscripten::val registry_getCanvasEntities(ecs::Registry& registry);
 emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);
 #endif

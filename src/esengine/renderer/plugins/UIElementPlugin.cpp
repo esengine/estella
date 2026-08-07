@@ -224,6 +224,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             .blend = BlendMode::Normal,
             .textureId = textureId,
             .depth = position.z,
+            .cullBit = renderer.uiCullBit,
             .entity = entity,
             .type = RenderType::UIElement,
         };

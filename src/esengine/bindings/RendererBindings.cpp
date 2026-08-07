@@ -128,7 +128,7 @@ void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth, i32 sdf
+    u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
 ) {
     if (!g_initialized || !g_renderFrame) return;
     if (vertexCount < 0 || indexCount < 0) return;
@@ -139,7 +139,7 @@ void renderer_submitTextBatch(
     if (!vertices || !indices || !transform) return;
     g_renderFrame->submitTextBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0);
+        textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0, cullBit);
 }
 
 // Mesh2D geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8
@@ -575,6 +575,11 @@ void renderer_setDepthLayers(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setDepthLayers(mask);
 }
 
+// Which layers the NEXT collect draws. Set per camera, before renderer_submitAll.
+void renderer_setCullingMask(u32 mask) {
+    if (auto* frame = g_renderFrame) frame->setCullingMask(mask);
+}
+
 void renderer_setColorSpace(u32 linear) {
     // Valid pre-init: the global reaches every later shader compile, and
     // RenderFrame::init adopts it. A live frame applies immediately (editor
@@ -669,6 +674,21 @@ i32 registry_getCanvasEntity(ecs::Registry& registry) {
     }
     return -1;
 }
+
+#ifdef __EMSCRIPTEN__
+// Every Canvas, so the caller can pick one that belongs to a RUNNING scene. Scene
+// membership (SceneOwner) is an SDK component the engine cannot see, which is why
+// this reports rather than decides — the camera query has the same shape.
+emscripten::val registry_getCanvasEntities(ecs::Registry& registry) {
+    auto view = registry.view<ecs::Canvas>();
+    auto result = emscripten::val::array();
+    u32 idx = 0;
+    for (auto entity : view) {
+        result.set(idx++, entity.id());
+    }
+    return result;
+}
+#endif
 
 #ifdef __EMSCRIPTEN__
 emscripten::val registry_getCameraEntities(ecs::Registry& registry) {

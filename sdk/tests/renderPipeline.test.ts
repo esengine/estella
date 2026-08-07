@@ -18,6 +18,7 @@ vi.mock('../src/render/renderer', () => ({
         setStage: vi.fn(),
         setClearColor: vi.fn(),
         setViewport: vi.fn(),
+        setCullingMask: vi.fn(),
         updateTransforms: vi.fn(),
         beginFrame: vi.fn(),
     },

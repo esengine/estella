@@ -114,6 +114,11 @@ struct Camera {
     ES_PROPERTY(advanced, tooltip="Snap the camera to the pixel grid for crisp pixel-art (Orthographic).")
     bool pixelPerfect{false};
 
+    /** @brief Sorting layers this camera renders (bit i = layer i). UI belongs to its
+     *         Canvas' layer. Layers outside 0..31 have no bit and every camera draws them. */
+    ES_PROPERTY(bitmask_source=sortingLayers, tooltip="Which sorting layers this camera renders.")
+    u32 cullingMask{0xFFFFFFFFu};
+
     Camera() = default;
 };
 

@@ -254,6 +254,7 @@ export interface Camera {
     viewport: Vec4;
     clearFlags: number;
     pixelPerfect: boolean;
+    cullingMask: number;
 }
 
 export interface Canvas {
@@ -262,6 +263,7 @@ export interface Canvas {
     scaleMode: number;
     matchWidthOrHeight: number;
     backgroundColor: Vec4;
+    layer: number;
 }
 
 export interface CapsuleCollider {

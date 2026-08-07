@@ -163,6 +163,34 @@ expect('unknown asset type is a warning, not an error',
        'ES_PROPERTY(asset=widget)\n    u32 a = 0;',
        errors=0, warnings_at_least=1)
 
+# ── C++ numeric literals reach TypeScript intact ──
+# A default that silently becomes 0 is not a parse failure anyone sees: it ships as
+# a camera that renders nothing or a collider that hits nothing.
+from eht.field_utils import format_number  # noqa: E402
+
+
+def number_is(label: str, raw: str, want: str) -> None:
+    global _failures
+    got = format_number(raw)
+    if got == want:
+        print(f"  ok  {label}")
+    else:
+        print(f"FAIL  {label}: format_number({raw!r}) == {got!r}, want {want!r}")
+        _failures += 1
+
+
+print("\n── numeric literals ──")
+number_is('hex whose digits are all F', '0xFFFF', '65535')
+number_is('hex with an unsigned suffix', '0xFFFFFFFFu', '4294967295')
+number_is('hex with leading zeros', '0x0001', '1')
+number_is('binary literal', '0b1010', '10')
+number_is('unsigned decimal suffix', '64u', '64')
+number_is('float suffix', '1.0f', '1')
+number_is('fractional value', '0.5f', '0.5')
+number_is('negative', '-3', '-3')
+number_is('nothing', '', '0')
+number_is('not a number', 'junk', '0')
+
 if _failures:
     print(f"\n{_failures} case(s) failed")
     raise SystemExit(1)

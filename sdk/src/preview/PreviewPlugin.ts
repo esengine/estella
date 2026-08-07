@@ -162,6 +162,7 @@ export class PreviewPlugin implements Plugin {
                 pixelPerfect: false,
                 viewport: { x: 0, y: 0, z: 1, w: 1 },
                 clearFlags: ClearFlags.ColorAndDepth,
+                cullingMask: 0xFFFFFFFF,
             };
             world.insert(cameraEntity, Camera, cameraData);
         }

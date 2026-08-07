@@ -167,6 +167,7 @@ export interface ESEngineModule {
      * entity is not a UI render node.
      */
     ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
+    ui_getCullBit?(registry: CppRegistry, entity: number): number;
 
     renderer_submitSpineBatch?(
         verticesPtr: number, vertexCount: number,
@@ -191,7 +192,7 @@ export interface ESEngineModule {
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
         textureId: number, transformPtr: number,
-        entity: number, layer: number, depth: number, sdf: number
+        entity: number, layer: number, depth: number, sdf: number, cullBit: number
     ): void;
     /**
      * Upload a Mesh2D component's geometry: interleaved f32 [x,y,u,v] per vertex,
@@ -369,6 +370,7 @@ export interface ESEngineModule {
     /** Bitmask of layers 0..31 that y-sort within the layer (top-down occlusion). */
     renderer_setYSortLayers?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
+    renderer_setCullingMask?(mask: number): void;
     renderer_setColorSpace?(linear: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
 
@@ -385,6 +387,7 @@ export interface ESEngineModule {
 
     // ECS Query API
     registry_getCanvasEntity(registry: CppRegistry): number;
+    registry_getCanvasEntities?(registry: CppRegistry): number[];
     registry_getCameraEntities(registry: CppRegistry): number[];
     getChildEntities(registry: CppRegistry, entity: number): number[];
     registry_getGeneration(registry: CppRegistry, entity: number): number;

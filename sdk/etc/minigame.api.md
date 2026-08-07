@@ -1324,6 +1324,7 @@ BuiltinComponentDef<CameraData>
 ```
 aspectRatio: number
 clearFlags: number
+cullingMask: number
 farPlane: number
 fov: number
 isActive: boolean
@@ -1370,6 +1371,7 @@ halfW: number
 ## CameraPOV — interface
 ```
 clearFlags: number
+cullingMask: number
 entity: number
 far: number
 fov: number
@@ -1391,6 +1393,7 @@ z: number
 cameraEntity: number | undefined
 clearColor: { x: number; y: number; z: number; w: number; } | undefined
 clearFlags: number
+cullingMask: number | undefined
 elapsed: number
 registry: { _cpp: CppRegistry; }
 viewProjection: Float32Array<ArrayBufferLike>
@@ -1421,6 +1424,7 @@ BuiltinComponentDef<CanvasData>
 ```
 backgroundColor: Color
 designResolution: Vec2
+layer: number
 matchWidthOrHeight: number
 pixelsPerUnit: number
 scaleMode: number
@@ -2530,6 +2534,7 @@ postprocess_setUniformVec4: (passName: string, uniform: string, x: number, y: nu
 postprocess_shutdown: () => void
 registry_batchSyncPhysicsTransforms: (registry: CppRegistry, bufferPtr: number, count: number, ppu: number) => void
 registry_getCameraEntities: (registry: CppRegistry) => number[]
+registry_getCanvasEntities: ((registry: CppRegistry) => number[]) | undefined
 registry_getCanvasEntity: (registry: CppRegistry) => number
 registry_getGeneration: (registry: CppRegistry, entity: number) => number
 renderFrame: (registry: CppRegistry, width: number, height: number) => void
@@ -2579,6 +2584,7 @@ renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
+renderer_setCullingMask: ((mask: number) => void) | undefined
 renderer_setDepthLayers: ((mask: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
 renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
@@ -2596,7 +2602,7 @@ renderer_submitSkeletalBatchByEntity: ((registry: CppRegistry, verticesPtr: numb
 renderer_submitSpine: ((registry: CppRegistry) => void) | undefined
 renderer_submitSpineBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number) => void) | undefined
 renderer_submitSprites: (registry: CppRegistry) => void
-renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number) => void) | undefined
+renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number) => void) | undefined
 renderer_submitUIElements: (registry: CppRegistry) => void
 renderer_updateTransforms: (registry: CppRegistry) => void
 sdfFromAlpha: ((alphaPtr: number, outPtr: number, width: number, height: number, spread: number) => void) | undefined
@@ -2626,6 +2632,7 @@ uiLayout_update: (registry: CppRegistry, boxLeft: number, boxBottom: number, box
 uiNode_computedHeight: (registry: CppRegistry, entity: number) => number
 uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
 uiRenderOrder_update: (registry: CppRegistry) => void
+ui_getCullBit: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
 ```
 
@@ -5959,7 +5966,7 @@ UIElement = 7
 
 ## Renderer — const
 ```
-{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; submitAll(registry: { _cpp: CppRegistry; }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setDepthLayers(mask: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
+{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; submitAll(registry: { _cpp: CppRegistry; }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setDepthLayers(mask: number): void; setCullingMask(mask: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
 ```
 
 ## Replicated — const

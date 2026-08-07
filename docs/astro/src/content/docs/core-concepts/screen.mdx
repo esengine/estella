@@ -223,12 +223,43 @@ camera:
 So "make this HUD follow the camera" needs nothing — that is the default. To pin
 UI into the world instead, give its root a parent.
 
+### Which cameras see it: `Camera.cullingMask`
+
+Every drawable belongs to one **sorting layer**, and a camera renders a set of them.
+`Camera.cullingMask` is that set as a bitmask — bit *i* = layer *i*, all bits set by
+default, so a camera you never configure draws everything exactly as before.
+
+UI belongs to a layer too, but not through the field that orders it: a UI draw's
+`layer` is its position in the tree (`1000 + tree order`), which is why a mask over
+layers 0–31 could not address it. Its **membership** comes from `Canvas.layer`
+instead — a normal sorting layer that changes nothing about draw order and exists
+only so cameras can include or exclude that canvas' UI.
+
+That is what makes a minimap possible: put the HUD's `Canvas` on its own layer and
+clear that bit on the minimap camera.
+
+```typescript
+import { defineSystem, GetWorld, Camera, Canvas } from 'esengine';
+
+const UI_LAYER = 1;
+
+const setupMinimap = defineSystem([GetWorld()], (world) => {
+  // The HUD declares which layer it is part of...
+  world.set(hudCanvas, Canvas, { ...world.get(hudCanvas, Canvas), layer: UI_LAYER });
+  // ...and the minimap says it does not draw that layer.
+  const cam = world.get(minimapCamera, Camera);
+  world.set(minimapCamera, Camera, { ...cam, cullingMask: cam.cullingMask & ~(1 << UI_LAYER) });
+});
+```
+
+In the editor the mask is a multi-select of your project's **sorting layer names**
+(Project Settings → Rendering → Layer names). The editor's own viewport ignores it
+and always shows every layer, so culling never hides content while you author.
+
 <Aside type="caution">
-  Every camera renders the whole scene, UI included — there is no per-camera layer
-  mask yet. A second camera with a sub-viewport (minimap, split-screen) therefore
-  draws the HUD again inside its own viewport, at the main camera's placement.
-  Keep sub-viewport cameras pointed at scene content until per-camera UI landing
-  exists.
+  A sub-viewport camera clears only its own rectangle, but its draws are not
+  clipped to it — content it renders can spill across the full frame. Culling
+  decides *what* such a camera draws; scoping *where* is a separate gap.
 </Aside>
 
 ## Screen size & orientation: `ScreenInfo`

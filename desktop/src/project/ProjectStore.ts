@@ -203,6 +203,11 @@ class ProjectStoreImpl {
     // Not exhaustive: the names alias an i32 the renderer sorts on either way, so
     // a layer nobody named is still a legal layer.
     setEnumSource('sortingLayers', () => this.sortingLayerOptions(), { exhaustive: false });
+    // The same layers as a multi-select, for Camera.cullingMask: one option per
+    // named layer, valued as its BIT rather than its index.
+    setBitmaskSource('sortingLayers', () => this.sortingLayerOptions().map(
+      (o) => ({ label: o.label, value: 1 << o.value }),
+    ));
     installDragonBonesEnumSources();
     installSpineEnumSources();
     installLocaleKeyEnumSource(() => AssetRegistry.listAssets('locale'));

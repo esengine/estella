@@ -40,6 +40,7 @@ interface CameraInfo {
     halfH: number;
     cameraX: number;
     cameraY: number;
+    cullingMask: number;
 }
 
 function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
@@ -56,6 +57,7 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
         halfH: 0,
         cameraX: 0,
         cameraY: 0,
+        cullingMask: 0xFFFFFFFF,
     };
     pool.push(info);
     return info;
@@ -73,11 +75,36 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
  */
 interface SceneQueryRegistry {
     getCanvasEntity?(): number;
+    getCanvasEntities?(): number[];
     getCameraEntities?(): number[];
 }
 
-function canvasEntityOf(module: ESEngineModule | null, registry: CppRegistry): number {
-    const own = (registry as CppRegistry & SceneQueryRegistry).getCanvasEntity;
+/**
+ * The Canvas whose fit and background the frame uses: the first owned by a RUNNING
+ * scene, else the first at all. Scene membership (SceneOwner) is an SDK component
+ * the engine cannot see, so it enumerates and this chooses.
+ */
+function canvasEntityOf(
+    module: ESEngineModule | null,
+    registry: CppRegistry,
+    world?: World,
+    activeScenes?: Set<string>,
+): number {
+    const reg = registry as CppRegistry & SceneQueryRegistry;
+    const all = reg.getCanvasEntities
+        ? reg.getCanvasEntities.call(registry)
+        : module?.registry_getCanvasEntities?.(registry);
+    if (all && all.length > 0) {
+        if (world && activeScenes) {
+            for (const e of all) {
+                const owner = world.tryGet(e as Entity, SceneOwner);
+                if (!owner || owner.scene === '' || activeScenes.has(owner.scene)) return e;
+            }
+        }
+        return all[0];
+    }
+    // A core built before the enumeration answers only the single-Canvas question.
+    const own = reg.getCanvasEntity;
     if (own) return own.call(registry);
     return module?.registry_getCanvasEntity(registry) ?? -1;
 }
@@ -88,8 +115,13 @@ function cameraEntitiesOf(module: ESEngineModule | null, registry: CppRegistry):
     return module?.registry_getCameraEntities(registry) ?? [];
 }
 
-function findCanvasData(module: ESEngineModule | null, registry: CppRegistry) {
-    const entity = canvasEntityOf(module, registry);
+function findCanvasData(
+    module: ESEngineModule | null,
+    registry: CppRegistry,
+    world?: World,
+    activeScenes?: Set<string>,
+) {
+    const entity = canvasEntityOf(module, registry, world, activeScenes);
     if (entity < 0) return null;
     return registry.getCanvas(entity);
 }
@@ -126,6 +158,8 @@ export interface CameraPOV {
     clearFlags: number;
     priority: number;
     pixelPerfect: boolean;
+    /** Sorting layers this camera renders; bit i = layer i. */
+    cullingMask: number;
 }
 
 /**
@@ -160,6 +194,8 @@ function readCameraPOV(
         clearFlags: camera.clearFlags,
         priority: camera.priority,
         pixelPerfect: camera.pixelPerfect,
+        // A core built before the field answers undefined; that camera drew everything.
+        cullingMask: camera.cullingMask ?? 0xFFFFFFFF,
     };
 }
 
@@ -225,6 +261,7 @@ export function buildCameraInfo(
     cam.halfH = halfH;
     cam.cameraX = camX;
     cam.cameraY = camY;
+    cam.cullingMask = pov.cullingMask;
     return cam;
 }
 
@@ -320,6 +357,9 @@ export function editorCameraInfo(
         clearFlags: ClearFlags.ColorAndDepth,
         priority: 0,
         pixelPerfect: false, // editor navigation pans/zooms freely — no pixel snapping
+        // The editor's own eye is not a game camera: it shows every layer, so a
+        // culled scene camera never hides content from authoring.
+        cullingMask: 0xFFFFFFFF,
     };
     return buildCameraInfo(pov, width, height, null, pool, 0);
 }
@@ -378,7 +418,7 @@ function resolveCameras(
 
     const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
     if (povs.length === 0) return [];
-    const canvas = resolveFitSource(app, findCanvasData(module, cppRegistry));
+    const canvas = resolveFitSource(app, findCanvasData(module, cppRegistry, world, activeScenes));
     const fullFrame = povs.filter((p) => isFullFrame(p.viewport));
     const overlays = povs.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
 
@@ -569,6 +609,7 @@ export function cameraPlugin(
                                     elapsed,
                                     cameraEntity: cam.entity,
                                     clearColor,
+                                    cullingMask: cam.cullingMask,
                                 });
                             }
                             pipeline.endScreenCapture();

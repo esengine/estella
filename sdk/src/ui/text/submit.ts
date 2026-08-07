@@ -54,6 +54,7 @@ export function submitTextBatch(
     layer: number,
     depth: number,
     sdf: boolean,
+    cullBit = 0,
 ): void {
     const vertexCount = (vertices.length / TEXT_VERTEX_FLOATS) | 0;
     if (vertexCount <= 0 || indices.length <= 0 || transform.length < 16) return;
@@ -77,6 +78,7 @@ export function submitTextBatch(
         module.HEAPU8.set(tBytes, tPtr);
         module.renderer_submitTextBatch!(
             vPtr, vertexCount, iPtr, indices.length, textureId, tPtr, entity, layer, depth, sdf ? 1 : 0,
+            cullBit,
         );
     });
 }

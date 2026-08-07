@@ -127,6 +127,10 @@ struct UIVisual {
     // Render order assigned by UIRenderOrderSystem (not serialized).
     i32 uiOrder{0};
 
+    // Mask bit of the owning Canvas' layer, for Camera.cullingMask. Assigned by the
+    // same walk as uiOrder (not serialized), because a UI draw's `layer` is order.
+    u32 uiCullBit{0};
+
     UIVisual() = default;
 };
 

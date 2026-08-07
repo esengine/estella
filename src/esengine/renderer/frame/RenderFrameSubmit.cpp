@@ -43,7 +43,7 @@ void RenderFrame::submitTextBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
     u32 textureId, const f32* transform16,
-    Entity entity, i32 layer, f32 depth, bool sdf
+    Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit
 ) {
     if (vertexCount <= 0 || indexCount <= 0) return;
 
@@ -73,6 +73,7 @@ void RenderFrame::submitTextBatch(
         .blend = BlendMode::Normal,
         .textureId = textureId,
         .depth = depth,
+        .cullBit = cullBit,
         .entity = entity,
         .type = RenderType::Text,
     });

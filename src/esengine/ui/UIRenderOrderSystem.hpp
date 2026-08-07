@@ -12,11 +12,12 @@
 
 namespace esengine::ecs {
 
-inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
+inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32 cullBit) {
     if (registry.has<UINode>(entity)) {
         auto* uiVisual = registry.tryGet<UIVisual>(entity);
         if (uiVisual) {
             uiVisual->uiOrder = counter;
+            uiVisual->uiCullBit = cullBit;
             counter++;
         } else if (registry.has<Sprite>(entity)) {
             auto& sprite = registry.get<Sprite>(entity);
@@ -41,7 +42,7 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
 
     for (Entity child : children->entities) {
         if (registry.valid(child)) {
-            counter = assignRenderOrder(registry, child, counter);
+            counter = assignRenderOrder(registry, child, counter, cullBit);
         }
     }
     return counter;
@@ -49,8 +50,9 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter) {
 
 inline void uiRenderOrderUpdate(Registry& registry) {
     i32 counter = 0;
-    registry.each<Canvas>([&](Entity entity, Canvas&) {
-        counter = assignRenderOrder(registry, entity, counter);
+    registry.each<Canvas>([&](Entity entity, Canvas& canvas) {
+        const u32 bit = (canvas.layer < 0 || canvas.layer >= 32) ? 0u : (1u << canvas.layer);
+        counter = assignRenderOrder(registry, entity, counter, bit);
     });
 }
 

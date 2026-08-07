@@ -46,6 +46,8 @@ void uiRenderOrder_update(ecs::Registry& registry);
 /** An entity's UI draw order, so the SDF text path can interleave glyph quads
  *  with UI quads. -1 = not a UI node. */
 i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity);
+/** Mask bit of the owning Canvas' layer, for Camera.cullingMask. 0 = not a UI node. */
+u32 ui_getCullBit(ecs::Registry& registry, u32 entity);
 
 
 /** UINode computed state that is not embind-readable off the component. */

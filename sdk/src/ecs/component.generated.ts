@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '638b897738f9c7db';
+export const ABI_LAYOUT_HASH = '7b8797b9ae911eeb';
 
 export interface AssetFieldMeta {
     field: string;
@@ -94,8 +94,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             restitution: 0,
             isSensor: false,
             enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
+            categoryBits: 1,
+            maskBits: 65535,
         },
         assetFields: [],
         entityFields: [],
@@ -115,6 +115,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             viewport: { x: 0, y: 0, z: 1, w: 1 },
             clearFlags: 3,
             pixelPerfect: false,
+            cullingMask: 4294967295,
         },
         editorDefaults: {
             projectionType: 1,
@@ -136,6 +137,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             priority: { step: 1, advanced: true },
             clearFlags: { tooltip: "Which buffers to clear before rendering this camera." },
             pixelPerfect: { tooltip: "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).", advanced: true },
+            cullingMask: { tooltip: "Which sorting layers this camera renders.", bitmask: { source: "sortingLayers" } },
         },
     },
     Canvas: {
@@ -145,6 +147,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             scaleMode: 1,
             matchWidthOrHeight: 0.5,
             backgroundColor: { r: 0, g: 0, b: 0, a: 1 },
+            layer: 0,
         },
         assetFields: [],
         entityFields: [],
@@ -154,6 +157,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             pixelsPerUnit: { min: 1, tooltip: "World pixels per physics meter (Box2D + tile collider scale)." },
             scaleMode: { enum: [{ label: 'FixedWidth', value: 0 }, { label: 'FixedHeight', value: 1 }, { label: 'Expand', value: 2 }, { label: 'Shrink', value: 3 }, { label: 'Match', value: 4 }], tooltip: "How the canvas adapts the design resolution to the screen." },
             matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: "0 matches width, 1 matches height (Match mode only)." },
+            layer: { step: 1, tooltip: "Sorting layer this UI belongs to — cameras cull by it.", enumSource: "sortingLayers" },
         },
     },
     CapsuleCollider: {
@@ -166,8 +170,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             restitution: 0,
             isSensor: false,
             enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
+            categoryBits: 1,
+            maskBits: 65535,
         },
         assetFields: [],
         entityFields: [],
@@ -192,8 +196,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             restitution: 0,
             isSensor: false,
             enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
+            categoryBits: 1,
+            maskBits: 65535,
         },
         assetFields: [],
         entityFields: [],
@@ -497,8 +501,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             restitution: 0,
             isSensor: false,
             enabled: true,
-            categoryBits: 0,
-            maskBits: 0,
+            categoryBits: 1,
+            maskBits: 65535,
         },
         assetFields: [],
         entityFields: [],
@@ -859,6 +863,7 @@ export interface CameraData {
     viewport: Vec4;
     clearFlags: number;
     pixelPerfect: boolean;
+    cullingMask: number;
 }
 
 export interface CanvasData {
@@ -867,6 +872,7 @@ export interface CanvasData {
     scaleMode: number;
     matchWidthOrHeight: number;
     backgroundColor: Color;
+    layer: number;
 }
 
 export interface CapsuleColliderData {

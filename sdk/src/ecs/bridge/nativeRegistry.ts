@@ -132,6 +132,8 @@ export function createNativeRegistry(
         (hostCallOpt(scope, SCENE_QUERY_BINDINGS.canvasEntity, []) as number | undefined) ?? -1;
     reg.getCameraEntities = (): number[] =>
         (hostCallOpt(scope, SCENE_QUERY_BINDINGS.cameraEntities, []) as number[] | undefined) ?? [];
+    reg.getCanvasEntities = (): number[] =>
+        (hostCallOpt(scope, SCENE_QUERY_BINDINGS.canvasEntities, []) as number[] | undefined) ?? [];
 
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         const accessor = PTR_ACCESSORS[cppName];

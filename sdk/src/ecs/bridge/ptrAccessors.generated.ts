@@ -129,6 +129,7 @@ export interface CameraPtrData {
     viewport: Vec4;
     clearFlags: number;
     pixelPerfect: boolean;
+    cullingMask: number;
 }
 
 export function fillCamera(
@@ -146,6 +147,7 @@ export function fillCamera(
     const viewport_ = out.viewport; viewport_.x = f32[(ptr + 32) >> 2]; viewport_.y = f32[((ptr + 32) >> 2) + 1]; viewport_.z = f32[((ptr + 32) >> 2) + 2]; viewport_.w = f32[((ptr + 32) >> 2) + 3];
     out.clearFlags = u8[ptr + 48];
     out.pixelPerfect = u8[ptr + 49] !== 0;
+    out.cullingMask = u32[(ptr + 52) >> 2];
 }
 
 export function writeCamera(
@@ -163,6 +165,7 @@ export function writeCamera(
     f32[(ptr + 32) >> 2] = data.viewport.x; f32[((ptr + 32) >> 2) + 1] = data.viewport.y; f32[((ptr + 32) >> 2) + 2] = data.viewport.z; f32[((ptr + 32) >> 2) + 3] = data.viewport.w;
     u8[ptr + 48] = data.clearFlags;
     u8[ptr + 49] = data.pixelPerfect ? 1 : 0;
+    u32[(ptr + 52) >> 2] = data.cullingMask;
 }
 
 export function createCameraData(): CameraPtrData {
@@ -178,6 +181,7 @@ export function createCameraData(): CameraPtrData {
         viewport: { x: 0, y: 0, z: 0, w: 0 },
         clearFlags: 0,
         pixelPerfect: false,
+        cullingMask: 0,
     };
 }
 
@@ -187,6 +191,7 @@ export interface CanvasPtrData {
     scaleMode: number;
     matchWidthOrHeight: number;
     backgroundColor: Color;
+    layer: number;
 }
 
 export function fillCanvas(
@@ -198,6 +203,7 @@ export function fillCanvas(
     out.scaleMode = u8[ptr + 12];
     out.matchWidthOrHeight = f32[(ptr + 16) >> 2];
     const backgroundColor_ = out.backgroundColor; backgroundColor_.r = f32[(ptr + 20) >> 2]; backgroundColor_.g = f32[((ptr + 20) >> 2) + 1]; backgroundColor_.b = f32[((ptr + 20) >> 2) + 2]; backgroundColor_.a = f32[((ptr + 20) >> 2) + 3];
+    out.layer = u32[(ptr + 36) >> 2] | 0;
 }
 
 export function writeCanvas(
@@ -209,6 +215,7 @@ export function writeCanvas(
     u8[ptr + 12] = data.scaleMode;
     f32[(ptr + 16) >> 2] = data.matchWidthOrHeight;
     f32[(ptr + 20) >> 2] = data.backgroundColor.r; f32[((ptr + 20) >> 2) + 1] = data.backgroundColor.g; f32[((ptr + 20) >> 2) + 2] = data.backgroundColor.b; f32[((ptr + 20) >> 2) + 3] = data.backgroundColor.a;
+    u32[(ptr + 36) >> 2] = data.layer | 0;
 }
 
 export function createCanvasData(): CanvasPtrData {
@@ -218,6 +225,7 @@ export function createCanvasData(): CanvasPtrData {
         scaleMode: 0,
         matchWidthOrHeight: 0,
         backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
+        layer: 0,
     };
 }
 

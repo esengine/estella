@@ -530,6 +530,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
     emscripten::function("renderer_setYSortLayers", &esengine::renderer_setYSortLayers);
     emscripten::function("renderer_setDepthLayers", &esengine::renderer_setDepthLayers);
+    emscripten::function("renderer_setCullingMask", &esengine::renderer_setCullingMask);
     emscripten::function("renderer_setColorSpace", &esengine::renderer_setColorSpace);
     emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
     emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
@@ -541,6 +542,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_clearAllStencilMasks", &esengine::renderer_clearAllStencilMasks);
 
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
+    emscripten::function("registry_getCanvasEntities", &esengine::registry_getCanvasEntities);
     emscripten::function("registry_getCameraEntities", &esengine::registry_getCameraEntities);
     emscripten::function("getChildEntities", &esengine::getChildEntities);
     emscripten::function("registry_getGeneration", &esengine::registry_getGeneration);
@@ -584,6 +586,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
     emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
+    emscripten::function("ui_getCullBit", &esengine::ui_getCullBit);
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
     emscripten::function("getUINodePointerBlockedInTree", &esengine::getUINodePointerBlockedInTree);

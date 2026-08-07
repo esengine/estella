@@ -68,6 +68,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'viewport', type: 'vec4', offset: 32 },
             { name: 'clearFlags', type: 'u8', offset: 48 },
             { name: 'pixelPerfect', type: 'bool', offset: 49 },
+            { name: 'cullingMask', type: 'u32', offset: 52 },
         ],
     },
     Canvas: {
@@ -78,6 +79,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'scaleMode', type: 'u8', offset: 12 },
             { name: 'matchWidthOrHeight', type: 'f32', offset: 16 },
             { name: 'backgroundColor', type: 'color', offset: 20 },
+            { name: 'layer', type: 'i32', offset: 36 },
         ],
     },
     CapsuleCollider: {

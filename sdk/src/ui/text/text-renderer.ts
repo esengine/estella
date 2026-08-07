@@ -292,6 +292,7 @@ export class SdfTextRenderer {
         entity: number,
         layer: number,
         depth: number,
+        cullBit = 0,
     ): void {
         const gen = this.atlas.generation;
         const sig = signatureOf(p);
@@ -305,7 +306,7 @@ export class SdfTextRenderer {
             this.cache_.set(entity, entry);
         }
         for (const b of entry.batches) {
-            submitTextBatch(this.module, b.vertices, b.indices, b.pageId, transform, entity, layer, depth, this.sdf);
+            submitTextBatch(this.module, b.vertices, b.indices, b.pageId, transform, entity, layer, depth, this.sdf, cullBit);
         }
     }
 

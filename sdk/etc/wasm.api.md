@@ -283,6 +283,7 @@ postprocess_setUniformVec4: (passName: string, uniform: string, x: number, y: nu
 postprocess_shutdown: () => void
 registry_batchSyncPhysicsTransforms: (registry: CppRegistry, bufferPtr: number, count: number, ppu: number) => void
 registry_getCameraEntities: (registry: CppRegistry) => number[]
+registry_getCanvasEntities: ((registry: CppRegistry) => number[]) | undefined
 registry_getCanvasEntity: (registry: CppRegistry) => number
 registry_getGeneration: (registry: CppRegistry, entity: number) => number
 renderFrame: (registry: CppRegistry, width: number, height: number) => void
@@ -332,6 +333,7 @@ renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
+renderer_setCullingMask: ((mask: number) => void) | undefined
 renderer_setDepthLayers: ((mask: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
 renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
@@ -349,7 +351,7 @@ renderer_submitSkeletalBatchByEntity: ((registry: CppRegistry, verticesPtr: numb
 renderer_submitSpine: ((registry: CppRegistry) => void) | undefined
 renderer_submitSpineBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number) => void) | undefined
 renderer_submitSprites: (registry: CppRegistry) => void
-renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number) => void) | undefined
+renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number) => void) | undefined
 renderer_submitUIElements: (registry: CppRegistry) => void
 renderer_updateTransforms: (registry: CppRegistry) => void
 sdfFromAlpha: ((alphaPtr: number, outPtr: number, width: number, height: number, spread: number) => void) | undefined
@@ -379,6 +381,7 @@ uiLayout_update: (registry: CppRegistry, boxLeft: number, boxBottom: number, box
 uiNode_computedHeight: (registry: CppRegistry, entity: number) => number
 uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
 uiRenderOrder_update: (registry: CppRegistry) => void
+ui_getCullBit: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
 ```
 
