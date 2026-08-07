@@ -54,7 +54,11 @@ export interface CameraExtents {
     halfH: number;
 }
 
-/** Canvas presentation fields (a subset of the Canvas component). */
+/**
+ * The design-resolution fit UI and the camera share — the project `ScreenScaling`
+ * when it opts in, else the scene's `Canvas` (see CameraPlugin.resolveFitSource).
+ * One source for both, so what the editor lays out and what ships cannot differ.
+ */
 export interface CanvasScale {
     designResolution: { x: number; y: number };
     scaleMode: number;
@@ -69,33 +73,46 @@ export interface WorldRect {
 }
 
 /**
+ * World anchor of the editor's UI box — the origin. The design frame is a fixed
+ * place in the world, not something glued to the navigation view: anchored here it
+ * stays concentric with the viewport's design-frame overlay, and pans/zooms with
+ * the scene like every other piece of content. (In play the box tracks the camera
+ * instead; see {@link uiLayoutRect}.)
+ */
+export const EDITOR_UI_ANCHOR = { x: 0, y: 0 } as const;
+
+/**
  * The world-space box the UI subtree is laid out within (UINode `px` are world
- * units in this box), for the primary camera.
+ * units in this box), for the primary camera. Its SIZE is the area UI lays out in;
+ * its CENTER is where that area sits in the world, which places screen roots (a UI
+ * root with no transform parent) — so in play the HUD tracks the camera.
  *
- * Scene cameras already bake the canvas design resolution into halfW/halfH, so
- * their box is simply those extents — UINode px map 1:1 to design px and the UI is
- * stable. The editor view instead renders the world at a *free zoom* with a raw
- * orthoSize (editorCameraInfo passes a null canvas, for predictable navigation),
- * so laying UI out in its zoomed extents would rescale and reflow every element on
- * each zoom. For it, recover the *fixed* design-resolution box from the canvas: the
- * UI then lays out identically at any zoom, and still scales visually with the
- * scene because it renders through the same zoomed viewProjection. The box stays
- * centered on the editor pan (cameraX/Y), so panning tracks the view as before.
+ * Scene cameras already bake the fit's design resolution into halfW/halfH, so their
+ * box is simply those extents centered on the camera — UINode px map 1:1 to design
+ * px and the UI is stable. The editor view instead renders the world at a *free
+ * zoom* with a raw orthoSize (editorCameraInfo passes a null fit, for predictable
+ * navigation), so laying UI out in its zoomed extents would rescale and reflow every
+ * element on each zoom. For it, recover the *fixed* design-resolution box from the
+ * fit and anchor it at {@link EDITOR_UI_ANCHOR}: the UI then lays out identically at
+ * any zoom or pan, and still scales visually with the scene because it renders
+ * through the same zoomed viewProjection.
  *
- * With no canvas (no UI in the scene) the editor falls back to its own extents —
- * there is nothing to lay out, so it doesn't matter.
+ * With no fit (no Canvas and no project fit) the editor falls back to its own
+ * extents — there is nothing to lay out, so it doesn't matter.
  */
 export function uiLayoutRect(
     cam: CameraExtents,
-    canvas: CanvasScale | null,
+    fit: CanvasScale | null,
     width: number,
     height: number,
     previewAspect = 0,
 ): WorldRect {
     let halfW = cam.halfW;
     let halfH = cam.halfH;
+    let centerX = cam.cameraX;
+    let centerY = cam.cameraY;
 
-    if (cam.entity === EDITOR_VIEW_ENTITY && canvas && width > 0 && height > 0) {
+    if (cam.entity === EDITOR_VIEW_ENTITY && fit && width > 0 && height > 0) {
         // Lay UI out against the *preview screen*, independent of the editor panel's aspect —
         // so the editor is WYSIWYG with the design-frame overlay. `previewAspect > 0` fits the
         // design resolution into a simulated device's aspect (the device simulator: UI adapts
@@ -103,18 +120,20 @@ export function uiLayoutRect(
         // aspect, where every scaleMode collapses to the exact authored box (edge-anchored UI
         // at the design-resolution corners). The free editor camera renders this fixed box
         // through its zoomed viewProjection, so UI scales with zoom without reflowing.
-        const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+        const designAspect = fit.designResolution.x / fit.designResolution.y;
         const aspect = previewAspect > 0 ? previewAspect : designAspect;
         halfH = computeEffectiveOrthoSize(
-            canvas.designResolution.y / 2, designAspect, aspect, canvas.scaleMode, canvas.matchWidthOrHeight,
+            fit.designResolution.y / 2, designAspect, aspect, fit.scaleMode, fit.matchWidthOrHeight,
         );
         halfW = halfH * aspect;
+        centerX = EDITOR_UI_ANCHOR.x;
+        centerY = EDITOR_UI_ANCHOR.y;
     }
 
     return {
-        left: cam.cameraX - halfW,
-        right: cam.cameraX + halfW,
-        bottom: cam.cameraY - halfH,
-        top: cam.cameraY + halfH,
+        left: centerX - halfW,
+        right: centerX + halfW,
+        bottom: centerY - halfH,
+        top: centerY + halfH,
     };
 }

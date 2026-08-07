@@ -137,6 +137,11 @@ in this order:
 2. else the scene's **`Canvas`** component, if one exists;
 3. else **no fit** — the camera renders its raw `orthoSize`.
 
+The camera fit and the UI layout box resolve through this **same** order, so
+there is one design resolution in play at a time — a scene whose `Canvas` still
+carries an older resolution than the project fit cannot lay UI out one way in the
+editor and another in the shipped build.
+
 <Aside type="caution">
   While a fit source is active, the main camera's authored `orthoSize` is **not
   used** — the visible half-height comes entirely from the design resolution and
@@ -162,9 +167,8 @@ runtime image of **Project Settings → Display → Camera fit**.
 | `matchWidthOrHeight` | number | `0.5` | `Match`-mode blend 0–1 (`0` = fit width, `1` = fit height); ignored by other modes. |
 
 `DEFAULT_SCREEN_SCALING` is that off-by-default value, and `SCREEN_FIT_OFF` (`-1`)
-is the sentinel. When the project fit is on, it is **authoritative for the
-camera** while UI layout still reads the `Canvas` — so gameplay and UI can fit
-differently.
+is the sentinel. When the project fit is on it is **authoritative** — for the
+camera and for the UI layout box alike, since both resolve the fit the same way.
 
 The shipped runtimes install it from the project config (`createWebApp`'s
 `screenFit` option). Game code can read or override it live — the camera plugin
@@ -192,7 +196,7 @@ The **editor viewport** is the special case: its navigation camera renders the
 world at a free zoom (raw `orthoSize`, no fit — so panning/zooming stays
 predictable). If UI were laid out against those zoomed extents, every element
 would rescale and reflow on each scroll-wheel tick. Instead the editor recovers
-the *fixed* design-resolution box from the `Canvas` and lays UI out there — so the
+the *fixed* design-resolution box from the fit and lays UI out there — so the
 layout is identical at any zoom, and the UI still scales visually with the scene
 because it renders through the same zoomed view. The device simulator passes a
 preview aspect into the same math, which is why the letterboxed preview is exactly
@@ -200,6 +204,32 @@ what ships.
 
 Both pure functions — `uiLayoutRect` and `computeEffectiveOrthoSize` — are
 exported for tools and tests.
+
+### Where the box sits: screen roots vs world-space UI
+
+The box has a **size** (the area UI lays out in) and a **place** (where that area
+sits in the world). The place is what decides whether a HUD travels with the
+camera:
+
+- A UI root **with no parent entity** is a *screen root*: the engine places it at
+  the box's center every frame. In play that center is the camera, so the HUD
+  stays on screen no matter how far the camera scrolls. In the editor the box is
+  anchored at the world origin (`EDITOR_UI_ANCHOR`), which is exactly where the
+  design-frame overlay is drawn — pan and zoom move UI like any other content.
+- A UI root **parented to an entity** is *world-space UI*: it rides its parent's
+  transform (a health bar over a unit, a panel on a wall) and the box only sizes
+  it.
+
+So "make this HUD follow the camera" needs nothing — that is the default. To pin
+UI into the world instead, give its root a parent.
+
+<Aside type="caution">
+  Every camera renders the whole scene, UI included — there is no per-camera layer
+  mask yet. A second camera with a sub-viewport (minimap, split-screen) therefore
+  draws the HUD again inside its own viewport, at the main camera's placement.
+  Keep sub-viewport cameras pointed at scene content until per-camera UI landing
+  exists.
+</Aside>
 
 ## Screen size & orientation: `ScreenInfo`
 

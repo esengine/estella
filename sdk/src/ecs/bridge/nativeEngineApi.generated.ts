@@ -223,7 +223,7 @@ export interface NativeEngineApi {
     uiHitTest_pickAll?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
     uiHitTest_update?(registry: unknown, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
-    uiLayout_update?(registry: unknown, camLeft: number, camBottom: number, camRight: number, camTop: number, propertyDirty: boolean): void;
+    uiLayout_update?(registry: unknown, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
     uiNode_computedHeight?(registry: unknown, entity: number): number;
     uiNode_computedWidth?(registry: unknown, entity: number): number;
     uiRenderOrder_update?(registry: unknown): void;

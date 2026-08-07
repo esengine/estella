@@ -27,9 +27,9 @@ namespace esengine {
 static EstellaContext& ctx() { return activeCtx(); }
 
 
-void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty) {
-    ctx().require<ecs::UISystem>().layoutUpdate(registry, camLeft, camBottom, camRight, camTop, propertyDirty);
+    ctx().require<ecs::UISystem>().layoutUpdate(registry, boxLeft, boxBottom, boxRight, boxTop, propertyDirty);
 }
 
 void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,

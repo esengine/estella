@@ -65,12 +65,14 @@ public:
     // ---- Layout pass (defined in UILayoutSystem.cpp) ----
 
     /** @brief Rebuild layout tree and apply layout to all dirty nodes.
+     *  The four bounds are the world-space box UI is laid out within: its size is
+     *  what Yoga solves against, its center is where screen roots are placed.
      *  @param tsPropertyDirty  Set by the TS driver when any UINode/FlexContainer
      *         changed since the last pass (via change-tracking). Combined with the
-     *         C++-detected structure/camera/animation signals to skip the whole
+     *         C++-detected structure/box/animation signals to skip the whole
      *         rebuild+solve on a fully static frame. */
     void layoutUpdate(Registry& registry,
-                      f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+                      f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                       bool tsPropertyDirty);
 
     // ---- Hit test pass (defined in UISystem.cpp) ----
@@ -106,7 +108,9 @@ private:
     // Snapshot of the last solved frame; a pass whose inputs match all of these
     // (and no tween activity) reuses the retained YGNodes and computed output.
     u64 lastSig_{0};
-    f32 lastCamL_{0}, lastCamB_{0}, lastCamR_{0}, lastCamT_{0};
+    // Size and center are tracked apart: a resized box needs a new solve, a moved
+    // box needs only the screen roots replaced (see layoutUpdate).
+    f32 lastBoxW_{0}, lastBoxH_{0}, lastBoxCX_{0}, lastBoxCY_{0};
     bool lastAnimActive_{false};
     bool layoutPrimed_{false};  // force a solve on the very first pass
     // Which registry the retained Yoga nodes belong to — entity ids restart with

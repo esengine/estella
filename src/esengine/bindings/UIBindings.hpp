@@ -21,9 +21,11 @@ namespace ecs {
     class Registry;
 }
 
-/** Solve the UI layout tree against the camera's world box. `propertyDirty` is
- *  the SDK's O(1) "an authored UINode/FlexContainer field changed" signal. */
-void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+/** Solve the UI layout tree against the world-space box UI lives in — its size
+ *  is the available area, its center is where screen roots are placed.
+ *  `propertyDirty` is the SDK's O(1) "an authored UINode/FlexContainer field
+ *  changed" signal. */
+void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty);
 
 void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,

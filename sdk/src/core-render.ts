@@ -52,7 +52,7 @@ export { FollowTarget } from './camera/FollowTarget';
 export type { FollowTargetData } from './camera/FollowTarget';
 export type { CameraDirectorState } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
-export { computeEffectiveOrthoSize, uiLayoutRect, EDITOR_VIEW_ENTITY } from './camera/uiLayoutRect';
+export { computeEffectiveOrthoSize, uiLayoutRect, EDITOR_VIEW_ENTITY, EDITOR_UI_ANCHOR } from './camera/uiLayoutRect';
 export type { CameraExtents, CanvasScale, WorldRect } from './camera/uiLayoutRect';
 
 // =============================================================================

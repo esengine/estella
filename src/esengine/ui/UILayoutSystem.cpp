@@ -6,6 +6,7 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/FlexContainer.hpp"
+#include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/UINode.hpp"   // UINode + AlignSelf
 
 #include <yoga/Yoga.h>
@@ -436,20 +437,63 @@ bool anyUIAnimActive(Registry& registry) {
     return active;
 }
 
+/**
+ * Whether a subtree root IS the screen rather than something standing in the
+ * world. A root with no Transform parent has no other frame to sit in, so the
+ * layout box places it and it tracks whatever the box tracks (in play, the
+ * camera). Parenting the root to an entity is how a scene opts out and pins its
+ * UI to a thing in the world — the box then only sizes it.
+ */
+bool isScreenRoot(Registry& registry, Entity e) {
+    auto* p = registry.tryGet<Parent>(e);
+    return !p || p->entity == INVALID_ENTITY || !registry.valid(p->entity);
+}
+
+/**
+ * Place every screen root at the box's world center. Authoritative for those
+ * roots' position (it runs after the solve, which writes only the root's box
+ * within the available area), and idempotent — it assigns rather than offsets,
+ * so a pass that only moved the box can call it alone.
+ */
+void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
+                      const LayoutRect& box) {
+    const f32 availW = box.width();
+    const f32 availH = box.height();
+    const f32 cx = box.centerX();
+    const f32 cy = box.centerY();
+    for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
+        auto& node = tree.nodes_[i];
+        bool parentIsUINode = node.parent != INVALID_ENTITY && registry.has<UINode>(node.parent);
+        if (!parentIsUINode && isScreenRoot(registry, node.entity)) {
+            auto it = cache.nodes.find(node.entity);
+            auto* t = registry.tryGet<Transform>(node.entity);
+            auto* un = registry.tryGet<UINode>(node.entity);
+            if (it != cache.nodes.end() && t && un) {
+                const f32 fw = YGNodeLayoutGetWidth(it->second);
+                const f32 fh = YGNodeLayoutGetHeight(it->second);
+                const f32 localX = -0.5f * availW + YGNodeLayoutGetLeft(it->second) + 0.5f * fw;
+                const f32 localY = 0.5f * availH - YGNodeLayoutGetTop(it->second) - 0.5f * fh;
+                if (!(un->anim_override_ & UINode::ANIM_POS_X)) t->position.x = cx + localX;
+                if (!(un->anim_override_ & UINode::ANIM_POS_Y)) t->position.y = cy + localY;
+            }
+        }
+        i += node.subtree_size;
+    }
+}
+
 void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
-                       const LayoutRect& cameraRect, bool structureChanged,
+                       const LayoutRect& box, bool structureChanged,
                        bool forceWriteback) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
 
         // Every node is a UINode. A subtree root (its parent is not a UINode —
         // a top-level UI element / Canvas) is resolved in one Yoga solve over its
-        // whole subtree; skip past it. The available box is the camera rect.
+        // whole subtree; skip past it. The available box is the layout box's size;
+        // where that box sits is applied by placeScreenRoots.
         bool parentIsUINode = node.parent != INVALID_ENTITY && registry.has<UINode>(node.parent);
         if (!parentIsUINode) {
-            f32 availW = cameraRect.right - cameraRect.left;
-            f32 availH = cameraRect.top - cameraRect.bottom;
-            layoutUINodeSubtree(registry, tree, cache, i, availW, availH, 0.5f, 0.5f,
+            layoutUINodeSubtree(registry, tree, cache, i, box.width(), box.height(), 0.5f, 0.5f,
                                 structureChanged, forceWriteback);
         }
         i += node.subtree_size;
@@ -464,7 +508,7 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
 
 void UISystem::layoutUpdate(
     Registry& registry,
-    f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+    f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
     bool tsPropertyDirty
 ) {
     // The retained nodes are keyed by entity, and entity ids restart with each
@@ -485,33 +529,43 @@ void UISystem::layoutUpdate(
     // (orphan + propagateHidden + Yoga solve + reap) is what the gate below skips.
     tree.rebuild(registry);
 
+    LayoutRect box{ boxLeft, boxBottom, boxRight, boxTop };
+
     bool animNow = anyUIAnimActive(registry);
     bool sigChanged = tree.structure_sig_ != lastSig_;
-    bool rectChanged = camLeft != lastCamL_ || camBottom != lastCamB_
-                    || camRight != lastCamR_ || camTop != lastCamT_;
+    // A resized box invalidates the solve; a box that merely MOVED does not —
+    // Yoga solves against the size alone, and only the screen roots' world
+    // placement depends on where the box sits. Keeping these apart is what stops
+    // a panning camera from rewriting the whole UI tree every frame.
+    bool sizeChanged = box.width() != lastBoxW_ || box.height() != lastBoxH_;
+    bool centerChanged = box.centerX() != lastBoxCX_ || box.centerY() != lastBoxCY_;
     bool wasAnimActive = lastAnimActive_;
 
     lastSig_ = tree.structure_sig_;
-    lastCamL_ = camLeft; lastCamB_ = camBottom; lastCamR_ = camRight; lastCamT_ = camTop;
+    lastBoxW_ = box.width(); lastBoxH_ = box.height();
+    lastBoxCX_ = box.centerX(); lastBoxCY_ = box.centerY();
     lastAnimActive_ = animNow;
 
-    // A fully static frame — no structural, camera, property, or tween change since
-    // the last solve — leaves the retained YGNodes and every UINode's computed
-    // output valid, so the whole solve is safely skipped. `wasAnimActive` forces
-    // one more solve on the frame a tween just ended (see anyUIAnimActive).
+    // A fully static frame — no structural, box-size, property, or tween change
+    // since the last solve — leaves the retained YGNodes and every UINode's
+    // computed output valid, so the whole solve is safely skipped. `wasAnimActive`
+    // forces one more solve on the frame a tween just ended (see anyUIAnimActive).
     bool first = !layoutPrimed_;
-    bool dirty = first || sigChanged || rectChanged || tsPropertyDirty
+    bool dirty = first || sigChanged || sizeChanged || tsPropertyDirty
               || animNow || wasAnimActive;
     layoutPrimed_ = true;
-    if (!dirty) return;
+    if (!dirty) {
+        if (centerChanged) placeScreenRoots(registry, tree, *layoutCache_, box);
+        return;
+    }
 
     // Two signals, because they answer different questions. The hierarchy has to
     // be rebuilt when the tree's SHAPE changed. Output has to be written for
     // every node when the ROOT'S FRAME changed — a subtree root positions itself
-    // against the camera box, so the same Yoga result inside a resized box is a
+    // against the box, so the same Yoga result inside a resized box is a
     // different world position, and Yoga would rightly report no new layout.
     bool structureChanged = first || sigChanged;
-    bool forceWriteback = structureChanged || rectChanged;
+    bool forceWriteback = structureChanged || sizeChanged;
 
     // The retained hierarchy is rebuilt only when the tree's shape changed —
     // which is exactly when an entity may still be owned by the parent it had
@@ -519,8 +573,8 @@ void UISystem::layoutUpdate(
     // Yoga node on every pass, so no solve could ever be partial.
     propagateHiddenInTree(registry, tree);
     propagateInheritedUIState(registry, tree);
-    LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
-    unifiedLayoutPass(registry, tree, *layoutCache_, cameraRect, structureChanged, forceWriteback);
+    unifiedLayoutPass(registry, tree, *layoutCache_, box, structureChanged, forceWriteback);
+    placeScreenRoots(registry, tree, *layoutCache_, box);
 
     // Reaping is likewise a structural concern: with the same set of entities in
     // the tree there is nothing to free, and building the live set is a hash

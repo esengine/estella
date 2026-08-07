@@ -334,11 +334,14 @@ export function editorCameraInfo(
  * so it doesn't double-advance the same frame's blend.
  */
 /**
- * The design-resolution source the MAIN scene camera fits to: the project screen fit
- * (ScreenScaling) when it opts in (scaleMode ≥ 0), else the scene's UI Canvas (legacy
- * behavior), else null (raw orthoSize). The project fit works WITHOUT a Canvas and, when
- * set, is authoritative for the camera — UI layout still reads the Canvas (uiLayoutRect),
- * so gameplay and UI can scale independently.
+ * The design-resolution fit: the project screen fit (ScreenScaling) when it opts in
+ * (scaleMode ≥ 0), else the scene's UI Canvas, else null (raw orthoSize). The project
+ * fit works WITHOUT a Canvas and, when set, is authoritative.
+ *
+ * The camera and UI layout both resolve their fit here — one screen, one answer. They
+ * used to disagree: the camera preferred ScreenScaling while the editor's UI box read
+ * the Canvas alone, so a project fit whose design resolution differed from the scene's
+ * Canvas laid UI out in one box while authoring and another once it shipped.
  */
 function resolveFitSource(app: App, canvas: CanvasScale | null): CanvasScale | null {
     if (app.hasResource(ScreenScaling)) {
@@ -425,12 +428,15 @@ function syncUICameraInfo(
         uiCam.screenW = width;
         uiCam.screenH = height;
         // The box UI lays out within. Scene cameras carry design-scaled extents;
-        // the free-zoom editor view gets the fixed design box from the canvas so UI
+        // the free-zoom editor view gets the fixed design box from the fit so UI
         // doesn't reflow with the zoom (see uiLayoutRect). In the editor a selected
         // device preset overrides the box aspect (uiPreviewAspect) so UI previews how it
         // adapts on that device; 0 (default / shipped games) keeps the design aspect.
+        // The fit is resolved the SAME way the camera resolves it, so edit mode, play
+        // and a shipped build lay UI out in one box.
         const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
-        const rect = uiLayoutRect(cam, findCanvasData(module, cppRegistry), width, height, previewAspect);
+        const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
+        const rect = uiLayoutRect(cam, fit, width, height, previewAspect);
         uiCam.worldLeft = rect.left;
         uiCam.worldRight = rect.right;
         uiCam.worldBottom = rect.bottom;

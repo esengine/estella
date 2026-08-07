@@ -2,18 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ScreenScaling.ts
- * @brief   Project-level camera fit — the design (reference) resolution the MAIN
- *          scene camera scales against, independent of any UI Canvas.
+ * @brief   Project-level screen fit — the design (reference) resolution the game
+ *          scales against, independent of any UI Canvas.
  *
  * The design resolution used to live only on the `Canvas` (UI) component, so a
  * scene without UI got no design-resolution fit (the camera kept its raw
  * orthoSize). This resource makes the fit a project/screen concern: when
  * `scaleMode` is a real {@link CanvasScaleMode} (0..4) the camera letterboxes the
  * design resolution into the actual aspect exactly as a Canvas would — no UI layer
- * required. `scaleMode = SCREEN_FIT_OFF` (the default) keeps the legacy behavior
- * (Canvas fit when present, else raw orthoSize), so an unconfigured project is
- * unchanged. UI layout still reads the Canvas (see uiLayoutRect); only the camera
- * fit reads this, so gameplay and UI can fit differently.
+ * required. `scaleMode = SCREEN_FIT_OFF` (the default) keeps the Canvas fit when
+ * present, else the raw orthoSize, so an unconfigured project is unchanged.
+ *
+ * When it opts in it is the project's ONE design resolution: the camera fit and the
+ * UI layout box both resolve through CameraPlugin.resolveFitSource, so a scene whose
+ * Canvas still carries an older design resolution cannot lay UI out one way while
+ * authoring and another once it ships.
  *
  * Installed by every runtime; the shipped game / play realm / editor set it from
  * the project config (design resolution + fit). Read by CameraPlugin.resolveCameras.

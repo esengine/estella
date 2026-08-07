@@ -31,11 +31,24 @@ describe('uiLayoutRect', () => {
         expect(a).toEqual({ left: -640, right: 640, bottom: -360, top: 360 });
     });
 
-    it('the editor box stays centered on the editor pan', () => {
+    it('the editor box is anchored in the world, not glued to the pan', () => {
+        // Panning the navigation view must not drag the UI box with it: the box is a
+        // fixed frame the design-frame overlay is drawn to, and UI pans with the scene.
         const cam = { entity: EDITOR_VIEW_ENTITY, cameraX: 200, cameraY: -100, halfW: 160, halfH: 90 };
         expect(uiLayoutRect(cam, canvas, W, H)).toEqual({
-            left: -440, right: 840, bottom: -460, top: 260,
+            left: -640, right: 640, bottom: -360, top: 360,
         });
+    });
+
+    it('a scene camera carries its box with it (the HUD tracks the camera)', () => {
+        const near = { entity: 3, cameraX: 0, cameraY: 0, halfW: 640, halfH: 360 };
+        const far = { entity: 3, cameraX: 5000, cameraY: -800, halfW: 640, halfH: 360 };
+        const a = uiLayoutRect(near, canvas, W, H);
+        const b = uiLayoutRect(far, canvas, W, H);
+        expect(b.right - b.left).toBe(a.right - a.left);
+        expect(b.top - b.bottom).toBe(a.top - a.bottom);
+        expect((b.left + b.right) / 2).toBe(5000);
+        expect((b.bottom + b.top) / 2).toBe(-800);
     });
 
     it('the editor box is the design box regardless of viewport aspect (WYSIWYG with the frame)', () => {

@@ -422,7 +422,7 @@ export interface ESEngineModule {
     renderer_getPreviewHeight(): number;
 
     // UI Systems
-    uiLayout_update(registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number, propertyDirty: boolean): void;
+    uiLayout_update(registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
     uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
     uiHitTest_getHitEntity(): number;
     uiHitTest_getHitEntityPrev(): number;

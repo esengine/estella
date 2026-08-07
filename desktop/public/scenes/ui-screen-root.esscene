@@ -1,0 +1,258 @@
+{
+  "version": "1.0",
+  "name": "Screen root tracks the camera; parented UI rides its parent. The camera starts at the origin and is driven away at runtime, so the layout box moves without resizing.",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 540,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        2,
+        3
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "TopLeftQuadrant",
+      "parent": 1,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 50,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "BottomRightQuadrant",
+      "parent": 1,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 50,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "WorldAnchor",
+      "parent": null,
+      "children": [
+        5
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 5480,
+              "y": -530,
+              "z": 0
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "WorldCanvas",
+      "parent": 4,
+      "children": [
+        6
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "WorldBadge",
+      "parent": 5,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 860,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 440,
+              "unit": 0
+            },
+            "width": {
+              "value": 200,
+              "unit": 0
+            },
+            "height": {
+              "value": 200,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

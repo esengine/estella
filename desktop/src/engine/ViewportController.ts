@@ -12,7 +12,7 @@ import {
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
-  editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight,
+  editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -804,7 +804,11 @@ export const ViewportController = {
   /**
    * The scene's Canvas singleton — the design-resolution preview source — or null.
    * Reads the first entity carrying a Canvas (the same singleton-per-scene assumption
-   * as the runtime's registry_getCanvasEntity), centered on its Transform.
+   * as the runtime's registry_getCanvasEntity).
+   *
+   * Centered on EDITOR_UI_ANCHOR, not on the Canvas entity's Transform: that transform
+   * is an OUTPUT of the layout pass (a screen root is placed at the box center), so
+   * reading it back would let the frame drift from the box it is drawn to describe.
    */
   canvasInfo(): EditorScreenInfo | null {
     const world = EngineHost.world;
@@ -818,10 +822,9 @@ export const ViewportController = {
         matchWidthOrHeight: number;
         backgroundColor: { r: number; g: number; b: number; a: number };
       };
-      const t = world.has(e, Transform) ? world.get(e, Transform) : null;
       return {
-        cx: t?.worldPosition.x ?? 0,
-        cy: t?.worldPosition.y ?? 0,
+        cx: EDITOR_UI_ANCHOR.x,
+        cy: EDITOR_UI_ANCHOR.y,
         designResolution: c.designResolution,
         pixelsPerUnit: c.pixelsPerUnit || 100,
         scaleMode: c.scaleMode,
@@ -841,6 +844,10 @@ export const ViewportController = {
    *
    * Without a Canvas the fit uses FixedHeight (the engine's Canvas default) so the
    * device frame has a defined shape; once a project camera-fit is set it drives this.
+   *
+   * This resolves the fit in the same order the runtime does (CameraPlugin's
+   * resolveFitSource: project fit, else Canvas), so the drawn frame is the box the
+   * engine actually lays UI out in.
    */
   screenInfo(): EditorScreenInfo {
     const canvas = this.canvasInfo();
@@ -850,8 +857,8 @@ export const ViewportController = {
     if (fit.scaleMode >= 0) {
       const d = projectDesignSeed();
       return {
-        cx: canvas?.cx ?? 0,
-        cy: canvas?.cy ?? 0,
+        cx: EDITOR_UI_ANCHOR.x,
+        cy: EDITOR_UI_ANCHOR.y,
         designResolution: { x: d.width, y: d.height },
         pixelsPerUnit: canvas?.pixelsPerUnit ?? 100,
         scaleMode: fit.scaleMode,
@@ -865,7 +872,7 @@ export const ViewportController = {
     if (canvas) return canvas;
     const d = projectDesignSeed();
     return {
-      cx: 0, cy: 0,
+      cx: EDITOR_UI_ANCHOR.x, cy: EDITOR_UI_ANCHOR.y,
       designResolution: { x: d.width, y: d.height },
       pixelsPerUnit: 100,
       scaleMode: 1, // CanvasScaleMode.FixedHeight
