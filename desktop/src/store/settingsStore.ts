@@ -86,10 +86,9 @@ export const useSettings = create<SettingsState>((set, get) => ({
 }));
 
 /**
- * Forget persisted values outright — for a MIGRATION that has folded them into
- * some newer setting, where `reset` is not the operation: it writes the default
- * back under an id nothing reads any more, leaving the old shape in the file to
- * be puzzled over by whoever opens it next.
+ * Forget persisted values outright, for a migration that has folded them into a
+ * newer setting. `reset` is not the operation: it writes a default back under an
+ * id nothing reads any more.
  */
 export function dropPersisted(ids: readonly string[]): void {
   useSettings.setState((s) => {

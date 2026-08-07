@@ -276,12 +276,9 @@ function loadSelection(): AgentSelection | null {
 }
 
 /**
- * A provider, with the one part of it that cannot be shipped filled in.
- *
- * Providers the person typed need nothing here — they are whole defs by the time
- * they reach the registry (agent/userProviders.ts), which is the point of
- * projecting them into it. What is left is the shipped vendor whose ADDRESS
- * holds still while its model names do not.
+ * A provider, with the one part of it that cannot be shipped filled in: the
+ * vendor whose ADDRESS holds still while its model names do not. Providers the
+ * person typed are whole defs already (agent/userProviders.ts).
  */
 export function resolveProvider(id: string): AgentProviderDef | undefined {
   const def = agentProvider(id);
@@ -293,10 +290,9 @@ export function resolveProvider(id: string): AgentProviderDef | undefined {
 /**
  * Whether the picked endpoint can be handed a picture.
  *
- * The composer takes attachments whatever is selected, and an endpoint that
- * cannot carry them is not a failure — the turn goes out with the text and the
- * model is told what it was not shown. But that is a thing to learn BEFORE
- * sending, so this is read where the attachment is made too.
+ * The composer takes attachments whatever is selected; one that cannot carry
+ * them still sends the turn, with the model told what it was not shown. Read
+ * where the attachment is made so that is knowable before sending.
  */
 export const agentAcceptsImages = (): boolean => {
   const selection = effectiveSelection();
@@ -342,13 +338,11 @@ export function syncAgentEndpoint(): void {
     // How far the conversation may grow before it is compacted. Travels with the
     // endpoint because it is the same piece of knowledge: which provider this is.
     contextWindow: def?.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
-    // Whether a screenshot can reach it. Same journey as the window and for the
-    // same reason: both are facts about which provider this is, and both were
-    // once guessed from the address instead of being told.
+    // Whether a screenshot can reach it — the same journey as the window, and
+    // the same kind of fact: which provider this is.
     vision: def?.vision === true,
-    // Whether the depth below may be NAMED in the request. Its own fact because
-    // an endpoint that has never heard of the argument refuses the call rather
-    // than ignoring it — losing the turn over a field nobody asked for.
+    // Whether the depth below may be NAMED in the request: an endpoint that has
+    // never heard of the argument refuses the call rather than ignoring it.
     reasoningEffort: def?.reasoningEffort !== false,
     // How hard the model is asked to think. A setting rather than part of the
     // model pick: the same model is worth running at different depths, and the

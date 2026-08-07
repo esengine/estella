@@ -295,18 +295,13 @@ settingsRegistry.register({
   effect: () => syncAgentEndpoint(),
 });
 
-// Providers we have not heard of — which are exactly the ones we cannot ship an
-// address, a model list, or a word about what they accept.
+// Providers we have not heard of — exactly the ones we cannot ship an address, a
+// model list, or a word about what they accept.
 //
-// A TABLE, not a set of fields, because the unit of configuration is a provider
-// and a person has more than one: a local runner and a company gateway are not
-// two states of one setting. Each row keeps its own key, for the same reason the
-// shipped rows above do.
-//
-// The main columns say where it is and what it speaks; the expander says what it
-// can DO. That split is the point — an endpoint that could only be given an
-// address had no way to tell the agent it accepts screenshots, and the agent
-// spent every session working blind without either side deciding that.
+// A TABLE, because the unit of configuration is a provider and a person has more
+// than one: a local runner and a company gateway are not two states of one
+// setting. Each row keeps its own key, as the shipped rows above do. The main
+// columns say where it is and what it speaks; the expander says what it can DO.
 settingsRegistry.register({
   id: AGENT_PROVIDERS_SETTING,
   type: 'objectList',

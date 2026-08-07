@@ -60,8 +60,7 @@ export interface OpenAIOptions {
    * look at, and the answer is a property of the endpoint, not of the editor.
    *
    * The editor always says (src/agent/providers.ts declares it per provider);
-   * omitted falls back to the guess that used to be the only answer — the
-   * address — for a caller with nothing to declare.
+   * omitted falls back to the address, for a caller with nothing to declare.
    */
   vision?: boolean;
   /**

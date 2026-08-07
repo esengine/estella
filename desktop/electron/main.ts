@@ -720,8 +720,7 @@ const agentHost = createAgentHost({
         contextWindow: agentEndpoint.contextWindow,
         vision: agentEndpoint.vision,
         // An endpoint that has never heard of `reasoning_effort` refuses the
-        // whole request over it, so whether to name the depth is the provider's
-        // to declare — the same journey as the window and the sight.
+        // whole request over it, so the provider declares whether to name it.
         reasoningEffort: agentEndpoint.reasoningEffort,
       });
     }
@@ -731,9 +730,8 @@ const agentHost = createAgentHost({
       model: agentEndpoint.model,
       effort,
       contextWindow: agentEndpoint.contextWindow,
-      // What the provider declared, not what its address implies. The window is
-      // the side that knows which provider was picked, so it is the side that
-      // says — for this the same as for the model and the window size.
+      // What the provider declared, not what its address implies. The window
+      // knows which provider was picked, so it is the side that says.
       vision: agentEndpoint.vision,
     });
   },

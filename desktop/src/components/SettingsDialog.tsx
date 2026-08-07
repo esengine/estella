@@ -389,11 +389,9 @@ function writePath(row: Record<string, unknown>, path: string, v: unknown): Reco
  * A credential belonging to one row of a list.
  *
  * The same bargain as {@link SecretControl} — typed once, never read back — in
- * the width of a table cell, so what it can show is which of the two states the
- * row is in. A row whose key is missing is the single most common reason a
- * configured-looking provider does nothing, so the unset state is a labelled
- * button rather than a blank field: it says what is absent, and asks for it in
- * place when clicked.
+ * the width of a table cell. The unset state is a labelled button rather than a
+ * blank field: a missing key is the likeliest reason a configured-looking row
+ * does nothing, so the cell says what is absent instead of looking empty.
  */
 function ObjectListSecret({ id }: { id: string }) {
   const status = useSyncExternalStore(subscribeSecrets, () => secretStatus(id));
@@ -501,9 +499,8 @@ function ObjectListField({
       spellCheck={false}
       placeholder={col.placeholder}
       value={String(readPath(row, col.key) ?? '')}
-      // A cleared number field is EMPTY, not zero — so it keeps showing the
-      // placeholder (which is where a column says what it falls back to) instead
-      // of a 0 the row never meant and the reader cannot tell from one it did.
+      // A cleared number field is EMPTY, not zero, so the placeholder keeps
+      // saying what the column falls back to.
       onChange={(e) => onChange(
         col.type !== 'number' ? e.target.value : (e.target.value === '' ? undefined : Number(e.target.value)),
       )}

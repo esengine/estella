@@ -22,11 +22,9 @@
 /**
  * Who owns a contribution. `'core'` is the editor itself.
  *
- * `'user'` is the person's own configuration — a set they edit in Settings that
- * is projected into a registry rather than kept beside it (agent providers are
- * the first). It disposes and re-registers as a group on every edit, which is
- * the same operation a plugin reload performs, so it belongs here rather than in
- * a parallel list that every reader would then have to remember to merge.
+ * `'user'` is a set the person edits in Settings and the editor projects into a
+ * registry (agent providers). It disposes and re-registers as a group on every
+ * edit — the same operation a plugin reload performs.
  */
 export type Owner = 'core' | 'user' | `plugin:${string}`;
 

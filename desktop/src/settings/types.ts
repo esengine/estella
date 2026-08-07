@@ -201,9 +201,8 @@ export interface ObjectListColumn {
    * Which credential a `secret` cell holds, derived from the row it sits in.
    *
    * The value never enters the row, the settings file or this process — main
-   * seals it with the OS keychain, exactly as {@link SecretSetting} does. So the
-   * column's `key` names the CELL and nothing else; a row carries the id the
-   * credential is filed under, not the credential.
+   * seals it with the OS keychain, as {@link SecretSetting} does. The column's
+   * `key` therefore names the CELL only.
    */
   secretId?: (row: Record<string, unknown>) => string;
 }
@@ -234,9 +233,9 @@ export interface ObjectListSetting extends BaseSetting<Record<string, unknown>[]
   /** Per-row validation → message, or null when the row is fine. */
   rowError?: (row: Record<string, unknown>, all: Record<string, unknown>[]) => string | null;
   /**
-   * A row is on its way out, and it owned something the list does not hold — a
-   * keychain entry, a file. Without this the thing outlives every reference to
-   * it: unreachable from the UI, still on the machine, and inherited by whatever
+   * A row is on its way out and owned something the list does not hold — a
+   * keychain entry, a file. Without this it outlives every reference to it:
+   * unreachable from the UI, still on the machine, and inherited by whatever
    * next takes the same row id.
    */
   onRowRemoved?: (row: Record<string, unknown>) => void;

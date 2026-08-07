@@ -46,9 +46,8 @@ describe('the shipped providers', () => {
     expect(openai?.userDefined).toBeUndefined();
   });
 
-  // There is no reserved slot for "the custom one" any more. There cannot be:
-  // the person has as many as they have endpoints, and a single slot meant
-  // configuring the second overwrote the first, credential included.
+  // There is no reserved slot for "the custom one": a person has as many as
+  // they have endpoints.
   it('ships no placeholder for the providers a person types', () => {
     expect(agentProviders().every((p) => !p.userDefined)).toBe(true);
     expect(agentProvider(CUSTOM_PROVIDER)).toBeUndefined();
@@ -56,9 +55,8 @@ describe('the shipped providers', () => {
 });
 
 /**
- * The typed providers arrive as a SET, because that is how they are edited — a
- * table rewritten whole — and because the removals matter as much as the
- * additions: one deleted from the table must stop being offered.
+ * They arrive as a SET, because the removals matter as much as the additions:
+ * one deleted from the table must stop being offered.
  */
 describe('the providers a person defined', () => {
   const def = (id: string, over = {}) => ({ id, label: id, baseUrl: `http://${id}/v1`, models: ['m'], ...over });

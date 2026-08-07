@@ -51,11 +51,9 @@ export interface AnthropicOptions {
   /**
    * Whether this endpoint's models can be handed an image.
    *
-   * A separate fact from the dialect, though the address once stood in for
-   * both. The dialect is about which EXTENSIONS the request may carry; image
-   * blocks are in the core format, so a gateway may well take them — and a
-   * gateway that does had no way to say so. Omitted falls back to the guess
-   * that fact replaced, for a caller with nothing to declare.
+   * Not the dialect: that is about which EXTENSIONS the request may carry, and
+   * image blocks are core format, so a gateway may well take them. Omitted falls
+   * back to the address, for a caller with nothing to declare.
    */
   vision?: boolean;
   /** How far the conversation may grow before the oldest runs are folded away.
@@ -137,9 +135,8 @@ export function buildStepRequest(opts: {
  * happened: a model handed a silently dropped screenshot concludes the editor is
  * broken, while one told the endpoint cannot carry it asks a different way.
  *
- * Keyed on `vision` rather than on the dialect, which it once shared: image
- * blocks are core format, so a gateway that takes them is an ordinary case and
- * not an exception to be spotted from the address.
+ * Keyed on `vision`, not the dialect: image blocks are core format, so a gateway
+ * that takes them is an ordinary case and not one to spot from the address.
  */
 export function toolResultContent(
   outcome: ToolOutcome,
@@ -481,9 +478,9 @@ export function createAnthropicProvider(options: AnthropicOptions): AgentProvide
   const effort = options.effort ?? DEFAULT_EFFORT;
   const baseURL = options.baseURL || undefined;
   const dialect: Dialect = baseURL ? 'compatible' : 'anthropic';
-  // Declared by the provider that was picked. The fallback is the guess this
-  // replaced — right for the API, and the safe way to be wrong for a caller
-  // that says nothing, since a claimed sight an endpoint lacks costs the turn.
+  // Declared by the provider that was picked; the address is only the fallback
+  // for a caller that says nothing, since claimed sight an endpoint lacks costs
+  // the turn.
   const vision = options.vision ?? dialect === 'anthropic';
   const client = new Anthropic({ apiKey: options.apiKey, baseURL });
   return {

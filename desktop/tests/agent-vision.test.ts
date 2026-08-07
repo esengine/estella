@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  What an endpoint can DO, from the row that declares it to the endpoint
- *        main builds.
+ * @file    agent-vision.test.ts
+ * @brief   What an endpoint can DO, from the row that declares it to the
+ *          endpoint main builds.
  *
- *        Sight used to be read off the address — no baseUrl, therefore the
- *        vendor's own API, therefore it can see — which is a statement about
- *        WHERE an endpoint is and not about what it accepts. Every gateway was
- *        blind with no way to say otherwise, and the whole consequence was
- *        silent: the agent was told each turn that screenshots could not reach
- *        it, asked for `format: 'grid'` instead, and nobody could tell that
- *        apart from a preference.
- *
- *        The wire halves live with their protocols (agent-dialect, agent-openai);
- *        what is checked here is that the facts travel.
+ * Every fact here is one an endpoint cannot be probed for, so a wrong one is
+ * silent: an agent told it cannot be sent screenshots asks for a text grid
+ * instead, and that reads as a preference. The wire halves live with their
+ * protocols (agent-dialect, agent-openai); this checks that the facts travel.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import '@/settings';
@@ -96,8 +91,7 @@ describe('an endpoint the person described', () => {
     expect(sent.at(-1)).toMatchObject({ vision: true, baseUrl: 'http://localhost:11434/v1' });
   });
 
-  // A gateway address is not an answer to this question — that reading is the
-  // bug. What matters is that the two facts travel separately.
+  // What matters is that the two facts travel separately.
   it('carries the declaration alongside the address, not derived from it', () => {
     configure(row({ vision: true }));
     sent.length = 0;
@@ -138,11 +132,7 @@ describe('a provider that ships its own answer', () => {
   });
 });
 
-/**
- * The reason the table exists: a person has more than one of these, and the
- * shape it replaced could only hold one — configuring a second overwrote the
- * first, credential included.
- */
+/** The reason the table exists: a person has more than one of these. */
 describe('more than one of them', () => {
   it('keeps both, each with its own key id and its own capabilities', () => {
     configure(
@@ -164,8 +154,7 @@ describe('more than one of them', () => {
     expect(agentProvider('custom-1')).toBeDefined();
   });
 
-  // The registry is the one door: a shipped provider and a typed one are the
-  // same kind of thing to everything downstream of it.
+  // The registry is the one door, and core holds its ids first.
   it('does not let a typed row displace a shipped provider', () => {
     configure(row({ id: 'anthropic', label: 'Impostor', baseUrl: 'http://evil/v1' }));
     expect(agentProvider('anthropic')?.label).toBe('Anthropic');
@@ -173,9 +162,9 @@ describe('more than one of them', () => {
 });
 
 /**
- * A key is filed under its provider's id and lives outside the list, so the two
- * ends of a row's life both have to account for it: a deleted row's credential
- * must go, and a new row must never be handed an id that could still have one.
+ * A key is filed under its provider's id and lives outside the list, so both
+ * ends of a row's life have to account for it: a deleted row's credential must
+ * go, and a new row must never be handed an id that could still have one.
  */
 describe('the credential a row owns', () => {
   it('goes when the row does, under the id it was filed against', async () => {
@@ -196,15 +185,15 @@ describe('the credential a row owns', () => {
     expect(newProviderRow([row({ id: 'custom-1' }), row({ id: 'custom-2' })]).id).toBe('custom-3');
     // custom-2 was deleted; the next row must not step into its place.
     expect(newProviderRow([row({ id: 'custom-3' })]).id).toBe('custom-4');
-    // The migrated singleton carries a non-numbered id and must not confuse it.
+    // The migrated row carries a non-numbered id and must not confuse it.
     expect(newProviderRow([row({ id: CUSTOM_PROVIDER })]).id).toBe('custom-1');
   });
 });
 
 /**
- * A key is filed under its provider's id, and main never hands a sealed one
- * back — so an id that does not carry over is a credential the person has to
- * find again. This is the one migration step that cannot be repaired by hand.
+ * Main never hands a sealed key back, so an id that does not carry over is a
+ * credential the person has to find again — the one step here that cannot be
+ * repaired by hand.
  */
 describe('a setup made before the table existed', () => {
   it('keeps the id its key is filed under', async () => {
@@ -226,8 +215,7 @@ describe('a setup made before the table existed', () => {
       'anthropic', 'https://gateway.example/anthropic', true,
     ]);
     expect(def?.models).toEqual(['some-model']);
-    // And the shape it replaced is gone from the file rather than left to be
-    // puzzled over by whoever opens it next.
+    // And the ids it replaced are gone from the file.
     expect(useSettings.getState().values['agents.customBaseUrl']).toBeUndefined();
   });
 

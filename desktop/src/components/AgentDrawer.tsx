@@ -952,10 +952,9 @@ function ModelPicker() {
       {open && (
         <div className="ag-picker-menu">
           {providers.map((p) => {
-            // Its models, with the typed list filled in for the one vendor whose
-            // names are not shippable. A provider the person defined arrives
-            // whole — nothing here can tell it from a built-in, which is the
-            // point of projecting the table into the same registry.
+            // Its models, with the typed list filled in for the one vendor
+            // whose names are not shippable. A provider the person defined
+            // arrives whole, and nothing here can tell it from a built-in.
             const def = resolveProvider(p.id) ?? p;
             const keyed = secretStatus(agentKeyId(p.id))?.configured === true;
             if (def.models.length === 0 && !def.label) return null;

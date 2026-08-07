@@ -166,11 +166,8 @@ describe('a tool result carrying a rendered frame', () => {
 });
 
 /**
- * Sight is DECLARED, not read off the address.
- *
- * It was read off the address once, and that made every gateway blind with no
- * way to say otherwise — including ones whose models see perfectly well, since
- * image blocks are core format and not one of the extensions the dialect gates.
+ * Sight is DECLARED, not read off the address — image blocks are core format,
+ * not one of the extensions the dialect gates, so a gateway may well take them.
  */
 describe('whether the endpoint is told to be blind', () => {
   const provider = (over = {}) => createAnthropicProvider({ apiKey: 'k', ...over });
@@ -287,8 +284,8 @@ describe('an image on the person\'s turn', () => {
         expect(msg.content as string).toMatch(/cannot receive images|have not seen/);
     });
 
-    // And a gateway that DOES take them gets the picture, because what decides
-    // this is what the provider declared and not where the endpoint lives.
+    // And a gateway that DOES take them gets the picture: what decides this is
+    // what the provider declared, not where the endpoint lives.
     it('rides the turn on a gateway that declared it can see', () => {
         const [msg] = messagesOf('https://gateway.example/anthropic', shot, 'like this', true);
         expect((msg.content as Array<{ type: string }>).map((b) => b.type)).toEqual(['image', 'text']);

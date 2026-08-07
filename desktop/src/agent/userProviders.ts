@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  userProviders.ts — the providers a person defined, projected into the
- *        same registry the shipped ones live in.
+ * @file    userProviders.ts
+ * @brief   The providers a person typed, projected into the registry the
+ *          shipped ones live in.
  *
- * There used to be exactly one, spelled out as four global settings
- * (`agents.customProtocol`, `…BaseUrl`, `…Models`, plus one key). That
- * contradicted the rule the shipped providers are built on — the unit of
- * configuration is a PROVIDER, and every one keeps its own key so switching back
- * to the one you used last week costs nothing. A local runner and a company
- * gateway could not both exist: configuring the second overwrote the first,
- * credential included.
- *
- * So they are a LIST now, and each row is a provider like any other: address,
- * protocol, models, its own key, and what it can do. This module is the only
- * place that knows a provider can come from a table — providers.ts stays a
- * registry, and every reader downstream sees one kind of provider.
+ * The only module that knows a provider can come from a settings table:
+ * providers.ts stays a registry, and every reader downstream sees one kind of
+ * provider.
  */
 import { useSettings, dropPersisted } from '@/store/settingsStore';
 import {
@@ -31,11 +23,9 @@ export const AGENT_PROVIDERS_SETTING = 'agents.providers';
 /**
  * One row of that table, as it is stored.
  *
- * Flat and all-scalar because it IS the edited shape — the settings table writes
- * these fields directly, so a nested or derived form here would be a translation
- * layer between the control and the file. `models` is the raw text the person
- * typed for the same reason: splitting it on save would make the field fight the
- * cursor halfway through a comma.
+ * Flat and all-scalar because it IS the edited shape: the table writes these
+ * fields directly. `models` stays the raw text — splitting it on save would make
+ * the field fight the cursor halfway through a comma.
  */
 export interface UserProviderRow {
   /** Stable for the row's life — the key is filed under it. Never re-used. */
@@ -86,9 +76,7 @@ export function rowToDef(row: Record<string, unknown>): AgentProviderDef | null 
     baseUrl,
     models: parseModelList(str(row.models)),
     vision: row.vision === true,
-    // Absent means yes for a shipped provider, so only an explicit `false` from
-    // the table turns it off — a row written before the field existed must not
-    // read as "this endpoint refuses the parameter".
+    // Absent means yes, so only an explicit `false` turns it off.
     reasoningEffort: row.reasoningEffort !== false,
     contextWindow: contextWindow > 0 ? contextWindow : DEFAULT_CONTEXT_WINDOW,
     userDefined: true,
@@ -112,10 +100,9 @@ export const syncUserProviders = (): void => {
 /**
  * A row for a provider being added, with an id no earlier row has held.
  *
- * Monotonic rather than "first free": ids that come back around would inherit
- * whatever is still filed under them, and a key belonging to a provider that was
- * deleted is not one to hand to its replacement. {@link forgetProviderSecret}
- * closes the same hole from the other side.
+ * Monotonic rather than "first free": a recycled id inherits whatever is still
+ * filed under it. {@link forgetProviderSecret} closes the same hole from the
+ * other side.
  */
 export function newProviderRow(rows: readonly Record<string, unknown>[]): UserProviderRow {
   let next = 1;
@@ -126,14 +113,13 @@ export function newProviderRow(rows: readonly Record<string, unknown>[]): UserPr
   return {
     id: `custom-${next}`,
     label: '',
-    // What most gateways and every local runner implement. Getting this wrong is
-    // refused rather than degraded, so the likelier answer is the better default.
+    // Getting this wrong is refused rather than degraded, so default to what
+    // most gateways and every local runner implement.
     protocol: 'openai',
     baseUrl: '',
     models: '',
     vision: false,
-    // Left out rather than zeroed: the cell then shows the default it would use
-    // as its placeholder, instead of a 0 that reads like a window of nothing.
+    // Left out so the cell shows the fallback as its placeholder, not a 0.
     reasoningEffort: true,
   };
 }
@@ -144,17 +130,15 @@ const LEGACY_IDS = [
 ] as const;
 
 /**
- * Carry a pre-table setup across, once.
+ * Fold a pre-table setup into the table, once.
  *
- * The row takes {@link CUSTOM_PROVIDER} as its id on purpose: a key is filed
- * under its provider's id, and this is the one migration step that cannot be
- * repaired by hand — main never hands a sealed credential back, so an id that
- * did not carry over is a key the person has to find again. The saved model pick
- * (`estella.agent.selection`) names the same id and so keeps resolving too.
+ * The row MUST take {@link CUSTOM_PROVIDER} as its id: a key is filed under its
+ * provider's id and main never hands a sealed one back, so an id that does not
+ * carry over is a credential the person has to find again. The saved model pick
+ * (`estella.agent.selection`) names the same id and keeps resolving too.
  *
- * Runs only while the table has never been written. A person who has since
- * deleted every row means it, and re-adding what they removed on each boot is
- * the worst way for a migration to be wrong.
+ * Runs only while the table has never been written — someone who has since
+ * deleted every row meant it.
  */
 export function migrateLegacyCustomProvider(): void {
   const { values } = useSettings.getState();
@@ -162,8 +146,6 @@ export function migrateLegacyCustomProvider(): void {
   const baseUrl = str(values['agents.customBaseUrl']).trim();
   const models = str(values['agents.customModels']).trim();
   if (!baseUrl && !models) {
-    // Nothing was configured, but the legacy ids may still sit in the file as
-    // defaults someone toggled and toggled back.
     dropPersisted(LEGACY_IDS);
     return;
   }

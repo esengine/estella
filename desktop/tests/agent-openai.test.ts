@@ -121,9 +121,8 @@ describe('the provider', () => {
     expect(provider({ baseURL: 'http://localhost:11434/v1' }).id).toBe('openai:http://localhost:11434/v1');
   });
 
-  // Declared by whoever picked the provider (src/agent/providers.ts). The
-  // address is only the fallback for a caller that says nothing — reading it as
-  // the answer is what left every gateway blind with no way to say otherwise.
+  // Declared by whoever picked the provider (src/agent/providers.ts); the
+  // address is only the fallback for a caller that says nothing.
   it('takes the caller at its word, and falls back to the address', () => {
     expect(provider({ baseURL: 'http://x/v1', vision: true }).acceptsImages).toBe(true);
     expect(provider({ vision: false }).acceptsImages).toBe(false);
