@@ -64,6 +64,20 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A destroyed entity's handle could come back as a live one.** An `Entity` is a
+  22-bit slot index plus a 10-bit generation, and recycling a slot bumped the
+  generation with a wrap: after 1023 reuses the counter returned to 1 and the slot
+  issued an id byte-for-byte identical to one it had already handed out. Anything
+  still holding the old handle then pointed at a different entity, and `valid()`
+  agreed. 1023 sounds distant and is not — an entity rebuilt every frame gets
+  there in under a second, a pool of a hundred bullets at 60fps in about a minute.
+  A slot on its last generation is now retired rather than recycled, so a handle
+  is unique for the life of the registry. The `Entity` layout is unchanged: still
+  4 bytes, still a plain JS number, still fits box2d's 32-bit user data. What it
+  costs is index space, spent only by the churn that would otherwise alias, and
+  `Registry::retiredSlots()` reports it. Running the index space out now says so
+  in the log instead of quietly returning an invalid entity.
+
 - **Exporting a project could ship files from outside it.** The IPC door already
   refused a path that left the project through a link, but the asset scanner and
   the cook never went through that door. A file named like content with a `.meta`

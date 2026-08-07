@@ -3,6 +3,7 @@
 
 #include <esengine/ESEngine.hpp>
 #include <esengine/ecs/TransformSystem.hpp>
+#include <unordered_set>
 #include <vector>
 
 namespace test {
@@ -633,4 +634,79 @@ TEST_CASE("applySceneEntityOrder keeps unlisted children after the listed ones")
 
     CHECK_EQ(registry.get<esengine::ecs::Children>(parent).entities,
              std::vector<esengine::Entity>{c, a, b});
+}
+
+// ─── Slot retirement ─────────────────────────────────────────────────────────
+// The generation field is 10 bits, so recycling a slot past its last one mints an
+// id it already issued. Retired instead — and 1023 reuses is not far away.
+
+TEST_CASE("a slot is never handed back with an id it already issued") {
+    esengine::ecs::Registry registry;
+    std::unordered_set<esengine::u32> seen;
+
+    // Far past one slot's generation supply, so a wrapping registry must collide.
+    for (int i = 0; i < 5000; ++i) {
+        esengine::Entity e = registry.create();
+        REQUIRE(e != esengine::INVALID_ENTITY);
+        CHECK(seen.insert(e.raw).second);
+        registry.destroy(e);
+    }
+}
+
+TEST_CASE("retirement spends an index only when a generation runs out") {
+    esengine::ecs::Registry registry;
+    CHECK_EQ(registry.retiredSlots(), 0u);
+
+    // One slot, churned to exhaustion: generations 1..GEN_MASK, then retired.
+    const esengine::u32 supply = esengine::Entity::GEN_MASK;
+    for (esengine::u32 i = 0; i < supply; ++i) {
+        registry.destroy(registry.create());
+    }
+    CHECK_EQ(registry.retiredSlots(), 1u);
+
+    // The next entity cannot be that slot.
+    esengine::Entity fresh = registry.create();
+    CHECK_EQ(fresh.index(), 1u);
+    CHECK_EQ(fresh.generation(), 1u);
+}
+
+TEST_CASE("ordinary reuse still recycles the same slot") {
+    esengine::ecs::Registry registry;
+    esengine::Entity a = registry.create();
+    registry.destroy(a);
+    esengine::Entity b = registry.create();
+
+    CHECK_EQ(b.index(), a.index());       // same slot
+    CHECK_NE(b.raw, a.raw);               // different handle
+    CHECK_EQ(registry.retiredSlots(), 0u);
+}
+
+TEST_CASE("a retired slot's old handle stays invalid forever") {
+    esengine::ecs::Registry registry;
+    esengine::Entity first = registry.create();
+    const esengine::Entity stale = first;
+    registry.destroy(first);
+
+    for (esengine::u32 i = 1; i < esengine::Entity::GEN_MASK; ++i) {
+        registry.destroy(registry.create());
+    }
+    // The slot is spent. Nothing after this may make `stale` valid again.
+    for (int i = 0; i < 64; ++i) {
+        esengine::Entity e = registry.create();
+        CHECK_NE(e.raw, stale.raw);
+    }
+    CHECK_FALSE(registry.valid(stale));
+}
+
+TEST_CASE("clear returns the retirement count to zero") {
+    esengine::ecs::Registry registry;
+    for (esengine::u32 i = 0; i < esengine::Entity::GEN_MASK; ++i) {
+        registry.destroy(registry.create());
+    }
+    REQUIRE(registry.retiredSlots() == 1u);
+
+    registry.clear();
+    CHECK_EQ(registry.retiredSlots(), 0u);
+    esengine::Entity e = registry.create();
+    CHECK_EQ(e.index(), 0u);
 }

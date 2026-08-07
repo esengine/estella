@@ -181,7 +181,15 @@ public:
 
         component_masks_[idx].reset();
         --entity_count_;
-        recycled_.push(idx);
+        // A slot on its last generation is RETIRED, not recycled: reusing it wraps
+        // the counter to 1 and mints an id this slot already issued, which a caller
+        // may hold and valid() would confirm. Costs index space, only where it aliases.
+        if (generations_[idx] < Entity::GEN_MASK) {
+            recycled_.push(idx);
+        } else {
+            ++retired_slots_;
+            ES_LOG_TRACE("Retired entity slot {} (generation exhausted)", idx);
+        }
 
         ES_LOG_TRACE("Destroyed entity raw={} (index={})", entity.raw, idx);
     }
@@ -215,6 +223,15 @@ public:
     usize entityCount() const {
         return entity_count_;
     }
+
+    /**
+     * @brief Slots permanently out of circulation, their generation spent.
+     *
+     * Zero for anything but sustained create/destroy on the same indices. Rising
+     * steadily is the signal that churn is eating index space — the price paid so
+     * a destroyed entity's handle can never come back as a live one.
+     */
+    u32 retiredSlots() const { return retired_slots_; }
 
     /**
      * @brief Executes a function for each valid entity
@@ -450,6 +467,7 @@ public:
         while (!recycled_.empty()) recycled_.pop();
         next_index_ = 0;
         entity_count_ = 0;
+        retired_slots_ = 0;
     }
 
     /**
@@ -637,11 +655,18 @@ private:
      * @brief Activates an entity index: resizes arrays, bumps generation, returns packed Entity
      */
     Entity activateIndex(u32 index) {
-        // Release-safe: an index beyond the 20-bit range would silently alias an
+        // Release-safe: an index past the index field would silently alias an
         // existing slot via Entity::make's mask (ES_ASSERT is stripped in
         // release). Refuse before any state mutation. restore() passes a
-        // deserialized index here, so this also guards scene loading.
-        ES_VERIFY(index <= Entity::INDEX_MASK, return INVALID_ENTITY);
+        // deserialized index here, so this also guards scene loading. Say it out
+        // loud: running out is a state someone has to be able to see, and slot
+        // retirement below spends this space to buy handle uniqueness.
+        if (index > Entity::INDEX_MASK) {
+            ES_LOG_ERROR("Registry: entity index space exhausted ({} slots, {} retired to "
+                         "generation wrap); create() returns an invalid entity from here on",
+                         static_cast<u32>(Entity::INDEX_MASK) + 1u, retired_slots_);
+            return INVALID_ENTITY;
+        }
         if (index >= entityValid_.size()) {
             entityValid_.resize(index + 1, false);
             generations_.resize(index + 1, 0);
@@ -663,6 +688,10 @@ private:
     std::vector<u32> generations_;
     std::vector<ComponentMask> component_masks_;
     std::queue<u32> recycled_;      ///< Recycled entity indices
+    /// Slots taken out of circulation because their generation ran out. Counted
+    /// rather than stored: nothing may hand them out again, so the only use for
+    /// them is telling an operator that churn is consuming index space.
+    u32 retired_slots_ = 0;
     u32 next_index_ = 0;            ///< Next fresh entity index
     usize entity_count_ = 0;
 
