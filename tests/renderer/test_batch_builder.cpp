@@ -465,3 +465,103 @@ TEST_CASE("stencil: on one layer, material — not submission or depth — decid
     CHECK((h.list.command(0).state_flags & CMD_STATE_STENCIL_TEST) != 0);
     CHECK((h.list.command(1).state_flags & CMD_STATE_STENCIL_WRITE) != 0);
 }
+
+// ─── Blended depth ordering ──────────────────────────────────────────────────
+// A blended draw composites onto what is already there, so back-to-front IS the
+// result. Material may not outrank it — batching is the thing that yields.
+
+TEST_CASE("transparent: back-to-front holds across materials") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    // Camera looks down -z, so larger z is nearer and must land last.
+    BatchDrawKey near = quadKey(1, /*layer=*/3);
+    near.materialId = 1;          // lowest material — would have sorted first
+    near.depth = 50.0f;
+
+    BatchDrawKey middle = quadKey(2, /*layer=*/3);
+    middle.materialId = 90000;
+    middle.depth = 0.0f;
+
+    BatchDrawKey far = quadKey(3, /*layer=*/3);
+    far.materialId = 500;
+    far.depth = -50.0f;
+
+    appendQuad(h.pool, h.list, h.clips, quad, near);
+    appendQuad(h.pool, h.list, h.clips, quad, middle);
+    appendQuad(h.pool, h.list, h.clips, quad, far);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 3);
+    CHECK(h.list.command(0).texture_ids[0] == 3);  // far
+    CHECK(h.list.command(1).texture_ids[0] == 2);  // middle
+    CHECK(h.list.command(2).texture_ids[0] == 1);  // near
+}
+
+TEST_CASE("transparent: equal depth still groups by material for the merge") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey a1 = quadKey(1, 3); a1.materialId = 7; a1.depth = 0.0f;
+    BatchDrawKey b = quadKey(2, 3);  b.materialId = 8;  b.depth = 0.0f;
+    BatchDrawKey a2 = quadKey(3, 3); a2.materialId = 7; a2.depth = 0.0f;
+
+    // Submitted adjacent so their index ranges stay contiguous — the merge needs
+    // that as well as adjacency after the sort.
+    appendQuad(h.pool, h.list, h.clips, quad, a1);
+    appendQuad(h.pool, h.list, h.clips, quad, a2);
+    appendQuad(h.pool, h.list, h.clips, quad, b);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).material_id == 7);
+    CHECK(h.list.command(1).material_id == 8);
+}
+
+TEST_CASE("opaque: material still outranks depth, since order cannot change the result") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey a1 = quadKey(1, 3); a1.stage = RenderStage::Opaque;
+    a1.blend = BlendMode::None; a1.materialId = 7; a1.depth = 100.0f;
+    BatchDrawKey b = quadKey(2, 3);  b.stage = RenderStage::Opaque;
+    b.blend = BlendMode::None;  b.materialId = 8;  b.depth = 0.0f;
+    BatchDrawKey a2 = quadKey(3, 3); a2.stage = RenderStage::Opaque;
+    a2.blend = BlendMode::None; a2.materialId = 7; a2.depth = -100.0f;
+
+    appendQuad(h.pool, h.list, h.clips, quad, a1);
+    appendQuad(h.pool, h.list, h.clips, quad, a2);
+    appendQuad(h.pool, h.list, h.clips, quad, b);
+    h.list.finalize(h.pool);
+
+    // Both material-7 draws coalesce despite straddling material 8 in depth.
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).material_id == 7);
+    CHECK(h.list.command(1).material_id == 8);
+}
+
+// 20 bits is sign + exponent + 11 mantissa bits, so the step is ~2^-11 of the
+// exponent's range: about 0.004 around z=10. Closer than that shares a key and
+// keeps submission order, which is the quantization talking, not a rule.
+TEST_CASE("transparent: hundredths of depth separate; thousandths share a bucket") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey nearer = quadKey(1, 3); nearer.materialId = 1; nearer.depth = 10.01f;
+    BatchDrawKey farther = quadKey(2, 3); farther.materialId = 1; farther.depth = 10.00f;
+    appendQuad(h.pool, h.list, h.clips, quad, nearer);
+    appendQuad(h.pool, h.list, h.clips, quad, farther);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+
+    Harness fine;
+    BatchDrawKey a = quadKey(1, 3); a.materialId = 1; a.depth = 10.001f;
+    BatchDrawKey b = quadKey(2, 3); b.materialId = 1; b.depth = 10.000f;
+    appendQuad(fine.pool, fine.list, fine.clips, quad, a);
+    appendQuad(fine.pool, fine.list, fine.clips, quad, b);
+    fine.list.finalize(fine.pool);
+    CHECK(fine.list.mergedDrawCallCount() == 1);
+}

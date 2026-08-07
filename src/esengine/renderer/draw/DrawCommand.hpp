@@ -69,8 +69,9 @@ struct DrawCommand {
     // Texture is no longer part of the sort key: dropping it lets draws that differ only
     // by texture sort adjacent and coalesce into one multi-texture batch (up to 8 textures,
     // selected per-vertex in the shader). Order within a layer is otherwise unchanged.
-    // Material identity sorts above depth (like shader does) so same-material draws group
-    // adjacent for the merge, at the usual batching-over-cross-material-depth tradeoff.
+    // Below stage the field order depends on it: a blended draw composites onto what is
+    // already there, so its depth order IS the result and outranks batching, while an
+    // opaque draw is order-independent, so material groups first and depth breaks ties.
     //
     // Layer outranks stage, and that order is load-bearing. A sorting layer is a promise
     // the user made about what draws on top of what; a stage is how one layer resolves
@@ -80,8 +81,9 @@ struct DrawCommand {
     // meaning inverted. Within a layer the 3D order is the right one: opaque first
     // (front-to-back, early-z), then blended (back-to-front).
     //
-    // [63:48] layer | [47:44] stage | [43:36] shader | [35:33] blend
-    // [32:31] flags | [30:14] material | [13:0] depth
+    // [63:48] layer | [47:44] stage, then 44 bits whose order the stage decides:
+    //   opaque   [43:36] shader | [35:33] blend | [32:31] flags | [30:14] material | [13:0] depth
+    //   blended  [43:24] depth  | [23:16] shader | [15:13] blend | [12:11] flags | [10:0] material
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
                             BlendMode blend, u16 stateFlags, f32 depth, u32 materialId = 0) {
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
@@ -89,26 +91,32 @@ struct DrawCommand {
 
         u64 stageKey = static_cast<u64>(stage) << 44;
 
-        u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 36;
-        u64 blendKey = static_cast<u64>(blend) << 33;
-        u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 31;
-        u64 materialKey = (static_cast<u64>(materialId) & 0x1FFFF) << 14;
-
         // Order-preserving float mapping — monotonic over the FULL float range.
         // The old [-1,1] normalize-and-truncate silently wrapped any real-world z
         // (e.g. a backdrop at z=-5 sorted as if nearest), and had the painter's
         // order inverted for the blended stages. Camera looks down -z, so larger
         // z = nearer: transparent/overlay draw back-to-front (far first, near
         // lands on top); opaque draws front-to-back (early-z friendly).
-        u32 depthBits;
-        if (stage == RenderStage::Transparent || stage == RenderStage::Overlay) {
-            depthBits = orderedFloatBits(depth) >> 18;
-        } else {
-            depthBits = (~orderedFloatBits(depth)) >> 18;
-        }
-        u64 depthKey = static_cast<u64>(depthBits & 0x3FFF);
+        const bool blended = stage == RenderStage::Transparent || stage == RenderStage::Overlay;
+        u32 orderedDepth = blended ? orderedFloatBits(depth) : ~orderedFloatBits(depth);
 
-        return stageKey | layerKey | shaderKey | blendKey | flagsKey | materialKey | depthKey;
+        // Blended spends its bits on depth (20: sign, exponent, 11 mantissa — a step of
+        // ~0.004 around z=10) and leaves material 11. Material here is a batching hint,
+        // not identity: truncating it costs a merge, and canMergeWith compares in full.
+        if (blended) {
+            return layerKey | stageKey
+                 | (static_cast<u64>(orderedDepth >> 12) << 24)
+                 | (static_cast<u64>(shaderId & 0xFF) << 16)
+                 | (static_cast<u64>(blend) << 13)
+                 | (static_cast<u64>(stateFlags & 0x03) << 11)
+                 | (static_cast<u64>(materialId) & 0x7FF);
+        }
+        return layerKey | stageKey
+             | (static_cast<u64>(shaderId & 0xFF) << 36)
+             | (static_cast<u64>(blend) << 33)
+             | (static_cast<u64>(stateFlags & 0x03) << 31)
+             | ((static_cast<u64>(materialId) & 0x1FFFF) << 14)
+             | static_cast<u64>(orderedDepth >> 18);
     }
 
     // Order-preserving float → u32: flip the sign bit for positives, all bits for

@@ -29,6 +29,21 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A blended draw now sorts by depth before material.** The sort key ranked
+  material above depth for every stage, so within one sorting layer three
+  semi-transparent sprites at different z on materials B, A, B did not necessarily
+  composite far-to-near — batching outranked the ordering that produces the
+  picture. Correctness comes first for the stages where order IS the result: the
+  Transparent and Overlay stages now spend the key's bits on depth, then shader,
+  blend, flags and material. Opaque is unchanged — its result does not depend on
+  the order, so material still groups first and depth only breaks ties for early-z.
+  Draws at one z (the ordinary 2D case, where the sorting layer does the work) keep
+  batching exactly as before, because their depth bits are identical and material
+  still decides. Blended depth also widened from 14 bits to 20 — about a 0.004 step
+  near z=10 — taking the bits from material, which is only a batching hint in the
+  key (`canMergeWith` compares the full handle, so a truncated one costs a merge and
+  never a wrong one).
+
 - **`world.getEntitiesWithComponents()` returns a `readonly Entity[]`.** The array
   it hands back is the query cache's own entry, not a copy — sorting or pushing to
   it reorders or corrupts what every later reader of that query sees. Nothing in
