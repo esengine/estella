@@ -52,7 +52,7 @@ export class AsyncCache<T> {
             if (timeout <= 0) {
                 const result = await loaderPromise;
                 if (!entry.aborted) this.cache_.set(key, result);
-                this.pending_.delete(key);
+                this.clearPendingIfCurrent_(key, entry);
                 return result;
             }
 
@@ -81,7 +81,7 @@ export class AsyncCache<T> {
             // the fact, then cache (unless invalidate() aborted it in-flight).
             clearTimeout(timer);
             if (!entry.aborted) this.cache_.set(key, result);
-            this.pending_.delete(key);
+            this.clearPendingIfCurrent_(key, entry);
             return result;
         })();
 
@@ -90,15 +90,31 @@ export class AsyncCache<T> {
         try {
             return await entry.promise;
         } catch (err) {
-            this.pending_.delete(key);
-            if (err instanceof Error) {
-                this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
-                if (err.message.startsWith('AsyncCache timeout:')) {
-                    log.warn('asset', err.message);
+            // Only the request the map still points at may write the shared
+            // records: if a newer load owns the key now, this failure is about
+            // bytes nobody asked for any more.
+            const current = this.pending_.get(key) === entry;
+            if (current) {
+                this.pending_.delete(key);
+                if (err instanceof Error) {
+                    this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
                 }
+            }
+            if (err instanceof Error && err.message.startsWith('AsyncCache timeout:')) {
+                log.warn('asset', err.message);
             }
             throw err;
         }
+    }
+
+    /**
+     * Drop this key's pending record only if it is still THIS request's. A load
+     * that finishes after invalidate() replaced it would otherwise delete its
+     * successor's record, and the next getOrLoad would start a third load of the
+     * same asset instead of joining the second.
+     */
+    private clearPendingIfCurrent_(key: string, entry: PendingEntry<T>): void {
+        if (this.pending_.get(key) === entry) this.pending_.delete(key);
     }
 
     /** Release a value that was abandoned by a timeout; never throws upward. */

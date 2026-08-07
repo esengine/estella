@@ -37,6 +37,20 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A hot reload could leave an asset loading three times, or fail the reload with
+  the old file's error.** `AsyncCache.invalidate()` aborts the in-flight load and
+  drops its pending record, and hot reload asks for the same key again right away,
+  so a second load registers under it. When the first one then finished it deleted
+  `pending[key]` without checking whose record that had become — evicting the
+  second load's, so the next request found nothing pending and started a third
+  load of the same asset, with its own GPU allocation. On the failure path the
+  dead request also wrote the failure cooldown that `invalidate()` had just
+  cleared, so callers waiting on the new bytes were rejected with the old file's
+  error. A timeout leaves the same window between the deadline firing and the
+  request cleaning up after itself. A finishing load now touches the shared
+  records only while it is still the one the key points at. A timeout that was
+  never superseded still records its cooldown.
+
 - **`Removed()` reported despawns from before anything was watching.** Losing a
   component reaches the change tracker two ways — by definition for an explicit
   `remove()` and for builtins on despawn, by component id for script components on
