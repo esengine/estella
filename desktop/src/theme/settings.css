@@ -314,6 +314,7 @@
 .set-objlist-fields { display: grid; gap: 6px; align-items: center; }
 .set-objlist-head { font-size: var(--fs-2xs); color: var(--text-mute); padding: 0 2px; }
 .set-objlist .set-str { width: 100%; font-family: var(--mono); }
+.set-objlist .set-str.prose { font-family: var(--font-ui); }
 .set-objlist-row.invalid .set-str { border-color: var(--error); }
 .set-objlist-err { color: var(--error); font-size: var(--fs-2xs); padding: 2px 2px 0; }
 .set-objlist-del,

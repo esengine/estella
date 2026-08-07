@@ -495,7 +495,7 @@ function ObjectListField({
   }
   return (
     <input
-      className="set-str"
+      className={`set-str${col.mono === false ? ' prose' : ''}`}
       type={col.type === 'number' ? 'number' : 'text'}
       min={col.min}
       spellCheck={false}

@@ -190,6 +190,14 @@ export interface ObjectListColumn {
   /** Choices for an `enum` cell. */
   options?: { value: string; label: string }[];
   /**
+   * Set false for a column holding PROSE rather than an identifier.
+   *
+   * A table cell is narrow, and monospace costs about a fifth of its characters
+   * — worth paying where the value is a path, an id or a number a reader scans
+   * for shape, and not worth it for a name someone chose.
+   */
+  mono?: boolean;
+  /**
    * Which credential a `secret` cell holds, derived from the row it sits in.
    *
    * The value never enters the row, the settings file or this process — main

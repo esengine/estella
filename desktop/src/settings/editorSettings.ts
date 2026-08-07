@@ -318,7 +318,7 @@ settingsRegistry.register({
   layout: 'block',
   default: [],
   columns: [
-    { key: 'label', label: t('set.agents.col.label'), type: 'text', width: '0.9fr', placeholder: 'Local llama' },
+    { key: 'label', label: t('set.agents.col.label'), type: 'text', width: '0.9fr', mono: false, placeholder: 'Local llama' },
     {
       key: 'protocol',
       label: t('set.agents.col.protocol'),
