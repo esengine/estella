@@ -58,9 +58,9 @@ namespace esengine::ecs {
  * registry.emplace<Velocity>(player, 1.0f, 0.0f);
  *
  * // Query and iterate
- * for (auto [entity, pos, vel] : registry.view<Position, Velocity>().each()) {
+ * registry.each<Position, Velocity>([&](Entity e, Position& pos, Velocity& vel) {
  *     pos.x += vel.x * deltaTime;
- * }
+ * });
  * @endcode
  */
 class Registry {
@@ -413,9 +413,10 @@ public:
      *     auto& pos = registry.get<Position>(entity);
      * }
      *
-     * // Multi-component view with structured bindings
-     * for (auto [entity, pos, vel] : registry.view<Position, Velocity>().each()) {
-     *     pos.x += vel.x * dt;
+     * // Multi-component view: range-for yields the entities that have them all
+     * auto view = registry.view<Position, Velocity>();
+     * for (Entity e : view) {
+     *     view.get<Position>(e).x += view.get<Velocity>(e).x * dt;
      * }
      * @endcode
      */

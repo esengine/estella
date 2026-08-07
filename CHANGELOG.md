@@ -29,6 +29,26 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **`registry.eachLive<A, B>` did not compile.** `Registry::each`/`eachLive` are
+  variadic, so both read as available at any arity — but `eachLive` existed only on
+  the single-component `View<T>`, and the multi-component `View<Components...>` had
+  only `each`, which copies the whole dense entity array on every call so the
+  callback may add or remove components. Nothing in the engine iterates several
+  components through a callback (every hot path uses range-for, already live), so
+  the combination was never instantiated and never failed to build — until a game's
+  own C++ system asked for it. `View<Components...>` now has `eachLive` with the
+  same contract as the single-component one, and a per-frame `Transform + Velocity`
+  pass over 5000 entities costs 1.33× less than `each` with no per-frame allocation
+  at all. `View<T>` also gained the `sizeHint()` and `getAll()` its multi-component
+  sibling already had, so a template can iterate a view without knowing its arity.
+
+- **The Registry's own example did not compile.** `for (auto [entity, pos, vel] :
+  registry.view<Position, Velocity>().each())` was in the class docs and again on
+  `view()`: `each()` takes a callback and returns void, so nothing about that line
+  is valid. A new harness instantiates every arity × entry point × callback shape
+  of the view API, which is what would have caught both this and `eachLive` — a
+  template API is only checked where something calls it.
+
 - **A slept scene kept drawing its characters, and hiding an entity still missed
   renderers.** 0.45.0 unified two of the three lists that answer "what draws
   here"; the editor's eye derived a different thirteen, and neither runtime list

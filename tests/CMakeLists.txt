@@ -38,6 +38,13 @@ add_executable(test_sparse_set
 target_link_libraries(test_sparse_set PRIVATE esengine)
 add_test(NAME test_sparse_set COMMAND test_sparse_set)
 
+# View API matrix: instantiates every arity × entry point × callback shape
+add_executable(test_view_api_matrix
+    ecs/test_view_api_matrix.cpp
+)
+target_link_libraries(test_view_api_matrix PRIVATE esengine)
+add_test(NAME test_view_api_matrix COMMAND test_view_api_matrix)
+
 # ResourcePool tests
 add_executable(test_resource_pool
     resource/test_resource_pool.cpp
