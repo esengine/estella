@@ -565,3 +565,45 @@ TEST_CASE("transparent: hundredths of depth separate; thousandths share a bucket
     fine.list.finalize(fine.pool);
     CHECK(fine.list.mergedDrawCallCount() == 1);
 }
+
+// ─── Transient buffer growth ─────────────────────────────────────────────────
+// A workload creeping upward each frame must not reallocate the GPU buffer every
+// frame. The staging vectors double, and the GPU capacity follows them.
+
+TEST_CASE("growth: a slowly rising workload reallocates a handful of times, not per frame") {
+    MockGfxDevice device;
+    TransientBufferPool pool{device};
+    pool.init(/*initialVertexBytes=*/4096, /*initialIndexCount=*/1024);
+
+    const int FRAMES = 200;
+    for (int f = 0; f < FRAMES; ++f) {
+        pool.beginFrame();
+        // Each frame asks for a little more than the last.
+        const u32 quads = 64 + static_cast<u32>(f) * 8;
+        BatchVertex quad[4] = {};
+        for (u32 i = 0; i < quads; ++i) {
+            pool.appendVertices(LayoutId::Batch, quad, sizeof(quad));
+        }
+        pool.upload();
+    }
+
+    // Doubling from 4KB, the whole run needs a bounded number of reallocations —
+    // one per doubling per stream, not one per frame.
+    CHECK(device.resizeBufferCalls < 32);
+    CHECK(device.resizeBufferCalls > 0);   // it did have to grow
+}
+
+TEST_CASE("growth: a steady workload inside capacity never reallocates") {
+    MockGfxDevice device;
+    TransientBufferPool pool{device};
+    pool.init(/*initialVertexBytes=*/1024 * 1024, /*initialIndexCount=*/64 * 1024);
+    const int before = device.resizeBufferCalls;
+
+    BatchVertex quad[4] = {};
+    for (int f = 0; f < 100; ++f) {
+        pool.beginFrame();
+        for (int i = 0; i < 100; ++i) pool.appendVertices(LayoutId::Batch, quad, sizeof(quad));
+        pool.upload();
+    }
+    CHECK_EQ(device.resizeBufferCalls, before);
+}

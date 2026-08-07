@@ -109,8 +109,11 @@ void TransientBufferPool::upload() {
         if (s.vbo == BufferHandle::Invalid) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
 
+        // Grow to the STAGING capacity, which already doubles — not to what this
+        // frame needed, which reallocates every frame for a workload creeping
+        // upward (2.1MB, 2.2MB, 2.3MB). One growth rule, in growVertexStaging.
         if (s.vertex_write_pos > s.vbo_capacity) {
-            s.vbo_capacity = s.vertex_write_pos;
+            s.vbo_capacity = static_cast<u32>(s.vertex_staging.size());
             device_.resizeBuffer(s.vbo, s.vbo_capacity, s.vertex_staging.data());
         } else if (s.vertex_write_pos > 0) {
             device_.updateBuffer(s.vbo, 0, s.vertex_staging.data(), s.vertex_write_pos);
@@ -119,7 +122,7 @@ void TransientBufferPool::upload() {
         u32 eboBytes = s.index_write_pos * sizeof(u32);
         u32 eboCapBytes = s.ebo_capacity * sizeof(u32);
         if (eboBytes > eboCapBytes) {
-            s.ebo_capacity = s.index_write_pos;
+            s.ebo_capacity = static_cast<u32>(s.index_staging.size());
             device_.resizeBuffer(s.ebo, static_cast<u32>(s.ebo_capacity * sizeof(u32)),
                                  s.index_staging.data());
         } else if (eboBytes > 0) {

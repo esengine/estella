@@ -64,6 +64,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A slowly growing frame reallocated the GPU buffers every frame.** The CPU
+  staging vectors double when they run out, but the vertex/index buffers were
+  resized to exactly what the frame in hand needed — so a workload creeping upward
+  (2.1MB, then 2.2MB, then 2.3MB) reallocated on the GPU every single frame,
+  forever, while the staging behind it grew once. The GPU capacity now follows the
+  staging capacity, so there is one growth rule instead of two. Measured on a
+  200-frame rising workload: 200 reallocations before, single digits after.
+
 - **A destroyed entity's handle could come back as a live one.** An `Entity` is a
   22-bit slot index plus a 10-bit generation, and recycling a slot bumped the
   generation with a wrap: after 1023 reuses the counter returned to 1 and the slot
