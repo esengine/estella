@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.45.0] - 2026-08-07
 
 ### Added
 
@@ -35,6 +35,112 @@ published separately; it ships inside the editor.
   entity off to find out what it was. A UI node hides through `display`, so one
   click takes a whole HUD with it; a row with nothing of its own to hide gets no
   eye rather than one that does nothing.
+
+- **`step` advances the game that is running, not the world that isn't.** A driver
+  could press Play and then not observe the game at all: the realm runs on the
+  browser's rAF clock, throttled to roughly a frame a second whenever the editor
+  window is not focused — which it never is, for anything driving the editor from
+  outside — so two reads a second apart came back identical and a healthy game read
+  as a frozen one. `step` existed and advanced the EDIT World, the one the play
+  realm's scripts are NOT in, silently; `play_input`'s own description told callers
+  to use it for exactly the thing it could not do. It now advances whatever is
+  running and says which. Underneath, `App.stepFrames(frames, dt)`: the loop held
+  off, N frames of exactly `dt`, the pause and the clock restored after — a paused
+  app still steps, because that is what stepping a paused game means. The probe
+  surface gains `get`, `set` and `setResource` beside it, the three every probe was
+  hand-rolling — `set` goes through insert, because what `get` returns is a copy for
+  several component kinds and assigning to it moves nothing.
+
+- **A screenshot a model without vision can read.** Half the endpoints an editor
+  gets pointed at cannot receive an image, and the agent kernel used to tell such a
+  model not to spend a call on a picture and to read its fields back instead. Fields
+  cannot answer the question: a dogfood run on such an endpoint wrote a Breakout,
+  read every value back exactly as it should be, and delivered a game that is GAME
+  OVER within half a second. `screenshot` now takes `format: 'grid'` and answers with
+  the same picture as text — a coarse colour grid cropped to the running game or the
+  edit viewport, one letter per cell from a fixed 16-colour palette so the letters
+  mean the same thing in every reply. Each cell reports its most unusual pixel rather
+  than an average, because averaging is what makes a bullet, a thin sprite or a line
+  of text vanish into its cell: an early version read a screen with a row of aliens
+  across the top of it as blank.
+
+- **An asset can be deleted by name, not by whatever is selected.** There was no tool
+  for it, so an agent asked to remove a shader it had just written by mistake reached
+  for the editor command behind the Content Browser's Delete — which acts on the
+  selection in a panel it cannot see, and would have deleted something else entirely.
+  `delete_asset` takes the path, sends the file and its `.meta` to the OS trash,
+  re-scans, and answers with the asset's USAGES: a non-empty list means it just left
+  those refs dangling. Trash and rescan now live in one module both doors call,
+  because skipping the rescan leaves every `@uuid:` ref resolving out of a stale
+  index — the file gone and the editor still believing in it.
+
+- **An open asset document can be saved, and opening one waits for it.** The eight
+  asset editors could be listed, read and written from outside — and then not saved.
+  The only reachable save was `project.save`, which is context-aware by design: it
+  writes whichever dock panel the user last clicked, so an edit to a material graph
+  landed in the scene file, or nowhere. `save_asset_document` names the document and
+  goes through the same registered save the panel's own button runs, which matters
+  because for half these types the file is not a JSON dump — a tileset and a timeline
+  have their own serializers, and a material graph COMPILES the sibling `.esshader`
+  every material on it reads. `open_asset` now awaits the open; most openers read the
+  file before they have a document, so it used to return while the read was in flight
+  and the very next call could be told nothing was open.
+
+- **A prefab instance can be named as it is created.** Ten instances of one prefab
+  arrived as ten entities called what the prefab is called — a tree nobody can read,
+  and to a driver ten entities it cannot tell apart, a name being the only handle it
+  has on an entity it did not just make. Renaming afterwards always worked, so the
+  only thing missing was saying it at birth, which is where it belongs: a rename
+  after the fact is a second undo step. `create_entity` takes `name` and it lands in
+  the same undo record as an ordinary name override.
+
+- **Every component header links to what its fields mean.** You are looking at a
+  RigidBody in the Details panel and you want to know what `gravityScale` does; every
+  route to that answer went through knowing that physics is the guide to open. Each
+  component header now carries a help affordance beside its options menu, opening
+  that component's entry in the new reference. The address is generated from the same
+  curated data the reference pages render, so the header and the page cannot disagree
+  about where a component is documented, and it is absent for a project's own
+  script-defined components, which the manual cannot document.
+
+### Changed
+
+- **The play probe's `find()` is a list, and an unknown name throws.** Every driver
+  writes `find('Ball').length` and `[0]` first — the reading a list invites — and
+  then spent three or four calls discovering a wrapper object. It is an array now,
+  with `total` and `truncatedAt` hung off it. The unknown-name case stops being a
+  shape: `{ error }` returned from a lookup is read by a caller that does not check
+  as "nothing has that component", which is also what a typo in the name produces —
+  the same answer for "none of them" and "no such thing". It throws, listing what IS
+  registered. The surface itself is destructured into the probe's scope, so the
+  `find(...)` its own description shows is what works.
+
+- **`lookup_symbol` takes a list of names**, keyed by name in the reply. Learning an
+  unfamiliar API is a dozen symbols, and that was a dozen round trips — 32 of one
+  dogfood run's calls, before a line was written.
+
+- **`agent_status` reports how the last turn ended.** Phase returning to idle says a
+  turn stopped, not that it finished — a run cut off at the round cap idles exactly
+  like one that answered the question. The drawer has shown the difference all along
+  (a badge, and a Resume button); a driver polling status could not, and read half a
+  game as a delivered one.
+
+- **The agent brief says where the world's origin is, how a look is made, and what
+  testing a game means.** A Space Invaders built from an empty project came out with
+  its whole HUD 280 units above the top of the screen and the agent reporting it
+  done, because the design resolution is 800x600 and nothing anywhere said the
+  world's origin is the CENTRE of that box; the per-turn context now prints the
+  actual visible range for the project's own resolution. The brief taught scenes, UI,
+  scripts and input and said nothing about materials, shaders or meshes — so asked
+  for a dissolve, the agent wrote a system that fades a tint, that being the only
+  surface it had been told exists. And "look at it before calling it done" was too
+  abstract to act on: a Breakout run spent 158 calls, 75 of them reading component
+  data, took zero screenshots, and stopped with the ball spawning above the paddle
+  heading down. The loop is now named — toggle_play, step, play_input, play_probe,
+  screenshot — along with `Res(Prefabs)` for what a running game spawns, the second
+  argument to `defineResource` (without it a resource answers to `Resource_49_`, a
+  number that lands somewhere else next load), and the fixed spellings the injected
+  2D fragment stage hands you.
 
 ### Fixed
 
@@ -73,6 +179,212 @@ published separately; it ships inside the editor.
   carrying `'0'` aimed at nobody — every instance spawned at the position the
   prefab was authored with, and nothing said why. An override with no
   `prefabEntityId` now means the root, which is the entity a one-sprite prefab has.
+  At the runtime spawn door an id the prefab does not have now throws, naming the
+  root and the ids that do exist; the editor's own instance path keeps the old
+  behaviour, an override left over from a since-deleted child being normal there.
+
+- **Two files can no longer be the same asset.** Reported as a rendering bug: an
+  image dragged from the Content Browser into the scene draws something OTHER than
+  the picture the browser previews. It is not the renderer. A `.meta`'s uuid is the
+  identity every stored reference is written against, and nothing checked that two
+  of them were not the same — the registry being a uuid→path map, a shared uuid
+  keeps one winner, the losing file is in no registry at all, and every reference to
+  that uuid resolves to the winner. The drag reads the right uuid and the preview
+  reads the path it selected, which is exactly why the two disagree and why the last
+  place anyone looks is the sidecar. Duplicates arrive in bulk — a folder copied in
+  with its sidecars, a script that stamped one uuid into every meta it wrote — which
+  is how one project reached hundreds of them. The scan now gives each file its own
+  identity back: first in path order keeps the uuid (deterministic, so a re-scan does
+  not shuffle identities and existing refs still resolve) and the rest are re-minted
+  on disk and reported.
+
+- **A physics wasm older than the code that drives it says so once, not every
+  frame.** Put a RigidBody in a scene, press Play, and both physics systems threw
+  `_physics_capturePoses is not a function` twice a frame for the length of the
+  session; two dogfood runs read that as "physics is broken" and turned physics off
+  to get on with the game. The module was real — 117 `_physics_*` exports — and
+  missing exactly the three the pose-interpolation commit added on the same day the
+  binary was built. `PhysicsWasmModule` is a TypeScript interface, so it is gone at
+  run time and nothing checked that the binary answered to it: a wasm built an hour
+  before the JS that calls it installed as happily as a current one. The plugin now
+  checks the frame loop's contract as the module loads and marks the subsystem in
+  error if any of it is missing — the game runs WITHOUT physics and says why once,
+  naming the missing exports and that the WASM build is a separate step.
+
+- **A material parameter the shader never declared says so.**
+  `Material.setUniform(m, 'u_amount', x)` against a shader whose slider is
+  `u_progress` succeeded: the value was stored, the engine dropped it — MaterialStore
+  keys the std140 layout by the reflected name, so a value under any other name has
+  nowhere to land — and the effect never happened. What that looks like from outside
+  is a broken shader, and spelling is the last thing anyone checks; a dogfood run
+  lost most of an hour to it, then reported the work as done. The `#pragma param`
+  parser behind the Material inspector moves to the SDK, and setUniform (and create,
+  so a `.esmaterial`'s own `properties` are checked as it loads) warns once per
+  shader+name, naming what the shader DOES declare. The built-in templates now derive
+  their material defaults from their own source too — five of the seven carried
+  `defaults: {}` while their shader declared four parameters, so a material made from
+  Dissolve came out empty and the word `u_progress` appeared nowhere a caller could
+  find it.
+
+- **A dimension written by value gets a pixel unit, because Auto ignores the value.**
+  `UINode.insetTop.value = 40` stored the 40 and moved nothing: every dimension field
+  defaults to `unit: Auto`, and Auto means exactly "ignore the value", so the write
+  was accepted, the field read back 40, and the layout placed the node as if nothing
+  had been said. Measured on a dogfood HUD — three labels with insets of 8, 40 and
+  260, all three resolving to the same world position, drawn on top of each other.
+  Writing `unit` yourself still wins, in either order. The inspector's own control
+  always did this; it was the automation door that left the unit behind.
+
+- **`toggle_play` waits for the realm and answers with its state.** It returned the
+  state from BEFORE the toggle, and entering play boots a separate realm
+  asynchronously — so a driver that started a game was told `playing: false`, and one
+  that stopped it was told `playing: true`, which is worse than saying nothing. It
+  now resolves when the realm is ready (or gone), and answers with a boot error as
+  state rather than hanging on a realm that never comes up.
+
+- **`create_tilemap` answers with the entity it made, or says it made none.** Its own
+  description promised the new entity id and it returned `ok`, because the underlying
+  UI flow returns void. The two ways it can make nothing were worse: an untracked
+  `.estileset`, or one that will not parse, pushed a toast and returned — right for a
+  person watching the screen, no answer at all for a caller that is not one, so the
+  headless door reported success for a tilemap that does not exist.
+
+- **`open_scene` says so when nothing opened.** The editor can end a session with its
+  project half out from under it — the file doors still answer, the asset registry is
+  empty, no document is open — and every read then reports the shape of an empty
+  project rather than a broken one: `get_scene_tree` gives `[]`, `list_assets` gives
+  0, and `open_scene` on a scene file plainly there on disk answers `ok`. One dogfood
+  run spent twenty calls looking for entities it could see in the file before
+  concluding the path must be wrong. The underlying half-unloaded state is not
+  reproduced yet; an answer that lies is worse than the fault underneath it, because
+  it hides it.
+
+- **A dropped connection costs the round, not the turn.** Two dogfood runs in three
+  ended mid-build on `Could not reach the endpoint: terminated` — the model gateway
+  closing a stream partway through, eighty-odd rounds of work on the floor. Retrying
+  is safe for a reason worth stating: the provider appends the assistant message to
+  the conversation only once the stream completes, so a stream that died left the
+  session exactly as it found it. A round whose CONNECTION failed is now retried
+  twice with backoff; a refusal, a bad request or a rejected key still end the turn
+  at once, since asking those again only spends money.
+
+- **`search_project_files` can see the SDK types, and a tool names its arguments.**
+  The search walked content only, and `.esengine/sdk` is a dot directory — so the
+  tool whose whole reason for existing is "nobody should page a 50k-line `.d.ts` a
+  hundred lines at a time" was blind to that `.d.ts`. Searches for `SystemParam`,
+  `defineSystem`, `interface PrefabOverride` all answered `[]`, which reads as "no
+  such thing". `lookup_symbol` answered a class with the first 800 characters of its
+  declaration, which for any real class is its private field block — `AudioAPI` came
+  back as a dozen `private readonly`s, so "how do I play a sound" was unanswerable
+  from the tool that exists to answer it; a class or interface now answers with its
+  public members. And an argument no tool declared was dropped in silence:
+  `write_project_file` given an `offset` — which `read_project_file` really does take
+  — replied `{ok: true}` to what the caller believed was an append, having overwritten
+  four hundred lines with the fragment. Unknown arguments are refused now, naming the
+  ones that exist.
+
+- **A symbol list written as text is still a symbol list.** `lookup_symbol` takes one
+  name or an array, and a caller that means the array sometimes sends it as text:
+  `'["Time"]'`. Taken literally that is a symbol named `["Time"]`, which nothing is,
+  so the reply was an empty list — which reads as "no such symbol" and sends the
+  asker off to page the `.d.ts` instead.
+
+- **`create_asset` can name a material graph.** `.esmatgraph` was typed in exactly
+  one place, the Content Browser's own table, and never in the SHARED meta table that
+  `create_asset` inverts to turn a type into an extension — so asking for one
+  answered "unknown asset type materialgraph". The same absence meant the scan, which
+  types orphans by name, walked past a graph written by any other hand and left it
+  unregistered.
+
+- **Quitting one editor no longer retracts another's advertisement.** The MCP
+  discovery file is one path per user, so two editors both write it and the second
+  wins — and an unconditional delete on quit meant the editor that closed took the
+  SURVIVING editor's entry with it, after which `--attach` reports "no running
+  editor" while one sits there serving. It names its writer now, and asks before
+  removing it.
+
+### Documentation
+
+- **The sidebar is a table of contents, not a listing of every page.** The rail
+  rendered all 62 guide links at once with nothing collapsed, sixteen of them under
+  one "Content & Flow" drawer holding content authoring, runtime services, five
+  shipping targets and the editor's extension points — so nobody looking to ship an
+  Android build would think to open it. And a page's URL said nothing about where it
+  sat: 51 of 58 pages were `/docs/guides/<x>/` no matter which group displayed them.
+  The groups are now the task a reader came to do, every page moved into the
+  directory its group names, and the rail shows about 20 rows where it showed 69. Old
+  addresses keep working through an append-only redirect table. One sidebar entry was
+  already dead in both locales and is fixed here: the C++ API link, which Starlight
+  prepended both the base and the active locale to.
+
+- **One structural rule, and a gate that holds it.** The restructure ended with two
+  shapes for the same thing — a directory chapter (`editor/viewport`) and hyphenated
+  siblings (`gameplay/ai-perception`), the second being exactly the "a URL tells you
+  nothing about where the page sits" the restructure set out to fix. It was a
+  constraint rather than a choice: an image written as `../../../assets/…` encodes how
+  deep its page sits, so a page could not change directory level without every
+  picture on it going dark. `@/` is now an alias for src and all 136 image references
+  go through it, so depth is free and the rule collapses to one line — a page's
+  directory path is its sidebar path is its URL. `verify-doc-structure.mjs` fails on a
+  page in no sidebar group, a sidebar entry with no page, a group page not labelled
+  Overview, and **a page that exists in only one language**, which had no check at all:
+  a missing translation just served English.
+
+- **A component reference, derived from the registry the inspector reads.** The manual
+  is task-shaped, which answers "how do I do X" and answers nothing when the question
+  came from the Details panel. The reference lists all 77 registered components across
+  seven pages with their fields, types and authoring defaults, none of it written down
+  twice: `getComponentRegistry()` already holds it, merged C++ ctor values with the
+  `editor_default=` overrides applied, so the default shown is the value you get when
+  you add the component. That is the same registry the Details panel renders, so the
+  reference cannot drift from the inspector, and `--check` runs in `pnpm run verify`.
+  Anchors are not hand-derivable — "Bodies & colliders" is `bodies--colliders`, with
+  two hyphens — so the link checker now resolves fragments as well as paths, against
+  the ids the build actually emitted.
+
+- **Two manual chapters were hiding behind one sidebar link each.** `editor/overview`
+  was 3792 words across seventeen sections, and the AI guide put perception,
+  navigation, state machines, behavior trees, the blackboard and the editor workflow
+  into 3672 words behind one link — "how do I build a nav grid" and "what does a
+  decorator do" were the same destination. Seven siblings each; both overviews keep
+  their URL and the genuinely shared piece. Keyboard shortcuts is a lookup table and
+  is now a page you can land on. The other long guides stay whole: particles,
+  tilemaps, sprites, physics and lists are each one deep topic where a long page is
+  the right shape — these two were containers.
+
+- **The first behaviour example taught a write that does nothing.**
+  `ctx.get(Transform).position.x += ctx.self.speed * dt` was the opening code of the
+  Scripting guide, repeated in the PlayerController example and used as the
+  `@example` on `defineBehavior` itself, and the entity does not move. `ctx.get`
+  reaches `world.get`, and for a C++-backed component that returns a fresh object
+  decoded out of the heap, so mutating it changes a value nobody keeps — while a
+  script component hands back the stored object, which is why the neighbouring
+  `ctx.self.facing = move` on the very next line does persist. Same call, two
+  behaviours, and nothing said so. Measured rather than reasoned about: the taught
+  form finished at x = 0 after sixty frames; read → mutate → `ctx.set` finished at
+  exactly +100 for a speed of 100. `Query(Mut(Transform))`, what Quick Start teaches,
+  was never affected.
+
+- **Quick Start ended before anything was playable.** 258 words that added an entity,
+  pasted a system, and stopped at "the sprite moves" — with no sprite to move, since
+  Blank ships no art, and with the `Speed`-component-plus-`addSystem` ceremony in
+  front of a reader who has not met either idea. It is now a run: Blank, Create →
+  Shape, one `defineBehavior` in the declaration entry the template already has, Add
+  Component, F5, arrow keys. Every step was executed in a real Blank project before it
+  was written.
+
+- **Name, Disabled and RuntimeOnly were documented nowhere.** They belong to no
+  subsystem, so no subsystem guide had a reason to claim them, and they are exactly
+  the ones a reader meets early: `Name` is what the Outliner shows, `Disabled` is what
+  the active flag really is, `RuntimeOnly` is why a tilemap's layer entities are not
+  in the saved scene. Core Concepts → Components has a section for them now. One
+  correction fell out of writing it: the Outliner's eye is not `Disabled` — it is an
+  edit-time visibility fold that never touches the tag.
+
+- **The Chinese text page still said inline images do not render.** They do; the
+  feature shipped with the text-subsystem work and the English page grew a section for
+  it, while the translation kept the note that predated it and told a Chinese reader
+  to place the icon beside the text with flexbox instead.
 
 ## [0.44.0] - 2026-08-05
 
@@ -3496,7 +3808,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/esengine/estella/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/esengine/estella/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/esengine/estella/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/esengine/estella/compare/v0.41.0...v0.42.0
