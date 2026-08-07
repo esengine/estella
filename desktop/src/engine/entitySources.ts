@@ -20,7 +20,7 @@ import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, Chevron
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { ContributionRegistry } from '@/contrib/ContributionRegistry';
-import { componentByName, componentDefaults, prettyLabel, componentCategory, userComponentNames } from './schema';
+import { componentByName, componentDefaults, readonlyFieldsFor, prettyLabel, componentCategory, userComponentNames } from './schema';
 import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 import { EngineHost } from './EngineHost';
@@ -74,6 +74,9 @@ function preset(name: string, comps: CompSpec[]): PrefabData {
     const [type, over] = Array.isArray(c) ? c : [c, undefined];
     const def = componentByName(type);
     const base = def ? structuredClone(componentDefaults(def)) : {};
+    // Engine-composed fields are derived, not authored: persisting them saves a
+    // value that is wrong as soon as the entity moves or is reparented.
+    for (const key of readonlyFieldsFor(type)) delete base[key];
     return { type, data: over ? { ...base, ...over } : base };
   });
   return {
