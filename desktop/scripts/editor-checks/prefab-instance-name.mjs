@@ -53,7 +53,11 @@ export async function run(ed) {
 
   await ed.open(root, 'assets/scenes/main.esscene');
 
-  await ed.call('create_prefab_from_entity', { entity: 1, path: 'assets/Turret.esprefab' }, 60000);
+  // Where it lands is the tool's business — under assets/prefabs/, named after
+  // the entity. It takes no path, and passing one is now refused rather than
+  // ignored, which is how this check found out it had been asking for something
+  // that never happened.
+  await ed.call('create_prefab_from_entity', { entity: 1 }, 60000);
   // The template id is what the Create menu offers, not what the create door
   // returned — those are two vocabularies (`prefab:<path>` vs an `@uuid:` ref).
   const templates = await ed.json('list_entity_templates', {}, 60000);
