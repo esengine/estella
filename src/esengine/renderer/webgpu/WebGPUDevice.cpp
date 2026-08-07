@@ -410,9 +410,19 @@ BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* init
     buffers_[id] = BufferRec{buffer, desc.size, desc.usage};
 
     if (initialData && desc.size > 0) {
-        wgpuQueueWriteBuffer(queue_, buffer, 0, initialData, (desc.size + 3u) & ~3u);
+        writeBufferFromStart(buffer, initialData, desc.size);
     }
     return BufferHandle{id};
+}
+
+void WebGPUDevice::writeBufferFromStart(WGPUBuffer buffer, const void* data, u32 size) {
+    if (!webgpu::needsWriteStaging(size)) {
+        wgpuQueueWriteBuffer(queue_, buffer, 0, data, size);
+        return;
+    }
+    std::vector<u8> padded(webgpu::alignedWriteSize(size), 0);
+    std::memcpy(padded.data(), data, size);
+    wgpuQueueWriteBuffer(queue_, buffer, 0, padded.data(), padded.size());
 }
 
 void WebGPUDevice::deleteBuffer(BufferHandle buffer) {
@@ -449,6 +459,24 @@ void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void
                      offsetBytes, sizeBytes, it->second.size);
         return;
     }
+    // GL takes any offset and size; WriteBuffer takes 4-byte multiples of both.
+    if ((offsetBytes & 3u) != 0) {
+        ES_LOG_ERROR("WebGPUDevice::updateBuffer: offset {} is not 4-byte aligned", offsetBytes);
+        return;
+    }
+    if (webgpu::needsWriteStaging(sizeBytes)) {
+        // Only a write ending at the logical end may pad, into the slack the rounded
+        // allocation already has. One ending mid-buffer would clobber the next field.
+        if (offsetBytes + sizeBytes != it->second.size) {
+            ES_LOG_ERROR("WebGPUDevice::updateBuffer: unaligned partial write {}+{} of {}",
+                         offsetBytes, sizeBytes, it->second.size);
+            return;
+        }
+        std::vector<u8> padded(webgpu::alignedWriteSize(sizeBytes), 0);
+        std::memcpy(padded.data(), data, sizeBytes);
+        wgpuQueueWriteBuffer(queue_, it->second.buffer, offsetBytes, padded.data(), padded.size());
+        return;
+    }
     wgpuQueueWriteBuffer(queue_, it->second.buffer, offsetBytes, data, sizeBytes);
 }
 
@@ -467,7 +495,7 @@ void WebGPUDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* 
     it->second.size = sizeBytes;
 
     if (data && sizeBytes > 0 && it->second.buffer) {
-        wgpuQueueWriteBuffer(queue_, it->second.buffer, 0, data, (sizeBytes + 3u) & ~3u);
+        writeBufferFromStart(it->second.buffer, data, sizeBytes);
     }
 }
 

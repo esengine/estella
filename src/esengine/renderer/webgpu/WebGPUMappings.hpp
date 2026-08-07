@@ -402,4 +402,10 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
     return mask;
 }
 
+/// WriteBuffer's size (and offset) must be a 4-byte multiple; buffers are allocated
+/// rounded up so the slack exists. Callers supply exactly `size` bytes, so an
+/// unaligned size must be staged, never read up to `alignedWriteSize` in place.
+inline u32 alignedWriteSize(u32 size) { return (size + 3u) & ~3u; }
+inline bool needsWriteStaging(u32 size) { return (size & 3u) != 0; }
+
 }  // namespace esengine::webgpu

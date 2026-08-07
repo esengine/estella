@@ -227,3 +227,21 @@ TEST_CASE("null-device readback: requests degrade to Invalid, polls report Faile
     CHECK(!device.takeReadback(ReadbackHandle{42}, pixels, sizeof(pixels)));
     device.discardReadback(ReadbackHandle{42});
 }
+
+TEST_CASE("write sizes round the ALLOCATION, never the read out of the caller's data") {
+    // Buffers are allocated rounded up, so the slack to receive padding exists.
+    CHECK(alignedWriteSize(0) == 0);
+    CHECK(alignedWriteSize(4) == 4);
+    CHECK(alignedWriteSize(6) == 8);
+    CHECK(alignedWriteSize(13) == 16);
+
+    // A size that already fits is written straight through; anything else has to be
+    // staged, because reading alignedWriteSize bytes runs off the end of the source.
+    // 6 bytes is a three-index u16 draw — one triangle, the smallest real case.
+    for (u32 size = 0; size <= 64; ++size) {
+        const bool staged = needsWriteStaging(size);
+        CHECK(staged == (size % 4 != 0));
+        if (!staged) CHECK(alignedWriteSize(size) == size);
+        else CHECK(alignedWriteSize(size) > size);
+    }
+}

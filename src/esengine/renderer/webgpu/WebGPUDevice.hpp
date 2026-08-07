@@ -388,6 +388,11 @@ private:
     /// Drop every cached group referencing a dying resource id (see cache note).
     void evictBindGroups(u64 id);
 
+    /// Fill @p buffer from offset 0 with @p size bytes of @p data. WriteBuffer's size
+    /// must be a 4-byte multiple; the caller's allocation is only @p size bytes, so a
+    /// short tail is padded through a staging copy rather than over-read.
+    void writeBufferFromStart(WGPUBuffer buffer, const void* data, u32 size);
+
     // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
     // profiler's gpuMs/gpuScopes populate on both backends. Active only when the
     // device has the timestamp-query feature; otherwise createTimerQuery returns 0
