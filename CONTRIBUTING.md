@@ -106,6 +106,9 @@ We follow a strict commit message format:
 - **C++**: See naming conventions and formatting rules in [`docs/CODING_STYLE.md`](docs/CODING_STYLE.md)
 - **TypeScript**: Strict mode, use `defineComponent()` and `defineSystem()`
 - **Comments**: Code should be self-documenting. Only add comments for non-obvious logic.
+- **No prose in comments**: state the fact, not the story. One or two lines. No narrating
+  the bug that led here, no "previously X, now Y", no essay paragraphs — that belongs in
+  the commit message. A comment that needs a paragraph is a sign the code needs a name.
 
 ## Pull Request Process
 
