@@ -294,6 +294,31 @@ public:
         }
     }
 
+    /**
+     * @brief Like each(), but iterates the live dense array with no defensive copy.
+     * @warning The callback MUST NOT emplace/remove ANY of the iterated components —
+     *          that reallocates or swap-pops the array being walked. Use for the
+     *          read-only per-frame pass; use each() when the callback may mutate.
+     */
+    template<typename Func>
+    void eachLive(Func&& func) {
+        if (!smallest_) return;
+
+        const std::vector<Entity>& dense = smallest_->entities();
+        for (usize i = 0; i < dense.size(); ++i) {
+            Entity entity = dense[i];
+            if (!allHaveExceptSmallest(entity)) continue;
+
+            if constexpr (std::is_invocable_v<Func, Entity, Components&...>) {
+                func(entity, getByEntity<Components>(entity)...);
+            } else if constexpr (std::is_invocable_v<Func, Components&...>) {
+                func(getByEntity<Components>(entity)...);
+            } else {
+                func(entity);
+            }
+        }
+    }
+
 private:
     template<typename T>
     T& getByEntity(Entity entity) {
@@ -403,6 +428,13 @@ public:
     const T& get(Entity entity) const { return pool_->get(entity); }
 
     /**
+     * @brief Gets all components for an entity as a tuple
+     * @param entity The entity
+     * @return Tuple of component references
+     */
+    std::tuple<T&> getAll(Entity entity) { return std::tuple<T&>(pool_->get(entity)); }
+
+    /**
      * @brief Checks if the view is empty
      * @return True if no entities have this component
      */
@@ -413,6 +445,12 @@ public:
      * @return Entity count
      */
     usize size() const { return pool_ ? pool_->size() : 0; }
+
+    /**
+     * @brief Upper bound on matching entities — exact here, since nothing filters.
+     * @return Entity count
+     */
+    usize sizeHint() const { return size(); }
 
     /**
      * @brief Executes a function for each entity
