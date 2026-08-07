@@ -72,6 +72,9 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         depthWrite = opaque;
     }
 
+    // stateFlags is 0: ClipState stamps the real scissor/stencil below, after the key
+    // exists. A stencil write still precedes the draws testing it because UI pre-order
+    // puts a mask below its descendants in LAYER, the key's top field. Not so on one layer.
     cmd.sort_key = order == DrawList::LayerOrder::YSort
         ? DrawCommand::buildSortKeyYSorted(stage, key.layer, key.y, key.shaderId,
                                            key.blend, 0)

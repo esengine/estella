@@ -368,3 +368,100 @@ TEST_CASE("depth layer: y-sort wins when a layer declares both") {
     CHECK(h.list.layerOrder(4) == DrawList::LayerOrder::YSort);
     CHECK(h.list.layerOrder(5) == DrawList::LayerOrder::Painter);
 }
+
+// ─── Stencil mask ordering ───────────────────────────────────────────────────
+// A stencil write must precede the draws that test it, and the sort key holds no
+// clip state. The layer does it: UI pre-order puts a parent below its descendants.
+
+TEST_CASE("stencil: the mask outranks its content even when material and depth fight it") {
+    Harness h;
+    BatchVertex quad[4] = {};
+    Entity maskEntity{11};
+    Entity contentEntity{12};
+
+    // Worst case the UI tree can produce: the mask is the parent (lower uiOrder →
+    // lower layer) but loses on every field below layer.
+    BatchDrawKey mask = quadKey(1, /*layer=*/1000);
+    mask.entity = maskEntity;
+    mask.materialId = 90000;   // sorts after the content's material
+    mask.depth = 100.0f;       // nearest — would sort last within a transparent layer
+    h.clips.setStencilMask(maskEntity.id(), 1);
+
+    BatchDrawKey content = quadKey(2, /*layer=*/1001);
+    content.entity = contentEntity;
+    content.materialId = 1;
+    content.depth = -100.0f;
+    h.clips.setStencilTest(contentEntity.id(), 1);
+
+    // Submitted content-first, so only the sort can put them right.
+    appendQuad(h.pool, h.list, h.clips, quad, content);
+    appendQuad(h.pool, h.list, h.clips, quad, mask);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK((h.list.command(0).state_flags & CMD_STATE_STENCIL_WRITE) != 0);
+    CHECK((h.list.command(1).state_flags & CMD_STATE_STENCIL_TEST) != 0);
+}
+
+TEST_CASE("stencil: a nested mask still writes before the content it clips") {
+    Harness h;
+    BatchVertex quad[4] = {};
+    Entity outer{20}, inner{21}, leaf{22};
+
+    // outer(layer 1000) → inner mask(1001) → leaf(1002), each on its own material.
+    BatchDrawKey outerKey = quadKey(1, 1000);
+    outerKey.entity = outer;
+    outerKey.materialId = 7;
+    h.clips.setStencilMask(outer.id(), 1);
+
+    BatchDrawKey innerKey = quadKey(2, 1001);
+    innerKey.entity = inner;
+    innerKey.materialId = 300;
+    h.clips.setStencilMask(inner.id(), 2);
+
+    BatchDrawKey leafKey = quadKey(3, 1002);
+    leafKey.entity = leaf;
+    leafKey.materialId = 4;
+    h.clips.setStencilTest(leaf.id(), 2);
+
+    appendQuad(h.pool, h.list, h.clips, quad, leafKey);
+    appendQuad(h.pool, h.list, h.clips, quad, innerKey);
+    appendQuad(h.pool, h.list, h.clips, quad, outerKey);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 3);
+    CHECK(h.list.command(0).stencil_ref == 1);
+    CHECK((h.list.command(0).state_flags & CMD_STATE_STENCIL_WRITE) != 0);
+    CHECK(h.list.command(1).stencil_ref == 2);
+    CHECK((h.list.command(1).state_flags & CMD_STATE_STENCIL_WRITE) != 0);
+    CHECK(h.list.command(2).stencil_ref == 2);
+    CHECK((h.list.command(2).state_flags & CMD_STATE_STENCIL_TEST) != 0);
+}
+
+// Where the guarantee stops. Nothing the engine emits puts a mask and its content
+// on one layer; a caller reaching for renderer_setEntityStencilMask directly can.
+TEST_CASE("stencil: on one layer, material — not submission or depth — decides") {
+    Harness h;
+    BatchVertex quad[4] = {};
+    Entity a{31}, b{32};
+
+    BatchDrawKey writer = quadKey(1, /*layer=*/1000);
+    writer.entity = a;
+    writer.materialId = 90000;
+    h.clips.setStencilMask(a.id(), 1);
+
+    BatchDrawKey tester = quadKey(2, /*layer=*/1000);
+    tester.entity = b;
+    tester.materialId = 1;
+    h.clips.setStencilTest(b.id(), 1);
+
+    appendQuad(h.pool, h.list, h.clips, quad, writer);
+    appendQuad(h.pool, h.list, h.clips, quad, tester);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    // The lower material wins, so the test lands FIRST — the mask is written after
+    // the thing it was supposed to clip.
+    CHECK((h.list.command(0).state_flags & CMD_STATE_STENCIL_TEST) != 0);
+    CHECK((h.list.command(1).state_flags & CMD_STATE_STENCIL_WRITE) != 0);
+}
