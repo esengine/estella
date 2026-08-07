@@ -42,10 +42,16 @@ if (status) {
 
 console.log(chalk.bold.white(`\n═══ Release v${version} ═══\n`));
 
-// Soft reminder: the release should already be documented before we tag it.
+// The notes and the supported-versions table have to name this release. Checked
+// again after the bump below by check-release-metadata (which `verify` runs), so
+// this is the early, specific failure rather than the one at push time.
 const changelog = readFileSync('CHANGELOG.md', 'utf8');
 if (!changelog.includes(`## [${version}]`)) {
-    console.log(chalk.yellow('⚠'), `CHANGELOG.md has no "## [${version}]" entry — add release notes before publishing.`);
+    die(`CHANGELOG.md has no "## [${version}]" entry — rename [Unreleased] before releasing.`);
+}
+if (!new RegExp(`^\\|\\s*${version.split('.').slice(0, 2).join('\\.')}\\.x\\s*\\|\\s*Yes\\s*\\|`, 'im')
+        .test(readFileSync('SECURITY.md', 'utf8'))) {
+    die(`SECURITY.md does not list ${version.split('.').slice(0, 2).join('.')}.x as supported.`);
 }
 
 console.log(chalk.cyan('▸'), `Updating ${PKG} to ${version}`);

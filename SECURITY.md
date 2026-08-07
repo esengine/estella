@@ -2,11 +2,16 @@
 
 ## Supported Versions
 
+Before 1.0, fixes land on the current minor series only. There are no backports:
+upgrading to the latest release is the supported path to a fix.
+
 | Version | Supported |
 |---------|-----------|
-| 0.7.x   | Yes       |
-| 0.6.x   | Yes       |
-| < 0.6   | No        |
+| 0.45.x  | Yes       |
+| < 0.45  | No        |
+
+`tools/check-release-metadata.mjs` fails the build if this table stops matching
+the version being shipped, so it cannot quietly fall behind again.
 
 ## Reporting a Vulnerability
 
