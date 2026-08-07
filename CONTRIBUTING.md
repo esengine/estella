@@ -109,6 +109,10 @@ We follow a strict commit message format:
 - **No prose in comments**: state the fact, not the story. One or two lines. No narrating
   the bug that led here, no "previously X, now Y", no essay paragraphs — that belongs in
   the commit message. A comment that needs a paragraph is a sign the code needs a name.
+  Enforced by `node tools/check-comment-style.mjs` (in `pnpm verify`): it reads the lines
+  your change ADDS and rejects history, roadmap codenames, and over-long blocks. Run it
+  with `--all` to see the tree's existing debt, which is reported but not gated — the
+  convention is applied to the file you touch, not in one sweep.
 
 ## Pull Request Process
 
