@@ -374,11 +374,15 @@ inline VerifyHook& verifyHook() {
  * indices, container subscripts). Reserve ES_ASSERT for pure-logic invariants
  * that cannot happen if the surrounding code is correct.
  *
+ * @par Choosing between ES_VERIFY and ES_VERIFY_FATAL
+ * ES_VERIFY needs a recovery that is TRUE — an existing element, a sentinel the
+ * caller handles, a skipped iteration. Where the only "recovery" would be a
+ * stand-in object the caller writes through, use ES_VERIFY_FATAL.
+ *
  * @code
- * T& get(u32 i) {
- *     static T fallback{};
- *     ES_VERIFY(i < size_, { fallback = T{}; return fallback; });
- *     return data_[i];
+ * bool remove(u32 i) {
+ *     ES_VERIFY(i < size_, return false);
+ *     ...
  * }
  * @endcode
  */

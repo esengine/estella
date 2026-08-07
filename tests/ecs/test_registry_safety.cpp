@@ -19,7 +19,7 @@ using esengine::u32;
 using esengine::ecs::Registry;
 
 namespace {
-struct Pos { float x = 1.0f; float y = 2.0f; };   // fallback{} has x=1, y=2
+struct Pos { float x = 1.0f; float y = 2.0f; };
 struct Vel { float dx = 0.0f; };
 }
 
@@ -30,42 +30,36 @@ static int g_failures = 0;
         else { std::printf("ok:   %s\n", msg); }                                \
     } while (0)
 
-// Counts ES_VERIFY failures so tests can assert "the guard fired and we
-// degraded gracefully" rather than just "it didn't crash".
+// Counts ES_VERIFY failures so tests can assert "the guard fired and the
+// recovery is the real value" rather than just "it didn't crash".
 static int g_verifyHits = 0;
 static void countingVerifyHook(const char*, const char*, int) { ++g_verifyHits; }
 
 int main() {
-    // --- A6: get<T> on an entity without the component returns fallback (no OOB) ---
+    // --- get<T> has a contract; absence goes through the checked API ---
+    // A miss aborts, so absence is asked with has/tryGet and created with
+    // getOrEmplace — the three doors, each exercised below.
     {
         Registry r;
         Entity e = r.create();
         r.emplace<Pos>(e, Pos{10.0f, 20.0f});
 
         CHECK(r.get<Pos>(e).x == 10.0f, "get returns the real component when present");
+        CHECK(r.tryGet<Pos>(e) == &r.get<Pos>(e), "tryGet points at the same component");
 
-        // Pool exists, but this entity is not a member -> SparseSet::get fallback.
+        // Pool exists, but this entity is not a member.
         Entity other = r.create();
-        Pos& p = r.get<Pos>(other);
-        CHECK(p.x == 1.0f && p.y == 2.0f, "get<Pos> on non-member returns fallback defaults (no OOB)");
+        CHECK(!r.has<Pos>(other), "has<Pos> is false for a non-member");
+        CHECK(r.tryGet<Pos>(other) == nullptr, "tryGet<Pos> on a non-member is null");
 
-        // Pool does not exist at all -> Registry::get fallback.
-        Vel& v = r.get<Vel>(e);
-        CHECK(v.dx == 0.0f, "get<Vel> with no Vel pool returns fallback (no OOB)");
-    }
+        // Pool does not exist at all.
+        CHECK(!r.has<Vel>(e), "has<Vel> is false with no Vel pool");
+        CHECK(r.tryGet<Vel>(e) == nullptr, "tryGet<Vel> with no Vel pool is null");
 
-    // --- A6b: writing through a missing-component get must not poison later misses ---
-    // Review finding: the static fallback is shared, so a write through one miss used
-    // to corrupt the value returned to the next miss. Reset-on-miss must prevent that.
-    {
-        Registry r;
-        Entity owner = r.create();
-        r.emplace<Pos>(owner, Pos{5.0f, 5.0f});  // creates the Pos pool
-        Entity a = r.create();
-        Entity b = r.create();
-        r.get<Pos>(a).x = 999.0f;                // write through a's fallback (a has no Pos)
-        CHECK(r.get<Pos>(b).x == 1.0f, "SparseSet::get fallback reset between misses (no pollution)");
-        CHECK(r.get<Pos>(owner).x == 5.0f, "real component unaffected by fallback writes");
+        // getOrEmplace is the third door: create it rather than assume or check.
+        Vel& v = r.getOrEmplace<Vel>(e, Vel{3.0f});
+        CHECK(v.dx == 3.0f && r.has<Vel>(e), "getOrEmplace creates the missing component");
+        CHECK(&r.getOrEmplace<Vel>(e) == &v, "getOrEmplace returns the existing one on the next call");
     }
 
     // --- A7: re-entrant destroy(entity) from onDestroy must not double-teardown ---
@@ -115,24 +109,15 @@ int main() {
         CHECK(hits == 1, "callback no longer fires once the Connection is destroyed");
     }
 
-    // --- ES_VERIFY: emplace / emplaceOrReplace on an invalid entity is release-safe ---
-    // Without the guard, component_masks_[Entity{}.index() == 0xFFFFF] is an OOB
-    // write (ES_ASSERT is stripped here). The guard must fire and return a fallback.
+    // emplace on an invalid entity would write component_masks_[sentinel] out of
+    // bounds and has no component to return: fatal, not a fallback. valid() is
+    // how a caller asks beforehand; the abort itself is not exercised here.
     {
-        esengine::detail::verifyHook() = countingVerifyHook;
         Registry r;
-
-        g_verifyHits = 0;
-        Pos& p = r.emplace<Pos>(Entity{}, Pos{7.0f, 8.0f});
-        CHECK(g_verifyHits == 1, "emplace(invalid) fires the verify hook");
-        CHECK(p.x == 1.0f && p.y == 2.0f, "emplace(invalid) returns fallback defaults (no OOB write)");
-
-        g_verifyHits = 0;
-        Pos& p2 = r.emplaceOrReplace<Pos>(Entity{}, Pos{9.0f, 9.0f});
-        CHECK(g_verifyHits == 1, "emplaceOrReplace(invalid) fires the verify hook");
-        CHECK(p2.x == 1.0f, "emplaceOrReplace(invalid) returns fallback (no OOB write)");
-
-        esengine::detail::verifyHook() = nullptr;
+        CHECK(!r.valid(Entity{}), "the invalid sentinel does not pass valid()");
+        Entity e = r.create();
+        r.destroy(e);
+        CHECK(!r.valid(e), "a destroyed entity does not pass valid()");
     }
 
     // --- ES_VERIFY: restore() with an over-range (deserialized) index is refused ---

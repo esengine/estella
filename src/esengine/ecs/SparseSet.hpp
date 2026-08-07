@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace esengine::ecs {
@@ -208,35 +209,20 @@ public:
      * @param entity The entity
      * @return Reference to the component
      *
-     * @note Asserts if the entity doesn't have a component
+     * @note A miss is fatal in every build: there is no valid `T&` to return, and
+     *       a stand-in would be written through silently. tryGet() is the checked
+     *       path, getUnchecked() the one for callers that proved membership.
      */
     T& get(Entity entity) {
-        // Release-safe bounds check (ES_ASSERT is stripped in release builds).
-        // On a miss, log and return a fallback rather than read
-        // components_[INVALID_INDEX] out of bounds. Callers that have already
-        // proven membership should use getUnchecked() for the no-branch path.
-        u32 di = denseIndexOf(entity);
-        if (di == INVALID_INDEX || dense_[di] != entity) {
-            ES_LOG_ERROR("SparseSet::get on an entity without this component (returning fallback)");
-            // Reset on every miss: get<T> is sometimes used as a writable accessor,
-            // so without this a caller writing through one miss would poison the
-            // shared static for the next miss. (A missing-component get is a logic
-            // error upstream; tryGet() is the checked, non-polluting alternative.)
-            static T fallback{};
-            fallback = T{};
-            return fallback;
-        }
+        const u32 di = denseIndexOf(entity);
+        ES_VERIFY_FATAL(di != INVALID_INDEX && dense_[di] == entity, missMessage(entity));
         return components_[di];
     }
 
     /** @copydoc get() */
     const T& get(Entity entity) const {
-        u32 di = denseIndexOf(entity);
-        if (di == INVALID_INDEX || dense_[di] != entity) {
-            ES_LOG_ERROR("SparseSet::get on an entity without this component (returning fallback)");
-            static const T fallback{};
-            return fallback;
-        }
+        const u32 di = denseIndexOf(entity);
+        ES_VERIFY_FATAL(di != INVALID_INDEX && dense_[di] == entity, missMessage(entity));
         return components_[di];
     }
 
@@ -510,6 +496,13 @@ public:
     }
 
 private:
+    /// Built only when get() is about to abort, so it names the entity asked for.
+    static std::string missMessage(Entity entity) {
+        return "SparseSet::get on an entity without this component (entity "
+               + std::to_string(entity.index()) + ":" + std::to_string(entity.generation())
+               + "); use tryGet() when absence is expected";
+    }
+
     /**
      * @brief Looks up the dense array index for an entity
      * @return Dense index, or INVALID_INDEX if page not allocated

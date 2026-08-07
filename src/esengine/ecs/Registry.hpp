@@ -33,6 +33,7 @@
 #include <any>
 #include <functional>
 #include <queue>
+#include <string>
 
 namespace esengine::ecs {
 
@@ -241,14 +242,14 @@ public:
      * @param args Arguments forwarded to T's constructor
      * @return Reference to the newly created component
      *
-     * @note Asserts if entity is invalid or already has the component
+     * @note An invalid entity is fatal in every build; the component already
+     *       being there degrades to the existing one (see SparseSet::emplace).
      */
     template<typename T, typename... Args>
     T& emplace(Entity entity, Args&&... args) {
-        // Release-safe: an invalid entity indexes component_masks_ out of bounds
-        // below (entity.index() of the invalid sentinel is 0xFFFFF), and
-        // ES_ASSERT is stripped in release -> OOB write. Degrade to a fallback.
-        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
+        // An invalid entity would index component_masks_ out of bounds below (the
+        // sentinel's index() is the mask), and there is no component to hand back.
+        ES_VERIFY_FATAL(valid(entity), invalidEntityMessage("emplace", entity));
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
@@ -267,8 +268,7 @@ public:
      */
     template<typename T, typename... Args>
     T& emplaceOrReplace(Entity entity, Args&&... args) {
-        // Release-safe: see emplace() — invalid entity -> OOB write on the mask.
-        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
+        ES_VERIFY_FATAL(valid(entity), invalidEntityMessage("emplaceOrReplace", entity));
         auto& pool = assurePool<T>();
 
         if (pool.contains(entity)) {
@@ -306,31 +306,22 @@ public:
      * @param entity The target entity
      * @return Reference to the component
      *
-     * @note Asserts if the entity doesn't have the component
+     * @note A missing component is fatal in every build — the contract is that the
+     *       caller knows it is there. Use tryGet() where absence is expected and
+     *       getOrEmplace() where the component should be created.
      */
     template<typename T>
     T& get(Entity entity) {
         auto* pool = getPool<T>();
-        if (!pool) {
-            ES_LOG_ERROR("Registry::get: component pool does not exist (returning fallback)");
-            // Reset each miss so a write through a prior miss can't poison the
-            // shared static (see SparseSet::get). tryGet() is the checked path.
-            static T fallback{};
-            fallback = T{};
-            return fallback;
-        }
-        return pool->get(entity);  // SparseSet::get is itself release-safe
+        ES_VERIFY_FATAL(pool != nullptr, noPoolMessage(entity));
+        return pool->get(entity);  // itself fatal on a non-member
     }
 
     /** @copydoc get() */
     template<typename T>
     const T& get(Entity entity) const {
         auto* pool = getPool<T>();
-        if (!pool) {
-            ES_LOG_ERROR("Registry::get: component pool does not exist (returning fallback)");
-            static const T fallback{};
-            return fallback;
-        }
+        ES_VERIFY_FATAL(pool != nullptr, noPoolMessage(entity));
         return pool->get(entity);
     }
 
@@ -367,8 +358,7 @@ public:
         if (pool.contains(entity)) {
             return pool.get(entity);
         }
-        // Release-safe: see emplace() — invalid entity -> OOB write on the mask.
-        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
+        ES_VERIFY_FATAL(valid(entity), invalidEntityMessage("getOrEmplace", entity));
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
         return result;
@@ -629,6 +619,17 @@ private:
         TypeId typeId = componentTypeId<T>();
         if (typeId >= pools_.size() || !pools_[typeId]) return nullptr;
         return static_cast<const SparseSet<T>*>(pools_[typeId].get());
+    }
+
+    /// Built only when a contract guard is about to abort; names what was asked.
+    static std::string noPoolMessage(Entity entity) {
+        return "Registry::get: no pool for this component type (entity "
+               + std::to_string(entity.index()) + ":" + std::to_string(entity.generation())
+               + "); use tryGet() when absence is expected";
+    }
+    static std::string invalidEntityMessage(const char* op, Entity entity) {
+        return std::string("Registry::") + op + " on an invalid entity ("
+               + std::to_string(entity.index()) + ":" + std::to_string(entity.generation()) + ")";
     }
 
     /**
