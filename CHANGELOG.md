@@ -37,6 +37,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An additive scene unloaded during its own `setup()` came back as a ghost.**
+  `setup()` is user code and may await for as long as it likes; an `unload()`
+  during it tears the scene down completely — entities, systems, assets, its slot
+  in the registry. `load()` re-checked the slot afterwards and aborted, but
+  `loadAdditive()` went straight on to set `running`, add to the additive set and
+  push to the draw order, resurrecting a scene that no longer existed and leaving
+  whatever `setup()` spawned after the teardown in the world under it, owned by
+  nobody. The check now lives in `loadSceneData_`, which both paths await: it
+  returns only if the load still owns the slot, so neither caller has to remember.
+
 - **A hot reload could leave an asset loading three times, or fail the reload with
   the old file's error.** `AsyncCache.invalidate()` aborts the in-flight load and
   drops its pending record, and hot reload asks for the same key again right away,

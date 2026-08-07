@@ -317,11 +317,6 @@ export class SceneManagerState {
 
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
 
-            // A user setup() can await; an unload during it invalidates this load.
-            // loadSceneData_ already despawned any spawned entities on its own token
-            // check, so abort before committing status/activeScene to a dead scene.
-            if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
-
             instance.status = 'running';
             this.activeScene_ = name;
             this.loadOrder_.push(name);
@@ -492,6 +487,13 @@ export class SceneManagerState {
         }
     }
 
+    /**
+     * Populate a scene: entities, assets, systems, setup().
+     *
+     * Returning means this load still owns the scene slot. Every await inside is a
+     * window for a concurrent unload to take it; checking that here rather than
+     * per caller is what the additive path was missing.
+     */
     private async loadSceneData_(
         instance: SceneInstance,
         name: string,
@@ -564,6 +566,10 @@ export class SceneManagerState {
         const ctx = this.contexts_.get(name)!;
         if (config.setup) {
             await config.setup(ctx);
+            // setup() is user code and can await for as long as it likes. An
+            // unload during it means everything above — and everything setup
+            // itself spawned — belongs to a scene that no longer exists.
+            if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
         }
     }
 
