@@ -1069,6 +1069,21 @@
   transition: color var(--t-fast), background var(--t-fast);
 }
 .ag-att-x:hover { color: var(--text-hi); background: var(--pressed); }
+/* The picture will not reach the model. Said before send, next to the thumbnail
+   it is about, and it leads to the setting that decides it. */
+.ag-att-blind {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: 0 0 6px;
+  padding: 5px 8px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--text-dim);
+  font: var(--fs-2xs) var(--font-ui);
+  text-align: left;
+  line-height: 1.45;
+}
+.ag-att-blind:hover { color: var(--text-hi); }
+.ag-att-blind svg { color: var(--warn); flex: none; margin-top: 1px; }
 /* A drag is over the composer: the whole box says so, since the whole box takes
    it — aiming at a one-line textarea is a precision task nobody should be set. */
 .ag-compose.dropping .ag-cbox { border-color: var(--acc); background: var(--hover); }

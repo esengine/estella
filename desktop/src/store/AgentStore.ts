@@ -20,9 +20,8 @@ import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
 import type { AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
 import {
-  agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf, asProtocol,
-  modelsSettingId, CUSTOM_PROVIDER,
-  DEFAULT_CONTEXT_WINDOW,
+  agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf,
+  modelsSettingId, DEFAULT_CONTEXT_WINDOW, type AgentProviderDef,
 } from '@/agent/providers';
 import { refreshSecret, secretStatus, subscribeSecrets } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
@@ -276,25 +275,33 @@ function loadSelection(): AgentSelection | null {
   }
 }
 
-/** The custom provider's endpoint and models come from settings — it is the one
- *  we cannot ship a list for. */
-function resolveProvider(id: string) {
+/**
+ * A provider, with the one part of it that cannot be shipped filled in.
+ *
+ * Providers the person typed need nothing here — they are whole defs by the time
+ * they reach the registry (agent/userProviders.ts), which is the point of
+ * projecting them into it. What is left is the shipped vendor whose ADDRESS
+ * holds still while its model names do not.
+ */
+export function resolveProvider(id: string): AgentProviderDef | undefined {
   const def = agentProvider(id);
-  if (!def) return undefined;
-  const settings = useSettings.getState();
-  // A shipped provider whose model NAMES are not shippable — everything else
-  // about it still is, including its endpoint and its key row.
-  if (def.typedModels) {
-    return { ...def, models: parseModelList(String(settings.getValue(modelsSettingId(id)) ?? '')) };
-  }
-  if (id !== CUSTOM_PROVIDER) return def;
-  return {
-    ...def,
-    protocol: asProtocol(settings.getValue('agents.customProtocol')),
-    baseUrl: String(settings.getValue('agents.customBaseUrl') ?? ''),
-    models: parseModelList(String(settings.getValue('agents.customModels') ?? '')),
-  };
+  if (!def?.typedModels) return def;
+  const typed = String(useSettings.getState().getValue(modelsSettingId(id)) ?? '');
+  return { ...def, models: parseModelList(typed) };
 }
+
+/**
+ * Whether the picked endpoint can be handed a picture.
+ *
+ * The composer takes attachments whatever is selected, and an endpoint that
+ * cannot carry them is not a failure — the turn goes out with the text and the
+ * model is told what it was not shown. But that is a thing to learn BEFORE
+ * sending, so this is read where the attachment is made too.
+ */
+export const agentAcceptsImages = (): boolean => {
+  const selection = effectiveSelection();
+  return selection ? resolveProvider(selection.providerId)?.vision === true : false;
+};
 
 /** The configured reasoning depth, narrowed. */
 export const agentEffort = (): AgentEffort =>
@@ -335,6 +342,14 @@ export function syncAgentEndpoint(): void {
     // How far the conversation may grow before it is compacted. Travels with the
     // endpoint because it is the same piece of knowledge: which provider this is.
     contextWindow: def?.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+    // Whether a screenshot can reach it. Same journey as the window and for the
+    // same reason: both are facts about which provider this is, and both were
+    // once guessed from the address instead of being told.
+    vision: def?.vision === true,
+    // Whether the depth below may be NAMED in the request. Its own fact because
+    // an endpoint that has never heard of the argument refuses the call rather
+    // than ignoring it — losing the turn over a field nobody asked for.
+    reasoningEffort: def?.reasoningEffort !== false,
     // How hard the model is asked to think. A setting rather than part of the
     // model pick: the same model is worth running at different depths, and the
     // depth is the one thing a person adjusts because a turn cost too much or

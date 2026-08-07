@@ -32,6 +32,10 @@ export const agentMessages = defineMessages({
     // — Images the person attaches —
     'agent.attach.remove': { en: 'Remove', zh: '移除' },
     'agent.attach.hint': { en: 'drop or paste an image', zh: '拖入或粘贴图片' },
+    'agent.attach.blind': {
+        en: 'This endpoint does not accept images — it will be told one was attached, not shown it. Settings › AI Agents.',
+        zh: '当前接口不接受图片——只会告诉模型「有人附了一张图」,但它看不到。可在「设置 › AI 代理」里调整。',
+    },
 
     // — Conversations this project has had —
     'agent.history.open': { en: 'Earlier conversations', zh: '历史对话' },

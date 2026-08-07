@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf, asProtocol, CUSTOM_PROVIDER,
+  setUserProviders,
 } from '@/agent/providers';
 
 describe('the shipped providers', () => {
@@ -41,14 +42,55 @@ describe('the shipped providers', () => {
     expect(protocolOf(openai)).toBe('openai');
     expect(openai?.typedModels).toBe(true);
     expect(openai?.models).toEqual([]);
-    // Still a shipped provider: it keeps its own key row, unlike the custom slot.
+    // Still a shipped provider: it keeps its own key row, unlike a typed one.
     expect(openai?.userDefined).toBeUndefined();
   });
 
-  it('ships the custom slot empty — it is the one we cannot know', () => {
-    const custom = agentProvider(CUSTOM_PROVIDER);
-    expect(custom?.userDefined).toBe(true);
-    expect(custom?.models).toEqual([]);
+  // There is no reserved slot for "the custom one" any more. There cannot be:
+  // the person has as many as they have endpoints, and a single slot meant
+  // configuring the second overwrote the first, credential included.
+  it('ships no placeholder for the providers a person types', () => {
+    expect(agentProviders().every((p) => !p.userDefined)).toBe(true);
+    expect(agentProvider(CUSTOM_PROVIDER)).toBeUndefined();
+  });
+});
+
+/**
+ * The typed providers arrive as a SET, because that is how they are edited — a
+ * table rewritten whole — and because the removals matter as much as the
+ * additions: one deleted from the table must stop being offered.
+ */
+describe('the providers a person defined', () => {
+  const def = (id: string, over = {}) => ({ id, label: id, baseUrl: `http://${id}/v1`, models: ['m'], ...over });
+
+  it('joins the shipped ones, marked as theirs, and leaves when withdrawn', () => {
+    setUserProviders([def('mine-a'), def('mine-b')]);
+    expect(agentProvider('mine-a')?.userDefined).toBe(true);
+    expect(agentProviders().map((p) => p.id)).toEqual(
+      expect.arrayContaining(['anthropic', 'deepseek', 'openai', 'mine-a', 'mine-b']),
+    );
+
+    setUserProviders([def('mine-a')]);
+    expect(agentProvider('mine-b')).toBeUndefined();
+    expect(agentProvider('mine-a')).toBeDefined();
+
+    setUserProviders([]);
+    expect(agentProviders().every((p) => !p.userDefined)).toBe(true);
+  });
+
+  // Shipped first: the picker reads top to bottom, and the vendor rows are what
+  // a person who has typed nothing is looking for.
+  it('lists after the shipped ones', () => {
+    setUserProviders([def('mine-a')]);
+    const ids = agentProviders().map((p) => p.id);
+    expect(ids.indexOf('mine-a')).toBeGreaterThan(ids.indexOf('openai'));
+    setUserProviders([]);
+  });
+
+  it('cannot take an id the editor already ships', () => {
+    setUserProviders([def('anthropic', { label: 'Impostor' })]);
+    expect(agentProvider('anthropic')?.label).toBe('Anthropic');
+    setUserProviders([]);
   });
 });
 

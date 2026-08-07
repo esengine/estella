@@ -20,10 +20,15 @@ import { Toasts } from '@/store/Toasts';
 import { mcpStatus, setMcpEnabled, subscribeMcp } from '@/store/McpStore';
 import { secretStatusLine, subscribeSecrets } from '@/store/SecretStore';
 import { syncAgentEndpoint } from '@/store/AgentStore';
+import { useSettings } from '@/store/settingsStore';
 import {
-  agentProviders, agentKeyId, modelsSettingId, AGENT_PROTOCOLS, CUSTOM_PROVIDER,
+  agentProviders, agentKeyId, modelsSettingId, AGENT_PROTOCOLS, parseModelList,
 } from '@/agent/providers';
-import { AGENT_EFFORTS, DEFAULT_EFFORT } from '@/settings/agentIds';
+import {
+  AGENT_PROVIDERS_SETTING, syncUserProviders, newProviderRow, forgetProviderSecret,
+  migrateLegacyCustomProvider,
+} from '@/agent/userProviders';
+import { AGENT_EFFORTS, DEFAULT_EFFORT, DEFAULT_CONTEXT_WINDOW } from '@/settings/agentIds';
 import { applyUiZoom, UI_SCALE_SETTING, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from '@/layout/uiZoom';
 import { t, type MsgKey, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
@@ -290,62 +295,68 @@ settingsRegistry.register({
   effect: () => syncAgentEndpoint(),
 });
 
-// The escape hatch, for a provider we have not heard of — which is exactly the
-// one we cannot ship an endpoint or a model list for.
+// Providers we have not heard of — which are exactly the ones we cannot ship an
+// address, a model list, or a word about what they accept.
 //
-// Which PROTOCOL it speaks has to be asked, not guessed: the two formats differ
-// in every message they send, so getting it wrong is a 400 about a field the
-// person never wrote. Chat Completions is offered first because it is what most
-// endpoints — and every local runner — implement.
+// A TABLE, not a set of fields, because the unit of configuration is a provider
+// and a person has more than one: a local runner and a company gateway are not
+// two states of one setting. Each row keeps its own key, for the same reason the
+// shipped rows above do.
+//
+// The main columns say where it is and what it speaks; the expander says what it
+// can DO. That split is the point — an endpoint that could only be given an
+// address had no way to tell the agent it accepts screenshots, and the agent
+// spent every session working blind without either side deciding that.
 settingsRegistry.register({
-  id: 'agents.customProtocol',
-  type: 'enum',
+  id: AGENT_PROVIDERS_SETTING,
+  type: 'objectList',
   scope: 'editor',
   section: 'agents',
   group: t('set.group.customProvider'),
-  label: t('set.agents.customProtocol'),
-  description: t('set.agents.customProtocol.desc'),
-  default: 'openai',
-  options: AGENT_PROTOCOLS.map((value) => ({ value, label: t(`set.agents.protocol.${value}` as MsgKey) })),
-  effect: () => syncAgentEndpoint(),
+  label: t('set.agents.providers'),
+  description: t('set.agents.providers.desc'),
+  layout: 'block',
+  default: [],
+  columns: [
+    { key: 'label', label: t('set.agents.col.label'), type: 'text', width: '0.9fr', placeholder: 'Local llama' },
+    {
+      key: 'protocol',
+      label: t('set.agents.col.protocol'),
+      type: 'enum',
+      width: '108px',
+      options: AGENT_PROTOCOLS.map((value) => ({ value, label: t(`set.agents.protocolShort.${value}` as MsgKey) })),
+    },
+    { key: 'baseUrl', label: t('set.agents.col.baseUrl'), type: 'text', width: '1.6fr', placeholder: 'http://localhost:11434/v1' },
+    { key: 'models', label: t('set.agents.col.models'), type: 'text', width: '1.1fr', placeholder: 'model-a, model-b' },
+    { key: 'apiKey', label: t('set.agents.col.key'), type: 'secret', width: '96px', secretId: (row) => agentKeyId(String(row.id ?? '')) },
+  ],
+  detailColumns: [
+    { key: 'vision', label: t('set.agents.customVision'), type: 'boolean' },
+    { key: 'contextWindow', label: t('set.agents.col.contextWindow'), type: 'number', width: '104px', min: 0, placeholder: String(DEFAULT_CONTEXT_WINDOW) },
+    { key: 'reasoningEffort', label: t('set.agents.col.reasoningEffort'), type: 'boolean' },
+  ],
+  detailLabel: t('set.agents.capabilities'),
+  addLabel: t('set.agents.addProvider'),
+  emptyHint: t('set.agents.providers.empty'),
+  newRow: () => newProviderRow(
+    useSettings.getState().getValue<Record<string, unknown>[]>(AGENT_PROVIDERS_SETTING) ?? [],
+  ) as unknown as Record<string, unknown>,
+  rowError: (row) => {
+    if (!String(row.baseUrl ?? '').trim()) return t('set.agents.err.baseUrl');
+    if (parseModelList(String(row.models ?? '')).length === 0) return t('set.agents.err.models');
+    return null;
+  },
+  // A key outlives the row it belonged to otherwise: sealed on the machine,
+  // unreachable from any UI, and waiting to be inherited by a later provider.
+  onRowRemoved: forgetProviderSecret,
+  effect: () => {
+    syncUserProviders();
+    syncAgentEndpoint();
+  },
 });
 
-settingsRegistry.register({
-  id: 'agents.customBaseUrl',
-  type: 'string',
-  scope: 'editor',
-  section: 'agents',
-  group: t('set.group.customProvider'),
-  label: t('set.agents.customBaseUrl'),
-  description: t('set.agents.customBaseUrl.desc'),
-  placeholder: 'https://example.com/v1',
-  default: '',
-  effect: () => syncAgentEndpoint(),
-});
-
-settingsRegistry.register({
-  id: 'agents.customModels',
-  type: 'string',
-  scope: 'editor',
-  section: 'agents',
-  group: t('set.group.customProvider'),
-  label: t('set.agents.customModels'),
-  description: t('set.agents.customModels.desc'),
-  placeholder: 'model-a, model-b',
-  default: '',
-  effect: () => syncAgentEndpoint(),
-});
-
-settingsRegistry.register({
-  id: agentKeyId(CUSTOM_PROVIDER),
-  type: 'secret',
-  scope: 'editor',
-  section: 'agents',
-  group: t('set.group.customProvider'),
-  label: t('set.agents.customKey'),
-  default: false,
-  status: { read: () => secretStatusLine(agentKeyId(CUSTOM_PROVIDER)), subscribe: subscribeSecrets },
-});
+// Fold a pre-table setup into the table, before anything reads either.
+migrateLegacyCustomProvider();
 
 // ── External agents (main-owned endpoint, driven from here) ─────────────────
 // An external agent reaches this editor through the MCP endpoint main can expose,

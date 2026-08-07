@@ -58,6 +58,10 @@ export interface OpenAIOptions {
    * Whether this endpoint's model can see. Declared rather than probed: finding
    * out costs a call spent on a screenshot the model will be told it cannot
    * look at, and the answer is a property of the endpoint, not of the editor.
+   *
+   * The editor always says (src/agent/providers.ts declares it per provider);
+   * omitted falls back to the guess that used to be the only answer — the
+   * address — for a caller with nothing to declare.
    */
   vision?: boolean;
   /**

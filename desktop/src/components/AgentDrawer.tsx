@@ -26,7 +26,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
-  Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, RotateCcw,
+  Loader, Copy, Pencil, Eye, KeyRound, Boxes, Stethoscope, Image as ImageIcon, ImageOff, RotateCcw,
   File as FileIcon, ArrowRight, History as HistoryIcon, Trash2, FoldVertical,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
@@ -34,13 +34,13 @@ import {
   useAgent, agentEffort, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
   RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
-  addAgentAttachments, removeAgentAttachment, latestContext,
+  addAgentAttachments, removeAgentAttachment, latestContext, agentAcceptsImages, resolveProvider,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import { COMPACT_AT, shouldCompact } from '@/settings/agentIds';
 import type { ConfirmAnswer } from '../../electron/agent/types';
 import {
-  agentProviders, agentProvider, agentKeyId, parseModelList, subscribeProviders, providersRevision,
+  agentProviders, agentKeyId, subscribeProviders, providersRevision,
 } from '@/agent/providers';
 import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretStore';
 import { useSettings } from '@/store/settingsStore';
@@ -952,7 +952,11 @@ function ModelPicker() {
       {open && (
         <div className="ag-picker-menu">
           {providers.map((p) => {
-            const def = resolveProviderModels(p.id);
+            // Its models, with the typed list filled in for the one vendor whose
+            // names are not shippable. A provider the person defined arrives
+            // whole — nothing here can tell it from a built-in, which is the
+            // point of projecting the table into the same registry.
+            const def = resolveProvider(p.id) ?? p;
             const keyed = secretStatus(agentKeyId(p.id))?.configured === true;
             if (def.models.length === 0 && !def.label) return null;
             return (
@@ -991,19 +995,6 @@ function ModelPicker() {
 }
 
 const openAgentSettings = () => useEditorStore.getState().openSettings('agents');
-
-/** The custom provider's list comes from settings; the rest ship theirs. */
-function resolveProviderModels(id: string): { label: string; models: readonly string[] } {
-  const def = agentProvider(id);
-  if (!def) return { label: '', models: [] };
-  if (def.userDefined) {
-    return {
-      label: t('agent.picker.custom'),
-      models: parseModelList(String(useSettings.getState().getValue('agents.customModels') ?? '')),
-    };
-  }
-  return { label: def.label, models: def.models };
-}
 
 /** One thing `@` can name: something in the scene, or something on disk. */
 interface Mention {
@@ -1185,6 +1176,14 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
       )}
       {/* What is going along with the message, as the picture itself: a row of
           filenames would be a list of things you cannot check you picked. */}
+      {/* An endpoint that cannot carry them still takes the turn — the model is
+          told a picture was attached rather than handed the text alone — but
+          that is a thing to learn before pressing send, not from the reply. */}
+      {attachments.length > 0 && !agentAcceptsImages() && (
+        <button type="button" className="ag-att-blind" onClick={openAgentSettings}>
+          <ImageOff size={12} strokeWidth={1.8} />{t('agent.attach.blind')}
+        </button>
+      )}
       {attachments.length > 0 && (
         <div className="ag-atts">
           {attachments.map((a) => (

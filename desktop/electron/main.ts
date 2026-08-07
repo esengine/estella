@@ -690,7 +690,7 @@ ipcMain.handle('secret:clear', (_e, id: string) => clearSecret(id));
 // settings live in its localStorage) and merged, since the two rows fire
 // separately; read at session creation, so a change lands on the next
 // conversation rather than under the one being read.
-let agentEndpoint: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string } = {};
+let agentEndpoint: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string; vision?: boolean; reasoningEffort?: boolean } = {};
 /** Contributed agent tools, as the window last reported them. */
 let agentPluginTools: ContributedTool[] = [];
 
@@ -718,6 +718,11 @@ const agentHost = createAgentHost({
         model: agentEndpoint.model,
         effort,
         contextWindow: agentEndpoint.contextWindow,
+        vision: agentEndpoint.vision,
+        // An endpoint that has never heard of `reasoning_effort` refuses the
+        // whole request over it, so whether to name the depth is the provider's
+        // to declare — the same journey as the window and the sight.
+        reasoningEffort: agentEndpoint.reasoningEffort,
       });
     }
     return createAnthropicProvider({
@@ -726,6 +731,10 @@ const agentHost = createAgentHost({
       model: agentEndpoint.model,
       effort,
       contextWindow: agentEndpoint.contextWindow,
+      // What the provider declared, not what its address implies. The window is
+      // the side that knows which provider was picked, so it is the side that
+      // says — for this the same as for the model and the window size.
+      vision: agentEndpoint.vision,
     });
   },
   // Conversations are kept with the project they are about. With none open
@@ -761,7 +770,7 @@ ipcMain.handle('agent:resumeConversation', async (_e, id: string) => {
 ipcMain.handle('agent:deleteConversation', async (_e, id: string) => {
   if (projectRoot) await deleteConversation(projectRoot, id);
 });
-ipcMain.handle('agent:setEndpoint', (_e, patch: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }) => {
+ipcMain.handle('agent:setEndpoint', (_e, patch: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string; vision?: boolean; reasoningEffort?: boolean }) => {
   agentEndpoint = { ...agentEndpoint, ...patch };
   // `ready` is derived from which key this points at, so it just changed.
   agentHost.announce();

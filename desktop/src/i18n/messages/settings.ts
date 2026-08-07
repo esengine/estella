@@ -100,6 +100,7 @@ export const settingsMessages = defineMessages({
     'set.secret.stored': { en: 'Stored', zh: '已配置' },
     'set.secret.store': { en: 'Store it', zh: '保存' },
     'set.secret.forget': { en: 'Forget it', zh: '清除' },
+    'set.secret.needed': { en: 'Add key', zh: '添加密钥' },
     'set.secret.noKeychain': {
         en: 'This machine has no keychain to encrypt with, so nothing can be stored here. On Linux, install GNOME Keyring or KWallet, or start the editor with --password-store=gnome-libsecret.',
         zh: '这台机器没有可用于加密的密钥库，因此无法保存。Linux 上请安装 GNOME Keyring 或 KWallet，或以 --password-store=gnome-libsecret 启动编辑器。',
@@ -119,7 +120,7 @@ export const settingsMessages = defineMessages({
         en: 'Held by the system keychain — never written to the project or the settings file, and never handed back to this window. Every provider keeps its own, so switching back to one costs nothing.',
         zh: '存在系统钥匙串里——不写进项目、不写进设置文件,也不会交回给这个窗口。每个提供方各存各的,切回来不用重输。',
     },
-    'set.group.customProvider': { en: 'Custom Provider', zh: '自定义提供方' },
+    'set.group.customProvider': { en: 'Your providers', zh: '你的提供方' },
     'set.agents.effort': { en: 'Reasoning depth', zh: '思考深度' },
     'set.agents.effort.desc': {
         en: 'How hard the model is asked to think before it acts. `xhigh` is what agentic work is for and is the default; drop it when a turn costs more or takes longer than the task deserved. Applies to the next conversation.',
@@ -130,24 +131,37 @@ export const settingsMessages = defineMessages({
         en: 'Which models to offer in the composer, comma- or newline-separated. Typed rather than shipped: a list here would be right until the vendor\'s next release, and a name that no longer exists is not refused — the endpoint serves something smaller instead, for the rest of the session.',
         zh: '在输入框旁边可选的型号,用逗号或换行分隔。要自己填而不是内置:内置的列表只能正确到厂商下次发布为止,而写了个已经不存在的名字并不会被拒绝——接口会改用一个更小的模型顶上,并且一整个会话都是如此。',
     },
-    'set.agents.customProtocol': { en: 'Protocol', zh: '协议' },
-    'set.agents.customProtocol.desc': {
-        en: 'Which API this endpoint speaks. The two formats differ in every message they send, so a wrong pick is refused rather than degraded. Chat Completions is what most gateways and every local runner implement.',
-        zh: '这个接口讲哪种 API。两种格式发出的每一条消息都不一样,所以选错会被直接拒绝,而不是降级运行。绝大多数网关和所有本地运行器讲的都是 Chat Completions。',
-    },
     'set.agents.protocol.openai': { en: 'OpenAI (Chat Completions)', zh: 'OpenAI(Chat Completions)' },
     'set.agents.protocol.anthropic': { en: 'Anthropic (Messages)', zh: 'Anthropic(Messages)' },
-    'set.agents.customBaseUrl': { en: 'Endpoint', zh: 'API 地址' },
-    'set.agents.customBaseUrl.desc': {
-        en: 'The address of an endpoint speaking the protocol above. Only needed for a provider not in the list — the built-in ones already know theirs. On the Anthropic protocol the agent then sends only the core Messages format, without extended thinking, prompt caching or automatic fallbacks.',
-        zh: '讲上面那个协议的接口地址。只有列表里没有的提供方才需要填——内置的那些自己知道地址。走 Anthropic 协议时,Agent 只发送基础 Messages 格式,不带扩展思考、提示缓存和自动回退。',
+    // In a table cell the long form is truncated to something no shorter and far
+    // less readable; which format each name means is the row's description.
+    'set.agents.protocolShort.openai': { en: 'OpenAI', zh: 'OpenAI' },
+    'set.agents.protocolShort.anthropic': { en: 'Anthropic', zh: 'Anthropic' },
+    'set.agents.providers': { en: 'Endpoints', zh: '接口' },
+    'set.agents.providers.desc': {
+        en: 'Endpoints of your own — a local runner, a company gateway, a vendor not in the list above. Each keeps its own key and appears in the composer under its own name. The expander holds what the endpoint can DO: what it cannot be told, the agent has to work around.',
+        zh: '你自己的接口——本地运行器、公司网关,或者上面列表里没有的厂商。每一条各存各的密钥,并以自己的名字出现在输入框的模型选择器里。展开项里是这个接口「能做什么」:没告诉它的部分,Agent 只能绕着走。',
     },
-    'set.agents.customModels': { en: 'Models', zh: '模型' },
-    'set.agents.customModels.desc': {
-        en: 'The model names this endpoint offers, comma- or newline-separated. They become choices in the composer.',
-        zh: '这个接口提供的模型名,用逗号或换行分隔。它们会出现在输入框的模型选择器里。',
+    'set.agents.providers.empty': {
+        en: 'None yet. The built-in providers above cover the major vendors; add one here for anything else that speaks either protocol.',
+        zh: '还没有。上面的内置提供方覆盖了主要厂商;讲这两种协议中任意一种的其它接口,在这里添加。',
     },
-    'set.agents.customKey': { en: 'Custom API key', zh: '自定义提供方密钥' },
+    'set.agents.addProvider': { en: 'Add a provider', zh: '添加提供方' },
+    'set.agents.col.label': { en: 'Name', zh: '名称' },
+    'set.agents.col.protocol': { en: 'Protocol', zh: '协议' },
+    'set.agents.col.baseUrl': { en: 'Endpoint', zh: 'API 地址' },
+    'set.agents.col.models': { en: 'Models', zh: '模型' },
+    'set.agents.col.key': { en: 'Key', zh: '密钥' },
+    'set.agents.capabilities': { en: 'What it can do', zh: '它能做什么' },
+    'set.agents.col.contextWindow': { en: 'Context window', zh: '上下文窗口' },
+    'set.agents.col.reasoningEffort': { en: 'Takes a reasoning-depth argument', zh: '接受思考深度参数' },
+    'set.agents.err.baseUrl': { en: 'This provider has no endpoint address.', zh: '这个提供方还没有填接口地址。' },
+    'set.agents.err.models': { en: 'No models, so nothing to pick in the composer.', zh: '没有填模型,输入框里就没有可选项。' },
+    'set.agents.customVision': { en: 'Accepts images', zh: '接受图片' },
+    'set.agents.customVision.desc': {
+        en: 'Turn on only if this endpoint\'s models can see. The agent takes screenshots to check its own work; where they cannot be sent it asks for the same frame as a coarse text grid instead, and says so in the transcript. Claiming sight an endpoint lacks costs a whole turn to a refused request, which is why this starts off.',
+        zh: '只有这个接口的模型确实能看图时才打开。Agent 会截图来检查自己干的活;发不出去图片时,它会改成把同一帧要成粗颗粒的文字色块网格,并在对话里说明。给一个其实看不了图的接口打开它,代价是整轮请求被拒——所以默认是关的。',
+    },
     'set.agents.mcpEnabled': { en: 'Allow AI agents to connect', zh: '允许 AI 代理连接' },
     'set.agents.mcpEnabled.desc': {
         en: 'Serve this editor over MCP on a local-only port, so an agent set up with --attach can drive the project you have open. Off means nothing is listening.',

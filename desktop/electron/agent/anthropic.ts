@@ -48,6 +48,16 @@ export interface AnthropicOptions {
   /** Point at an Anthropic-compatible gateway; omit for the API. Its presence
    *  is what drops the request to the core wire format — see the file header. */
   baseURL?: string;
+  /**
+   * Whether this endpoint's models can be handed an image.
+   *
+   * A separate fact from the dialect, though the address once stood in for
+   * both. The dialect is about which EXTENSIONS the request may carry; image
+   * blocks are in the core format, so a gateway may well take them — and a
+   * gateway that does had no way to say so. Omitted falls back to the guess
+   * that fact replaced, for a caller with nothing to declare.
+   */
+  vision?: boolean;
   /** How far the conversation may grow before the oldest runs are folded away.
    *  The window knows which provider this is, so it is the side that says. */
   contextWindow?: number;
@@ -127,15 +137,16 @@ export function buildStepRequest(opts: {
  * happened: a model handed a silently dropped screenshot concludes the editor is
  * broken, while one told the endpoint cannot carry it asks a different way.
  *
- * Exported because the native branch cannot be exercised against a local
- * stand-in gateway — pointing at one is exactly what selects the other dialect.
+ * Keyed on `vision` rather than on the dialect, which it once shared: image
+ * blocks are core format, so a gateway that takes them is an ordinary case and
+ * not an exception to be spotted from the address.
  */
 export function toolResultContent(
   outcome: ToolOutcome,
-  dialect: Dialect,
+  vision: boolean,
 ): Anthropic.Beta.BetaToolResultBlockParam['content'] {
   if (!outcome.image) return outcome.content;
-  if (dialect !== 'anthropic') {
+  if (!vision) {
     return `${outcome.content}\n[the screenshot could not be sent: this endpoint does not accept images]`;
   }
   return [
@@ -179,7 +190,9 @@ class AnthropicSession implements AgentSession {
 
   constructor(
     private readonly client: Anthropic,
-    private readonly opts: { model: string; effort: string; dialect: Dialect; contextWindow: number },
+    private readonly opts: {
+      model: string; effort: string; dialect: Dialect; vision: boolean; contextWindow: number;
+    },
     private readonly system: string,
     private readonly tools: readonly CatalogTool[],
   ) {
@@ -226,7 +239,7 @@ class AnthropicSession implements AgentSession {
     // than quietly handed the text alone: a model that never learns a picture
     // was attached answers confidently about something it was not shown, and
     // the person watching has every reason to think it looked.
-    if (this.opts.dialect !== 'anthropic') {
+    if (!this.opts.vision) {
       const note = images.length === 1
         ? '[the user attached an image; this endpoint cannot receive images, so you have not seen it]'
         : `[the user attached ${images.length} images; this endpoint cannot receive images, so you have not seen them]`;
@@ -269,7 +282,7 @@ class AnthropicSession implements AgentSession {
       content: outcomes.map((o) => ({
         type: 'tool_result' as const,
         tool_use_id: o.id,
-        content: toolResultContent(o, this.opts.dialect),
+        content: toolResultContent(o, this.opts.vision),
         is_error: o.isError,
       })),
     });
@@ -468,16 +481,20 @@ export function createAnthropicProvider(options: AnthropicOptions): AgentProvide
   const effort = options.effort ?? DEFAULT_EFFORT;
   const baseURL = options.baseURL || undefined;
   const dialect: Dialect = baseURL ? 'compatible' : 'anthropic';
+  // Declared by the provider that was picked. The fallback is the guess this
+  // replaced — right for the API, and the safe way to be wrong for a caller
+  // that says nothing, since a claimed sight an endpoint lacks costs the turn.
+  const vision = options.vision ?? dialect === 'anthropic';
   const client = new Anthropic({ apiKey: options.apiKey, baseURL });
   return {
     id: dialect === 'anthropic' ? 'anthropic' : `compatible:${baseURL ?? ''}`,
     model,
-    // The same condition toolResultContent substitutes on — one fact, one place.
-    acceptsImages: dialect === 'anthropic',
+    // The same flag toolResultContent substitutes on — one fact, one place.
+    acceptsImages: vision,
     createSession: ({ system, tools }, memory) => {
       const session = new AnthropicSession(
         client,
-        { model, effort, dialect, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },
+        { model, effort, dialect, vision, contextWindow: options.contextWindow || DEFAULT_CONTEXT_WINDOW },
         system,
         tools,
       );

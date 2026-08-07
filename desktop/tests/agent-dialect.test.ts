@@ -143,8 +143,8 @@ describe('a tool result carrying a rendered frame', () => {
     image: { data: 'BASE64PNG', mediaType: 'image/png' },
   };
 
-  it('sends the image itself to Anthropic', () => {
-    const content = toolResultContent(shot, 'anthropic');
+  it('sends the image itself where the endpoint takes one', () => {
+    const content = toolResultContent(shot, true);
     expect(Array.isArray(content)).toBe(true);
     expect((content as { type: string }[])[0]).toMatchObject({
       type: 'image',
@@ -152,16 +152,48 @@ describe('a tool result carrying a rendered frame', () => {
     });
   });
 
-  it('tells a gateway why there is no image rather than dropping it in silence', () => {
-    const content = toolResultContent(shot, 'compatible');
+  it('tells a blind endpoint why there is no image rather than dropping it in silence', () => {
+    const content = toolResultContent(shot, false);
     expect(typeof content).toBe('string');
     expect(content).toContain('does not accept images');
   });
 
-  it('leaves an ordinary result a plain string on both', () => {
+  it('leaves an ordinary result a plain string either way', () => {
     const plain = { id: 'c2', content: '7 created', isError: false };
-    expect(toolResultContent(plain, 'anthropic')).toBe('7 created');
-    expect(toolResultContent(plain, 'compatible')).toBe('7 created');
+    expect(toolResultContent(plain, true)).toBe('7 created');
+    expect(toolResultContent(plain, false)).toBe('7 created');
+  });
+});
+
+/**
+ * Sight is DECLARED, not read off the address.
+ *
+ * It was read off the address once, and that made every gateway blind with no
+ * way to say otherwise — including ones whose models see perfectly well, since
+ * image blocks are core format and not one of the extensions the dialect gates.
+ */
+describe('whether the endpoint is told to be blind', () => {
+  const provider = (over = {}) => createAnthropicProvider({ apiKey: 'k', ...over });
+  const gateway = 'https://gateway.example/anthropic';
+
+  it('takes the provider at its word, over what the address implies', () => {
+    expect(provider({ baseURL: gateway, vision: true }).acceptsImages).toBe(true);
+    expect(provider({ vision: false }).acceptsImages).toBe(false);
+  });
+
+  it('falls back to the address for a caller that declares nothing', () => {
+    expect(provider().acceptsImages).toBe(true);
+    expect(provider({ baseURL: gateway }).acceptsImages).toBe(false);
+  });
+
+  // The dialect still gates the EXTENSIONS — a gateway that sees is not a
+  // gateway that took adaptive thinking, caching and server-side fallbacks.
+  it('does not buy the extensions along with the sight', () => {
+    const session = provider({ baseURL: gateway, vision: true })
+      .createSession({ system: 's', tools: TOOLS }) as unknown as {
+        opts: { dialect: string; vision: boolean };
+      };
+    expect([session.opts.dialect, session.opts.vision]).toEqual(['compatible', true]);
   });
 });
 
@@ -224,8 +256,8 @@ describe('what a failed request says', () => {
 describe('an image on the person\'s turn', () => {
     const shot = [{ mediaType: 'image/png', data: 'AAAA' }];
     /** The session's messages — what the request would carry. */
-    const messagesOf = (baseURL?: string, images = shot, text = 'like this') => {
-        const provider = createAnthropicProvider({ apiKey: 'k', baseURL });
+    const messagesOf = (baseURL?: string, images = shot, text = 'like this', vision?: boolean) => {
+        const provider = createAnthropicProvider({ apiKey: 'k', baseURL, vision });
         const session = provider.createSession({ system: 's', tools: TOOLS });
         session.pushUser(text, images);
         return (session.serialize() as { messages: Array<{ role: string; content: unknown }> }).messages;
@@ -253,6 +285,13 @@ describe('an image on the person\'s turn', () => {
         expect(typeof msg.content).toBe('string');
         expect(msg.content as string).toContain('like this');
         expect(msg.content as string).toMatch(/cannot receive images|have not seen/);
+    });
+
+    // And a gateway that DOES take them gets the picture, because what decides
+    // this is what the provider declared and not where the endpoint lives.
+    it('rides the turn on a gateway that declared it can see', () => {
+        const [msg] = messagesOf('https://gateway.example/anthropic', shot, 'like this', true);
+        expect((msg.content as Array<{ type: string }>).map((b) => b.type)).toEqual(['image', 'text']);
     });
 
     it('counts them when there are several', () => {

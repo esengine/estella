@@ -33,8 +33,10 @@ and configure one provider — that is the whole setup.
    name that no longer exists is not refused — the endpoint quietly serves something
    smaller instead, for the rest of the session.
 
-3. Or fill in the **Custom Provider** — any endpoint at all. Pick which **protocol**
-   it speaks, then give its address and its model names.
+3. Or add your own under **Your providers** — any endpoint at all, as many as you
+   have. Each row is a provider like the shipped ones: a name, which **protocol**
+   it speaks, its address, its model names, and its own key. Expand a row to say
+   what that endpoint can do.
 
 4. Close Settings. The model picker sits next to the box you type in — it is a
    per-message choice, not a preference buried in a dialog.
@@ -55,6 +57,24 @@ In the system keychain. It is never written to the project, never written to the
 settings file, and never handed back to the editor window — only to the client that
 has to send it.
 </Aside>
+
+## What an endpoint can do
+
+The shipped providers already say. For one of your own the editor has no way to
+find out, and guessing is expensive in both directions — so a row's expander is
+where you tell it. What is left unsaid is worked around, not discovered.
+
+- **Accepts images** — the agent takes screenshots to check its own work. Where a
+  picture cannot be sent it asks for the same frame as a coarse colour grid in
+  text instead, and says so in the transcript. Off by default: claiming sight an
+  endpoint lacks costs a whole turn to a refused request, while withholding it
+  costs detail the agent can mostly do without.
+- **Context window** — how far a conversation may grow before its oldest runs are
+  folded away. Blank assumes a conservative window, which folds a conversation
+  that still had room; too generous fails the turn outright, after the wait.
+- **Takes a reasoning-depth argument** — whether the request may name the depth
+  set above. An endpoint that has never heard of the argument refuses the whole
+  call rather than ignoring it, so turn this off for one that does.
 
 ## Ask it something
 

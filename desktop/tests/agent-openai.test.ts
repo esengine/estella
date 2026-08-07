@@ -121,12 +121,14 @@ describe('the provider', () => {
     expect(provider({ baseURL: 'http://localhost:11434/v1' }).id).toBe('openai:http://localhost:11434/v1');
   });
 
-  // A gateway we have never heard of may not take images, and finding out costs
-  // a call spent on a screenshot the model is then told it cannot look at.
-  it('assumes a gateway cannot see, and OpenAI itself can', () => {
+  // Declared by whoever picked the provider (src/agent/providers.ts). The
+  // address is only the fallback for a caller that says nothing — reading it as
+  // the answer is what left every gateway blind with no way to say otherwise.
+  it('takes the caller at its word, and falls back to the address', () => {
+    expect(provider({ baseURL: 'http://x/v1', vision: true }).acceptsImages).toBe(true);
+    expect(provider({ vision: false }).acceptsImages).toBe(false);
     expect(provider().acceptsImages).toBe(true);
     expect(provider({ baseURL: 'http://localhost:11434/v1' }).acceptsImages).toBe(false);
-    expect(provider({ baseURL: 'http://x/v1', vision: true }).acceptsImages).toBe(true);
   });
 
   /**

@@ -57,6 +57,21 @@ export interface AgentProviderDef {
    */
   contextWindow?: number;
   /**
+   * Whether a rendered frame can reach this endpoint's models at all.
+   *
+   * DECLARED, never inferred. It was inferred once — "no baseUrl, therefore the
+   * vendor's own API, therefore it can see" — which is only a statement about
+   * the address, and it made every gateway blind with no way to say otherwise.
+   *
+   * Per provider rather than per model, for {@link contextWindow}'s reason: a
+   * table with a row per model goes stale a model at a time. Absent means NO,
+   * deliberately — the two mistakes are not symmetrical. Claiming sight an
+   * endpoint lacks spends the turn on a request it refuses; withholding it costs
+   * `screenshot`'s coarse text grid instead of a picture, which still answers
+   * "did anything draw at all".
+   */
+  vision?: boolean;
+  /**
    * The model list is TYPED, not shipped.
    *
    * A vendor's address and protocol hold still; its model names do not. A list
@@ -66,8 +81,24 @@ export interface AgentProviderDef {
    * shipped, including its key row.
    */
   typedModels?: boolean;
-  /** Endpoint, protocol AND models all come from settings — see
-   *  {@link CUSTOM_PROVIDER}, the one provider we cannot ship anything for. */
+  /**
+   * Send the reasoning-depth parameter with each request.
+   *
+   * Only the OpenAI protocol carries it as a named argument (`reasoning_effort`),
+   * and an endpoint that has never heard of one refuses the whole request rather
+   * than ignoring the field — so for a gateway this has to be a switch, not an
+   * assumption. Absent means yes, which is right for every endpoint that
+   * implements the parameter and is the behaviour that predates the field.
+   */
+  reasoningEffort?: boolean;
+  /**
+   * This def came from the person's own table rather than from this file.
+   *
+   * Every OTHER field means the same thing whichever way it arrived — that is
+   * the point of projecting the table into this registry instead of keeping it
+   * beside it. This one exists so a reader that must not offer to edit a shipped
+   * provider can tell the two apart.
+   */
   userDefined?: boolean;
 }
 
@@ -76,7 +107,17 @@ export { DEFAULT_CONTEXT_WINDOW } from '@/settings/agentIds';
 /** The id a provider's key is stored under (electron/secrets.ts). */
 export const agentKeyId = (providerId: string): string => `agents.key.${providerId}`;
 
+/**
+ * The id the ONE custom provider had, back when there could only be one.
+ *
+ * Kept because a key is filed under its provider's id: the row that setup
+ * becomes on upgrade has to carry this id, or the credential already sealed on
+ * the machine belongs to a provider that no longer exists (agent/userProviders.ts).
+ */
 export const CUSTOM_PROVIDER = 'custom';
+
+/** Who owns the providers the person typed — see {@link setUserProviders}. */
+export const USER_OWNER = 'user';
 
 /** A provider whose models the user types. Its list is per provider, so two of
  *  them do not share one box. */
@@ -91,6 +132,7 @@ registry.registerAll('core', [
     baseUrl: '',
     models: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
     contextWindow: 200_000,
+    vision: true,
   },
   {
     id: 'deepseek',
@@ -107,16 +149,11 @@ registry.registerAll('core', [
     models: [],
     typedModels: true,
     contextWindow: 400_000,
-  },
-  // The escape hatch. Its endpoint, protocol and model list come from settings,
-  // because a provider we have not heard of is exactly the one we cannot ship
-  // a list for — and Chat Completions is what most of those speak.
-  {
-    id: CUSTOM_PROVIDER,
-    label: '',
-    baseUrl: '',
-    models: [],
-    userDefined: true,
+    // Its models are typed, so this is a claim about the ENDPOINT: it carries
+    // image parts. A text-only model named into that box is the same staleness
+    // `contextWindow` accepts, and it degrades the same way — the model is told
+    // a picture it cannot see was attached.
+    vision: true,
   },
 ]);
 
@@ -130,6 +167,24 @@ export const providersRevision = (): number => registry.getRevision();
 /** Contribute a provider (a plugin's extension point). */
 export const registerAgentProvider = (def: AgentProviderDef, owner: Owner = 'core'): Disposable =>
   registry.register(owner, def);
+
+/**
+ * Replace the set of providers the person defined themselves.
+ *
+ * They arrive as a SET rather than one at a time because that is how they are
+ * edited — a table, rewritten whole on each keystroke — and because the removals
+ * matter as much as the additions: a provider deleted from the table must stop
+ * being offered in the picker, and dispose-then-register is the only way to say
+ * that without diffing. Everything downstream reads them through the same door
+ * as the shipped ones; nothing but this function knows they were typed.
+ *
+ * Kept here, taking finished defs, so this module stays free of the settings
+ * store — the projection from one to the other lives in agent/userProviders.ts.
+ */
+export function setUserProviders(defs: readonly AgentProviderDef[]): void {
+  registry.disposeOwner(USER_OWNER);
+  registry.registerAll(USER_OWNER, defs.map((d) => ({ ...d, userDefined: true })));
+}
 
 export const AGENT_PROTOCOLS: readonly AgentProtocol[] = ['openai', 'anthropic'];
 

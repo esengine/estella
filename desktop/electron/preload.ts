@@ -139,7 +139,7 @@ const api = {
       ipcRenderer.invoke('agent:deleteConversation', id),
     /** Point the NEXT session at an endpoint/model. Merged, so each settings row
      *  can push its own field. */
-    setEndpoint: (patch: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string }): Promise<void> =>
+    setEndpoint: (patch: { protocol?: string; baseUrl?: string; model?: string; keyId?: string; contextWindow?: number; effort?: string; vision?: boolean; reasoningEffort?: boolean }): Promise<void> =>
       ipcRenderer.invoke('agent:setEndpoint', patch),
     /** Report what loaded plugins contributed for the agent to call. Metadata
      *  only — the handlers stay in this window, reached through the editor
