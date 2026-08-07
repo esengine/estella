@@ -16,6 +16,42 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A camera renders a set of sorting layers, and a UI canvas belongs to one.**
+  Every camera drew the whole scene, so a minimap or a split-screen view redrew
+  the HUD inside its own viewport with no way to say otherwise. `Camera.cullingMask`
+  selects layers — bit *i* is sorting layer *i*, all bits set by default, so an
+  unconfigured camera draws exactly what it drew before. UI could not be addressed
+  that way, because a UI element's `layer` is its position in the tree rather than
+  a membership; `Canvas.layer` supplies the membership that field never carried —
+  an ordinary sorting layer that changes no draw order and exists so a camera can
+  include or exclude that canvas.
+
+- **A UI root with no transform parent now follows the camera.** The layout box was
+  computed with a position and consumed without one, so an unparented root — the
+  ordinary HUD — sat at the world origin forever: move the camera and the HUD
+  stayed behind, with nothing in the engine able to make it follow. A root with no
+  transform parent is a screen root and the box's centre places it. Parenting a
+  root opts out and pins that UI to a thing in the world, the same distinction CSS
+  draws between a fixed box and one positioned by an ancestor.
+
+- **A prefab can be created empty, not only extracted from an entity.** A prefab
+  had to be born from an entity that already existed — build it in the scene, then
+  Create Prefab. Starting from the asset (new prefab, opened, built up in Prefab
+  Mode) had no door, which is how most people reach for one.
+
+- **The built-in agent takes a list of providers, each declaring what it accepts.**
+  There was exactly one custom provider, spelled out as four global settings and a
+  key — so an endpoint could say where it is and nothing about what it accepts or
+  how many of it there are. Providers are a list now, and a settings table row can
+  hold a choice, a switch and a credential rather than only text and numbers,
+  which is what forced records to be flattened into fixed global fields before.
+
+- **Per-component inspector UI is contributed through the registry.** Fifteen of
+  the editor's sixteen contribution registries already take built-ins under owner
+  `core`, so built-ins and plugins read through one door. The inspector was the
+  sixteenth, and its built-in half was a `comp.name === …` chain written directly
+  above the contributed sections — in *two* panel bodies, which had drifted apart.
+
 - **A component says whether it draws, where it is defined.** Field metadata has
   been authored at the field for a while (`ES_PROPERTY(min=…, tooltip=…)`); the
   component itself had no such place, so anything true of a whole component was
@@ -28,6 +64,17 @@ published separately; it ships inside the editor.
   component fails the build rather than reading as "draws nothing".
 
 ### Changed
+
+- **`Registry::get` on a missing component now stops instead of handing back a
+  shared object.** It used to answer a miss with a `static T` reset to defaults —
+  so `registry.get<Transform>(deadEntity).x = 500` moved a process-wide static
+  rather than an entity, nothing crashed, and the symptom surfaced somewhere else
+  entirely. `emplace`/`emplaceOrReplace`/`getOrEmplace` did the same for an invalid
+  entity. All of them now fail fatally on the violated precondition, through the
+  same always-on guard every other engine check uses. C++ code that reads a
+  component off an entity that does not have it now stops where the mistake is
+  instead of drifting — which is what the JS side always did (`world.get` throws
+  "Component not found"), so the two realms answer this the same way.
 
 - **The scene format version is an integer, and `withScratch` refuses an async
   callback.** The format version was compared with `parseFloat`, which reads
@@ -63,6 +110,63 @@ published separately; it ships inside the editor.
   says so. Reading, `for..of`, `.map`, `.filter` and indexing are unaffected.
 
 ### Fixed
+
+- **A character controller put the character at NaN from the second frame.** Press
+  Play on any project with a `CharacterController` — tilemap-demo and platformer
+  both — and it stayed there for the session. The physics API is built through a
+  path that runs no field initializers, so the pixels-per-unit default belonged
+  only to the constructor nobody used there, and `getPixelsPerUnit()` answered
+  undefined until something pushed a value. The controller system runs one system
+  *before* the step that does the pushing, so its first frame scaled by undefined.
+
+- **A WebGPU buffer upload read past the end of the caller's data.** `createBuffer`
+  rounded the write length up to a multiple of 4 and handed that to
+  `wgpuQueueWriteBuffer`, which reads exactly the length it is given — while the
+  source allocation is only the size asked for. Rounding the allocation is right;
+  rounding the read is not. One triangle of `u16` indices is enough to reach it.
+  `resizeBuffer` did the same.
+
+- **An RGB8 texture upload read a third past the end of its pixels.** WebGPU has no
+  RGB8 format, so such a texture is created as RGBA8 — and the backend took bytes
+  per pixel from the *created* format while the caller had allocated three bytes
+  per pixel. Every upload read `width*height*4` out of a `width*height*3` buffer,
+  and the rows that did land were channel-shifted.
+
+- **A new entity no longer ships the engine's computed fields as authored data.**
+  The Create picker copied a component's whole default record, `readonly` fields
+  included — Transform's `worldPosition`/`worldRotation`/`worldScale`, which the
+  engine composes from the local transform and the parent chain every frame. They
+  went into the model, the saved scene, and any prefab extracted from it, where
+  they are wrong the moment the instance sits under a different parent.
+
+- **A link out of the project passed the editor's file sandbox.** `resolveInRoot`
+  rejected `..` and absolute paths, purely lexically — and a symlink inside the
+  project contains neither, so the read that followed went wherever it pointed.
+  Reproduced with a Windows junction, which needs no elevation. Both sides are now
+  compared with links resolved, including the root itself, since a project may
+  legitimately live under a symlinked path.
+
+- **Create Prefab acted on the row under the cursor, not the selection.** Every
+  other multi-selection action in that menu resolves selection-or-target;
+  Create Prefab passed the bare id, so it did not refuse a multi-selection — it
+  quietly answered a different question.
+
+- **A prefab changed on disk while open is reloaded rather than overwritten.** A
+  scene in that situation is reconciled — seamless when clean, discard-guarded
+  when not. Prefab Mode had none of it, because the watcher asked only whether the
+  path was the open *scene*.
+
+- **Unsaved work in any open document blocks a document swap.** The editor holds
+  the scene plus every open asset editor (tileset, flipbook, FSM, behaviour tree,
+  material graph, timeline), each tracking its own dirt. The guard read the
+  scene's history alone, though the rule it implements is written down as the
+  aggregate.
+
+- **A failing `Mut()` write-back was retried on the way out.** On the clean path
+  the flush ran and then set a "completed" flag, so a throw from the flush itself
+  skipped the flag and the `finally` flushed the same entity again, under the
+  error the first attempt raised. A callback that throws leaves finished edits
+  genuinely owed a flush; a write-back that throws has already had its turn.
 
 - **A slowly growing frame reallocated the GPU buffers every frame.** The CPU
   staging vectors double when they run out, but the vertex/index buffers were
