@@ -25,6 +25,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { isInsideRoot } from './pathSandbox';
 import { httpContentType } from './mimeTypes';
 
 /** Served root (absolute) → its running loopback server + URL. */
@@ -47,8 +48,7 @@ export async function loopbackServer(rootDir: string): Promise<string> {
     try {
       const rel = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
       const abs = path.join(root, rel);
-      // Contain within the served root (no traversal out of the build).
-      if (abs !== root && !abs.startsWith(root + path.sep)) {
+      if (!isInsideRoot(root, abs)) {
         res.writeHead(403).end('forbidden');
         return;
       }

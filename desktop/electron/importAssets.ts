@@ -10,6 +10,7 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { isInsideRoot } from './pathSandbox';
 import { resolveInRoot, META_EXT } from './projectFs';
 import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
 import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
@@ -34,9 +35,9 @@ function uniqueName(absDir: string, name: string): string {
 /** The project-relative (forward-slashed) path of `abs` under `root`, or null
  *  when `abs` lives outside the project. */
 function relInRoot(root: string, abs: string): string | null {
+  if (!isInsideRoot(root, abs)) return null;
   const rel = path.relative(path.resolve(root), path.resolve(abs));
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  return rel.replace(/\\/g, '/');
+  return rel ? rel.replace(/\\/g, '/') : null;
 }
 
 /** Canonical creation extension per meta type — the inverse of {@link EXT_TO_TYPE},

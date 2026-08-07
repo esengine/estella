@@ -23,6 +23,7 @@ import {
   resolveInRoot,
   META_EXT,
 } from './projectFs';
+import { isInsideRoot } from './pathSandbox';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
@@ -1432,11 +1433,10 @@ ipcMain.handle('project:saveDialog', async (_e, defaultRel?: string) => {
     filters: [{ name: 'Estella Scene', extensions: ['esscene'] }],
   });
   if (res.canceled || !res.filePath) return null;
-  const rel = path.relative(root, res.filePath);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+  if (!isInsideRoot(root, res.filePath)) {
     throw new Error('scene must be saved inside the project');
   }
-  return rel;
+  return path.relative(root, res.filePath);
 });
 
 // Serve a project file, honoring an HTTP Range request (206) when present so
@@ -1527,7 +1527,7 @@ async function handleApp(request: Request): Promise<Response> {
       return await serveProjectFile(abs, request);
     }
     const abs = path.join(RENDERER_DIST, rel);
-    if (abs !== RENDERER_DIST && !abs.startsWith(RENDERER_DIST + path.sep)) {
+    if (!isInsideRoot(RENDERER_DIST, abs)) {
       return new Response('forbidden', { status: 403 });
     }
     const bytes = await readFile(abs);

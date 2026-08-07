@@ -286,6 +286,7 @@ export async function measureBuild(opts: {
   const excluded = new Set<string>();
   for (const file of [...(opts.packages ?? []), ...(opts.deliverable ? [opts.deliverable] : [])]) {
     const rel = path.relative(opts.root, file);
+    // path-sandbox: not a boundary — classifying which built files a report counts.
     if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) excluded.add(normalizeRel(rel));
   }
   const files = (await collectBuildFiles(opts.root)).filter((f) => !excluded.has(normalizeRel(f.path)));

@@ -314,6 +314,9 @@ app.whenReady().then(() => {
     let rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\\/+/, '') || 'index.html';
     const filePath = path.join(ROOT, rel);
     // Contain within ROOT (no path traversal out of the bundled payload).
+    // path-sandbox: this is emitted into the shipped game and cannot import the
+    // editor's module. Lexical is enough because the payload is BUILT file by file
+    // (the cook writes bytes, esbuild writes outputs) — no link can be in it.
     if (filePath !== ROOT && !filePath.startsWith(ROOT + path.sep)) {
       return new Response('forbidden', { status: 403 });
     }

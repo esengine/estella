@@ -8,7 +8,7 @@
  *        server per root, and fails fast without an index.html.
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { loopbackServer, closeAllLoopbackServers } from '../electron/loopbackServer';
@@ -59,6 +59,27 @@ describe('loopback server', () => {
       const res = await fetch(`${url}../../etc/hosts`);
       expect([403, 404]).toContain(res.status);
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a link out of the served root', async () => {
+    const dir = buildDir();
+    const outside = mkdtempSync(path.join(tmpdir(), 'estella-loopback-outside-'));
+    writeFileSync(path.join(outside, 'secret.txt'), 'PRIVATE');
+    try {
+      if (process.platform === 'win32') symlinkSync(outside, path.join(dir, 'escape'), 'junction');
+      else symlinkSync(outside, path.join(dir, 'escape'), 'dir');
+    } catch {
+      return; // no permission to make one here
+    }
+    try {
+      const url = await loopbackServer(dir);
+      const res = await fetch(`${url}escape/secret.txt`);
+      expect([403, 404]).toContain(res.status);
+      expect(await res.text()).not.toContain('PRIVATE');
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
       rmSync(dir, { recursive: true, force: true });
     }
   });

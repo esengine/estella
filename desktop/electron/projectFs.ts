@@ -9,7 +9,7 @@
  * project someone else authored can read or write arbitrary files.
  */
 import { readFile, writeFile, readdir, mkdir, rename, cp, stat, rm } from 'node:fs/promises';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,68 +24,14 @@ import {
   type DirEntry,
 } from '../src/project/format';
 import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
+import { resolveInside } from './pathSandbox';
 
 export { META_EXT };
 
-/** Whether `abs` is `base` or sits under it, lexically. */
-function contains(base: string, abs: string): boolean {
-  const rel = path.relative(base, abs);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-// Roots change once per project open; the candidate side is still resolved live.
-const realRootCache = new Map<string, string>();
-
-/** `root` with links resolved — a project may itself live under one (/tmp on macOS). */
-function realRoot(root: string): string {
-  const key = path.resolve(root);
-  const hit = realRootCache.get(key);
-  if (hit !== undefined) return hit;
-  let real = key;
-  try {
-    real = realpathSync.native(key);
-  } catch {
-    // Not created yet (a project being made) — the lexical form is all there is.
-  }
-  realRootCache.set(key, real);
-  return real;
-}
-
-/**
- * `abs` with links resolved. The leaf often does not exist yet (a write, a mkdir,
- * a rename target), so resolve the deepest ancestor that does and re-attach the
- * rest — that is the part an attacker can have made a link.
- */
-function realResolve(abs: string): string {
-  const tail: string[] = [];
-  let head = abs;
-  for (;;) {
-    try {
-      return path.join(realpathSync.native(head), ...tail);
-    } catch {
-      const parent = path.dirname(head);
-      if (parent === head) return abs;
-      tail.unshift(path.basename(head));
-      head = parent;
-    }
-  }
-}
-
-/**
- * Resolve a project-relative path, refusing anything that escapes `root` — the
- * security boundary for every fs op below. A link inside the project holds no
- * `..` and points wherever it likes, so both sides are compared with links
- * resolved; racing a swap after the check needs O_NOFOLLOW, which node lacks.
- */
+/** Resolve a project-relative path, refusing anything that escapes `root` — the
+ *  security boundary for every fs op below (see pathSandbox). */
 export function resolveInRoot(root: string, relPath: string): string {
-  const resolved = path.resolve(root, relPath);
-  if (!contains(root, resolved)) {
-    throw new Error(`path "${relPath}" escapes the project root`);
-  }
-  if (!contains(realRoot(root), realResolve(resolved))) {
-    throw new Error(`path "${relPath}" escapes the project root through a link`);
-  }
-  return resolved;
+  return resolveInside(root, relPath, 'project root');
 }
 
 /**

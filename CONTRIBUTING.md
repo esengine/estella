@@ -106,6 +106,12 @@ We follow a strict commit message format:
 - **C++**: See naming conventions and formatting rules in [`docs/CODING_STYLE.md`](docs/CODING_STYLE.md)
 - **TypeScript**: Strict mode, use `defineComponent()` and `defineSystem()`
 - **Comments**: Code should be self-documenting. Only add comments for non-obvious logic.
+- **One path sandbox**: "is this path inside that root?" is `isInsideRoot` /
+  `resolveInside` from `desktop/electron/pathSandbox.ts`. Do not open-code
+  `path.relative(...).startsWith('..')` — lexical containment is not containment,
+  because a symlink or junction inside the root holds no `..`. Enforced by
+  `node tools/check-path-sandbox.mjs` (in `pnpm verify`); a use that is genuinely
+  not a boundary opts out with a `path-sandbox: <why>` comment above it.
 - **No prose in comments**: state the fact, not the story. One or two lines. No narrating
   the bug that led here, no "previously X, now Y", no essay paragraphs — that belongs in
   the commit message. A comment that needs a paragraph is a sign the code needs a name.
