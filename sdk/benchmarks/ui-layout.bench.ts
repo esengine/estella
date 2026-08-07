@@ -20,6 +20,8 @@ import { describe, bench, beforeAll } from 'vitest';
 import path from 'path';
 import type { ESEngineModule, Registry, Entity } from '../src/wasm/wasm.generated';
 import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
+import { Transform, Canvas } from '../src/ecs/component';
+import { UINode } from '../src/ui/core/ui-node';
 
 let wasm: ESEngineModule;
 
@@ -33,25 +35,36 @@ beforeAll(async () => {
     wasm = await engineMod.default({ locateFile: (p: string) => path.join(WASM_DIR, p) });
 });
 
-const TRANSFORM = {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0, w: 1 },
-    scale: { x: 1, y: 1, z: 1 },
-    worldPosition: { x: 0, y: 0, z: 0 },
-    worldRotation: { x: 0, y: 0, z: 0, w: 1 },
-    worldScale: { x: 1, y: 1, z: 1 },
+/**
+ * A component in the shape embind takes, defaulted from the generated registry
+ * rather than spelled out here: embind rejects a partial struct, so a field added
+ * in C++ breaks this file at warmup unless the defaults come from one place.
+ * Colors are the one shape the two disagree on — authored r/g/b/a, bound as vec4.
+ */
+function embindShape(def: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(def)) {
+        const c = value as { r?: number; g?: number; b?: number; a?: number };
+        out[key] = c && typeof c === 'object' && typeof c.r === 'number' && typeof c.a === 'number'
+            ? { x: c.r, y: c.g, z: c.b, w: c.a }
+            : value;
+    }
+    return out;
+}
+
+const TRANSFORM = embindShape(Transform._default);
+
+const CANVAS = {
+    ...embindShape(Canvas._default),
+    designResolution: { x: 800, y: 600 },
+    pixelsPerUnit: 1, scaleMode: 0, matchWidthOrHeight: 0,
 };
 
 const px = (v: number) => ({ value: v, unit: 0 });
-const auto = () => ({ value: 0, unit: 2 });
 
 const uiNode = (w: number, h: number) => ({
-    position: 0, display: 0, opacity: 1, pointerEvents: 0,
+    ...embindShape(UINode._default),
     width: px(w), height: px(h),
-    minWidth: auto(), minHeight: auto(), maxWidth: auto(), maxHeight: auto(),
-    flexGrow: 0, flexShrink: 1, flexBasis: auto(), alignSelf: 0,
-    marginLeft: px(0), marginTop: px(0), marginRight: px(0), marginBottom: px(0),
-    insetLeft: auto(), insetTop: auto(), insetRight: auto(), insetBottom: auto(),
 });
 
 /**
@@ -62,11 +75,7 @@ function buildTree(reg: Registry, count: number): { root: Entity; leaves: Entity
     const root = reg.create();
     reg.addTransform(root, TRANSFORM);
     reg.addUINode(root, uiNode(800, 600));
-    reg.addCanvas(root, {
-        designResolution: { x: 800, y: 600 },
-        pixelsPerUnit: 1, scaleMode: 0, matchWidthOrHeight: 0,
-        backgroundColor: { x: 0, y: 0, z: 0, w: 1 },
-    });
+    reg.addCanvas(root, CANVAS);
 
     const leaves: Entity[] = [];
     const PER_ROW = 10;
