@@ -99,11 +99,17 @@ export class ChangeTracker {
     }
 
     recordRemoved(component: AnyComponentDef, entity: Entity): void {
-        if (!this.trackedComponents_.has(component._id)) return;
         this.recordRemovedById(component._id, entity);
     }
 
+    /**
+     * The gate lives here rather than in each caller: despawn reaches script
+     * components through this id-only entry point and builtins through
+     * recordRemoved, and when only the latter checked, the same despawn was
+     * recorded for one kind and dropped for the other.
+     */
     recordRemovedById(componentId: symbol, entity: Entity): void {
+        if (!this.trackedComponents_.has(componentId)) return;
         let buffer = this.componentRemovedBuffer_.get(componentId);
         if (!buffer) {
             buffer = [];

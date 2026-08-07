@@ -18,8 +18,6 @@ export interface QueryCacheStats {
     readonly hits: number;
     /** Lookups that recomputed — either no entry or stale. */
     readonly misses: number;
-    /** Times an entry was found but rejected because structural version moved. */
-    readonly structuralInvalidations: number;
     /** Times an entry was rejected because one of its dep components changed. */
     readonly componentInvalidations: number;
     /** Current number of entries held. */
@@ -33,7 +31,6 @@ export class QueryCache {
 
     private hits_ = 0;
     private misses_ = 0;
-    private structuralInvalidations_ = 0;
     private componentInvalidations_ = 0;
 
     get structuralVersion(): number {
@@ -97,7 +94,6 @@ export class QueryCache {
         return {
             hits: this.hits_,
             misses: this.misses_,
-            structuralInvalidations: this.structuralInvalidations_,
             componentInvalidations: this.componentInvalidations_,
             size: this.cache_.size,
         };
@@ -107,7 +103,6 @@ export class QueryCache {
     resetStats(): void {
         this.hits_ = 0;
         this.misses_ = 0;
-        this.structuralInvalidations_ = 0;
         this.componentInvalidations_ = 0;
     }
 

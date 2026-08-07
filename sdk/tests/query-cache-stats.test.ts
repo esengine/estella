@@ -45,7 +45,6 @@ describe('QueryCache.getStats', () => {
         expect(computed).toBe(1);
         const s = cache.getStats();
         expect(s.hits).toBe(1);
-        expect(s.structuralInvalidations).toBe(0);
         expect(s.componentInvalidations).toBe(0);
     });
 
@@ -56,7 +55,6 @@ describe('QueryCache.getStats', () => {
         cache.getOrCompute('q1', [comp], () => []);
         const s = cache.getStats();
         expect(s.componentInvalidations).toBe(1);
-        expect(s.structuralInvalidations).toBe(0);
     });
 
     it('resetStats zeroes counters but keeps cached entries', () => {

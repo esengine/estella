@@ -29,6 +29,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **`Removed()` reported despawns from before anything was watching.** Losing a
+  component reaches the change tracker two ways — by definition for an explicit
+  `remove()` and for builtins on despawn, by component id for script components on
+  despawn — and only the first checked whether anything actually tracks that
+  component. So an untracked script component recorded a removal on every despawn,
+  and a `Removed(X)` query created later reported entities that had died before it
+  existed, while the same query over a builtin, or over the same component removed
+  explicitly, reported nothing. One "was it lost" gate now, at the single entry
+  point both paths go through. The removal watermark that `anyChangedSince` reads
+  is unchanged for anything tracked — UI layout still learns a `FlexContainer` is
+  gone.
+
 - **A system that threw inside `forEach` left the world iterating.** The world
   refuses `spawn`/`despawn`/`remove` while a query is being walked — those would
   resize the arrays under it — so `beginIteration` and `endIteration` have to

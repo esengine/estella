@@ -271,12 +271,6 @@ export type QueryResult<C extends readonly QueryArg[]> = [
 // Query Instance (Runtime)
 // =============================================================================
 
-interface PendingMutation {
-    entity: Entity;
-    component: AnyComponentDef;
-    data: Record<string, unknown>;
-}
-
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
     private readonly world_: World;
     private readonly descriptor_: QueryDescriptor<C>;
