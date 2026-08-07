@@ -26,15 +26,20 @@
  *          to automatically create JavaScript/TypeScript bindings. Place this
  *          macro immediately before the struct/class definition.
  *
+ *          `ES_COMPONENT(renderable=<field>, transient)` states what is true of
+ *          the COMPONENT, as ES_PROPERTY does for a field; both realms read it out
+ *          of the generated `COMPONENT_META`. `renderable` names the bool gating
+ *          this component's drawing — a hard EHT error unless that bool exists.
+ *
  * @code
- * ES_COMPONENT()
- * struct Transform {
+ * ES_COMPONENT(renderable=enabled)
+ * struct Sprite {
  *     ES_PROPERTY()
- *     glm::vec3 position{0.0f};
+ *     bool enabled{true};
  * };
  * @endcode
  */
-#define ES_COMPONENT()
+#define ES_COMPONENT(...)
 
 /**
  * @brief Mark a field as a property that should be exposed to scripts

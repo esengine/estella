@@ -19,7 +19,11 @@ class CppParser:
     """Parses C++ headers and extracts component/enum definitions."""
 
     RE_NAMESPACE = re.compile(r'namespace\s+([\w:]+)\s*\{')
-    RE_COMPONENT = re.compile(r'ES_COMPONENT\s*\(\s*\)\s*struct\s+(\w+)')
+    # Same annotation group as RE_PROPERTY (see below), so ES_COMPONENT takes
+    # component-level metadata by the same grammar its fields take theirs.
+    RE_COMPONENT = re.compile(
+        r'ES_COMPONENT\s*\(\s*((?:[^)"]|"[^"]*")*?)\s*\)\s*struct\s+(\w+)'
+    )
     RE_ENUM = re.compile(r'ES_ENUM\s*\(\s*\)\s*enum\s+class\s+(\w+)(?:\s*:\s*(\w+))?')
     # The annotation group `(?:[^)"]|"[^"]*")*?` accepts runs of non-paren chars
     # OR whole quoted strings, so a `)` or `,` *inside quotes* (e.g. a tooltip) does
@@ -61,6 +65,12 @@ class CppParser:
         'editor_default',
     })
     NUMERIC_ANNOTATIONS = frozenset({'min', 'max', 'step'})
+
+    # ES_COMPONENT annotation vocabulary — metadata about the component itself,
+    # validated by the same rules (unknown key = warning, malformed known key =
+    # hard error). See Reflection.hpp for what each one means.
+    COMPONENT_FLAG_ANNOTATIONS = frozenset({'transient'})
+    COMPONENT_KV_ANNOTATIONS = frozenset({'renderable'})
     VALID_ASSET_TYPES = frozenset({
         'texture', 'material', 'font', 'audio',
         # A skeletal runtime's two halves. Recognised as a PAIR (see
@@ -117,7 +127,8 @@ class CppParser:
 
     def _parse_components(self, content: str, namespace: str, filepath: Path) -> None:
         for match in self.RE_COMPONENT.finditer(content):
-            comp_name = match.group(1)
+            comp_annotations = self._parse_annotations(match.group(1))
+            comp_name = match.group(2)
             body_start = content.find('{', match.end())
             if body_start == -1:
                 continue
@@ -134,7 +145,8 @@ class CppParser:
             body = content[body_start:body_end]
             component = Component(
                 name=comp_name, namespace=namespace,
-                header_path=str(filepath.as_posix())
+                header_path=str(filepath.as_posix()),
+                annotations=comp_annotations
             )
 
             for prop_match in self.RE_PROPERTY.finditer(body):
@@ -158,6 +170,7 @@ class CppParser:
                 )
 
             self._validate_component_refs(component, filepath)
+            self._validate_component_annotations(component, filepath)
             self.components.append(component)
 
     def _validate_annotations(self, comp_name: str, prop_name: str,
@@ -186,6 +199,37 @@ class CppParser:
         if asset_type is not None and asset_type not in self.VALID_ASSET_TYPES:
             known = ', '.join(sorted(self.VALID_ASSET_TYPES))
             self.warnings.append(f"{loc}: unknown asset type '{asset_type}' (known: {known})")
+
+    def _validate_component_annotations(self, component: Component, filepath: Path) -> None:
+        """Validate ES_COMPONENT annotations against the component's own fields.
+
+        `renderable=<field>` must name a bool field on this struct. A name that
+        matched nothing would make the component read as not-renderable — it would
+        stay drawn when its entity is hidden or its scene sleeps, which is the
+        silent failure the annotation exists to end.
+        """
+        loc = f"{filepath}:{component.name}"
+        bool_fields = {p.name for p in component.properties if p.cpp_type == 'bool'}
+
+        for key, value in component.annotations.items():
+            if key in self.COMPONENT_FLAG_ANNOTATIONS:
+                continue
+            if key not in self.COMPONENT_KV_ANNOTATIONS:
+                known = ', '.join(sorted(
+                    self.COMPONENT_FLAG_ANNOTATIONS | self.COMPONENT_KV_ANNOTATIONS
+                ))
+                self.warnings.append(
+                    f"{loc}: unknown ES_COMPONENT annotation '{key}' (known: {known})"
+                )
+                continue
+            # A kv annotation written as a bare flag parses as the string 'true',
+            # which names no field — say what it needs rather than what it got.
+            if value == 'true':
+                self.errors.append(f"{loc}: {key} needs a field — {key}=<bool field>")
+            elif value not in bool_fields:
+                self.errors.append(
+                    f"{loc}: {key}='{value}' names no bool field on this component"
+                )
 
     def _validate_component_refs(self, component: Component, filepath: Path) -> None:
         """Component-level checks that need the full field set — currently

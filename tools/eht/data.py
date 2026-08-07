@@ -20,6 +20,9 @@ class Component:
     namespace: str
     properties: List[Property] = field(default_factory=list)
     header_path: str = ""
+    #: ES_COMPONENT(...) annotations — metadata about the component itself, as
+    #: `Property.annotations` is about one field.
+    annotations: Dict[str, str] = field(default_factory=dict)
 
 
 # A C++ method every JS read of the component must run first. Transform's world

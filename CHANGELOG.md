@@ -12,6 +12,21 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **A component says whether it draws, where it is defined.** Field metadata has
+  been authored at the field for a while (`ES_PROPERTY(min=…, tooltip=…)`); the
+  component itself had no such place, so anything true of a whole component was
+  re-stated wherever it was needed. `ES_COMPONENT` now takes annotations too —
+  `renderable=<field>` naming the bool that gates its drawing, and `transient` for
+  state a scene must not save — and a project's own component declares the same
+  thing as `renderableField` / `transient` in `defineComponent`'s metadata. Declare
+  it and the entity's eye, `setEntityVisible` and scene sleep/wake all reach your
+  component and restore it afterwards. A name that matches no bool field on the
+  component fails the build rather than reading as "draws nothing".
+
 ## [0.45.0] - 2026-08-07
 
 ### Added

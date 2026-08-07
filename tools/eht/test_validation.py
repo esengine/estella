@@ -1,4 +1,4 @@
-"""Plain-python tests for ES_PROPERTY annotation validation (RC9-1 P0).
+"""Plain-python tests for ES_PROPERTY / ES_COMPONENT annotation validation.
 
 No pytest dependency — run: python3 tools/eht/test_validation.py
 Exits non-zero on the first failing case.
@@ -13,7 +13,7 @@ from eht.parser import CppParser  # noqa: E402
 
 HEADER = """
 namespace esengine::ecs {{
-ES_COMPONENT()
+ES_COMPONENT({comp})
 struct C {{
 {body}
 }};
@@ -23,18 +23,18 @@ struct C {{
 _failures = 0
 
 
-def _parse(body: str) -> CppParser:
+def _parse(body: str, comp: str = '') -> CppParser:
     p = CppParser()
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / 'C.hpp'
-        f.write_text(HEADER.format(body=body), encoding='utf-8')
+        f.write_text(HEADER.format(body=body, comp=comp), encoding='utf-8')
         p.parse_file(f)
     return p
 
 
-def expect(name: str, body: str, *, errors: int, warnings_at_least: int = 0) -> None:
+def expect(name: str, body: str, *, errors: int, warnings_at_least: int = 0, comp: str = '') -> None:
     global _failures
-    p = _parse(body)
+    p = _parse(body, comp)
     problems = []
     if len(p.errors) != errors:
         problems.append(f"errors: got {len(p.errors)} want {errors} -> {p.errors}")
@@ -190,6 +190,46 @@ number_is('fractional value', '0.5f', '0.5')
 number_is('negative', '-3', '-3')
 number_is('nothing', '', '0')
 number_is('not a number', 'junk', '0')
+
+# ── ES_COMPONENT annotations: metadata about the component itself ──
+FLAG = 'ES_PROPERTY()\n    bool enabled = true;'
+
+expect('renderable names a bool field',
+       FLAG, errors=0, comp='renderable=enabled')
+expect('renderable naming no field is an error',
+       FLAG, errors=1, comp='renderable=nope')
+expect('renderable naming a non-bool field is an error',
+       'ES_PROPERTY()\n    float layer = 0.0f;', errors=1, comp='renderable=layer')
+expect('bare renderable is an error (the gating field is the point)',
+       FLAG, errors=1, comp='renderable')
+expect('transient is a flag, not a kv',
+       FLAG, errors=0, comp='transient')
+expect('both annotations on one component',
+       FLAG, errors=0, comp='renderable=enabled, transient')
+expect('unknown component annotation is a warning, not an error',
+       FLAG, errors=0, warnings_at_least=1, comp='bogus')
+expect('no annotations still parses (every component before this change)',
+       FLAG, errors=0)
+
+
+def component_meta_emits(name: str, comp: str, body: str, expect_snippet: str) -> None:
+    global _failures
+    p = _parse(body, comp)
+    from eht.generators.metadata import MetadataGenerator
+    out = MetadataGenerator(p.components, []).generate()
+    if expect_snippet not in out:
+        _failures += 1
+        print(f"FAIL  {name}")
+        print(f"        {expect_snippet!r} not found in output")
+    else:
+        print(f"ok    {name}")
+
+
+component_meta_emits('renderable reaches COMPONENT_META',
+                     'renderable=visible', 'ES_PROPERTY()\n    bool visible = true;',
+                     "renderableField: 'visible',")
+component_meta_emits('transient reaches COMPONENT_META',
+                     'transient', FLAG, 'transient: true,')
 
 if _failures:
     print(f"\n{_failures} case(s) failed")

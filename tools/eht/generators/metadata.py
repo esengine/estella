@@ -316,6 +316,19 @@ class MetadataGenerator:
             '     * these over `defaults`; `defaults` alone is the runtime ctor truth.',
             '     */',
             '    editorDefaults?: Record<string, unknown>;',
+            '    /**',
+            '     * The bool field that gates this component\'s part in the entity\'s',
+            '     * visibility, authored `renderable=<field>` at the C++ ES_COMPONENT',
+            '     * site. Absent = nothing of this component is hidden by hiding its',
+            '     * entity. ONE answer for both realms: the runtime folds visibility',
+            '     * onto these fields, and the editor\'s eye reaches exactly them.',
+            '     */',
+            '    renderableField?: string;',
+            '    /**',
+            '     * Runtime-only state that must never persist, authored `transient` at',
+            '     * the C++ ES_COMPONENT site — scene serialization omits it.',
+            '     */',
+            '    transient?: boolean;',
             '    assetFields: AssetFieldMeta[];',
             '    skeletal?: SkeletalFieldMeta;',
             '    entityFields: string[];',
@@ -367,6 +380,12 @@ class MetadataGenerator:
                 for fname, val in editor_defaults:
                     lines.append(f'            {fname}: {val},')
                 lines.append('        },')
+
+            renderable_field = comp.annotations.get('renderable')
+            if renderable_field:
+                lines.append(f"        renderableField: '{renderable_field}',")
+            if 'transient' in comp.annotations:
+                lines.append('        transient: true,')
 
             if asset_fields:
                 parts = ', '.join(
