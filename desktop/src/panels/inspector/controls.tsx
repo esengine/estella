@@ -30,7 +30,7 @@ import { useListbox } from '@/components/useListbox';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { prettyLabel, hexToRgba, coerceEnumInput } from '@/engine/schema';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { revealAsset } from '@/project/assetReveal';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
@@ -989,7 +989,7 @@ export function AssetControl({
   const box = useRef<HTMLDivElement>(null);
   const pop = usePopover();
   const [q, setQ] = useState('');
-  const info = ProjectStore.assetInfo(value);
+  const info = AssetRegistry.assetInfo(value);
   // Handle-valued slots clear to 0; path-valued slots (spine skeleton/atlas)
   // are string component fields, so "no asset" is the empty string.
   const empty = assetType === 'spine-skeleton' || assetType === 'spine-atlas' ? '' : 0;
@@ -997,12 +997,12 @@ export function AssetControl({
   const setRefFromPath = (path: string) => {
     // Reject a wrong-typed drop (the picker popover already filters; this guards the
     // drag-drop hole so a font can't land in a texture slot).
-    if (!ProjectStore.assetTypeAllowed(assetType, path)) {
+    if (!AssetRegistry.assetTypeAllowed(assetType, path)) {
       Toasts.push(t('det.wrongAssetType', { type: assetType ?? '' }), 'error');
       return;
     }
     onBegin?.();
-    void ProjectStore.assetRefForPath(path, assetType).then((ref) => {
+    void AssetRegistry.assetRefForPath(path, assetType).then((ref) => {
       if (ref) onChange(ref);
       onEnd?.();
     });
@@ -1030,7 +1030,7 @@ export function AssetControl({
   };
   const ql = q.trim().toLowerCase();
   const assets = pop.isOpen
-    ? ProjectStore.listAssets(assetType).filter((a) => !ql || a.name.toLowerCase().includes(ql))
+    ? AssetRegistry.listAssets(assetType).filter((a) => !ql || a.name.toLowerCase().includes(ql))
     : [];
 
   return (

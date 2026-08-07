@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { clampFieldValue, isRequiredField, setUserSchemas, componentAuthorability } from '@/engine/schema';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 
 describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
   it('clampFieldValue bounds a scalar to its declared min/max; passes everything else through', () => {
@@ -22,9 +22,9 @@ describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
   });
 
   it('assetTypeAllowed enforces the slot type by extension (the drag-drop guard)', () => {
-    expect(ProjectStore.assetTypeAllowed('texture', 'assets/hero.png')).toBe(true);
-    expect(ProjectStore.assetTypeAllowed('texture', 'assets/thing.esprefab')).toBe(false);
-    expect(ProjectStore.assetTypeAllowed(undefined, 'assets/anything.xyz')).toBe(true); // unconstrained slot
+    expect(AssetRegistry.assetTypeAllowed('texture', 'assets/hero.png')).toBe(true);
+    expect(AssetRegistry.assetTypeAllowed('texture', 'assets/thing.esprefab')).toBe(false);
+    expect(AssetRegistry.assetTypeAllowed(undefined, 'assets/anything.xyz')).toBe(true); // unconstrained slot
   });
 
   // Whether a component may be authored at all was enforced only while building

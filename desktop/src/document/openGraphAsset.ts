@@ -11,6 +11,7 @@
  *          format factory, extension, and toast strings — a {@link GraphAssetKind}.
  */
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
@@ -66,7 +67,7 @@ export async function openGraphAsset(kind: GraphAssetKind, path: string): Promis
 export async function createGraphAsset(kind: GraphAssetKind, dir: string): Promise<void> {
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
   let rel = `${folder}${kind.defaultName}.${kind.ext}`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}${kind.defaultName}-${n}.${kind.ext}`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${folder}${kind.defaultName}-${n}.${kind.ext}`;
 
   try {
     await window.estella.fs.write(rel, JSON.stringify(kind.emptyDef(), null, 2) + '\n');

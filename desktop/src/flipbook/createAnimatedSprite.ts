@@ -14,7 +14,7 @@ import {
 import { Images } from 'lucide-react';
 import { createFromSource, animatedSpritePrefab, type EntitySource } from '@/engine/entitySources';
 import { useSelection } from '@/store/selectionStore';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
@@ -47,7 +47,7 @@ export async function createAnimatedSpriteFromClip(
   clipPath: string,
   position?: { x: number; y: number },
 ): Promise<void> {
-  const clipRef = ProjectStore.assetRef(clipPath); // .esanim → @uuid
+  const clipRef = AssetRegistry.assetRef(clipPath); // .esanim → @uuid
   if (!clipRef) {
     Toasts.push(t('fb.toast.clipUntracked'), 'error');
     return;
@@ -61,7 +61,7 @@ export async function createAnimatedSpriteFromClip(
   }
   // Preload the sheet texture so the seeded frame renders immediately in edit mode.
   const texRef = asset.sheet?.texture ?? asset.frames[0]?.texture;
-  const texPath = texRef ? ProjectStore.assetInfo(texRef)?.path : undefined;
-  if (texPath) await ProjectStore.assetRefForPath(texPath, 'texture');
+  const texPath = texRef ? AssetRegistry.assetInfo(texRef)?.path : undefined;
+  if (texPath) await AssetRegistry.assetRefForPath(texPath, 'texture');
   await createFromSource(animClipSource(clipPath, clipRef, asset), { parent: null, position });
 }

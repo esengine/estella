@@ -12,6 +12,7 @@ import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
 import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, baseName, TYPE_CODE } from '@/project/assetMeta';
@@ -54,7 +55,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
  *  chips, sort and double-click open all read, so they cannot disagree. Asked by
  *  PATH, not name: a file's type is not always readable from its name (a Spine JSON
  *  skeleton is a plain `.json`), and the registry knows what its `.meta` recorded. */
-const typeAt = (path: string): AssetType => ProjectStore.assetTypeAt(path);
+const typeAt = (path: string): AssetType => AssetRegistry.assetTypeAt(path);
 
 // Per-delivery-mode presentation (menu label + corner badge; `local` has none).
 // Keyed by AssetGroupMode so adding a mode to the SDK's ASSET_GROUP_MODES forces
@@ -154,7 +155,7 @@ function AssetTipCard({ path, entry }: { path: string; entry: DirEntry }) {
 
   const type: AssetType = entry.isDir ? 'folder' : typeAt(path);
   const isImg = !entry.isDir && IMAGE_RE.test(entry.name);
-  const assetReference = entry.isDir ? null : ProjectStore.assetRef(path);
+  const assetReference = entry.isDir ? null : AssetRegistry.assetRef(path);
 
   useEffect(() => {
     let alive = true;
@@ -1004,7 +1005,7 @@ export function ContentBrowser() {
     const isTileset = targetType === 'tileset';
     const isAnimClip = targetType === 'animclip';
     const isMaterial = targetType === 'material';
-    const ref = entry.isDir ? null : ProjectStore.assetRef(path);
+    const ref = entry.isDir ? null : AssetRegistry.assetRef(path);
     return [
       // Offered for everything, because opening now always resolves to something —
       // an editor, the program set for that kind of file, or the OS default. The

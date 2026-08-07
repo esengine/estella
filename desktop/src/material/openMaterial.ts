@@ -9,6 +9,7 @@
  */
 import { builtinShaderTemplate, type MaterialAssetData } from 'esengine';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { dockApi } from '@/layout/dockApi';
 import { useSelection } from '@/store/selectionStore';
 import { baseName } from '@/project/assetMeta';
@@ -29,7 +30,7 @@ export function openMaterial(path: string): void {
 // Pick a `<base>.esmaterial` name in @p dir that no tracked asset already uses.
 function uniqueMaterialPath(dir: string, base: string): string {
   let rel = `${dir}${base}.esmaterial`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${dir}${base}-${n}.esmaterial`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${dir}${base}-${n}.esmaterial`;
   return rel;
 }
 
@@ -108,7 +109,7 @@ export async function createMaterialInstance(parentPath: string): Promise<void> 
 // then adopts the file (mints its `.meta` uuid/type — see EXT_TO_TYPE) so it becomes pickable.
 function uniqueShaderPath(dir: string, base: string): string {
   let rel = `${dir}${base}.esshader`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${dir}${base}-${n}.esshader`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${dir}${base}-${n}.esshader`;
   return rel;
 }
 

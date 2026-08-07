@@ -27,7 +27,7 @@ import {
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
 
@@ -92,7 +92,7 @@ export class FlipbookViewportPreviewImpl {
     if (!world.has(rt, SpriteAnimator) || !world.has(rt, Sprite)) return null;
     const clip = (world.get(rt, SpriteAnimator) as { clip?: string } | undefined)?.clip;
     if (!clip) return null;
-    const path = ProjectStore.assetInfo(clip)?.path;
+    const path = AssetRegistry.assetInfo(clip)?.path;
     return path ? { entity: rt as number, clipPath: path } : null;
   }
 

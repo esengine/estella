@@ -74,6 +74,7 @@ import { buildImporterComponent, applyImporterEdit, readTextureCookSettings } fr
 import { findAssetUsages } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscard, confirmDiscardDoc } from '@/project/discardGuard';
 import { t, editorLocale } from '@/i18n';
 import { componentDocUrl } from '@/engine/componentDocUrl';
@@ -1029,7 +1030,7 @@ function MaterialShaderSection({
 }) {
   const isBuiltin = asset.shader.startsWith(BUILTIN_SHADER_PREFIX);
   const shaderPath = isBuiltin ? '' : shaderProjectPathOf(filePath, asset.shader);
-  const info = shaderPath ? ProjectStore.assetInfo(shaderPath) : null;
+  const info = shaderPath ? AssetRegistry.assetInfo(shaderPath) : null;
   const missing = !isInstance && !isBuiltin && !!asset.shader && !info;
 
   // The picker offers built-in templates + every project `.esshader`. An option's value encodes
@@ -1037,7 +1038,7 @@ function MaterialShaderSection({
   // path relative to the material. Pointing several materials at one file here = sharing a shader.
   const options: { value: string; label: string }[] = [
     ...BUILTIN_SHADER_TEMPLATES.map((tpl) => ({ value: BUILTIN_SHADER_PREFIX + tpl.id, label: t('mat.shaderBuiltin', { name: tpl.label }) })),
-    ...ProjectStore.listAssets('shader').map((a) => ({ value: `file:${a.path}`, label: a.name })),
+    ...AssetRegistry.listAssets('shader').map((a) => ({ value: `file:${a.path}`, label: a.name })),
   ];
   const current = isBuiltin ? asset.shader : `file:${shaderPath}`;
   // Keep the current selection visible even when it isn't a listed option (a renamed / missing file).
@@ -1443,7 +1444,7 @@ function LocaleTableAssetInspector({ path }: { path: string }) {
     setSiblings(null);
     void (async () => {
       const map = new Map<string, Map<string, string>>();
-      for (const asset of ProjectStore.listAssets('locale')) {
+      for (const asset of AssetRegistry.listAssets('locale')) {
         if (asset.path === path) continue;
         try {
           const sib = parseLocaleTable(await window.estella.fs.read(asset.path), asset.path);
@@ -1681,7 +1682,7 @@ function LocaleSection({ title, badge, action, children }: {
 
 // rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
-  const type = ProjectStore.assetTypeAt(path);
+  const type = AssetRegistry.assetTypeAt(path);
   if (isMaterialAsset(path)) {
     return <MaterialAssetInspector path={path} />;
   }
@@ -1836,7 +1837,7 @@ function TexturePlatformOverrides({ importer, write }: { importer: Record<string
 // (written to the `.meta` sidecar) through the shared ComponentSection engine.
 function GenericAssetInspector({ path }: { path: string }) {
   const name = baseName(path);
-  const type = ProjectStore.assetTypeAt(path);
+  const type = AssetRegistry.assetTypeAt(path);
   const isImage = IMAGE_RE.test(name);
 
   const [importer, setImporter] = useState<Record<string, unknown> | null>(null);
@@ -1896,7 +1897,7 @@ function GenericAssetInspector({ path }: { path: string }) {
     };
   }, [path, isImage]);
 
-  const assetRef = ProjectStore.assetRef(path);
+  const assetRef = AssetRegistry.assetRef(path);
   const comp = importer ? buildImporterComponent(type, importer) : null;
   const write: FieldWrite = (key, _t, value) => {
     setImporter((cur) => (cur ? applyImporterEdit(cur, key, value as InspectorFieldValue) : cur));
@@ -1914,7 +1915,7 @@ function GenericAssetInspector({ path }: { path: string }) {
       await ProjectStore.refreshAssets();
       // Push filter/wrap to the live gl handle so the edit viewport updates now
       // (no scene reload); a no-op for types/assets without a live texture.
-      if (type === 'texture' || type === 'sprite') ProjectStore.applyLiveTextureSettings(path);
+      if (type === 'texture' || type === 'sprite') AssetRegistry.applyLiveTextureSettings(path);
       Toasts.push(t('det.importSaved'), 'info', 1400);
     } catch (e) {
       Toasts.push(t('det.importSaveFailed', { error: String(e) }), 'error');
@@ -2245,7 +2246,7 @@ function EditorDetails() {
   const prefabRef = prefabTag
     ? prefabTag.prefab ?? SceneModel.prefabTag(prefabTag.instanceRoot)?.prefab
     : undefined;
-  const prefabName = prefabRef ? ProjectStore.assetInfo(prefabRef)?.name ?? null : null;
+  const prefabName = prefabRef ? AssetRegistry.assetInfo(prefabRef)?.name ?? null : null;
   // Stale overrides the loader dropped from THIS instance on load (keyed by root).
   const staleOverrides = prefabTag
     ? conflictsByInstance.get(prefabTag.instanceRoot) ?? []
@@ -2336,7 +2337,7 @@ function EditorDetails() {
                 type="button"
                 title={t('det.prefabSelectTip')}
                 onClick={() => {
-                  const info = prefabRef ? ProjectStore.assetInfo(prefabRef) : null;
+                  const info = prefabRef ? AssetRegistry.assetInfo(prefabRef) : null;
                   if (info) useSelection.getState().selectAsset(info.path);
                 }}
               >

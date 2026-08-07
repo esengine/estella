@@ -33,6 +33,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { EditorControlSurface } from '@/engine/EditorSession';
 import { EngineHost } from '@/engine/EngineHost';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { LogStore } from '@/store/LogStore';
 import { Toasts } from '@/store/Toasts';
 import type { InspectorFieldValue } from '@/types';
@@ -132,7 +133,7 @@ function projectApi(): EditorProjectApi {
     root: () => ProjectStore.getSnapshot()?.root ?? null,
     currentScene: () => ProjectStore.getSnapshot()?.currentScene ?? null,
     save: () => ProjectStore.save(),
-    listAssets: () => ProjectStore.listAssets().map((a) => a.path),
+    listAssets: () => AssetRegistry.listAssets().map((a) => a.path),
     refreshAssets: () => ProjectStore.refreshAssets(),
   };
 }

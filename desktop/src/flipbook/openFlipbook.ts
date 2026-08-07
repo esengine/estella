@@ -10,6 +10,7 @@ import { createAnimClip, serializeAnimClip } from 'esengine';
 import { AnimClipDocument } from './AnimClipDocument';
 import { useSelection } from '@/store/selectionStore';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
@@ -52,7 +53,7 @@ function guessCell(w: number, h: number): number {
 
 /** Create a .esanim next to a texture (slicing it), then open it. */
 export async function createFlipbookFromTexture(texturePath: string): Promise<void> {
-  const ref = ProjectStore.assetRef(texturePath);
+  const ref = AssetRegistry.assetRef(texturePath);
   if (!ref) {
     Toasts.push(t('fb.toast.texUntracked'), 'error');
     return;
@@ -68,7 +69,7 @@ export async function createFlipbookFromTexture(texturePath: string): Promise<vo
   const dir = texturePath.includes('/') ? texturePath.slice(0, texturePath.lastIndexOf('/') + 1) : '';
   const base = baseName(texturePath).replace(/\.[^.]+$/, '') || 'Animation';
   let rel = `${dir}${base}.esanim`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${dir}${base}-${n}.esanim`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${dir}${base}-${n}.esanim`;
 
   const asset = createAnimClip(ref, cell, cell, size.w, size.h);
   const uuid = crypto.randomUUID();

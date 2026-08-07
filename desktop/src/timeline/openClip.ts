@@ -18,6 +18,7 @@ import { useSequencerStore } from '@/store/sequencerStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { baseName } from '@/project/assetMeta';
 
@@ -56,7 +57,7 @@ const BLANK_CLIP = { version: '1.1', type: 'timeline', duration: 5, wrapMode: 'l
 export async function createAnimationClip(dir: string): Promise<void> {
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
   let rel = `${folder}NewAnimation.estimeline`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewAnimation-${n}.estimeline`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${folder}NewAnimation-${n}.estimeline`;
   try {
     await window.estella.fs.write(rel, JSON.stringify(BLANK_CLIP, null, 2) + '\n');
     await window.estella.fs.write(

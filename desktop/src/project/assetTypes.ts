@@ -56,7 +56,7 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4', externalProgram: 'image' },
   // A skeleton exported as JSON has no extension of its own; it is typed at the
   // `.meta` mint door by a marker in the file (tools/assetMetaTable.js) and reaches
-  // this vocabulary through ProjectStore.assetTypeAt — which is why every caller
+  // this vocabulary through AssetRegistry.assetTypeAt — which is why every caller
   // asks that by PATH rather than calling assetTypeOf on a bare name.
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
   // Both halves are one type, as Spine's .skel and .atlas are: which file plays

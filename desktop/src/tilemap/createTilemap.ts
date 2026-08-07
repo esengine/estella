@@ -15,7 +15,7 @@ import { createFromSource, tilemapPrefab, type EntitySource, type TileGridConfig
 import type { EntityId } from '@/types';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
@@ -61,7 +61,7 @@ function tilesetSource(
 export async function createTilemapFromTileset(
   tilesetPath: string, grid?: TileGridConfig,
 ): Promise<EntityId | null> {
-  const tilesetRef = ProjectStore.assetRef(tilesetPath); // .estileset → @uuid
+  const tilesetRef = AssetRegistry.assetRef(tilesetPath); // .estileset → @uuid
   if (!tilesetRef) {
     Toasts.push(t('tile.toast.untracked'), 'error');
     return null;

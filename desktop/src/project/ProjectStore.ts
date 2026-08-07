@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, setTextureSliceBorder, textureImportSettingsFrom, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { importerDefaults, applyImporterEdit } from './assetImporter';
+import { AssetRegistry, UUID_PREFIX, refUuid, type AssetEntryLite } from './AssetRegistry';
 import {
   runtimeConfigOf, packagedRuntimeFields, normalizeCollisionLayers, normalizeCollisionLayerMasks,
   type RuntimeProjectConfig,
@@ -39,10 +40,7 @@ import { confirmDiscard } from './discardGuard';
 import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
-import { assetTypeOf } from '@/project/assetMeta';
-import { ASSET_TYPES, assetTypeDef } from '@/project/assetTypes';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
-import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -51,40 +49,9 @@ import { projectReplacing } from './projectReplacing';
 import { fsRefresh } from './fsRefresh';
 import type { DocSnapshot } from '@/document/DirtyRegistry';
 
-/** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
-function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): boolean {
-  if (!fieldType) return true;
-  // A 'texture' slot accepts any image (texture or sprite); others match by name.
-  if (fieldType === 'texture') return type === 'texture' || type === 'sprite';
-  // Spine slots split the shared 'spine' Content-Browser type into its two
-  // halves, through the SDK's own classification (.skel vs .atlas) — the same
-  // vocabulary the cook's dep scan uses.
-  if (fieldType === 'spine-skeleton' || fieldType === 'spine-atlas') {
-    const named = getEditorType(path);
-    if (named === 'spine-skeleton' || named === 'spine-atlas') return named === fieldType;
-    // A JSON skeleton has no extension of its own — Spine 2.1 exports nothing
-    // else — so what says it is one is its registered `spine` type, minted from
-    // the marker inside the file. Only the skeleton half can arrive unnamed:
-    // the atlas is always `.atlas`.
-    return fieldType === 'spine-skeleton' && type === 'spine';
-  }
-  if (type === fieldType) return true;
-  // Slots named in the SDK's editorType vocabulary rather than the
-  // Content-Browser type name (anim-clip for .esanim, timeline for .estimeline).
-  return getEditorType(path) === fieldType;
-}
-
 /** A flattened prefab entity as a document entity (the fields a scene document keeps). */
 function toDocumentEntity(e: ProcessedEntity): DocumentEntity {
   return { id: e.id, name: e.name, parent: e.parent, children: e.children, components: e.components, visible: e.visible };
-}
-
-/** A pickable asset for the inspector's asset picker. */
-export interface AssetEntry {
-  ref: string;
-  path: string;
-  name: string;
-  type: AssetType;
 }
 
 /**
@@ -100,21 +67,6 @@ export interface AssetEntry {
  * project files), and preloads EVERY referenced asset type — not just textures.
  * The lossless model keeps `@uuid:` refs verbatim, so save stays portable.
  */
-
-const UUID_PREFIX = '@uuid:';
-
-// UUID v4 shape — serialized refs come in three forms: `@uuid:` (canonical),
-// a BARE uuid (`.esanim` flipbook frame textures), or a plain path. A bare
-// uuid must resolve through the registry like a prefixed one; treating it as
-// a path guarantees a 404 (estella://project/<uuid>) and white sprites.
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** The uuid carried by a ref (`@uuid:` prefixed, any body — explicit intent —
- *  or bare-but-uuid-shaped), else null for plain paths. Lower-cased. */
-function refUuid(ref: string): string | null {
-  if (ref.startsWith(UUID_PREFIX)) return ref.slice(UUID_PREFIX.length).toLowerCase();
-  return UUID_SHAPE.test(ref) ? ref.toLowerCase() : null;
-}
 
 /** The subset of the engine's SceneAssetResult the Reconciler resolver reads. */
 interface PreloadResult {
@@ -191,24 +143,11 @@ function stripRetiredComponents(data: SceneData): string[] {
   return [...dropped];
 }
 
-/** An asset index entry as the registry consumes it (from scanAssets or the
- *  cached assets.json — same shape). */
-type AssetEntryLite = { uuid: string; path: string; type?: string; importer?: Record<string, unknown> };
-
 class ProjectStoreImpl {
   private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
-  /** uuid → project-relative path, scanned from `.meta` sidecars — the editor's
-   *  asset registry. The engine `Assets` loader resolves refs through it. */
-  private readonly uuidToPath = new Map<string, string>();
-  /** path → uuid (reverse), so a Content Browser drag (which carries a path) can
-   *  be turned into a portable `@uuid:` ref for the model. */
-  private readonly pathToUuid = new Map<string, string>();
-  /** uuid → the asset's `.meta` importer block, so the edit viewport applies the
-   *  same texture filter/wrap the runtime does (edit == play), and the asset
-   *  inspector's Save can push a live sampler update. */
-  private readonly uuidToImporter = new Map<string, Record<string, unknown>>();
-  /** uuid → the asset's `.meta` type — the hot-sync path picks a loader by it. */
-  private readonly uuidToType = new Map<string, string>();
+  // The uuid↔path lookup tables and the load bookkeeping keyed by them live in
+  // {@link AssetRegistry}. This still drives the SCAN that fills them — that needs
+  // the open project, its root and its watcher — but it no longer owns the answers.
   /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
   private readonly prefabCache = new Map<string, PrefabData>();
   /** Active Prefab Mode session, or null. Holds the id-preservation map
@@ -234,13 +173,6 @@ class ProjectStoreImpl {
     base: PrefabData | null;
     baseRef: string | null;
   } | null = null;
-  /** Cold refs already handed to a live load this registry generation — the touch
-   *  listener fires on every projection of a still-cold ref, so without this a
-   *  failing asset would re-fetch forever (and a slow one would double-load). */
-  private readonly hotLoadStarted = new Set<string>();
-  /** Resolved path → error message for live loads that FAILED — diagnostics
-   *  surfaces these (the model looks fine; only the load knows it's broken). */
-  private readonly assetLoadFailures = new Map<string, string>();
   /** Guards the off-critical-path asset revalidation after a cache-first boot. */
   private revalidating = false;
   /** Bumped on every project open ({@link adopt}); a revalidation captures it and
@@ -275,7 +207,7 @@ class ProjectStoreImpl {
     setEnumSource('sortingLayers', () => this.sortingLayerOptions(), { exhaustive: false });
     installDragonBonesEnumSources();
     installSpineEnumSources();
-    installLocaleKeyEnumSource(() => this.listAssets('locale'));
+    installLocaleKeyEnumSource(() => AssetRegistry.listAssets('locale'));
     // A skeleton re-exported outside the editor declares different animations —
     // drop what was parsed from the old file so the next render re-reads it.
     fsRefresh.subscribe(() => clearDragonBonesNameCache());
@@ -296,7 +228,7 @@ class ProjectStoreImpl {
     });
     // Diagnostics ask the registry whether a model-healthy asset ref actually
     // names a real, loadable asset (dead refs draw white boxes in silence).
-    setAssetRefProblemResolver((ref) => this.assetRefProblem(ref));
+    setAssetRefProblemResolver((ref) => AssetRegistry.assetRefProblem(ref));
     // Instantiating a variant / nested prefab resolves its base through the same
     // warm-cache reader the scene-load path uses (one resolution truth).
     SceneCommands.setPrefabResolver(this.prefabResolverSync);
@@ -608,7 +540,7 @@ class ProjectStoreImpl {
     // from the same preload result — for all types, not just textures. Spine
     // slots resolve to project paths instead (they stay strings in the World).
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
     // A projection that resolves COLD (assigned after the scene-open preload)
     // hands its ref here: async load through the engine loaders, re-project.
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
@@ -678,7 +610,7 @@ class ProjectStoreImpl {
     EditorHistory.clearScene();
     useSelection.getState().select(null);
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
     installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
@@ -706,7 +638,7 @@ class ProjectStoreImpl {
     // named collision is answered here — emptied on request (the uuid is kept, so refs
     // to the scene survive), and otherwise refused with the flag that would allow it.
     const rel = `${destDir.replace(/\/$/, '')}/${base}`;
-    if (name?.trim() && this.pathToUuid.has(rel)) {
+    if (name?.trim() && AssetRegistry.tracks(rel)) {
       if (!opts?.overwrite) {
         throw new Error(`"${rel}" already exists — pass overwrite to empty it, or use another name`);
       }
@@ -795,38 +727,13 @@ class ProjectStoreImpl {
   }
 
   /** Rebuild the uuid↔path registry + Assets resolvers from an index's entries,
-   *  dropping ALL caches — a full rescan (project open) can invalidate anything. */
+   *  dropping ALL caches — a full rescan (project open) can invalidate anything.
+   *  The prefab cache is ours; the lookup tables and load bookkeeping are the
+   *  registry's, and it decides what a rebuild keeps. */
   private populateRegistry(entries: readonly AssetEntryLite[]): void {
     this.prefabCache.clear();
-    this.hotLoadStarted.clear();
-    this.assetLoadFailures.clear();
-    this.rebuildLookups(entries);
-  }
-
-  /** Rebuild only the (cheap, in-memory) uuid↔path lookup maps + Assets resolvers
-   *  from an index's entries. Leaves the disk-loaded prefab cache and live-load
-   *  bookkeeping alone — the incremental path invalidates those selectively. */
-  private rebuildLookups(entries: readonly AssetEntryLite[]): void {
-    this.uuidToPath.clear();
-    this.pathToUuid.clear();
-    this.uuidToImporter.clear();
-    this.uuidToType.clear();
-    for (const e of entries) {
-      const uuid = e.uuid.toLowerCase();
-      this.uuidToPath.set(uuid, e.path);
-      this.pathToUuid.set(e.path, uuid);
-      if (e.importer) this.uuidToImporter.set(uuid, e.importer);
-      if (e.type) this.uuidToType.set(uuid, e.type);
-    }
-
-    const assets = EngineHost.getResource(Assets);
-    if (assets) {
-      assets.baseUrl = 'estella://project';
-      assets.setAssetRefResolver((ref) => this.resolveRef(ref));
-      // Edit viewport honors each texture's `.meta` filter/wrap at load — the same
-      // settings the runtime applies (was runtime-only, so edit ≠ play before).
-      assets.setTextureImportSettingsResolver((ref) => this.textureImportFor(ref));
-    }
+    AssetRegistry.clearLoadState();
+    AssetRegistry.rebuild(entries);
   }
 
   /**
@@ -864,10 +771,10 @@ class ProjectStoreImpl {
     // must run before rebuildLookups.
     for (const ref of [...this.prefabCache.keys()]) {
       const uuid = refUuid(ref);
-      const p = uuid !== null ? this.uuidToPath.get(uuid) : undefined;
+      const p = uuid !== null ? AssetRegistry.pathForUuid(uuid) : undefined;
       if (!p || changed.has(p) || !kept.has(p)) this.prefabCache.delete(ref);
     }
-    this.rebuildLookups(entries);
+    AssetRegistry.rebuild(entries);
   }
 
   /** Off-critical-path authoritative scan after a cache-first boot: repopulate +
@@ -884,8 +791,8 @@ class ProjectStoreImpl {
       const fresh = new Map<string, string>();
       for (const e of entries) fresh.set(e.path, e.uuid.toLowerCase());
       const changed: string[] = [];
-      for (const [p, u] of fresh) if (this.pathToUuid.get(p) !== u) changed.push(p);
-      for (const p of this.pathToUuid.keys()) if (!fresh.has(p)) changed.push(p); // removed
+      for (const [p, u] of fresh) if (AssetRegistry.uuidFor(p) !== u) changed.push(p);
+      for (const [p] of AssetRegistry.pathEntries()) if (!fresh.has(p)) changed.push(p); // removed
       if (changed.length === 0) return; // the cache was authoritative — nothing to do
       console.info(`[assets] revalidation: ${changed.length} asset change(s) since the project was last open`);
       this.populateRegistry(entries);
@@ -898,32 +805,10 @@ class ProjectStoreImpl {
 
   /** The texture filter/wrap for a ref (`@uuid:` or path), from its `.meta`
    *  importer — the shape `Assets`'s TextureLoader consumes. Undefined ⇒ defaults. */
-  private textureImportFor(ref: string): ReturnType<typeof textureImportSettingsFrom> {
-    const uuid = refUuid(ref) ?? this.pathToUuid.get(ref);
-    return textureImportSettingsFrom(uuid ? this.uuidToImporter.get(uuid) : undefined);
-  }
-
   /** Push a texture's just-saved import settings to its LIVE gl handle so the edit
    *  viewport reflects a filter/wrap change immediately — no scene reload / sprite
    *  repoint (the handle is updated in place; sprites keep referencing it). Call
    *  after the asset inspector writes the `.meta` + refreshAssets. */
-  applyLiveTextureSettings(path: string): void {
-    const uuid = this.pathToUuid.get(path);
-    const s = textureImportSettingsFrom(uuid ? this.uuidToImporter.get(uuid) : undefined);
-    const handle = uuid ? EngineHost.getResource(Assets)?.getTexture(UUID_PREFIX + uuid)?.handle : undefined;
-    if (!s || !handle) return;
-    const filter = s.filter === 'nearest' ? TextureFilter.Nearest : TextureFilter.Linear;
-    const wrap =
-      s.wrap === 'clamp' ? TextureWrap.ClampToEdge : s.wrap === 'mirror' ? TextureWrap.MirroredRepeat : TextureWrap.Repeat;
-    setTextureParams(handle, filter, filter, wrap, wrap);
-    // The 9-slice border is applied at load; re-stamp it so dragging a border in
-    // the asset inspector re-slices the live viewport without a scene reload.
-    if (s.sliceBorder) {
-      const b = s.sliceBorder;
-      setTextureSliceBorder(handle, b.left, b.right, b.top, b.bottom);
-    }
-  }
-
   /**
    * An asset's import settings: its `.meta` importer block layered over the
    * type's declared defaults, so a caller sees every knob (not just the ones
@@ -932,7 +817,7 @@ class ProjectStoreImpl {
    * writes against.
    */
   async getImportSettings(path: string): Promise<{ type: string; settings: Record<string, unknown> }> {
-    const type = this.assetTypeAt(path);
+    const type = AssetRegistry.assetTypeAt(path);
     const stored = JSON.parse(await window.estella.fs.read(path + '.meta')).importer as
       | Record<string, unknown>
       | undefined;
@@ -973,33 +858,22 @@ class ProjectStoreImpl {
     meta.importer = importer;
     await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
     await this.refreshAssets();
-    this.applyLiveTextureSettings(path);
+    AssetRegistry.applyLiveTextureSettings(path);
     return importer;
   }
 
   /** Resolve a serialized asset ref to a project-relative path for the engine
    *  loader: a uuid ref (`@uuid:` or bare) → path (null if unknown); a plain
    *  path passes through. */
-  /** Project-relative path for a `@uuid:` ref (or a plain path unchanged). */
-  refPath(ref: string): string | null {
-    return this.resolveRef(ref);
-  }
-
-  private resolveRef(ref: string): string | null {
-    const uuid = refUuid(ref);
-    if (uuid === null) return ref;
-    return this.uuidToPath.get(uuid) ?? null;
-  }
-
   /** The project transport skeletal assets load over: ref → `estella://` URL for
    *  fetches, `@uuid:` ref → project path for atlas-dir derivation. */
   private skeletalTransport(): SkeletalTransport {
     return {
       toUrl: (ref) =>
         ref.startsWith(UUID_PREFIX)
-          ? `estella://project/${this.resolveRef(ref) ?? ''}`
+          ? `estella://project/${AssetRegistry.refPath(ref) ?? ''}`
           : `estella://project/${ref.replace(/^\//, '')}`,
-      resolvePath: (ref) => this.resolveRef(ref) ?? ref,
+      resolvePath: (ref) => AssetRegistry.refPath(ref) ?? ref,
     };
   }
 
@@ -1009,7 +883,7 @@ class ProjectStoreImpl {
     const tex = EngineHost.getResource(Assets)?.getTexture(ref);
     if (tex) return tex.handle;
     const uuid = refUuid(ref);
-    const path = uuid !== null ? this.uuidToPath.get(uuid) : ref;
+    const path = uuid !== null ? AssetRegistry.pathForUuid(uuid) : ref;
     const r = this.lastAssetResult;
     if (!path || !r) return 0;
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
@@ -1025,22 +899,22 @@ class ProjectStoreImpl {
    * re-fetch forever.
    */
   private hotLoadAsset(ref: string, fieldType: string): void {
-    const path = this.resolveRef(ref);
+    const path = AssetRegistry.refPath(ref);
     if (path === null) return; // unknown uuid — diagnostics reports it; nothing to load
     const key = `${fieldType}:${path}`;
-    if (this.hotLoadStarted.has(key)) return;
-    this.hotLoadStarted.add(key);
+    if (AssetRegistry.hotLoadStartedFor(key)) return;
+    AssetRegistry.markHotLoadStarted(key);
     const assets = EngineHost.getResource(Assets);
     if (!assets) return;
     void this.loadForSlot(assets, fieldType, ref, path)
       .then(() => {
-        this.assetLoadFailures.delete(path);
-        Reconciler.reprojectRefs((r) => this.resolveRef(r) === path);
+        AssetRegistry.clearLoadFailure(path);
+        Reconciler.reprojectRefs((r) => AssetRegistry.refPath(r) === path);
         SceneStore.poke();
       })
       .catch((err) => {
         const msg = err instanceof Error ? err.message : String(err);
-        this.assetLoadFailures.set(path, msg);
+        AssetRegistry.noteLoadFailure(path, msg);
         console.error(`[assets] live load of ${fieldType} "${path}" failed: ${msg}`);
       });
   }
@@ -1081,15 +955,13 @@ class ProjectStoreImpl {
       const rel = raw.replace(/\\/g, '/').replace(/\.meta$/, '');
       if (rel === '' || seen.has(rel)) continue;
       seen.add(rel);
-      const uuid = this.pathToUuid.get(rel);
+      const uuid = AssetRegistry.uuidFor(rel);
       if (!uuid) continue; // not a registered asset (or deleted — registry refresh handles it)
       if (!assets.invalidate(rel)) continue; // nothing was cached → nothing is stale
       // The asset WAS live: clear the dedup so the reload can start, then reload
       // through the same slot-typed path a cold projection uses.
-      for (const key of [...this.hotLoadStarted]) {
-        if (key.endsWith(`:${rel}`)) this.hotLoadStarted.delete(key);
-      }
-      const slot = metaTypeToSlot(this.uuidToType.get(uuid));
+      AssetRegistry.forgetHotLoadsFor(rel);
+      const slot = metaTypeToSlot(AssetRegistry.typeForUuid(uuid));
       if (slot) this.hotLoadAsset(UUID_PREFIX + uuid, slot);
     }
   }
@@ -1100,17 +972,6 @@ class ProjectStoreImpl {
    * live-load failure. Diagnostics adds these on top of required-empty — the
    * model value looks perfectly healthy in both cases.
    */
-  assetRefProblem(ref: string): string | null {
-    const uuid = refUuid(ref);
-    const path = uuid !== null ? (this.uuidToPath.get(uuid) ?? null) : ref;
-    if (path === null) return 'unresolved: no asset with this uuid in the registry';
-    if (uuid === null && !this.pathToUuid.has(path)) {
-      return `unresolved: "${path}" is not a registered asset`;
-    }
-    const failure = this.assetLoadFailures.get(path);
-    return failure ? `load failed: ${failure}` : null;
-  }
-
   /** The live material handle a scene's sprites use for @p path (from the last scene
    *  preload), or 0 if the material isn't loaded in the current scene. The Material Editor
    *  uses it to push live edits onto the running material so the viewport reflects them. */
@@ -1126,7 +987,7 @@ class ProjectStoreImpl {
     if (!ref.startsWith(UUID_PREFIX)) return null;
     const cached = this.prefabCache.get(ref);
     if (cached) return cached;
-    const path = this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase());
+    const path = AssetRegistry.pathForUuid(ref.slice(UUID_PREFIX.length).toLowerCase());
     if (!path) return null;
     try {
       const prefab = migratePrefabData(JSON.parse(await window.estella.fs.read(path))).data as PrefabData;
@@ -1203,7 +1064,7 @@ class ProjectStoreImpl {
     position?: { x: number; y: number },
     name?: string,
   ): Promise<number | null> {
-    const uuid = this.pathToUuid.get(path);
+    const uuid = AssetRegistry.uuidFor(path);
     if (!uuid) return null;
     const ref = UUID_PREFIX + uuid;
     const prefab = await this.loadPrefabAsset(ref);
@@ -1225,7 +1086,7 @@ class ProjectStoreImpl {
    */
   prefabSources(): EntitySource[] {
     const out: EntitySource[] = [];
-    for (const [path, uuid] of this.pathToUuid) {
+    for (const [path, uuid] of AssetRegistry.pathEntries()) {
       if (!path.toLowerCase().endsWith('.esprefab')) continue;
       const ref = UUID_PREFIX + uuid;
       const name = (path.split('/').pop() ?? 'Prefab').replace(/\.esprefab$/i, '');
@@ -1261,7 +1122,7 @@ class ProjectStoreImpl {
     const tag = SceneModel.prefabTag(id);
     const ref = tag?.prefab ?? (tag ? SceneModel.prefabTag(tag.instanceRoot)?.prefab : undefined);
     if (!ref) return;
-    const info = this.assetInfo(ref);
+    const info = AssetRegistry.assetInfo(ref);
     if (!info) return;
     await this.openPrefab(info.path, opts);
   }
@@ -1279,7 +1140,7 @@ class ProjectStoreImpl {
     const instanceRoot = tag?.instanceRoot ?? sourceId;
     const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
     if (!ref) return null;
-    const info = this.assetInfo(ref);
+    const info = AssetRegistry.assetInfo(ref);
     if (!info) return null;
     const root = SceneModel.entityBySource(instanceRoot);
     const parent = root?.parent ?? null;
@@ -1315,7 +1176,7 @@ class ProjectStoreImpl {
     const instanceRoot = tag?.instanceRoot ?? sourceId;
     const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
     if (!ref) return null;
-    const info = this.assetInfo(ref);
+    const info = AssetRegistry.assetInfo(ref);
     if (!info) return null;
     const oldPrefab = await this.loadPrefabAsset(ref);
     if (!oldPrefab) {
@@ -1412,7 +1273,7 @@ class ProjectStoreImpl {
     const instanceRoot = tag?.instanceRoot ?? sourceId;
     const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
     if (!ref) return null;
-    const info = this.assetInfo(ref);
+    const info = AssetRegistry.assetInfo(ref);
     if (!info) return null;
     const base = await this.loadPrefabAsset(ref);
     if (!base) {
@@ -1478,7 +1339,7 @@ class ProjectStoreImpl {
    * the path isn't a tracked texture. One undoable step; the new entity is selected.
    */
   async instantiateSpriteFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
-    const ref = await this.assetRefForPath(path, 'texture');
+    const ref = await AssetRegistry.assetRefForPath(path, 'texture');
     if (!ref) return null;
     const size = await this.imageNaturalSize(path);
     const name = (path.split('/').pop() ?? 'Sprite').replace(/\.[^.]+$/, '') || 'Sprite';
@@ -1536,9 +1397,9 @@ class ProjectStoreImpl {
     // instead would write `<name>-1.esprefab` and leave every instance in the project
     // pointing at the stale one — a silent no-op for the caller who asked for an update.
     // The uuid is KEPT for the same reason: refs are by uuid, and a new one orphans them.
-    const existingUuid = opts?.replace ? this.pathToUuid.get(rel) : undefined;
+    const existingUuid = opts?.replace ? AssetRegistry.uuidFor(rel) : undefined;
     if (!existingUuid) {
-      for (let n = 1; this.pathToUuid.has(rel); n++) rel = `assets/prefabs/${base}-${n}.esprefab`;
+      for (let n = 1; AssetRegistry.tracks(rel); n++) rel = `assets/prefabs/${base}-${n}.esprefab`;
     }
 
     const uuid = existingUuid ?? crypto.randomUUID();
@@ -1576,7 +1437,7 @@ class ProjectStoreImpl {
    * next load. Reports how many were upgraded.
    */
   async resaveAllPrefabs(): Promise<void> {
-    const paths = [...this.pathToUuid.keys()].filter((p) => p.endsWith('.esprefab'));
+    const paths = [...AssetRegistry.pathEntries()].map(([p]) => p).filter((p) => p.endsWith('.esprefab'));
     if (paths.length === 0) {
       Toasts.push(t('proj.resaveNone'), 'info');
       return;
@@ -1601,11 +1462,6 @@ class ProjectStoreImpl {
 
   /** A tracked asset's portable `@uuid:` ref for a project-relative path (Copy
    *  Reference), or null if the path isn't an indexed asset. */
-  assetRef(path: string): string | null {
-    const uuid = this.pathToUuid.get(path);
-    return uuid ? UUID_PREFIX + uuid : null;
-  }
-
   /**
    * Assemble the isolated play-realm payload: the
    * current scene as RAW (`@uuid:`) SceneData straight from the expanded model —
@@ -1655,7 +1511,7 @@ class ProjectStoreImpl {
       textureImport?: ParsedTextureImportSettings;
     };
     const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, Asset> }> = {};
-    for (const [uuid, raw] of this.uuidToPath) {
+    for (const [uuid, raw] of AssetRegistry.entries()) {
       const path = raw.replace(/\\/g, '/');
       const { name, delivery } = resolveAssetGroup(path, this.assetGroupsConfig);
       const g = (groups[name] ??= { bundleMode: delivery, labels: [], assets: {} });
@@ -1663,7 +1519,7 @@ class ProjectStoreImpl {
       // as it does in a cooked manifest — so Play reads it through the same
       // channel a shipped build does, rather than a play-only side band that can
       // drift from it.
-      const textureImport = textureImportSettingsFrom(this.uuidToImporter.get(uuid));
+      const textureImport = textureImportSettingsFrom(AssetRegistry.importerForUuid(uuid));
       g.assets[uuid.toLowerCase()] = {
         path, type: typeOfExt(path), size: 0, labels: [],
         ...(textureImport ? { textureImport } : {}),
@@ -1694,7 +1550,7 @@ class ProjectStoreImpl {
     // The realm runs from the project's estella:// origin, so assets are
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
-    for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
+    for (const [uuid, path] of AssetRegistry.entries()) assetManifest[uuid] = `estella://project/${path}`;
     // Play == ship: register every other project scene under its export name
     // (scenes-dir-relative path sans extension — the same rule exportGame's
     // discoverProjectScenes uses), so SceneManager.switchTo('levels/boss')
@@ -1708,7 +1564,7 @@ class ProjectStoreImpl {
     };
     const currentScene = st?.currentScene?.replace(/\\/g, '/') ?? null;
     const extraScenes: Array<{ name: string; path: string }> = [];
-    for (const p of this.uuidToPath.values()) {
+    for (const p of AssetRegistry.paths()) {
       const q = p.replace(/\\/g, '/');
       if (!/\.esscene$/i.test(q) || q === currentScene) continue;
       extraScenes.push({ name: exportSceneName(q), path: q });
@@ -2226,16 +2082,6 @@ class ProjectStoreImpl {
   /** Display info for an asset ref (`@uuid:` or a project-relative path — the same
    *  forms the loaders accept), or null (none / unresolved). For the inspector's
    *  asset control: the project-relative path + a leaf name. */
-  assetInfo(ref: unknown): { path: string; name: string } | null {
-    if (typeof ref !== 'string' || ref.length === 0) return null;
-    const path = ref.startsWith(UUID_PREFIX)
-      ? this.uuidToPath.get(ref.slice(UUID_PREFIX.length).toLowerCase())
-      : this.assetRef(ref)
-        ? ref
-        : undefined;
-    return path ? { path, name: path.split('/').pop() ?? path } : null;
-  }
-
   /**
    * The Content-Browser type of a project file — the ONE answer the picker, the
    * drag-drop guard and the browser tiles all read, so they cannot disagree about
@@ -2247,33 +2093,8 @@ class ProjectStoreImpl {
    * the file's own content, which is the only thing that can tell a Spine JSON
    * skeleton from any other `.json`.
    */
-  assetTypeAt(path: string): AssetType {
-    const byName = assetTypeOf(path.split('/').pop() ?? path);
-    if (byName !== 'file') return byName;
-    const uuid = this.pathToUuid.get(path);
-    const metaType = uuid ? this.uuidToType.get(uuid) : undefined;
-    return metaType && assetTypeDef(metaType) !== ASSET_TYPES.file ? (metaType as AssetType) : byName;
-  }
-
-  /** Project assets valid for an asset slot (the inspector's asset picker), by name. */
-  listAssets(fieldType?: string): AssetEntry[] {
-    const out: AssetEntry[] = [];
-    for (const [uuid, path] of this.uuidToPath) {
-      const name = path.split('/').pop() ?? path;
-      const type = this.assetTypeAt(path);
-      if (!assetMatchesSlot(type, path, fieldType)) continue;
-      out.push({ ref: UUID_PREFIX + uuid, path, name, type });
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   /** Whether the asset at `path` is a valid pick for a `fieldType` slot — the same rule
    *  the picker popover filters by, exposed so drag-drop can reject a wrong-typed asset. */
-  assetTypeAllowed(fieldType: string | undefined, path: string): boolean {
-    if (!fieldType) return true;
-    return assetMatchesSlot(this.assetTypeAt(path), path, fieldType);
-  }
-
   /**
    * Turn a Content-Browser drag (a project-relative path) into a portable
    * `@uuid:` ref, preloading the asset so the Reconciler's synchronous projection
@@ -2281,26 +2102,6 @@ class ProjectStoreImpl {
    * types are best-effort (resolved at scene load). Returns null if the path
    * isn't a tracked asset.
    */
-  async assetRefForPath(path: string, assetType?: string): Promise<string | null> {
-    const uuid = this.pathToUuid.get(path);
-    if (!uuid) return null;
-    const ref = UUID_PREFIX + uuid;
-    // Spine slots are path-valued: nothing to preload here — the spine binding
-    // (skeleton + atlas + pages) loads as a pair when the component syncs.
-    if (assetType === 'spine-skeleton' || assetType === 'spine-atlas') return ref;
-    const assets = EngineHost.getResource(Assets);
-    if (assets) {
-      try {
-        if (assetType === 'material') await assets.loadMaterial(ref);
-        else if (assetType === 'font') await assets.loadFont(ref);
-        else await assets.loadTexture(ref);
-      } catch {
-        // non-loadable for this slot — the field still stores the ref losslessly
-      }
-    }
-    return ref;
-  }
-
   /**
    * Serialize the editor's source-of-truth model — lossless (JSON-first) +
    * prefab-aware: collapse each expanded prefab-instance subtree back to a single
@@ -2380,7 +2181,7 @@ class ProjectStoreImpl {
     if (!st) return;
     const leaf = path.split('/').pop() ?? path;
     if (!opts?.discardChanges && !(await confirmDiscard(t('discard.openPrefab', { name: leaf })))) return;
-    const uuid = this.pathToUuid.get(path);
+    const uuid = AssetRegistry.uuidFor(path);
     const ref = uuid ? UUID_PREFIX + uuid : null;
     const prefab = ref ? await this.loadPrefabAsset(ref) : null;
     if (!ref || !prefab) {
@@ -2491,7 +2292,7 @@ class ProjectStoreImpl {
     useSelection.getState().select(null);
     usePrefabConflicts.getState().clear(); // a prefab document has no scene instances
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
     installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(raw, resolved);
@@ -2744,3 +2545,5 @@ class ProjectStoreImpl {
 }
 
 export const ProjectStore = new ProjectStoreImpl();
+
+

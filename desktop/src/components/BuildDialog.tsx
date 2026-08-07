@@ -38,6 +38,7 @@ import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { Button } from '@/components/Button';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { t } from '@/i18n';
 
@@ -340,7 +341,7 @@ export function BuildDialog() {
   // first. Reads the live asset index, so it tracks file changes.
   const scenesDir = project?.layout?.scenes ?? 'assets/scenes';
   const excludedScenes = new Set(project?.packaging?.excludeScenes ?? []);
-  const sceneList = ProjectStore.listAssets()
+  const sceneList = AssetRegistry.listAssets()
     .filter((a) => a.type === 'scene' && (a.path.startsWith(`${scenesDir}/`) || a.path === project?.defaultScene))
     .sort((a, b) =>
       a.path === project?.defaultScene ? -1 : b.path === project?.defaultScene ? 1 : a.path.localeCompare(b.path));

@@ -13,7 +13,7 @@ import {
   type TilesetModel, type ResolvedTileset,
 } from 'esengine';
 import { SceneModel } from '@/engine/SceneModel';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
 
 /** The `.estileset` ref(s) a TilemapLayer entity references — its `tilesetAssets` list
@@ -53,7 +53,7 @@ export async function loadLayerTilesetModel(refs: string[]): Promise<TilesetMode
 
   const list: ResolvedTileset[] = [];
   for (const ref of refs) {
-    const path = ProjectStore.assetInfo(ref)?.path;
+    const path = AssetRegistry.assetInfo(ref)?.path;
     if (!path) continue;
     let asset;
     try {
@@ -63,7 +63,7 @@ export async function loadLayerTilesetModel(refs: string[]): Promise<TilesetMode
     }
     let textureHeight: number | undefined;
     if (!(typeof asset.tileCount === 'number' && asset.tileCount > 0)) {
-      const texPath = ProjectStore.assetInfo(asset.texture)?.path;
+      const texPath = AssetRegistry.assetInfo(asset.texture)?.path;
       if (texPath) {
         const h = await imageHeight(`estella://project/${texPath}`);
         if (h > 0) textureHeight = h;

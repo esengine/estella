@@ -54,7 +54,7 @@ import { useSelection } from '@/store/selectionStore';
 import { EditorControlSurface } from '@/engine/EditorSession';
 import { previewSceneOps, withoutDeclined, type PreviewScene } from '@/engine/sceneOpsPreview';
 import type { SceneOp } from '@/engine/sceneOps';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { t } from '@/i18n';
 
 /**
@@ -1030,7 +1030,7 @@ function mentionMatches(query: string): Mention[] {
     .slice(0, 24)
     .map((n) => ({ key: `e${n.id}`, insert: n.name, label: n.name, entity: n.id, detail: String(n.id) }));
 
-  const assets: Mention[] = ProjectStore.listAssets()
+  const assets: Mention[] = AssetRegistry.listAssets()
     .filter((a) => !q || a.name.toLowerCase().includes(q) || a.path.toLowerCase().includes(q))
     .slice(0, 16)
     .map((a) => ({ key: `a${a.ref}`, insert: a.path, label: a.name, entity: null, detail: a.type }));

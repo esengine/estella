@@ -25,7 +25,7 @@ import { Transport } from '@/components/Transport';
 import { SaveButton } from '@/components/SaveButton';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { AnimClipCommands } from '@/flipbook/AnimClipCommands';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { t } from '@/i18n';
 
 const THUMB = 34;
@@ -54,7 +54,7 @@ export function FlipbookEditor() {
   const meta = AnimClipDocument.meta;
 
   const sheet = asset?.sheet;
-  const info = sheet ? ProjectStore.assetInfo(sheet.texture) : null;
+  const info = sheet ? AssetRegistry.assetInfo(sheet.texture) : null;
   const texUrl = info ? `estella://project/${info.path}` : null;
 
   const [zoom, setZoom] = useState(2);
@@ -121,7 +121,7 @@ export function FlipbookEditor() {
       return cellThumbStyle(texUrl, sheet, cols, Math.min(f.cell, Math.max(0, cellCount - 1)), size);
     }
     // Legacy per-texture frame: show the whole referenced image.
-    const fi = f.texture ? ProjectStore.assetInfo(f.texture) : null;
+    const fi = f.texture ? AssetRegistry.assetInfo(f.texture) : null;
     return fi
       ? { width: size, height: size, backgroundImage: `url(estella://project/${fi.path})`, backgroundSize: 'contain' }
       : { width: size, height: size };

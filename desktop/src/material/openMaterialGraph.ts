@@ -11,6 +11,7 @@
 import { compileMaterialGraph, newMaterialGraph, type MaterialGraph } from 'esengine';
 import { MaterialGraphDocument } from './MaterialGraphDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
@@ -62,7 +63,7 @@ export async function saveMaterialGraph(path: string, graph: MaterialGraph): Pro
 export async function createMaterialGraph(dir: string): Promise<void> {
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
   let rel = `${folder}NewGraph.esmatgraph`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewGraph-${n}.esmatgraph`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${folder}NewGraph-${n}.esmatgraph`;
 
   const graph = newMaterialGraph();
   graph.name = baseName(rel).replace(/\.esmatgraph$/, '');

@@ -32,7 +32,7 @@ import { SaveButton } from '@/components/SaveButton';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands, type TileCollisionMods } from '@/tileset/TilesetCommands';
 import { useTilesetView } from '@/tileset/tilesetView';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { SLOPE_PRESETS, presetPointsPx, type SlopePreset } from '@/tileset/slopePresets';
@@ -383,7 +383,7 @@ export function TilesetEditor() {
   const asset = TilesetDocument.asset;
   const meta = TilesetDocument.meta;
 
-  const info = asset ? ProjectStore.assetInfo(asset.texture) : null;
+  const info = asset ? AssetRegistry.assetInfo(asset.texture) : null;
   const texUrl = info ? `estella://project/${info.path}` : null;
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);

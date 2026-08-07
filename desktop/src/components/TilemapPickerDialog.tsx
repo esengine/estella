@@ -14,7 +14,7 @@ import { LayoutGrid } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import {
@@ -32,7 +32,7 @@ export function TilemapPickerDialog() {
   const [staggerIndex, setStaggerIndex] = useState(0);
   const [hexSide, setHexSide] = useState('');
 
-  const tilesets = ProjectStore.listAssets('tileset');
+  const tilesets = AssetRegistry.listAssets('tileset');
   const needle = q.trim().toLowerCase();
   const shown = needle ? tilesets.filter((ts) => ts.name.toLowerCase().includes(needle)) : tilesets;
 
@@ -40,7 +40,7 @@ export function TilemapPickerDialog() {
   const hex = isHexOrientation(orientation);
 
   const choose = (ref: string) => {
-    const path = ProjectStore.assetInfo(ref)?.path;
+    const path = AssetRegistry.assetInfo(ref)?.path;
     close();
     if (!path) return;
     const grid: TileGridConfig = { orientation };

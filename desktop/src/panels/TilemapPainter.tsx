@@ -21,6 +21,7 @@ import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { usePopover, Popover } from '@/components/Popover';
@@ -135,7 +136,7 @@ export function TilemapPainter() {
   // bar can switch between them and painted cells encode to the right global gid.
   useEffect(() => {
     const paths = layerTilesetRefs(selectedId)
-      .map((r) => ProjectStore.assetInfo(r)?.path).filter((p): p is string => !!p);
+      .map((r) => AssetRegistry.assetInfo(r)?.path).filter((p): p is string => !!p);
     if (paths.length === 0) { setTilesets([]); return; }
     let alive = true;
     void (async () => {
@@ -147,7 +148,7 @@ export function TilemapPainter() {
           entries.push({ path, asset: a, firstId });
           let count = a.tileCount ?? 0;
           if (count <= 0) {
-            const url = `estella://project/${ProjectStore.assetInfo(a.texture)?.path ?? ''}`;
+            const url = `estella://project/${AssetRegistry.assetInfo(a.texture)?.path ?? ''}`;
             const dims = await loadImageDims(url);
             count = a.columns * rowsFor(dims.h, a.tileHeight, a.margin, a.spacing);
           }
@@ -176,7 +177,7 @@ export function TilemapPainter() {
     return () => { alive = false; };
   }, [tilesetPath, setTilesetAsset, tilesetDocRev]);
 
-  const texUrl = asset ? `estella://project/${ProjectStore.assetInfo(asset.texture)?.path ?? ''}` : null;
+  const texUrl = asset ? `estella://project/${AssetRegistry.assetInfo(asset.texture)?.path ?? ''}` : null;
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   // On texture change adopt the size straight from the element when it is
   // already complete — a cache-hit image can finish loading before React
@@ -369,7 +370,7 @@ export function TilemapPainter() {
   };
   // The project's .estileset assets not already on this layer (populated on open).
   const addable = addPop.isOpen
-    ? ProjectStore.listAssets('tileset').filter((a) => !layerTilesetRefs(selectedId).includes(a.ref))
+    ? AssetRegistry.listAssets('tileset').filter((a) => !layerTilesetRefs(selectedId).includes(a.ref))
     : [];
 
   const atlas: TileAtlas | null = texUrl && natural

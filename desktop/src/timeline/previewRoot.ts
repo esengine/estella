@@ -12,14 +12,14 @@
 
 import { SceneModel } from '@/engine/SceneModel';
 import { useSelection } from '@/store/selectionStore';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { resolveTimelineRoot, timelinePlayersFor, type TimelineRootEntity } from './timelineRoot';
 
 /** Matches the refs that name this project-relative asset path: a `TimelinePlayer`
  *  may hold the `@uuid:` form (what the editor writes) or the path itself. */
 function refMatcher(filePath: string | null): (ref: string) => boolean {
   if (!filePath) return () => false;
-  const uuidRef = ProjectStore.assetRef(filePath);
+  const uuidRef = AssetRegistry.assetRef(filePath);
   return (ref) => ref === filePath || (!!uuidRef && ref === uuidRef);
 }
 

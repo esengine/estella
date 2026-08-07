@@ -41,6 +41,7 @@ import './theme/launcher.css';
 import './theme/plugins.css';
 import { App } from './App';
 import { ProjectStore } from './project/ProjectStore';
+import { AssetRegistry } from './project/AssetRegistry';
 import { useEditorStore } from './store/editorStore';
 import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
@@ -448,7 +449,7 @@ function buildEditorAutomation(): unknown {
      *  `total` reports the full match count even when `assets` is truncated. */
     listAssets: (opts?: { match?: string; type?: string; limit?: number }) => {
       const needle = opts?.match?.toLowerCase();
-      const all = ProjectStore.listAssets().filter(
+      const all = AssetRegistry.listAssets().filter(
         (a) => (!opts?.type || a.type === opts.type) && (!needle || a.path.toLowerCase().includes(needle)),
       );
       return { total: all.length, assets: all.slice(0, opts?.limit ?? 200) };
@@ -473,7 +474,7 @@ function buildEditorAutomation(): unknown {
      * an image viewer on the user's desktop.
      */
     openAsset: async (path: string, discardChanges = false) => {
-      const type = ProjectStore.assetTypeAt(path);
+      const type = AssetRegistry.assetTypeAt(path);
       if (!opensInEditor(type)) {
         throw new Error(
           `the editor has no editor for a '${type}' asset (${path}) — a double-click would hand it to an `
@@ -546,7 +547,7 @@ function buildEditorAutomation(): unknown {
      * thing an automated caller most needs to know about a delete is what still points at it.
      */
     deleteAsset: async (path: string) => {
-      const type = ProjectStore.assetTypeAt(path);
+      const type = AssetRegistry.assetTypeAt(path);
       // Best-effort: a scan failure must not stop the delete the caller asked for.
       const usages = await findAssetUsages(path).catch(() => []);
       const [result] = await deleteAssets([path]);

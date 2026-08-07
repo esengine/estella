@@ -12,6 +12,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { formatKeybinding } from '@/commands/keybinding';
 import { contributedContextRows } from '@/plugins/contextMenus';
@@ -141,7 +142,7 @@ function prefabInstanceItems(id: number): MenuItem[] {
     {
       label: t('out.prefabSelectSource'),
       onClick: () => {
-        const info = ProjectStore.assetInfo(ref);
+        const info = AssetRegistry.assetInfo(ref);
         if (info) useSelection.getState().selectAsset(info.path);
       },
     },

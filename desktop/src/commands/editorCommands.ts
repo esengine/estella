@@ -10,6 +10,7 @@
  */
 import { commands } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscard } from '@/project/discardGuard';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { SceneCommands } from '@/engine/SceneCommands';
@@ -166,7 +167,7 @@ commands.register({
   // hex) AND the tileset up front, like Tiled's New Map dialog. createTilemapFromTileset
   // does all the entity wiring; the picker just gathers the grid + palette choice.
   run: () => {
-    const list = ProjectStore.listAssets('tileset');
+    const list = AssetRegistry.listAssets('tileset');
     if (list.length === 0) {
       Toasts.push(t('toast.noTileset'), 'warn');
       return;

@@ -20,7 +20,7 @@
  *          is a smaller cost than a wasm module loaded to populate a dropdown.
  */
 import { parseDragonBonesNames, type DragonBonesArmatureNames } from '../../../sdk/src/dragonbones/skeletonNames';
-import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { setEnumSource } from './schema';
 import { SceneStore } from './SceneStore';
 import type { EnumOption } from '@/types';
@@ -46,7 +46,7 @@ function refOf(data: Readonly<Record<string, unknown>>): string {
 function warm(ref: string): void {
     if (!ref || cache.has(ref) || inFlight.has(ref)) return;
     inFlight.add(ref);
-    const path = ProjectStore.refPath(ref);
+    const path = AssetRegistry.refPath(ref);
     if (!path) {
         cache.set(ref, []);
         inFlight.delete(ref);

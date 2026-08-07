@@ -10,6 +10,7 @@
 import { createTileset as createTilesetAsset, serializeTileset } from 'esengine';
 import { TilesetDocument } from './TilesetDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { AssetRegistry } from '@/project/AssetRegistry';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
@@ -45,7 +46,7 @@ export interface TilesetGridInit {
 /** Create a .estileset next to a texture (referencing it), then open it. `grid` is the
  *  slice chosen in the New-Tileset dialog; omitted falls back to a plain 16×16 grid. */
 export async function createTilesetFromTexture(texturePath: string, grid?: TilesetGridInit): Promise<void> {
-  const ref = ProjectStore.assetRef(texturePath);
+  const ref = AssetRegistry.assetRef(texturePath);
   if (!ref) {
     Toasts.push(t('tile.toast.texUntracked'), 'error');
     return;
@@ -53,7 +54,7 @@ export async function createTilesetFromTexture(texturePath: string, grid?: Tiles
   const dir = texturePath.includes('/') ? texturePath.slice(0, texturePath.lastIndexOf('/') + 1) : '';
   const base = baseName(texturePath).replace(/\.[^.]+$/, '') || 'Tileset';
   let rel = `${dir}${base}.estileset`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${dir}${base}-${n}.estileset`;
+  for (let n = 1; AssetRegistry.assetRef(rel); n++) rel = `${dir}${base}-${n}.estileset`;
 
   const g = grid ?? { tileWidth: 16, tileHeight: 16, margin: 0, spacing: 0, columns: 1 };
   const asset = createTilesetAsset(ref, g.tileWidth, g.tileHeight, g.columns);
