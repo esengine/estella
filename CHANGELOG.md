@@ -12,6 +12,68 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **The built-in agent speaks OpenAI's protocol, not only Anthropic's.** Chat
+  Completions is what OpenAI serves and what almost everything else implements —
+  the other vendors, the aggregators, and every local runner (Ollama, vLLM, LM
+  Studio). It is a second provider rather than a third dialect of the first: tool
+  calls arrive as a field on the assistant message with their arguments as a
+  string, each result goes back as its own message, and the stream is untyped
+  deltas stitched by index. The Custom Provider gained a **protocol** picker;
+  OpenAI ships as a provider with its address and protocol but not its model
+  names, which you type — a list shipped in the editor would be right until the
+  vendor's next release, and a name that no longer exists is not refused, it is
+  quietly served by something smaller for the rest of the session.
+
+- **The running world's Outliner folds, filters, and hides.** In Play, the Game
+  tree was every row forced open with no twist, no search and no eye — a world of
+  a few thousand entities arrived fully flattened. Rows start collapsed, the
+  header carries a search box and expand/collapse-all, and the eye turns a live
+  entity off to find out what it was. A UI node hides through `display`, so one
+  click takes a whole HUD with it; a row with nothing of its own to hide gets no
+  eye rather than one that does nothing.
+
+### Fixed
+
+- **`setEntityVisible` knew three renderers; the scene manager knew six.** Two
+  lists answered the same question and disagreed, so calling this public API on a
+  Spine armature, a particle system or a UI element silently did nothing at all.
+  One list now, and a UI node hides through `display` — which the layout pass
+  resolves down the tree, because hiding a panel has to hide what is inside it.
+
+- **Deleting assets no longer re-reads the whole project once per file.** On a
+  project with 36k assets, selecting a folder's worth and pressing Delete took 52
+  seconds to show the confirm dialog for 22 files, and never came back for more.
+  The dialog asked what references each asset one asset at a time, each answer a
+  fresh disk walk; and the *incremental* re-scan recomputed the entire dependency
+  graph anyway, because a removal changes the entry set and that was treated as
+  "resolution changed". It is not: dropping an entry can only delete edges
+  pointing at it. One scan for the batch, and only the documents that referenced
+  something removed are re-read. Those 22 files now take 2.2 seconds.
+
+- **The Content Browser no longer mounts a tile per file in the folder.** A folder
+  of 788 sprites built 788 tiles and decoded 788 full-size images — 26 megapixels
+  resident for the twenty on screen. Both views are windowed now, over the same
+  scroll-window implementation the Outliner uses.
+
+- **Stopping the agent mid-run no longer breaks the conversation** on endpoints
+  that require every tool call to be answered.
+
+- **Leaving Play no longer strands the Outliner and Details on the running world.**
+  Stop takes the world picker away, so a choice that outlived the realm left both
+  panels showing a world that no longer exists, with nothing on screen able to
+  switch them back.
+
+- **`prefabEntityId: '0'` is refused rather than dropped in silence**, and the
+  sample code that still taught it was fixed. `'0'` is the id every prefab had
+  before stable ids; a prefab saved by the editor since has a UUID, so an override
+  carrying `'0'` aimed at nobody — every instance spawned at the position the
+  prefab was authored with, and nothing said why. An override with no
+  `prefabEntityId` now means the root, which is the entity a one-sprite prefab has.
+
 ## [0.44.0] - 2026-08-05
 
 ### Added

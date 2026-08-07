@@ -21,20 +21,34 @@ your Undo takes them back, and you can take the mouse at any moment.
 The editor ships no key and calls nothing on its own. Open **Settings ▸ AI Agents**
 and configure one provider — that is the whole setup.
 
-![Settings ▸ AI Agents — a key field per provider, plus the custom endpoint and model list](@/assets/guides/en/agent-settings.png)
+![Settings ▸ AI Agents — a key per provider, the model names a provider does not ship, and the protocol a custom endpoint speaks](@/assets/guides/en/agent-settings.png)
 
 <Steps>
 
-1. Paste an **API key** for Anthropic or DeepSeek. Each provider keeps its own, so
-   switching back to one you used last week costs nothing.
+1. Paste an **API key** for Anthropic, DeepSeek or OpenAI. Each provider keeps its
+   own, so switching back to one you used last week costs nothing.
 
-2. Or fill in the **Custom Provider**: any Anthropic-compatible endpoint, plus the
-   model names it offers. Those names become choices in the composer.
+2. Some providers also want their **model names** typed in. That is deliberate: a
+   list shipped in the editor would be right until the vendor's next release, and a
+   name that no longer exists is not refused — the endpoint quietly serves something
+   smaller instead, for the rest of the session.
 
-3. Close Settings. The model picker sits next to the box you type in — it is a
+3. Or fill in the **Custom Provider** — any endpoint at all. Pick which **protocol**
+   it speaks, then give its address and its model names.
+
+4. Close Settings. The model picker sits next to the box you type in — it is a
    per-message choice, not a preference buried in a dialog.
 
 </Steps>
+
+<Aside type="tip" title="Which protocol">
+**Chat Completions** is OpenAI's, and it is what almost everything else implements
+too — the other vendors, the aggregators, and every local runner (Ollama, vLLM, LM
+Studio). **Messages** is Anthropic's; a gateway that emulates it works here as well,
+minus the extensions that are Anthropic's own (extended thinking, prompt caching,
+automatic fallbacks). The two formats differ in every message they send, so a wrong
+pick is refused outright rather than quietly degraded.
+</Aside>
 
 <Aside type="tip" title="Where the key lives">
 In the system keychain. It is never written to the project, never written to the
