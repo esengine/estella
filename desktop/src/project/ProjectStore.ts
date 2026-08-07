@@ -178,12 +178,8 @@ class ProjectStoreImpl {
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
-  /** What the OPEN DOCUMENT looked like on disk the last time we read or wrote it —
-   *  a scene, or the `.esprefab` being edited in Prefab Mode. It answers one
-   *  question, "was that change ours", and it is per-document rather than
-   *  per-scene because both kinds are edited in the same world and overwritten by
-   *  the same Save. While it tracked only the scene, an external edit to a prefab
-   *  open in Prefab Mode was invisible and Save silently overwrote it. */
+  /** The open document as it last was on disk — a scene, or the `.esprefab` in
+   *  Prefab Mode. Answers "was that change ours" for the disk-change reconcile. */
   private diskText: string | null = null;
   private diskPath: string | null = null;
   /** A disk-change discard prompt is showing — don't stack another. */
@@ -672,16 +668,10 @@ class ProjectStoreImpl {
   }
 
   /**
-   * A new, empty prefab: the entity the Create menu's "Empty" makes, as a
-   * standalone asset.
+   * A new, empty prefab: the Create menu's "Empty" entity as a standalone asset.
    *
-   * Built from that entity SOURCE rather than a second definition of what an empty
-   * entity is — the same reason the Canvas hosting a UI prefab is built from the
-   * Canvas source. And run through `extractPrefab`, because that is what mints
-   * entity identities: a source's in-memory prefab carries `prefabEntityId: '0'`,
-   * the id every prefab had BEFORE stable ids, and an override aimed at `'0'` is
-   * refused now — so writing one to disk would author an asset nothing can
-   * customise.
+   * Goes through `extractPrefab` to mint entity ids — a source's in-memory prefab
+   * carries `prefabEntityId: '0'`, which the runtime spawn door now refuses.
    */
   private async blankPrefab(name: string): Promise<PrefabData> {
     const built = await sourceById('empty')?.build?.({ parent: null });
@@ -691,9 +681,7 @@ class ProjectStoreImpl {
     return extractPrefab([entity as unknown as ExtractEntity], 0, name);
   }
 
-  /** Create a blank `.esprefab` under `destDir` — the Content Browser's New →
-   *  Prefab. An empty prefab is a starting point: double-click opens it in Prefab
-   *  Mode, where it is built up like a scene. */
+  /** Create a blank `.esprefab` under `destDir`; double-click opens it in Prefab Mode. */
   async createPrefabFile(destDir: string, name = 'Prefab'): Promise<string> {
     const content = JSON.stringify(await this.blankPrefab(name), null, 2) + '\n';
     return window.estella.project.createAsset(destDir, 'prefab.esprefab', content, 'prefab');
@@ -1342,15 +1330,8 @@ class ProjectStoreImpl {
    * immediately draggable. Non-destructive: the source entities are left as-is.
    * Returns the new prefab's `@uuid:` ref, or null.
    *
-   * Takes a SELECTION, because that is what the Outliner has when someone asks.
-   * A selection routinely holds a parent and some of its children, and the prefab
-   * they mean is the parent — so it resolves to the selection's roots, and the
-   * children come along as the subtree they already are.
-   *
-   * A prefab has exactly one root (`PrefabData.rootEntityId` is singular), so a
-   * selection with SEVERAL roots is not a prefab. That is refused and said out
-   * loud: it used to act on whichever entity happened to be right-clicked, which
-   * silently produced a prefab of one of them.
+   * Takes a selection and resolves it to its roots. `PrefabData.rootEntityId` is
+   * singular, so several roots are refused rather than resolved arbitrarily.
    */
   async createPrefabFromEntity(
     target: number | readonly number[],
@@ -2116,24 +2097,11 @@ class ProjectStoreImpl {
   }
 
   /**
-   * The open scene as a crash-recovery snapshot: its real target path + the exact
-   * bytes {@link save} would write, WITHOUT persisting or marking saved. Null for
-   * an untitled scene (no `currentScene` path to recover into).
-   */
-  /**
-   * Everything the editor does to its open document, per KIND.
+   * Everything the editor does to its open document, one row per KIND.
    *
-   * A scene and a prefab are edited in the same world, by the same tools, through
-   * the same undo history. What differs is which file they are and how they round
-   * trip: a scene serializes the model and writes it; a prefab collapses the
-   * flattened tree back against its base. Every caller wants the same four things,
-   * and each of them used to ask `if (this.prefabSession)` in its own words.
-   *
-   * Twice that produced the same bug — an operation written for the scene, and the
-   * prefab silently getting nothing: an external change went unnoticed because the
-   * question was asked about `currentScene`, which is null here. One row per kind
-   * makes that a compile error instead. A new per-document operation is a new
-   * method on this interface, and TypeScript will not let it exist for one kind.
+   * A per-document operation added here must be implemented for both kinds or it
+   * does not compile — which is the point: writing one for the scene and leaving
+   * the prefab out has twice shipped as a silent gap.
    */
   private documentOps(): {
     /** The file this document is, or null when it is untitled. */
@@ -2293,9 +2261,7 @@ class ProjectStoreImpl {
       ViewportController.frameSelection(content);
     };
     requestAnimationFrame(() => requestAnimationFrame(frameContent));
-    // Seed the disk baseline from the file we just opened, so the first external
-    // change to it is recognised as one — and a watcher event that carries no
-    // actual change (a touch, a `.meta` write beside it) is not mistaken for one.
+    // Seed the baseline so the first external change to it reads as one.
     this.diskText = await window.estella.fs.read(path).catch(() => null);
     this.diskPath = path;
     const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
@@ -2412,9 +2378,7 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.applyWriteFailed', { name: pe.path.split('/').pop() ?? pe.path }), 'error');
       return;
     }
-    // Our own write is not an external change — record it, or the watcher fires
-    // and offers to reload the file we just produced. `writeScene` does the same
-    // for a scene; this is the prefab half of the same rule.
+    // Record our own write, or the watcher offers to reload what we just saved.
     this.diskText = body;
     this.diskPath = pe.path;
     PrefabCache.put(pe.ref, prefab);
@@ -2456,9 +2420,8 @@ class ProjectStoreImpl {
     }
   }
 
-  /** The file the editor currently has open as its document: the prefab in Prefab
-   *  Mode, else the scene. One accessor, so nothing has to remember that
-   *  `currentScene` is null while a prefab is open. */
+  /** The open document's file: the prefab in Prefab Mode, else the scene
+   *  (`currentScene` is null while a prefab is open). */
   private openDocumentPath(): string | null {
     return this.documentOps().path();
   }
@@ -2472,16 +2435,9 @@ class ProjectStoreImpl {
   }
 
   /**
-   * Reconcile the open DOCUMENT with an on-disk change made outside the editor —
+   * Reconcile the open document with an on-disk change made outside the editor —
    * seamless when clean, discard-guarded when there are unsaved edits. A change
    * matching our own last write (or read) is a no-op.
-   *
-   * Both kinds, because both are edited in the same world and overwritten by the
-   * same Save. This asked about the scene alone, and `currentScene` is null in
-   * Prefab Mode — so a prefab changed on disk while open was invisible, and the
-   * next Save wrote the stale tree over it without a word. Reloading a prefab is
-   * re-entering Prefab Mode on it, which re-reads and re-flattens; the session
-   * carries its own return scene and view forward, so the way out is unchanged.
    */
   async reloadOpenDocumentFromDisk(): Promise<void> {
     const target = this.openDocumentPath();

@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  controls.tsx — one control per field TYPE, and nothing per component.
+ * @file  controls.tsx
+ * @brief One control per field TYPE — vec2, enum, asset ref, gradient — and none
+ *        per component: adding a component adds no code here.
  *
- * These render an `InspectorField` by its `type` — a vec2, an enum, an asset ref,
- * a gradient. That vocabulary comes from the component registry, so a control here
- * serves every component that declares the type and none of them by name: adding a
- * component adds no code to this file.
- *
- * They lived inside Details.tsx, which made the panel the only thing that could
- * hold them — the decorators that a component registers cannot import a control out
- * of the panel that renders the decorators without a cycle. Splitting them out is
- * what lets the inspector have ONE door for per-component UI instead of two.
- *
- * A control never reaches for SceneCommands itself. Writes arrive as callbacks the
- * caller built (see `fieldWriter` in Details.tsx), so the same control serves the
- * undoable edit path and the live "Game" inspector that routes to the realm.
+ * A control never reaches for SceneCommands. Writes arrive as callbacks the
+ * caller built (`fieldWriter` in Details.tsx), so one control serves both the
+ * undoable edit path and the live Game inspector that routes to the realm.
  */
 
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';

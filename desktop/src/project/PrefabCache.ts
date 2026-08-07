@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PrefabCache.ts — loaded `.esprefab` assets, and the synchronous resolver
- *        the expansion needs.
+ * @file  PrefabCache.ts
+ * @brief Loaded `.esprefab` content, and the synchronous resolver expansion needs.
  *
- * Expanding a prefab instance is SYNCHRONOUS — `flattenPrefab` walks a variant's
- * base and every `nestedPrefab` in one pass and cannot await — while reading a
- * `.esprefab` off disk is not. The gap between those two facts is this cache: an
- * async load warms every dependency a prefab can reach, and the expansion then
- * resolves them out of memory.
+ * `flattenPrefab` walks a variant's base and every `nestedPrefab` in one pass and
+ * cannot await, so {@link load} warms every reachable dependency up front and
+ * {@link resolveSync} reads them out of memory.
  *
- * Warming is why a plain memo will not do. {@link load} caches the prefab BEFORE
- * warming its dependencies, so a variant or nested reference that cycles back
- * terminates on the second visit instead of fetching forever.
- *
- * The cache is separate from {@link AssetRegistry} because it is a different kind
- * of thing: the registry says where an asset IS, from a scan; this holds asset
- * CONTENT, read on demand and invalidated per file when one changes. Their
- * lifetimes differ too — a rebuild of the lookup tables must not drop every
- * loaded prefab, which is exactly the distinction an incremental rescan turns on.
+ * Separate from {@link AssetRegistry}: that says where an asset is, from a scan;
+ * this holds content, invalidated per file. A lookup-table rebuild must not drop
+ * loaded prefabs, which is what an incremental rescan turns on.
  */
 import { migratePrefabData, validateOverrides } from 'esengine';
 import type { PrefabData, SceneData, PrefabOverride, StaleOverride } from 'esengine';

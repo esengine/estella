@@ -1,30 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  componentDecorators.tsx — the ONE door for per-component inspector UI.
+ * @file  componentDecorators.tsx — the one door for per-component inspector UI.
+ * @brief Extra UI a component gets beyond its reflected fields: the UINode anchor
+ *        grid, the collider shape switch, the "put me under a Canvas" action.
  *
- * Most of what the Details panel draws is derived: the component registry says a
- * field is a vec2 or an enum, and a control renders it. A handful of components
- * need more than their fields — a UINode wants its anchor grid, a collider wants
- * a shape switch, an orphaned UI element wants a one-click "put me under a
- * Canvas". That extra is what a decorator is.
+ * Built-ins register under owner `'core'` like every other contribution, so the
+ * panel never branches on a component name.
  *
- * It exists because there were TWO ways to add it. Plugins registered through
- * `inspectorRegistry`; the editor's own hardcoded a chain of
- * `comp.name === 'UINode' ? … : comp.name === 'FlexContainer' ? …` in the panel
- * body, directly above the element that renders the plugin sections. Fifteen other
- * registries in this editor take built-ins under owner `'core'` for exactly the
- * reason ContributionRegistry states — "there is no separate plugin API to drift
- * from" — and the inspector was the one that did not, so it drifted: the two
- * inspector bodies (edit and the live Game panel) grew DIFFERENT chains, and one
- * of them shipped an edit-mode action wired to a realm runtime id.
- *
- * A decorator declares which surfaces it serves. That is not bookkeeping: the Game
- * inspector selects by REALM runtime id, a different id space from the edit
- * model's source ids ("never mixed", says PlayInspect), so a decorator that walks
- * SceneModel or runs SceneCommands is not merely useless there — it reads a
- * foreign id as if it were local. Edit-only is therefore the default, and a
- * decorator opts in to `'play'` deliberately.
+ * A decorator declares its `surfaces`, defaulting to edit-only: the Game
+ * inspector selects by realm runtime id, which is a different id space from the
+ * edit model's source ids, so one that walks SceneModel would misread it.
  */
 
 import { Fragment, useEffect, useState, useSyncExternalStore } from 'react';
@@ -612,10 +598,9 @@ export interface ComponentDecorator {
 }
 
 /**
- * Extra UI for the ENTITY rather than one of its components, rendered above the
- * component sections. It is a separate kind because its trigger is a predicate over
- * the whole component set — the Controllers strip appears for a UI entity, which is
- * one carrying UINode OR Canvas, and must appear once for one carrying both.
+ * Extra UI for the ENTITY rather than one component, rendered above the sections.
+ * A separate kind because its trigger is a predicate over the whole component set,
+ * and it must appear once for an entity matching it twice.
  */
 export interface EntityDecorator {
   id: string;
@@ -651,14 +636,12 @@ const BUILTIN_COMPONENT_DECORATORS: ComponentDecorator[] = [
     ownedFields: () => FLEX_WIDGET_OWNED_FIELDS,
   },
   {
-    // A boxless Text anchors to the origin, so align/verticalAlign resolve against
-    // nothing. Edit-only: it creates a Canvas and reparents through SceneCommands.
+    // Edit-only: it creates a Canvas and reparents through SceneCommands.
     id: 'core.text.layout-box',
     component: 'Text',
     action: ({ entities, comp }) => (entities.length === 1 ? textBoxAction(comp, entities[0]!) : undefined),
   },
-  // One per convertible collider: the shape switch converts the component itself,
-  // so it belongs to each shape's section rather than to a shared "collider" idea.
+  // One per convertible collider: the switch converts the component itself.
   ...Object.keys(COMP_COLLIDER_SHAPE).map((component): ComponentDecorator => ({
     id: `core.collider.shape.${component}`,
     component,
@@ -705,10 +688,8 @@ export function entityDecorators(componentNames: readonly string[], surface: Ins
 /**
  * The rendered extra block for a component section, or undefined when none applies.
  *
- * Fragments, not wrapper elements: every decorator body is block-level (`.anchor-block`,
- * `.collider-shape`) and the section's own CSS lays them out as its children. An element
- * in between — an inline `<span>` especially — reparents them into a new formatting
- * context and the block collapses.
+ * Fragments, not wrapper elements: decorator bodies are block-level and the section
+ * lays them out as its own children, so an element in between collapses them.
  */
 export function decoratorExtra(ctx: DecoratorContext): ReactNode | undefined {
   const parts = componentDecorators(ctx.comp.name, ctx.surface).filter((d) => d.render);

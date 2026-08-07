@@ -797,9 +797,8 @@ export class SceneCommandsImpl {
   /** Duplicate a whole selection as ONE undo step. Returns the new source ids. */
   duplicateEntities(ids: readonly EntityId[]): EntityId[] {
     if (ids.length === 0) return [];
-    // Roots only: duplicateEntity copies a whole SUBTREE, so a selection holding a
-    // parent and one of its children produced that child twice — once inside the
-    // parent's copy, once beside it.
+    // Roots only: duplicateEntity copies a whole subtree, so a parent and its
+    // child in one selection would copy that child twice.
     const roots = this.model.selectionRoots(ids);
     if (roots.length === 1) {
       const d = this.duplicateEntity(roots[0]);

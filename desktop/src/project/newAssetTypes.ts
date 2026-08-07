@@ -43,10 +43,8 @@ const shaderTemplateMenu = (make: (dir: string, templateId: string) => Promise<v
 
 export const NEW_ASSET_TYPES: NewAssetEntry[] = [
   { labelKey: 'cb.menuNewScene', create: (dir) => ProjectStore.createSceneFile(dir), errorKey: 'cb.newSceneFailed' },
-  // A blank-file creator, not an editor-backed one: entering Prefab Mode is a
-  // document swap, which is guarded by unsaved changes and would put a prompt in
-  // front of someone who asked for a file. So it lands in the browser and drops
-  // into rename, like New Scene; double-click opens it.
+  // Blank-file, not editor-backed: opening Prefab Mode is a document swap, which
+  // prompts about unsaved changes — wrong for someone who asked for a file.
   { labelKey: 'cb.menuNewPrefab', create: (dir) => ProjectStore.createPrefabFile(dir), errorKey: 'cb.newPrefabFailed' },
   // Returns void like the editor-backed creators: a script's editor is the one
   // configured for source files, which the dialog hands it to itself — and its

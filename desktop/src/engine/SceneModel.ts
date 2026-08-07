@@ -518,13 +518,8 @@ export class SceneModelImpl {
   /**
    * The entities of a selection that nothing else in it contains — its roots.
    *
-   * A selection made by dragging or shift-clicking down the Outliner routinely
-   * holds a parent AND some of its children, and almost every operation means the
-   * subtree rather than each entry: duplicating both copies the child twice, and a
-   * prefab of both is a prefab of the parent. Whoever asks "what did they actually
-   * pick" needs this, and asking it by hand is a parent-walk each time.
-   *
-   * Order follows the input, so a caller's notion of "the first one" survives.
+   * A selection routinely holds a parent AND some of its children, and operations
+   * that act on a whole subtree must run once per root, not once per entry.
    */
   selectionRoots(ids: Iterable<number>): number[] {
     const selected = new Set(ids);

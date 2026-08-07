@@ -118,20 +118,11 @@ function documentState(): { kind: 'scene' | 'prefab'; path: string | null; name:
 }
 
 /**
- * Refuse a document swap that would throw away unsaved work, unless the caller
- * says to throw it away.
+ * Refuse a document swap that would discard unsaved work, unless the caller opts
+ * in. Every door that replaces the open document goes through this, and the
+ * answer comes from the registry — the scene AND every open asset editor.
  *
- * Every door that replaces the open document asks this ONE question, and the
- * answer comes from the registry — the scene AND every open asset editor — never
- * from one document. discardGuard states that rule for the UI prompts ("not just
- * the scene's EditorHistory"), and four doors here each restated it by hand until
- * one of them drifted: `openScene` asked EditorHistory alone, so opening a scene
- * over an unsaved tileset or material graph was refused through open_asset and
- * waved through here.
- *
- * A person gets a prompt for this. A driver gets a refusal, because a modal with
- * nobody to answer it never resolves — so discarding is something the caller says
- * out loud instead.
+ * A refusal rather than a prompt: a modal here has nobody to answer it.
  */
 function requireDiscardable(discardChanges: boolean, what: string): void {
   if (discardChanges || !DirtyRegistry.isDirty()) return;

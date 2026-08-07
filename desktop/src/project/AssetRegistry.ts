@@ -1,29 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  AssetRegistry.ts — what the project's assets are, and where they live.
+ * @file  AssetRegistry.ts
+ * @brief The project's asset database: uuid ↔ path, plus each asset's `.meta`
+ *        importer block and content-minted type, from the asset scan.
  *
- * Four lookup tables built from the `.meta` sidecars an asset scan finds: uuid to
- * path, path to uuid, and per-uuid the importer block and the type minted from the
- * file's own content. Everything that resolves a reference reads them — the
- * inspector's asset picker, the Content Browser's drag guard, the prefab loader,
- * the play manifest, the texture import path.
- *
- * They used to be four private Maps inside ProjectStore, whose other jobs are
- * opening a project, the scene document, prefab sessions and the settings
- * manifest. `pathToUuid` alone was read by fifteen of its methods, which is not
- * god-object coupling but the opposite: the asset database is a real shared
- * substrate, and it had no name. Eighteen files reached for ProjectStore when what
- * they wanted was a uuid.
- *
- * This owns the tables and answers questions about them. It does NOT scan — a scan
- * needs the open project, its root and its watcher, which belong to ProjectStore.
- * ProjectStore feeds the result in through {@link rebuild}; the direction is one
- * way, so a query never reaches back for a project.
- *
- * Load bookkeeping lives here too (which refs failed, which hot-loads have
- * started), because both are keyed by the same identities and answer the same
- * question a caller asks about a ref: is this thing actually there.
+ * Does NOT scan — that needs the open project, its root and its watcher, which
+ * belong to ProjectStore, which feeds results in through {@link rebuild}. The
+ * dependency runs one way, so a query never reaches back for a project.
  */
 import { Assets, getEditorType, textureImportSettingsFrom, setTextureParams, setTextureSliceBorder, TextureFilter, TextureWrap } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
