@@ -112,7 +112,10 @@ function scan(byFile) {
       if (block.length === 0) return;
       const prose = block.filter(([, t]) => !NOT_PROSE.test(t));
       const isHeader = block.some(([, t]) => FILE_HEADER.test(t));
-      const isDoc = block.some(([, t]) => /^\s*\/\*\*/.test(t));
+      // A block edited inside an existing `/** */` shows up in the diff without its
+      // opener, so a run of ` * ` continuation lines counts as a doc block too.
+      const isDoc = block.some(([, t]) => /^\s*\/\*\*/.test(t))
+        || /^\s*\*/.test(block[0][1]);
       const limit = isDoc ? MAX_DOC_LINES : MAX_INLINE_LINES;
       if (!isHeader && prose.length > limit) {
         findings.push({

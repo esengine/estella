@@ -4,12 +4,12 @@
  * @file  Project filesystem access for the Electron main process.
  *
  * All renderer file I/O funnels through here and is sandboxed to the currently
- * open project root — paths that escape the root (via `..` or absolute) are
- * refused, so a compromised/buggy renderer can't read or write arbitrary files.
- * See RC12 §E7.
+ * open project root — paths that escape it, by `..`, by being absolute, or by
+ * following a link out, are refused, so neither a compromised renderer nor a
+ * project someone else authored can read or write arbitrary files.
  */
 import { readFile, writeFile, readdir, mkdir, rename, cp, stat, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -27,16 +27,63 @@ import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
 
 export { META_EXT };
 
+/** Whether `abs` is `base` or sits under it, lexically. */
+function contains(base: string, abs: string): boolean {
+  const rel = path.relative(base, abs);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+// Roots change once per project open; the candidate side is still resolved live.
+const realRootCache = new Map<string, string>();
+
+/** `root` with links resolved — a project may itself live under one (/tmp on macOS). */
+function realRoot(root: string): string {
+  const key = path.resolve(root);
+  const hit = realRootCache.get(key);
+  if (hit !== undefined) return hit;
+  let real = key;
+  try {
+    real = realpathSync.native(key);
+  } catch {
+    // Not created yet (a project being made) — the lexical form is all there is.
+  }
+  realRootCache.set(key, real);
+  return real;
+}
+
 /**
- * Resolve a project-relative path, refusing anything that escapes `root`.
- * Pure (no I/O) — the security boundary for every fs op below.
+ * `abs` with links resolved. The leaf often does not exist yet (a write, a mkdir,
+ * a rename target), so resolve the deepest ancestor that does and re-attach the
+ * rest — that is the part an attacker can have made a link.
+ */
+function realResolve(abs: string): string {
+  const tail: string[] = [];
+  let head = abs;
+  for (;;) {
+    try {
+      return path.join(realpathSync.native(head), ...tail);
+    } catch {
+      const parent = path.dirname(head);
+      if (parent === head) return abs;
+      tail.unshift(path.basename(head));
+      head = parent;
+    }
+  }
+}
+
+/**
+ * Resolve a project-relative path, refusing anything that escapes `root` — the
+ * security boundary for every fs op below. A link inside the project holds no
+ * `..` and points wherever it likes, so both sides are compared with links
+ * resolved; racing a swap after the check needs O_NOFOLLOW, which node lacks.
  */
 export function resolveInRoot(root: string, relPath: string): string {
   const resolved = path.resolve(root, relPath);
-  const rel = path.relative(root, resolved);
-  if (rel === '') return resolved; // the root itself
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+  if (!contains(root, resolved)) {
     throw new Error(`path "${relPath}" escapes the project root`);
+  }
+  if (!contains(realRoot(root), realResolve(resolved))) {
+    throw new Error(`path "${relPath}" escapes the project root through a link`);
   }
   return resolved;
 }
@@ -85,7 +132,10 @@ export async function openProject(root: string): Promise<OpenedProject> {
   return { root, manifest, workspace };
 }
 
-export function readInRoot(root: string, relPath: string): Promise<string> {
+/** `async` so a refused path REJECTS. Returning the promise directly let
+ *  resolveInRoot throw synchronously out of a function typed `Promise`, which no
+ *  `.catch()` sees — every sibling here rejects. */
+export async function readInRoot(root: string, relPath: string): Promise<string> {
   return readTextInRoot(resolveInRoot(root, relPath));
 }
 

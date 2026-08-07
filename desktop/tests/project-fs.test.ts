@@ -7,7 +7,9 @@
  *        share one in the registry), and the root sandbox refuses escapes.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -18,6 +20,8 @@ import {
   mkdirInRoot,
   duplicateInRoot,
   statInRoot,
+  readInRoot,
+  writeInRoot,
   readSliceInRoot,
   searchInRoot,
   snapshotForTrash,
@@ -28,6 +32,12 @@ import { importAssets, createAsset } from '../electron/importAssets';
 
 let root: string;
 const read = (rel: string) => readFileSync(path.join(root, rel), 'utf8');
+/** Link a directory. Windows refuses plain symlinks without elevation but allows
+ *  junctions, which defeat a lexical containment check just the same. */
+const linkDir = (target: string, link: string): void => {
+  if (process.platform === 'win32') symlinkSync(target, link, 'junction');
+  else symlinkSync(target, link, 'dir');
+};
 const meta = (uuid: string, type = 'texture') =>
   JSON.stringify({ uuid, version: '2.0', type, importer: {} }, null, 2) + '\n';
 
@@ -161,6 +171,71 @@ describe('resolveInRoot', () => {
   it('refuses paths that escape the root', () => {
     expect(() => resolveInRoot(root, '../secret')).toThrow(/escapes/);
     expect(() => resolveInRoot(root, '/etc/passwd')).toThrow(/escapes/);
+  });
+
+  it('accepts ordinary paths, existing or not', () => {
+    expect(() => resolveInRoot(root, 'assets/hero.png')).not.toThrow();
+    expect(() => resolveInRoot(root, 'assets/deep/not/created/yet.txt')).not.toThrow();
+    expect(resolveInRoot(root, '')).toBe(path.resolve(root));
+  });
+
+  // A project is not trusted input — it can be cloned, unzipped or shared, and a
+  // link inside it holds no `..` for a lexical check to catch.
+  it('refuses a link that points out of the root', () => {
+    const outside = mkdtempSync(path.join(tmpdir(), 'estella-outside-'));
+    writeFileSync(path.join(outside, 'secret.txt'), 'PRIVATE');
+    try {
+      linkDir(outside, path.join(root, 'assets', 'escape'));
+    } catch {
+      return; // no permission to make one here; the check is exercised below anyway
+    }
+    expect(() => resolveInRoot(root, 'assets/escape/secret.txt')).toThrow(/link/);
+    expect(() => resolveInRoot(root, 'assets/escape')).toThrow(/link/);
+    // Reaching THROUGH the link for a path that does not exist yet is a write.
+    expect(() => resolveInRoot(root, 'assets/escape/planted.txt')).toThrow(/link/);
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  // The door itself, not just the helper: a real read and a real write.
+  it('does not read or write through a link, end to end', async () => {
+    const outside = mkdtempSync(path.join(tmpdir(), 'estella-outside-'));
+    writeFileSync(path.join(outside, 'secret.txt'), 'PRIVATE');
+    try {
+      linkDir(outside, path.join(root, 'assets', 'escape'));
+    } catch {
+      return;
+    }
+    await expect(readInRoot(root, 'assets/escape/secret.txt')).rejects.toThrow(/link/);
+    await expect(writeInRoot(root, 'assets/escape/planted.txt', 'x')).rejects.toThrow(/link/);
+    expect(existsSync(path.join(outside, 'planted.txt'))).toBe(false);
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  // The counterpart: a link that stays inside is ordinary project content.
+  it('allows a link that stays within the root', () => {
+    mkdirSync(path.join(root, 'assets', 'shared'), { recursive: true });
+    writeFileSync(path.join(root, 'assets', 'shared', 'note.txt'), 'ok');
+    try {
+      linkDir(path.join(root, 'assets', 'shared'), path.join(root, 'assets', 'alias'));
+    } catch {
+      return;
+    }
+    expect(() => resolveInRoot(root, 'assets/alias/note.txt')).not.toThrow();
+  });
+
+  // A project living under a symlinked path (macOS /tmp, a symlinked projects dir)
+  // must not have every one of its own files rejected.
+  it('works when the ROOT is itself reached through a link', () => {
+    const base = mkdtempSync(path.join(tmpdir(), 'estella-linkroot-'));
+    const alias = path.join(base, 'alias');
+    try {
+      linkDir(root, alias);
+    } catch {
+      return;
+    }
+    expect(() => resolveInRoot(alias, 'assets/hero.png')).not.toThrow();
+    expect(() => resolveInRoot(alias, '../secret')).toThrow(/escapes/);
+    rmSync(base, { recursive: true, force: true });
   });
 });
 
