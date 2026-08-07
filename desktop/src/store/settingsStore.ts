@@ -86,6 +86,22 @@ export const useSettings = create<SettingsState>((set, get) => ({
 }));
 
 /**
+ * Forget persisted values outright — for a MIGRATION that has folded them into
+ * some newer setting, where `reset` is not the operation: it writes the default
+ * back under an id nothing reads any more, leaving the old shape in the file to
+ * be puzzled over by whoever opens it next.
+ */
+export function dropPersisted(ids: readonly string[]): void {
+  useSettings.setState((s) => {
+    if (!ids.some((id) => id in s.values)) return s;
+    const values = { ...s.values };
+    for (const id of ids) delete values[id];
+    persist(values);
+    return { values };
+  });
+}
+
+/**
  * Replay persisted store-owned effects once the registry is populated (call from
  * boot, after registering settings). Bound settings already reflect their store.
  */

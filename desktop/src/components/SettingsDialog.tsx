@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2, ChevronRight, Check } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw, FolderSearch, Plus, Trash2, ChevronRight, Check, KeyRound } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
@@ -385,6 +385,77 @@ function writePath(row: Record<string, unknown>, path: string, v: unknown): Reco
   return { ...row, [head]: writePath(child, rest.join('.'), v) };
 }
 
+/**
+ * A credential belonging to one row of a list.
+ *
+ * The same bargain as {@link SecretControl} — typed once, never read back — in
+ * the width of a table cell, so what it can show is which of the two states the
+ * row is in. A row whose key is missing is the single most common reason a
+ * configured-looking provider does nothing, so the unset state is a labelled
+ * button rather than a blank field: it says what is absent, and asks for it in
+ * place when clicked.
+ */
+function ObjectListSecret({ id }: { id: string }) {
+  const status = useSyncExternalStore(subscribeSecrets, () => secretStatus(id));
+  const [entering, setEntering] = useState(false);
+  const [draft, setDraft] = useState('');
+  useEffect(() => {
+    void refreshSecret(id);
+  }, [id]);
+
+  if (status?.configured) {
+    return (
+      <span className="set-objlist-secret on">
+        <Check size={11} strokeWidth={2.4} />
+        {t('set.secret.stored')}
+        <IconButton title={t('set.secret.forget')} onClick={() => void forgetSecret(id)}>
+          <Trash2 size={12} />
+        </IconButton>
+      </span>
+    );
+  }
+
+  const blocked = status?.storage === 'unavailable';
+  if (!entering) {
+    return (
+      <button
+        type="button"
+        className="set-objlist-secret"
+        disabled={blocked}
+        onClick={() => setEntering(true)}
+      >
+        <KeyRound size={11} strokeWidth={2} />
+        {t('set.secret.needed')}
+      </button>
+    );
+  }
+  const submit = () => {
+    if (!draft.trim()) return;
+    void storeSecret(id, draft).then((s) => {
+      if (!s?.configured) return;
+      setDraft('');
+      setEntering(false);
+    });
+  };
+  return (
+    <input
+      className="set-str"
+      type="password"
+      autoFocus
+      value={draft}
+      placeholder="sk-…"
+      spellCheck={false}
+      autoComplete="off"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (!draft.trim()) setEntering(false); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') submit();
+        if (e.key === 'Escape') { setDraft(''); setEntering(false); }
+      }}
+    />
+  );
+}
+
 function ObjectListField({
   col, row, onChange,
 }: {
@@ -392,6 +463,36 @@ function ObjectListField({
   row: Record<string, unknown>;
   onChange: (v: unknown) => void;
 }) {
+  if (col.type === 'secret') return <ObjectListSecret id={col.secretId?.(row) ?? ''} />;
+  if (col.type === 'enum') {
+    return (
+      <Select
+        ariaLabel={col.label}
+        value={String(readPath(row, col.key) ?? col.options?.[0]?.value ?? '')}
+        options={col.options ?? []}
+        onChange={onChange}
+      />
+    );
+  }
+  if (col.type === 'boolean') {
+    const on = readPath(row, col.key) === true;
+    return (
+      <span
+        className={`toggle${on ? ' on' : ''}`}
+        role="switch"
+        aria-checked={on}
+        aria-label={col.label}
+        tabIndex={0}
+        onClick={() => onChange(!on)}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            onChange(!on);
+          }
+        }}
+      />
+    );
+  }
   return (
     <input
       className="set-str"
@@ -400,7 +501,12 @@ function ObjectListField({
       spellCheck={false}
       placeholder={col.placeholder}
       value={String(readPath(row, col.key) ?? '')}
-      onChange={(e) => onChange(col.type === 'number' ? Number(e.target.value) : e.target.value)}
+      // A cleared number field is EMPTY, not zero — so it keeps showing the
+      // placeholder (which is where a column says what it falls back to) instead
+      // of a 0 the row never meant and the reader cannot tell from one it did.
+      onChange={(e) => onChange(
+        col.type !== 'number' ? e.target.value : (e.target.value === '' ? undefined : Number(e.target.value)),
+      )}
     />
   );
 }
@@ -470,6 +576,7 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
                 title={t('set.objList.remove')}
                 onClick={() => {
                   setValue(setting.id, rows.filter((_, j) => j !== i));
+                  setting.onRowRemoved?.(row);
                   setExpanded(new Set());
                 }}
               >

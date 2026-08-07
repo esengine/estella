@@ -348,3 +348,25 @@
 .set-objlist-detail-lbl { color: var(--text-mute); font-size: var(--fs-2xs); }
 .set-objlist-detail-f { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: var(--fs-2xs); }
 .set-objlist-detail-f .set-str { width: 66px; }
+/* A dropdown and a switch in a table cell: the row is 26px, and both controls
+   are sized for the dialog's right-hand column, which is taller. */
+.set-objlist-fields .sel-trigger { height: 26px; width: 100%; }
+.set-objlist-fields .toggle,
+.set-objlist-detail-f .toggle { flex: none; }
+/* The row's credential. It is the likeliest thing to be missing on a provider
+   that looks configured, so the unset state is a labelled button rather than
+   another empty box in a row of empty boxes. */
+.set-objlist-secret {
+  display: flex; align-items: center; gap: 4px;
+  height: 26px; padding: 0 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-2xs);
+  color: var(--text-mute);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.set-objlist-secret:hover:not(.on) { color: var(--text); background: var(--hover); }
+.set-objlist-secret.on { color: var(--text-dim); border-color: transparent; background: transparent; }
+.set-objlist-secret.on svg { color: var(--run); }
+.set-objlist-secret .icon-btn { margin-left: auto; }

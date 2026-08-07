@@ -178,11 +178,26 @@ export interface FlagListSetting extends BaseSetting<number[]> {
 export interface ObjectListColumn {
   key: string;
   label: string;
-  type: 'text' | 'number';
+  /**
+   * Which control the cell renders. The scalar three store their value in the
+   * row under {@link key}; `secret` does NOT — see {@link secretId}.
+   */
+  type: 'text' | 'number' | 'enum' | 'boolean' | 'secret';
   /** Grid track for this column (CSS), e.g. '1fr' or '68px'. Defaults to 1fr. */
   width?: string;
   placeholder?: string;
   min?: number;
+  /** Choices for an `enum` cell. */
+  options?: { value: string; label: string }[];
+  /**
+   * Which credential a `secret` cell holds, derived from the row it sits in.
+   *
+   * The value never enters the row, the settings file or this process — main
+   * seals it with the OS keychain, exactly as {@link SecretSetting} does. So the
+   * column's `key` names the CELL and nothing else; a row carries the id the
+   * credential is filed under, not the credential.
+   */
+  secretId?: (row: Record<string, unknown>) => string;
 }
 
 /**
@@ -210,6 +225,13 @@ export interface ObjectListSetting extends BaseSetting<Record<string, unknown>[]
   newRow: () => Record<string, unknown>;
   /** Per-row validation → message, or null when the row is fine. */
   rowError?: (row: Record<string, unknown>, all: Record<string, unknown>[]) => string | null;
+  /**
+   * A row is on its way out, and it owned something the list does not hold — a
+   * keychain entry, a file. Without this the thing outlives every reference to
+   * it: unreachable from the UI, still on the machine, and inherited by whatever
+   * next takes the same row id.
+   */
+  onRowRemoved?: (row: Record<string, unknown>) => void;
   addLabel: string;
   /** Shown in place of the table when the list is empty. */
   emptyHint?: string;
