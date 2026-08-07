@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Transform, Sprite } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
-import { convertForWasm } from '../src/ecs/bridge/BuiltinBridge';
+import { wasmData } from '../tests/helpers/wasmComponentData';
 import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 
 let module: any;
@@ -16,11 +16,6 @@ let Registry: any;
 // those is why these never found a wasm in CI.
 const WASM_DIR = WASM_DIR_SHARED;
 
-// Build the embind value_object payloads from the authoritative component
-// defaults (the same source BuiltinBridge inserts from), so these stay valid as
-// the C++ structs gain fields instead of drifting into "missing field" errors.
-const wasmData = (def: { _default: unknown; colorKeys: readonly string[] }) =>
-    convertForWasm({ ...(def._default as Record<string, unknown>) }, def.colorKeys);
 
 beforeAll(async () => {
     const jsPath = path.join(WASM_DIR, 'esengine.js');

@@ -4,7 +4,7 @@ import { describe, bench, beforeAll } from 'vitest';
 import { World } from '../src/ecs/world';
 import { defineComponent, Transform, Sprite, Camera } from '../src/ecs/component';
 import { RigidBody, BoxCollider, CircleCollider } from '../src/physics/PhysicsComponents';
-import { convertForWasm } from '../src/ecs/bridge/BuiltinBridge';
+import { wasmData } from '../tests/helpers/wasmComponentData';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule } from '../tests/helpers/loadWasm';
 
@@ -14,12 +14,6 @@ beforeAll(async () => {
     wasmModule = await loadWasmModule();
 });
 
-// The embind payloads are built from the components' own defaults — the same
-// source BuiltinBridge inserts from. Hand-written copies of the C++ structs are
-// what these used to be, and they had drifted: Camera's four viewport scalars
-// became one Vec4 and every case touching it silently measured nothing.
-const wasmData = (def: { _default: unknown; colorKeys: readonly string[] }) =>
-    convertForWasm({ ...(def._default as Record<string, unknown>) }, def.colorKeys);
 
 // The SDK-side shape (colors as r/g/b/a) is the component's default as authored;
 // the wasm one is that run through the same conversion the bridge uses.

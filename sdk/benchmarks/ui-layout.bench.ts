@@ -22,6 +22,7 @@ import type { ESEngineModule, Registry, Entity } from '../src/wasm/wasm.generate
 import { WASM_DIR as WASM_DIR_SHARED } from '../tests/helpers/loadWasm';
 import { Transform, Canvas } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
+import { wasmData } from '../tests/helpers/wasmComponentData';
 
 let wasm: ESEngineModule;
 
@@ -35,27 +36,10 @@ beforeAll(async () => {
     wasm = await engineMod.default({ locateFile: (p: string) => path.join(WASM_DIR, p) });
 });
 
-/**
- * A component in the shape embind takes, defaulted from the generated registry
- * rather than spelled out here: embind rejects a partial struct, so a field added
- * in C++ breaks this file at warmup unless the defaults come from one place.
- * Colors are the one shape the two disagree on — authored r/g/b/a, bound as vec4.
- */
-function embindShape(def: Record<string, unknown>): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(def)) {
-        const c = value as { r?: number; g?: number; b?: number; a?: number };
-        out[key] = c && typeof c === 'object' && typeof c.r === 'number' && typeof c.a === 'number'
-            ? { x: c.r, y: c.g, z: c.b, w: c.a }
-            : value;
-    }
-    return out;
-}
-
-const TRANSFORM = embindShape(Transform._default);
+const TRANSFORM = wasmData(Transform);
 
 const CANVAS = {
-    ...embindShape(Canvas._default),
+    ...wasmData(Canvas),
     designResolution: { x: 800, y: 600 },
     pixelsPerUnit: 1, scaleMode: 0, matchWidthOrHeight: 0,
 };
@@ -63,7 +47,7 @@ const CANVAS = {
 const px = (v: number) => ({ value: v, unit: 0 });
 
 const uiNode = (w: number, h: number) => ({
-    ...embindShape(UINode._default),
+    ...wasmData(UINode),
     width: px(w), height: px(h),
 });
 
