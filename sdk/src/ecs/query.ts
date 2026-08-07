@@ -428,7 +428,14 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         let started = false;
         let done = false;
 
-        const writeMut = () => { self.writeMutBack_(prevEntity!); };
+        // Takes the pending entity rather than reading it, so a write-back is
+        // attempted exactly once. A failing one has still been tried, and finalize
+        // must not retry it on the way out under the error it raised.
+        const writeMut = () => {
+            const entity = prevEntity!;
+            prevEntity = null;
+            self.writeMutBack_(entity);
+        };
 
         // endIteration first, so the depth balances even if the write-back throws.
         const finalize = (errorInFlight = false) => {
@@ -512,16 +519,21 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const actualComponents = this.actualComponents_;
 
         world.beginIteration();
+        // Non-null means one entity's Mut edits are still owed a write-back and
+        // none has been attempted. flushMut takes it, so a failing write-back is
+        // not tried a second time by the finally below.
         let prevEntity: Entity | null = null;
-        let completed = false;
+        const flushMut = (): void => {
+            const entity = prevEntity!;
+            prevEntity = null;
+            this.writeMutBack_(entity);
+        };
         try {
             for (let idx = 0; idx < entities.length; idx++) {
                 const entity = entities[idx];
                 if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
 
-                if (prevEntity !== null && hasMut) {
-                    this.writeMutBack_(prevEntity);
-                }
+                if (prevEntity !== null && hasMut) flushMut();
 
                 result[0] = entity;
                 for (let i = 0; i < compCount; i++) {
@@ -548,16 +560,13 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                 }
             }
 
-            if (prevEntity !== null && hasMut) {
-                this.writeMutBack_(prevEntity);
-            }
-            completed = true;
+            if (prevEntity !== null && hasMut) flushMut();
         } finally {
-            if (!completed && prevEntity !== null && hasMut) {
+            if (prevEntity !== null && hasMut) {
                 // The callback threw partway. Edits it already finished still go
                 // back, but a failure writing them must not replace the error on
                 // its way out — that error is the one worth reading.
-                try { this.writeMutBack_(prevEntity); } catch { /* the original error wins */ }
+                try { flushMut(); } catch { /* the original error wins */ }
             }
             world.endIteration();
         }

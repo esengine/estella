@@ -109,6 +109,36 @@ describe('iteration depth balances however iteration ends', () => {
         expect(world.isIterating()).toBe(false);
     });
 
+    it('forEach: a failing write-back is attempted once, not retried on the way out', () => {
+        const world = worldWithEntities(2);
+        const q = new QueryInstance(world, Query(Mut(P)), -1);
+        const attempts: number[] = [];
+        (q as unknown as { writeMutBack_: (e: number) => void }).writeMutBack_ = (e) => {
+            attempts.push(e);
+            throw new Error('write-back');
+        };
+        // The callback is clean, so the throw is the write-back's own. Retrying it
+        // in the finally would run a write that already failed a second time.
+        expect(() => q.forEach(() => { /* no error of its own */ })).toThrow('write-back');
+        expect(attempts).toHaveLength(1);
+        expect(world.isIterating()).toBe(false);
+    });
+
+    it('for..of: a failing write-back is attempted once, not retried by finalize', () => {
+        const world = worldWithEntities(3);
+        const q = new QueryInstance(world, Query(Mut(P)), -1);
+        const attempts: number[] = [];
+        (q as unknown as { writeMutBack_: (e: number) => void }).writeMutBack_ = (e) => {
+            attempts.push(e);
+            throw new Error('write-back');
+        };
+        expect(() => {
+            for (const _row of q) { /* the previous row's write-back throws */ }
+        }).toThrow('write-back');
+        expect(attempts).toHaveLength(1);
+        expect(world.isIterating()).toBe(false);
+    });
+
     it('a write-back failure on a clean run is not swallowed', () => {
         const world = worldWithEntities(2);
         const q = new QueryInstance(world, Query(Mut(P)), -1);
