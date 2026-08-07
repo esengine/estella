@@ -347,6 +347,26 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         this.lastRunTick_ = tick;
     }
 
+    /**
+     * The entity set before change filters — what the query cache can answer on
+     * its own. Every caller that asks "which entities match" goes through here,
+     * so none of them can disagree about the cache key or the dep set.
+     */
+    private candidates_(): Entity[] {
+        return this.world_.getEntitiesWithComponents(
+            this.allRequired_,
+            this.descriptor_._with,
+            this.descriptor_._without,
+            this.cacheKey_,
+            this.compiledFilter_ ?? undefined,
+            this.depIds_,
+        );
+    }
+
+    private hasChangeFilters_(): boolean {
+        return this.descriptor_._addedFilters.length > 0 || this.descriptor_._changedFilters.length > 0;
+    }
+
     private passesChangeFilters_(entity: Entity): boolean {
         const { _addedFilters, _changedFilters } = this.descriptor_;
         if (_addedFilters.length === 0 && _changedFilters.length === 0) return true;
@@ -398,17 +418,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     [Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices } = this.descriptor_;
         const actualComponents = this.actualComponents_;
-        const entities = this.world_.getEntitiesWithComponents(
-            this.allRequired_,
-            this.descriptor_._with,
-            this.descriptor_._without,
-            this.cacheKey_,
-            this.compiledFilter_ ?? undefined,
-            this.depIds_,
-        );
+        const entities = this.candidates_();
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
-        const hasChangeFilters = this.descriptor_._addedFilters.length > 0 || this.descriptor_._changedFilters.length > 0;
+        const hasChangeFilters = this.hasChangeFilters_();
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
@@ -481,17 +494,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void {
         const { _mutIndices } = this.descriptor_;
-        const entities = this.world_.getEntitiesWithComponents(
-            this.allRequired_,
-            this.descriptor_._with,
-            this.descriptor_._without,
-            this.cacheKey_,
-            this.compiledFilter_ ?? undefined,
-            this.depIds_,
-        );
+        const entities = this.candidates_();
         const compCount = this.actualComponents_.length;
         const hasMut = _mutIndices.length > 0;
-        const hasChangeFilters = this.descriptor_._addedFilters.length > 0 || this.descriptor_._changedFilters.length > 0;
+        const hasChangeFilters = this.hasChangeFilters_();
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
@@ -540,25 +546,47 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         world.endIteration();
     }
 
+    /**
+     * The one result, or null. Copied off the iterator's shared row buffer, which
+     * the next iteration overwrites — a caller that holds this would otherwise
+     * watch it change under them.
+     */
     single(): QueryResult<C> | null {
         for (const result of this) {
-            return result;
+            return [...result] as QueryResult<C>;
         }
         return null;
     }
 
+    /**
+     * Whether iterating would yield nothing. Asks the entity set rather than
+     * running the iterator: taking one step of a Mut() query writes that entity
+     * back and records a Changed tick for it, and asking whether a query is empty
+     * must not mark anything as having changed.
+     */
     isEmpty(): boolean {
-        return this.single() === null;
+        const entities = this.candidates_();
+        if (!this.hasChangeFilters_()) return entities.length === 0;
+        for (const entity of entities) {
+            if (this.passesChangeFilters_(entity)) return false;
+        }
+        return true;
     }
 
+    /**
+     * How many results iterating would yield. Added()/Changed() are per-entity
+     * tick checks rather than part of the entity set the cache returns, so
+     * counting has to apply them too — the same pass the iterator makes.
+     */
     count(): number {
-        return this.world_.getEntitiesWithComponents(
-            this.allRequired_,
-            this.descriptor_._with,
-            this.descriptor_._without,
-            this.cacheKey_,
-            this.compiledFilter_ ?? undefined,
-        ).length;
+        const entities = this.candidates_();
+        if (!this.hasChangeFilters_()) return entities.length;
+
+        let n = 0;
+        for (const entity of entities) {
+            if (this.passesChangeFilters_(entity)) n++;
+        }
+        return n;
     }
 
     toArray(): QueryResult<C>[] {

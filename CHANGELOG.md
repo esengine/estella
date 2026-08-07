@@ -29,6 +29,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Asking a query a question gave a different answer than iterating it.**
+  `Added()`/`Changed()` are per-entity tick checks applied while iterating, not
+  part of the entity set the query cache returns — and `count()` read that set
+  directly. `Query(Changed(Position)).count()` therefore reported every entity
+  that has a Position, while `[...Query(Changed(Position))].length` reported the
+  ones that actually changed; a system deciding whether to run by `count()` ran
+  every frame. `isEmpty()` had the mirror-image problem: it ran the iterator, and
+  one step of a `Mut()` query writes that entity back and records a `Changed` tick
+  for it — so asking whether a query was empty marked an entity as changed and
+  fed a false positive to the next frame's `Changed()`. `single()` also handed
+  back the iterator's shared row buffer, so holding one watched it get overwritten
+  by the next call. Four places answered "which entities match" and now one does.
+
 - **`registry.eachLive<A, B>` did not compile.** `Registry::each`/`eachLive` are
   variadic, so both read as available at any arity — but `eachLive` existed only on
   the single-component `View<T>`, and the multi-component `View<Components...>` had
