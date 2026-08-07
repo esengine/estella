@@ -4,25 +4,16 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
   Box,
   Camera,
   Check,
-  ChevronDown,
   ChevronRight,
-  Circle,
   Code2,
   Cog,
   Component as ComponentIcon,
   Copy,
-  CornerLeftUp,
   ClipboardPaste,
-  MousePointerClick,
   Filter,
-  Hexagon,
   HelpCircle,
   FolderOpen,
   Globe,
@@ -41,8 +32,6 @@ import {
   Sparkles,
   Square,
   SquarePen,
-  StretchHorizontal,
-  StretchVertical,
   Trash2,
   Upload,
   Volume2,
@@ -51,7 +40,6 @@ import {
 } from 'lucide-react';
 import { AssetIcon } from '@/components/icons';
 import { EventBindingSection } from '@/events/EventBindingSection';
-import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderConvert';
 import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { NineSliceEditor } from '@/components/NineSliceEditor';
 import { fsRefresh } from '@/project/fsRefresh';
@@ -64,7 +52,7 @@ import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
-import { controllerCurrentPage, drivenField, readComponentData, readModelField, readGearBindings, resolveControllers } from '@/controller/controllerModel';
+import { controllerCurrentPage, drivenField, readComponentData, readModelField, readGearBindings } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
@@ -73,9 +61,8 @@ import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery
 import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
-import { sourceById, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES } from 'esengine';
+import { parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
@@ -115,7 +102,7 @@ import { NumField, useScrub } from '@/components/NumField';
 import { Popover, usePopover } from '@/components/Popover';
 import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
-import { Segmented, type SegmentedOption } from '@/components/Segmented';
+import { Segmented } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, GradientValue, CurveValue, DimensionValue, MapValue, InspectSource, FieldWrite } from '@/types';
 
@@ -175,6 +162,7 @@ const KIND_LABEL: Record<NodeKind, string> = {
 import {
   VecControl, SidesControl, EnumControl, EntityControl, FlagsControl, SliderControl, BoolControl, DimControl, StringControl, MapControl, GradientControl, CurveControl, AssetControl,
 } from './inspector/controls';
+import { decoratorAction, decoratorExtra, decoratorOwnedFields, entityDecorators } from './inspector/componentDecorators';
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
@@ -640,531 +628,6 @@ const ADVANCED_FOLD = '__advanced__';
 /** Give a boxless Text a UI layout box: ensure a Canvas (create one if the scene has
  *  none), then add a sized UINode + reparent under it so align/verticalAlign resolve
  *  within a box instead of anchoring to the origin. */
-async function addTextLayoutBox(sourceId: EntityId): Promise<void> {
-  let canvas = SceneCommands.findCanvas();
-  if (canvas == null) {
-    const src = sourceById('canvas');
-    canvas = src ? await createFromSource(src, { parent: null }) : null;
-  }
-  if (canvas != null) SceneCommands.attachUINodeBox(sourceId, canvas, 240, 80);
-}
-
-/** The one-click "Add layout box" action for a boxless Text (no UINode), else undefined. */
-function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: string; title: string; run: () => void } | undefined {
-  if (comp.name !== 'Text') return undefined;
-  const e = SceneModel.entityBySource(sourceId);
-  if (!e || e.components.some((c) => c.type === 'UINode')) return undefined;
-  return {
-    label: t('det.addLayoutBox'),
-    title: t('det.addLayoutBoxTip'),
-    run: () => void addTextLayoutBox(sourceId),
-  };
-}
-
-/** Whether a UI element sits under a Canvas (the UI layout root) — walks ancestors. */
-function hasCanvasAncestor(sourceId: EntityId): boolean {
-  for (let p = SceneModel.entityBySource(sourceId)?.parent; p != null; p = SceneModel.entityBySource(p)?.parent) {
-    if (SceneModel.entityBySource(p)?.components.some((c) => c.type === 'Canvas')) return true;
-  }
-  return false;
-}
-
-/** Ensure a Canvas exists (create one if the scene has none) and place `sourceIds` under it. */
-async function placeUnderCanvas(sourceIds: EntityId[]): Promise<void> {
-  let canvas = SceneCommands.findCanvas();
-  if (canvas == null) {
-    const src = sourceById('canvas');
-    canvas = src ? await createFromSource(src, { parent: null }) : null;
-  }
-  if (canvas == null) return;
-  for (const id of sourceIds) if (id !== canvas) SceneCommands.setParent(id, canvas);
-}
-
-/** The one-click "Place under a Canvas" action for a UINode with no Canvas ancestor —
- *  a UI element with no Canvas can't lay out or be moved — else undefined. */
-function uiNodeCanvasAction(ids: EntityId[], comp: InspectorComponent): { label: string; title: string; run: () => void } | undefined {
-  if (comp.name !== 'UINode') return undefined;
-  const orphans = ids.filter((id) => !hasCanvasAncestor(id));
-  if (orphans.length === 0) return undefined;
-  return {
-    label: t('det.placeUnderCanvas'),
-    title: t('det.placeUnderCanvasTip'),
-    run: () => void placeUnderCanvas(orphans),
-  };
-}
-
-const ANCHOR_H = { [AnchorAxis.Start]: t('det.anchorLeft'), [AnchorAxis.Center]: t('det.anchorCenter'), [AnchorAxis.End]: t('det.anchorRight'), [AnchorAxis.Stretch]: t('det.anchorStretchH') };
-const ANCHOR_V = { [AnchorAxis.Start]: t('det.anchorTop'), [AnchorAxis.Center]: t('det.anchorMiddle'), [AnchorAxis.End]: t('det.anchorBottom'), [AnchorAxis.Stretch]: t('det.anchorStretchV') };
-const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
-  h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? t('det.anchorStretch') : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
-
-// Point-anchor labels for the 3×3 grid cells (columns Left/Centre/Right, rows Top/
-// Middle/Bottom) — the cell's tooltip reads "row · column", e.g. "Top · Left".
-const ANCHOR_H_LABEL = [t('det.anchorLeft'), t('det.anchorCenter'), t('det.anchorRight')];
-const ANCHOR_V_LABEL = [t('det.anchorTop'), t('det.anchorMiddle'), t('det.anchorBottom')];
-
-const POSITION_MODE_OPTS = [
-  { value: String(UIPositionType.Relative), label: t('det.inLayout') },
-  { value: String(UIPositionType.Absolute), label: t('det.absolute') },
-];
-// alignSelf enum: 0 Auto · 1 Start · 2 Center · 3 End · 4 Stretch (matches the SDK).
-const ALIGN_SELF_OPTS = [
-  { value: '0', label: t('det.alignAuto') },
-  { value: '1', label: t('det.alignStart') },
-  { value: '2', label: t('det.alignCenter') },
-  { value: '3', label: t('det.alignEnd') },
-  { value: '4', label: t('det.alignStretch') },
-];
-
-/** The UINode fields the Layout block owns, so the generic field flow skips them —
- *  which set depends on the positioning MODE (an anchor/inset belongs to Absolute,
- *  the flex knobs to flow). Mirrors how box cards claim their edge fields. */
-function uiLayoutOwnedFields(absolute: boolean): ReadonlySet<string> {
-  const base = ['position', 'alignSelf'];
-  // Flow: offsets are meaningless (inset only applies to Absolute). Absolute: the
-  // flex-item knobs don't participate (the node is out of flow).
-  return new Set(absolute ? [...base, 'flexGrow', 'flexShrink', 'flexBasis'] : [...base, 'insetLeft', 'insetRight', 'insetTop', 'insetBottom']);
-}
-
-/** The anchor picker for an ABSOLUTE UINode: a clickable 3×3 grid for the nine point
- *  anchors (Left/Centre/Right × Top/Middle/Bottom) plus a Stretch toggle per axis. Each
- *  axis is written alone (setUINodeAnchor) so the other keeps its state, read back
- *  per-axis via detectAnchorAxes — a hand-tuned axis simply lights no cell. */
-function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
-  const dim = (key: string) => {
-    const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
-    return v ?? { value: 0, unit: DimensionUnit.Auto };
-  };
-  const node = {
-    position: UIPositionType.Absolute,
-    insetLeft: dim('insetLeft'), insetRight: dim('insetRight'),
-    insetTop: dim('insetTop'), insetBottom: dim('insetBottom'),
-    marginLeft: dim('marginLeft'), marginRight: dim('marginRight'),
-    marginTop: dim('marginTop'), marginBottom: dim('marginBottom'),
-    width: dim('width'), height: dim('height'),
-  } as Parameters<typeof detectAnchorAxes>[0];
-  // Each axis classifies independently, so a box with one hand-tuned axis still
-  // shows (and keeps) the clean one; writing an axis touches ONLY that axis.
-  const axes = detectAnchorAxes(node);
-  const clean = axes.h !== null && axes.v !== null;
-  const hStretch = axes.h === AnchorAxis.Stretch;
-  const vStretch = axes.v === AnchorAxis.Stretch;
-  // The lit grid cell — only when BOTH axes pin to a point (a Stretch or hand-tuned
-  // axis leaves no single cell; the Stretch toggles carry that state instead).
-  const activeCell = axes.h !== null && axes.h <= AnchorAxis.End && axes.v !== null && axes.v <= AnchorAxis.End
-    ? { c: axes.h, r: axes.v }
-    : null;
-  const setAnchor = (patch: { h?: number; v?: number }) => SceneCommands.setUINodeAnchor(entities, patch);
-  return (
-    <>
-      <div className="anchor-head">
-        <span className="anchor-t">{t('det.anchor')}</span>
-        <em className="anchor-cur">{clean ? anchorTitle(axes.h!, axes.v!) : t('det.anchorCustom')}</em>
-      </div>
-      <div className="anchor-grid-row">
-        <AlignGrid
-          active={activeCell}
-          dim={hStretch || vStretch}
-          ariaLabel={t('det.anchor')}
-          cellTitle={(c, r) => `${ANCHOR_V_LABEL[r]} · ${ANCHOR_H_LABEL[c]}`}
-          onPick={(c, r) => setAnchor({ h: c, v: r })}
-        />
-        <div className="anchor-stretch">
-          <button
-            type="button"
-            className={`mini-toggle${hStretch ? ' on' : ''}`}
-            title={t('det.anchorStretchH')}
-            aria-pressed={hStretch}
-            onClick={() => setAnchor({ h: hStretch ? AnchorAxis.Start : AnchorAxis.Stretch })}
-          >
-            <StretchHorizontal size={13} strokeWidth={1.9} />
-          </button>
-          <button
-            type="button"
-            className={`mini-toggle${vStretch ? ' on' : ''}`}
-            title={t('det.anchorStretchV')}
-            aria-pressed={vStretch}
-            onClick={() => setAnchor({ v: vStretch ? AnchorAxis.Start : AnchorAxis.Stretch })}
-          >
-            <StretchVertical size={13} strokeWidth={1.9} />
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** The flow-layout controls for a RELATIVE (In-Layout) UINode: its parent's flex
- *  layout decides the placement, so the only per-node control is the cross-axis
- *  Align Self (the flow analog of a 1-axis anchor). Grow/shrink/basis live in the
- *  field flow below. */
-function FlowLayoutControls({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
-  const field = comp.fields.find((f) => f.key === 'alignSelf');
-  const value = field?.mixed ? '' : String(Number(field?.value ?? 0));
-  const set = (val: string) => {
-    SceneCommands.beginGesture('Align Self');
-    for (const id of entities) SceneCommands.setField(id, 'UINode', 'alignSelf', 'enum', Number(val));
-    SceneCommands.endGesture();
-  };
-  return (
-    <>
-      <div className="anchor-body">
-        <div className="anchor-axes">
-          <label className="anchor-axis">
-            <span>{t('det.alignSelf')}</span>
-            <Segmented grow ariaLabel={t('det.alignSelfAria')} value={value} options={ALIGN_SELF_OPTS} onChange={set} />
-          </label>
-        </div>
-      </div>
-      <div className="anchor-hint">{t('det.flowHint')}</div>
-    </>
-  );
-}
-
-/** The UINode positioning block: an explicit In-Layout ↔ Absolute mode switch, then
- *  the controls that actually apply in that mode — the anchor presets for Absolute,
- *  Align Self for flow. Anchors are an absolute-positioning concept, so a flow node
- *  never shows a meaningless "Custom" anchor; it shows how it sits in its parent's
- *  flex layout instead. The mode switch writes `position` (flipping to Absolute bakes
- *  the current on-screen box into px insets — see SceneCommands.setField). */
-// The convertible collider shapes, shown as a segmented switch on the collider card's
-// header. Converting preserves material / sensor / filter and re-derives geometry (see
-// SceneCommands.convertCollider) — you can start with a box and turn it into a slope
-// polygon without losing what you set.
-const COLLIDER_SHAPE_OPTIONS: SegmentedOption<ColliderShapeKind>[] = [
-  { value: 'box', label: t('det.shapeBox'), icon: <Square size={11} />, title: t('det.shapeBox') },
-  { value: 'circle', label: t('det.shapeCircle'), icon: <Circle size={11} />, title: t('det.shapeCircle') },
-  { value: 'polygon', label: t('det.shapePolygon'), icon: <Hexagon size={11} />, title: t('det.shapePolygon') },
-];
-
-// Shape switch for a box/circle/polygon collider card — click another shape to convert
-// the collider on every selected entity (one undo step). Null for non-convertible cards.
-function ColliderShapeControl({ entities, current }: { entities: EntityId[]; current: string }) {
-  const kind = COMP_COLLIDER_SHAPE[current];
-  if (!kind) return null;
-  return (
-    <div className="collider-shape">
-      <span className="collider-shape-lbl">{t('det.colliderShape')}</span>
-      <Segmented
-        value={kind}
-        options={COLLIDER_SHAPE_OPTIONS}
-        ariaLabel={t('det.colliderShape')}
-        grow
-        onChange={(to) => { if (to !== kind) SceneCommands.convertColliderMany(entities, to); }}
-      />
-    </div>
-  );
-}
-
-function UILayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
-  const posField = comp.fields.find((f) => f.key === 'position');
-  const absolute = Number(posField?.value ?? 0) === UIPositionType.Absolute;
-  const setMode = (val: string) => {
-    SceneCommands.beginGesture('UI Position Mode');
-    for (const id of entities) SceneCommands.setField(id, 'UINode', 'position', 'enum', Number(val));
-    SceneCommands.endGesture();
-  };
-  return (
-    <div className="anchor-block">
-      <div className="ui-mode-row">
-        <span className="anchor-t">{t('det.position')}</span>
-        <Segmented
-          grow
-          ariaLabel={t('det.positionModeAria')}
-          value={posField?.mixed ? '' : String(absolute ? UIPositionType.Absolute : UIPositionType.Relative)}
-          options={POSITION_MODE_OPTS}
-          onChange={setMode}
-        />
-      </div>
-      {absolute ? <AnchorPicker entities={entities} comp={comp} /> : <FlowLayoutControls entities={entities} comp={comp} />}
-    </div>
-  );
-}
-
-// The FlexContainer "auto-layout" widget — direction, a 3×3 alignment grid, main-axis
-// distribution and a cross-axis stretch toggle, in place of five stacked enum dropdowns.
-// The grid's axes swap with the flow direction so the highlighted cell always reads as
-// where the children actually pack (the Figma model). Gap + padding stay as normal
-// fields below (padding via the reflected 'sides' control).
-const FLEX_DIR_OPTS: SegmentedOption<string>[] = [
-  { value: String(FlexDirection.Row), icon: <ArrowRight size={12} strokeWidth={2.2} />, title: t('det.flexRow') },
-  { value: String(FlexDirection.Column), icon: <ArrowDown size={12} strokeWidth={2.2} />, title: t('det.flexColumn') },
-  { value: String(FlexDirection.RowReverse), icon: <ArrowLeft size={12} strokeWidth={2.2} />, title: t('det.flexRowReverse') },
-  { value: String(FlexDirection.ColumnReverse), icon: <ArrowUp size={12} strokeWidth={2.2} />, title: t('det.flexColumnReverse') },
-];
-const FLEX_DISTRIBUTE_OPTS: SegmentedOption<string>[] = [
-  { value: 'packed', label: t('det.flexPacked') },
-  { value: String(JustifyContent.SpaceBetween), label: t('det.flexBetween') },
-  { value: String(JustifyContent.SpaceAround), label: t('det.flexAround') },
-  { value: String(JustifyContent.SpaceEvenly), label: t('det.flexEvenly') },
-];
-const FLEX_MAIN_LABEL = [t('det.flexMainStart'), t('det.flexMainCenter'), t('det.flexMainEnd')];
-const FLEX_CROSS_LABEL = [t('det.flexCrossStart'), t('det.flexCrossCenter'), t('det.flexCrossEnd')];
-// Fields the widget owns, so the generic field flow skips them — gap, padding and the
-// wrap-only alignContent stay as normal rows below (padding via the 'sides' control).
-const FLEX_WIDGET_OWNED_FIELDS: ReadonlySet<string> = new Set(['direction', 'justifyContent', 'alignItems', 'wrap']);
-// Place the cell's dot at its spatial position (col → left/centre/right, row →
-// top/middle/bottom) so the grid previews where content lands, Figma-style.
-const ALIGN_CELL_CSS = ['flex-start', 'center', 'flex-end'];
-
-// The shared 3×3 alignment picker — one idiom for choosing a 2-D position across the
-// editor (UINode anchor + FlexContainer justify×align). The caller maps grid columns
-// (c) / rows (r) to its own axes; `active` lights the current cell, `dim` fades the
-// grid when another control (a Stretch/Distribute mode) owns an axis.
-function AlignGrid({ active, dim, onPick, cellTitle, ariaLabel }: {
-  active: { c: number; r: number } | null;
-  dim?: boolean;
-  onPick: (c: number, r: number) => void;
-  cellTitle: (c: number, r: number) => string;
-  ariaLabel: string;
-}) {
-  return (
-    <div className="align-grid" role="group" aria-label={ariaLabel}>
-      {[0, 1, 2].map((r) =>
-        [0, 1, 2].map((c) => {
-          const on = active?.c === c && active?.r === r;
-          return (
-            <button
-              key={`${c}-${r}`}
-              type="button"
-              className={`align-cell${on ? ' on' : ''}${dim ? ' dim' : ''}`}
-              style={{ justifyContent: ALIGN_CELL_CSS[c], alignItems: ALIGN_CELL_CSS[r] }}
-              title={cellTitle(c, r)}
-              aria-pressed={on}
-              onClick={() => onPick(c, r)}
-            >
-              <i />
-            </button>
-          );
-        }),
-      )}
-    </div>
-  );
-}
-
-function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
-  const field = (key: string) => comp.fields.find((f) => f.key === key);
-  const fieldNum = (key: string, dflt: number) => {
-    const f = field(key);
-    return f && f.mixed !== true ? Number(f.value) : dflt;
-  };
-  const dir = fieldNum('direction', FlexDirection.Row);
-  const justify = fieldNum('justifyContent', JustifyContent.Start);
-  const align = fieldNum('alignItems', AlignItems.Stretch);
-  const wrap = fieldNum('wrap', FlexWrap.NoWrap);
-  const horizontal = dir === FlexDirection.Row || dir === FlexDirection.RowReverse;
-
-  const write = (label: string, edits: Array<[string, number]>) => {
-    SceneCommands.beginGesture(label);
-    for (const id of entities) for (const [k, v] of edits) SceneCommands.setField(id, 'FlexContainer', k, 'enum', v);
-    SceneCommands.endGesture();
-  };
-
-  // 3×3 grid cell (col c, row r), c/r ∈ {0 Start, 1 Centre, 2 End}. The MAIN axis is
-  // columns when the flow is horizontal, rows when vertical — so a click packs the
-  // children where the cell sits. Space-mode justify has no single active cell.
-  const packed = justify <= JustifyContent.End;
-  const activeMain = packed ? justify : null;
-  const activeCross = align <= AlignItems.End ? align : null; // Stretch → no single lane
-  // Map a grid cell (c, r) to flex axes: the MAIN axis is columns when the flow is
-  // horizontal, rows when vertical — so a click packs the children where the cell sits.
-  const cellAxes = (c: number, r: number) => ({ main: horizontal ? c : r, cross: horizontal ? r : c });
-  // The lit cell: only when both axes are packed to a single lane (Start/Centre/End).
-  const activeCell = activeMain !== null && activeCross !== null
-    ? { c: horizontal ? activeMain : activeCross, r: horizontal ? activeCross : activeMain }
-    : null;
-  const distributeValue = justify >= JustifyContent.SpaceBetween ? String(justify) : 'packed';
-  const stretched = align === AlignItems.Stretch;
-
-  return (
-    <div className="flex-block">
-      <div className="flex-row">
-        <span className="flex-lbl">{t('det.flexDirection')}</span>
-        <Segmented
-          grow
-          ariaLabel={t('det.flexDirectionAria')}
-          value={field('direction')?.mixed ? '' : String(dir)}
-          options={FLEX_DIR_OPTS}
-          onChange={(v) => write('Flex Direction', [['direction', Number(v)]])}
-        />
-      </div>
-      <div className="flex-row flex-align-row">
-        <span className="flex-lbl">{t('det.flexAlign')}</span>
-        <AlignGrid
-          active={activeCell}
-          dim={!packed}
-          ariaLabel={t('det.flexAlignGridAria')}
-          cellTitle={(c, r) => {
-            const a = cellAxes(c, r);
-            return t('det.flexAlignCell', { main: FLEX_MAIN_LABEL[a.main], cross: FLEX_CROSS_LABEL[a.cross] });
-          }}
-          onPick={(c, r) => {
-            const a = cellAxes(c, r);
-            write('Flex Align', [['justifyContent', a.main], ['alignItems', a.cross]]);
-          }}
-        />
-        <button
-          type="button"
-          className={`mini-toggle${stretched ? ' on' : ''}`}
-          title={t('det.flexStretchAria')}
-          aria-pressed={stretched}
-          onClick={() => write('Flex Stretch', [['alignItems', stretched ? AlignItems.Center : AlignItems.Stretch]])}
-        >
-          {t('det.flexStretch')}
-        </button>
-      </div>
-      <div className="flex-row">
-        <span className="flex-lbl">{t('det.flexDistribute')}</span>
-        <Segmented
-          grow
-          ariaLabel={t('det.flexDistributeAria')}
-          value={distributeValue}
-          options={FLEX_DISTRIBUTE_OPTS}
-          onChange={(val) => write('Flex Distribute', [['justifyContent', val === 'packed' ? JustifyContent.Start : Number(val)]])}
-        />
-      </div>
-      <div className="flex-row">
-        <span className="flex-lbl">{t('det.flexWrap')}</span>
-        <button
-          type="button"
-          className={`mini-toggle${wrap === FlexWrap.Wrap ? ' on' : ''}`}
-          title={t('det.flexWrapAria')}
-          aria-pressed={wrap === FlexWrap.Wrap}
-          onClick={() => write('Flex Wrap', [['wrap', wrap === FlexWrap.Wrap ? FlexWrap.NoWrap : FlexWrap.Wrap]])}
-        >
-          {t('det.flexWrap')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// The inline Controllers strip — the panel's per-node authoring brought into the
-// inspector so choosing a state page and gearing a field happen in ONE place (no
-// cross-panel dance). Reuses the exact model readers + SceneCommands the Controllers
-// panel uses; clicking a page chip switches the page (live edit-mode preview) AND arms
-// that controller as the active one the field gear dots bind to. Resolves self →
-// ancestor, so a geared leaf still shows (and switches) the root's controllers.
-function ControllersInline({ entityId }: { entityId: EntityId }) {
-  useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
-  const collapseExplicit = useInspectorCollapse((s) => s.explicit);
-  const toggleCollapse = useInspectorCollapse((s) => s.toggle);
-  const collapsed = isSectionCollapsed(collapseExplicit, '__controllers');
-  const activeController = useControllerStore((s) => s.activeController);
-  const setActiveController = useControllerStore((s) => s.setActiveController);
-  const recording = useControllerStore((s) => s.recording);
-  const toggleRecording = useControllerStore((s) => s.toggleRecording);
-  const [newCtrl, setNewCtrl] = useState('');
-
-  const controllers = resolveControllers(entityId);
-  const gears = readGearBindings(entityId);
-
-  // Default the active controller to the first one resolvable here (matches the panel).
-  useEffect(() => {
-    if (controllers.length === 0) return;
-    if (!activeController || !controllers.some((c) => c.ctrl.name === activeController)) {
-      setActiveController(controllers[0]!.ctrl.name);
-    }
-  }, [controllers, activeController, setActiveController]);
-
-  const hasInteraction = controllers.some((c) => c.ctrl.name === INTERACTION_CONTROLLER);
-  const addController = () => {
-    const name = newCtrl.trim();
-    if (!name) return;
-    SceneCommands.addController(entityId, name);
-    setActiveController(name);
-    setNewCtrl('');
-  };
-  const addInteraction = () => {
-    SceneCommands.addController(entityId, INTERACTION_CONTROLLER, [...INTERACTION_PAGES]);
-    setActiveController(INTERACTION_CONTROLLER);
-  };
-
-  return (
-    <div className="ctrl-inline">
-      <div
-        className="ctrl-head ctrl-fold"
-        role="button"
-        tabIndex={0}
-        onClick={() => toggleCollapse('__controllers')}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse('__controllers'); } }}
-      >
-        <span className="ctrl-caret">{collapsed ? <ChevronRight size={12} strokeWidth={2.4} /> : <ChevronDown size={12} strokeWidth={2.4} />}</span>
-        <span className="ctrl-title">{t('ctrl.title')}</span>
-        <button type="button" className={`ctrl-rec${recording ? ' on' : ''}`} title={t('ctrl.recordTitle')} onClick={(e) => { e.stopPropagation(); toggleRecording(); }}>
-          <Circle size={9} fill="currentColor" />
-          {t('ctrl.record')}
-        </button>
-      </div>
-
-      {!collapsed && (<>
-      {controllers.length === 0 && <div className="ctrl-hint">{t('ctrl.hintAdd')}</div>}
-
-      {controllers.length > 0 && (
-        <div className="ctrl-list">
-          {controllers.map((rc) => (
-            <div
-              key={`${rc.owner}:${rc.ctrl.name}`}
-              className={`ctrl-row${rc.ctrl.name === activeController ? ' active' : ''}`}
-              onClick={() => setActiveController(rc.ctrl.name)}
-            >
-              <div className="ctrl-row-head">
-                <span className="ctrl-name">{rc.ctrl.name}</span>
-                {rc.inherited && (
-                  <span className="ctrl-owner" title={t('ctrl.inheritedFrom')}><CornerLeftUp size={10} />{rc.ownerName}</span>
-                )}
-                {rc.ctrl.name === activeController && <span className="ctrl-badge">{t('ctrl.active')}</span>}
-              </div>
-              <div className="ctrl-chips">
-                {rc.ctrl.pages.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`ctrl-chip${p === rc.ctrl.current ? ' on' : ''}`}
-                    title={t('ctrl.chipHint')}
-                    onClick={(e) => { e.stopPropagation(); setActiveController(rc.ctrl.name); SceneCommands.setControllerPage(rc.owner, rc.ctrl.name, p); }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {gears.length > 0 && (
-        <div className="ctrl-gears">
-          <div className="ctrl-gears-title">{t('ctrl.gearsTitle')}</div>
-          {gears.map((b) => (
-            <div key={`${b.controller}:${b.component}.${b.property}`} className="ctrl-gear-row">
-              <span className="ctrl-gear-field">{b.component}.{b.property}</span>
-              <span className="ctrl-gear-meta">
-                ← {b.controller} · {Object.keys(b.pages).length}{t('ctrl.gearPagesSuffix')}{b.tween ? ` · ${b.tween.duration}s` : ''}
-              </span>
-              <button type="button" className="ctrl-del" title={t('ctrl.gearUnbind')} onClick={() => SceneCommands.removeGearBinding(entityId, b.controller, b.component, b.property)}>
-                <X size={11} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="ctrl-add">
-        <input
-          className="ctrl-input sm"
-          placeholder={t('ctrl.newController')}
-          value={newCtrl}
-          onChange={(e) => setNewCtrl(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') addController(); }}
-        />
-        <button type="button" className="ctrl-btn sm" title={t('ctrl.addController')} onClick={addController}><Plus size={12} /></button>
-        <button type="button" className="ctrl-btn sm" title={t('ctrl.addInteraction')} disabled={hasInteraction} onClick={addInteraction}><MousePointerClick size={12} /></button>
-      </div>
-      </>)}
-    </div>
-  );
-}
 
 // One side of a box-model group: a lettered edge (L/R/T/B) + its Dimension well.
 // It commits through `fieldWriter` — the same door as FieldRow — so undo, mixed,
@@ -1516,19 +979,28 @@ function GameDetails() {
             </span>
           </div>
           <div className="insp-body">
-            {inspector.map((comp) => (
-              <ComponentSection
-                key={comp.name}
-                entities={[selection]}
-                comp={comp}
-                collapsed={isSectionCollapsed(collapseMap, comp.name)}
-                onToggle={() => toggle(comp.name)}
-                action={textBoxAction(comp, selection)}
-                write={(key, type, value) =>
-                  PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
-                }
-              />
-            ))}
+            {inspector.map((comp) => {
+              // `selection` is a REALM runtime id. Decorators declare the surfaces
+              // they serve, and every built-in is edit-only — so this asks for
+              // 'play' and correctly gets nothing, where it used to hand a runtime
+              // id to an action that looks entities up in the edit model.
+              const ctx = { entities: [selection], comp, surface: 'play' as const };
+              return (
+                <ComponentSection
+                  key={comp.name}
+                  entities={[selection]}
+                  comp={comp}
+                  collapsed={isSectionCollapsed(collapseMap, comp.name)}
+                  onToggle={() => toggle(comp.name)}
+                  action={decoratorAction(ctx)}
+                  extra={decoratorExtra(ctx)}
+                  hideFields={decoratorOwnedFields(ctx)}
+                  write={(key, type, value) =>
+                    PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
+                  }
+                />
+              );
+            })}
           </div>
         </>
       )}
@@ -2906,41 +2378,29 @@ function EditorDetails() {
       </div>
 
       <div className="insp-body">
-        {ids.length === 1 && visible.some((c) => c.name === 'UINode' || c.name === 'Canvas') && (
-          <ControllersInline entityId={ids[0]!} />
-        )}
+        {ids.length === 1 &&
+          entityDecorators(visible.map((c) => c.name), 'edit').map((d) => (
+            <span key={d.id}>{d.render({ entity: ids[0]!, surface: 'edit' })}</span>
+          ))}
         {ids.length === 1 && (
           <EventBindingSection entityId={ids[0]!} components={visible.map((c) => c.name)} />
         )}
-        {visible.map((comp) => (
-          <ComponentSection
-            key={comp.name}
-            entities={ids}
-            comp={comp}
-            collapsed={isSectionCollapsed(collapseMap, comp.name)}
-            onToggle={() => toggle(comp.name)}
-            onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
-            action={uiNodeCanvasAction(ids, comp)}
-            extra={
-              comp.name === 'UINode'
-                ? <UILayoutControl entities={ids} comp={comp} />
-                : comp.name === 'FlexContainer'
-                  ? <FlexLayoutControl entities={ids} comp={comp} />
-                  : COMP_COLLIDER_SHAPE[comp.name]
-                    ? <ColliderShapeControl entities={ids} current={comp.name} />
-                    : undefined
-            }
-            hideFields={
-              comp.name === 'UINode'
-                ? uiLayoutOwnedFields(
-                    Number(comp.fields.find((f) => f.key === 'position')?.value ?? 0) === UIPositionType.Absolute,
-                  )
-                : comp.name === 'FlexContainer'
-                  ? FLEX_WIDGET_OWNED_FIELDS
-                  : undefined
-            }
-          />
-        ))}
+        {visible.map((comp) => {
+          const ctx = { entities: ids, comp, surface: 'edit' as const };
+          return (
+            <ComponentSection
+              key={comp.name}
+              entities={ids}
+              comp={comp}
+              collapsed={isSectionCollapsed(collapseMap, comp.name)}
+              onToggle={() => toggle(comp.name)}
+              onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
+              action={decoratorAction(ctx)}
+              extra={decoratorExtra(ctx)}
+              hideFields={decoratorOwnedFields(ctx)}
+            />
+          );
+        })}
         {/* Contributed sections come after the entity's own components — a plugin
             adds to the inspector, it doesn't push the real properties down. */}
         {ids.length === 1 && <ContributedSections target={{ entity: ids[0]! }} />}
@@ -3006,4 +2466,5 @@ function EditorDetails() {
     </div>
   );
 }
+
 
