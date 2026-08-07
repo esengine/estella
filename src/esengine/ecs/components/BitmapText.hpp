@@ -18,7 +18,7 @@ enum class TextAlign : u8 {
     Right
 };
 
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct BitmapText {
     ES_PROPERTY()
     std::string text;

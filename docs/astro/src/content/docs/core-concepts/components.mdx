@@ -70,8 +70,17 @@ Other component-level metadata: `assetFields` (marks a field as an asset
 reference, so Details renders a picker and the cook ships the dependency),
 `animatableFields` (which fields the [Sequencer](/docs/animation/timeline/) can
 key — defaults to all numeric fields), `transient` (never saved into the scene —
-for per-frame runtime state), and `replicatedFields` (synced by
-[networking](/docs/scripting/networking/)'s state replication).
+for per-frame runtime state), `replicatedFields` (synced by
+[networking](/docs/scripting/networking/)'s state replication), and
+`renderableField`.
+
+`renderableField` names the boolean field that gates your component's drawing —
+declare it if the component draws something of its own (say through a custom
+draw callback), and hiding the entity reaches it: the Outliner's eye,
+`setEntityVisible`, and a sleeping scene all switch that field off and restore it
+afterwards. Leave it out for a component that only carries data or behaviour;
+plenty of those have an `enabled` field that has nothing to do with drawing, and
+switching it off would stop the wrong thing.
 
 ## Built-in components
 

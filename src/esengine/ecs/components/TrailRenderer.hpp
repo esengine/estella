@@ -35,7 +35,7 @@ namespace esengine::ecs {
 // TrailRenderer Component
 // =============================================================================
 
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct TrailRenderer {
     // Trail — how long the streak lives and how densely it samples the path.
     /** @brief Seconds each recorded point persists before fading out of the tail. */

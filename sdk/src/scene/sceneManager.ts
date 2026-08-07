@@ -18,8 +18,7 @@ import { registerDrawCallback, unregisterDrawCallback } from '../render/customDr
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
-import { SceneOwner, Disabled, type AnyComponentDef } from '../ecs/component';
-import { RENDERABLE_COMPONENTS } from '../ecs/entityUtils';
+import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
@@ -72,7 +71,7 @@ class SceneInstance {
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
-    readonly savedEnabled = new Map<Entity, Map<AnyComponentDef, boolean>>();
+    readonly savedEnabled = new Map<Entity, Map<RenderableComponentDef, boolean>>();
     readonly systemIds: symbol[] = [];
     loadedTextures: Set<string> | null = null;
     loadedMaterials: Set<number> | null = null;
@@ -644,17 +643,20 @@ export class SceneManagerState {
         instance.savedEnabled.clear();
 
         const world = this.app_.world;
+        // Hoisted: the same registry answer for every entity in the scene.
+        const renderables = renderableComponents();
         for (const entity of instance.entities) {
             if (!world.valid(entity)) continue;
             world.insert(entity, Disabled, {});
-            const entitySaved = new Map<AnyComponentDef, boolean>();
-            for (const comp of RENDERABLE_COMPONENTS) {
+            const entitySaved = new Map<RenderableComponentDef, boolean>();
+            for (const comp of renderables) {
                 if (world.has(entity, comp)) {
-                    const data = world.get(entity, comp) as { enabled: boolean };
-                    entitySaved.set(comp, data.enabled);
-                    if (data.enabled) {
-                        data.enabled = false;
-                        world.set(entity, comp, data);
+                    const data = world.get(entity, comp) as Record<string, unknown>;
+                    const wasEnabled = data[comp.renderableField] !== false;
+                    entitySaved.set(comp, wasEnabled);
+                    if (wasEnabled) {
+                        data[comp.renderableField] = false;
+                        world.set(entity, comp, data as never);
                     }
                 }
             }
@@ -679,9 +681,9 @@ export class SceneManagerState {
             if (!entitySaved) continue;
             for (const [comp, wasEnabled] of entitySaved) {
                 if (world.has(entity, comp)) {
-                    const data = world.get(entity, comp) as { enabled: boolean };
-                    data.enabled = wasEnabled;
-                    world.set(entity, comp, data);
+                    const data = world.get(entity, comp) as Record<string, unknown>;
+                    data[comp.renderableField] = wasEnabled;
+                    world.set(entity, comp, data as never);
                 }
             }
         }

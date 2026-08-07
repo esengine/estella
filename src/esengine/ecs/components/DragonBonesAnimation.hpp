@@ -31,7 +31,7 @@
 
 namespace esengine::ecs {
 
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct DragonBonesAnimation {
     /** @brief Skeleton data (`*_ske.json` or `.dbbin`) */
     ES_PROPERTY(asset = dragonbones_skeleton)

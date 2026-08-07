@@ -1204,6 +1204,7 @@ discoverAssets: ((data: Record<string, unknown>) => AssetRef[]) | undefined
 entityFields: readonly string[]
 fieldMeta: Readonly<Record<string, FieldMeta>>
 readonlyFields: readonly string[]
+renderableField: string | null
 replicatedFields: readonly string[]
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
@@ -1707,6 +1708,7 @@ discoverAssets: ((data: Record<string, unknown>) => AssetRef[]) | undefined
 entityFields: readonly string[]
 fieldMeta: Readonly<Record<string, FieldMeta>>
 readonlyFields: readonly string[]
+renderableField: string | null
 replicatedFields: readonly string[]
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
@@ -1720,6 +1722,7 @@ discoverAssets: ((data: Record<string, unknown>) => AssetRef[]) | undefined
 entityFields: string[] | undefined
 fields: Record<string, FieldMeta> | undefined
 readonlyFields: string[] | undefined
+renderableField: string | undefined
 replicatedFields: string[] | undefined
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean | undefined

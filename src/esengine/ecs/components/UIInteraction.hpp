@@ -7,7 +7,7 @@
 
 namespace esengine::ecs {
 
-ES_COMPONENT()
+ES_COMPONENT(transient)
 struct UIInteraction {
     ES_PROPERTY()
     bool hovered{false};

@@ -46,7 +46,7 @@ namespace esengine::ecs {
  * spine.loop = true;
  * @endcode
  */
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct SpineAnimation {
     /** @brief Path to skeleton data file (.skel or .json) */
     ES_PROPERTY(asset = spine_skeleton)

@@ -80,7 +80,7 @@ enum class UIVisualFit : u8 {
  * `uvScale` are the base sub-region (identity = whole texture); Tiled/Filled
  * derive their final UV from this base at draw time.
  */
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct UIVisual {
     ES_PROPERTY()
     UIVisualType visualType{UIVisualType::None};

@@ -43,17 +43,26 @@ vi.mock('../src/ecs/resource', () => ({
     })),
 }));
 
-vi.mock('../src/ecs/component', () => ({
-    SceneOwner: Symbol('SceneOwner'),
-    Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
-    Sprite: Symbol('Sprite'),
-    SpineAnimation: Symbol('SpineAnimation'),
-    BitmapText: Symbol('BitmapText'),
-    ShapeRenderer: Symbol('ShapeRenderer'),
-    ParticleEmitter: Symbol('ParticleEmitter'),
-    defineBuiltin: (name: string, defaults: unknown) => Symbol(name),
-    defineTag: (name: string) => ({ _id: Symbol(name), _name: name, _builtin: false, _default: {} }),
-}));
+// Renderables carry the field that gates them, because sleep/wake writes THAT
+// field — TilemapLayer's is `visible`, not `enabled`. Everything is built inside
+// the factory: vi.mock is hoisted above this file's own top-level statements.
+vi.mock('../src/ecs/component', () => {
+    const def = (name: string, renderableField = 'enabled') => ({
+        _id: Symbol(name), _name: name, _builtin: true, renderableField,
+    });
+    const renderables = [
+        def('Sprite'), def('SpineAnimation'), def('BitmapText'),
+        def('ShapeRenderer'), def('ParticleEmitter'), def('TilemapLayer', 'visible'),
+    ];
+    return {
+        SceneOwner: Symbol('SceneOwner'),
+        Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
+        ...Object.fromEntries(renderables.map((d) => [d._name, d])),
+        renderableComponents: () => renderables,
+        defineBuiltin: (name: string, defaults: unknown) => Symbol(name),
+        defineTag: (name: string) => ({ _id: Symbol(name), _name: name, _builtin: false, _default: {} }),
+    };
+});
 
 vi.mock('../src/asset/AssetPlugin', () => ({
     Assets: Symbol('Assets'),
@@ -67,7 +76,7 @@ vi.mock('../src/defaults', () => ({
 }));
 
 import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/scene/sceneManager';
-import { SceneOwner, Sprite, SpineAnimation, BitmapText } from '../src/ecs/component';
+import { SceneOwner, Sprite, SpineAnimation, BitmapText, TilemapLayer } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene/scene';
 import { registerDrawCallback, unregisterDrawCallback } from '../src/render/customDraw';
 import { PostProcess } from '../src/postprocess';
@@ -572,6 +581,26 @@ describe('SceneManager', () => {
 
             const bt = app._entities.get(1)!.get(BitmapText);
             expect(bt.enabled).toBe(true);
+        });
+
+        // A renderable whose gating flag is not called `enabled`. Sleep wrote a
+        // fixed `enabled` key, so a tilemap layer kept drawing in a slept scene —
+        // and a stray `enabled: false` was left on data that has no such field.
+        it('sleeps and wakes a renderable through its own flag name', async () => {
+            const entityMap = new Map([[100, 1]]);
+            vi.mocked(loadSceneWithAssets).mockResolvedValueOnce(entityMap);
+            const layer = { visible: true, opacity: 1 };
+            app._entities.set(1, new Map([[TilemapLayer, layer]]));
+
+            manager.register({ name: 'level1', data: makeSceneData() });
+            await manager.load('level1');
+
+            manager.sleep('level1');
+            expect(layer.visible).toBe(false);
+            expect('enabled' in layer).toBe(false);
+
+            manager.wake('level1');
+            expect(layer.visible).toBe(true);
         });
 
         it('wake() only on sleeping scenes', async () => {

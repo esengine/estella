@@ -42,7 +42,7 @@ struct MeshVertex2D {
 // Mesh2D Component
 // =============================================================================
 
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct Mesh2D {
     /** @brief Texture sampled by the mesh UVs (invalid = untextured, vertex colors only) */
     ES_PROPERTY(asset = texture)

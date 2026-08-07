@@ -39,40 +39,19 @@ export type AnyComp = Parameters<WorldT['has']>[1];
 // plus UIController/UIGear, whose authoring surface is the Controllers panel and
 // the Details gear dots (their array-of-object data has no generic field control).
 const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name', 'UIController', 'UIGear', 'EventBinding']);
-// Which components the Outliner's eye reaches: hiding an entity forces the enable
-// flag off on each of them (see Reconciler.foldHidden). Disabling a NON-render
-// component (physics, audio, a script) turns that behaviour off without hiding
-// anything, so those must stay out.
-//
-// The scene-space renderables are DERIVED, not listed: a component that names a
-// sorting layer is a thing the renderer draws in scene order, which is exactly the
-// set the eye has to reach. That derivation is what a hand-kept list kept getting
-// wrong — DragonBonesAnimation, Mesh2D and TrailRenderer were all renderables the
-// eye silently skipped, and every future one would have joined them.
-const SORTING_LAYER_SOURCE = 'sortingLayers';
-// The rest, which the registry gives no such marker for and so are named here:
-//   BitmapText  — draws in a sorting layer, but its `layer` field predates the
-//                 named-layer dropdown, so it carries no enumSource.
-//   UIVisual    — UI draws in tree order, not a sorting layer.
-//   Text        — same, and it has no enable flag of its own (a no-op fold, kept
-//                 so adding one later doesn't quietly change what the eye covers).
-//   Light2D / ShadowCaster2D — not drawn, but a hidden entity must stop LIGHTING
-//                 and shadowing the scene too, not just stop drawing its own pixels.
-const EXTRA_RENDER_COMPONENTS = new Set(['BitmapText', 'UIVisual', 'Text', 'Light2D', 'ShadowCaster2D']);
-const renderComponentCache = new Map<string, boolean>();
-
-/** Whether a component's enable flag participates in the entity's render visibility. */
+/**
+ * Which components the Outliner's eye reaches: hiding an entity forces the gating
+ * flag off on each of them (see Reconciler.foldHidden). Not the editor's answer —
+ * each component declares `renderable=<field>` at its own site, so the eye reaches
+ * exactly what `setEntityVisible` and scene sleep/wake reach.
+ */
 export function isRenderComponent(name: string): boolean {
-  const cached = renderComponentCache.get(name);
-  if (cached !== undefined) return cached;
-  const def = registryDef(name);
-  const meta = def ? getComponentFieldMeta(name) : {};
-  const drawsInLayer = Object.values(meta).some((f) => f.enumSource === SORTING_LAYER_SOURCE);
-  const result = drawsInLayer || EXTRA_RENDER_COMPONENTS.has(name);
-  // A name the registry doesn't know yet (a project component registered later)
-  // isn't memoised — its answer would be a guess made before it existed.
-  if (def) renderComponentCache.set(name, result);
-  return result;
+  return renderableFieldOf(name) !== null;
+}
+
+/** The declared bool field gating a component's visibility, or null. */
+function renderableFieldOf(name: string): string | null {
+  return registryDef(name)?.renderableField ?? null;
 }
 // Computed world-space mirrors on Transform — never editable.
 const DERIVED_FIELDS = new Set(['worldPosition', 'worldRotation', 'worldScale']);
@@ -835,6 +814,14 @@ export function componentEnable(
   const def = componentByName(compType);
   const defaults = def ? componentDefaults(def) : userSchema(compType)?.default;
   const src = defaults ?? data;
+  // A renderable says which field gates it, so no guessing is needed. ENABLE_KEYS
+  // below is for the rest — a collider, a rigid body, a project component — whose
+  // header checkbox is a convention rather than a declaration.
+  const declared = renderableFieldOf(compType);
+  if (declared !== null) {
+    const raw = declared in data ? data[declared] : src[declared];
+    return { key: declared, value: raw !== false };
+  }
   for (const key of ENABLE_KEYS) {
     if (typeof src[key] === 'boolean') {
       const raw = key in data ? data[key] : src[key];

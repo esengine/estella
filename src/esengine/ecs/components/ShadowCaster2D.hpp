@@ -22,7 +22,7 @@ namespace esengine::ecs {
 /**
  * @brief A 2D shadow occluder. The box is centered on the entity's world position.
  */
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct ShadowCaster2D {
     /** @brief Occluder box size in world units (full width/height; centered on the Transform). */
     ES_PROPERTY(animatable, min=0, tooltip="Occluder box size in world units (centered on the entity).")

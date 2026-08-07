@@ -90,19 +90,21 @@ describe('spineSlotType', () => {
 });
 
 describe('isRenderComponent', () => {
-    // The eye's reach used to be a hand-kept list, and three renderables were
-    // missing from it — so the set is derived from the engine schema (a component
-    // that names a sorting layer is drawn) with only the unmarked ones listed.
-    it('covers every component that names a sorting layer', () => {
+    // The eye reaches what each component DECLARES (`renderable=<field>` at its
+    // ES_COMPONENT site, `renderableField` for a TS-defined one) — not a list the
+    // editor keeps, which would drift from the runtime's answer.
+    it('covers every renderer, scene-space and UI', () => {
         for (const name of [
             'Sprite', 'ShapeRenderer', 'SpineAnimation', 'DragonBonesAnimation',
             'TilemapLayer', 'ParticleEmitter', 'Mesh2D', 'TrailRenderer',
+            'BitmapText', 'UIVisual', 'Text',
         ]) {
             expect(isRenderComponent(name), name).toBe(true);
         }
     });
-    it('covers the ones the registry marks no layer on: UI text/visuals and lighting', () => {
-        for (const name of ['BitmapText', 'UIVisual', 'Text', 'Light2D', 'ShadowCaster2D']) {
+    // Not drawn, but hiding an entity has to stop it lighting the scene too.
+    it('covers lighting', () => {
+        for (const name of ['Light2D', 'ShadowCaster2D']) {
             expect(isRenderComponent(name), name).toBe(true);
         }
     });
@@ -110,6 +112,13 @@ describe('isRenderComponent', () => {
         for (const name of [
             'Transform', 'Camera', 'RigidBody', 'BoxCollider', 'CircleCollider',
             'Interactable', 'UIScroll', 'UIMask', 'ParticleForceField', 'NotAComponent',
+            // Each carries an `enabled` / `visible` field that has nothing to do
+            // with drawing — folding `Perception.visible` would corrupt what an AI
+            // agent believes it sees. Hence declared, not sniffed off a field name.
+            'Animator', 'SpriteAnimator', 'AudioSource', 'CacheAsBitmap', 'Perception',
+            // Video's flag drives PLAYBACK; the frames are drawn by the sibling
+            // Sprite / UIVisual / Mesh2D, which hides on its own declaration.
+            'Video',
         ]) {
             expect(isRenderComponent(name), name).toBe(false);
         }

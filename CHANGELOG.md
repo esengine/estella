@@ -27,6 +27,18 @@ published separately; it ships inside the editor.
   component and restore it afterwards. A name that matches no bool field on the
   component fails the build rather than reading as "draws nothing".
 
+### Fixed
+
+- **A slept scene kept drawing its characters, and hiding an entity still missed
+  renderers.** 0.45.0 unified two of the three lists that answer "what draws
+  here"; the editor's eye derived a different thirteen, and neither runtime list
+  knew about a mesh, a trail, a DragonBones armature, a tilemap layer, a `Text` or
+  a light — which is why a slept scene kept drawing its characters and kept
+  lighting the level. Each component now declares what gates its drawing (see
+  Added), so all three lists read one answer instead of three, and a tilemap layer
+  is switched through its own `visible` field rather than an `enabled` it does not
+  have.
+
 ## [0.45.0] - 2026-08-07
 
 ### Added

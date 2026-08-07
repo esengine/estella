@@ -123,8 +123,18 @@ export interface ComponentMetadata {
      * skipped by {@link serializeScene} (e.g. per-frame pointer/drag/hover state
      * that its driving system rebuilds each frame). Systems still
      * read/write it normally; only scene save omits it.
+     *
+     * Builtins author this at the C++ `ES_COMPONENT(transient)` site — same
+     * single-source rule as fieldMeta.
      */
     transient?: boolean;
+    /**
+     * The name of the bool field that gates this component's part in an entity's
+     * visibility — set it and {@link setEntityVisible}, the editor's eye and scene
+     * sleep/wake all reach this component. Omitted = the component draws nothing.
+     * Builtins author it at the C++ `ES_COMPONENT(renderable=<field>)` site.
+     */
+    renderableField?: string;
 }
 
 /**
@@ -172,6 +182,9 @@ export interface ComponentDef<T> {
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
     readonly transient: boolean;
+    /** Bool field gating this component's visibility, or null if it draws nothing.
+     *  See {@link ComponentMetadata.renderableField}. */
+    readonly renderableField: string | null;
     create(data?: Partial<T>): T;
 }
 
@@ -254,6 +267,14 @@ function createComponentDef<T extends object>(
             throw new Error(`Component "${name}": replicatedFields names unknown field "${f}"`);
         }
     }
+    // Same reason, and the same check EHT makes for a builtin: a renderableField
+    // that names nothing would read as "draws nothing" and quietly stay visible.
+    const renderableField = metadata?.renderableField;
+    if (renderableField !== undefined && typeof defaultsRec[renderableField] !== 'boolean') {
+        throw new Error(
+            `Component "${name}": renderableField "${renderableField}" is not a boolean field of its defaults`,
+        );
+    }
     return {
         _id: componentId(name),
         _name: name,
@@ -269,6 +290,7 @@ function createComponentDef<T extends object>(
         fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         transient: metadata?.transient ?? false,
+        renderableField: renderableField ?? null,
         create(data?: Partial<T>): T {
             if (keyInfo) {
                 const result = { ...defaultsRec };
@@ -316,6 +338,7 @@ export function defineComponent<T extends object>(
 
     const def = createComponentDef(name, defaults, metadata);
     userComponents().set(name, def);
+    componentRegistryVersion_++;
     registerToEditor(name, defaults as Record<string, unknown>, false);
     return def;
 }
@@ -332,6 +355,7 @@ export function defineTag(name: string): ComponentDef<{}> {
 
     const def = createComponentDef(name, {});
     userComponents().set(name, def);
+    componentRegistryVersion_++;
     registerToEditor(name, {}, true);
     return def;
 }
@@ -342,10 +366,12 @@ export function getUserComponent(name: string): ComponentDef<any> | undefined {
 
 export function clearUserComponents(): void {
     userComponents().clear();
+    componentRegistryVersion_++;
 }
 
 export function unregisterComponent(name: string): void {
     userComponents().delete(name);
+    componentRegistryVersion_++;
 }
 
 // The engine's own `defineComponent`s (AI, animation, audio, physics joints, UI
@@ -402,8 +428,11 @@ export interface BuiltinComponentDef<T> {
     readonly readonlyFields: readonly string[];
     readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
-    /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
+    /** Runtime-only: omitted from scene serialization. Authored `ES_COMPONENT(transient)`. */
     readonly transient: boolean;
+    /** Bool field gating this component's visibility, or null if it draws nothing.
+     *  Authored `ES_COMPONENT(renderable=<field>)`. */
+    readonly renderableField: string | null;
 }
 
 // =============================================================================
@@ -475,6 +504,56 @@ export function getComponentFieldMeta(name: string): Readonly<Record<string, Fie
  */
 export function getReplicatedFields(name: string): readonly string[] {
     return getComponent(name)?.replicatedFields ?? [];
+}
+
+/** A component that gates its drawing on a bool field, so that field is known. */
+export type RenderableComponentDef = AnyComponentDef & { readonly renderableField: string };
+
+/** Bumped by every registry mutation in this module, so the derived views below
+ *  can tell "same components as last time" from "looks the same". */
+let componentRegistryVersion_ = 0;
+let renderableCache_: {
+    version: number;
+    userMap: Map<string, AnyComponentDef>;
+    userSize: number;
+    builtinSize: number;
+    list: readonly RenderableComponentDef[];
+} | null = null;
+
+/**
+ * Every registered component taking part in an entity's visibility, with the field
+ * that gates each. Derived per call — a project's own component registers long
+ * after load. The memo key carries both registry sizes and the context's map
+ * identity, so a mutation outside this module (reset, hot reload) still misses it.
+ */
+export function renderableComponents(): readonly RenderableComponentDef[] {
+    const userMap = userComponents();
+    const cached = renderableCache_;
+    if (cached !== null
+        && cached.version === componentRegistryVersion_
+        && cached.userMap === userMap
+        && cached.userSize === userMap.size
+        && cached.builtinSize === builtinRegistry.size) {
+        return cached.list;
+    }
+    const list: RenderableComponentDef[] = [];
+    // Both halves directly rather than through getComponentRegistry(), whose
+    // merged Map would be allocated and thrown away on every miss. A name cannot
+    // be in both: defineComponent and defineBuiltin each refuse the collision.
+    for (const def of builtinRegistry.values()) {
+        if (def.renderableField !== null) list.push(def as RenderableComponentDef);
+    }
+    for (const def of userMap.values()) {
+        if (def.renderableField !== null) list.push(def as RenderableComponentDef);
+    }
+    renderableCache_ = {
+        version: componentRegistryVersion_,
+        userMap,
+        userSize: userMap.size,
+        builtinSize: builtinRegistry.size,
+        list,
+    };
+    return list;
 }
 
 /**
@@ -552,10 +631,8 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         readonlyFields: meta?.readonlyFields ?? [],
         fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
         discoverAssets: metadata?.discoverAssets,
-        // Builtins declare transience via the defineBuiltin metadata arg for now;
-        // a C++-side ES_COMPONENT(transient) annotation can flow through
-        // COMPONENT_META later without touching call sites.
-        transient: metadata?.transient ?? false,
+        transient: metadata?.transient ?? meta?.transient ?? false,
+        renderableField: metadata?.renderableField ?? meta?.renderableField ?? null,
     };
     builtinRegistry.set(name, def);
     return def;

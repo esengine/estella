@@ -38,6 +38,19 @@ export interface ComponentMetaEntry {
      * these over `defaults`; `defaults` alone is the runtime ctor truth.
      */
     editorDefaults?: Record<string, unknown>;
+    /**
+     * The bool field that gates this component's part in the entity's
+     * visibility, authored `renderable=<field>` at the C++ ES_COMPONENT
+     * site. Absent = nothing of this component is hidden by hiding its
+     * entity. ONE answer for both realms: the runtime folds visibility
+     * onto these fields, and the editor's eye reaches exactly them.
+     */
+    renderableField?: string;
+    /**
+     * Runtime-only state that must never persist, authored `transient` at
+     * the C++ ES_COMPONENT site — scene serialization omits it.
+     */
+    transient?: boolean;
     assetFields: AssetFieldMeta[];
     skeletal?: SkeletalFieldMeta;
     entityFields: string[];
@@ -74,6 +87,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             font: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'font', type: 'font' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
@@ -222,6 +236,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'material', type: 'material' as AssetFieldType }],
         skeletal: { skeletonField: 'skeletonPath', atlasField: 'atlasPath', runtime: 'dragonbones' },
         entityFields: [],
@@ -282,6 +297,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shadowDistance: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [],
         entityFields: [],
         colorFields: ['color'],
@@ -307,6 +323,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
@@ -389,6 +406,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             collisionFriction: 0.1,
             collisionLifetimeLoss: 0,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: ['subEmitter'],
         colorFields: ['startColor', 'endColor'],
@@ -514,6 +532,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             size: { x: 32, y: 32 },
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [],
         entityFields: [],
         colorFields: [],
@@ -532,6 +551,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             parallax: { x: 1, y: 1 },
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [],
         entityFields: [],
         colorFields: ['color'],
@@ -560,6 +580,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'material', type: 'material' as AssetFieldType }],
         skeletal: { skeletonField: 'skeletonPath', atlasField: 'atlasPath', runtime: 'spine' },
         entityFields: [],
@@ -594,6 +615,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         editorDefaults: {
             size: { x: 100, y: 100 },
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
@@ -628,6 +650,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             parallaxFactor: { x: 1, y: 1 },
             visible: true,
         },
+        renderableField: 'visible',
         assetFields: [{ field: 'tileset', type: 'texture' as AssetFieldType }],
         entityFields: [],
         colorFields: ['tintColor'],
@@ -658,6 +681,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],
         colorFields: ['startColor', 'endColor'],
@@ -704,6 +728,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             justPressed: false,
             justReleased: false,
         },
+        transient: true,
         assetFields: [],
         entityFields: [],
         colorFields: [],
@@ -799,6 +824,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             enabled: true,
         },
+        renderableField: 'enabled',
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],

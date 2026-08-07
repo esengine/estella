@@ -116,6 +116,10 @@ export const Text = defineComponent<TextData>('Text', {
     layer: 0,
     enabled: true,
 }, {
+    // Text draws itself (the plugin skips a disabled one) rather than through a
+    // sibling UIVisual, so hiding an entity has to reach this flag — the same
+    // declaration the C++ renderables make at their ES_COMPONENT site.
+    renderableField: 'enabled',
     // A shipped font is a real asset reference: declaring it here is what gives
     // it dependency tracking, cook inclusion, `@uuid:` refs and hot-update for
     // free — the same machinery every other asset slot rides.

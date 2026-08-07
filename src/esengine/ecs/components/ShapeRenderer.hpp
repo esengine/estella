@@ -15,7 +15,7 @@ enum class ShapeType : u8 {
     RoundedRect = 2,
 };
 
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct ShapeRenderer {
     ES_PROPERTY(enum=ShapeType)
     u8 shapeType{0};

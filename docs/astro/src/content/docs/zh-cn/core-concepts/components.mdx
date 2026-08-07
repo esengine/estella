@@ -65,8 +65,14 @@ const Turret = defineComponent('Turret', {
 存储选项的整数值）、`flags`（位掩码多选）、`tooltip`。其他组件级元数据：
 `assetFields`（把字段标记为资产引用，Details 渲染选择器、cook 会带上依赖）、
 `animatableFields`（[Sequencer](/docs/zh-cn/animation/timeline/) 可打关键帧的字段
-——默认为全部数字字段）、`transient`（永不存进场景——用于逐帧运行时状态），以及
-`replicatedFields`（由[联网](/docs/zh-cn/scripting/networking/)的状态复制同步）。
+——默认为全部数字字段）、`transient`（永不存进场景——用于逐帧运行时状态）、
+`replicatedFields`（由[联网](/docs/zh-cn/scripting/networking/)的状态复制同步），以及
+`renderableField`。
+
+`renderableField` 指出哪个布尔字段控制你的组件绘不绘制——如果组件自己画东西
+（比如通过自定义绘制回调），就声明它，隐藏实体便能作用到它：Outliner 的眼睛、
+`setEntityVisible`、以及场景休眠都会关掉该字段并在之后恢复。只携带数据或行为的
+组件不要声明——这类组件里有不少也有 `enabled` 字段，但与绘制无关，关掉它停错东西。
 
 ## 内置组件
 

@@ -47,7 +47,7 @@ enum class Light2DType : i32 {
  * light.intensity = 1.0f;
  * @endcode
  */
-ES_COMPONENT()
+ES_COMPONENT(renderable=enabled)
 struct Light2D {
     /** @brief Light kind: 0 = Point, 1 = Directional, 2 = Ambient (see Light2DType). */
     ES_PROPERTY(enum=Light2DType, tooltip="Point, Directional, Ambient, or Spot.")

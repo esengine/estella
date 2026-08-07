@@ -31,13 +31,14 @@ export interface UIInteractionData {
 }
 
 // Per-frame pointer state written by the hit-test system — never authored,
-// never persisted. The hit-test getOrEmplaces it on demand.
+// never persisted. The hit-test getOrEmplaces it on demand. `transient` is
+// declared at the C++ ES_COMPONENT site and arrives through COMPONENT_META.
 export const UIInteraction = defineBuiltin<UIInteractionData>('UIInteraction', {
     hovered: false,
     pressed: false,
     justPressed: false,
     justReleased: false,
-}, { transient: true });
+});
 
 export interface WidgetInteractionInit {
     /** Start disabled (Interactable.enabled = false). */
