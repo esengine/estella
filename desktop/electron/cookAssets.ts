@@ -18,6 +18,7 @@
  * This is the reachability + manifest + staging core they all build on.
  */
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { isInsideRoot } from './pathSandbox';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
 import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba, type AtlasInputImage } from './atlasPacker';
@@ -268,9 +269,17 @@ export async function cookAssets(
   const transcodeVideo = opts.transcodeVideo ?? false;
   const platform = opts.platform;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
-  const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
-  const byPath = new Map(index.entries.map((e) => [e.path, e]));
   const warnings: string[] = [];
+  // Second gate: nothing reaches it while the scanner drops these upstream, but
+  // this is where bytes become an artifact someone else runs. Warns rather than
+  // dropping silently — an asset missing from a build has to say why.
+  const shippable = index.entries.filter((e) => {
+    if (isInsideRoot(root, path.join(root, e.path))) return true;
+    warnings.push(`${e.path}: resolves outside the project through a link — not shipped`);
+    return false;
+  });
+  const byUuid = new Map(shippable.map((e) => [e.uuid, e]));
+  const byPath = new Map(shippable.map((e) => [e.path, e]));
   // Asset-delivery config: which folders are remote (CDN) / subpackage groups.
   const groupsConfig = await loadAssetGroups(root);
 
@@ -295,7 +304,7 @@ export async function cookAssets(
   // scene never references them — but they (and their deps) must still ship. A
   // shared dep that lives outside subpackages/ resolves to group 'main' below, so
   // it lands in the always-present main package, not duplicated per subpackage.
-  for (const e of index.entries) {
+  for (const e of shippable) {
     const group = resolveAssetGroup(e.path, groupsConfig);
     // …and every non-local (subpackage / remote-CDN) asset: never scene-
     // referenced, but must be cooked + staged for its group's delivery.
@@ -310,14 +319,14 @@ export async function cookAssets(
   // option (a scene never references them — Text carries KEYS, not paths), so
   // reachability would always cull them, and a build missing its languages is
   // strictly wrong. Text is tiny; dead tables cost nothing.
-  for (const e of index.entries) {
+  for (const e of shippable) {
     if (e.path.toLowerCase().endsWith('.eslocale')) seed(e.uuid);
   }
   // …and data assets, for the same reason one step further: a `.json` table is
   // named by the code that loads it, so nothing in the scene graph points at it.
   // Culling it produces the worst failure this pipeline can produce — it works in
   // the editor, which serves the whole project, and 404s only in the build.
-  for (const e of index.entries) {
+  for (const e of shippable) {
     if (e.type === 'json') seed(e.uuid);
   }
   // …then take the transitive closure over the dependency graph.

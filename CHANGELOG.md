@@ -64,6 +64,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Exporting a project could ship files from outside it.** The IPC door already
+  refused a path that left the project through a link, but the asset scanner and
+  the cook never went through that door. A file named like content with a `.meta`
+  beside it was indexed no matter what it was — and a symlink is a file. So a
+  scene referencing it made the cook `readFile` straight through the link and
+  write whatever it found into the shipped game, with no warning. A project is not
+  trusted input: it is cloned, unzipped, copied from a template, or handed over,
+  and exporting one is enough to carry files off the machine that exported it. The
+  scanner now refuses a link that leaves the project — as a file, as a sidecar's
+  content, or as a directory to walk into — and the cook refuses one again before
+  staging bytes. A link that stays inside the project still works. Only links pay
+  the extra `realpath`, so scanning is unchanged for everything else.
+
 - **An additive scene unloaded during its own `setup()` came back as a ghost.**
   `setup()` is user code and may await for as long as it likes; an `unload()`
   during it tears the scene down completely — entities, systems, assets, its slot

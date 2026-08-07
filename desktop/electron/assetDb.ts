@@ -17,10 +17,12 @@
  * extension→type table — it reads the type each meta already declares.
  */
 import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { readTextInRoot } from './projectFs';
+import { isInsideRoot } from './pathSandbox';
 import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
@@ -128,6 +130,16 @@ async function resolveDuplicateUuids(
   return reminted;
 }
 
+/**
+ * A directory entry that leaves the project through a link — never indexed. The
+ * cook reads every indexed path and writes what it reads into the shipped game,
+ * and a project is not trusted input. A link that stays inside is an ordinary
+ * file here, and only links pay the realpath call.
+ */
+function leavesProject(root: string, dirent: Dirent, abs: string): boolean {
+  return dirent.isSymbolicLink() && !isInsideRoot(root, abs);
+}
+
 /** Recursively yield every `<file>.meta` path (project-relative, forward-slashed). */
 async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
   const abs = rel ? path.join(root, rel) : root;
@@ -137,11 +149,20 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
   } catch {
     return; // unreadable dir
   }
+  const escaped = new Set<string>();
   for (const e of entries) {
+    if (leavesProject(root, e, path.join(abs, e.name))) escaped.add(e.name);
+  }
+  for (const e of entries) {
+    if (escaped.has(e.name)) continue;
     if (e.isDirectory()) {
       if (!isContentDir(e.name)) continue;
       yield* walkMeta(root, rel ? `${rel}/${e.name}` : e.name);
     } else if (e.name.endsWith(META_EXT)) {
+      // A sidecar is an ordinary file even when the content beside it is a link
+      // out. Indexing it would put that link's path in the registry, and the cook
+      // reads registry paths.
+      if (escaped.has(e.name.slice(0, -META_EXT.length))) continue;
       yield rel ? `${rel}/${e.name}` : e.name;
     }
   }
@@ -165,6 +186,7 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Pro
   }
   for (const e of entries) {
     const relPath = rel ? `${rel}/${e.name}` : e.name;
+    if (leavesProject(root, e, path.join(abs, e.name))) continue;
     if (e.isDirectory()) {
       if (!isContentDir(e.name)) continue;
       await adoptOrphans(root, relPath, adopted);
