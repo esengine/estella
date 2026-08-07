@@ -2072,17 +2072,67 @@ class ProjectStoreImpl {
    * bytes {@link save} would write, WITHOUT persisting or marking saved. Null for
    * an untitled scene (no `currentScene` path to recover into).
    */
-  async snapshotScene(): Promise<DocSnapshot | null> {
-    // Prefab Mode holds a prefab tree, not a scene (currentScene is null) — snapshot
-    // the prefab to its own path so a crash mid-edit is recoverable, not silently lost.
-    if (this.prefabSession) {
-      const built = this.buildSessionPrefab(this.prefabSession);
-      if (!built) return null;
-      return { path: this.prefabSession.path, contents: JSON.stringify(built.prefab, null, 2) + '\n' };
+  /**
+   * Everything the editor does to its open document, per KIND.
+   *
+   * A scene and a prefab are edited in the same world, by the same tools, through
+   * the same undo history. What differs is which file they are and how they round
+   * trip: a scene serializes the model and writes it; a prefab collapses the
+   * flattened tree back against its base. Every caller wants the same four things,
+   * and each of them used to ask `if (this.prefabSession)` in its own words.
+   *
+   * Twice that produced the same bug — an operation written for the scene, and the
+   * prefab silently getting nothing: an external change went unnoticed because the
+   * question was asked about `currentScene`, which is null here. One row per kind
+   * makes that a compile error instead. A new per-document operation is a new
+   * method on this interface, and TypeScript will not let it exist for one kind.
+   */
+  private documentOps(): {
+    /** The file this document is, or null when it is untitled. */
+    path: () => string | null;
+    /** The bytes a save would write, without writing them or marking it saved. */
+    snapshot: () => Promise<DocSnapshot | null>;
+    /** Persist it. */
+    save: () => Promise<void>;
+    /** Re-read from disk, replacing what the world holds. */
+    reload: () => Promise<void>;
+  } {
+    const pe = this.prefabSession;
+    if (pe) {
+      return {
+        path: () => pe.path,
+        snapshot: async () => {
+          const built = this.buildSessionPrefab(pe);
+          return built ? { path: pe.path, contents: JSON.stringify(built.prefab, null, 2) + '\n' } : null;
+        },
+        save: () => this.savePrefab(),
+        reload: async () => {
+          // Re-read, don't re-use: the rescan that evicts a changed prefab runs on
+          // its own debounce, and losing that race reloads the copy being replaced.
+          PrefabCache.forget(pe.ref);
+          await this.openPrefab(pe.path, { discardChanges: true });
+        },
+      };
     }
-    const st = this.state;
-    if (!st?.currentScene) return null;
-    return { path: st.currentScene, contents: JSON.stringify(await this.serializeCurrent(), null, 2) + '\n' };
+    return {
+      path: () => this.state?.currentScene ?? null,
+      snapshot: async () => {
+        const cur = this.state?.currentScene;
+        if (!cur) return null;
+        return { path: cur, contents: JSON.stringify(await this.serializeCurrent(), null, 2) + '\n' };
+      },
+      save: () => this.saveScene(),
+      reload: () => this.loadCurrentScene(),
+    };
+  }
+
+  /**
+   * The open document as a crash-recovery snapshot: its real target path + the
+   * exact bytes a save would write, WITHOUT persisting or marking it saved. Null
+   * for an untitled document (no path to recover into).
+   */
+  async snapshotScene(): Promise<DocSnapshot | null> {
+    return this.documentOps().snapshot();
   }
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {
@@ -2362,7 +2412,7 @@ class ProjectStoreImpl {
    *  Mode, else the scene. One accessor, so nothing has to remember that
    *  `currentScene` is null while a prefab is open. */
   private openDocumentPath(): string | null {
-    return this.prefabSession?.path ?? this.state?.currentScene ?? null;
+    return this.documentOps().path();
   }
 
   /** True if the changed paths include the open document — scene or prefab. */
@@ -2410,14 +2460,7 @@ class ProjectStoreImpl {
         return;
       }
     }
-    if (this.prefabSession) {
-      // Re-read, don't re-use: the rescan that evicts a changed prefab runs on its
-      // own debounce, and losing that race would reload the copy being replaced.
-      PrefabCache.forget(this.prefabSession.ref);
-      await this.openPrefab(target, { discardChanges: true });
-    } else {
-      await this.loadCurrentScene();
-    }
+    await this.documentOps().reload();
     Toasts.push(t('toast.reloadedFromDisk', { name }), 'info', 1600);
   }
 
@@ -2429,13 +2472,18 @@ class ProjectStoreImpl {
     await window.estella.workspace.save(workspace);
   }
 
+  /** Persist the open DOCUMENT — the scene, or the prefab being edited. The toolbar
+   *  Save, the quit-save, and the automation door are all this one verb. */
+  async save(): Promise<void> {
+    await this.documentOps().save();
+  }
+
   /**
    * Overwrite the current scene file — now lossless (JSON-first L4): the saved
    * data comes from the source-of-truth model, which preserves components this
    * editor's engine never loaded. The old lossy overwrite-block is gone.
    */
-  async save(): Promise<void> {
-    if (this.prefabSession) { await this.savePrefab(); return; }
+  private async saveScene(): Promise<void> {
     const st = this.state;
     if (!st || !st.currentScene) throw new Error('no scene to save');
     await this.writeScene(st.currentScene, await this.serializeCurrent());
