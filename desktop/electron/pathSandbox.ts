@@ -56,12 +56,10 @@ export function realPathOf(abs: string): string {
 }
 
 /**
- * Whether `abs` is really inside `root`. Lexical containment is not containment:
- * a link inside the root holds no `..` and points wherever it likes, so both
- * sides are compared with links resolved as well.
- *
- * Racing a link swapped between this and the call that follows needs O_NOFOLLOW,
- * which node does not expose portably — this raises the bar, it is not a seal.
+ * Whether `abs` is really inside `root`. A link inside the root holds no `..`, so
+ * both sides are compared with links resolved as well. Racing a link swapped
+ * after this check needs O_NOFOLLOW, which node lacks — this raises the bar
+ * rather than sealing it.
  */
 export function isInsideRoot(root: string, abs: string): boolean {
   const resolved = path.resolve(abs);

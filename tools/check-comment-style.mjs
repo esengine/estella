@@ -62,6 +62,16 @@ function addedLines() {
   const diff = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
   const byFile = new Map();
+  // A file git has never seen produces no diff, and a brand-new file is exactly
+  // where prose collects — every line of it is added.
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  for (const f of untracked.split('\n')) {
+    if (!f || SKIP.test(f) || !SOURCE.test(f)) continue;
+    try {
+      byFile.set(f, readFileSync(path.join(ROOT, f), 'utf8').split('\n').map((t, i) => [i + 1, t]));
+    } catch { /* vanished between listing and reading */ }
+  }
   let file = null;
   let line = 0;
   for (const raw of diff.split('\n')) {
