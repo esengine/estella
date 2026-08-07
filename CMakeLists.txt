@@ -32,6 +32,23 @@ option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 # "physics", so exactly one may exist per configure — pick the ESM flavour here.
 option(ES_PHYSICS_ESM "Emit the physics module as an ES6 module (web) instead of require()-style (WeChat)" OFF)
 
+# ASan + UBSan for the test harnesses (the sanitizers job in build.yml). Findings
+# are fatal: without -fno-sanitize-recover UBSan prints and continues, which a CI
+# gate reads as green. clang/gcc/emcc flags — MSVC has no UBSan.
+option(ES_SANITIZE "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+if(ES_SANITIZE)
+    if(MSVC)
+        message(FATAL_ERROR "ES_SANITIZE requires clang or gcc (MSVC has no UBSan).")
+    endif()
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all
+                        -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address,undefined)
+    if(EMSCRIPTEN)
+        # ASan's shadow memory does not fit in the harnesses' fixed default heap.
+        add_link_options(-sALLOW_MEMORY_GROWTH=1)
+    endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ESEngineConfig)
 include(CompilerCache)

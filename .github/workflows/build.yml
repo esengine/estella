@@ -19,22 +19,22 @@ concurrency:
 permissions:
   contents: read
 
+# Single source of truth for the C++ doctest harnesses: every job's build-target
+# list and run loop derives from it, so a new harness can no longer be compiled-
+# but-never-run (the hand-kept lists had drifted).
+env:
+  CPP_TESTS: >-
+    test_ecs test_events test_particle test_tilemap test_sparse_set
+    test_resource_pool test_shader_variant test_log_format test_registry_safety
+    test_registry_ondestroy
+    test_shader_device test_draw_params test_texture_fb test_buffer_device
+    test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
+
 jobs:
   build-emscripten:
     name: Web (Emscripten) + C++ tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
-    # Single source of truth for the C++ doctest harnesses: the build-target
-    # list and the run loop both derive from CPP_TESTS, so a new harness can no
-    # longer be compiled-but-never-run (the two hand-kept lists had drifted).
-    env:
-      CPP_TESTS: >-
-        test_ecs test_events test_particle test_tilemap test_sparse_set
-        test_resource_pool test_shader_variant test_log_format test_registry_safety
-        test_registry_ondestroy
-        test_shader_device test_draw_params test_texture_fb test_buffer_device
-        test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
 
     steps:
     - uses: actions/checkout@v7
@@ -94,6 +94,46 @@ jobs:
         name: wasm-web
         path: build/wasm/web/
         retention-days: 3
+
+  # The same harnesses, instrumented. An out-of-bounds read that lands in
+  # allocation slack (or in the next allocation) is silent in the plain build and
+  # is exactly what these gates cannot otherwise see. Findings are fatal —
+  # ES_SANITIZE passes -fno-sanitize-recover, or UBSan would print and continue.
+  sanitizers:
+    name: C++ tests (ASan + UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: emscripten-asan
+
+    - name: Configure (ASan + UBSan)
+      run: |
+        emcmake cmake -S . -B build/wasm/asan -DCMAKE_BUILD_TYPE=Debug \
+          -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_SANITIZE=ON
+
+    - name: Build C++ test harnesses
+      run: cmake --build build/wasm/asan -j "$(nproc)" --target $CPP_TESTS
+
+    - name: Run C++ test harnesses
+      run: |
+        for t in $CPP_TESTS; do
+          cp "build/wasm/asan/bin/$t.js" "build/wasm/asan/bin/$t.cjs"
+          echo "=== $t"
+          node "build/wasm/asan/bin/$t.cjs"
+        done
 
   test:
     name: Tests (SDK + Desktop)
