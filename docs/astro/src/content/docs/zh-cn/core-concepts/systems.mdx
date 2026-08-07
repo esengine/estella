@@ -34,6 +34,7 @@ addSystem(defineSystem(
   `[entity, ...组件]`。
 - **`Mut(Component)`** —— 系统会写入的组件。未包裹的组件是只读的。
 - **`Res(Resource)`** / **`ResMut(Resource)`** —— 一个共享资源,只读或可写(例如提供帧计时的 `Time`)。
+  `Res` 给你资源本身;`ResMut` 给你包在它外面的句柄——`.get()` / `.set(v)` / `.modify(fn)`。
 - **`Commands()`** —— 延迟的结构性改动(生成 / 销毁 / 增删组件),在下次 flush 时应用。
 - **`EventReader(E)`** / **`EventWriter(E)`** —— 读取或发送一条类型化事件流。
 

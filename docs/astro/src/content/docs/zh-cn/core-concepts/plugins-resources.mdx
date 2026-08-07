@@ -3,6 +3,8 @@ title: 插件与资源
 description: 子系统如何组合与取用 —— Res(XxxAPI) 范式。
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 一个 Estella 游戏就是由**插件**组合成的 `App`。每个子系统——物理、音频、瓦片地图、
 粒子、UI 等等——都是一个插件,它注册自己的系统,并把运行时 API 暴露为一个**资源**。
 
@@ -51,14 +53,102 @@ defineSystem([Res(Audio)], (audio) => {
 
 <br />
 
-`Res(X)` 是读取;当系统要**替换或改动资源的状态**时用 `ResMut(X)`——与组件上的
-`Mut` 是同一契约。
+`Res(X)` 交给系统的是**资源本身**。`ResMut(X)` 交给它的是包在资源外面的一个
+**句柄**——`.get()` 取值、`.set(v)` 替换、`.modify(fn)` 原地改动。当系统要替换或
+改动资源的状态时用 `ResMut`——与组件上的 `Mut` 是同一契约。下一节把两种形态并排
+放在一起。
+
+## 定义你自己的资源
+
+资源只是 App 持有的一个值,它**不必**是纯数据。上表里每个子系统 API 都是一个发布成
+资源的类实例——`Res(Audio)` 是一个 `AudioAPI`,`Res(SceneManager)` 是一个带
+`switchTo` / `load` / `unload` 的 `SceneManagerState`。你自己的资源同样可以带方法。
+
+`defineResource(默认值, 名字)` 创建的是定义——一个身份,不是值本身:
+
+```typescript
+import { defineResource } from 'esengine';
+
+class ScoreState {
+  value = 0;
+  combo = 1;
+
+  add(points: number): void {
+    this.value += points * this.combo;
+  }
+}
+
+export const Score = defineResource<ScoreState>(null!, 'Score');
+```
+
+`null!` 是刻意的占位:真正的实例在插件 build 时插入,于是每个 App 拿到自己的一份。
+引擎的每个子系统都是这么接的——`SceneManager` 声明为
+`defineResource<SceneManagerState>(null!, 'SceneManager')`,它的插件里再
+`app.insertResource(SceneManager, new SceneManagerState(app))`。
+
+```typescript
+import type { App, Plugin } from 'esengine';
+
+export const scorePlugin: Plugin = {
+  name: 'score',
+  build(app: App) {
+    app.insertResource(Score, new ScoreState());
+  },
+};
+```
+
+之后它和别的资源一样取用:
+
+```typescript
+import { defineSystem, Res, ResMut } from 'esengine';
+
+defineSystem([Res(Score)], (score) => {
+  // score 就是那个 ScoreState 实例
+  if (score.value > 1000) { /* … */ }
+});
+
+defineSystem([ResMut(Score)], (score) => {
+  // score 是句柄——要先解包
+  score.modify((s) => s.add(100));
+});
+```
+
+在 ECS 之外——宿主代码、`defineBehavior` 的钩子里——用
+`app.getResource(Score)`,拿到的是同一个活实例。
+
+### 默认值的代价
+
+资源在第一次被读取时才真正生成,方式是克隆你传给 `defineResource` 的默认值。这次
+克隆是**结构性的,不是全量的**:
+
+| 默认值 | 每个 App 最终拿到什么 |
+|---|---|
+| 普通对象 / 数组 | 一份深克隆——每个 App 各自独立的一份。 |
+| 类实例 | *同一个*对象,读到它的每个 App 共用。 |
+| 函数字段 | 按引用共享——方法永远不会在克隆中丢失。 |
+
+类实例按引用透传是有意为之:把它克隆成一个裸对象会剥掉原型,连带剥掉所有方法。实际
+后果是 `defineResource(new ScoreState(), 'Score')` 会让**进程里所有 App 共用同一份
+分数**——而编辑器同时跑着两个(编辑态与 Play 态)。只要资源持有状态,就优先用上面
+`null!` + `insertResource` 那种写法。
+
+<Aside type="caution">
+  如果你把方法挂在**普通对象**默认值上,请写成方法简写或 `function`,不要用箭头
+  函数——箭头函数捕获的是模块作用域,`this` 并不指向资源:
+
+  ```typescript
+  defineResource({ value: 0, add(n: number) { this.value += n; } }, 'Score');        // ✅
+  defineResource({ value: 0, add: (n: number) => { this.value += n; } }, 'Score');   // ❌
+  ```
+</Aside>
 
 ## 组件 vs 资源
 
 - **组件**是逐实体的数据。你(在编辑器里或用 `Commands`)把它挂到实体上,用 `Query`
-  遍历它。
-- **资源**是逐 App 的单例——共享状态与子系统 API——用 `Res` 读取。
+  遍历它。C++ 支撑的组件每次读取都要从 wasm 堆里解码出来,所以你拿到的是一份**拷贝**
+  ——改完要交回去,否则这次写入会丢(见[脚本](/docs/zh-cn/scripting/overview/))。
+- **资源**是逐 App 的单例——共享状态与子系统 API——用 `Res` 读取。资源是那个**活对象**,
+  从来不是拷贝:在它上面调方法或改字段立刻生效。
 
 ## 获取实体
 

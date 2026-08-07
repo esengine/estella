@@ -3,6 +3,8 @@ title: Plugins & Resources
 description: How subsystems are composed and reached — the Res(XxxAPI) pattern.
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 An Estella game is an `App` composed of **plugins**. Each subsystem — physics,
 audio, tilemaps, particles, UI, and so on — is a plugin that registers its
 systems and exposes a runtime API as a **resource**.
@@ -56,15 +58,112 @@ resource whose contents are this frame's events, read the same frame:
 
 <br />
 
-`Res(X)` gives read access; use `ResMut(X)` when the system **replaces or
-mutates the resource's state** — same contract as `Mut` on components.
+`Res(X)` hands the system the resource **itself**. `ResMut(X)` hands it a
+**handle** wrapped around the resource — `.get()` to reach the value, `.set(v)`
+to replace it, `.modify(fn)` to mutate it in place. Use `ResMut` when the system
+replaces or mutates the resource's state — same contract as `Mut` on components.
+The next section shows both shapes side by side.
+
+## Defining your own resource
+
+A resource is just a value the app owns, and it does **not** have to be plain
+data. Every subsystem API in the table above is a class instance published as a
+resource — `Res(Audio)` is an `AudioAPI`, `Res(SceneManager)` is a
+`SceneManagerState` with `switchTo` / `load` / `unload` on it. Your own
+resources can carry methods the same way.
+
+`defineResource(defaultValue, name)` creates the definition — an identity, not
+the value itself:
+
+```typescript
+import { defineResource } from 'esengine';
+
+class ScoreState {
+  value = 0;
+  combo = 1;
+
+  add(points: number): void {
+    this.value += points * this.combo;
+  }
+}
+
+export const Score = defineResource<ScoreState>(null!, 'Score');
+```
+
+The `null!` is a deliberate placeholder: the real instance is inserted when the
+plugin builds, so each app gets its own. This is exactly how every engine
+subsystem is wired — `SceneManager` is declared `defineResource<SceneManagerState>(null!, 'SceneManager')`
+and its plugin does `app.insertResource(SceneManager, new SceneManagerState(app))`.
+
+```typescript
+import type { App, Plugin } from 'esengine';
+
+export const scorePlugin: Plugin = {
+  name: 'score',
+  build(app: App) {
+    app.insertResource(Score, new ScoreState());
+  },
+};
+```
+
+From there it is reached like any other resource:
+
+```typescript
+import { defineSystem, Res, ResMut } from 'esengine';
+
+defineSystem([Res(Score)], (score) => {
+  // score IS the ScoreState instance
+  if (score.value > 1000) { /* … */ }
+});
+
+defineSystem([ResMut(Score)], (score) => {
+  // score is the handle — unwrap it
+  score.modify((s) => s.add(100));
+});
+```
+
+Outside ECS code — host code, a `defineBehavior` hook — use
+`app.getResource(Score)`, which returns that same live instance.
+
+### What the default value costs you
+
+A resource is materialised the first time it is read, by cloning the default you
+passed to `defineResource`. That clone is **structural, not total**:
+
+| Default value | What each app ends up with |
+|---|---|
+| Plain object / array | A deep clone — one independent copy per app. |
+| Class instance | The *same* object, shared by every app that reads it. |
+| Function-valued property | Shared by reference — methods always survive the clone. |
+
+Class instances pass through by reference on purpose: cloning them into a bare
+object would strip their prototype and with it every method. The practical
+consequence is that `defineResource(new ScoreState(), 'Score')` gives **one
+score shared by every app in the process** — and the editor runs two (edit mode
+and play mode). Prefer the `null!` + `insertResource` form above whenever the
+resource holds state.
+
+<Aside type="caution">
+  If you hang methods off a **plain object** default, write them as methods or
+  `function`, never as arrow functions — an arrow function captures the module
+  scope, so `this` is not the resource:
+
+  ```typescript
+  defineResource({ value: 0, add(n: number) { this.value += n; } }, 'Score');        // ✅
+  defineResource({ value: 0, add: (n: number) => { this.value += n; } }, 'Score');   // ❌
+  ```
+</Aside>
 
 ## Components vs. resources
 
 - **Components** are per-entity data. You attach them (in the editor or with
-  `Commands`) and iterate them with `Query`.
+  `Commands`) and iterate them with `Query`. C++-backed components are decoded
+  out of the wasm heap on every read, so what you get is a **copy** — change it
+  and hand it back, or the write is lost (see
+  [Scripting](/docs/scripting/overview/)).
 - **Resources** are per-app singletons — shared state and subsystem APIs — read
-  with `Res`.
+  with `Res`. A resource is the **live object**, never a copy: calling a method
+  or setting a field on it takes effect immediately.
 
 ## Getting an entity
 

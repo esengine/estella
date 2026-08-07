@@ -144,6 +144,11 @@ export const scorePlugin: Plugin = {
 };
 ```
 
+That resource is plain data to keep the example about the plugin shape — but a
+resource can equally be a class instance with methods, which is how every engine
+subsystem publishes its API. See
+[Plugins & Resources](/docs/core-concepts/plugins-resources/).
+
 | Member | Type | Meaning |
 |---|---|---|
 | `name` | `string?` | Optional but recommended: named plugins auto-register in the [subsystem registry](#subsystem-observability), and systems added inside `build()` inherit the name for liveness reporting. |

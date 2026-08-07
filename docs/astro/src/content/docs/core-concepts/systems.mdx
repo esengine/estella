@@ -37,7 +37,9 @@ in order:
 - **`Mut(Component)`** — a component the system writes. Unwrapped components are
   read-only.
 - **`Res(Resource)`** / **`ResMut(Resource)`** — a shared resource, read-only or
-  writable (such as `Time` for frame timing).
+  writable (such as `Time` for frame timing). `Res` gives you the resource
+  itself; `ResMut` gives you a handle around it — `.get()` / `.set(v)` /
+  `.modify(fn)`.
 - **`Commands()`** — deferred structural changes (spawn / despawn / add / remove),
   applied at the next flush.
 - **`EventReader(E)`** / **`EventWriter(E)`** — read or send a typed event stream.
