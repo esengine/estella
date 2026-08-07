@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { importerDefaults, applyImporterEdit } from './assetImporter';
 import { AssetRegistry, UUID_PREFIX, refUuid, type AssetEntryLite } from './AssetRegistry';
+import { PrefabCache } from './PrefabCache';
 import {
   runtimeConfigOf, packagedRuntimeFields, normalizeCollisionLayers, normalizeCollisionLayerMasks,
   type RuntimeProjectConfig,
 } from './runtimeConfig';
 import type { ParsedTextureImportSettings } from 'esengine';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -145,11 +146,6 @@ function stripRetiredComponents(data: SceneData): string[] {
 
 class ProjectStoreImpl {
   private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
-  // The uuid↔path lookup tables and the load bookkeeping keyed by them live in
-  // {@link AssetRegistry}. This still drives the SCAN that fills them — that needs
-  // the open project, its root and its watcher — but it no longer owns the answers.
-  /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
-  private readonly prefabCache = new Map<string, PrefabData>();
   /** Active Prefab Mode session, or null. Holds the id-preservation map
    *  (source id → prefabEntityId) so save-back keeps each entity's identity, plus
    *  the scene to return to on exit. The reactive `prefabEdit` in ProjectState is
@@ -192,7 +188,7 @@ class ProjectStoreImpl {
     // directly from the asset entities; a variant/nested base degrades to the
     // component default (the entry simply isn't found here).
     setPrefabBaseResolver((ref, prefabId) => {
-      const pe = this.prefabCache.get(ref)?.entities.find((e) => e.prefabEntityId === prefabId);
+      const pe = PrefabCache.entityOf(ref, prefabId);
       return pe ? pe.components : null;
     });
     // Collider layer-mask fields resolve their bit labels from this project setting.
@@ -231,7 +227,7 @@ class ProjectStoreImpl {
     setAssetRefProblemResolver((ref) => AssetRegistry.assetRefProblem(ref));
     // Instantiating a variant / nested prefab resolves its base through the same
     // warm-cache reader the scene-load path uses (one resolution truth).
-    SceneCommands.setPrefabResolver(this.prefabResolverSync);
+    SceneCommands.setPrefabResolver(PrefabCache.resolveSync);
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -512,7 +508,7 @@ class ProjectStoreImpl {
     let nextId = raw.entities.reduce((m, e) => Math.max(m, (e as { id?: number }).id ?? 0), 0) + 1;
     const { scene: expandedRaw, tags } = await bootProfiler.phase('expandPrefabs', () => expandScenePrefabs(
       raw,
-      (ref) => this.loadPrefabAsset(ref),
+      (ref) => PrefabCache.load(ref),
       () => nextId++,
     ));
 
@@ -567,7 +563,7 @@ class ProjectStoreImpl {
     this.applyEditorRuntimeConfig();
     // Surface any instance overrides the loader just dropped (they point at prefab
     // structure that no longer exists) — otherwise the customization loss is silent.
-    this.detectPrefabConflicts(raw);
+    PrefabCache.reportStaleOverrides(raw);
     // Loading a scene always leaves Prefab Mode (if it was active).
     this.prefabSession = null;
     this.store.setState({ project: { ...st, currentScene: rel, prefabEdit: null } });
@@ -731,7 +727,7 @@ class ProjectStoreImpl {
    *  The prefab cache is ours; the lookup tables and load bookkeeping are the
    *  registry's, and it decides what a rebuild keeps. */
   private populateRegistry(entries: readonly AssetEntryLite[]): void {
-    this.prefabCache.clear();
+    PrefabCache.clear();
     AssetRegistry.clearLoadState();
     AssetRegistry.rebuild(entries);
   }
@@ -769,11 +765,7 @@ class ProjectStoreImpl {
     const kept = new Set(entries.map((e) => e.path));
     // Resolve each cached prefab's path via the CURRENT (pre-rebuild) map, so this
     // must run before rebuildLookups.
-    for (const ref of [...this.prefabCache.keys()]) {
-      const uuid = refUuid(ref);
-      const p = uuid !== null ? AssetRegistry.pathForUuid(uuid) : undefined;
-      if (!p || changed.has(p) || !kept.has(p)) this.prefabCache.delete(ref);
-    }
+    PrefabCache.evictChanged(changed, kept);
     AssetRegistry.rebuild(entries);
   }
 
@@ -983,42 +975,13 @@ class ProjectStoreImpl {
    *  / save-collapse path resolves prefab instances through this. Warms the
    *  prefab's base (variant) + nested refs into the cache too, so the SYNChronous
    *  flatten resolver ({@link prefabResolverSync}) can resolve them. */
-  private async loadPrefabAsset(ref: string): Promise<PrefabData | null> {
-    if (!ref.startsWith(UUID_PREFIX)) return null;
-    const cached = this.prefabCache.get(ref);
-    if (cached) return cached;
-    const path = AssetRegistry.pathForUuid(ref.slice(UUID_PREFIX.length).toLowerCase());
-    if (!path) return null;
-    try {
-      const prefab = migratePrefabData(JSON.parse(await window.estella.fs.read(path))).data as PrefabData;
-      // Cache BEFORE warming deps so a variant/nested ref CYCLE terminates (the
-      // second visit hits the cache and returns instead of re-fetching forever).
-      this.prefabCache.set(ref, prefab);
-      await this.warmPrefabDeps(prefab);
-      return prefab;
-    } catch (err) {
-      console.warn('[project] prefab load failed', path, err);
-      return null;
-    }
-  }
-
   /** Recursively load a prefab's base (variant `basePrefab`) + every entity's
    *  `nestedPrefab` ref into the cache. flattenPrefab resolves those SYNChronously
    *  during expansion, so they must already be resident. */
-  private async warmPrefabDeps(prefab: PrefabData): Promise<void> {
-    if (prefab.basePrefab) await this.loadPrefabAsset(prefab.basePrefab);
-    for (const e of prefab.entities) {
-      const nested = e.nestedPrefab?.prefabPath;
-      if (nested) await this.loadPrefabAsset(nested);
-    }
-  }
-
   /** Synchronous prefab resolver for flattenPrefab's variant / nested expansion —
    *  a cache read (the async {@link loadPrefabAsset} pre-warms every dependency).
    *  Installed on the scene-load + instantiate paths so a variant / nested
    *  instance resolves its base the same way in both. */
-  private prefabResolverSync = (ref: string): PrefabData | null => this.prefabCache.get(ref) ?? null;
-
   /**
    * Scan a raw scene's prefab-instance entries for STALE overrides — ones that
    * target an entity / component the prefab no longer has. The loader silently
@@ -1027,28 +990,6 @@ class ProjectStoreImpl {
    * FLAT bases are checked: validateOverrides is structural, so a variant / nested
    * base (whose inherited entities live in ITS base) would false-positive.
    */
-  private detectPrefabConflicts(raw: SceneData): void {
-    const byInstance = new Map<number, StaleOverride[]>();
-    for (const e of raw.entities as unknown[]) {
-      const entry = e as { id?: number; prefab?: string; overrides?: PrefabOverride[] };
-      if (typeof entry.prefab !== 'string' || !entry.overrides?.length || typeof entry.id !== 'number') continue;
-      const base = this.prefabCache.get(entry.prefab);
-      if (!base || base.basePrefab || base.entities.some((be) => be.nestedPrefab)) continue;
-      const { stale } = validateOverrides(base, { instanceOverrides: entry.overrides });
-      if (stale.length > 0) byInstance.set(entry.id, stale);
-    }
-    usePrefabConflicts.getState().setAll(byInstance);
-    const total = usePrefabConflicts.getState().total;
-    if (total > 0) {
-      console.warn(
-        `[prefab] ${total} stale override(s) on ${byInstance.size} instance(s) reference prefab ` +
-        `structure that no longer exists — dropped on load. Select an affected instance to review, ` +
-        `or save to persist the cleanup.`,
-      );
-      Toasts.push(t('proj.staleOverrides', { overrides: total, instances: byInstance.size }), 'warn', 4500);
-    }
-  }
-
 
   /**
    * Instantiate a `.esprefab` (by project-relative path) into the open scene
@@ -1067,7 +1008,7 @@ class ProjectStoreImpl {
     const uuid = AssetRegistry.uuidFor(path);
     if (!uuid) return null;
     const ref = UUID_PREFIX + uuid;
-    const prefab = await this.loadPrefabAsset(ref);
+    const prefab = await PrefabCache.load(ref);
     if (!prefab) {
       Toasts.push(t('proj.prefabLoadFailed', { name: path.split('/').pop() ?? path }), 'error');
       return null;
@@ -1097,7 +1038,7 @@ class ProjectStoreImpl {
         icon: Boxes,
         keywords: [name],
         build: async () => {
-          const p = await this.loadPrefabAsset(ref);
+          const p = await PrefabCache.load(ref);
           if (!p) {
             Toasts.push(t('proj.prefabLoadFailed', { name }), 'error');
             throw new Error('prefab load failed');
@@ -1178,7 +1119,7 @@ class ProjectStoreImpl {
     if (!ref) return null;
     const info = AssetRegistry.assetInfo(ref);
     if (!info) return null;
-    const oldPrefab = await this.loadPrefabAsset(ref);
+    const oldPrefab = await PrefabCache.load(ref);
     if (!oldPrefab) {
       Toasts.push(t('proj.prefabLoadFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
       return null;
@@ -1204,7 +1145,7 @@ class ProjectStoreImpl {
     if (processed.length === 0) return null;
 
     // The full delta against the asset: property overrides + structural edits.
-    const delta = collapseInstance(oldPrefab, ref, processed, this.prefabResolverSync);
+    const delta = collapseInstance(oldPrefab, ref, processed, PrefabCache.resolveSync);
     const overrides = delta.overrides
       .filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
     const { added, removed } = delta;
@@ -1235,7 +1176,7 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.applyWriteFailed', { name }), 'error');
       return null;
     }
-    this.prefabCache.set(ref, newPrefab);
+    PrefabCache.put(ref, newPrefab);
 
     // Re-sync this instance to the updated base so its (now-applied) edits
     // clear — reuses the proven delete + re-instantiate path.
@@ -1275,7 +1216,7 @@ class ProjectStoreImpl {
     if (!ref) return null;
     const info = AssetRegistry.assetInfo(ref);
     if (!info) return null;
-    const base = await this.loadPrefabAsset(ref);
+    const base = await PrefabCache.load(ref);
     if (!base) {
       Toasts.push(t('proj.prefabLoadFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
       return null;
@@ -1300,7 +1241,7 @@ class ProjectStoreImpl {
     }
     if (processed.length === 0) return null;
 
-    const delta = collapseInstance(base, ref, processed, this.prefabResolverSync);
+    const delta = collapseInstance(base, ref, processed, PrefabCache.resolveSync);
     const overrides = delta.overrides.filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
     if (delta.removed.length > 0) {
       Toasts.push(t('proj.variantNoRemove', { count: delta.removed.length }), 'warn');
@@ -1455,7 +1396,7 @@ class ProjectStoreImpl {
         failed++;
       }
     }
-    this.prefabCache.clear(); // rewritten assets must reload fresh
+    PrefabCache.clear(); // rewritten assets must reload fresh
     if (failed > 0) Toasts.push(t('proj.resaveFailed', { upgraded, failed }), 'error');
     else Toasts.push(t('proj.resaveDone', { count: upgraded }), 'success');
   }
@@ -2115,7 +2056,7 @@ class ProjectStoreImpl {
     const entities = await collapseScenePrefabs(
       model.entities,
       (id) => SceneModel.prefabTag(id),
-      (ref) => this.loadPrefabAsset(ref),
+      (ref) => PrefabCache.load(ref),
     );
     return { ...model, name: this.state?.name ?? model.name, entities };
   }
@@ -2183,7 +2124,7 @@ class ProjectStoreImpl {
     if (!opts?.discardChanges && !(await confirmDiscard(t('discard.openPrefab', { name: leaf })))) return;
     const uuid = AssetRegistry.uuidFor(path);
     const ref = uuid ? UUID_PREFIX + uuid : null;
-    const prefab = ref ? await this.loadPrefabAsset(ref) : null;
+    const prefab = ref ? await PrefabCache.load(ref) : null;
     if (!ref || !prefab) {
       Toasts.push(t('proj.prefabLoadFailed', { name: leaf }), 'error');
       return;
@@ -2197,7 +2138,7 @@ class ProjectStoreImpl {
     // simple baseline). A variant-of-variant / variant-of-nested base is refused.
     let base: PrefabData | null = null;
     if (prefab.basePrefab) {
-      base = await this.loadPrefabAsset(prefab.basePrefab);
+      base = await PrefabCache.load(prefab.basePrefab);
       if (!base || base.basePrefab || base.entities.some((e) => e.nestedPrefab)) {
         Toasts.push(t('proj.prefabModeNested'), 'warn');
         return;
@@ -2218,7 +2159,7 @@ class ProjectStoreImpl {
     // above warmed it), yielding base entities + the variant's own overrides/adds.
     let nid = 0;
     const allocateId = (): number => nid++;
-    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId, loadPrefab: this.prefabResolverSync });
+    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId, loadPrefab: PrefabCache.resolveSync });
     const idBySource = new Map(entities.map((e) => [e.id, e.prefabEntityId]));
     let docEntities = entities.map(toDocumentEntity);
     // A UI prefab's boxes are fractions of a parent it no longer has, so open it inside
@@ -2267,7 +2208,7 @@ class ProjectStoreImpl {
     if (!source?.build) return null;
     try {
       const canvas = await source.build({ parent: null });
-      const flat = flattenPrefab(canvas, [], { allocateId, loadPrefab: this.prefabResolverSync });
+      const flat = flattenPrefab(canvas, [], { allocateId, loadPrefab: PrefabCache.resolveSync });
       return { entities: flat.entities.map(toDocumentEntity), rootId: flat.rootId };
     } catch {
       return null;
@@ -2334,7 +2275,7 @@ class ProjectStoreImpl {
         components: e.components as ProcessedEntity['components'],
         visible: (e as { visible?: boolean }).visible ?? true,
       }));
-      const delta = collapseInstance(pe.base, pe.baseRef, processed, this.prefabResolverSync);
+      const delta = collapseInstance(pe.base, pe.baseRef, processed, PrefabCache.resolveSync);
       const overrides = delta.overrides.filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
       const prefab = buildVariant(pe.base, pe.baseRef, pe.name, { overrides, added: delta.added });
       return { prefab, idBySource, removedCount: delta.removed.length };
@@ -2361,7 +2302,7 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.applyWriteFailed', { name: pe.path.split('/').pop() ?? pe.path }), 'error');
       return;
     }
-    this.prefabCache.set(pe.ref, prefab);
+    PrefabCache.put(pe.ref, prefab);
     this.prefabSession = { ...pe, idBySource };
     EditorHistory.markSaved();
     Toasts.push(t('proj.savedPrefab', { name: pe.name }), 'success');
@@ -2545,5 +2486,6 @@ class ProjectStoreImpl {
 }
 
 export const ProjectStore = new ProjectStoreImpl();
+
 
 
