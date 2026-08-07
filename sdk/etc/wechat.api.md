@@ -5971,7 +5971,7 @@ ComponentDef<{}>
 
 ## SCENE_FORMAT_VERSION — const
 ```
-"1.0"
+1
 ```
 
 ## SCREEN_FIT_OFF — const
@@ -6123,7 +6123,7 @@ entities: SceneEntityData[]
 generator: string | undefined
 name: string
 textureMetadata: Record<string, TextureMetadata> | undefined
-version: string
+version: string | number
 ```
 
 ## SceneEntityData — interface
@@ -6196,9 +6196,9 @@ static prototype: SceneManagerState
 ## SceneMigrationResult — interface
 ```
 data: SceneData
-fromVersion: string
+fromVersion: number
 migrated: boolean
-toVersion: string
+toVersion: number
 ```
 
 ## SceneOwner — const

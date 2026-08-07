@@ -29,6 +29,18 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The scene format version is an integer, and `withScratch` refuses an async
+  callback.** The format version was compared with `parseFloat`, which reads
+  "1.10" as 1.1 and sorts it BELOW "1.2", and reads "1.0.1" as 1 — so once the
+  format reached its tenth revision, a newer file would have been read as older
+  and migrated backwards. With only "1.0" ever written, nothing could have caught
+  it. It is now a single integer that counts up (`version: 1`); every file written
+  before this is format 1, and reading one is unchanged. `withScratch` frees its
+  scratch pointers in a `finally`, so an `async` callback — which returns at its
+  first `await` — resumed onto a heap where every pointer it held was already
+  freed. The docs said "must be synchronous"; the type now says it, and an async
+  callback is a compile error at the call site.
+
 - **A blended draw now sorts by depth before material.** The sort key ranked
   material above depth for every stage, so within one sorting layer three
   semi-transparent sprites at different z on materials B, A, B did not necessarily

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrefabData, PrefabOverride, InstantiatePrefabOptions } from '../src/prefab';
-import type { SceneData } from '../src/scene/scene';
+import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
 import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
@@ -88,7 +88,7 @@ describe('Prefab', () => {
             await instantiatePrefab(world, prefab);
 
             expect(capturedSceneData).not.toBeNull();
-            expect(capturedSceneData!.version).toBe('1.0');
+            expect(capturedSceneData!.version).toBe(SCENE_FORMAT_VERSION);
             expect(capturedSceneData!.name).toBe('TestPrefab');
             expect(capturedSceneData!.entities).toHaveLength(2);
         });

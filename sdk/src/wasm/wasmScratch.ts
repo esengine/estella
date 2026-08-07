@@ -22,6 +22,13 @@ export interface WasmAllocator {
 }
 
 /**
+ * The callback's return type, or `never` if it is async. An `async` callback
+ * returns at its first `await`, so the frees run while it is suspended and every
+ * pointer it holds dangles when it resumes — corrupted data, not a crash.
+ */
+type Sync<R> = R extends PromiseLike<unknown> ? never : R;
+
+/**
  * Run `fn` with a scratch allocator; free everything it allocated on exit,
  * whether `fn` returns normally or throws. Frees in reverse allocation order.
  *
@@ -34,7 +41,7 @@ export interface WasmAllocator {
  */
 export function withScratch<R>(
     mod: WasmAllocator,
-    fn: (alloc: (size: number) => number) => R,
+    fn: (alloc: (size: number) => number) => Sync<R>,
 ): R {
     const ptrs: number[] = [];
     const alloc = (size: number): number => {
@@ -43,7 +50,7 @@ export function withScratch<R>(
         return p;
     };
     try {
-        return fn(alloc);
+        return fn(alloc) as R;
     } finally {
         for (let i = ptrs.length - 1; i >= 0; i--) {
             mod._free(ptrs[i]!);
@@ -58,7 +65,7 @@ export function withScratch<R>(
 export function withMalloc<R>(
     mod: WasmAllocator,
     size: number,
-    fn: (ptr: number) => R,
+    fn: (ptr: number) => Sync<R>,
 ): R {
-    return withScratch(mod, alloc => fn(alloc(size)));
+    return withScratch<R>(mod, alloc => fn(alloc(size)));
 }

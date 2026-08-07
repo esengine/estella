@@ -55,7 +55,13 @@ export interface TextureMetadata {
 }
 
 export interface SceneData {
-    version: string;
+    /**
+     * Format version: one integer that only counts up. Files written before it
+     * became an integer carry a `"major.minor"` string, which
+     * {@link migrateSceneData} normalizes — read it through
+     * {@link parseSceneFormatVersion}, never by comparing it directly.
+     */
+    version: number | string;
     name: string;
     /** Origin tag of the engine that wrote this scene (see provenance.ts). */
     generator?: string;
@@ -285,22 +291,36 @@ export async function expandScenePrefabs(
 // Scene Migration — versioned, idempotent, non-mutating (mirrors prefab/migrate)
 // =============================================================================
 
-/** Current scene format version. Bump when adding a migration step below. */
-export const SCENE_FORMAT_VERSION = '1.0';
+/**
+ * Current scene format version — bump by one per migration step below.
+ *
+ * An integer, not semver: this number only has to answer "older, current, or
+ * newer", and dotted ones cannot. `parseFloat` sorts "1.10" below "1.2".
+ */
+export const SCENE_FORMAT_VERSION = 1;
 
 export interface SceneMigrationResult {
     /** A migrated *copy* — the input is never mutated. */
     data: SceneData;
     /** True if any legacy shape was upgraded (callers may prompt a re-save). */
     migrated: boolean;
-    fromVersion: string;
-    toVersion: string;
+    fromVersion: number;
+    toVersion: number;
 }
 
-const versionNum = (v: string): number => {
-    const n = parseFloat(v);
-    return Number.isFinite(n) ? n : 0;
-};
+/**
+ * The format version of a scene, however it was written. Everything from before
+ * the integer scheme is format 1, so its leading digits are the whole answer.
+ * Unreadable reads as 1, not 0: a scene with no version predates having one.
+ */
+export function parseSceneFormatVersion(v: unknown): number {
+    if (typeof v === 'number') return Number.isInteger(v) && v > 0 ? v : 1;
+    if (typeof v === 'string') {
+        const leading = /^\s*(\d+)/.exec(v);
+        if (leading) return Math.max(1, Number(leading[1]));
+    }
+    return 1;
+}
 
 /**
  * Component types retired by an engine upgrade. A scene authored before the
@@ -323,11 +343,11 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entities)) {
         throw new Error('Scene data must have an "entities" array');
     }
-    const fromVersion = typeof raw.version === 'string' ? raw.version : '1.0';
-    if (versionNum(fromVersion) > versionNum(SCENE_FORMAT_VERSION)) {
+    const fromVersion = parseSceneFormatVersion(raw.version);
+    if (fromVersion > SCENE_FORMAT_VERSION) {
         throw new Error(
-            `Scene format version "${fromVersion}" is newer than this engine supports ` +
-            `("${SCENE_FORMAT_VERSION}"); upgrade the engine to load it.`,
+            `Scene format version ${fromVersion} is newer than this engine supports ` +
+            `(${SCENE_FORMAT_VERSION}); upgrade the engine to load it.`,
         );
     }
 
