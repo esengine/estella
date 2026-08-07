@@ -29,6 +29,21 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A system that threw inside `forEach` left the world iterating.** The world
+  refuses `spawn`/`despawn`/`remove` while a query is being walked — those would
+  resize the arrays under it — so `beginIteration` and `endIteration` have to
+  balance no matter how the walk ends. `forEach` called them around a bare loop
+  with no `try`/`finally`, so a callback that threw skipped the decrement and the
+  world believed it was iterating from then on. The failure does not appear where
+  it happened: the callback's error gets logged somewhere, and the next unrelated
+  `world.spawn()` fails with "Cannot spawn entity during query iteration". The
+  system runner resets the depth at each system boundary, which limits this to the
+  rest of that system and does nothing for a `forEach` outside one (an editor
+  tool, a script holding the World). The iterator had the same hole in `next()`:
+  `for..of` closes an iterator whose BODY throws, but not one whose `next()` does.
+  Both close now, and a write-back that fails while an error is already on its way
+  out no longer replaces it — the callback's error is the one worth reading.
+
 - **Asking a query a question gave a different answer than iterating it.**
   `Added()`/`Changed()` are per-entity tick checks applied while iterating, not
   part of the entity set the query cache returns — and `count()` read that set

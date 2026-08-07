@@ -436,13 +436,17 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
         const writeMut = () => { self.writeMutBack_(prevEntity!); };
 
-        const finalize = () => {
+        // endIteration first, so the depth balances even if the write-back throws.
+        const finalize = (errorInFlight = false) => {
             if (done) return;
             done = true;
             world.endIteration();
-            if (prevEntity !== null && hasMut) {
+            if (prevEntity === null || !hasMut) return;
+            if (!errorInFlight) {
                 writeMut();
+                return;
             }
+            try { writeMut(); } catch { /* the original error wins */ }
         };
 
         const iterResult: IteratorResult<QueryResult<C>> = { value: result as QueryResult<C>, done: false };
@@ -455,31 +459,39 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                     world.beginIteration();
                 }
 
-                while (idx < entities.length) {
-                    const entity = entities[idx++];
+                // for..of closes the iterator when its BODY throws, but nothing
+                // closes it when next() itself does — a getter over broken storage
+                // would leave the world iterating for good.
+                try {
+                    while (idx < entities.length) {
+                        const entity = entities[idx++];
 
-                    if (hasChangeFilters && !self.passesChangeFilters_(entity)) {
-                        continue;
-                    }
-
-                    if (prevEntity !== null && hasMut) {
-                        writeMut();
-                    }
-
-                    result[0] = entity;
-                    for (let i = 0; i < compCount; i++) {
-                        const getter = getters[i];
-                        result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
-                    }
-
-                    if (hasMut) {
-                        for (let i = 0; i < mutCount; i++) {
-                            mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                        if (hasChangeFilters && !self.passesChangeFilters_(entity)) {
+                            continue;
                         }
-                        prevEntity = entity;
-                    }
 
-                    return iterResult;
+                        if (prevEntity !== null && hasMut) {
+                            writeMut();
+                        }
+
+                        result[0] = entity;
+                        for (let i = 0; i < compCount; i++) {
+                            const getter = getters[i];
+                            result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+                        }
+
+                        if (hasMut) {
+                            for (let i = 0; i < mutCount; i++) {
+                                mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                            }
+                            prevEntity = entity;
+                        }
+
+                        return iterResult;
+                    }
+                } catch (e) {
+                    finalize(true);
+                    throw e;
                 }
 
                 finalize();
@@ -507,43 +519,54 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
         world.beginIteration();
         let prevEntity: Entity | null = null;
-        for (let idx = 0; idx < entities.length; idx++) {
-            const entity = entities[idx];
-            if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
+        let completed = false;
+        try {
+            for (let idx = 0; idx < entities.length; idx++) {
+                const entity = entities[idx];
+                if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
+
+                if (prevEntity !== null && hasMut) {
+                    this.writeMutBack_(prevEntity);
+                }
+
+                result[0] = entity;
+                for (let i = 0; i < compCount; i++) {
+                    const getter = getters[i];
+                    result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+                }
+
+                if (hasMut) {
+                    for (let i = 0; i < mutCount; i++) {
+                        mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                    }
+                    prevEntity = entity;
+                }
+
+                // Fast path for 1–6 components (covers the vast majority of queries); 7+ falls back to .apply.
+                switch (compCount) {
+                    case 1: (callback as any)(entity, result[1]); break;
+                    case 2: (callback as any)(entity, result[1], result[2]); break;
+                    case 3: (callback as any)(entity, result[1], result[2], result[3]); break;
+                    case 4: (callback as any)(entity, result[1], result[2], result[3], result[4]); break;
+                    case 5: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5]); break;
+                    case 6: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5], result[6]); break;
+                    default: (callback as Function).apply(null, result); break;
+                }
+            }
 
             if (prevEntity !== null && hasMut) {
                 this.writeMutBack_(prevEntity);
             }
-
-            result[0] = entity;
-            for (let i = 0; i < compCount; i++) {
-                const getter = getters[i];
-                result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+            completed = true;
+        } finally {
+            if (!completed && prevEntity !== null && hasMut) {
+                // The callback threw partway. Edits it already finished still go
+                // back, but a failure writing them must not replace the error on
+                // its way out — that error is the one worth reading.
+                try { this.writeMutBack_(prevEntity); } catch { /* the original error wins */ }
             }
-
-            if (hasMut) {
-                for (let i = 0; i < mutCount; i++) {
-                    mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
-                }
-                prevEntity = entity;
-            }
-
-            // Fast path for 1–6 components (covers the vast majority of queries); 7+ falls back to .apply.
-            switch (compCount) {
-                case 1: (callback as any)(entity, result[1]); break;
-                case 2: (callback as any)(entity, result[1], result[2]); break;
-                case 3: (callback as any)(entity, result[1], result[2], result[3]); break;
-                case 4: (callback as any)(entity, result[1], result[2], result[3], result[4]); break;
-                case 5: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5]); break;
-                case 6: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5], result[6]); break;
-                default: (callback as Function).apply(null, result); break;
-            }
+            world.endIteration();
         }
-
-        if (prevEntity !== null && hasMut) {
-            this.writeMutBack_(prevEntity);
-        }
-        world.endIteration();
     }
 
     /**
