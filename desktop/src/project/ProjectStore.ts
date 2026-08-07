@@ -672,6 +672,34 @@ class ProjectStoreImpl {
   }
 
   /**
+   * A new, empty prefab: the entity the Create menu's "Empty" makes, as a
+   * standalone asset.
+   *
+   * Built from that entity SOURCE rather than a second definition of what an empty
+   * entity is — the same reason the Canvas hosting a UI prefab is built from the
+   * Canvas source. And run through `extractPrefab`, because that is what mints
+   * entity identities: a source's in-memory prefab carries `prefabEntityId: '0'`,
+   * the id every prefab had BEFORE stable ids, and an override aimed at `'0'` is
+   * refused now — so writing one to disk would author an asset nothing can
+   * customise.
+   */
+  private async blankPrefab(name: string): Promise<PrefabData> {
+    const built = await sourceById('empty')?.build?.({ parent: null });
+    const root = built?.entities[0];
+    if (!root) throw new Error('the "Empty" entity source is not registered');
+    const entity = { id: 0, name, parent: null, children: [], components: root.components, visible: true };
+    return extractPrefab([entity as unknown as ExtractEntity], 0, name);
+  }
+
+  /** Create a blank `.esprefab` under `destDir` — the Content Browser's New →
+   *  Prefab. An empty prefab is a starting point: double-click opens it in Prefab
+   *  Mode, where it is built up like a scene. */
+  async createPrefabFile(destDir: string, name = 'Prefab'): Promise<string> {
+    const content = JSON.stringify(await this.blankPrefab(name), null, 2) + '\n';
+    return window.estella.project.createAsset(destDir, 'prefab.esprefab', content, 'prefab');
+  }
+
+  /**
    * Load the project's asset index (the main-process AssetDatabase scan)
    * into a uuid→path registry, then point the engine
    * `Assets` loader at it + the `estella://` transport. This is the ONE

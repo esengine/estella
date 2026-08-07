@@ -37,6 +37,7 @@ describe('NEW_ASSET_TYPES', () => {
   it('covers the expected creatable types', () => {
     expect(NEW_ASSET_TYPES.map((a) => a.labelKey)).toEqual([
       'cb.menuNewScene',
+      'cb.menuNewPrefab',
       'cb.menuNewScript',
       'cb.menuNewAnimation',
       'cb.menuNewInputMap',
