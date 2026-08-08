@@ -20,10 +20,8 @@ import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
 import type { NativeBridge } from '../platform/native';
 import { platformReadTextFile } from '../platform';
-import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers, type PackagedGameConfig } from './packagedRuntime';
+import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers, packagedRuntimeInit, type PackagedGameConfig } from './packagedRuntime';
 import type { SceneData } from '../scene/scene';
-import type { ThemeOverrides } from '../ui';
-import { parseThemeOverrides } from '../ui';
 import { log } from '../util/logger';
 
 export interface NativeGameOptions {
@@ -79,8 +77,9 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
         ],
         firstScene: entry.name,
         aspectRatio: height > 0 ? width / height : undefined,
-        uiTheme: config.uiTheme,
-        uiThemeOverrides: parseThemeOverrides(config.uiThemeColors) as ThemeOverrides | undefined,
+        // The projection, not a hand-written list: a host that names the fields it
+        // knows about is a host the next field never reaches.
+        ...packagedRuntimeInit(config),
     });
 
     log.info('native', `game up — ${scenes.length} scene(s), entry "${entry.name}"`);
