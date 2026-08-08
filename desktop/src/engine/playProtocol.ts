@@ -81,6 +81,10 @@ export interface PlayPayload {
   /** Project camera fit (design resolution + scale mode) — letterboxes the realm's
    *  main camera without a UI Canvas; absent = no fit (raw orthoSize). */
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+  /** The project's declared achievement ids — Play checks an unlock against the
+   *  same set a shipped build does, so a typo is caught here rather than by a
+   *  player whose achievement never fires. */
+  achievements?: string[];
   /** Multiplayer preview role; absent = a plain single-player session. */
   net?: PlayNetConfig;
   /**

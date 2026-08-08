@@ -85,6 +85,9 @@ export interface PlayRealmRuntimeConfig {
     uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
+    /** The project's declared achievement ids — Play checks an unlock against the
+     *  same set a shipped build does, so a typo is found here. */
+    achievements?: string[];
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
     enableStats?: boolean;
 }
@@ -191,6 +194,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
+        achievements: config.achievements,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.
     });

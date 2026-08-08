@@ -45,6 +45,9 @@ export interface RuntimeScreenFit {
  * field that makes the rehearsal lie.
  */
 export interface RuntimeProjectConfig {
+  /** The achievement ids the project declares — the set the runtime refuses an
+   *  unlock outside of. Empty ⇒ nothing is checked. */
+  achievements: string[];
   /** Install physics even when the static scene shows no bodies (runtime-spawned). */
   physicsEnabled: boolean;
   /** World solver + collision matrix (Project Settings → Physics). */
@@ -115,10 +118,11 @@ function physicsConfigOf(features: ProjectManifest['features']): PhysicsPluginCo
  * processes have — the editor's live project state satisfies it structurally.
  */
 export function runtimeConfigOf(
-  manifest: Pick<ProjectManifest, 'designResolution' | 'features'>,
+  manifest: Pick<ProjectManifest, 'designResolution' | 'features' | 'packaging'>,
 ): RuntimeProjectConfig {
   const f = manifest.features;
   return {
+    achievements: manifest.packaging?.achievements ?? [],
     physicsEnabled: f?.physics?.enabled ?? false,
     physicsConfig: physicsConfigOf(f),
     audioConfig: f?.audio ?? {},
@@ -135,7 +139,7 @@ export function runtimeConfigOf(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'screenFit' | 'uiTheme' | 'uiThemeColors'
-  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig'
+  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements'
 >;
 
 /**
@@ -162,6 +166,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.physicsEnabled ? { physicsEnabled: true } : {}),
     ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
     ...(rc.audioConfig.buses?.length ? { audioConfig: rc.audioConfig } : {}),
+    ...(rc.achievements.length ? { achievements: rc.achievements } : {}),
   };
 }
 

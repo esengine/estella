@@ -27,6 +27,7 @@ import { SceneManager, type SceneConfig } from '../scene/sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
+import { Achievements } from '../services/achievements';
 import { VideoPlayer } from '../video/VideoAPI';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
@@ -513,6 +514,9 @@ export interface RuntimeInitConfig {
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides; see {@link LoadRuntimeSceneOptions.uiThemeOverrides}. */
     uiThemeOverrides?: ThemeOverrides;
+    /** The achievement ids the project declares — the set an unlock is checked
+     *  against, since a store would take an unknown one and do nothing. */
+    achievements?: string[];
     aspectRatio?: number;
 }
 
@@ -538,6 +542,10 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     if (config.audioConfig && app.hasResource(Audio)) {
         applyAudioProjectConfig(app.getResource(Audio), config.audioConfig);
     }
+
+    // The declared achievement ids, so an unlock outside the set is refused here
+    // rather than accepted by a store and silently dropped.
+    app.getResource(Achievements)?.setKnown(config.achievements ?? null);
 
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
         app: config.app,

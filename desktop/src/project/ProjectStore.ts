@@ -1537,6 +1537,7 @@ class ProjectStoreImpl {
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+    achievements?: string[];
   } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;

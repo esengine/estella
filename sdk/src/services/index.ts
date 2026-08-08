@@ -10,6 +10,9 @@ export {
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
     type LeaderboardStyle, type LocalLeaderboardOptions,
 } from './leaderboard';
+export {
+    Achievements, AchievementsAPI, createLocalAchievements, type AchievementProvider,
+} from './achievements';
 export { Identity, IdentityAPI, type LoginResult } from './identity';
 export { Payment, PaymentAPI, type PaymentRequest, type PaymentFailure } from './payment';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';

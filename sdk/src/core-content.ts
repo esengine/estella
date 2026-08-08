@@ -410,15 +410,17 @@ export {
 } from './audio';
 
 // =============================================================================
-// Platform services (ads, share)
+// Platform services (ads, share, achievements)
 // =============================================================================
 
 export {
+    Achievements, AchievementsAPI, createLocalAchievements,
     Ads, AdsAPI, createMockAdProvider,
     Share, ShareAPI,
     Leaderboard, LeaderboardAPI, createLocalLeaderboard,
     Identity, IdentityAPI, Payment, PaymentAPI,
     ServicesPlugin, servicesPlugin,
+    type AchievementProvider,
     type AdProvider, type AdsHost, type MockAdProviderOptions, type ShareCard,
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
     type LeaderboardStyle, type LocalLeaderboardOptions, type LoginResult,

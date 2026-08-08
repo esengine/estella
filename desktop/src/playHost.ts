@@ -309,6 +309,9 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     audioConfig: msg.audioConfig,
     uiTheme: msg.uiTheme,
     uiThemeOverrides: msg.uiThemeOverrides,
+    // The declared achievement ids, so a typo'd unlock is refused HERE — a store
+    // would accept it and do nothing, and only a player would ever find out.
+    achievements: msg.achievements,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
   // Realm-local debug handle for automation/diagnostics (mirrors the headless

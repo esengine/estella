@@ -298,6 +298,14 @@ export interface ProjectPackaging {
    * mark, so a packaged game never ships with the platform's placeholder.
    */
   icon?: string;
+  /**
+   * The achievements this game has, by id.
+   *
+   * Platform-NEUTRAL rather than under a store, because every store has this same
+   * list under a different name. Declaring them lets the runtime refuse an unlock
+   * a store would accept and silently drop.
+   */
+  achievements?: string[];
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {
@@ -575,6 +583,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof v === 'number' && Number.isFinite(v) && v > 0) budgets[normalizePlatform(k)] = v;
       }
       if (Object.keys(budgets).length > 0) pkg.sizeBudget = budgets;
+    }
+    // Deduplicated and trimmed: a store keys achievements by this string, so a
+    // stray blank or a repeat is a row that can never match one.
+    if (Array.isArray(p.achievements)) {
+      const ids = [...new Set(p.achievements
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => id.trim())
+        .filter(Boolean))];
+      if (ids.length > 0) pkg.achievements = ids;
     }
     if (p.platforms && typeof p.platforms === 'object') {
       const pl = p.platforms as Record<string, unknown>;

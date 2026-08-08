@@ -41,6 +41,10 @@ const STORE = 'desktop/src/project/ProjectStore.ts';
  * printed by `--list` so the gaps stay visible rather than becoming folklore.
  */
 const DECLARED_GAPS = {
+  achievements: {
+    editor: 'nothing unlocks one while a scene is being authored — edit mode runs no '
+      + 'gameplay, so the set is checked in Play and in a shipped build',
+  },
   physicsEnabled: {
     editor: 'edit mode does not simulate — bodies are authored, not stepped',
   },
@@ -62,6 +66,7 @@ const DECLARED_GAPS = {
 
 /** The feature branch in the manifest parser each field is read from. */
 const PARSE_KEY = {
+  achievements: 'p.achievements',
   physicsEnabled: 'p.enabled',
   physicsConfig: 'physics',
   audioConfig: 'parseAudioProjectConfig',

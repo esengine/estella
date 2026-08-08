@@ -51,6 +51,9 @@ export interface PackagedGameConfig {
     uiTheme?: 'light';
     /** Project theme color overrides (role → #rrggbbaa hex). */
     uiThemeColors?: Record<string, string>;
+    /** The achievement ids this game declares. The runtime refuses an unlock
+     *  outside the set, because a store accepts an unknown id and does nothing. */
+    achievements?: string[];
     /**
      * Install physics even when the shipped scene shows no bodies — a project
      * that spawns them from script (Project Settings → Physics → Enabled).
@@ -153,13 +156,15 @@ export function packagedAppOptions(
  */
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
-        'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'>,
+        'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
+        | 'achievements'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
     audioConfig?: AudioProjectConfig;
     uiTheme?: 'light';
     uiThemeOverrides?: ThemeOverrides;
+    achievements?: string[];
 } {
     return {
         physicsEnabled: config.physicsEnabled,
@@ -167,6 +172,7 @@ export function packagedRuntimeInit(
         audioConfig: config.audioConfig,
         uiTheme: config.uiTheme,
         uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
+        achievements: config.achievements,
     };
 }
 
