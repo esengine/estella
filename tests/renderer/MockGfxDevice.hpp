@@ -18,6 +18,13 @@ struct MockGfxDevice final : GfxDevice {
     using GfxDevice::markDeviceLost;
     using GfxDevice::setDeviceIdentity;
 
+    // Stands in for a backend that can (or cannot) get its device back.
+    bool recreateSucceeds = true;
+    int recreateCalls = 0;
+    int identityCaptures = 0;
+    bool recreateDevice() override { ++recreateCalls; return recreateSucceeds; }
+    void captureDeviceIdentity() override { ++identityCaptures; }
+
     // call counters
     // The render state a draw resolved to, as the pipeline saw it.
     PipelineDesc lastPipelineDesc{};

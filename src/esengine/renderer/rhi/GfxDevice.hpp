@@ -91,8 +91,20 @@ public:
     /** @brief Whether the device can be drawn to (see {@link GfxDeviceStatus}). */
     GfxDeviceStatus deviceStatus() const { return device_status_; }
 
-    /** @brief True while the device is usable — the one check submission paths make. */
+    /** @brief Strictly Live: recovered but still-refilling counts as false. */
     bool isDeviceLive() const { return device_status_ == GfxDeviceStatus::Live; }
+
+    /**
+     * @brief Whether work may be submitted — the one check the guards make.
+     * @details True while Recovering as well as Live. A device that has been
+     *          rebuilt but whose textures are still being re-uploaded must draw:
+     *          refusing would leave the screen frozen for the whole reload
+     *          instead of filling in as the content lands.
+     */
+    bool isDeviceUsable() const {
+        return device_status_ == GfxDeviceStatus::Live ||
+               device_status_ == GfxDeviceStatus::Recovering;
+    }
 
     /** @brief The loss report, or null while the device is Live. */
     const GfxDeviceLostInfo* deviceLostInfo() const {
@@ -109,6 +121,37 @@ public:
     void notifyDeviceLost(GfxDeviceLostReason reason, std::string message = {},
                           std::string context = {}) {
         markDeviceLost(reason, std::move(message), std::move(context));
+    }
+
+    /**
+     * @brief Rebuilds the device and everything it can describe on its own.
+     *
+     * @details A backend rebuilds only what it fully describes: a texture's
+     *          pixels were never its to keep, and shadowing all of VRAM in system
+     *          memory is the alternative. Content returns through the layer that
+     *          loaded it, which ends the resulting Recovering state.
+     *
+     * @return True when the device is usable again.
+     */
+    bool recoverDevice() {
+        if (device_status_ != GfxDeviceStatus::Lost) return isDeviceUsable();
+        device_status_ = GfxDeviceStatus::Recovering;
+        if (!recreateDevice()) {
+            device_status_ = GfxDeviceStatus::Lost;
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @brief The content is back: the device is fully itself again.
+     * @details Called by the layer that re-uploaded what the backend could not.
+     */
+    void markDeviceRestored() {
+        if (device_status_ != GfxDeviceStatus::Recovering) return;
+        device_status_ = GfxDeviceStatus::Live;
+        device_info_ = GfxDeviceLostInfo{};
+        captureDeviceIdentity();
     }
 
     /**
@@ -140,12 +183,12 @@ public:
      *          frame does afterwards — passes, post-process, readbacks — is
      *          predicated on this having returned true, which is why it is a
      *          single question at the top rather than a check per submission.
-     * @return True when the device is live and the frame may proceed.
+     * @return True when the frame may proceed (see {@link isDeviceUsable}).
      */
     bool beginDeviceFrame() {
         ++device_frame_;
-        if (device_status_ == GfxDeviceStatus::Live) pollDeviceLost();
-        return device_status_ == GfxDeviceStatus::Live;
+        if (isDeviceUsable()) pollDeviceLost();
+        return isDeviceUsable();
     }
 
     /**
@@ -539,9 +582,22 @@ public:
 protected:
     /**
      * @brief Records who this backend is, so a later loss report can name it.
-     * @details Call from init(), while the backend still answers. Doing it at
-     *          loss time is too late — see {@link GfxDeviceLostInfo}.
+     * @details Called from init() while the backend still answers, and again
+     *          after a recovery: a rebuilt device can be a DIFFERENT GPU, and a
+     *          report naming the one that is gone sends the reader hunting the
+     *          wrong hardware. Implementations call setDeviceIdentity.
      */
+    virtual void captureDeviceIdentity() {}
+
+    /**
+     * @brief Backend half of {@link recoverDevice}: rebuild the device and the
+     *        resources this backend holds a full description of.
+     * @details Default: this backend cannot rebuild itself, so a loss is final.
+     * @return True when the device is usable again.
+     */
+    virtual bool recreateDevice() { return false; }
+
+    /** @brief Records the backend identity; see {@link captureDeviceIdentity}. */
     void setDeviceIdentity(std::string backend, std::string vendor,
                            std::string renderer, std::string version) {
         device_info_.backend = std::move(backend);

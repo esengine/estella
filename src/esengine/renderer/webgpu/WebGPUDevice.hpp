@@ -79,6 +79,14 @@ public:
 
     bool pollDeviceLost() override;
 
+protected:
+    void captureDeviceIdentity() override;
+    // recreateDevice is deliberately NOT overridden: only whoever created the
+    // device can replace it, and claiming otherwise would report a recovery that
+    // did not happen. A WebGPU loss stays fatal until that host hands one over.
+
+public:
+
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
 

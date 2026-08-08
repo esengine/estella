@@ -80,6 +80,10 @@ WebGPUDevice::~WebGPUDevice() {
 }
 
 void WebGPUDevice::init() {
+    captureDeviceIdentity();
+}
+
+void WebGPUDevice::captureDeviceIdentity() {
     // Ask the adapter who this GPU is. getString() below answers with constants
     // true of every WebGPU build, and so useless in a loss report; the adapter
     // knows the vendor, the chip and the driver build.
@@ -448,7 +452,7 @@ void WebGPUDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
 // the backend's half of the contract; the frame loop stops submitting above them.
 
 BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* initialData) {
-    if (!isDeviceLive()) return BufferHandle::Invalid;
+    if (!isDeviceUsable()) return BufferHandle::Invalid;
     if (!device_) {
         ES_LOG_ERROR("WebGPUDevice::createBuffer: no device");
         return BufferHandle::Invalid;
@@ -570,7 +574,7 @@ void WebGPUDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
 // =============================================================================
 
 VertexLayoutHandle WebGPUDevice::createVertexLayout(const VertexLayoutDesc& desc) {
-    if (!isDeviceLive()) return VertexLayoutHandle::Invalid;
+    if (!isDeviceUsable()) return VertexLayoutHandle::Invalid;
     // Validate every attribute has a WebGPU spelling up front — a mismatch is an
     // engine bug, not a runtime condition.
     for (u32 i = 0; i < desc.attributeCount; ++i) {
@@ -618,7 +622,7 @@ const PipelineDesc* WebGPUDevice::pipelineDesc(PipelineHandle handle) const {
 // =============================================================================
 
 TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* pixels) {
-    if (!isDeviceLive()) return TextureHandle::Invalid;
+    if (!isDeviceUsable()) return TextureHandle::Invalid;
     if (!device_) {
         ES_LOG_ERROR("WebGPUDevice::createTexture: no device");
         return TextureHandle::Invalid;
@@ -660,7 +664,7 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 
 TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
                                                     const void* data, u32 byteLength, u32 mipLevels) {
-    if (!isDeviceLive()) return TextureHandle::Invalid;
+    if (!isDeviceUsable()) return TextureHandle::Invalid;
     if (!device_ || !queue_) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: no device");
         return TextureHandle::Invalid;
@@ -821,7 +825,7 @@ bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
 ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
                                          const GfxAttribBinding*, u32,
                                          std::string* outLog, GfxShaderStage* outFailedStage) {
-    if (!isDeviceLive()) {
+    if (!isDeviceUsable()) {
         if (outLog) *outLog = "device lost";
         return ShaderHandle::Invalid;
     }
@@ -906,7 +910,7 @@ void WebGPUDevice::uniformBlockBinding(ShaderHandle, u32, u32) {}
 // =============================================================================
 
 PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
-    if (!isDeviceLive()) return PipelineHandle::Invalid;
+    if (!isDeviceUsable()) return PipelineHandle::Invalid;
     // Dedup on the descriptor like GLDevice's pipeline cache.
     for (const auto& [id, rec] : pipelines_) {
         if (rec.desc == desc) return static_cast<PipelineHandle>(id);
@@ -1411,7 +1415,7 @@ void WebGPUDevice::flushBindGroup() {
 // =============================================================================
 
 void WebGPUDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 indexByteOffset) {
-    if (!isDeviceLive() || !pass_) return;
+    if (!isDeviceUsable() || !pass_) return;
     auto it = buffers_.find(bound_index_buffer_);
     if (it == buffers_.end()) return;
     flushBindGroup();
@@ -1422,14 +1426,14 @@ void WebGPUDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 index
 }
 
 void WebGPUDevice::drawArrays(u32 firstVertex, u32 vertexCount) {
-    if (!isDeviceLive() || !pass_) return;
+    if (!isDeviceUsable() || !pass_) return;
     flushBindGroup();
     wgpuRenderPassEncoderDraw(pass_, vertexCount, 1, firstVertex, 0);
 }
 
 void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 indexByteOffset,
                                          u32 instanceCount) {
-    if (!isDeviceLive() || !pass_) return;
+    if (!isDeviceUsable() || !pass_) return;
     auto it = buffers_.find(bound_index_buffer_);
     if (it == buffers_.end()) return;
     flushBindGroup();
@@ -1441,7 +1445,7 @@ void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, 
 }
 
 FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc& desc) {
-    if (!isDeviceLive()) return FramebufferHandle::Default;
+    if (!isDeviceUsable()) return FramebufferHandle::Default;
     FramebufferRec rec{};
     rec.color0 = static_cast<u32>(desc.color0);
     rec.depthStencil = static_cast<u32>(desc.depthStencil);
@@ -1461,7 +1465,7 @@ void WebGPUDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
 }
 
 void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
-    if (!isDeviceLive()) return;
+    if (!isDeviceUsable()) return;
     if (!device_) return;
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
 
@@ -1664,7 +1668,7 @@ void WebGPUDevice::releaseReadback(u32 id) {
 }
 
 ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
-    if (!isDeviceLive()) return ReadbackHandle::Invalid;
+    if (!isDeviceUsable()) return ReadbackHandle::Invalid;
     if (!device_ || w == 0 || h == 0) return ReadbackHandle::Invalid;
     if (inPass()) {
         ES_LOG_ERROR("WebGPUDevice::requestReadback: must be called outside a render pass");

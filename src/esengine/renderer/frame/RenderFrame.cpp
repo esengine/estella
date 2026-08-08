@@ -289,7 +289,7 @@ void RenderFrame::flush() {
     // The device can still die between begin() and here — a GL error check, a
     // spontaneous WebGPU callback. Marked flushed above first, so end() does not
     // come back for a second attempt at a frame that has nowhere to go.
-    if (!device_.isDeviceLive()) return;
+    if (!device_.isDeviceUsable()) return;
 
     // Drop any pipeline a prior phase left bound, so the first draw re-applies its state.
     device_.invalidatePipelineCache();
@@ -448,7 +448,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
 void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
     if (w == 0 || h == 0) return;
-    if (!device_.isDeviceLive()) return;
+    if (!device_.isDeviceUsable()) return;
 
     if (preview_rt_ == 0) {
         preview_rt_ = target_manager_.create(w, h, /*depth=*/false, /*linearFilter=*/false);

@@ -93,6 +93,62 @@ int main() {
               "giving up does not overwrite why it was lost");
     }
 
+    // --- Recovery: usable before it is whole ---
+    {
+        MockGfxDevice d;
+        d.notifyDeviceLost(GfxDeviceLostReason::ContextLost, "gone");
+
+        CHECK(d.recoverDevice(), "recoverDevice succeeds when the backend can rebuild");
+        CHECK(d.recreateCalls == 1, "the backend was asked exactly once");
+        CHECK(d.deviceStatus() == GfxDeviceStatus::Recovering, "a rebuilt device is Recovering");
+        CHECK(!d.isDeviceLive(), "Recovering is not yet Live");
+        // The whole point of the middle state: the device draws while its content
+        // is still being re-uploaded, instead of freezing until the last texture.
+        CHECK(d.isDeviceUsable(), "a Recovering device may be submitted to");
+        CHECK(d.beginDeviceFrame(), "a Recovering device opens frames");
+        CHECK(d.deviceLostInfo() != nullptr, "the report stands until the content is back");
+
+        d.markDeviceRestored();
+        CHECK(d.deviceStatus() == GfxDeviceStatus::Live, "markDeviceRestored completes it");
+        CHECK(d.deviceLostInfo() == nullptr, "a restored device reports no loss");
+        // A rebuilt device can be a different GPU, so the identity is re-asked.
+        CHECK(d.identityCaptures == 1, "identity is captured again on restore");
+    }
+
+    // --- A recovery that fails leaves it retryable, not half-open ---
+    {
+        MockGfxDevice d;
+        d.notifyDeviceLost(GfxDeviceLostReason::Reset, "hung");
+        d.recreateSucceeds = false;
+
+        CHECK(!d.recoverDevice(), "recoverDevice reports the failure");
+        CHECK(d.deviceStatus() == GfxDeviceStatus::Lost, "a failed recovery falls back to Lost");
+        CHECK(!d.isDeviceUsable(), "and nothing may be submitted to it");
+        CHECK(d.deviceLostInfo()->reason == GfxDeviceLostReason::Reset,
+              "the original reason is not lost to the failed attempt");
+
+        // Retryable: a context comes back when the browser is ready, not when asked.
+        d.recreateSucceeds = true;
+        CHECK(d.recoverDevice(), "a later attempt can still succeed");
+        CHECK(d.deviceStatus() == GfxDeviceStatus::Recovering, "and it lands in Recovering");
+    }
+
+    // --- The transitions that must do nothing ---
+    {
+        MockGfxDevice live;
+        CHECK(live.recoverDevice(), "recovering a live device is a no-op that reports usable");
+        CHECK(live.recreateCalls == 0, "a live device is never asked to rebuild");
+        live.markDeviceRestored();
+        CHECK(live.deviceStatus() == GfxDeviceStatus::Live, "restoring a live device changes nothing");
+        CHECK(live.identityCaptures == 0, "and does not re-ask its identity");
+
+        MockGfxDevice dead;
+        dead.markDeviceDead();
+        CHECK(!dead.recoverDevice(), "a device given up on is not recovered");
+        CHECK(dead.recreateCalls == 0, "and its backend is never asked");
+        CHECK(dead.deviceStatus() == GfxDeviceStatus::Dead, "it stays Dead");
+    }
+
     std::printf(g_failures ? "\n%d FAILURE(S)\n" : "\nall passed\n", g_failures);
     return g_failures ? 1 : 0;
 }

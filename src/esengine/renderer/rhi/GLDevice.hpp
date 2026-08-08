@@ -41,6 +41,12 @@ public:
 
     bool pollDeviceLost() override;
 
+protected:
+    void captureDeviceIdentity() override;
+    bool recreateDevice() override;
+
+public:
+
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
 
@@ -153,6 +159,11 @@ private:
     void applyStencilMode(GfxStencilMode mode);
 
     void uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes, bool respec);
+
+    // Drops every "what is currently bound" cache. Those answers are only valid
+    // for the context that was asked; after a restore they would suppress the
+    // very binds that re-establish state.
+    void resetStateCache();
 
     // Applies the current pipeline's vertex layout to the pending buffer bindings:
     // the layout's lazily-created VAO is bound, and any slot whose buffer/offset
