@@ -147,12 +147,34 @@ void Shader::unbind() const {
     if (device_) device_->useProgram(ShaderHandle::Invalid);
 }
 
+bool Shader::recompile() {
+    if (!device_ || vertexSource_.empty()) return false;
+    // Copied out first: compile() assigns these members from its arguments, and
+    // passing them to it directly would be self-assignment.
+    const std::string vert = vertexSource_;
+    const std::string frag = fragmentSource_;
+    const std::vector<AttribBinding> bindings = attribBindings_;
+
+    // The program, its resolved locations and the DrawParams UBO all died with
+    // the device. Cleared rather than deleted; compile() rebuilds them.
+    program_ = ShaderHandle::Invalid;
+    paramsUbo_ = BufferHandle::Invalid;
+    uniformCache_.clear();
+    attribCache_.clear();
+    activeUniforms_.clear();
+
+    return compile(vert, frag, bindings, nullptr, nullptr, language_);
+}
+
 bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc,
-                     std::initializer_list<AttribBinding> bindings,
+                     const std::vector<AttribBinding>& bindings,
                      std::string* outLog,
                      ShaderStageFailure* outFailedStage,
                      GfxShaderLanguage language) {
     language_ = language;
+    vertexSource_ = vertexSrc;
+    fragmentSource_ = fragmentSrc;
+    attribBindings_.assign(bindings.begin(), bindings.end());
 
     // Fail fast on a language the backend cannot compile, before any GPU call —
     // the caller gets a diagnostic instead of a backend-specific compile error.

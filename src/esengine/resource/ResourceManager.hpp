@@ -296,6 +296,15 @@ public:
      *          textures by them, so re-uploading behind one is invisible.
      *          Sampling the placeholder meanwhile renders pale, not garbage.
      */
+    /**
+     * @brief Re-compiles every shader behind its existing handle.
+     * @details Shaders keep their sources precisely so this is possible: a
+     *          material's shaderRef and a plugin's handle stay valid, where
+     *          creating NEW shaders would invalidate every one of them.
+     * @return How many were rebuilt.
+     */
+    u32 recreateGpuShaders();
+
     void invalidateGpuTextures(::esengine::TextureHandle placeholder);
 
     /**

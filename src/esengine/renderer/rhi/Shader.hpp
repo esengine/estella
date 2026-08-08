@@ -245,6 +245,10 @@ public:
     /** @brief Gets the program handle's raw value, for command payloads and sort keys */
     u32 getProgramId() const { return static_cast<u32>(program_); }
 
+    /// Rebuilds the program from the sources it was compiled with, after the
+    /// device that held it went away. The handle naming this Shader is unchanged.
+    bool recompile();
+
 private:
     /**
      * @brief Compiles and links shader sources
@@ -253,7 +257,7 @@ private:
      * @return True on success
      */
     bool compile(const std::string& vertexSrc, const std::string& fragmentSrc,
-                 std::initializer_list<AttribBinding> bindings = {},
+                 const std::vector<AttribBinding>& bindings = {},
                  std::string* outLog = nullptr,
                  ShaderStageFailure* outFailedStage = nullptr,
                  GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
@@ -266,6 +270,13 @@ private:
     /** @brief Writes a param into the shadow if `name` is a DrawParams member.
      *  @return True when consumed (caller must not fall through to a loose upload). */
     bool writeParam(const std::string& name, DrawParamType type, const void* src) const;
+
+    /// What this program was built from, kept so it can be rebuilt behind the
+    /// SAME handle after a device loss — which is what keeps a material's
+    /// shaderRef valid. A few KB each; a texture's pixels are not.
+    std::string vertexSource_;
+    std::string fragmentSource_;
+    std::vector<AttribBinding> attribBindings_;
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     GfxShaderLanguage language_ = GfxShaderLanguage::GLSL_ES300;

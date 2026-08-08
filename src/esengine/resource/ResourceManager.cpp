@@ -266,6 +266,18 @@ TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 widt
     return textures_.add(std::move(texture), "", bytes);
 }
 
+u32 ResourceManager::recreateGpuShaders() {
+    u32 rebuilt = 0;
+    u32 failed = 0;
+    shaders_.forEachAlive([&](ShaderHandle, Shader& shader) {
+        if (shader.recompile()) ++rebuilt;
+        else ++failed;
+    });
+    if (failed > 0) ES_LOG_ERROR("Device recovery: {} shader(s) failed to rebuild", failed);
+    ES_LOG_INFO("Device recovery: {} shader(s) rebuilt behind their handles", rebuilt);
+    return rebuilt;
+}
+
 void ResourceManager::invalidateGpuTextures(::esengine::TextureHandle placeholder) {
     awaitingReupload_.clear();
     textures_.forEachAlive([&](TextureHandle handle, Texture& texture) {
