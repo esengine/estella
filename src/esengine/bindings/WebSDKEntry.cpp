@@ -263,6 +263,21 @@ std::string deviceLostReport() {
 }
 
 /**
+ * @brief Rebuilds the renderer after a loss; see EstellaContext::recoverDevice.
+ * @details Leaves the device Recovering — drawable, but its textures are
+ *          placeholders until the asset layer re-uploads and calls
+ *          markDeviceRestored.
+ */
+bool recoverDevice() {
+    return g_activeContext ? g_activeContext->recoverDevice() : false;
+}
+
+/** @brief Ends recovery: the content is back and the device is fully itself. */
+void markDeviceRestored() {
+    if (GfxDevice* device = activeGfxDevice()) device->markDeviceRestored();
+}
+
+/**
  * @brief Reports a loss the page observed.
  * @details The browser tells JS, not wasm: `webglcontextlost` fires on the
  *          canvas element and a GPUDevice resolves its `lost` promise. Both
@@ -388,6 +403,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("deviceStatus", &esengine::deviceStatus);
     emscripten::function("deviceLostReport", &esengine::deviceLostReport);
     emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
+    emscripten::function("recoverDevice", &esengine::recoverDevice);
+    emscripten::function("markDeviceRestored", &esengine::markDeviceRestored);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)

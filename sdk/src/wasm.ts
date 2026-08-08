@@ -191,6 +191,14 @@ export interface ESEngineModule {
      */
     notifyDeviceLost?(reason: number, message: string): void;
     /**
+     * Rebuild the renderer after a loss. False means "not yet" — a browser
+     * restores a context when it is ready, so this is expected to be retried.
+     * On success the device is Recovering: drawing, with placeholder textures.
+     */
+    recoverDevice?(): boolean;
+    /** End recovery once the textures are back. */
+    markDeviceRestored?(): void;
+    /**
      * UI draw order of an entity (its UIVisual.uiOrder, assigned by the UI
      * render-order pass), so SDF text quads interleave with UI quads. -1 if the
      * entity is not a UI render node.

@@ -2591,6 +2591,7 @@ initRenderer: () => void
 initRendererWebGPU: (canvasSelector: string, width: number, height: number) => boolean
 initRendererWithCanvas: (canvasSelector: string) => boolean
 initRendererWithContext: (contextHandle: number) => boolean
+markDeviceRestored: (() => void) | undefined
 material_compileEsshader: (source: string, featuresCsv: string) => number
 material_define: (materialId: number, shaderHandle: number, blendMode: number, flags: number) => void
 material_setTexture: (materialId: number, name: string, textureHandle: number) => void
@@ -2631,6 +2632,7 @@ postprocess_setScreenUniformVec4: (passName: string, uniform: string, x: number,
 postprocess_setUniformFloat: (passName: string, uniform: string, value: number) => void
 postprocess_setUniformVec4: (passName: string, uniform: string, x: number, y: number, z: number, w: number) => void
 postprocess_shutdown: () => void
+recoverDevice: (() => boolean) | undefined
 registry_batchSyncPhysicsTransforms: (registry: CppRegistry, bufferPtr: number, count: number, ppu: number) => void
 registry_getCameraEntities: (registry: CppRegistry) => number[]
 registry_getCanvasEntities: ((registry: CppRegistry) => number[]) | undefined

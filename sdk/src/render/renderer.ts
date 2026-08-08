@@ -167,6 +167,22 @@ export function reportDeviceLost(reason: number, message: string): void {
 }
 
 /**
+ * Ask the engine to rebuild the renderer after a loss.
+ *
+ * False means "not yet", not "never": a browser hands a WebGL context back when
+ * it is ready. On success the device is Recovering — drawing, with placeholder
+ * textures — until {@link finishDeviceRecovery}.
+ */
+export function recoverDevice(): boolean {
+    return module?.recoverDevice?.() ?? false;
+}
+
+/** Ends recovery: call once the asset layer has re-uploaded the textures. */
+export function finishDeviceRecovery(): void {
+    module?.markDeviceRestored?.();
+}
+
+/**
  * Subscribe to the host's `GPUDevice.lost`.
  *
  * WebGPU reports loss to whoever holds the JS device object, never to the
