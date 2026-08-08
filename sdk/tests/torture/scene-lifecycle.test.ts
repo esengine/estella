@@ -27,18 +27,32 @@ vi.mock('../../src/postprocess', () => ({
 vi.mock('../../src/render/material', () => ({
     Material: { release: vi.fn(), createShader: vi.fn() }, defineResource: vi.fn(),
 }));
-vi.mock('../../src/asset', () => ({
-    Assets: {
-        releaseTexture: vi.fn(), releaseFont: vi.fn(),
-        releaseMaterial: vi.fn(), releaseAll: vi.fn(),
-    },
-    discoverSceneAssets: vi.fn().mockReturnValue({ textures: [], fonts: [], spines: [], audios: [], unresolved: [] }),
-    preloadSceneAssets: vi.fn().mockResolvedValue({
-        loadedTextures: new Set(), loadedFonts: new Set(), loadedMaterials: new Set(), missing: [],
+// Each scene declares one texture and one tileset. The tileset is deliberate:
+// its type was one of four the manager preloaded and never tracked.
+const DECLARED = (scene: string): Map<string, Set<string>> => new Map([
+    ['texture', new Set([`tex/${scene}.png`])],
+    ['tileset', new Set([`maps/${scene}.estileset`])],
+]);
+/**
+ * Where a load's acquisitions are recorded. Discovery is where the manager
+ * learns what a scene needs and the preload takes a reference for each, so the
+ * ledger is written HERE — keyed off the scene data it was handed, because
+ * discovery runs before setup and a shared "current scene" is already stale.
+ */
+let currentLedger: { acquired: string[]; released: string[] } | null = null;
+vi.mock('../../src/asset/discoverAssets', () => ({
+    discoverSceneAssets: vi.fn((data: { name?: string }) => {
+        const byType = DECLARED(data?.name ?? 'unknown');
+        for (const [type, paths] of byType) {
+            for (const path of paths) currentLedger?.acquired.push(`${type}:${path}`);
+        }
+        return { byType };
     }),
+    getAssetPathsByType: vi.fn(() => new Set()),
 }));
 
 import { SceneManagerState } from '../../src/scene/sceneManager';
+import { Assets } from '../../src/asset/AssetPlugin';
 
 const SCENES = ['alpha', 'beta'] as const;
 const RUNS = Number(process.env.TORTURE_RUNS ?? 200);
@@ -50,7 +64,25 @@ interface FakeWorld {
     spawn(): number;
 }
 
+/** Acquisitions and releases, as (type, path) pairs the manager drove. */
+interface AssetLedger {
+    acquired: string[];
+    released: string[];
+}
+
 function makeManager(setupGate: (name: string) => Promise<unknown>) {
+    const ledger: AssetLedger = { acquired: [], released: [] };
+    currentLedger = ledger;
+    const fakeAssets = {
+        releaseTexture: (p: string) => { ledger.released.push(`texture:${p}`); },
+        releaseTyped: (t: string, p: string) => { ledger.released.push(`${t}:${p}`); },
+        releaseAssets(byType: ReadonlyMap<string, ReadonlySet<string>>) {
+            for (const [type, paths] of byType) {
+                for (const path of paths) ledger.released.push(`${type}:${path}`);
+            }
+        },
+        releaseMaterial: () => {},
+    };
     const live = new Set<number>();
     const components = new Map<number, Set<unknown>>();
     let next = 1;
@@ -66,8 +98,8 @@ function makeManager(setupGate: (name: string) => Promise<unknown>) {
     };
     const app = {
         world,
-        hasResource: () => false,
-        getResource: () => undefined,
+        hasResource: (token: unknown) => token === Assets,
+        getResource: (token: unknown) => (token === Assets ? fakeAssets : undefined),
         addSystemToSchedule: () => {},
         removeSystem: () => {},
     };
@@ -75,13 +107,17 @@ function makeManager(setupGate: (name: string) => Promise<unknown>) {
     for (const name of SCENES) {
         manager.register({
             name,
-            data: SCENE_DATA,
+            data: { version: '1.0', name, entities: [] },
             // Every setup is a scheduled task, so a load can be suspended
             // mid-flight while other verbs run against the same scene.
-            setup: async (ctx) => { await setupGate(name); ctx.spawn(); ctx.spawn(); },
+            setup: async (ctx) => {
+                await setupGate(name);
+                ctx.spawn();
+                ctx.spawn();
+            },
         });
     }
-    return { manager, world: { live, spawn: world.spawn } as FakeWorld };
+    return { manager, ledger, world: { live, spawn: world.spawn } as FakeWorld };
 }
 
 type Manager = SceneManagerState;
@@ -120,7 +156,25 @@ interface Model {
 interface Real {
     manager: Manager;
     world: FakeWorld;
+    ledger: AssetLedger;
     settled: Promise<unknown>[];
+}
+
+/**
+ * Every asset a load acquired comes back exactly once. Checked at teardown,
+ * because mid-run a loaded scene is legitimately still holding its own.
+ */
+function checkAssetConservation(real: Real): void {
+    const tally = new Map<string, number>();
+    for (const key of real.ledger.acquired) tally.set(key, (tally.get(key) ?? 0) + 1);
+    for (const key of real.ledger.released) tally.set(key, (tally.get(key) ?? 0) - 1);
+    const owed = [...tally].filter(([, n]) => n !== 0);
+    if (owed.length > 0) {
+        throw new Error(
+            'asset references not conserved across load/unload: '
+            + owed.map(([k, n]) => `${k} ${n > 0 ? `${n} unreleased` : `${-n} over-released`}`).join(', '),
+        );
+    }
 }
 
 type Cmd = fc.AsyncCommand<Model, Real>;
@@ -192,8 +246,8 @@ describe('scene lifecycle under generated interleavings', () => {
                     { maxCommands: 24 },
                 ),
                 async (scheduler, commands) => {
-                    const { manager, world } = makeManager(scheduler.scheduleFunction(async (n: string) => n));
-                    const real: Real = { manager, world, settled: [] };
+                    const { manager, world, ledger } = makeManager(scheduler.scheduleFunction(async (n: string) => n));
+                    const real: Real = { manager, world, ledger, settled: [] };
                     const model: Model = { loaded: new Set(), scheduler };
 
                     await fc.asyncModelRun(() => ({ model, real }), commands);
@@ -205,6 +259,7 @@ describe('scene lifecycle under generated interleavings', () => {
                     model.loaded.clear();
                     checkInvariants(manager, world, model.loaded);
                     expect(world.live.size, 'entities outlived unloadAll').toBe(0);
+                    checkAssetConservation(real);
                 },
             ),
             { numRuns: RUNS, seed: SEED, verbose: true },
