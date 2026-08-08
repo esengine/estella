@@ -122,6 +122,7 @@ add_test(NAME test_buffer_device COMMAND test_buffer_device)
 # Header-only, so nothing but Log.cpp is needed to link.
 add_executable(test_device_loss
     renderer/test_device_loss.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_device_loss PRIVATE ${CMAKE_SOURCE_DIR}/src)

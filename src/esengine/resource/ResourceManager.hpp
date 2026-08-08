@@ -285,6 +285,28 @@ public:
      */
     void registerTextureWithPath(TextureHandle handle, const std::string& path);
 
+    // =========================================================================
+    // Device Loss
+    // =========================================================================
+
+    /**
+     * @brief Points every texture at @p placeholder, keeping all handles valid.
+     * @details The GPU objects died with the device; the handles did not. They
+     *          are pool indices, and components, materials and fonts all name
+     *          textures by them, so re-uploading behind one is invisible.
+     *          Sampling the placeholder meanwhile renders pale, not garbage.
+     */
+    void invalidateGpuTextures(::esengine::TextureHandle placeholder);
+
+    /**
+     * @brief Re-points an existing handle at a freshly uploaded GPU texture.
+     * @return False if the handle names no live texture.
+     */
+    bool retargetExternalTexture(TextureHandle handle, u32 glTextureId, u32 width, u32 height);
+
+    /** @brief Texture handles that were invalidated and not yet re-uploaded. */
+    std::vector<TextureHandle> texturesAwaitingReupload() const;
+
     /**
      * @brief Gets the cached path for a texture
      * @param handle The texture handle
@@ -532,6 +554,9 @@ private:
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
     ResourcePool<text::BitmapFont> fonts_;
+    /// Handles whose GPU texture died with the device, still showing the
+    /// placeholder. Empty means the content is whole again.
+    std::vector<TextureHandle> awaitingReupload_;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
     LoaderRegistry loaderRegistry_;

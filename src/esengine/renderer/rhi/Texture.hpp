@@ -158,6 +158,20 @@ public:
                                    bool flipY = false);
 
     // =========================================================================
+    // Device Loss
+    // =========================================================================
+
+    /**
+     * @brief Points this texture at a different GPU object, keeping its identity.
+     * @details How a device loss stays invisible above: the resource::Handle
+     *          naming this Texture never changes, so no component, material or
+     *          font has to learn that the pixels were re-uploaded. The old GPU
+     *          object is NOT deleted — it died with the device.
+     * @param owns Whether this Texture should free @p gpuHandle at destruction.
+     */
+    void retarget(TextureHandle gpuHandle, bool owns);
+
+    // =========================================================================
     // Operations
     // =========================================================================
 

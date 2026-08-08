@@ -139,6 +139,21 @@ public:
     }
 
     /**
+     * @brief Visits every live resource, with the handle naming it.
+     * @details For sweeps that must reach resources by identity rather than by
+     *          path — a device loss invalidates all of them, including the ones
+     *          created from pixels and never given a path.
+     */
+    template<typename Fn>
+    void forEachAlive(Fn&& fn) {
+        for (usize i = 1; i < entries_.size(); ++i) {
+            Entry& entry = entries_[i];
+            if (!entry.resource) continue;
+            fn(Handle<T>::fromParts(static_cast<u32>(i), entry.generation), *entry.resource);
+        }
+    }
+
+    /**
      * @brief Gets a resource by handle
      * @param handle The resource handle
      * @return Pointer to the resource, or nullptr if invalid

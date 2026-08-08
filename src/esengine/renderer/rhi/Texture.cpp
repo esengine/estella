@@ -145,6 +145,11 @@ Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 heig
     return texture;
 }
 
+void Texture::retarget(TextureHandle gpuHandle, bool owns) {
+    handle_ = gpuHandle;
+    owns_ = owns;
+}
+
 Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
                                               TextureFormat format) {
     TextureDesc desc;

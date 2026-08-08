@@ -266,6 +266,45 @@ TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 widt
     return textures_.add(std::move(texture), "", bytes);
 }
 
+void ResourceManager::invalidateGpuTextures(::esengine::TextureHandle placeholder) {
+    awaitingReupload_.clear();
+    textures_.forEachAlive([&](TextureHandle handle, Texture& texture) {
+        // Retargeted, never deleted: the GPU object is already gone, and asking
+        // a dead device to free its id is at best a no-op. owns=false so the
+        // shared placeholder is not freed when one of them is released.
+        texture.retarget(placeholder, /*owns=*/false);
+        awaitingReupload_.push_back(handle);
+    });
+    ES_LOG_INFO("Device loss: {} texture(s) now on the placeholder, awaiting re-upload",
+                awaitingReupload_.size());
+}
+
+bool ResourceManager::retargetExternalTexture(TextureHandle handle, u32 glTextureId,
+                                              u32 width, u32 height) {
+    if (!device_) return false;
+    Texture* texture = textures_.get(handle);
+    if (!texture) return false;
+
+    TextureDesc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.format = GfxPixelFormat::RGBA8;
+    texture->retarget(device_->importExternalTexture(glTextureId, desc), /*owns=*/false);
+
+    for (usize i = 0; i < awaitingReupload_.size(); ++i) {
+        if (awaitingReupload_[i] == handle) {
+            awaitingReupload_[i] = awaitingReupload_.back();
+            awaitingReupload_.pop_back();
+            break;
+        }
+    }
+    return true;
+}
+
+std::vector<TextureHandle> ResourceManager::texturesAwaitingReupload() const {
+    return awaitingReupload_;
+}
+
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
     if (handle.isValid() && !path.empty()) {
         textures_.setPath(handle, path);

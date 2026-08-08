@@ -5,6 +5,8 @@
 
 #include "MockGfxDevice.hpp"
 #include "esengine/renderer/rhi/GfxEnums.hpp"
+#include "esengine/renderer/rhi/Texture.hpp"
+#include "esengine/resource/ResourcePool.hpp"
 
 #include <cstdio>
 #include <string>
@@ -147,6 +149,42 @@ int main() {
         CHECK(!dead.recoverDevice(), "a device given up on is not recovered");
         CHECK(dead.recreateCalls == 0, "and its backend is never asked");
         CHECK(dead.deviceStatus() == GfxDeviceStatus::Dead, "it stays Dead");
+    }
+
+    // --- The identity that survives the loss ---
+    //
+    // The recovery design rests on this: a pool handle names the Texture, not the
+    // GPU object, so re-uploading behind it is invisible to every holder.
+    {
+        MockGfxDevice d;
+        resource::ResourcePool<Texture> pool;
+
+        auto first = Texture::createFromExternalId(d, 41, 64, 64, TextureFormat::RGBA8);
+        auto second = Texture::createFromExternalId(d, 42, 32, 32, TextureFormat::RGBA8);
+        const resource::Handle<Texture> hA = pool.add(std::move(first));
+        const resource::Handle<Texture> hB = pool.add(std::move(second));
+        CHECK(pool.get(hA)->handle() == static_cast<TextureHandle>(41u),
+              "a texture starts on the GPU object it was registered with");
+
+        // A loss: every live texture is swept onto a placeholder.
+        const auto placeholder = static_cast<TextureHandle>(999u);
+        int swept = 0;
+        pool.forEachAlive([&](resource::Handle<Texture>, Texture& texture) {
+            texture.retarget(placeholder, /*owns=*/false);
+            ++swept;
+        });
+        CHECK(swept == 2, "forEachAlive reaches every live texture, path or no path");
+        CHECK(pool.get(hA)->handle() == placeholder, "sampling falls back to the placeholder");
+        CHECK(pool.get(hB)->handle() == placeholder, "for all of them");
+
+        // The re-upload: a NEW GPU object behind the SAME handle.
+        pool.get(hA)->retarget(static_cast<TextureHandle>(77u), /*owns=*/false);
+        CHECK(pool.get(hA)->handle() == static_cast<TextureHandle>(77u),
+              "a re-uploaded texture points at its new GPU object");
+        CHECK(pool.get(hA) != nullptr && pool.get(hB) != nullptr,
+              "and both handles still resolve — nothing above had to be told");
+        CHECK(pool.get(hB)->handle() == placeholder,
+              "a texture not yet re-uploaded keeps showing the placeholder");
     }
 
     std::printf(g_failures ? "\n%d FAILURE(S)\n" : "\nall passed\n", g_failures);
