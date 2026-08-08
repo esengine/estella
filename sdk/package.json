@@ -82,6 +82,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^2.1.9",
     "@vitest/ui": "^2.1.0",
+    "fast-check": "^4.9.0",
     "happy-dom": "^15.11.0",
     "minigame-api-typings": "^3.8.16",
     "rimraf": "^5.0.5",

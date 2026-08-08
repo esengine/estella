@@ -20,7 +20,8 @@
     "verify": "pnpm --filter ./sdk exec tsc --noEmit && node tools/api-surface.mjs --check && node tools/check-cycles.mjs && node tools/check-layers.mjs && node tools/check-project-settings.mjs && node tools/check-workflows.mjs && node tools/check-tool-calls.mjs && node tools/check-inspector-door.mjs && node tools/check-dirty-source.mjs && node tools/check-path-sandbox.mjs && node tools/check-comment-style.mjs && node tools/check-release-metadata.mjs && node tools/component-reference.mjs --check",
     "perf": "node tools/perf-guard.mjs --check",
     "prepare": "git config core.hooksPath .githooks || true",
-    "soak": "pnpm --filter ./sdk exec vitest run tests/soak"
+    "soak": "pnpm --filter ./sdk exec vitest run tests/soak",
+    "torture": "pnpm --filter ./sdk exec vitest run tests/torture"
   },
   "dependencies": {
     "chalk": "^5.3.0",
