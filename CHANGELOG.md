@@ -16,6 +16,82 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A lost GPU device is now a state the engine recovers from, not a black
+  screen.** Every backend can lose its device — the browser fires
+  `webglcontextlost` when the GPU resets or a tab is backgrounded too long,
+  WebGPU resolves its `lost` future, a native driver resets under you — and the
+  engine had no concept of it. The only thing that existed was a diagnostics
+  report whose own comment said what happened next: *"The frames after it draw
+  nothing."* Half-alive was not a risk, it was the documented behaviour.
+
+  A device now has a status. A backend only *detects* its own kind of loss and
+  says so; what "lost" then means — one report, one transition, submission
+  stopped — is the same for GL, for WebGPU and for whatever comes after them. The
+  report names the backend, GPU, driver and the frame it happened on, captured at
+  init because a lost backend cannot be asked who it was (`glGetString` returns
+  null once the context is gone), and those are exactly the fields that separate
+  an actionable bug from an unexplained black screen. WebGPU's loss can only be
+  subscribed to where the device is *created*, so the SDK reads the device back
+  off the module and subscribes once for every host rather than each host
+  remembering to wire its own.
+
+  Then it comes back. `Assets.recoverFromDeviceLoss()` rebuilds the device, every subsystem
+  that owns GPU objects, and the content, in the one order that works: shaders
+  first (every cached program id is read back from those handles), then the render
+  context (its 1×1 white is the placeholder textures are parked on), then the
+  textures. The device is left *Recovering* — drawable, with placeholders, so the
+  screen fills in rather than freezing for the length of the reload — until the
+  asset layer re-uploads and declares it whole.
+
+  The seam that made this affordable is that a `resource::Handle` names a texture,
+  not the GPU object inside it. Swapping that object out and back is invisible to
+  every component, material and font already holding one, so there is no rebind
+  pass walking the world looking for holders, and no shadow copy of VRAM in system
+  memory. Shaders take the other route and keep their sources — a few hundred KB
+  across a project, against tens of MB for a texture's pixels — so a handle stays
+  the stable identity there too.
+
+  Recovery is a real regression test, not a claim: `ESTELLA_VERIFY_DEVICE_LOSS=1`
+  drives a genuine `WEBGL_lose_context` cycle against the headless host and
+  asserts the whole thing, ending on pixels. Two defects it exposed had to be true
+  for recovery to be possible at all — the `webglcontextlost` listener never
+  called `preventDefault` (whose default action is the browser abandoning the
+  context *permanently*, so no rebuild path could ever have helped), and it was
+  installed on `window`, which an unattached canvas has no path to because the
+  event does not bubble. Either one alone meant a lost context stayed lost on any
+  real page.
+
+  One known residue: emscripten's GL object tables still grow across a loss
+  (programs 5 → 21, buffers 18 → 52), because wrappers minted against the dead
+  context are never reaped. The engine references none of them; it is bounded by
+  how many times one session loses its device, and it gets its own pass.
+
+- **The engine can be asked how many of anything are alive.** It could answer that
+  for entities and nothing else. GL objects, listeners, physics bodies, cache
+  entries and both heaps were reachable only by reading a private field of
+  whichever class owned them, if at all — so the failure that actually ends an
+  editor session, Play/Stop forty times and it crawls, had no instrument pointed
+  at it, and every leak ever fixed here was found by someone noticing.
+
+  `takeCensus()` is that instrument, and the tiering is the design. "Every counter
+  returns to baseline" is wrong often enough to be useless, and a soak test that
+  cries wolf gets deleted within the month: a texture cache holding `refCount==0`
+  entries for revival is doing its job, a pool at its high-water mark is doing its
+  job, and a JS heap is nobody's to control. So a counter declares which law it
+  obeys — *conserved* (identical every cycle), *bounded* (may plateau, must not
+  grow), *trend* (judged against a stated byte budget) or *info* (never asserted).
+  Judging the slope rather than the value is also what makes it cheap: a leak
+  rises from cycle one, so fifty cycles prove what ten thousand would.
+
+  It is exposed to the editor's agent as the `resource_census` tool, so "did that
+  get slower, and what is it holding" has somewhere to look. Also new, because the
+  census wants exact numbers where it can get them: `es_getMallocBytes()` (the
+  reserved wasm heap only grows, so a C++ leak hides until it crosses a growth
+  step and then reads as one 16MB jump — this is exact and falls on free), and
+  total body, shape, joint and tracking-row counts from physics. Only the *dynamic*
+  body count had been reachable, and that is precisely the subset that cannot show
+  the leak worth finding: a static body outliving its entity still collides.
+
 - **A 50,000-asset project, and a set of costs it has to stay under.** Every scale
   problem this engine has had was reported by someone whose project was big enough
   to notice — 36k assets where deleting 22 files took 52 seconds, a folder of 788
@@ -28,10 +104,10 @@ published separately; it ships inside the editor.
   holding all of it. It is generated rather than committed because 100,000 files
   would sit in front of every clone to store bytes that are a pure function of one
   script; the same seed gives the same tree byte for byte, in about eight seconds.
-  `pnpm run scale` measures seventeen costs against it and holds each to a
-  declared ceiling: project scan, incremental re-scan, delete, Find Usages, scene
-  open and save, prefab instantiate, per-frame update, and what a scene retains
-  after twenty open/close cycles.
+  `pnpm run scale` measures eighteen costs against it and holds each to a
+  declared ceiling: project scan, incremental re-scan, delete, move, Find Usages,
+  scene open and save, prefab instantiate, per-frame update, and what a scene
+  retains after twenty open/close cycles.
 
   The ceilings are the point. The performance snapshot that already existed
   answers "did this change make it worse", and can always be accepted with
@@ -41,6 +117,117 @@ published separately; it ships inside the editor.
   runner, every budget is denominated in a reference workload measured in the same
   run — parse, loop, or file-read, whichever matches the metric's shape — so the
   same number means the same thing on a laptop and in CI.
+
+### Changed
+
+- **A material names its texture and its shader by handle, not by a raw GPU id.**
+  `material_setTexture` took a `resource::TextureHandle` and resolved it to a GPU
+  id on the spot, and a layout's declared `default(white|black|flatnormal)` was
+  resolved the same way once at registration; `material_define` did the same with
+  a shader's program id, and filed the constants layout under it. All of them then
+  outlived what they named — a hot update, an eviction or a device loss replaces
+  the object behind a handle and the material keeps binding the id that is gone.
+  These were the last places in the engine reaching past the indirection every
+  other texture path relies on, which is exactly why they survived a re-upload
+  badly. A binding now stores the handle and resolves per bind (a pool lookup is
+  an array index and a generation compare, once per material per frame, not per
+  draw call); the shader keeps its handle as the identity with the program id as a
+  cache beside it, recomputed when the device rebuilds. `defaultTextureByName` had
+  no callers left and is gone.
+
+- **A texture load still in flight across `releaseAll()` now fails instead of
+  resolving.** It used to hand back a handle the pool had already destroyed. A
+  load that completed *before* the teardown cannot be un-resolved, so that result
+  is void by contract; the callers that matter re-load after a teardown anyway.
+
+- **`SceneManager.load` and `loadAdditive` are one implementation, and so are the
+  two halves of `switchTo`.** Each pair was two copies of the same forty lines
+  differing in three, which is the arrangement that stops agreeing — and it had:
+  the additive door missed the sleep/pause restore, and the faded and plain switch
+  paths held *different* locks, so "one switch at a time" was two invariants that
+  happened to line up. Behaviour is unchanged except where the copies had already
+  diverged; parity tests now make every claim of both doors from one table, so a
+  third entry point has to join it.
+
+- **One reference ledger for every asset kind.** Textures had their own accounting
+  and the seven generic kinds — audio, materials, fonts, clips, timelines,
+  tilemaps, prefabs — had a second copy of it with the same hole. What a resource
+  *is* stays the caller's business (a texture gives a handle back to the C++ pool,
+  a generic kind goes through `loader.unload`), but which generation a release
+  belongs to is not something two implementations should each have an opinion
+  about.
+
+- **`pnpm run verify` type-checks the editor too.** It ran `tsc --noEmit` for the
+  SDK and not for desktop, so a broken editor build could reach a push —
+  and `editor-checks` does not fail on that, it runs whatever `dist-electron`
+  already contained. A stale bundle answering questions about current code is
+  worse than no answer. Five and a half seconds next to the twelve guards already
+  there.
+
+### Fixed
+
+- **A collider switched off was still solid.** Every collider carries an `enabled`
+  flag — authored in the inspector, serialized, documented as "disable the shape"
+  — that nothing read. The shape attach re-added each present collider
+  unconditionally, so a platform turned off still blocked bodies and still stopped
+  the character controller's mover, which finds its planes in the same Box2D
+  world. A disabled collider is now equivalent to an absent one everywhere: no
+  shape, no cast shape, no debug outline. The editor gizmo keeps drawing them,
+  because that is where their geometry is authored. Data written before the field
+  existed has no `enabled` at all, so only an explicit `false` switches a shape
+  off.
+
+- **Every scene opened in the editor added texture references and dropped none.**
+  The editor called no release anywhere: opening a scene acquires a reference to
+  each asset it uses, opening the next one acquires more, and the count on a
+  shared texture only ever climbed. Its refcount never returned to zero, so the
+  C++ pool could never evict it — the texture budget stopped meaning anything an
+  hour into authoring. The instrument had to be fixed before the bug could be
+  seen: the census reported `asset.refCounts`, which counts *keys*, so two scenes
+  sharing two textures read a flat 2 while the references on them ran away.
+  Opening a scene now hands back what the outgoing document held first, so an
+  asset both scenes use is revived from the warm pool rather than refetched.
+
+- **A packaged game's scene unload released no assets at all.** A shipped game
+  registers its scenes with no `data` on the config — the bytes arrive inside
+  `setup()` — and the scene manager's asset discovery was gated on having that
+  data, so for every scene in a packaged build it never ran. Nothing was recorded
+  and nothing was given back: each switch leaked its whole asset set, textures
+  included. The editor's play realm hands the manager the scene data, so the one
+  place this could be seen was the one place nobody ships from.
+
+- **Four asset types were preloaded on every scene load and never released.**
+  `SceneInstance` carried seven hard-coded buckets, and four types have joined the
+  scene vocabulary since: tileset, statemachine, behaviortree, animatorcontroller.
+  All four were loaded, each taking a reference, and unload had no bucket to give
+  them back from — so every scene using a tileset, an FSM, a behaviour tree or an
+  animator controller leaked one reference per load, for the life of the process.
+  Switch between two such scenes and they pile up. The list is gone rather than
+  extended by four: unload now walks whatever discovery reported, through the
+  loader registry.
+
+- **`releaseGroup` dropped fonts on the floor.** `loadGroup` handled `font` and
+  `bitmap-font`; `releaseGroup` listed only `bitmap-font`, so every asset group
+  carrying an outline font kept its reference for the life of the process. The two
+  also addressed the asset differently — load honoured a remote group's CDN root,
+  release did not — and releasing a key nobody holds is a leak that looks exactly
+  like a working release. How a type is acquired and how it is given back are now
+  declared side by side, and a loader with no release has to say so.
+
+- **A hot reload stranded one texture, and one reference, every time.**
+  `invalidate()` mints a new generation while the previous one still has holders,
+  and the ledger had one slot per cache key — so their release was attributed to
+  the replacement, and the texture they were actually handed had nobody left able
+  to free it. The same shape hit all seven generic asset kinds: a superseded
+  generation is out of the cache while its holders still owe a release, and an
+  early return left their asset unreachable with `unload` never called.
+
+- **`loadAdditive` left a slept or paused scene permanently dark.** It set
+  `status = 'running'` and returned, so those entities kept their `Disabled`
+  component, their renderables stayed switched off, and `wake()` — which requires
+  status `sleeping` — became a permanent no-op with nothing able to bring them
+  back. The comment explaining exactly this hazard sat above the branch that had
+  it right.
 
 ## [0.46.0] - 2026-08-07
 
