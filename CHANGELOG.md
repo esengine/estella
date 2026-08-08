@@ -259,7 +259,9 @@ published separately; it ships inside the editor.
   looking at their friends list. It now runs the same ceremony a fullscreen ad
   does, and that ceremony became ref-counted in the process: opening the overlay
   *during* an interstitial and closing it must not resume a game the ad is still
-  covering.
+  covering. Verified against a live Steam client, with the packaged game launched
+  from a library: the overlay reports itself enabled and the callback arrives with
+  the flag set.
 
 - **A macOS game could never have reached Steam.** The host loaded the
   redistributable by its leaf name, and `dlopen` does not search the executable's
