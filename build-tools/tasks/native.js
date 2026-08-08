@@ -25,6 +25,7 @@ import {
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
+import { assembleMacApp } from '../utils/desktopApp.js';
 import { assembleApk, apkFileName } from '../utils/apk.js';
 import { assembleAab, aabFileName } from '../utils/aab.js';
 import { debugSigningKey, signingKeyFromPem } from '../utils/androidKeystore.js';
@@ -366,6 +367,12 @@ async function buildDesktopHost(options) {
 
     const exe = path.join(buildDir, 'estella_desktop');
     logger.success(`Desktop host: ${path.relative(rootDir, exe)}`);
+
+    // Same rule as the other two: the compiled half is project-independent, so it
+    // is packed as the template every package is assembled from.
+    if (options.template !== false) {
+        await emitNativeTemplate({ platform: target, root: rootDir, zipTo: options.templateOut });
+    }
     logger.info(`Run an export with: ${path.relative(rootDir, exe)} <exported-project-dir>`);
     return exe;
 }
@@ -649,6 +656,35 @@ function requireTemplate(platform) {
 }
 
 /**
+ * Assemble a runnable `.app` around an export, from the installed runtime
+ * template. Pure Node: nothing here compiles, and the toolchain that produced the
+ * template stayed on the machine that built it.
+ */
+async function packageDesktopApp(options) {
+    const template = requireTemplate('macos');
+    const contentDir = packagedContent(options);
+    const app = readAppConfig(contentDir, (m) => logger.warn(m));
+    const outDir = options.out
+        ? (path.isAbsolute(options.out) ? options.out : path.join(config.paths.root, options.out))
+        : path.dirname(contentDir);
+
+    logger.step(`Assembling ${app.name}.app...`);
+    const bundle = await assembleMacApp({
+        templateDir: template.dir,
+        contentDir,
+        outDir,
+        app,
+        iconPng: options.icon,
+        macosMin: options.macosMin || MACOS_MIN,
+        signIdentity: options.signIdentity,
+        warn: (m) => logger.warn(m),
+    });
+    logger.success(`macOS app: ${path.relative(config.paths.root, bundle) || bundle}`);
+    logger.info(`Run it with: open "${bundle}"`);
+    return bundle;
+}
+
+/**
  * Assemble a signed APK around an export — from the installed runtime template,
  * with no Android SDK involved. The same call the editor's export makes.
  */
@@ -774,12 +810,9 @@ export async function buildNative(options = {}) {
         throw new Error(`Unknown --target ${target} (expected android, ios or macos).`);
     }
     if (isDesktopTarget(target)) {
-        // No template emit and no --package yet: those are S3, and a template that
-        // claimed to exist before the assembler that reads it would be a version
-        // the editor offers and cannot use.
-        if (options.templateOnly || options.package) {
-            throw new Error(`--${options.package ? 'package' : 'template-only'} is not implemented for `
-                + `${target} yet (S3 in docs/REARCH_STEAM.md).`);
+        if (options.package) return packageDesktopApp(options);
+        if (options.templateOnly) {
+            return emitNativeTemplate({ platform: target, root: config.paths.root, zipTo: options.templateOut });
         }
         return buildDesktopHost(options);
     }

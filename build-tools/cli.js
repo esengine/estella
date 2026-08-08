@@ -180,6 +180,9 @@ program
     .option('--passphrase <text>', 'Passphrase for an encrypted --key')
     .option('--jdk <dir>', 'JDK home for building a template (javac + d8), else JAVA_HOME or Android Studio\'s')
     .option('--content <dir>', 'Ship an exported project (Package Project -> Android / iOS) as the app content')
+    .option('--out <dir>', 'Desktop --package: where the .app is written (default: beside --content)')
+    .option('--sign-identity <id>', 'Desktop --package: codesign identity (default: ad-hoc)')
+    .option('--icon <png>', 'Square PNG app icon; the template\'s mark is used otherwise')
     .option('--no-template', 'Skip refreshing this machine\'s runtime template with the build')
     .option('--template-only', 'Emit the runtime template from an existing build, without rebuilding', false)
     .option('--template-out <dir>', 'Also write the distributable template archive here (for a release)')
@@ -213,6 +216,9 @@ program
                 passphrase: options.passphrase,
                 jdk: options.jdk,
                 content: options.content,
+                out: options.out,
+                signIdentity: options.signIdentity,
+                icon: options.icon,
             });
         } catch (err) {
             logger.error(err.message);
