@@ -127,26 +127,25 @@ async function generateSdkBundle(rootDir, genDir) {
     // out as a file too, because the bytecode step must compile these exact bytes
     // for the host to accept the result (see precompileBundleBytecode).
     const embedded = '\n' + js;
-    // MSVC refuses a string literal over 65535 bytes and the bundle is ~800 KB, so
-    // it is emitted as ADJACENT raw literals, which the language concatenates.
-    const CHUNK = 16384;
-    // The delimiter is what makes splitting safe at any offset; a bundle that
-    // contained it would end a literal early and ship truncated, silently.
-    if (embedded.includes(')ESJS"')) {
-        throw new Error('The SDK bundle contains the raw-string delimiter `)ESJS"` — '
-            + 'embedding it would truncate the bundle. Change the delimiter in generateSdkBundle.');
-    }
-    const chunks = [];
-    for (let at = 0; at < embedded.length; at += CHUNK) {
-        chunks.push(`R"ESJS(${embedded.slice(at, at + CHUNK)})ESJS"`);
+    // A BYTE ARRAY, not a string literal: MSVC caps a literal at 65535 bytes and
+    // counts the concatenated result too, so for an ~800 KB bundle neither one
+    // literal nor many works. NUL-terminated, so the host still reads a char*.
+    const bytes = Buffer.from(embedded, 'utf8');
+    const rows = [];
+    for (let at = 0; at < bytes.length; at += 32) {
+        rows.push(`  ${[...bytes.subarray(at, at + 32)].join(',')},`);
     }
     const header =
         '// The real esengine SDK, bundled (dist/index.native.bundled.js) — installs\n'
         + '// globalThis.ESEngine. Embedded by `cli native --quickjs` — DO NOT EDIT.\n'
         + '#pragma once\n'
-        + 'static const char* kSdkBundleJS =\n'
-        + chunks.join('\n')
-        + ';\n';
+        + '// `unsigned char`, because `char` is signed here and a UTF-8 continuation\n'
+        + '// byte will not narrow into it.\n'
+        + 'static const unsigned char kSdkBundleBytes[] = {\n'
+        + rows.join('\n')
+        + '\n  0\n};\n'
+        + 'static const char* const kSdkBundleJS =\n'
+        + '    reinterpret_cast<const char*>(kSdkBundleBytes);\n';
     const headerPath = path.join(genDir, 'esengine_bundle.h');
     writeFileSync(headerPath, header, 'utf8');
     writeFileSync(path.join(genDir, 'esengine_bundle.embedded.js'), embedded, 'utf8');
