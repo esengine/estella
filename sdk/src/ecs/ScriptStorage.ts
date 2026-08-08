@@ -125,4 +125,17 @@ export class ScriptStorage {
         this.entityComponents_.delete(entity);
         return removed;
     }
+
+    /**
+     * @internal Live map sizes for the resource census.
+     *
+     * `storages` counts component types ever stored and never shrinks by design
+     * (an emptied storage is kept for reuse), so the census tracks it as bounded
+     * while `rows` and `entities` are the conserved pair.
+     */
+    sizes(): { storages: number; rows: number; entities: number } {
+        let rows = 0;
+        for (const storage of this.tsStorage_.values()) rows += storage.size;
+        return { storages: this.tsStorage_.size, rows, entities: this.entityComponents_.size };
+    }
 }

@@ -1332,6 +1332,45 @@ export class Assets {
         };
     }
 
+    /**
+     * @internal Live entry counts for the resource census.
+     *
+     * Cache sizes are not expected to return to baseline — that is what a cache
+     * is for. `refCounts` and `handlePaths` are: every load handing one out has a
+     * release taking it back. `pendingLoads` should be zero at rest.
+     */
+    sizes(): {
+        textureCached: number;
+        pendingLoads: number;
+        refCounts: number;
+        genericCaches: number;
+        genericCached: number;
+        handlePaths: number;
+        invalidateListeners: number;
+        registryEntries: number;
+        trackedRefRows: number;
+    } {
+        const tex = this.textureCache_.sizes();
+        let genericCached = 0;
+        let pending = tex.pending;
+        for (const cache of this.genericCache_.values()) {
+            const s = cache.sizes();
+            genericCached += s.cached;
+            pending += s.pending;
+        }
+        return {
+            textureCached: tex.cached,
+            pendingLoads: pending,
+            refCounts: this.textureRefCounts_.size + this.genericRefCounts_.size,
+            genericCaches: this.genericCache_.size,
+            genericCached,
+            handlePaths: this.handleToPath_.size,
+            invalidateListeners: this.invalidateListeners_.size,
+            registryEntries: this.assetRegistry_?.size ?? 0,
+            trackedRefRows: this.refCounter_?.getTotalRefRows() ?? 0,
+        };
+    }
+
     releaseAll(): void {
         const rm = requireResourceManager();
         for (const info of this.textureCache_.values()) {

@@ -326,6 +326,35 @@ export class World {
         return this.entities_.size;
     }
 
+    /**
+     * @internal Live sizes of every map the world keeps, for the resource census.
+     *
+     * `indexSlots` never shrinks by design — it is keyed by entity INDEX, which
+     * the registry recycles, so it settles at the session's peak. One that keeps
+     * climbing means indices are not being reused, which entityCount() cannot show.
+     */
+    getStorageSizes(): {
+        entities: number;
+        indexSlots: number;
+        spawnCallbacks: number;
+        despawnCallbacks: number;
+        names: ReturnType<NameIndex['sizes']>;
+        scripts: ReturnType<ScriptStorage['sizes']>;
+        changes: ReturnType<ChangeTracker['sizes']>;
+        queryCacheEntries: number;
+    } {
+        return {
+            entities: this.entities_.size,
+            indexSlots: this.indexGeneration_.size,
+            spawnCallbacks: this.spawnCallbacks_.length,
+            despawnCallbacks: this.despawnCallbacks_.length,
+            names: this.names_.sizes(),
+            scripts: this.scripts_.sizes(),
+            changes: this.changes_.sizes(),
+            queryCacheEntries: this.queries_.getStats().size,
+        };
+    }
+
     getWorldVersion(): number {
         return this.queries_.structuralVersion;
     }

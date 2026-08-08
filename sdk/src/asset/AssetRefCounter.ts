@@ -56,6 +56,12 @@ class RefMap {
 
     get size(): number { return this.refs_.size; }
 
+    get rows(): number {
+        let n = 0;
+        for (const refs of this.refs_.values()) n += refs.size;
+        return n;
+    }
+
     clear(): void { this.refs_.clear(); }
 }
 
@@ -100,5 +106,16 @@ export class AssetRefCounter {
             fonts: this.fonts_.size,
             materials: this.materials_.size,
         };
+    }
+
+    /**
+     * Total (asset, entity) pairs held, across every kind — the number a
+     * spawn/despawn round trip must conserve.
+     *
+     * {@link getTotalRefCount} counts distinct PATHS, which understates a leak:
+     * ten thousand entities that never released one texture read as a single ref.
+     */
+    getTotalRefRows(): number {
+        return this.textures_.rows + this.fonts_.rows + this.materials_.rows;
     }
 }

@@ -157,6 +157,18 @@ export {
 } from './diagnostics';
 
 // =============================================================================
+// Resource census — how many of X are alive right now
+// =============================================================================
+
+/** @beta Pre-1.0: the counter set is expected to grow as probes are added. */
+export {
+    takeCensus, registerCensusProbe, censusProbeIds, collectGarbage,
+    diffCensus, analyzeCensusSeries, formatCensusDiff, formatCensusReport,
+    type Census, type CensusEntry, type CensusTier, type CensusContext, type CensusProbe,
+    type CensusDelta, type CensusSeriesOptions, type CensusVerdict, type CensusReport,
+} from './diagnostics';
+
+// =============================================================================
 // GL Debug
 // =============================================================================
 

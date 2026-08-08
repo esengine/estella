@@ -12,3 +12,12 @@ export {
     fingerprint, messageOf, stackOf,
     type DiagnosticEvent, type DiagnosticKind, type DiagnosticReport,
 } from './events';
+export {
+    takeCensus, registerCensusProbe, censusProbeIds, counter, collectGarbage,
+    diffCensus, analyzeCensusSeries, formatCensusDiff, formatCensusReport,
+    type CensusDelta, type CensusSeriesOptions, type CensusVerdict, type CensusReport,
+} from './census';
+export {
+    type Census, type CensusEntry, type CensusTier,
+    type CensusContext, type CensusProbe,
+} from './censusTypes';

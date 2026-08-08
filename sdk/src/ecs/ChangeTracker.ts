@@ -125,4 +125,27 @@ export class ChangeTracker {
         // padding and justification laying the node out for the rest of the run.
         this.componentLastChangedTick_.set(componentId, this.worldTick_);
     }
+
+    /**
+     * @internal Live map sizes for the resource census.
+     *
+     * `removedRows` is the one that can run away: it is drained only by
+     * {@link cleanRemovedBuffer}, so a tracked component whose consumer stops
+     * calling that accumulates a row per despawn for the life of the world.
+     */
+    sizes(): { tracked: number; addedRows: number; changedRows: number; removedRows: number } {
+        const rowsIn = (maps: Map<symbol, Map<Entity, number>>): number => {
+            let n = 0;
+            for (const m of maps.values()) n += m.size;
+            return n;
+        };
+        let removedRows = 0;
+        for (const buffer of this.componentRemovedBuffer_.values()) removedRows += buffer.length;
+        return {
+            tracked: this.trackedComponents_.size,
+            addedRows: rowsIn(this.componentAddedTicks_),
+            changedRows: rowsIn(this.componentChangedTicks_),
+            removedRows,
+        };
+    }
 }

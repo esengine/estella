@@ -93,6 +93,21 @@ export interface CppResourceManager {
     measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number };
 }
 
+/**
+ * GPU objects the graphics device is holding, as {@link ESEngineModule.renderer_getLiveObjects}
+ * reports them. The C++ side documents which of these obey a conservation law
+ * and which are caches (renderer/rhi/GfxDevice.hpp).
+ */
+export interface GfxLiveObjects {
+    buffers: number;
+    textures: number;
+    programs: number;
+    layouts: number;
+    pipelines: number;
+    renderTargets: number;
+    readbacks: number;
+}
+
 // =============================================================================
 // WASM Module Interface
 // =============================================================================
@@ -346,7 +361,19 @@ export interface ESEngineModule {
     renderer_releaseTarget(handle: number): void;
     renderer_getTargetTexture(handle: number): number;
     renderer_getTargetDepthTexture(handle: number): number;
+    /**
+     * Bytes malloc has handed out and not got back — the exact C++ leak signal
+     * for the resource census. Optional: older engine builds do not carry it.
+     */
+    es_getMallocBytes?(): number;
     renderer_getDrawCalls(): number;
+    /**
+     * GPU objects the device has created and not destroyed, for the resource
+     * census. Null when no device is initialized — a census must record those
+     * counters as ABSENT, since zero would read as "everything was freed".
+     * Optional: older engine builds do not carry it.
+     */
+    renderer_getLiveObjects?(): GfxLiveObjects | null;
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
     renderer_getText(): number;

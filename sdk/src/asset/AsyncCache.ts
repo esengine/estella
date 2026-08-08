@@ -175,4 +175,15 @@ export class AsyncCache<T> {
     values(): IterableIterator<T> {
         return this.cache_.values();
     }
+
+    /**
+     * @internal Entry counts for the resource census.
+     *
+     * `pending` is the one to watch: it should be empty at rest, so a non-zero
+     * value between cycles means a load never settled — and a load that never
+     * settles holds its callbacks, its buffers and whatever closed over them.
+     */
+    sizes(): { cached: number; pending: number; failed: number } {
+        return { cached: this.cache_.size, pending: this.pending_.size, failed: this.failed_.size };
+    }
 }

@@ -45,6 +45,11 @@ export class NameIndex {
         return last;
     }
 
+    /** @internal Live map sizes for the resource census. */
+    sizes(): { names: number; entities: number } {
+        return { names: this.nameToEntities_.size, entities: this.entityToName_.size };
+    }
+
     private unlink_(name: string, entity: Entity): void {
         const set = this.nameToEntities_.get(name);
         if (!set) return;
