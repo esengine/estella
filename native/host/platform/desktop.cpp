@@ -603,6 +603,10 @@ int main(int argc, char** argv) {
             if (!shown) {
                 shown = true;
                 SDL_ShowWindow(window);
+                // And in front: a game that opens behind the window it was
+                // launched from is one the player has to go find, and a store
+                // draws its overlay only over the FOREGROUND window.
+                SDL_RaiseWindow(window);
             }
         }
         if (eshost::quitRequested()) running = false;

@@ -23,6 +23,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -93,7 +94,10 @@ class SteamApi {
     void activateOverlay();
 
     /** Log every callback the dispatcher hands out — the self-check's eyes. */
-    void traceCallbacks(bool on) { traceCallbacks_ = on; }
+    void traceCallbacks(bool on) {
+        traceCallbacks_ = on;
+        traceStart_ = std::chrono::steady_clock::now();
+    }
 
     /** Why {@link init} answered false, for the boot record. Empty on success. */
     const std::string& lastError() const { return error_; }
@@ -106,7 +110,8 @@ class SteamApi {
     std::int32_t pipe_ = 0;
     std::function<void(bool)> overlay_;
     bool traceCallbacks_ = false;
-    int pumps_ = 0;
+    bool selfCheckDone_ = false;
+    std::chrono::steady_clock::time_point traceStart_{};
     void* friends_ = nullptr;
     std::string error_;
 };

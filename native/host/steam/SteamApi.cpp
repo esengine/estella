@@ -13,6 +13,7 @@
  */
 #include "steam/SteamApi.hpp"
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 
@@ -131,9 +132,12 @@ constexpr std::int32_t kGameOverlayActivated = 331;
 /** Its first byte: non-zero while the overlay covers the game. */
 constexpr int kOverlayActiveOffset = 0;
 
-/** Which frame the self-check opens the overlay on — late enough that there is a
- *  window to draw over. */
-constexpr int kSelfCheckPump = 120;
+/** How long after Steam comes up the self-check opens the overlay.
+ *
+ *  Seconds, not frames: an uncapped host runs a thousand frames in the first one,
+ *  so a frame count fires before the window is on screen — and opening the overlay
+ *  then is a refusal that looks exactly like a callback that never came. */
+constexpr std::chrono::seconds kSelfCheckDelay{6};
 
 /** Steam's error buffer is a fixed 1024 bytes (SteamErrMsg). */
 constexpr int kErrMsgSize = 1024;
@@ -334,8 +338,10 @@ void SteamApi::pump() {
     // The self-check opens the overlay from the FRAME, not from boot: Steam
     // refuses to draw over a window that does not exist yet, and a refusal looks
     // exactly like a callback that never came.
-    if (traceCallbacks_ && ++pumps_ == kSelfCheckPump) {
-        ESHOST_LOGI("steam: self-check opening the overlay at pump %d", kSelfCheckPump);
+    if (traceCallbacks_ && !selfCheckDone_
+        && std::chrono::steady_clock::now() - traceStart_ >= kSelfCheckDelay) {
+        selfCheckDone_ = true;
+        ESHOST_LOGI("steam: self-check opening the overlay");
         activateOverlay();
     }
     g_fns.dispatchRunFrame(pipe_);
