@@ -157,6 +157,63 @@ function emptyBundle(): AssetBundle {
     return { textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map() };
 }
 
+
+/**
+ * How one addressable asset type is acquired and given back.
+ *
+ * ONE table, because two of them drift: load handled `font` and release did
+ * not, so every group carrying a font kept its reference forever. A type that
+ * can be loaded and has no release channel now has to say so out loud.
+ */
+interface GroupAssetChannel {
+    load(assets: Assets, path: string, bundle: AssetBundle): Promise<void>;
+    /** null when something else owns the lifetime — see `spine`. */
+    release: ((assets: Assets, path: string) => void) | null;
+    /** In the bundle `loadByLabel` returns: the types a scene can display. */
+    displayable: boolean;
+}
+
+const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
+    texture: {
+        load: (a, path, b) => a.loadTexture(path).then((r) => { b.textures.set(path, r); }),
+        release: (a, path) => a.releaseTexture(path),
+        displayable: true,
+    },
+    material: {
+        load: (a, path, b) => a.loadMaterial(path).then((r) => { b.materials.set(path, r); }),
+        release: (a, path) => a.releaseTyped('material', path),
+        displayable: true,
+    },
+    font: {
+        load: (a, path, b) => a.loadFont(path).then((r) => { b.fonts.set(path, r); }),
+        release: (a, path) => a.releaseTyped('font', path),
+        displayable: true,
+    },
+    'bitmap-font': {
+        load: (a, path, b) => a.loadFont(path).then((r) => { b.fonts.set(path, r); }),
+        release: (a, path) => a.releaseTyped('font', path),
+        displayable: true,
+    },
+    spine: {
+        load: (a, path, b) => a.loadSpine(path).then((r) => { b.spine.set(path, r); }),
+        // Skeletons bind to spawned entities and are owned by the
+        // SpineAssetLoader / SpineManager lifecycle; releasing one here could
+        // yank it out from under a live entity.
+        release: null,
+        displayable: true,
+    },
+    prefab: {
+        load: (a, path) => a.loadPrefab(path).then(() => {}),
+        release: (a, path) => a.releaseTyped('prefab', path),
+        displayable: false,
+    },
+    audio: {
+        load: (a, path) => a.loadAudio(path).then(() => {}),
+        release: (a, path) => a.releaseTyped('audio', path),
+        displayable: false,
+    },
+};
+
 /**
  * Describes one asset a scene / prefab referenced that couldn't be
  * materialized into a usable handle. The caller of preloadSceneAssets
@@ -630,20 +687,13 @@ export class Assets {
             log.warn('asset', `releaseGroup('${groupName}') called but no manifest is set`);
             return;
         }
+        const mode = model.bundleMode(groupName);
         for (const asset of model.assetsInGroup(groupName)) {
-            const path = this.resolveLoadPath_(asset.path);
-            switch (asset.type) {
-                case 'texture': this.releaseTexture(path); break;
-                case 'material': this.releaseTyped('material', path); break;
-                case 'bitmap-font': this.releaseTyped('font', path); break;
-                case 'prefab': this.releaseTyped('prefab', path); break;
-                case 'audio': this.releaseTyped('audio', path); break;
-                // Spine skeletons bind to spawned entities and are owned by
-                // the SpineAssetLoader / SpineManager lifecycle, not the
-                // generic cache — releasing them here could yank a skeleton
-                // out from under a live entity.
-                default: break;
-            }
+            // The SAME path loadGroup acquired under. Resolving it a different
+            // way here would release a key nobody holds, which is a leak that
+            // looks exactly like a working release.
+            const path = this.manifestAssetUrl_(asset.path, mode === 'remote');
+            GROUP_ASSET_CHANNELS[asset.type]?.release?.(this, path);
         }
     }
 
@@ -827,19 +877,9 @@ export class Assets {
     private bundleLoadTask_(
         path: string, type: string, bundle: AssetBundle,
     ): Promise<void> | null {
-        switch (type) {
-            case 'texture':
-                return this.loadTexture(path).then(r => { bundle.textures.set(path, r); });
-            case 'material':
-                return this.loadMaterial(path).then(r => { bundle.materials.set(path, r); });
-            case 'spine':
-                return this.loadSpine(path).then(r => { bundle.spine.set(path, r); });
-            case 'font':
-            case 'bitmap-font':
-                return this.loadFont(path).then(r => { bundle.fonts.set(path, r); });
-            default:
-                return null;
-        }
+        const channel = GROUP_ASSET_CHANNELS[type];
+        if (!channel?.displayable) return null;
+        return channel.load(this, path, bundle);
     }
 
     /**
@@ -851,13 +891,8 @@ export class Assets {
     private groupLoadTask_(
         path: string, type: string, bundle: AssetBundle,
     ): Promise<void> | null {
-        const bundled = this.bundleLoadTask_(path, type, bundle);
-        if (bundled) return bundled;
-        switch (type) {
-            case 'prefab': return this.loadPrefab(path).then(() => {});
-            case 'audio':  return this.loadAudio(path).then(() => {});
-            default:       return null;
-        }
+        const channel = GROUP_ASSET_CHANNELS[type];
+        return channel ? channel.load(this, path, bundle) : null;
     }
 
     /**
@@ -1243,7 +1278,11 @@ export class Assets {
         if (path !== null) this.releaseTyped('material', path);
     }
 
-    private releaseTyped(type: string, ref: string): void {
+    /**
+     * @internal Release one reference to a typed asset by path — the door the
+     * group channel table uses. Game code calls the named release* methods.
+     */
+    releaseTyped(type: string, ref: string): void {
         const path = this.resolveLoadPath_(ref);
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
