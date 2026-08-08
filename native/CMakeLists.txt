@@ -248,7 +248,8 @@ if(ESTELLA_QUICKJS_DIR)
     if(ESTELLA_IOS)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in platform/ios.mm alive.
-        add_library(estella_js_host STATIC ${HOST_SOURCES} host/platform/ios.mm)
+        add_library(estella_js_host STATIC ${HOST_SOURCES} host/platform/ios.mm
+            host/platform/apple_common.mm)
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
