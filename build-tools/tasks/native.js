@@ -18,7 +18,7 @@ import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
 import {
     fetchNativeDeps, pinnedDep, ensureDawnBuild, ensureSdlBuild, dawnLibrary,
-    isDesktopTarget, DAWN_TARGETS, MACOS_MIN,
+    isDesktopTarget, depsCacheKey, DAWN_TARGETS, MACOS_MIN,
 } from './nativeDeps.js';
 import {
     ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
@@ -829,6 +829,12 @@ async function buildNativeDeps(options) {
 }
 
 export async function buildNative(options = {}) {
+    // Before anything that needs a toolchain: this only reads the manifest, and CI
+    // asks for it on a runner that has not set one up yet.
+    if (options.depsCacheKey) {
+        process.stdout.write(`key=${depsCacheKey(options.depsCacheKey)}\n`);
+        return undefined;
+    }
     if (options.fetchDeps) return fetchNativeDeps(options);
     if (options.buildDeps) return buildNativeDeps(options);
     if (options.templateIndex) {

@@ -59,6 +59,10 @@ jobs:
             os: ubuntu-latest
           - target: ios
             os: macos-latest
+          - target: macos
+            os: macos-latest
+          - target: windows
+            os: windows-latest
     steps:
       # No submodules: Dawn and QuickJS are fetched into build/native-deps by
       # --fetch-deps, and third_party is the HOST's dependency, which this never
@@ -67,11 +71,12 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # ONE cache key, computed where the pins are read: SDL is a desktop-only
+      # dependency, so keying every target on it would cold-build Dawn for Android
+      # and iOS — 16 minutes each — every time SDL moves.
       - name: Read the native dependency pins
         id: pins
-        run: |
-          node -e "const p=require('./toolchain.manifest.json').native;\
-            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+        run: node build-tools/cli.js native --deps-cache-key ${{ matrix.target }} >> "$GITHUB_OUTPUT"
 
       # restore, not the combined action: a hit must end this job rather than
       # trigger a save of what it just downloaded.
@@ -81,7 +86,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/native-deps
-          key: native-deps-${{ matrix.target }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+          key: ${{ steps.pins.outputs.key }}
 
       - name: Report what the restore found
         run: |
@@ -101,8 +106,18 @@ jobs:
       # Dawn builds with Ninja and a macOS runner has neither it nor CMake; the
       # Android SDK carries its own pair.
       - name: Set up CMake + Ninja
-        if: matrix.target == 'ios' && steps.restore.outputs.cache-hit != 'true'
+        if: startsWith(matrix.os, 'macos') && steps.restore.outputs.cache-hit != 'true'
         run: brew install cmake ninja
+
+      - name: Set up Ninja (Windows)
+        if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Fetch Dawn + QuickJS at their pinned commits
         if: steps.restore.outputs.cache-hit != 'true'
@@ -122,4 +137,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/native-deps
-          key: native-deps-${{ matrix.target }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+          key: ${{ steps.pins.outputs.key }}

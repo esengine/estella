@@ -119,6 +119,10 @@ jobs:
             os: macos-latest
           - name: android
             os: ubuntu-latest
+          - name: macos
+            os: macos-latest
+          - name: windows
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -139,9 +143,7 @@ jobs:
       - name: Read the native dependency pins
         id: pins
         shell: bash
-        run: |
-          node -e "const p=require('./toolchain.manifest.json').native;\
-            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+        run: node build-tools/cli.js native --deps-cache-key ${{ matrix.name }} >> "$GITHUB_OUTPUT"
 
       # Keyed on the pins and the target: the checkout and the Dawn builds are
       # reproducible for a given commit, so this is warm on every release that
@@ -150,13 +152,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/native-deps
-          key: native-deps-${{ matrix.name }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+          key: ${{ steps.pins.outputs.key }}
 
       # Dawn and the host both build with Ninja; neither tool is guaranteed on a
       # macOS runner (the Android SDK carries its own pair).
       - name: Set up CMake + Ninja
-        if: matrix.name == 'ios'
+        if: startsWith(matrix.os, 'macos')
         run: brew install cmake ninja
+
+      - name: Set up Ninja (Windows)
+        if: matrix.name == 'windows'
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        if: matrix.name == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set up the Android NDK
         if: matrix.name == 'android'
@@ -186,6 +198,21 @@ jobs:
         run: |
           node build-tools/cli.js native --abi arm64-v8a
           node build-tools/cli.js native --abi x86_64 --template-out artifacts
+
+      # One executable per OS, and no Steamworks SDK on it: the redistributable is
+      # licensed to partners, so it reaches a package from the developer's own SDK
+      # (Project Settings -> Packaging -> Steamworks SDK), never from here.
+      - name: Build the desktop template
+        if: matrix.name == 'macos' || matrix.name == 'windows'
+        run: node build-tools/cli.js native --target ${{ matrix.name }} --template-out artifacts
+
+      # The claim a template archive cannot make: that a game packaged from it
+      # DRAWS. These two runners are the platforms themselves, so the pixel judge
+      # the web target has always had finally reaches the native runtime — no
+      # simulator, no device (docs/REARCH_STEAM.md 6.2).
+      - name: A game packaged from it renders
+        if: matrix.name == 'macos' || matrix.name == 'windows'
+        run: node tools/verify-desktop-render.mjs --examples hello-world,particle-demo
 
       - name: Upload template artifact
         uses: actions/upload-artifact@v7

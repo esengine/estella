@@ -37,6 +37,19 @@ export function isDesktopTarget(target) {
 }
 
 /**
+ * The cache key for a target's prebuilt dependencies: every pin that build
+ * consumes, and only those. A key that forgets one serves a stale build under a
+ * name saying it is current; SDL is desktop-only, so keying the phones on it
+ * would rebuild Dawn whenever SDL moves.
+ */
+export function depsCacheKey(target, rootDir = config.paths.root) {
+    const pins = nativePins(rootDir);
+    const parts = [pins.dawn.commit, pins.quickjs.commit];
+    if (isDesktopTarget(target)) parts.push(pins.sdl?.commit ?? 'no-sdl-pin');
+    return `native-deps-${target}-${parts.join('-')}`;
+}
+
+/**
  * Check `repo` out at `commit` in `dir`, fetching only that commit.
  *
  * `git fetch --depth 1 <sha>` rather than a clone: a full clone of Dawn is

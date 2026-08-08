@@ -188,6 +188,7 @@ program
     .option('--template-only', 'Emit the runtime template from an existing build, without rebuilding', false)
     .option('--template-out <dir>', 'Also write the distributable template archive here (for a release)')
     .option('--template-index <dir>', 'Write native-templates.json describing the archives in this dir, then stop')
+    .option('--deps-cache-key <target>', 'Print `key=<cache key>` for a target\'s prebuilt dependencies, then stop (CI)')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
@@ -200,6 +201,7 @@ program
                 templateOnly: options.templateOnly,
                 templateOut: options.templateOut,
                 templateIndex: options.templateIndex,
+                depsCacheKey: options.depsCacheKey,
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
                 quickjs: options.quickjs,
