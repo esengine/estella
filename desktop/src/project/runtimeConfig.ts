@@ -48,6 +48,9 @@ export interface RuntimeProjectConfig {
   /** The achievement ids the project declares — the set the runtime refuses an
    *  unlock outside of. Empty ⇒ nothing is checked. */
   achievements: string[];
+  /** The Steam application id, when the desktop build ships to Steam. 0 ⇒ it does
+   *  not, and no runtime tries to bring a client up. */
+  steamAppId: number;
   /** Install physics even when the static scene shows no bodies (runtime-spawned). */
   physicsEnabled: boolean;
   /** World solver + collision matrix (Project Settings → Physics). */
@@ -123,6 +126,11 @@ export function runtimeConfigOf(
   const f = manifest.features;
   return {
     achievements: manifest.packaging?.achievements ?? [],
+    // Only when the channel is actually Steam: an app id left behind by a project
+    // that has since gone back to a standalone build must not make the runtime
+    // hunt for a client.
+    steamAppId: manifest.packaging?.platforms?.desktop?.channel === 'steam'
+      ? (manifest.packaging?.platforms?.desktop?.steam?.appId ?? 0) : 0,
     physicsEnabled: f?.physics?.enabled ?? false,
     physicsConfig: physicsConfigOf(f),
     audioConfig: f?.audio ?? {},
@@ -139,7 +147,7 @@ export function runtimeConfigOf(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'screenFit' | 'uiTheme' | 'uiThemeColors'
-  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements'
+  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId'
 >;
 
 /**
@@ -167,6 +175,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
     ...(rc.audioConfig.buses?.length ? { audioConfig: rc.audioConfig } : {}),
     ...(rc.achievements.length ? { achievements: rc.achievements } : {}),
+    ...(rc.steamAppId > 0 ? { steamAppId: rc.steamAppId } : {}),
   };
 }
 

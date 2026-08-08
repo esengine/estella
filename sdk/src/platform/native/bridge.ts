@@ -62,6 +62,25 @@ export interface NativeInputListener {
     onKeyUp(code: string): void;
 }
 
+/**
+ * The store's half of achievements, as the desktop host exposes it.
+ *
+ * `init` is separate from the rest because the app id lives in game.config.json,
+ * which the SDK reads — the host has no JSON parser and no reason to grow one.
+ */
+export interface NativeSteamBridge {
+    init(appId: number): boolean;
+    available(): boolean;
+    /** `{ id, name }`; the id is a STRING because 64 bits do not survive a double. */
+    identity(): { id: string; name: string };
+    unlock(id: string): boolean;
+    unlocked(id: string): boolean;
+    setStat(name: string, value: number): boolean;
+    getStat(name: string): number;
+    store(): boolean;
+    reset(): boolean;
+}
+
 /** What the OS editing surface reports back. `state` carries the surface's whole
  *  value + selection (it is the owner while focused); `composing` is absent on a
  *  host that cannot tell whether an IME preedit is in flight. */
@@ -184,6 +203,10 @@ export interface NativeBridge {
      *  matching navigator.getGamepads(): a pad has a state, not events. Absent on
      *  a shell with no pads to report (a phone). */
     pollGamepads?(): GamepadSnapshot[];
+
+    /** The Steam client, on a shell that can have one (desktop). Absent everywhere
+     *  else, and present-but-unavailable when no client is running. */
+    steam?: NativeSteamBridge;
 
     devicePixelRatio(): number;
     /** High-resolution clock. Optional — falls back to `Date.now()`. */

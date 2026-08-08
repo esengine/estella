@@ -54,6 +54,9 @@ export interface PackagedGameConfig {
     /** The achievement ids this game declares. The runtime refuses an unlock
      *  outside the set, because a store accepts an unknown id and does nothing. */
     achievements?: string[];
+    /** The Steam application id, when this build ships to Steam. Its presence is
+     *  what makes the runtime try to bring a Steam client up at all. */
+    steamAppId?: number;
     /**
      * Install physics even when the shipped scene shows no bodies — a project
      * that spawns them from script (Project Settings → Physics → Enabled).
@@ -157,7 +160,7 @@ export function packagedAppOptions(
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
         'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements'>,
+        | 'achievements' | 'steamAppId'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
@@ -165,6 +168,7 @@ export function packagedRuntimeInit(
     uiTheme?: 'light';
     uiThemeOverrides?: ThemeOverrides;
     achievements?: string[];
+    steamAppId?: number;
 } {
     return {
         physicsEnabled: config.physicsEnabled,
@@ -173,6 +177,7 @@ export function packagedRuntimeInit(
         uiTheme: config.uiTheme,
         uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
         achievements: config.achievements,
+        steamAppId: config.steamAppId,
     };
 }
 

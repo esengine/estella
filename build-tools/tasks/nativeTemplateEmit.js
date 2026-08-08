@@ -141,6 +141,9 @@ export async function emitNativeTemplate(options) {
 
     const ctx = {
         root,
+        // A Steamworks SDK on THIS machine. The redistributable is copied from it
+        // into the template; nothing about it is committed.
+        steamSdk: options.steamSdk,
         dawnLibrary: options.dawnLibrary,
         libcxxShared: (abi) => (platform === 'android' && options.ndk && ABI_TRIPLE[abi]
             ? ndkLibcxxShared(options.ndk, ABI_TRIPLE[abi]) : null),

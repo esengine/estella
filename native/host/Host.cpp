@@ -22,6 +22,9 @@
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
 #include "Shot.hpp"
+#if defined(ESTELLA_DESKTOP)
+#include "steam/SteamApi.hpp"
+#endif
 #include "esengine/core/Log.hpp"
 #include "esengine/core/World.hpp"
 #include "esengine/ecs/TransformSystem.hpp"
@@ -335,6 +338,11 @@ void frame() {
     // cameras and drove RenderFrame through the es_renderer_* bindings. What is
     // left here is what only a host can do: flip the swapchain.
     if (!jsOwnsFrame(h)) fallbackFrame(h);
+#if defined(ESTELLA_DESKTOP)
+    // Steam's callbacks, once per frame: without them the client never learns the
+    // game is alive and the overlay never opens.
+    steam().pump();
+#endif
     h.gfx->present();
     if (shotAfterPresent(*h.gfx)) h.quitRequested = true;
     if (++h.frame % 120 == 0) ESHOST_LOGI("real-SDK frame %llu", (unsigned long long)h.frame);

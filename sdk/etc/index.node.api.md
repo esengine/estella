@@ -4715,6 +4715,7 @@ physicsEnabled: boolean | undefined
 scenes: { name: string; path: string; }[] | undefined
 screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
 sideModules: { id: string; file: string; globalName?: string; }[] | undefined
+steamAppId: number | undefined
 uiTheme: "light" | undefined
 uiThemeColors: Record<string, string> | undefined
 ySortLayers: number | undefined
@@ -5154,6 +5155,8 @@ requestPayment: ((request: PlatformPaymentRequest) => Promise<void>) | undefined
 setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
 share: ((options: PlatformShareOptions) => void) | undefined
+steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
+steamIdentity: (() => { id: string; name: string; } | null) | undefined
 unbindInputEvents: (() => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
@@ -6090,6 +6093,7 @@ scenes: { name: string; data?: SceneData; path?: string; }[]
 source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
+steamAppId: number | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ```
@@ -10273,7 +10277,7 @@ NodePlatformAdapter
 
 ## packagedRuntimeInit — function
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; }
+(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; }
 ```
 
 ## paramDefaultValue — function

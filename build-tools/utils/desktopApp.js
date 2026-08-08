@@ -100,10 +100,11 @@ export async function assembleDesktopApp(options) {
         await cp(sources.bytecode, path.join(content, path.basename(sources.bytecode)));
     }
 
-    // Whatever else the runtime needs beside the executable. On Windows that is
-    // the HLSL compiler Dawn loads before it can create a device at all.
-    if (platform === 'windows' && existsSync(sources.d3dCompiler)) {
-        await cp(sources.d3dCompiler, path.join(root, path.basename(sources.d3dCompiler)));
+    // What the runtime needs beside the executable: Dawn's HLSL compiler (Windows)
+    // and Steam's redistributable, which the host dlopens if present. Copied rather
+    // than required — a template without one still produces a game.
+    for (const dll of [sources.d3dCompiler, sources.steamRedist]) {
+        if (dll && existsSync(dll)) await cp(dll, path.join(root, path.basename(dll)));
     }
 
     const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;

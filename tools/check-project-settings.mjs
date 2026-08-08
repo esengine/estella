@@ -45,6 +45,12 @@ const DECLARED_GAPS = {
     editor: 'nothing unlocks one while a scene is being authored — edit mode runs no '
       + 'gameplay, so the set is checked in Play and in a shipped build',
   },
+  steamAppId: {
+    editor: 'edit mode is not a shipped game — a Steam client is brought up by the '
+      + 'runtime, and Play rehearses that with the local provider',
+    play: 'Play is not launched by Steam, so a client would refuse the ownership '
+      + 'check; the local provider is what a rehearsal can honestly use',
+  },
   physicsEnabled: {
     editor: 'edit mode does not simulate — bodies are authored, not stepped',
   },
@@ -67,6 +73,7 @@ const DECLARED_GAPS = {
 /** The feature branch in the manifest parser each field is read from. */
 const PARSE_KEY = {
   achievements: 'p.achievements',
+  steamAppId: 'dt.steam',
   physicsEnabled: 'p.enabled',
   physicsConfig: 'physics',
   audioConfig: 'parseAudioProjectConfig',

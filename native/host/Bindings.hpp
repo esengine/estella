@@ -52,6 +52,10 @@ void registerAudioBindings(HostState& h, JSValue global);
  *  pushed; see InputBindings.cpp. */
 void registerInputBindings(HostState& h, JSValue global);
 
+/** es_steam_* — the store's half of achievements. Desktop only: bound where a
+ *  Steam client can exist, and answering `available: false` where one cannot. */
+void registerSteamBindings(HostState& h, JSValue global);
+
 /** es_fetch over the platform's native networking. */
 void registerNetBindings(HostState& h, JSValue global);
 

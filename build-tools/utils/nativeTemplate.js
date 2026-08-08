@@ -47,6 +47,21 @@ export const DEFAULT_ICON = 'icon.png';
  */
 export const D3D_COMPILER = 'd3dcompiler_47.dll';
 
+/** Steam's redistributable, per platform — the filename the host dlopens. */
+export const STEAM_REDIST = {
+    windows: 'steam_api64.dll',
+    macos: 'libsteam_api.dylib',
+    linux: 'libsteam_api.so',
+};
+
+/** The redistributable inside a Steamworks SDK checkout, or null. */
+function steamRedist(sdkDir, platform) {
+    if (!sdkDir) return null;
+    const sub = { windows: 'win64', macos: 'osx', linux: 'linux64' }[platform];
+    const file = path.join(sdkDir, 'redistributable_bin', sub, STEAM_REDIST[platform]);
+    return existsSync(file) ? file : null;
+}
+
 /** Where the Windows SDK keeps the redistributable D3D compiler, newest first. */
 function windowsSdkD3DRedist() {
     const root = 'C:/Program Files (x86)/Windows Kits/10/Redist/D3D/x64';
@@ -143,6 +158,13 @@ export function templateLayout(platform, options = {}) {
                 rel: D3D_COMPILER, releaseRequired: true, optional: true,
                 from: () => windowsSdkD3DRedist(),
             }] : []),
+            // Steam's redistributable, from an SDK on the BUILD machine
+            // (`--steam-sdk <dir>`) and never from this repository. Optional — a
+            // template without it still packages every game.
+            {
+                rel: STEAM_REDIST[platform], optional: true,
+                from: (ctx) => steamRedist(ctx.steamSdk, platform),
+            },
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
@@ -458,5 +480,7 @@ export function desktopTemplateSources(dir, platform = 'macos') {
         bytecode: path.join(dir, BYTECODE_FILE),
         /** Windows only; absent elsewhere. */
         d3dCompiler: path.join(dir, D3D_COMPILER),
+        /** Steam's redistributable, when the template was emitted with an SDK. */
+        steamRedist: path.join(dir, STEAM_REDIST[platform] ?? STEAM_REDIST.macos),
     };
 }

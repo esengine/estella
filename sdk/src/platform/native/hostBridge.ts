@@ -67,6 +67,17 @@ export interface NativeHostBindings {
      *  browser without navigator.getGamepads() gives it. */
     es_pollGamepads?(): { index: number; connected: boolean; buttons: number[]; axes: number[] }[];
 
+    /** The Steam client. Bound only where one can exist (desktop). */
+    es_steam_init?(appId: number): boolean;
+    es_steam_available?(): boolean;
+    es_steam_identity?(): { id: string; name: string };
+    es_steam_unlock?(id: string): boolean;
+    es_steam_unlocked?(id: string): boolean;
+    es_steam_setStat?(name: string, value: number): boolean;
+    es_steam_getStat?(name: string): number;
+    es_steam_store?(): boolean;
+    es_steam_reset?(): boolean;
+
     /** Perform an HTTP request off the main thread (native TLS stack), calling
      *  back with the reply. Optional — a host without it stays offline (remote
      *  asset groups and hot-update do not resolve). */
@@ -199,6 +210,23 @@ export function createHostBridge(
             return () => { listener = null; };
         },
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
+        // All-or-nothing: the host binds the whole surface or none of it, so one
+        // probe decides rather than nine optional calls at every site.
+        ...(bindings.es_steam_init
+            ? {
+                steam: {
+                    init: (appId: number) => bindings.es_steam_init!(appId),
+                    available: () => bindings.es_steam_available?.() ?? false,
+                    identity: () => bindings.es_steam_identity?.() ?? { id: '', name: '' },
+                    unlock: (id: string) => bindings.es_steam_unlock?.(id) ?? false,
+                    unlocked: (id: string) => bindings.es_steam_unlocked?.(id) ?? false,
+                    setStat: (n: string, v: number) => bindings.es_steam_setStat?.(n, v) ?? false,
+                    getStat: (n: string) => bindings.es_steam_getStat?.(n) ?? 0,
+                    store: () => bindings.es_steam_store?.() ?? false,
+                    reset: () => bindings.es_steam_reset?.() ?? false,
+                },
+            }
+            : {}),
         ...(bindings.es_pollGamepads
             // 'standard' is asserted HERE rather than by the host: the layout is
             // this bridge's contract with the SDK, and a host that filled the

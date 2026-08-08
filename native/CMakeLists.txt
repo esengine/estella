@@ -298,6 +298,8 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/AssetBindings.cpp
         host/bindings/AudioBindings.cpp
         host/bindings/InputBindings.cpp
+        $<$<BOOL:${ESTELLA_DESKTOP}>:host/steam/SteamApi.cpp>
+        $<$<BOOL:${ESTELLA_DESKTOP}>:host/bindings/SteamBindings.cpp>
         host/bindings/NetBindings.cpp
         host/bindings/TextEditorBindings.cpp
         host/media/native_audio.cpp
@@ -349,6 +351,7 @@ if(ESTELLA_QUICKJS_DIR)
         add_executable(estella_js_host ${HOST_SOURCES} host/platform/desktop.cpp
             ${DESKTOP_OS_SOURCES})
         set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
+        target_compile_definitions(estella_js_host PRIVATE ESTELLA_DESKTOP)
         target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
             estella_dragonbones qjs SDL3::SDL3)
         if(ESTELLA_WINDOWS)

@@ -5,6 +5,8 @@
  * @brief   Platform adapter interface definitions
  */
 
+import type { AchievementProvider } from '../services/achievements';
+
 // =============================================================================
 // Response Types
 // =============================================================================
@@ -433,6 +435,19 @@ export interface PlatformAdapter {
      *  gamepad support (WeChat, headless) omit it and the input plugin skips
      *  gamepad polling entirely. */
     pollGamepads?(): GamepadSnapshot[];
+
+    /**
+     * Bring a store's achievement service up for @p appId, or null.
+     *
+     * A platform with no store omits it; a desktop build with no client running
+     * answers null. The service then keeps its local provider, so a game's code
+     * never branches on any of this.
+     */
+    steamAchievements?(appId: number): AchievementProvider | null;
+
+    /** The signed-in store account, or null. `id` is a STRING — 64 bits of
+     *  account id do not survive a double. */
+    steamIdentity?(): { id: string; name: string } | null;
 
     /** Create the platform audio backend (WebAudio on web, the mini-game audio API
      *  on WeChat). Optional — a host with no audio device (headless node, the

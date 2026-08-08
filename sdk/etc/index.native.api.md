@@ -4546,6 +4546,7 @@ readFile: (path: string) => Promise<ArrayBuffer>
 registerInput: (listener: NativeInputListener) => () => void
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
+steam: NativeSteamBridge | undefined
 storageKeys: () => string[]
 textEditor: NativeTextEditorBridge | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
@@ -4608,6 +4609,15 @@ es_readCacheFile: ((key: string) => ArrayBuffer | null) | undefined
 es_readDataFile: ((key: string) => ArrayBuffer | null) | undefined
 es_removeStorageItem: ((key: string) => void) | undefined
 es_setStorageItem: ((key: string, value: string) => void) | undefined
+es_steam_available: (() => boolean) | undefined
+es_steam_getStat: ((name: string) => number) | undefined
+es_steam_identity: (() => { id: string; name: string; }) | undefined
+es_steam_init: ((appId: number) => boolean) | undefined
+es_steam_reset: (() => boolean) | undefined
+es_steam_setStat: ((name: string, value: number) => boolean) | undefined
+es_steam_store: (() => boolean) | undefined
+es_steam_unlock: ((id: string) => boolean) | undefined
+es_steam_unlocked: ((id: string) => boolean) | undefined
 es_storageKeys: (() => string[]) | undefined
 es_textEditor_blur: (() => void) | undefined
 es_textEditor_focus: ((value: string, selectionStart: number, selectionEnd: number, multiline: boolean, maxLength: number, password: boolean) => void) | undefined
@@ -4667,6 +4677,8 @@ readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
+steamAchievements: (appId: number) => AchievementProvider | null
+steamIdentity: () => { id: string; name: string; } | null
 unbindInputEvents: () => void
 writeCacheFile: (key: string, bytes: ArrayBuffer) => Promise<void>
 static new (bridge_: NativeBridge): NativePlatformAdapter
@@ -4887,6 +4899,7 @@ physicsEnabled: boolean | undefined
 scenes: { name: string; path: string; }[] | undefined
 screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
 sideModules: { id: string; file: string; globalName?: string; }[] | undefined
+steamAppId: number | undefined
 uiTheme: "light" | undefined
 uiThemeColors: Record<string, string> | undefined
 ySortLayers: number | undefined
@@ -5326,6 +5339,8 @@ requestPayment: ((request: PlatformPaymentRequest) => Promise<void>) | undefined
 setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
 share: ((options: PlatformShareOptions) => void) | undefined
+steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
+steamIdentity: (() => { id: string; name: string; } | null) | undefined
 unbindInputEvents: (() => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
@@ -6272,6 +6287,7 @@ scenes: { name: string; data?: SceneData; path?: string; }[]
 source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
+steamAppId: number | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ```
@@ -10495,7 +10511,7 @@ NavPlugin
 
 ## packagedRuntimeInit — function
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; }
+(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; }
 ```
 
 ## paramDefaultValue — function

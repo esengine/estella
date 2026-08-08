@@ -420,6 +420,9 @@ void initRuntime(HostState& h) {
     registerAssetBindings(h, global);
     registerAudioBindings(h, global);
     registerInputBindings(h, global);
+#if defined(ESTELLA_DESKTOP)
+    registerSteamBindings(h, global);
+#endif
     registerNetBindings(h, global);
     registerTextEditorBindings(h, global);
 

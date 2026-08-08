@@ -28,6 +28,7 @@ import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
+import { getPlatform } from '../platform/base';
 import { VideoPlayer } from '../video/VideoAPI';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
@@ -517,6 +518,9 @@ export interface RuntimeInitConfig {
     /** The achievement ids the project declares — the set an unlock is checked
      *  against, since a store would take an unknown one and do nothing. */
     achievements?: string[];
+    /** The Steam application id; present ⇒ try to bring a Steam client up and let
+     *  it answer for achievements. Absent or unavailable keeps the local one. */
+    steamAppId?: number;
     aspectRatio?: number;
 }
 
@@ -546,6 +550,12 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // The declared achievement ids, so an unlock outside the set is refused here
     // rather than accepted by a store and silently dropped.
     app.getResource(Achievements)?.setKnown(config.achievements ?? null);
+    // A store, if there is one behind this build. Everything about the game's code
+    // is the same either way — what changes is whether Steam also hears.
+    if (config.steamAppId) {
+        const provider = getPlatform().steamAchievements?.(config.steamAppId);
+        if (provider) app.getResource(Achievements)?.setProvider(provider);
+    }
 
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
         app: config.app,

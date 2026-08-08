@@ -35,6 +35,8 @@ import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import { createNativeTextEditor } from './textEditor';
+import { createSteamAchievements } from './steamAchievements';
+import type { AchievementProvider } from '../../services/achievements';
 import type { NativeBridge, NativeInputListener } from './bridge';
 
 export class NativePlatformAdapter implements PlatformAdapter {
@@ -236,6 +238,26 @@ export class NativePlatformAdapter implements PlatformAdapter {
      *  same empty list a browser without navigator.getGamepads() gives. */
     pollGamepads(): GamepadSnapshot[] {
         return this.bridge_.pollGamepads?.() ?? [];
+    }
+
+    /**
+     * Bring Steam up for @p appId and hand back its achievements provider, or null.
+     *
+     * Null is the ordinary answer: no client running, signed out, a build that
+     * ships nowhere near Steam, or a platform that has none. The service keeps its
+     * local provider and the game behaves the same.
+     */
+    steamAchievements(appId: number): AchievementProvider | null {
+        const steam = this.bridge_.steam;
+        if (!steam || !steam.init(appId) || !steam.available()) return null;
+        return createSteamAchievements(steam);
+    }
+
+    /** The signed-in Steam account, or null. `id` is a string: 64 bits of account
+     *  id do not survive a double. */
+    steamIdentity(): { id: string; name: string } | null {
+        const steam = this.bridge_.steam;
+        return steam?.available() ? steam.identity() : null;
     }
 
     // createSocket / loadSubpackage are optional and deferred to the shell.

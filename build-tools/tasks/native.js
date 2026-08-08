@@ -394,7 +394,9 @@ async function buildDesktopHost(options) {
     // Same rule as the other two: the compiled half is project-independent, so it
     // is packed as the template every package is assembled from.
     if (options.template !== false) {
-        await emitNativeTemplate({ platform: target, root: rootDir, zipTo: options.templateOut });
+        await emitNativeTemplate({
+            platform: target, root: rootDir, zipTo: options.templateOut, steamSdk: options.steamSdk,
+        });
     }
     logger.info(`Run an export with: ${path.relative(rootDir, exe)} <exported-project-dir>`);
     return exe;
@@ -838,7 +840,10 @@ export async function buildNative(options = {}) {
     if (isDesktopTarget(target)) {
         if (options.package) return packageDesktopApp(options);
         if (options.templateOnly) {
-            return emitNativeTemplate({ platform: target, root: config.paths.root, zipTo: options.templateOut });
+            return emitNativeTemplate({
+                platform: target, root: config.paths.root, zipTo: options.templateOut,
+                steamSdk: options.steamSdk,
+            });
         }
         return buildDesktopHost(options);
     }

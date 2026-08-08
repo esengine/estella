@@ -122,6 +122,10 @@ export function desktopTemplateSources(dir: string, platform?: NativePlatform): 
     infoPlistIn: string;
     icon: string;
     bytecode: string;
+    /** Windows only. */
+    d3dCompiler: string;
+    /** Steam's redistributable, when the template was emitted with an SDK. */
+    steamRedist: string;
 };
 
 export function iosTemplateSources(dir: string): {
