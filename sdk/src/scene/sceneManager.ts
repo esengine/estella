@@ -273,7 +273,32 @@ export class SceneManagerState {
         this.transitionController_.update(dt);
     }
 
+    /** Replace whatever is active with `name`. */
     async load(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
+        return this.loadScene_(name, 'exclusive', onProgress);
+    }
+
+    /** Bring `name` up alongside whatever is already running. */
+    async loadAdditive(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
+        return this.loadScene_(name, 'additive', onProgress);
+    }
+
+    /**
+     * The one load path. `mode` is the only difference between the two doors —
+     * which is why they were two copies, and why the fix for re-loading a SLEPT
+     * scene reached only one: additive flipped the status bit without the
+     * restore, leaving those entities disabled forever.
+     */
+    private async loadScene_(
+        name: string,
+        mode: 'exclusive' | 'additive',
+        onProgress?: SceneLoadProgressCallback,
+    ): Promise<SceneContext> {
+        const adopt = (): void => {
+            if (mode === 'additive') this.additiveScenes_.add(name);
+            else this.activeScene_ = name;
+        };
+
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
             if (existing.status === 'loading') {
@@ -281,12 +306,11 @@ export class SceneManagerState {
             }
             // Re-loading a scene that was slept/paused must run the full restore
             // (remove Disabled, replay savedEnabled, re-enable post-process); a
-            // bare status flip would strand its entities disabled and leave
-            // wake()/resume() a permanent no-op.
+            // bare status flip would strand its entities disabled.
             if (existing.status === 'sleeping') this.wake(name);
             else if (existing.status === 'paused') this.resume(name);
             existing.status = 'running';
-            this.activeScene_ = name;
+            adopt();
             return this.contexts_.get(name)!;
         }
 
@@ -318,62 +342,7 @@ export class SceneManagerState {
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
 
             instance.status = 'running';
-            this.activeScene_ = name;
-            this.loadOrder_.push(name);
-            return ctx;
-        })();
-
-        this.loadPromises_.set(name, loadPromise);
-        try {
-            return await loadPromise;
-        } catch (err) {
-            this.rollbackFailedLoad_(name, instance);
-            throw err;
-        } finally {
-            this.loadPromises_.delete(name);
-        }
-    }
-
-    async loadAdditive(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
-        if (this.scenes_.has(name)) {
-            const existing = this.scenes_.get(name)!;
-            if (existing.status === 'loading') {
-                return this.loadPromises_.get(name)!;
-            }
-            existing.status = 'running';
-            this.additiveScenes_.add(name);
-            return this.contexts_.get(name)!;
-        }
-
-        const config = this.configs_.get(name);
-        if (!config) {
-            throw new Error(`Scene "${name}" is not registered`);
-        }
-
-        const instance = new SceneInstance(config);
-        this.scenes_.set(name, instance);
-
-        const ctx = new SceneContextImpl(instance, this.app_);
-        this.contexts_.set(name, ctx);
-
-        const loadPromise = (async (): Promise<SceneContext> => {
-            let sceneData = config.data;
-            if (!sceneData && config.path) {
-                const assetServer = this.app_.hasResource(Assets)
-                    ? this.app_.getResource(Assets)
-                    : null;
-                if (assetServer) {
-                    sceneData = await assetServer.fetchJson<SceneData>(config.path);
-                } else {
-                    const response = await fetch(config.path);
-                    sceneData = await response.json() as SceneData;
-                }
-            }
-
-            await this.loadSceneData_(instance, name, config, sceneData, onProgress);
-
-            instance.status = 'running';
-            this.additiveScenes_.add(name);
+            adopt();
             this.loadOrder_.push(name);
             return ctx;
         })();
