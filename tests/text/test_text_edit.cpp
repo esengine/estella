@@ -41,12 +41,12 @@ std::string shown(const TextEditModel& m) {
 }  // namespace
 
 TEST_CASE("UTF-8 and UTF-16 round trip, including what is outside the BMP") {
-    for (const char* s : {"", "abc", u8"héllo", u8"日本語", u8"🎮 game", u8"a🎮b"}) {
+    for (const char* s : {"", "abc", "héllo", "日本語", "🎮 game", "a🎮b"}) {
         CHECK(utf16ToUtf8(utf8ToUtf16(s)) == std::string(s));
     }
     // An emoji is ONE character and TWO code units — which is exactly the case
     // every index rule below has to get right.
-    CHECK(utf8ToUtf16(u8"🎮").size() == 2);
+    CHECK(utf8ToUtf16("🎮").size() == 2);
     CHECK(utf8ToUtf16("abc").size() == 3);
 }
 
@@ -56,7 +56,7 @@ TEST_CASE("malformed input is replaced, not dropped") {
     CHECK(utf8ToUtf16("a\x80\x62").size() == 3);       // a stray continuation byte
     std::u16string lone;
     lone.push_back(0xD800);
-    CHECK(utf16ToUtf8(lone) == u8"�");
+    CHECK(utf16ToUtf8(lone) == "�");
 }
 
 TEST_CASE("typing replaces the selection") {
@@ -66,7 +66,7 @@ TEST_CASE("typing replaces the selection") {
 }
 
 TEST_CASE("backspace deletes a character, not a code unit") {
-    TextEditModel m = field(u8"a🎮");
+    TextEditModel m = field("a🎮");
     m.moveToEnd(false);
     m.backspace();
     // Deleting one code unit would leave half a surrogate pair — a character no
@@ -75,7 +75,7 @@ TEST_CASE("backspace deletes a character, not a code unit") {
 }
 
 TEST_CASE("delete forward mirrors it") {
-    TextEditModel m = field(u8"🎮b", 0);
+    TextEditModel m = field("🎮b", 0);
     m.deleteForward();
     CHECK(shown(m) == "b|0,0");
 }
@@ -118,27 +118,27 @@ TEST_CASE("word movement crosses one word however it is punctuated") {
 
 TEST_CASE("an IME's preedit is shown but not committed") {
     TextEditModel m = field("ab", 1);
-    m.setComposition(u8"に");
+    m.setComposition("に");
     // Inside the value, which is the seam's contract: a field that hid it would
     // show nothing at all while a CJK user types.
-    CHECK(m.value() == u8"aにb");
+    CHECK(m.value() == "aにb");
     CHECK(m.composing());
     // The caret sits AFTER the preedit — where the typing is going.
     CHECK(m.selectionStart() == 2);
     CHECK(m.selectionEnd() == 2);
 
     // The IME rewrites its preedit in place; the anchor must not walk.
-    m.setComposition(u8"にほん");
-    CHECK(m.value() == std::string(u8"aにほんb"));
+    m.setComposition("にほん");
+    CHECK(m.value() == "aにほんb");
     CHECK(m.selectionStart() == 4);
-    m.insert(u8"日本");
-    CHECK(shown(m) == std::string(u8"a日本b") + "|3,3");
+    m.insert("日本");
+    CHECK(shown(m) == "a日本b|3,3");
     CHECK_FALSE(m.composing());
 }
 
 TEST_CASE("escape from a composition drops the preedit, not the text") {
     TextEditModel m = field("ab", 1);
-    m.setComposition(u8"に");
+    m.setComposition("に");
     m.backspace();
     CHECK(shown(m) == "ab|1,1");
     CHECK_FALSE(m.composing());
@@ -147,28 +147,28 @@ TEST_CASE("escape from a composition drops the preedit, not the text") {
 TEST_CASE("maxLength truncates the insertion, never mid-character") {
     TextEditModel m;
     m.focus("ab", 2, 2, false, 4, false);
-    m.insert(u8"c🎮d");
+    m.insert("c🎮d");
     // Two code units of room: 'c' takes one, the emoji needs two, so neither the
     // emoji nor 'd' fits — and half an emoji must not be what fits instead.
     CHECK(m.value() == "abc");
     // And with one unit of room the emoji is refused rather than halved.
     TextEditModel n;
     n.focus("abc", 3, 3, false, 4, false);
-    n.insert(u8"🎮");
+    n.insert("🎮");
     CHECK(n.value() == "abc");
 }
 
 TEST_CASE("select all, copy and cut work on characters") {
-    TextEditModel m = field(u8"a🎮b");
+    TextEditModel m = field("a🎮b");
     m.selectAll();
-    CHECK(m.selectedText() == u8"a🎮b");
+    CHECK(m.selectedText() == "a🎮b");
     m.deleteSelection();
     CHECK(shown(m) == "|0,0");
 }
 
 TEST_CASE("the app's own write replaces everything, including a preedit") {
     TextEditModel m = field("abc", 1);
-    m.setComposition(u8"に");
+    m.setComposition("に");
     m.write("xyz", 3, 3);
     CHECK(shown(m) == "xyz|3,3");
     CHECK_FALSE(m.composing());
