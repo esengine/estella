@@ -32,6 +32,9 @@ public:
               u32 initialIndexCount = 256 * 1024);
     void shutdown();
 
+    /// Re-creates the streams' GPU buffers and layouts after a device loss.
+    void recreateGpuResources();
+
     void beginFrame();
 
     u32 allocVertices(LayoutId layout, u32 byteSize);

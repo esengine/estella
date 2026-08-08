@@ -24,6 +24,24 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initialized_ = true;
 }
 
+void TransientBufferPool::recreateGpuResources() {
+    if (!initialized_) return;
+    // Dropped without deleting, then re-set up from the same initial sizes. The
+    // staging vectors are CPU-side and survive; only their write positions reset.
+    for (auto& s : streams_) {
+        s.vbo = BufferHandle::Invalid;
+        s.ebo = BufferHandle::Invalid;
+        s.quad_vbo = BufferHandle::Invalid;
+        s.layout = VertexLayoutHandle::Invalid;
+        s.vbo_capacity = 0;
+        s.ebo_capacity = 0;
+        s.vertex_write_pos = 0;
+        s.index_write_pos = 0;
+    }
+    initialized_ = false;
+    init(initial_vertex_bytes_, initial_index_count_);
+}
+
 void TransientBufferPool::shutdown() {
     if (!initialized_) return;
 

@@ -78,6 +78,26 @@ void RenderContext::shutdown() {
     ES_LOG_INFO("RenderContext shutdown");
 }
 
+void RenderContext::recreateGpuResources() {
+    if (!initialized_) return;
+    // Handles are dropped, not deleted: the objects died with the device, and
+    // asking it to free their ids would look up metadata the backend just wiped.
+    whiteTexture_ = TextureHandle::Invalid;
+    blackTexture_ = TextureHandle::Invalid;
+    flatNormalTexture_ = TextureHandle::Invalid;
+    frameUbo_ = BufferHandle::Invalid;
+    timeUbo_ = BufferHandle::Invalid;
+    drawParamsFallback_ = BufferHandle::Invalid;
+
+    initDefaultTextures();
+    initFrameUbo();
+    // The built-ins are new objects, so the materials falling back to them have
+    // to be told; otherwise every unset texture param samples a dead id.
+    materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_);
+    materials_.recreateGpuResources();
+    lights_.recreateGpuResources();
+}
+
 TextureHandle RenderContext::make1x1Texture(u32 rgba) {
     TextureDesc desc;
     desc.width = 1;

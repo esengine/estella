@@ -4,6 +4,13 @@
 
 namespace esengine {
 
+void RenderTarget::recreateGpuResources(GfxDevice& device) {
+    // The framebuffer and its attachment textures died with the device; the size
+    // and format it was created at are still here, which is all init needs.
+    framebuffer_.reset();
+    init(device, width_, height_, has_depth_, linear_filter_);
+}
+
 void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter) {
     width_ = width;
     height_ = height;

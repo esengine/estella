@@ -99,6 +99,10 @@ public:
      */
     void shutdown();
 
+    /// Rebuilds the built-in textures and frame UBOs after a device loss, and
+    /// re-points the stores that depend on them.
+    void recreateGpuResources();
+
     /**
      * @brief Checks if the context is initialized
      * @return True if init() has been called successfully
