@@ -71,7 +71,7 @@ import {
   PLUGIN_PACKAGE_EXT,
 } from './pluginPackage';
 import { findUpdate, downloadUpdate, installUpdate } from './autoUpdate';
-import { pickProgram, launchProgram, type LaunchError } from './externalProgram';
+import { pickProgram, pickDirectory, launchProgram, type LaunchError } from './externalProgram';
 import { detectEditors } from './editorCatalog';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
@@ -993,6 +993,7 @@ ipcMain.handle('shell:openPath', (_e, absPath: string) => shell.openPath(absPath
 // EMPTY program means the OS default — so which program opens a file is data the
 // caller passes, not a second IPC it has to choose between.
 ipcMain.handle('external:pick', async (_e, title: string) => (win ? pickProgram(win, title) : null));
+ipcMain.handle('external:pickDir', async (_e, title: string) => (win ? pickDirectory(win, title) : null));
 
 // The browser the user named in Settings, mirrored from the renderer that owns
 // editor-scoped settings — the same shape as the dirty flag above, and for the

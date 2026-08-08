@@ -71,7 +71,7 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 describe('macOS app assembly', () => {
     it('produces a bundle named and executed by the app, not by the runtime', async () => {
-        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
+        const { dir: bundle } = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         expect(bundle).toBe(path.join(outDir, 'Acme Game.app'));
         // The executable carries the app's name because on desktop the executable
         // IS the identity — the host reads its own argv[0] rather than a config.
@@ -80,7 +80,7 @@ describe('macOS app assembly', () => {
     });
 
     it('puts the runtime bytecode in the SAME asset namespace as the game', async () => {
-        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
+        const { dir: bundle } = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         const content = path.join(bundle, 'Contents/Resources/Content');
         expect(readFileSync(path.join(content, 'game.config.json'), 'utf8')).toContain('entryScene');
         // Beside the game's files, since that is the one path readAsset resolves.
@@ -89,7 +89,7 @@ describe('macOS app assembly', () => {
     });
 
     it('fills the identity into Info.plist', async () => {
-        const bundle = await assembleDesktopApp({
+        const { dir: bundle } = await assembleDesktopApp({
             platform: 'macos', templateDir, contentDir, outDir, app: APP, macosMin: '12.3',
         });
         const plist = readFileSync(path.join(bundle, 'Contents/Info.plist'), 'utf8');
@@ -113,7 +113,7 @@ describe('macOS app assembly', () => {
     });
 
     it('reassembling replaces the bundle rather than merging into it', async () => {
-        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
+        const { dir: bundle } = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         writeFileSync(path.join(bundle, 'Contents/Resources/Content/stale.txt'), 'x');
         await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         expect(existsSync(path.join(bundle, 'Contents/Resources/Content/stale.txt'))).toBe(false);
@@ -128,7 +128,7 @@ describe('Windows assembly', () => {
     });
 
     it('lays the app out as a directory the depot can map whole', async () => {
-        const root = await assembleDesktopApp({
+        const { dir: root } = await assembleDesktopApp({
             platform: 'windows', templateDir, contentDir, outDir, app: APP,
         });
         expect(root).toBe(path.join(outDir, 'Acme Game'));
@@ -139,14 +139,14 @@ describe('Windows assembly', () => {
     });
 
     it('ships the HLSL compiler, without which Dawn creates no device at all', async () => {
-        const root = await assembleDesktopApp({
+        const { dir: root } = await assembleDesktopApp({
             platform: 'windows', templateDir, contentDir, outDir, app: APP,
         });
         expect(existsSync(path.join(root, 'd3dcompiler_47.dll'))).toBe(true);
     });
 
     it('writes no Info.plist and no icns — those describe a bundle', async () => {
-        const root = await assembleDesktopApp({
+        const { dir: root } = await assembleDesktopApp({
             platform: 'windows', templateDir, contentDir, outDir, app: APP,
         });
         expect(existsSync(path.join(root, 'Info.plist'))).toBe(false);
@@ -157,6 +157,59 @@ describe('Windows assembly', () => {
         await expect(assembleDesktopApp({
             platform: 'linux' as 'windows', templateDir, contentDir, outDir, app: APP,
         })).rejects.toThrow(/no desktop layout/);
+    });
+});
+
+describe('the store library a package carries', () => {
+    /** A Steamworks SDK's shape, as far as the assembler is concerned. */
+    const fakeSdk = (name: string, os: 'osx' | 'win64', file: string, body: string): string => {
+        const sdk = path.join(dir, name);
+        mkdirSync(path.join(sdk, 'redistributable_bin', os), { recursive: true });
+        writeFileSync(path.join(sdk, 'redistributable_bin', os, file), body);
+        return sdk;
+    };
+
+    it('ships it NEXT TO THE EXECUTABLE, the one place the host looks', async () => {
+        // dlopen given a leaf name never searches the executable's directory, so a
+        // bundle that put the dylib anywhere else would report Steam absent on
+        // every machine — indistinguishable from a game that never shipped to it.
+        const sdk = fakeSdk('sdk', 'osx', 'libsteam_api.dylib', 'DYLIB');
+        const { dir: bundle, steamLibrary } = await assembleDesktopApp({
+            platform: 'macos', templateDir, contentDir, outDir, app: APP, steamSdkDir: sdk,
+        });
+        expect(steamLibrary).toBe(path.join(bundle, 'Contents/MacOS/libsteam_api.dylib'));
+        expect(existsSync(path.join(bundle, 'libsteam_api.dylib'))).toBe(false);
+        expect(existsSync(path.join(bundle, 'Contents/Resources/libsteam_api.dylib'))).toBe(false);
+    });
+
+    it('takes the project\'s SDK over whatever the template was built with', async () => {
+        // The published template carries none — CI has no Steamworks SDK and may
+        // not redistribute one — so the project's is the only source that scales.
+        writeFileSync(path.join(templateDir, 'libsteam_api.dylib'), 'FROM TEMPLATE');
+        const sdk = fakeSdk('sdk', 'osx', 'libsteam_api.dylib', 'FROM PROJECT');
+        const { steamLibrary } = await assembleDesktopApp({
+            platform: 'macos', templateDir, contentDir, outDir, app: APP, steamSdkDir: sdk,
+        });
+        expect(readFileSync(steamLibrary!, 'utf8')).toBe('FROM PROJECT');
+    });
+
+    it('says so when the named SDK holds no redistributable', async () => {
+        const warnings: string[] = [];
+        const empty = path.join(dir, 'empty-sdk');
+        mkdirSync(empty, { recursive: true });
+        const { steamLibrary } = await assembleDesktopApp({
+            platform: 'macos', templateDir, contentDir, outDir, app: APP,
+            steamSdkDir: empty, warn: (m) => warnings.push(m),
+        });
+        expect(steamLibrary).toBeNull();
+        expect(warnings.join(' ')).toMatch(/redistributable_bin/);
+    });
+
+    it('is absent, not invented, when no SDK is named', async () => {
+        const { steamLibrary } = await assembleDesktopApp({
+            platform: 'macos', templateDir, contentDir, outDir, app: APP,
+        });
+        expect(steamLibrary).toBeNull();
     });
 });
 

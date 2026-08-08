@@ -411,6 +411,19 @@ export const settingsMessages = defineMessages({
         zh: 'depot id 由 Valve 分配；留 0 则使用 App ID + 1、+2…，'
             + '生成的 STEAM.md 会提示你去 SteamPipe → Depots 核对。',
     },
+    'set.project.packaging.desktop.steam.sdkPath': { en: 'Steamworks SDK', zh: 'Steamworks SDK' },
+    'set.project.packaging.desktop.steam.sdkPath.desc': {
+        en: 'The Steamworks SDK you downloaded, on this machine. The package takes its '
+            + 'redistributable from redistributable_bin/ — the engine ships no copy, because its '
+            + 'redistribution is licensed to Steamworks partners. Without it the game still runs, '
+            + 'and every achievement silently reaches nobody.',
+        zh: '你自己下载的 Steamworks SDK 在本机的位置。打包时会从其 redistributable_bin/ 取那一个动态库——'
+            + '引擎不随包携带（它的再分发只授权给 Steamworks 合作伙伴）。不填游戏照常跑，'
+            + '但所有成就都会静默地谁也收不到。',
+    },
+    'set.project.packaging.desktop.steam.sdkPath.pick': {
+        en: 'Choose the Steamworks SDK directory', zh: '选择 Steamworks SDK 目录',
+    },
     'set.project.packaging.desktop.productName': { en: 'Product name', zh: '产品名称' },
     'set.project.packaging.desktop.productName.desc': {
         en: 'Display name for the desktop app, and the name of the app itself (defaults to the project name).',

@@ -189,6 +189,14 @@ export interface SteamPackaging {
   depots?: Partial<Record<'macos' | 'windows' | 'linux', number>>;
   /** Build description shown in the backend's build list. */
   description?: string;
+  /**
+   * A Steamworks SDK on THIS machine — the package takes its redistributable from
+   * `redistributable_bin/<os>/`.
+   *
+   * The engine carries none: redistribution is licensed to partners and one
+   * template is shared by every game (docs/REARCH_STEAM.md §5.2).
+   */
+  sdkPath?: string;
 }
 
 /** Android's slice of the app identity. `appId` is the manifest package — the
@@ -619,6 +627,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
             steam.appId = st.appId;
           }
           if (typeof st.description === 'string') steam.description = st.description;
+          if (typeof st.sdkPath === 'string' && st.sdkPath.trim()) steam.sdkPath = st.sdkPath.trim();
           const dp = st.depots as Record<string, unknown> | undefined;
           if (dp && typeof dp === 'object') {
             const depots: NonNullable<SteamPackaging['depots']> = {};

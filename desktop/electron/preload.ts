@@ -301,6 +301,7 @@ const api = {
     openPath: (absPath: string): Promise<string> => ipcRenderer.invoke('shell:openPath', absPath),
     /** Show a picker for an external program; absolute path, or null if cancelled. */
     pickProgram: (title: string): Promise<string | null> => ipcRenderer.invoke('external:pick', title),
+    pickDirectory: (title: string): Promise<string | null> => ipcRenderer.invoke('external:pickDir', title),
     /** Mirror the chosen browser to main, which opens urls without a call site. */
     setBrowser: (program: string): void => ipcRenderer.send('external:browser', program),
     /** Known code editors actually installed, in preference order. */

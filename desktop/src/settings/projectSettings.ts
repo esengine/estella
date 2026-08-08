@@ -481,6 +481,23 @@ settingsRegistry.register({
   },
 });
 
+// Where Steam's own library comes from. A path rather than a checkbox because the
+// engine has no copy to switch on: the SDK is the developer's download, and the
+// assembler takes exactly one file out of it.
+settingsRegistry.register({
+  id: 'project.packaging.desktop.steam.sdkPath',
+  type: 'path', pick: 'directory',
+  scope: 'project', section: 'packaging', group: t('set.group.steam'),
+  label: t('set.project.packaging.desktop.steam.sdkPath'),
+  description: t('set.project.packaging.desktop.steam.sdkPath.desc'),
+  pickTitle: t('set.project.packaging.desktop.steam.sdkPath.pick'),
+  default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.steam?.sdkPath ?? '',
+    set: (v) => void ProjectStore.setSteamPackaging({ sdkPath: v.trim() || undefined }),
+  },
+});
+
 // One row per OS, because Valve assigns a depot id per OS and they are rarely the
 // three consecutive numbers the default guesses. The generated STEAM.md prints
 // what this build used, next to where to check it.

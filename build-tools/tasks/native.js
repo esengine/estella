@@ -696,7 +696,7 @@ async function packageDesktopApp(options) {
         : path.dirname(contentDir);
 
     logger.step(`Assembling ${app.name} for ${platform}...`);
-    const bundle = await assembleDesktopApp({
+    const { dir: bundle, steamLibrary } = await assembleDesktopApp({
         platform,
         templateDir: template.dir,
         contentDir,
@@ -705,9 +705,11 @@ async function packageDesktopApp(options) {
         iconPng: options.icon,
         macosMin: options.macosMin || MACOS_MIN,
         signIdentity: options.signIdentity,
+        steamSdkDir: options.steamSdk,
         warn: (m) => logger.warn(m),
     });
     logger.success(`${platform} app: ${path.relative(config.paths.root, bundle) || bundle}`);
+    if (steamLibrary) logger.info(`Steam: ${path.basename(steamLibrary)} rides along.`);
     logger.info(platform === 'macos' ? `Run it with: open "${bundle}"` : `Run it: ${bundle}`);
     return bundle;
 }

@@ -24,7 +24,10 @@ namespace {
 JSValue js_steam_init(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     int32_t appId = 0;
     if (argc < 1 || JS_ToInt32(ctx, &appId, argv[0]) < 0 || appId <= 0) return JS_NewBool(ctx, false);
-    const bool ok = steam().init(static_cast<uint32_t>(appId));
+    // The platform says where the redistributable was shipped. A leaf name would
+    // do on Windows and silently never resolve on macOS (see SteamApi::init).
+    const std::string dir = host().platform ? host().platform->executableDir() : std::string();
+    const bool ok = steam().init(static_cast<uint32_t>(appId), dir);
     if (!ok && !steam().lastError().empty()) {
         // Not an error: no client, signed out, or a build that does not ship to
         // Steam. It reaches the boot record so "achievements did nothing" has an

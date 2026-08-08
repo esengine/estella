@@ -18,7 +18,7 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { pngToIcns } from './icns.js';
-import { desktopTemplateSources } from './nativeTemplate.js';
+import { desktopTemplateSources, steamRedistIn } from './nativeTemplate.js';
 import { fillTemplate } from './nativeApp.js';
 
 /** Everything a bundle's Info.plist needs that is not the host's own business. */
@@ -60,7 +60,11 @@ const LAYOUT = {
  * @param {{id: string, name: string, version: string, versionCode: number}} options.app
  * @param {string} [options.iconPng]   Project icon; the template's is used otherwise.
  * @param {string} [options.macosMin]  LSMinimumSystemVersion.
- * @returns {Promise<string>} the app directory's path.
+ * @param {string} [options.steamSdkDir] A Steamworks SDK on this machine; its
+ *   redistributable rides along so the game can reach Steam.
+ * @returns {Promise<{dir: string, steamLibrary: string | null}>} where the app is,
+ *   and whether a store library went into it — a caller shipping to Steam has to
+ *   be able to say so, because without it every achievement silently does nothing.
  */
 export async function assembleDesktopApp(options) {
     const { platform, templateDir, contentDir, outDir, app } = options;
@@ -100,11 +104,23 @@ export async function assembleDesktopApp(options) {
         await cp(sources.bytecode, path.join(content, path.basename(sources.bytecode)));
     }
 
-    // What the runtime needs beside the executable: Dawn's HLSL compiler (Windows)
-    // and Steam's redistributable, which the host dlopens if present. Copied rather
-    // than required — a template without one still produces a game.
-    for (const dll of [sources.d3dCompiler, sources.steamRedist]) {
-        if (dll && existsSync(dll)) await cp(dll, path.join(root, path.basename(dll)));
+    // What the runtime dlopens goes NEXT TO THE EXECUTABLE, the one directory the
+    // host looks in — Contents/MacOS on macOS (Platform::executableDir).
+    const besideExe = path.dirname(executable);
+    // The project's own SDK beats whatever the template was built with: a template
+    // published by CI can carry no Valve file at all.
+    const steamLib = steamRedistIn(options.steamSdkDir, platform)
+        ?? (existsSync(sources.steamRedist) ? sources.steamRedist : null);
+    if (options.steamSdkDir && !steamLib) {
+        options.warn?.(`No redistributable under ${options.steamSdkDir} — a Steamworks SDK keeps it `
+            + 'at redistributable_bin/<os>/. This build reaches no store.');
+    }
+    let steamLibrary = null;
+    for (const lib of [sources.d3dCompiler, steamLib]) {
+        if (!lib || !existsSync(lib)) continue;
+        const shipped = path.join(besideExe, path.basename(lib));
+        await cp(lib, shipped);
+        if (lib === steamLib) steamLibrary = shipped;
     }
 
     const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;
@@ -121,9 +137,9 @@ export async function assembleDesktopApp(options) {
             VERSION_CODE: String(app.versionCode),
             MACOS_MIN: options.macosMin || PLIST_DEFAULT_MIN,
         }));
-        await signBundle(root, options);
+        await signBundle(root, options, steamLibrary ? [steamLibrary] : []);
     }
-    return root;
+    return { dir: root, steamLibrary };
 }
 
 /**
@@ -132,8 +148,12 @@ export async function assembleDesktopApp(options) {
  * The template's executable is signed AS A FILE; a bundle needs
  * `_CodeSignature/CodeResources` too, and without it the app still launches — so
  * nothing tells you until notarization. macOS only.
+ *
+ * Inside out: a library shipped in the bundle is code, and a bundle whose nested
+ * code is unsigned fails `--verify --deep --strict` even though the bundle itself
+ * signed cleanly.
  */
-async function signBundle(bundle, options) {
+async function signBundle(bundle, options, nested = []) {
     if (process.platform !== 'darwin') {
         options.warn?.(`${path.basename(bundle)} is UNSIGNED — assembling on ${process.platform} `
             + 'cannot sign a macOS app. Run `codesign --force --sign - <app>` on a Mac before shipping it.');
@@ -142,5 +162,7 @@ async function signBundle(bundle, options) {
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const identity = options.signIdentity || '-';
-    await promisify(execFile)('codesign', ['--force', '--sign', identity, bundle]);
+    const sign = (target) => promisify(execFile)('codesign', ['--force', '--sign', identity, target]);
+    for (const item of nested) await sign(item);
+    await sign(bundle);
 }

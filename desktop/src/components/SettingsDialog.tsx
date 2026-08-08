@@ -164,7 +164,11 @@ function PathControl({ setting }: { setting: PathSetting }) {
   }, [setting.detect]);
 
   const browse = async () => {
-    const picked = await window.estella?.shell?.pickProgram?.(setting.pickTitle ?? setting.label);
+    const title = setting.pickTitle ?? setting.label;
+    const shell = window.estella?.shell;
+    const picked = setting.pick === 'directory'
+      ? await shell?.pickDirectory?.(title)
+      : await shell?.pickProgram?.(title);
     if (picked) setValue(setting.id, picked);
   };
 

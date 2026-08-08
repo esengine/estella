@@ -41,6 +41,14 @@ describe('the Steam packaging settings', () => {
         expect(setDepot({ depots: { macos: 1 } }, 'macos', undefined)).toBeUndefined();
     });
 
+    it('keeps the SDK path across an App ID change, and drops a blank one', () => {
+        // The SDK is where the redistributable comes from; losing it on an
+        // unrelated edit turns achievements off with nothing said.
+        const prev: SteamPackaging = { appId: 480, sdkPath: '/opt/steamworks_sdk' };
+        expect(mergeSteam(prev, { appId: 500 })?.sdkPath).toBe('/opt/steamworks_sdk');
+        expect(mergeSteam(prev, { sdkPath: undefined })).toEqual({ appId: 480 });
+    });
+
     it('a zero App ID is absence, not a game id', () => {
         // The settings row maps 0 to undefined; a build with appId 0 would write
         // scripts naming an app that is not anyone's.

@@ -54,8 +54,13 @@ export const STEAM_REDIST = {
     linux: 'libsteam_api.so',
 };
 
-/** The redistributable inside a Steamworks SDK checkout, or null. */
-function steamRedist(sdkDir, platform) {
+/**
+ * The redistributable inside a Steamworks SDK checkout, or null.
+ *
+ * The one place that knows an SDK's layout: the template build reads it here, and
+ * so does the assembler, which is where a project's own SDK reaches a package.
+ */
+export function steamRedistIn(sdkDir, platform) {
     if (!sdkDir) return null;
     const sub = { windows: 'win64', macos: 'osx', linux: 'linux64' }[platform];
     const file = path.join(sdkDir, 'redistributable_bin', sub, STEAM_REDIST[platform]);
@@ -163,7 +168,7 @@ export function templateLayout(platform, options = {}) {
             // template without it still packages every game.
             {
                 rel: STEAM_REDIST[platform], optional: true,
-                from: (ctx) => steamRedist(ctx.steamSdk, platform),
+                from: (ctx) => steamRedistIn(ctx.steamSdk, platform),
             },
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];

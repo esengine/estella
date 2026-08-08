@@ -733,6 +733,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       // assembler is pure Node, so a Steam upload can carry every OS from one
       // machine (docs/REARCH_STEAM.md §6.3).
       const templates = opts.desktopTemplates ?? [];
+      let steamLibrary = false;
       if (templates.length === 0) {
         warnings.push('No desktop runtime template is installed for this editor version, so no app '
           + 'was assembled — the content is here. Install one from the Desktop row in Package '
@@ -745,14 +746,21 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           continue;
         }
         progress({ phase: `Assembling the ${os} app` });
-        appBundles.push({
-          os,
-          dir: await assembleDesktopApp({
-            platform: os, templateDir: dir, contentDir: absOut, outDir: absOut, app: appConfig,
-            iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
-            warn: (m: string) => warnings.push(m),
-          }),
+        const built = await assembleDesktopApp({
+          platform: os, templateDir: dir, contentDir: absOut, outDir: absOut, app: appConfig,
+          iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
+          steamSdkDir: opts.steam?.sdkPath,
+          warn: (m: string) => warnings.push(m),
         });
+        appBundles.push({ os, dir: built.dir });
+        steamLibrary ||= built.steamLibrary !== null;
+        // Silence is the failure mode: with no library the game runs, every unlock
+        // reaches nobody, and nothing reports it until a player does.
+        if (opts.desktopChannel === 'steam' && !built.steamLibrary) {
+          warnings.push(`The ${os} build carries no Steam library, so it reaches no store: `
+            + 'achievements are recorded locally and nothing else. Point Project Settings → '
+            + 'Packaging → Steamworks SDK at your own SDK download.');
+        }
       }
       if (opts.desktopChannel === 'steam' && appBundles.length > 0) {
         const appId = opts.steam?.appId;
@@ -769,6 +777,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
             appId,
             appName: appConfig.name,
             description: opts.steam?.description,
+            // The checklist is where a build says what the backend must be told AND
+            // what this package can actually reach.
+            achievements: opts.runtime?.achievements,
+            steamLibrary,
             depots: appBundles.map(({ os }) => ({
               os, depotId: opts.steam?.depots?.[os] ?? defaultDepotId(appId, os),
             })),

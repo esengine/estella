@@ -142,6 +142,15 @@ struct Platform {
     virtual std::string describe() = 0;
 
     /**
+     * The directory the executable is in, with a trailing separator — the only
+     * place a shipped app's sibling libraries are looked for.
+     *
+     * A leaf name will not find them: `dlopen` does not search it. Empty on a
+     * phone, whose loaders then report unavailable.
+     */
+    virtual std::string executableDir() { return {}; }
+
+    /**
      * Directories a PLAYER can browse to, best first — where a crash record is
      * copied so it can be sent.
      *

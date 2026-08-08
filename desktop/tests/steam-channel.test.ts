@@ -74,6 +74,26 @@ describe('the Steam channel', () => {
         expect(text).toContain('Library/Application Support/Estella/Physics Spinner');
     });
 
+    it('names the achievements to create, and says when nothing can reach Steam', async () => {
+        // Both silences at once: an id the backend does not have is accepted and
+        // dropped, and a package with no redistributable never gets that far.
+        const { checklist } = await emitSteamBuild({
+            outDir: out, appId: 480, appName: 'Spinner',
+            depots: [{ os: 'windows', depotId: 481 }],
+            achievements: ['FIRST_BLOOD', 'ALL_LEVELS'],
+        });
+        const text = readFileSync(checklist, 'utf8');
+        expect(text).toContain('`FIRST_BLOOD`');
+        expect(text).toContain('`ALL_LEVELS`');
+        expect(text).toMatch(/carries no Steam library/);
+
+        await emitSteamBuild({
+            outDir: out, appId: 480, appName: 'Spinner',
+            depots: [{ os: 'windows', depotId: 481 }], steamLibrary: true,
+        });
+        expect(readFileSync(checklist, 'utf8')).not.toMatch(/carries no Steam library/);
+    });
+
     it('says the depot ids are a guess, because Valve assigns them', async () => {
         const { checklist } = await emit();
         expect(readFileSync(checklist, 'utf8')).toMatch(/guess|assigns/i);

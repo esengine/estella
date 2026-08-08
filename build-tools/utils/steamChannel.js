@@ -76,6 +76,10 @@ export function defaultDepotId(appId, os) {
  * @param {string} options.appName   The app's name, which names its executable.
  * @param {{os: string, depotId: number}[]} options.depots
  * @param {string} [options.description] Build description shown in the backend.
+ * @param {string[]} [options.achievements] Ids the game unlocks — each has to
+ *   exist in the backend, where it is created by hand.
+ * @param {boolean} [options.steamLibrary] Whether the packages carry Steam's
+ *   redistributable. Without it the game runs and reaches no store.
  * @returns {Promise<{scripts: string[], checklist: string}>}
  */
 export async function emitSteamBuild(options) {
@@ -111,8 +115,33 @@ export async function emitSteamBuild(options) {
     scripts.push(appFile);
 
     const checklist = path.join(outDir, 'STEAM.md');
-    await writeFile(checklist, checklistFor({ appId, appName, depots, appFile }));
+    await writeFile(checklist, checklistFor({ ...options, appFile }));
     return { scripts, checklist };
+}
+
+/**
+ * The two ways achievements silently do nothing, said before they can happen.
+ *
+ * An id the backend does not have is accepted and dropped; a package with no
+ * redistributable never reaches Steam at all. Neither reports anything, and both
+ * end with a player noticing months later.
+ */
+function achievementSection(ids, steamLibrary) {
+    const library = steamLibrary
+        ? 'This build carries Steam\'s redistributable, so it can reach the store.'
+        : '**This build carries no Steam library**, so nothing here reaches Steam: unlocks are '
+        + 'recorded locally and `Achievements.available` is false. Point Project Settings → '
+        + 'Packaging → Steamworks SDK at your own SDK download and export again.';
+    if (ids.length === 0) {
+        return `${library}\n\nThis project declares no achievements (Project Settings → Packaging).`;
+    }
+    return `${library}
+
+Create each of these under **Achievements → Edit** with the SAME API name. Steam
+accepts an unlock of an id it does not have and does nothing with it, so a name
+that differs by one character is an achievement no player can ever get.
+
+${ids.map((id) => `- \`${id}\``).join('\n')}`;
 }
 
 /**
@@ -121,7 +150,7 @@ export async function emitSteamBuild(options) {
  * Generic instructions belong in the docs; what cannot be looked up is what THIS
  * build needs pasted where — the launch string, the depot ids, the cloud path.
  */
-function checklistFor({ appId, appName, depots, appFile }) {
+function checklistFor({ appId, appName, depots, appFile, achievements = [], steamLibrary = false }) {
     const rows = depots.map(({ os, depotId }) =>
         `| ${os} | \`${depotId}\` | \`${launchTarget(os, appName)}\` |`).join('\n');
     const cloud = depots.map(({ os }) => {
@@ -144,6 +173,10 @@ The depot ids above are a guess (\`appid + 1\`, …). Valve ASSIGNS them — che
 them against **SteamPipe → Depots** and set \`packaging.platforms.desktop.steam.depots\`
 if they differ. An upload to a depot that is not yours fails rather than going
 somewhere wrong.
+
+## Achievements
+
+${achievementSection(achievements, steamLibrary)}
 
 ## Cloud saves
 

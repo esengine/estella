@@ -105,6 +105,8 @@ struct DesktopPlatform final : eshost::Platform {
     std::string contentRoot;
     /** SDL_GetPrefPath's directory, kept because every call allocates. */
     std::string prefPath;
+    /** The directory holding this binary — see resolveExecutableDir. */
+    std::string exeDir;
 
     // Loose files in a directory, not an APK's assets or a bundle: that is what a
     // depot ships and what an export already is, so packaging copies rather than
@@ -125,6 +127,8 @@ struct DesktopPlatform final : eshost::Platform {
     }
 
     std::string dataDir() override { return prefPath; }
+
+    std::string executableDir() override { return exeDir; }
 
     /** The same directory: on desktop the player can open it, which is the whole
      *  reason the mobile platforms distinguish a log dir from a private one. */
@@ -259,6 +263,23 @@ std::string resolveContentRoot(int argc, char** argv) {
     return readFileBytes(content + "game.config.json").empty() ? std::string(base) : content;
 }
 
+/**
+ * The directory this binary is in, with a trailing separator.
+ *
+ * From argv[0]: SDL_GetBasePath answers `Contents/Resources/` inside a macOS
+ * bundle, which holds the game's FILES and not its libraries. Falls back to it
+ * when argv[0] carries no directory.
+ */
+std::string resolveExecutableDir(int argc, char** argv) {
+    if (argc > 0 && argv[0] && argv[0][0]) {
+        const std::string path = argv[0];
+        const size_t slash = path.find_last_of("/\\");
+        if (slash != std::string::npos) return path.substr(0, slash + 1);
+    }
+    const char* base = SDL_GetBasePath();
+    return base ? std::string(base) : std::string();
+}
+
 /** The app's name, for the window and for the saves directory.
  *
  *  From the executable, which on desktop IS the identity the assembler set.
@@ -287,6 +308,7 @@ int main(int argc, char** argv) {
 
     const std::string name = appName(argc, argv);
     g_platform.contentRoot = resolveContentRoot(argc, argv);
+    g_platform.exeDir = resolveExecutableDir(argc, argv);
     // The directory a store's cloud save syncs. Its shape per OS is written down a
     // second time in build-tools/utils/steamChannel.js (CLOUD_ROOTS), because the
     // backend has to be told it in its own words — change one and change that.

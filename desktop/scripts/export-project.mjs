@@ -19,6 +19,8 @@
 //     --template <dir>    android/ios: the runtime template to wrap, else the installed one
 //     --json <file>       also write the result here, for a caller that reads it back
 //     --enforce-budget    fail (exit 1) when the package is over a size limit
+//     --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
+//     --steam-appid <id>  desktop: also write the Steam depot scripts for this app id
 //
 // Prints the export result as JSON — errors, warnings, and what the package weighs
 // against the limits in force — so a caller can tell a clean package from one that
@@ -64,6 +66,10 @@ function parseArgs(argv) {
     }
     return opts;
 }
+
+/** Which desktop template this machine can also RUN, for --template. */
+const HOST_DESKTOP_OS = process.platform === 'darwin' ? 'macos'
+    : process.platform === 'win32' ? 'windows' : 'linux';
 
 const fileUrl = (p) => `file:///${p.replace(/\\/g, '/')}`;
 
@@ -164,6 +170,15 @@ const templateDir = nativePlatform
         ? path.resolve(opts.template)
         : firstExisting([installedTemplateDir(engineVersion, platform)]) ?? null)
     : null;
+// Desktop takes a template PER OS, and assembles one app for each it finds: the
+// assembler is pure Node, so a headless run on one machine produces the same set
+// the editor would. --template names one and then it is the only one.
+const desktopTemplates = platform !== 'desktop' ? [] : (opts.template
+    ? [{ os: HOST_DESKTOP_OS, dir: path.resolve(opts.template) }]
+    : ['windows', 'macos', 'linux'].flatMap((os) => {
+        const dir = firstExisting([installedTemplateDir(engineVersion, os)]);
+        return dir ? [{ os, dir }] : [];
+    }));
 // The engine runtime for this target — the headless half of the editor's
 // `platformRuntimeDirs`. WeChat's is a different build (WXWebAssembly glue, `-t
 // wechat`), and handing it the web one produced either a "runtime not found"
@@ -196,6 +211,11 @@ try {
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
         orientation: resolveOrientation(project),
         androidTemplate: platform === 'android' ? templateDir : null,
+        desktopTemplates,
+        desktopChannel: opts['steam-appid'] ? 'steam' : undefined,
+        steam: (opts['steam-appid'] || opts['steam-sdk'])
+            ? { appId: Number(opts['steam-appid']) || undefined, sdkPath: opts['steam-sdk'] }
+            : undefined,
         iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
         androidOutput: opts.output === 'project' ? 'project' : undefined,
         sizeBudgetBytes,

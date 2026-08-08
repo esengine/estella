@@ -38,13 +38,19 @@ namespace eshost {
 class SteamApi {
   public:
     /**
-     * Load the library beside the executable and initialise.
+     * Load the library out of @p directory and initialise.
      *
-     * @param appId The Steam application id, for the ownership check.
+     * The directory is required, not assumed: `dlopen` given a leaf name never
+     * looks beside the executable, so a macOS app shipping the redistributable
+     * next to its binary would report Steam absent forever.
+     *
+     * @param appId     The Steam application id, for the ownership check.
+     * @param directory Where the redistributable was shipped, with a trailing
+     *                  separator. Empty ⇒ nothing to load.
      * @returns false when there is no library, no running client, or no session —
      *          all of which are ordinary, and none of which is an error.
      */
-    bool init(std::uint32_t appId);
+    bool init(std::uint32_t appId, const std::string& directory);
     void shutdown();
 
     /** Whether a Steam session is behind this. Everything below is a no-op

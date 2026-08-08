@@ -86,3 +86,9 @@ export async function pickProgram(win: BrowserWindow, title: string): Promise<st
   });
   return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
 }
+
+/** Ask for a directory on this machine — an SDK, a toolchain root, a checkout. */
+export async function pickDirectory(win: BrowserWindow, title: string): Promise<string | null> {
+  const res = await showOpenDialog(win, { title, properties: ['openDirectory'] });
+  return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
+}

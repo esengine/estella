@@ -20,5 +20,9 @@ export function emitSteamBuild(options: {
     /** Names the executable a depot maps and Steam launches. */
     appName: string;
     depots: { os: SteamDepotOs; depotId: number }[];
+    /** Ids the game unlocks; each must be created by hand in the backend. */
+    achievements?: string[];
+    /** Whether the packages carry Steam's redistributable. */
+    steamLibrary?: boolean;
     description?: string;
 }): Promise<{ scripts: string[]; checklist: string }>;

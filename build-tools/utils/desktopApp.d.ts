@@ -25,6 +25,16 @@ export function assembleDesktopApp(options: {
     macosMin?: string;
     /** codesign identity; ad-hoc when absent. */
     signIdentity?: string;
-    /** Told when the bundle could not be signed (assembling off macOS). */
+    /** A Steamworks SDK on this machine; its redistributable ships in the app.
+     *  Beats one the template was built with — an explicit setting wins. */
+    steamSdkDir?: string;
+    /** Told when the bundle could not be signed (assembling off macOS), or when a
+     *  named SDK held no redistributable. */
     warn?: (message: string) => void;
-}): Promise<string>;
+}): Promise<{
+    /** The app directory. */
+    dir: string;
+    /** The store library shipped inside it, or null — without one the game runs
+     *  and every achievement silently reaches nobody. */
+    steamLibrary: string | null;
+}>;

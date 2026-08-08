@@ -133,14 +133,21 @@ SteamApi& steam() {
     return instance;
 }
 
-bool SteamApi::init(std::uint32_t appId) {
+bool SteamApi::init(std::uint32_t appId, const std::string& directory) {
     if (library_) return available();
     error_.clear();
 
-    library_ = openLibrary(kSteamLibrary);
+    if (directory.empty()) {
+        error_ = "this host does not know where its own libraries are";
+        return false;
+    }
+    const std::string libraryPath = directory + kSteamLibrary;
+    library_ = openLibrary(libraryPath.c_str());
     if (!library_) {
         // Ordinary: a build that does not ship to Steam has no reason to carry it.
-        error_ = std::string(kSteamLibrary) + " is not beside the executable";
+        // The PATH is named, not the leaf: "it is not there" and "it is there and
+        // the loader looked somewhere else" read identically otherwise.
+        error_ = libraryPath + " is not there";
         return false;
     }
 

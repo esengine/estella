@@ -100,6 +100,9 @@ export interface PathSetting extends BaseSetting<string> {
   placeholder?: string;
   /** Title of the picker dialog. */
   pickTitle?: string;
+  /** What the picker selects. Default a file, because most of these name a
+   *  program; an SDK or a checkout is a directory. */
+  pick?: 'file' | 'directory';
   /** Offer the code editors found installed, so the row is a choice, not a blank. */
   detect?: boolean;
 }
