@@ -27,6 +27,7 @@
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 #include "host_bootstrap.h"      // bootstrap.js, embedded
 
+#include <chrono>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -68,9 +69,10 @@ void hostLog(bool error, const char* fmt, ...) {
 }
 
 double nowMs() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+    // steady_clock, as the frame delta already uses (Host.cpp): monotonic on every
+    // platform and needing no per-OS spelling, where clock_gettime needed one.
+    const auto since = std::chrono::steady_clock::now().time_since_epoch();
+    return std::chrono::duration<double, std::milli>(since).count();
 }
 
 // =============================================================================
