@@ -5,6 +5,7 @@ import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { platformOnContextLost } from '../platform';
+import { findWebGL2Context } from '../asset/loaders/TextureLoader';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 
 export enum RenderStage {
@@ -212,19 +213,30 @@ let lossGuardInstalled = false;
  * abandons the context for good. That decision belongs to the renderer, not to
  * whether a diagnostics plugin happens to be installed.
  */
-function installContextLossGuard(): void {
+function installContextLossGuard(m: ESEngineModule): void {
     if (lossGuardInstalled) return;
     lossGuardInstalled = true;
-    platformOnContextLost(() => {
+    const onLost = (e?: Event): void => {
+        e?.preventDefault();
         reportDeviceLost(DeviceLostReason.ContextLost, 'The host reported the rendering context was lost');
-    });
+    };
+
+    // On the CANVAS, not on window: an unattached canvas has no path to window
+    // at all — not even a capture phase — and the engine's own canvas is exactly
+    // that in a headless host.
+    const canvas = findWebGL2Context(m.GL)?.canvas as EventTarget | undefined;
+    if (canvas?.addEventListener) {
+        canvas.addEventListener('webglcontextlost', onLost as EventListener);
+        return;
+    }
+    platformOnContextLost(() => onLost());
 }
 
 /** @internal Wired by the engine plugins — not part of the public API. */
 export function initRendererAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
-    installContextLossGuard();
+    installContextLossGuard(module);
     viewProjectionPtr = module._malloc(16 * 4);
     backend = wasmBackend(module);
 }
