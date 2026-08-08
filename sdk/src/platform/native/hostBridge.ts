@@ -26,6 +26,10 @@ const TOUCH_START = 0;
 const TOUCH_MOVE = 1;
 const TOUCH_END = 2;
 
+/** Pointer phases, same convention: a mouse has no cancel. */
+const POINTER_DOWN = 0;
+const POINTER_MOVE = 1;
+
 /** The `es_*` primitives a native host binds. Required unless marked optional. */
 export interface NativeHostBindings {
     /** A packaged file's bytes, or null when it is not in the package. */
@@ -57,6 +61,11 @@ export interface NativeHostBindings {
     es_storageKeys?(): string[];
     /** Screen scale (1 when the host reports surface pixels directly). */
     es_devicePixelRatio?(): number;
+
+    /** The gamepads this frame, in the W3C standard layout. Absent on a host with
+     *  no pads to report — a phone, where the SDK sees the same empty list a
+     *  browser without navigator.getGamepads() gives it. */
+    es_pollGamepads?(): { index: number; connected: boolean; buttons: number[]; axes: number[] }[];
 
     /** Perform an HTTP request off the main thread (native TLS stack), calling
      *  back with the reply. Optional — a host without it stays offline (remote
@@ -138,6 +147,19 @@ export function createHostBridge(
         else if (type === TOUCH_END) listener.onTouchEnd(id);
         else listener.onTouchCancel(id);
     };
+    scope.es_onNativePointer = (type: number, button: number, x: number, y: number): void => {
+        if (!listener) return;
+        if (type === POINTER_DOWN) listener.onPointerDown(button, x, y);
+        else if (type === POINTER_MOVE) listener.onPointerMove(x, y);
+        else listener.onPointerUp(button);
+    };
+    scope.es_onNativeWheel = (deltaX: number, deltaY: number): void => {
+        listener?.onWheel(deltaX, deltaY);
+    };
+    scope.es_onNativeKey = (down: boolean, code: string): void => {
+        if (!listener) return;
+        if (down) listener.onKeyDown(code); else listener.onKeyUp(code);
+    };
 
     const storage = hostStorage(bindings);
     const audio = hostAudio(bindings, scope);
@@ -177,6 +199,20 @@ export function createHostBridge(
             return () => { listener = null; };
         },
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
+        ...(bindings.es_pollGamepads
+            // 'standard' is asserted HERE rather than by the host: the layout is
+            // this bridge's contract with the SDK, and a host that filled the
+            // arrays in that order has already met it.
+            ? {
+                pollGamepads: () => bindings.es_pollGamepads!().map((pad) => ({
+                    index: pad.index,
+                    connected: pad.connected,
+                    buttons: pad.buttons,
+                    axes: pad.axes,
+                    mapping: 'standard',
+                })),
+            }
+            : {}),
         ...(audio ? { audio } : {}),
         ...(textEditor ? { textEditor } : {}),
         ...lifecycle,

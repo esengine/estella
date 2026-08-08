@@ -18,7 +18,9 @@
  *         shell (boot spike → full host) lands. Public via the `esengine/native` entry.
  */
 
-import type { ImageLoadResult, PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
+import type {
+    GamepadSnapshot, ImageLoadResult, PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions,
+} from '../types';
 
 /**
  * A single fetch result from the native http stack. The adapter wraps it into a
@@ -45,8 +47,19 @@ export interface NativeInputListener {
     onTouchMove(id: number, x: number, y: number): void;
     onTouchEnd(id: number): void;
     onTouchCancel(id: number): void;
-    onKeyDown?(code: string): void;
-    onKeyUp?(code: string): void;
+    /** A mouse or pen — separate from touch because it is separate on the web:
+     *  a touch synthesizes the primary pointer, a mouse IS one and has a button
+     *  (DOM order: 0 left, 1 middle, 2 right). */
+    onPointerDown(button: number, x: number, y: number): void;
+    onPointerMove(x: number, y: number): void;
+    onPointerUp(button: number): void;
+    /** Wheel delta in PIXELS, positive-down (the DOM `deltaMode: 0` contract). */
+    onWheel(deltaX: number, deltaY: number): void;
+    /** The DOM `KeyboardEvent.code` — the physical key, which is what the SDK's
+     *  input maps are written against. NOT optional: it was, and the entry point
+     *  that would have fed it was never written, so no native key ever arrived. */
+    onKeyDown(code: string): void;
+    onKeyUp(code: string): void;
 }
 
 /** What the OS editing surface reports back. `state` carries the surface's whole
@@ -166,6 +179,11 @@ export interface NativeBridge {
 
     /** Register the engine's input sink; returns an unsubscribe. */
     registerInput(listener: NativeInputListener): () => void;
+
+    /** The gamepads the shell can see, this frame. Polled rather than pushed,
+     *  matching navigator.getGamepads(): a pad has a state, not events. Absent on
+     *  a shell with no pads to report (a phone). */
+    pollGamepads?(): GamepadSnapshot[];
 
     devicePixelRatio(): number;
     /** High-resolution clock. Optional — falls back to `Date.now()`. */

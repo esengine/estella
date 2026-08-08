@@ -48,6 +48,10 @@ void registerAssetBindings(HostState& h, JSValue global);
  *  the SDK's hasAudioBindings() gates the native backend on real availability. */
 void registerAudioBindings(HostState& h, JSValue global);
 
+/** es_pollGamepads — the one half of input the engine pulls rather than is
+ *  pushed; see InputBindings.cpp. */
+void registerInputBindings(HostState& h, JSValue global);
+
 /** es_fetch over the platform's native networking. */
 void registerNetBindings(HostState& h, JSValue global);
 

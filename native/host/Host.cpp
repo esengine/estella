@@ -355,6 +355,33 @@ void touch(int type, int id, float x, float y) {
     for (JSValue& v : args) JS_FreeValue(h.js, v);
 }
 
+void pointer(int type, int button, float x, float y) {
+    if (!booted()) return;
+    HostState& h = host();
+    JSValue args[4] = {
+        JS_NewInt32(h.js, type), JS_NewInt32(h.js, button),
+        JS_NewFloat64(h.js, x), JS_NewFloat64(h.js, y),
+    };
+    callJs(h, "es_onNativePointer", 4, args);
+    for (JSValue& v : args) JS_FreeValue(h.js, v);
+}
+
+void wheel(float dx, float dy) {
+    if (!booted()) return;
+    HostState& h = host();
+    JSValue args[2] = {JS_NewFloat64(h.js, dx), JS_NewFloat64(h.js, dy)};
+    callJs(h, "es_onNativeWheel", 2, args);
+    for (JSValue& v : args) JS_FreeValue(h.js, v);
+}
+
+void key(bool down, const char* code) {
+    if (!booted() || !code || !code[0]) return;
+    HostState& h = host();
+    JSValue args[2] = {JS_NewBool(h.js, down), JS_NewString(h.js, code)};
+    callJs(h, "es_onNativeKey", 2, args);
+    for (JSValue& v : args) JS_FreeValue(h.js, v);
+}
+
 // The app went to background (visible=false) or returned. Suspend/resume the
 // audio device at the native layer — correct even while the JS tick is paused —
 // then push the signal to JS, where the Lifecycle plugin auto-pauses the game.

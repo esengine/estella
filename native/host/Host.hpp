@@ -82,6 +82,17 @@ struct FontFile {
     bool syntheticItalic = false;
 };
 
+/** One gamepad in the W3C "standard mapping" layout, as GamepadSnapshot carries
+ *  it — a second layout would make a game's button indices mean different buttons
+ *  per platform. `buttons` is indexed by GamepadButton and analog in [0,1]; `axes`
+ *  by GamepadAxis, signed in [-1,1]. */
+struct GamepadState {
+    int index = 0;
+    bool connected = false;
+    float buttons[17]{};
+    float axes[4]{};
+};
+
 /**
  * @brief The platform seam: what the host needs that Android and iOS answer
  *        differently. The glue implements it; host_core owns everything else.
@@ -176,6 +187,14 @@ struct Platform {
      * The surface OWNS the value and the selection while a field is focused —
      * an IME composes into it, and the app's own edits go through `write`.
      */
+    /**
+     * The gamepads this platform can see, appended to @p out.
+     *
+     * POLLED, matching navigator.getGamepads(): a pad has no events, only a state
+     * each frame. The default answers none — a phone's honest report.
+     */
+    virtual void pollGamepads(std::vector<GamepadState>& out) { out.clear(); }
+
     virtual bool hasTextEditor() const { return false; }
     virtual void textEditorFocus(const std::string& /*value*/, int /*selectionStart*/,
                                  int /*selectionEnd*/, bool /*multiline*/,
@@ -222,6 +241,22 @@ void frame();
 /** @brief Feeds one touch to the game. @p type: 0 start / 1 move / 2 end / 3 cancel.
  *         Coordinates are in surface pixels, top-left origin (as on the web). */
 void touch(int type, int id, float x, float y);
+
+/** @brief Feeds one mouse/pen event. @p type: 0 down / 1 move / 2 up; @p button
+ *         in the DOM order (0 left, 1 middle, 2 right); coordinates as for touch.
+ *
+ *         Distinct from {@link touch} because it is distinct on the web: a touch
+ *         synthesizes the primary pointer, a mouse IS one and carries a button. */
+void pointer(int type, int button, float x, float y);
+
+/** @brief Feeds one wheel event, in PIXELS — the DOM `deltaMode: 0` contract, and
+ *         positive-down like it, so a game scrolls the same way everywhere. */
+void wheel(float dx, float dy);
+
+/** @brief Feeds one key transition. @p code is the DOM `KeyboardEvent.code` (the
+ *         physical key: "KeyW", "Space", "ArrowLeft"), which is what the SDK's
+ *         input maps are written against. */
+void key(bool down, const char* code);
 
 /** @brief The app went to background (@p visible false) or returned to foreground.
  *         Suspends/resumes the audio device natively and pushes the signal to JS,

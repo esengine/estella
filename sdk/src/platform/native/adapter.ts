@@ -20,6 +20,7 @@ import type {
     PlatformResponse,
     WasmInstantiateResult,
     InputEventCallbacks,
+    GamepadSnapshot,
     ImageLoadResult,
     PlatformCanvas,
     PlatformImage,
@@ -147,6 +148,13 @@ export class NativePlatformAdapter implements PlatformAdapter {
             onTouchMove: (id, x, y) => pointer.move(id, x, y),
             onTouchEnd: (id) => pointer.end(id),
             onTouchCancel: (id) => pointer.cancel(id),
+            // Straight through, NOT via createPrimaryPointer: a mouse already is
+            // the pointer and carries a button, and routing it through the touch
+            // synthesizer would drop every button but the first.
+            onPointerDown: (button, x, y) => callbacks.onPointerDown(button, x, y),
+            onPointerMove: (x, y) => callbacks.onPointerMove(x, y),
+            onPointerUp: (button) => callbacks.onPointerUp(button),
+            onWheel: (dx, dy) => callbacks.onWheel(dx, dy),
             onKeyDown: (code) => callbacks.onKeyDown(code),
             onKeyUp: (code) => callbacks.onKeyUp(code),
         };
@@ -224,8 +232,13 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return new WasmVideoBackend(ctx);
     }
 
-    // createSocket / pollGamepads / loadSubpackage are optional and deferred to
-    // the shell.
+    /** Whatever the shell can see; none where it reports nothing, which is the
+     *  same empty list a browser without navigator.getGamepads() gives. */
+    pollGamepads(): GamepadSnapshot[] {
+        return this.bridge_.pollGamepads?.() ?? [];
+    }
+
+    // createSocket / loadSubpackage are optional and deferred to the shell.
 }
 
 /** Install a {@link NativePlatformAdapter} built from the host `bridge` as the

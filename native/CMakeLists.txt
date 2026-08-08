@@ -263,6 +263,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/RenderBindings.cpp
         host/bindings/AssetBindings.cpp
         host/bindings/AudioBindings.cpp
+        host/bindings/InputBindings.cpp
         host/bindings/NetBindings.cpp
         host/bindings/TextEditorBindings.cpp
         host/media/native_audio.cpp

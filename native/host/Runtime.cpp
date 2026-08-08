@@ -417,6 +417,7 @@ void initRuntime(HostState& h) {
     registerRenderBindings(h, global);
     registerAssetBindings(h, global);
     registerAudioBindings(h, global);
+    registerInputBindings(h, global);
     registerNetBindings(h, global);
     registerTextEditorBindings(h, global);
 
