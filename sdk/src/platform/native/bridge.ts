@@ -79,6 +79,10 @@ export interface NativeSteamBridge {
     getStat(name: string): number;
     store(): boolean;
     reset(): boolean;
+    /** Called when the store's overlay covers the game, and again when it stops.
+     *  One subscriber: the host pushes to one entry point, and the services layer
+     *  is what fans it out. */
+    onOverlay(listener: (covered: boolean) => void): void;
 }
 
 /** What the OS editing surface reports back. `state` carries the surface's whole

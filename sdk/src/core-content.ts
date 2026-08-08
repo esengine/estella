@@ -415,13 +415,13 @@ export {
 
 export {
     Achievements, AchievementsAPI, createLocalAchievements,
-    Ads, AdsAPI, createMockAdProvider,
+    Ads, AdsAPI, createMockAdProvider, createTakeover,
     Share, ShareAPI,
     Leaderboard, LeaderboardAPI, createLocalLeaderboard,
     Identity, IdentityAPI, Payment, PaymentAPI,
     ServicesPlugin, servicesPlugin,
     type AchievementProvider,
-    type AdProvider, type AdsHost, type MockAdProviderOptions, type ShareCard,
+    type AdProvider, type MockAdProviderOptions, type ShareCard, type Takeover, type TakeoverHost,
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
     type LeaderboardStyle, type LocalLeaderboardOptions, type LoginResult,
     type PaymentRequest, type PaymentFailure,

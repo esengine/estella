@@ -24,12 +24,17 @@ import { Leaderboard, LeaderboardAPI } from './leaderboard';
 import { Achievements, AchievementsAPI } from './achievements';
 import { Identity, IdentityAPI } from './identity';
 import { Payment, PaymentAPI } from './payment';
+import { createTakeover } from './takeover';
+import { getPlatform } from '../platform';
 
 export class ServicesPlugin implements Plugin {
     name = 'Services';
 
     build(app: App): void {
-        app.insertResource(Ads, new AdsAPI({
+        // ONE ceremony for everything that covers the game. An ad and a store
+        // overlay are the same event to a player, and they can overlap — the
+        // overlay closing must not resume a game an ad is still covering.
+        const takeover = createTakeover({
             setPaused: (p) => app.setPaused(p),
             isPaused: () => app.isPaused(),
             // Resolved per call: the audio plugin builds in the same pass and
@@ -37,7 +42,14 @@ export class ServicesPlugin implements Plugin {
             // a Null backend behind the same API — suspending silence is free.
             suspendAudio: () => app.getResource(Audio)?.suspend(),
             resumeAudio: () => app.getResource(Audio)?.resume(),
-        }));
+        });
+        app.insertResource(Ads, new AdsAPI(takeover));
+        // A takeover the game never asked for: the player pressed Shift+Tab. The
+        // platform seam is absent everywhere but a store's own shell, and where
+        // it is absent there is nothing that can cover the game.
+        getPlatform().onStoreOverlay?.((covered) => {
+            if (covered) takeover.begin(); else takeover.end();
+        });
         app.insertResource(Share, new ShareAPI());
         app.insertResource(Achievements, new AchievementsAPI());
         app.insertResource(Identity, new IdentityAPI());

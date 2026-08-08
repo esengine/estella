@@ -16,6 +16,7 @@ import { defineResource } from '../ecs/resource';
 import { platformCreateRewardedAd, platformCreateInterstitialAd, platformCanCreateAds } from '../platform';
 import type { PlatformRewardedAd, PlatformInterstitialAd, PlatformRewardedAdResult } from '../platform/types';
 import { log } from '../util/logger';
+import type { Takeover } from './takeover';
 
 /**
  * A drop-in ad source for hosts that have none: the editor's play mode, unit
@@ -64,24 +65,18 @@ export function createMockAdProvider(options: MockAdProviderOptions = {}): AdPro
     };
 }
 
-/** What the ads service asks of the app around a fullscreen takeover. Injected
- *  so the service stays a pure orchestration (and the tests stay honest). */
-export interface AdsHost {
-    setPaused(paused: boolean): void;
-    isPaused(): boolean;
-    suspendAudio(): void;
-    resumeAudio(): void;
-}
-
 export class AdsAPI {
-    private readonly host_: AdsHost;
+    private readonly takeover_: Takeover;
     private provider_: AdProvider | null = null;
     private readonly rewarded_ = new Map<string, PlatformRewardedAd>();
     private readonly interstitials_ = new Map<string, PlatformInterstitialAd>();
     private showing_ = false;
 
-    constructor(host: AdsHost) {
-        this.host_ = host;
+    /** @param takeover The app-wide pause/silence ceremony. Shared rather than
+     *  private: a store overlay opening during an ad is one covered game, not two
+     *  (see services/takeover.ts). */
+    constructor(takeover: Takeover) {
+        this.takeover_ = takeover;
     }
 
     /** Whether SOME ad source exists here — the platform's or an installed
@@ -135,20 +130,14 @@ export class AdsAPI {
     private static readonly NO_SOURCE =
         'no ad source on this platform — check Ads.available, or install a provider (the editor installs a mock in play mode)';
 
-    /** The pause/suspend ceremony around a fullscreen takeover. A game the
-     *  DEVELOPER already paused stays paused afterwards — the ceremony restores
-     *  the state it found, it does not assert one. */
+    /** An ad covers the game exactly as a store overlay does; `showing` stays an
+     *  ADS question, which is why the flag is still here. */
     private async withTakeover_<T>(show: () => Promise<T>): Promise<T> {
-        const wasPaused = this.host_.isPaused();
         this.showing_ = true;
-        if (!wasPaused) this.host_.setPaused(true);
-        this.host_.suspendAudio();
         try {
-            return await show();
+            return await this.takeover_.around(show);
         } finally {
             this.showing_ = false;
-            this.host_.resumeAudio();
-            if (!wasPaused) this.host_.setPaused(false);
         }
     }
 

@@ -449,6 +449,15 @@ export interface PlatformAdapter {
      *  account id do not survive a double. */
     steamIdentity?(): { id: string; name: string } | null;
 
+    /**
+     * Tell me when the store's overlay covers the game, and when it stops.
+     *
+     * A takeover the game did not ask for: the player pressed Shift+Tab and can
+     * no longer act, so it pauses exactly as a fullscreen ad does. Returns an
+     * unsubscribe. Absent where no overlay exists, and nothing is missed there.
+     */
+    onStoreOverlay?(listener: (covered: boolean) => void): () => void;
+
     /** Create the platform audio backend (WebAudio on web, the mini-game audio API
      *  on WeChat). Optional — a host with no audio device (headless node, the
      *  unshipped native shell) omits it and the audio system falls back to the

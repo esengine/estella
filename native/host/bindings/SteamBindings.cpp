@@ -16,8 +16,19 @@
 #include "Bindings.hpp"
 #include "steam/SteamApi.hpp"
 
+#include <cstdlib>
+
 namespace eshost {
 namespace {
+
+/** Push the overlay's state into JS, where the services layer pauses the game. */
+void deliverSteamOverlay(bool covered) {
+    HostState& h = host();
+    if (!h.js) return;
+    JSValue arg = JS_NewBool(h.js, covered);
+    callJs(h, "es_onSteamOverlay", 1, &arg);
+    JS_FreeValue(h.js, arg);
+}
 
 // es_steam_init(appId) -> bool. Called by the SDK, which is where game.config.json
 // is read — the host has no JSON parser and no reason to grow one.
@@ -28,6 +39,17 @@ JSValue js_steam_init(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv
     // do on Windows and silently never resolve on macOS (see SteamApi::init).
     const std::string dir = host().platform ? host().platform->executableDir() : std::string();
     const bool ok = steam().init(static_cast<uint32_t>(appId), dir);
+    if (ok) {
+        // The overlay covers the game without changing anything a host can see —
+        // the window keeps its focus and stays visible — so this push is the only
+        // way the services layer learns to pause.
+        steam().onOverlay([](bool covered) { deliverSteamOverlay(covered); });
+        if (const char* self = std::getenv("ESTELLA_STEAM_SELFCHECK"); self && self[0] == '1') {
+            steam().traceCallbacks(true);
+            steam().activateOverlay();
+            ESHOST_LOGI("steam: self-check opened the overlay — expecting callback %d", 331);
+        }
+    }
     if (!ok && !steam().lastError().empty()) {
         // Not an error: no client, signed out, or a build that does not ship to
         // Steam. It reaches the boot record so "achievements did nothing" has an

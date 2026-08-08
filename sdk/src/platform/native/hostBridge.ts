@@ -224,6 +224,9 @@ export function createHostBridge(
                     getStat: (n: string) => bindings.es_steam_getStat?.(n) ?? 0,
                     store: () => bindings.es_steam_store?.() ?? false,
                     reset: () => bindings.es_steam_reset?.() ?? false,
+                    onOverlay: (listener: (covered: boolean) => void) => {
+                        scope.es_onSteamOverlay = (covered: boolean) => listener(covered);
+                    },
                 },
             }
             : {}),

@@ -96,12 +96,52 @@ using PfnSetStatInt32 = bool (*)(void* self, const char* name, std::int32_t valu
 using PfnGetStatInt32 = bool (*)(void* self, const char* name, std::int32_t* out);
 using PfnGetSteamID = std::uint64_t (*)(void* self);
 using PfnGetPersonaName = const char* (*)(void* self);
+using PfnActivateGameOverlay = void (*)(void* self, const char* dialog);
+
+/**
+ * Manual dispatch — how a binding that carries no Valve header reads callbacks.
+ *
+ * The header's own mechanism is a C++ class whose vtable Steam writes into, which
+ * cannot be declared without the header. Valve added these four for exactly this
+ * case, and every non-C++ binding uses them.
+ */
+using PfnManualDispatchInit = void (*)();
+using PfnGetHSteamPipe = std::int32_t (*)();
+using PfnManualDispatchRunFrame = void (*)(std::int32_t pipe);
+using PfnManualDispatchFreeLastCallback = void (*)(std::int32_t pipe);
+
+/** CallbackMsg_t, field for field — the layout the dispatcher writes into. */
+struct CallbackMsg {
+    std::int32_t steamUser;
+    std::int32_t callback;
+    std::uint8_t* param;
+    std::int32_t paramSize;
+};
+using PfnManualDispatchGetNextCallback = bool (*)(std::int32_t pipe, CallbackMsg* out);
+
+/**
+ * GameOverlayActivated_t — `k_iSteamFriendsCallbacks (300) + 31`.
+ *
+ * A number, so getting it wrong is a pause that silently never happens. It is
+ * checked by a run rather than by reading: ESTELLA_STEAM_SELFCHECK opens the
+ * overlay and reports which ids arrived (see Host.cpp).
+ */
+constexpr std::int32_t kGameOverlayActivated = 331;
+
+/** Its first byte: non-zero while the overlay covers the game. */
+constexpr int kOverlayActiveOffset = 0;
 
 /** Steam's error buffer is a fixed 1024 bytes (SteamErrMsg). */
 constexpr int kErrMsgSize = 1024;
 
 struct Fns {
     PfnRunCallbacks runCallbacks = nullptr;
+    PfnManualDispatchInit dispatchInit = nullptr;
+    PfnGetHSteamPipe getPipe = nullptr;
+    PfnManualDispatchRunFrame dispatchRunFrame = nullptr;
+    PfnManualDispatchGetNextCallback dispatchNext = nullptr;
+    PfnManualDispatchFreeLastCallback dispatchFree = nullptr;
+    PfnActivateGameOverlay activateOverlay = nullptr;
     PfnSetAchievement setAchievement = nullptr;
     PfnGetAchievement getAchievement = nullptr;
     PfnClearAchievement clearAchievement = nullptr;
@@ -207,6 +247,24 @@ bool SteamApi::init(std::uint32_t appId, const std::string& directory) {
         symbol(library_, "SteamAPI_ISteamUser_GetSteamID"));
     g_fns.getPersonaName = reinterpret_cast<PfnGetPersonaName>(
         symbol(library_, "SteamAPI_ISteamFriends_GetPersonaName"));
+    g_fns.activateOverlay = reinterpret_cast<PfnActivateGameOverlay>(
+        symbol(library_, "SteamAPI_ISteamFriends_ActivateGameOverlay"));
+
+    // Manual dispatch, AFTER init and before any other dispatch call — that order
+    // is Valve's, and the wrong one leaves a pipe that answers nothing.
+    g_fns.dispatchInit = reinterpret_cast<PfnManualDispatchInit>(
+        symbol(library_, "SteamAPI_ManualDispatch_Init"));
+    g_fns.getPipe = reinterpret_cast<PfnGetHSteamPipe>(symbol(library_, "SteamAPI_GetHSteamPipe"));
+    g_fns.dispatchRunFrame = reinterpret_cast<PfnManualDispatchRunFrame>(
+        symbol(library_, "SteamAPI_ManualDispatch_RunFrame"));
+    g_fns.dispatchNext = reinterpret_cast<PfnManualDispatchGetNextCallback>(
+        symbol(library_, "SteamAPI_ManualDispatch_GetNextCallback"));
+    g_fns.dispatchFree = reinterpret_cast<PfnManualDispatchFreeLastCallback>(
+        symbol(library_, "SteamAPI_ManualDispatch_FreeLastCallback"));
+    if (g_fns.dispatchInit && g_fns.getPipe) {
+        g_fns.dispatchInit();
+        pipe_ = g_fns.getPipe();
+    }
 
     ESHOST_LOGI("steam: up for app %u (%s, %s, %s)", appId, statsVersion, userVersion, friendsVersion);
     return true;
@@ -263,7 +321,28 @@ bool SteamApi::reset() {
 }
 
 void SteamApi::pump() {
-    if (g_fns.runCallbacks) g_fns.runCallbacks();
+    // Manual dispatch REPLACES RunCallbacks — calling both would run each
+    // callback twice, once through a queue the other already drained.
+    if (pipe_ == 0 || !g_fns.dispatchRunFrame || !g_fns.dispatchNext || !g_fns.dispatchFree) {
+        if (g_fns.runCallbacks) g_fns.runCallbacks();
+        return;
+    }
+    g_fns.dispatchRunFrame(pipe_);
+    CallbackMsg msg{};
+    while (g_fns.dispatchNext(pipe_, &msg)) {
+        if (traceCallbacks_) ESHOST_LOGI("steam: callback %d (%d bytes)", msg.callback, msg.paramSize);
+        if (msg.callback == kGameOverlayActivated && msg.param && msg.paramSize > kOverlayActiveOffset) {
+            const bool covered = msg.param[kOverlayActiveOffset] != 0;
+            if (overlay_) overlay_(covered);
+        }
+        // Every callback, on every path: the dispatcher hands out ONE at a time
+        // and will not advance until the last is released.
+        g_fns.dispatchFree(pipe_);
+    }
+}
+
+void SteamApi::activateOverlay() {
+    if (friends_ && g_fns.activateOverlay) g_fns.activateOverlay(friends_, "Friends");
 }
 
 }  // namespace eshost

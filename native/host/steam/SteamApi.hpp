@@ -24,7 +24,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
+#include <utility>
 
 namespace eshost {
 
@@ -77,6 +79,22 @@ class SteamApi {
      *  the game is alive and the overlay never opens. */
     void pump();
 
+    /**
+     * Told when the overlay starts and stops covering the game.
+     *
+     * A takeover the game never asked for, and one nothing else can observe:
+     * the window keeps its focus and stays visible, so a host watching those
+     * would see no change at all while the player is somewhere else entirely.
+     */
+    void onOverlay(std::function<void(bool)> listener) { overlay_ = std::move(listener); }
+
+    /** Open the overlay. Used by the self-check, which is the only way the
+     *  callback path above can be verified without a person pressing Shift+Tab. */
+    void activateOverlay();
+
+    /** Log every callback the dispatcher hands out — the self-check's eyes. */
+    void traceCallbacks(bool on) { traceCallbacks_ = on; }
+
     /** Why {@link init} answered false, for the boot record. Empty on success. */
     const std::string& lastError() const { return error_; }
 
@@ -84,6 +102,10 @@ class SteamApi {
     void* library_ = nullptr;
     void* stats_ = nullptr;
     void* user_ = nullptr;
+    /** The dispatch pipe; 0 until manual dispatch is up. */
+    std::int32_t pipe_ = 0;
+    std::function<void(bool)> overlay_;
+    bool traceCallbacks_ = false;
     void* friends_ = nullptr;
     std::string error_;
 };

@@ -9,10 +9,11 @@
  * stays paused after it.
  */
 import { describe, it, expect } from 'vitest';
-import { AdsAPI, createMockAdProvider, type AdsHost, type AdProvider } from '../src/services/ads';
+import { AdsAPI, createMockAdProvider, type AdProvider } from '../src/services/ads';
+import { createTakeover, type TakeoverHost } from '../src/services/takeover';
 import { ShareAPI } from '../src/services/share';
 
-function recordingHost(): AdsHost & { events: string[]; paused: boolean } {
+function recordingHost(): TakeoverHost & { events: string[]; paused: boolean } {
     const h = {
         events: [] as string[],
         paused: false,
@@ -27,7 +28,7 @@ function recordingHost(): AdsHost & { events: string[]; paused: boolean } {
 describe('AdsAPI takeover ceremony', () => {
     it('pauses the clock and suspends audio for exactly the span of the ad', async () => {
         const host = recordingHost();
-        const ads = new AdsAPI(host);
+        const ads = new AdsAPI(createTakeover(host));
         ads.setProvider(createMockAdProvider({ durationMs: 1 }));
 
         const r = await ads.showRewarded('unit-1');
@@ -39,7 +40,7 @@ describe('AdsAPI takeover ceremony', () => {
 
     it('restores state when the ad errors (no fill twice)', async () => {
         const host = recordingHost();
-        const ads = new AdsAPI(host);
+        const ads = new AdsAPI(createTakeover(host));
         const failing: AdProvider = {
             createRewardedAd: () => ({
                 preload: () => Promise.reject(new Error('no fill')),
@@ -59,7 +60,7 @@ describe('AdsAPI takeover ceremony', () => {
     it('a game the developer paused stays paused after the ad', async () => {
         const host = recordingHost();
         host.paused = true;
-        const ads = new AdsAPI(host);
+        const ads = new AdsAPI(createTakeover(host));
         ads.setProvider(createMockAdProvider({ durationMs: 1 }));
 
         await ads.showRewarded('unit-1');
@@ -69,14 +70,14 @@ describe('AdsAPI takeover ceremony', () => {
     });
 
     it('reports an abandoned video as not completed', async () => {
-        const ads = new AdsAPI(recordingHost());
+        const ads = new AdsAPI(createTakeover(recordingHost()));
         ads.setProvider(createMockAdProvider({ durationMs: 1, completed: false }));
         const r = await ads.showRewarded('unit-1');
         expect(r.completed).toBe(false);
     });
 
     it('rejects loud when no ad source exists, and says how to get one', async () => {
-        const ads = new AdsAPI(recordingHost());
+        const ads = new AdsAPI(createTakeover(recordingHost()));
         expect(ads.available).toBe(false);
         await expect(ads.showRewarded('unit-1')).rejects.toThrow(/no ad source/);
     });
@@ -90,7 +91,7 @@ describe('AdsAPI takeover ceremony', () => {
             },
             createInterstitialAd: () => { throw new Error('unused'); },
         };
-        const ads = new AdsAPI(recordingHost());
+        const ads = new AdsAPI(createTakeover(recordingHost()));
         ads.setProvider(counting);
         await ads.showRewarded('a');
         await ads.showRewarded('a');

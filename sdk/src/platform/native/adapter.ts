@@ -260,6 +260,15 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return steam?.available() ? steam.identity() : null;
     }
 
+    /** The store overlay covering the game, and uncovering it. */
+    onStoreOverlay(listener: (covered: boolean) => void): () => void {
+        const steam = this.bridge_.steam;
+        if (!steam) return () => {};
+        let live = true;
+        steam.onOverlay((covered) => { if (live) listener(covered); });
+        return () => { live = false; };
+    }
+
     // createSocket / loadSubpackage are optional and deferred to the shell.
 }
 

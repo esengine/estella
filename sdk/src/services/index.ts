@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export {
     Ads, AdsAPI, createMockAdProvider,
-    type AdProvider, type AdsHost, type MockAdProviderOptions,
+    type AdProvider, type MockAdProviderOptions,
 } from './ads';
+export { createTakeover, type Takeover, type TakeoverHost } from './takeover';
 export { Share, ShareAPI, type ShareCard } from './share';
 export {
     Leaderboard, LeaderboardAPI, createLocalLeaderboard,
