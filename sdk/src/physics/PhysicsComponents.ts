@@ -5,8 +5,10 @@
  * @brief   Physics component definitions for TypeScript SDK
  */
 
-import type { Vec2 } from '../types';
+import type { Entity, Vec2 } from '../types';
+import type { AnyComponentDef, ComponentData } from '../ecs/component';
 import { defineBuiltin, defineComponent } from '../ecs/component';
+import type { World } from '../ecs/world';
 
 // Box2D collision filtering: a body's own layers (category) and the layers it
 // collides with (mask), as named bitmasks. Bit labels come from the project's
@@ -213,6 +215,24 @@ export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider',
     maskBits: 0xFFFF,
     enabled: true,
 }, { fields: { ...COLLISION_FILTER_META } });
+
+// =============================================================================
+// Collider Reads
+// =============================================================================
+
+/**
+ * The collider's data, or null when the component is absent **or disabled** — a
+ * disabled collider is equivalent to an absent one (no Box2D shape, nothing to
+ * cast against, no debug outline), and every consumer reads it through here so
+ * those answers agree. Data predating the field has no `enabled`, and stays solid.
+ */
+export function activeCollider<C extends AnyComponentDef>(
+    world: World, entity: Entity, collider: C,
+): ComponentData<C> | null {
+    if (!world.has(entity, collider)) return null;
+    const data = world.get(entity, collider);
+    return (data as { enabled?: boolean }).enabled === false ? null : data;
+}
 
 // =============================================================================
 // One-Way (One-Sided) Platform

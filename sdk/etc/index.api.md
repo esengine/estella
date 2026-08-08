@@ -1659,6 +1659,7 @@ Nothing = 0
 
 ## ColliderInstance — interface
 ```
+enabled: boolean
 isSensor: boolean
 shape: ColliderShape
 ```

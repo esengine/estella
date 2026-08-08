@@ -23,7 +23,7 @@ import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider, OneWayPlatform,
     RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
-    BodyType,
+    BodyType, activeCollider,
     type RigidBodyData, type BoxColliderData, type CircleColliderData,
     type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
     type ChainColliderData, type OneWayPlatformData, type RevoluteJointData,
@@ -86,11 +86,12 @@ function resolveCollisionMask(categoryBits: number, maskBits: number, layerMasks
 // Shape attachment (one collider component per body)
 // =============================================================================
 
-function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, layerMasks?: number[]): void {
-    const world = app.world;
-
-    if (world.has(entity, BoxCollider)) {
-        const box = world.get(entity, BoxCollider) as BoxColliderData;
+/** Attach a Box2D shape for each enabled collider on the entity. @internal */
+export function addShapeForEntity(
+    world: App['world'], module: PhysicsWasmModule, entity: Entity, layerMasks?: number[],
+): void {
+    const box = activeCollider(world, entity, BoxCollider) as BoxColliderData | null;
+    if (box) {
         const category = box.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, box.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addBoxShape(
@@ -101,8 +102,8 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         );
     }
 
-    if (world.has(entity, CircleCollider)) {
-        const circle = world.get(entity, CircleCollider) as CircleColliderData;
+    const circle = activeCollider(world, entity, CircleCollider) as CircleColliderData | null;
+    if (circle) {
         const category = circle.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, circle.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addCircleShape(
@@ -113,8 +114,8 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         );
     }
 
-    if (world.has(entity, CapsuleCollider)) {
-        const capsule = world.get(entity, CapsuleCollider) as CapsuleColliderData;
+    const capsule = activeCollider(world, entity, CapsuleCollider) as CapsuleColliderData | null;
+    if (capsule) {
         const category = capsule.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, capsule.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addCapsuleShape(
@@ -125,8 +126,8 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         );
     }
 
-    if (world.has(entity, SegmentCollider)) {
-        const seg = world.get(entity, SegmentCollider) as SegmentColliderData;
+    const seg = activeCollider(world, entity, SegmentCollider) as SegmentColliderData | null;
+    if (seg) {
         const category = seg.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, seg.maskBits ?? 0xFFFF, layerMasks);
         module._physics_addSegmentShape(
@@ -136,8 +137,8 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         );
     }
 
-    if (world.has(entity, PolygonCollider)) {
-        const poly = world.get(entity, PolygonCollider) as PolygonColliderData;
+    const poly = activeCollider(world, entity, PolygonCollider) as PolygonColliderData | null;
+    if (poly) {
         const category = poly.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, poly.maskBits ?? 0xFFFF, layerMasks);
         const verts = poly.vertices;
@@ -157,8 +158,8 @@ function addShapeForEntity(app: App, module: PhysicsWasmModule, entity: Entity, 
         });
     }
 
-    if (world.has(entity, ChainCollider)) {
-        const chain = world.get(entity, ChainCollider) as ChainColliderData;
+    const chain = activeCollider(world, entity, ChainCollider) as ChainColliderData | null;
+    if (chain) {
         const pts = chain.points;
         if (pts.length < 4) return;
         const byteSize = pts.length * 2 * 4;
@@ -626,8 +627,8 @@ export function colliderSignature(world: App['world'], entity: Entity): number {
     return sig;
 }
 
-/** True if any present collider component changed since `sinceTick`. */
-function collidersChangedSince(world: App['world'], entity: Entity, sinceTick: number): boolean {
+/** True if any present collider component changed since `sinceTick`. @internal */
+export function collidersChangedSince(world: App['world'], entity: Entity, sinceTick: number): boolean {
     for (const C of COLLIDER_TYPES) {
         if (world.has(entity, C) && world.isChangedSince(entity, C, sinceTick)) return true;
     }
@@ -780,7 +781,7 @@ export function registerPhysicsSystem(
                             rb.gravityScale, rb.linearDamping, rb.angularDamping,
                             rb.fixedRotation ? 1 : 0, rb.bullet ? 1 : 0,
                         );
-                        addShapeForEntity(app, module, entity, config.collisionLayerMasks);
+                        addShapeForEntity(world, module, entity, config.collisionLayerMasks);
                         trackedEntities.add(entity);
                         if (hasParent) parentedBodies.add(entity);
                         cachedProps.set(entity, {
@@ -832,7 +833,7 @@ export function registerPhysicsSystem(
                     if (sig !== cached.colliderSig ||
                         collidersChangedSince(world, entity, lastEntitySyncTick)) {
                         module._physics_clearShapes(entity);
-                        addShapeForEntity(app, module, entity, config.collisionLayerMasks);
+                        addShapeForEntity(world, module, entity, config.collisionLayerMasks);
                         cached.colliderSig = sig;
                     }
 

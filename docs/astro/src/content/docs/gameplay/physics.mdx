@@ -107,7 +107,7 @@ are in meters.
 | `isSensor` | boolean | `false` | Detect overlaps without a physical response (triggers). |
 | `categoryBits` | number | `0x0001` | Which collision layer this collider is on. |
 | `maskBits` | number | `0xFFFF` | Which layers it collides with. |
-| `enabled` | boolean | `true` | Disable the shape. |
+| `enabled` | boolean | `true` | Disable the shape. The body keeps its velocity, joints and other colliders; this one stops existing — nothing collides with it, and no query, raycast or character cast finds it. |
 
 | Component | Shape parameters |
 |---|---|

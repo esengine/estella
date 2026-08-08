@@ -99,7 +99,7 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 | `isSensor` | boolean | `false` | 检测重叠但无物理响应(触发器)。 |
 | `categoryBits` | number | `0x0001` | 该碰撞体所在的碰撞层。 |
 | `maskBits` | number | `0xFFFF` | 它与哪些层碰撞。 |
-| `enabled` | boolean | `true` | 关掉该形状。 |
+| `enabled` | boolean | `true` | 关掉该形状。刚体的速度、关节和其它碰撞体都留着,只有这一个不再存在——没有东西会撞上它,查询、射线和角色控制器的扫掠也都找不到它。 |
 
 | 组件 | 形状参数 |
 |---|---|

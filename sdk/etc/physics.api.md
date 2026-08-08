@@ -111,6 +111,7 @@ restitution: number
 
 ## ColliderInstance — interface
 ```
+enabled: boolean
 isSensor: boolean
 shape: ColliderShape
 ```

@@ -37,10 +37,14 @@ export type ColliderShape =
     | { kind: 'polygon'; vertices: Vec2[] }
     | { kind: 'chain'; points: Vec2[]; isLoop: boolean };
 
-/** A shape read off an entity, with the sensor flag the visualizers colour by. */
+/** A shape read off an entity, with the sensor flag the visualizers colour by and
+ *  the enabled flag they decide by: a disabled collider is absent from the physics
+ *  world, so the runtime overlay skips it while the editor keeps drawing it (you
+ *  still author its geometry through the gizmo). */
 export interface ColliderInstance {
     shape: ColliderShape;
     isSensor: boolean;
+    enabled: boolean;
 }
 
 /** World-space (pixel) outline: straight runs as polylines + true circles left as
@@ -134,29 +138,30 @@ export function colliderShapeOutline(shape: ColliderShape, center: Vec2, angle: 
  */
 export function readColliderShapes(world: World, entity: number): ColliderInstance[] {
     const out: ColliderInstance[] = [];
+    const isEnabled = (c: { enabled?: boolean }): boolean => c.enabled !== false;
     if (world.has(entity, BoxCollider)) {
         const b = world.get(entity, BoxCollider) as BoxColliderData;
-        out.push({ shape: { kind: 'box', halfExtents: b.halfExtents, offset: b.offset }, isSensor: b.isSensor });
+        out.push({ shape: { kind: 'box', halfExtents: b.halfExtents, offset: b.offset }, isSensor: b.isSensor, enabled: isEnabled(b) });
     }
     if (world.has(entity, CircleCollider)) {
         const c = world.get(entity, CircleCollider) as CircleColliderData;
-        out.push({ shape: { kind: 'circle', radius: c.radius, offset: c.offset }, isSensor: c.isSensor });
+        out.push({ shape: { kind: 'circle', radius: c.radius, offset: c.offset }, isSensor: c.isSensor, enabled: isEnabled(c) });
     }
     if (world.has(entity, CapsuleCollider)) {
         const c = world.get(entity, CapsuleCollider) as CapsuleColliderData;
-        out.push({ shape: { kind: 'capsule', radius: c.radius, halfHeight: c.halfHeight, offset: c.offset }, isSensor: c.isSensor });
+        out.push({ shape: { kind: 'capsule', radius: c.radius, halfHeight: c.halfHeight, offset: c.offset }, isSensor: c.isSensor, enabled: isEnabled(c) });
     }
     if (world.has(entity, SegmentCollider)) {
         const s = world.get(entity, SegmentCollider) as SegmentColliderData;
-        out.push({ shape: { kind: 'segment', point1: s.point1, point2: s.point2 }, isSensor: s.isSensor });
+        out.push({ shape: { kind: 'segment', point1: s.point1, point2: s.point2 }, isSensor: s.isSensor, enabled: isEnabled(s) });
     }
     if (world.has(entity, PolygonCollider)) {
         const p = world.get(entity, PolygonCollider) as PolygonColliderData;
-        out.push({ shape: { kind: 'polygon', vertices: p.vertices }, isSensor: p.isSensor });
+        out.push({ shape: { kind: 'polygon', vertices: p.vertices }, isSensor: p.isSensor, enabled: isEnabled(p) });
     }
     if (world.has(entity, ChainCollider)) {
         const c = world.get(entity, ChainCollider) as ChainColliderData;
-        out.push({ shape: { kind: 'chain', points: c.points, isLoop: c.isLoop }, isSensor: false });
+        out.push({ shape: { kind: 'chain', points: c.points, isLoop: c.isLoop }, isSensor: false, enabled: isEnabled(c) });
     }
     return out;
 }

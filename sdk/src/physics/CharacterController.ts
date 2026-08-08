@@ -29,7 +29,7 @@ import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { Physics, type PhysicsAPI } from './Physics';
 import { readPixelsPerUnit } from './PhysicsSystem';
-import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
+import { BoxCollider, CircleCollider, CapsuleCollider, activeCollider } from './PhysicsComponents';
 import { log } from '../util/logger';
 import type {
     BoxColliderData, CircleColliderData, CapsuleColliderData,
@@ -239,19 +239,20 @@ type CastShape =
     | { kind: 'circle'; r: number; ox: number; oy: number }
     | { kind: 'capsule'; r: number; halfH: number; ox: number; oy: number };
 
-/** Read the entity's collider into a pixel-space cast shape, or null if it has none. */
+/** Read the entity's collider into a pixel-space cast shape, or null if it has no
+ *  enabled one — a disabled collider is no collider, here as everywhere. */
 function resolveCastShape(world: World, entity: Entity, ppu: number): CastShape | null {
-    if (world.has(entity, BoxCollider)) {
-        const c = world.get(entity, BoxCollider) as BoxColliderData;
-        return { kind: 'box', hx: c.halfExtents.x * ppu, hy: c.halfExtents.y * ppu, ox: c.offset.x * ppu, oy: c.offset.y * ppu };
+    const box = activeCollider(world, entity, BoxCollider) as BoxColliderData | null;
+    if (box) {
+        return { kind: 'box', hx: box.halfExtents.x * ppu, hy: box.halfExtents.y * ppu, ox: box.offset.x * ppu, oy: box.offset.y * ppu };
     }
-    if (world.has(entity, CircleCollider)) {
-        const c = world.get(entity, CircleCollider) as CircleColliderData;
-        return { kind: 'circle', r: c.radius * ppu, ox: c.offset.x * ppu, oy: c.offset.y * ppu };
+    const circle = activeCollider(world, entity, CircleCollider) as CircleColliderData | null;
+    if (circle) {
+        return { kind: 'circle', r: circle.radius * ppu, ox: circle.offset.x * ppu, oy: circle.offset.y * ppu };
     }
-    if (world.has(entity, CapsuleCollider)) {
-        const c = world.get(entity, CapsuleCollider) as CapsuleColliderData;
-        return { kind: 'capsule', r: c.radius * ppu, halfH: c.halfHeight * ppu, ox: c.offset.x * ppu, oy: c.offset.y * ppu };
+    const capsule = activeCollider(world, entity, CapsuleCollider) as CapsuleColliderData | null;
+    if (capsule) {
+        return { kind: 'capsule', r: capsule.radius * ppu, halfH: capsule.halfHeight * ppu, ox: capsule.offset.x * ppu, oy: capsule.offset.y * ppu };
     }
     return null;
 }

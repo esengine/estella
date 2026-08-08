@@ -120,7 +120,8 @@ export function drawPhysicsDebug(
             // One projection for every shape: read the collider(s), take the offset+rotation
             // centre, and stroke the world-space outline. Same geometry the per-type branches
             // produced, now shared with the editor gizmo (see ColliderShape).
-            for (const { shape, isSensor } of readColliderShapes(app.world, entity)) {
+            for (const { shape, isSensor, enabled } of readColliderShapes(app.world, entity)) {
+                if (!enabled) continue; // no shape in the world → nothing to outline
                 const color = isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
                 const center = shapeCenter(shape, { x: wx, y: wy }, angle, ppu);
                 const outline = colliderShapeOutline(shape, center, angle, ppu);
