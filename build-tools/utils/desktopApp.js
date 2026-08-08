@@ -18,6 +18,7 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { pngToIcns } from './icns.js';
+import { setExeIcon } from './peResource.js';
 import { desktopTemplateSources, steamRedistIn } from './nativeTemplate.js';
 import { fillTemplate } from './nativeApp.js';
 
@@ -124,8 +125,16 @@ export async function assembleDesktopApp(options) {
     }
 
     const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;
-    if (platform === 'macos' && existsSync(iconPng)) {
-        await writeFile(path.join(root, layout.beside, 'AppIcon.icns'), pngToIcns(await readFile(iconPng)));
+    if (existsSync(iconPng)) {
+        const png = await readFile(iconPng);
+        // Where each OS keeps it: macOS beside the app's other resources, Windows
+        // INSIDE the executable — which is why one is a file to write and the
+        // other is a rewrite of the thing that was just copied.
+        if (platform === 'macos') {
+            await writeFile(path.join(root, layout.beside, 'AppIcon.icns'), pngToIcns(png));
+        } else {
+            await writeFile(executable, setExeIcon(await readFile(executable), png));
+        }
     }
 
     if (platform === 'macos') {

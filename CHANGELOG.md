@@ -216,6 +216,16 @@ published separately; it ships inside the editor.
   movement, clipboard and Enter/Escape are the model's. Keys still reach the game
   as well as the field, which is what a browser does and what keeps play == ship.
 
+- **A Windows game shipped with the default executable icon.** The assembler
+  wrote the macOS `.icns` and had nothing for the PE, so every Windows build
+  carried whatever icon the runtime template's executable happened to have. The
+  icon is now written into the executable in pure Node — `rcedit` is a
+  Windows-only binary and the assembler has to run on any OS, the same reason the
+  APK's binary XML and the `.icns` are written here. The resource tree is rebuilt
+  and appended as a new section rather than grown in place (`.rsrc` is not the
+  last section an MSVC link emits), and everything the executable already held —
+  the manifest that makes it DPI-aware among it — is carried across.
+
 - **Every packaged desktop game opened 1280x720.** The window ignored the
   project's design resolution — a portrait game got a landscape window — because
   the host cannot read one: the window exists before any JS does and the host
