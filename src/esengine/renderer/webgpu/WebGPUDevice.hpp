@@ -67,6 +67,18 @@ public:
     void init() override;
     void shutdown() override;
 
+    // Device loss reaches this class from OUTSIDE it: WebGPU accepts a
+    // device-lost callback only in the descriptor that creates the device, and
+    // both hosts create theirs before handing it over. Hence these entry points.
+
+    /** @brief Maps a WGPUDeviceLostReason to the backend-neutral reason. */
+    static GfxDeviceLostReason reasonFromWgpu(u32 wgpuReason);
+
+    /** @brief Routes the device's uncaptured-error callback; only fatal kinds become losses. */
+    void reportUncapturedError(u32 wgpuErrorType, const char* message);
+
+    bool pollDeviceLost() override;
+
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
 

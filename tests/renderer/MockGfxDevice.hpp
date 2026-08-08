@@ -13,6 +13,11 @@
 namespace esengine {
 
 struct MockGfxDevice final : GfxDevice {
+    // Device-loss entry points a backend calls on itself. Protected on GfxDevice,
+    // so a harness driving the state machine needs them republished here.
+    using GfxDevice::markDeviceLost;
+    using GfxDevice::setDeviceIdentity;
+
     // call counters
     // The render state a draw resolved to, as the pipeline saw it.
     PipelineDesc lastPipelineDesc{};

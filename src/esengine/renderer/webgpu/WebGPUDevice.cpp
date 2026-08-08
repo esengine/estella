@@ -28,6 +28,12 @@ WGPUStringView sv(const char* text) {
     return view;
 }
 
+std::string fromSv(const WGPUStringView& view) {
+    if (!view.data) return {};
+    return std::string(view.data,
+                       view.length == WGPU_STRLEN ? std::strlen(view.data) : view.length);
+}
+
 bool isDepthFormat(WGPUTextureFormat format) {
     return format == WGPUTextureFormat_Depth24Plus ||
            format == WGPUTextureFormat_Depth24PlusStencil8;
@@ -73,7 +79,55 @@ WebGPUDevice::~WebGPUDevice() {
     shutdown();
 }
 
-void WebGPUDevice::init() {}
+void WebGPUDevice::init() {
+    // Ask the adapter who this GPU is. getString() below answers with constants
+    // true of every WebGPU build, and so useless in a loss report; the adapter
+    // knows the vendor, the chip and the driver build.
+    std::string vendor = "WebGPU";
+    std::string renderer = getString(GfxStringName::Renderer);
+    std::string version = getString(GfxStringName::Version);
+    if (adapter_) {
+        WGPUAdapterInfo info = {};
+        if (wgpuAdapterGetInfo(adapter_, &info) == WGPUStatus_Success) {
+            vendor = fromSv(info.vendor);
+            renderer = fromSv(info.device) + " (" + fromSv(info.architecture) + ")";
+            version = fromSv(info.description);
+            wgpuAdapterInfoFreeMembers(info);
+        }
+    }
+    setDeviceIdentity("WebGPU", std::move(vendor), std::move(renderer), std::move(version));
+}
+
+GfxDeviceLostReason WebGPUDevice::reasonFromWgpu(u32 wgpuReason) {
+    switch (static_cast<WGPUDeviceLostReason>(wgpuReason)) {
+    // Not a failure: this is the device we destroyed reporting that it is gone.
+    case WGPUDeviceLostReason_Destroyed:      return GfxDeviceLostReason::Destroyed;
+    case WGPUDeviceLostReason_FailedCreation: return GfxDeviceLostReason::Internal;
+    default:                                  return GfxDeviceLostReason::Unknown;
+    }
+}
+
+bool WebGPUDevice::pollDeviceLost() {
+    // The device-lost callback is registered AllowSpontaneous and so fires on
+    // its own, but pumping here gives it a guaranteed point in the frame — and
+    // keeps the loss detectable if the mode ever tightens to ProcessEvents.
+    if (instance_) wgpuInstanceProcessEvents(instance_);
+    return false;
+}
+
+void WebGPUDevice::reportUncapturedError(u32 wgpuErrorType, const char* message) {
+    // Only errors that mean the device is finished become losses. A validation
+    // error is a bug in the frame we just built — WebGPU drops the call and keeps
+    // the device — so promoting it would end the game over one bad draw.
+    const auto type = static_cast<WGPUErrorType>(wgpuErrorType);
+    if (type == WGPUErrorType_OutOfMemory) {
+        markDeviceLost(GfxDeviceLostReason::OutOfMemory, message ? message : "",
+                       "uncaptured error");
+    } else if (type == WGPUErrorType_Internal) {
+        markDeviceLost(GfxDeviceLostReason::Internal, message ? message : "",
+                       "uncaptured error");
+    }
+}
 
 void WebGPUDevice::shutdown() {
     for (auto& [id, rec] : buffers_) {
@@ -389,7 +443,12 @@ void WebGPUDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
 // Buffers
 // =============================================================================
 
+// Unlike GL — where a lost context turns every call into a silent no-op — calling
+// into a lost WebGPU device is not defined to be harmless. The guards below are
+// the backend's half of the contract; the frame loop stops submitting above them.
+
 BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* initialData) {
+    if (!isDeviceLive()) return BufferHandle::Invalid;
     if (!device_) {
         ES_LOG_ERROR("WebGPUDevice::createBuffer: no device");
         return BufferHandle::Invalid;
@@ -511,6 +570,7 @@ void WebGPUDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
 // =============================================================================
 
 VertexLayoutHandle WebGPUDevice::createVertexLayout(const VertexLayoutDesc& desc) {
+    if (!isDeviceLive()) return VertexLayoutHandle::Invalid;
     // Validate every attribute has a WebGPU spelling up front — a mismatch is an
     // engine bug, not a runtime condition.
     for (u32 i = 0; i < desc.attributeCount; ++i) {
@@ -558,6 +618,7 @@ const PipelineDesc* WebGPUDevice::pipelineDesc(PipelineHandle handle) const {
 // =============================================================================
 
 TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* pixels) {
+    if (!isDeviceLive()) return TextureHandle::Invalid;
     if (!device_) {
         ES_LOG_ERROR("WebGPUDevice::createTexture: no device");
         return TextureHandle::Invalid;
@@ -599,6 +660,7 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 
 TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
                                                     const void* data, u32 byteLength, u32 mipLevels) {
+    if (!isDeviceLive()) return TextureHandle::Invalid;
     if (!device_ || !queue_) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: no device");
         return TextureHandle::Invalid;
@@ -759,6 +821,10 @@ bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
 ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
                                          const GfxAttribBinding*, u32,
                                          std::string* outLog, GfxShaderStage* outFailedStage) {
+    if (!isDeviceLive()) {
+        if (outLog) *outLog = "device lost";
+        return ShaderHandle::Invalid;
+    }
     if (source.language != GfxShaderLanguage::WGSL) {
         if (outLog) *outLog = "WebGPUDevice compiles WGSL only";
         if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
@@ -840,6 +906,7 @@ void WebGPUDevice::uniformBlockBinding(ShaderHandle, u32, u32) {}
 // =============================================================================
 
 PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
+    if (!isDeviceLive()) return PipelineHandle::Invalid;
     // Dedup on the descriptor like GLDevice's pipeline cache.
     for (const auto& [id, rec] : pipelines_) {
         if (rec.desc == desc) return static_cast<PipelineHandle>(id);
@@ -1344,7 +1411,7 @@ void WebGPUDevice::flushBindGroup() {
 // =============================================================================
 
 void WebGPUDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 indexByteOffset) {
-    if (!pass_) return;
+    if (!isDeviceLive() || !pass_) return;
     auto it = buffers_.find(bound_index_buffer_);
     if (it == buffers_.end()) return;
     flushBindGroup();
@@ -1355,14 +1422,14 @@ void WebGPUDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 index
 }
 
 void WebGPUDevice::drawArrays(u32 firstVertex, u32 vertexCount) {
-    if (!pass_) return;
+    if (!isDeviceLive() || !pass_) return;
     flushBindGroup();
     wgpuRenderPassEncoderDraw(pass_, vertexCount, 1, firstVertex, 0);
 }
 
 void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 indexByteOffset,
                                          u32 instanceCount) {
-    if (!pass_) return;
+    if (!isDeviceLive() || !pass_) return;
     auto it = buffers_.find(bound_index_buffer_);
     if (it == buffers_.end()) return;
     flushBindGroup();
@@ -1374,6 +1441,7 @@ void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, 
 }
 
 FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc& desc) {
+    if (!isDeviceLive()) return FramebufferHandle::Default;
     FramebufferRec rec{};
     rec.color0 = static_cast<u32>(desc.color0);
     rec.depthStencil = static_cast<u32>(desc.depthStencil);
@@ -1393,6 +1461,7 @@ void WebGPUDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
 }
 
 void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
+    if (!isDeviceLive()) return;
     if (!device_) return;
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
 
@@ -1595,6 +1664,7 @@ void WebGPUDevice::releaseReadback(u32 id) {
 }
 
 ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
+    if (!isDeviceLive()) return ReadbackHandle::Invalid;
     if (!device_ || w == 0 || h == 0) return ReadbackHandle::Invalid;
     if (inPass()) {
         ES_LOG_ERROR("WebGPUDevice::requestReadback: must be called outside a render pass");

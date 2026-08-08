@@ -118,6 +118,15 @@ add_executable(test_buffer_device
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
 
+# Device loss: the shared state machine (GfxDevice), driven through MockGfxDevice.
+# Header-only, so nothing but Log.cpp is needed to link.
+add_executable(test_device_loss
+    renderer/test_device_loss.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_device_loss PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_device_loss COMMAND test_device_loss)
+
 # WebGPU backend slice 1 (REARCH_WGSL Phase 2): the enum→WGPU mapping layer +
 # the null-device-safe WebGPUDevice skeleton, compiled against the REAL Dawn C
 # headers via the emdawnwebgpu port (emscripten-only; the port supplies

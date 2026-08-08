@@ -118,6 +118,14 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // every other renderer subsystem borrow this single device. Which backend
     // it is was decided at the platform edge (init overloads).
     auto* gfxDevicePtr = gfxDevice.get();
+
+    // The one place a device loss becomes visible. Logged whether or not
+    // anything above the engine is listening: a loss nobody recorded is the
+    // black screen with no explanation.
+    gfxDevicePtr->setDeviceLostHandler([](const GfxDeviceLostInfo& info) {
+        ES_LOG_ERROR("{}", gfxFormatDeviceLost(info));
+    });
+
     services_.registerOwned<GfxDevice>(std::move(gfxDevice));
 
     auto resourceManager = makeUnique<resource::ResourceManager>();

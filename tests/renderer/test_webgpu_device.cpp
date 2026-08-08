@@ -10,6 +10,8 @@
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 #include "esengine/renderer/webgpu/WebGPUMappings.hpp"
 
+#include <string>
+
 using namespace esengine;
 using namespace esengine::webgpu;
 
@@ -167,6 +169,30 @@ TEST_CASE("pass load-ops: full-target clear is a real load-op, a scoped clear is
     auto color = toWGPUClearColor(desc);
     CHECK(color.r == doctest::Approx(0.25));
     CHECK(color.a == doctest::Approx(0.5));
+}
+
+TEST_CASE("a lost device issues no more handles") {
+    WebGPUDevice device;
+    device.init();
+
+    VertexLayoutDesc layout{};
+    layout.attributeCount = 1;
+    layout.strides[0] = 8;
+    layout.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+    REQUIRE(device.createVertexLayout(layout) != VertexLayoutHandle::Invalid);
+
+    device.notifyDeviceLost(GfxDeviceLostReason::ContextLost, "the host took the context");
+
+    CHECK(device.deviceStatus() == GfxDeviceStatus::Lost);
+    // Registering a layout is descriptor-only bookkeeping — it succeeds with no
+    // GPU device at all, as the case below asserts. So this refusal is the loss
+    // guard and nothing else.
+    CHECK(device.createVertexLayout(layout) == VertexLayoutHandle::Invalid);
+
+    REQUIRE(device.deviceLostInfo() != nullptr);
+    const std::string report = gfxFormatDeviceLost(*device.deviceLostInfo());
+    CHECK(report.find("context-lost") != std::string::npos);
+    CHECK(report.find("WebGPU") != std::string::npos);
 }
 
 TEST_CASE("null-device skeleton: language gate + graceful degradation + bookkeeping") {

@@ -26,7 +26,9 @@
 #include "./GfxEnums.hpp"
 #include "./PipelineState.hpp"
 
+#include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace esengine {
@@ -77,6 +79,86 @@ public:
 
     /** @brief Shuts down the graphics device */
     virtual void shutdown() = 0;
+
+    // =========================================================================
+    // Device Loss
+    // =========================================================================
+
+    // The state machine lives here, not in each backend: a backend only has to
+    // DETECT its own kind of loss and call markDeviceLost. What "lost" then MEANS
+    // — one report, one transition, submission stopped — stays identical.
+
+    /** @brief Whether the device can be drawn to (see {@link GfxDeviceStatus}). */
+    GfxDeviceStatus deviceStatus() const { return device_status_; }
+
+    /** @brief True while the device is usable — the one check submission paths make. */
+    bool isDeviceLive() const { return device_status_ == GfxDeviceStatus::Live; }
+
+    /** @brief The loss report, or null while the device is Live. */
+    const GfxDeviceLostInfo* deviceLostInfo() const {
+        return device_status_ == GfxDeviceStatus::Live ? nullptr : &device_info_;
+    }
+
+    /**
+     * @brief Declares the device lost from outside the backend.
+     * @details The host observes losses the backend cannot: a browser firing
+     *          `webglcontextlost`, a shell told by the OS that the adapter is
+     *          gone. Idempotent — the FIRST reason wins, because it is the one
+     *          that explains the rest.
+     */
+    void notifyDeviceLost(GfxDeviceLostReason reason, std::string message = {},
+                          std::string context = {}) {
+        markDeviceLost(reason, std::move(message), std::move(context));
+    }
+
+    /**
+     * @brief Gives up on the device: no further recovery will be attempted.
+     * @details The clean end of a loss that could not be recovered from. The
+     *          report is kept; what changes is that the renderer stops waiting.
+     */
+    void markDeviceDead() {
+        if (device_status_ == GfxDeviceStatus::Dead) return;
+        if (device_status_ == GfxDeviceStatus::Live) {
+            markDeviceLost(GfxDeviceLostReason::Unknown, {}, {});
+        }
+        device_status_ = GfxDeviceStatus::Dead;
+    }
+
+    /**
+     * @brief Pumps backend-native loss detection.
+     * @details Backends whose loss arrives as a callback (WebGPU) or a status
+     *          query (GL robustness) surface it here. Default: the backend
+     *          cannot detect loss itself and depends entirely on
+     *          notifyDeviceLost.
+     * @return True when THIS call is the one that observed the loss.
+     */
+    virtual bool pollDeviceLost() { return false; }
+
+    /**
+     * @brief Opens a frame: polls for loss, and numbers the frame a report is stamped with.
+     * @details The one place the renderer asks "may I draw at all". Everything a
+     *          frame does afterwards — passes, post-process, readbacks — is
+     *          predicated on this having returned true, which is why it is a
+     *          single question at the top rather than a check per submission.
+     * @return True when the device is live and the frame may proceed.
+     */
+    bool beginDeviceFrame() {
+        ++device_frame_;
+        if (device_status_ == GfxDeviceStatus::Live) pollDeviceLost();
+        return device_status_ == GfxDeviceStatus::Live;
+    }
+
+    /**
+     * @brief Called once per loss, with the completed report.
+     * @details One observer, not a list: the renderer owns the device and fans
+     *          the report out to whoever else needs it.
+     */
+    void setDeviceLostHandler(std::function<void(const GfxDeviceLostInfo&)> handler) {
+        device_lost_handler_ = std::move(handler);
+    }
+
+    /** @brief Backend identity captured at init (see {@link GfxDeviceLostInfo}). */
+    const GfxDeviceLostInfo& deviceIdentity() const { return device_info_; }
 
     // =========================================================================
     // Viewport & Clear
@@ -453,6 +535,44 @@ public:
      *          different claim than "nothing is allocated" — see censusProbes.ts.
      */
     virtual GfxLiveObjects liveObjects() const { return {}; }
+
+protected:
+    /**
+     * @brief Records who this backend is, so a later loss report can name it.
+     * @details Call from init(), while the backend still answers. Doing it at
+     *          loss time is too late — see {@link GfxDeviceLostInfo}.
+     */
+    void setDeviceIdentity(std::string backend, std::string vendor,
+                           std::string renderer, std::string version) {
+        device_info_.backend = std::move(backend);
+        device_info_.vendor = std::move(vendor);
+        device_info_.renderer = std::move(renderer);
+        device_info_.version = std::move(version);
+    }
+
+    /**
+     * @brief The single transition into Lost. Backends call this on detection.
+     * @details Idempotent: a lost device usually produces a burst of secondary
+     *          failures, and the first reason is the one that explains them.
+     * @return True when this call performed the transition.
+     */
+    bool markDeviceLost(GfxDeviceLostReason reason, std::string message = {},
+                        std::string context = {}) {
+        if (device_status_ != GfxDeviceStatus::Live) return false;
+        device_status_ = GfxDeviceStatus::Lost;
+        device_info_.reason = reason;
+        device_info_.message = std::move(message);
+        device_info_.context = std::move(context);
+        device_info_.frame = device_frame_;
+        if (device_lost_handler_) device_lost_handler_(device_info_);
+        return true;
+    }
+
+private:
+    GfxDeviceStatus device_status_ = GfxDeviceStatus::Live;
+    GfxDeviceLostInfo device_info_;
+    u64 device_frame_ = 0;
+    std::function<void(const GfxDeviceLostInfo&)> device_lost_handler_;
 };
 
 }  // namespace esengine

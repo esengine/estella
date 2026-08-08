@@ -39,6 +39,8 @@ public:
     void init() override;
     void shutdown() override;
 
+    bool pollDeviceLost() override;
+
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
 

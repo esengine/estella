@@ -338,6 +338,104 @@ enum class GfxIntParam : u8 {
 };
 
 // =============================================================================
+// Device Loss
+// =============================================================================
+
+/**
+ * @brief Whether the device can still be drawn to.
+ *
+ * @details Every backend can lose its device: WebGL fires `webglcontextlost`,
+ *          WebGPU resolves its lost future, a native driver resets under us. The
+ *          states make "lost" a value the renderer branches on, not a condition
+ *          it discovers by drawing into a dead device.
+ */
+enum class GfxDeviceStatus : u8 {
+    Live,        ///< Normal operation.
+    Lost,        ///< Every handle issued before is dead; submission has stopped.
+    Recovering,  ///< A replacement device is being built; old handles stay dead.
+    Dead,        ///< Unrecoverable — the renderer will not draw again this run.
+};
+
+/** @brief Why the device was lost. The report leads with this. */
+enum class GfxDeviceLostReason : u8 {
+    Unknown,
+    ContextLost,   ///< The host took the context away (web `webglcontextlost`, surface teardown).
+    OutOfMemory,   ///< An allocation the backend could not satisfy.
+    Reset,         ///< Driver/GPU reset — a hang watchdog (TDR) or a peer process's fault.
+    Removed,       ///< The adapter itself is gone: driver update, eGPU unplugged.
+    Destroyed,     ///< We destroyed it. A loss report that is not a failure.
+    Validation,    ///< The backend rejected our commands fatally.
+    Internal,      ///< The backend failed inside itself and said no more than that.
+};
+
+/**
+ * @brief Everything a human needs to know about one device loss.
+ *
+ * @details Assembled once, at the moment of loss, and then immutable — a report
+ *          that says only "the context was lost" is what this type exists to
+ *          replace.
+ */
+struct GfxDeviceLostInfo {
+    GfxDeviceLostReason reason = GfxDeviceLostReason::Unknown;
+
+    /**
+     * Backend identity, captured at init() rather than at loss.
+     *
+     * A lost backend cannot be asked who it was — GL returns null from
+     * glGetString once the context is gone — so a report assembled at loss time
+     * would name no vendor, no driver and no GPU.
+     */
+    std::string backend;   ///< "WebGL2", "WebGPU".
+    std::string vendor;
+    std::string renderer;
+    std::string version;
+
+    /** Driver-supplied text; empty when the backend offered no detail. */
+    std::string message;
+
+    /** What the device was doing when it died, when the site knows (e.g. "createTexture 4096x4096"). */
+    std::string context;
+
+    /** The frame the loss was observed on. */
+    u64 frame = 0;
+};
+
+/**
+ * @brief The whole report as one line, for a log or a crash report.
+ * @details Single formatter so the C++ log, the JS diagnostics record and a
+ *          user-facing error all name the failure identically.
+ */
+inline std::string gfxFormatDeviceLost(const GfxDeviceLostInfo& info);
+
+/** @brief Human-readable reason, for logs and diagnostics reports. */
+inline const char* gfxDeviceLostReasonName(GfxDeviceLostReason reason) {
+    switch (reason) {
+    case GfxDeviceLostReason::ContextLost: return "context-lost";
+    case GfxDeviceLostReason::OutOfMemory: return "out-of-memory";
+    case GfxDeviceLostReason::Reset:       return "device-reset";
+    case GfxDeviceLostReason::Removed:     return "device-removed";
+    case GfxDeviceLostReason::Destroyed:   return "destroyed";
+    case GfxDeviceLostReason::Validation:  return "validation";
+    case GfxDeviceLostReason::Internal:    return "internal-error";
+    case GfxDeviceLostReason::Unknown:     break;
+    }
+    return "unknown";
+}
+
+inline std::string gfxFormatDeviceLost(const GfxDeviceLostInfo& info) {
+    std::string out = "GPU device lost: ";
+    out += gfxDeviceLostReasonName(info.reason);
+    out += " [backend=" + (info.backend.empty() ? std::string("unknown") : info.backend);
+    if (!info.vendor.empty())   out += ", vendor=" + info.vendor;
+    if (!info.renderer.empty()) out += ", gpu=" + info.renderer;
+    if (!info.version.empty())  out += ", driver=" + info.version;
+    out += ", frame=" + std::to_string(info.frame) + "]";
+    if (!info.context.empty()) out += " during " + info.context;
+    if (!info.message.empty()) out += " — " + info.message;
+    return out;
+}
+
+// =============================================================================
 // Shader Program Creation
 // =============================================================================
 

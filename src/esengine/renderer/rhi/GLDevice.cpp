@@ -252,11 +252,30 @@ void GLDevice::init() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    // Ask who we are while the answer still exists: glGetString returns null on a
+    // lost context, so a report assembled after the loss would name no driver.
+    setDeviceIdentity("WebGL2", getString(GfxStringName::Vendor),
+                      getString(GfxStringName::Renderer), getString(GfxStringName::Version));
     ES_LOG_DEBUG("GLDevice initialized");
 }
 
 void GLDevice::shutdown() {
     ES_LOG_INFO("GLDevice shutdown");
+}
+
+bool GLDevice::pollDeviceLost() {
+    if (!isDeviceLive()) return false;
+#ifdef __EMSCRIPTEN__
+    // Asked directly rather than waited for: a `webglcontextlost` listener
+    // attached after the loss never fires, and a renderer that missed the event
+    // would submit into a dead context forever.
+    if (emscripten_is_webgl_context_lost(0)) {
+        markDeviceLost(GfxDeviceLostReason::ContextLost,
+                       "WebGL reports the context is lost", "pollDeviceLost");
+        return true;
+    }
+#endif
+    return false;
 }
 
 // =============================================================================
@@ -420,6 +439,10 @@ void GLDevice::setCullFace(bool front) {
 ShaderHandle GLDevice::createProgram(const GfxShaderSource& source,
                                      const GfxAttribBinding* bindings, u32 bindingCount,
                                      std::string* outLog, GfxShaderStage* outFailedStage) {
+    if (!isDeviceLive()) {
+        if (outLog) *outLog = "device lost";
+        return ShaderHandle::Invalid;
+    }
     if (source.language != GfxShaderLanguage::GLSL_ES300) {
         if (outLog) *outLog = "GLDevice compiles GLSL ES 300 only (got another language)";
         if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
@@ -632,7 +655,12 @@ void GLDevice::uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const voi
     }
 }
 
+// A lost GL context accepts every call silently, so the danger is not a crash:
+// creation appears to succeed and returns an id naming nothing. Guarded are the
+// calls whose RESULT the caller acts on; state setters are no-ops already.
+
 BufferHandle GLDevice::createBuffer(const BufferDesc& desc, const void* initialData) {
+    if (!isDeviceLive()) return BufferHandle::Invalid;
     GLuint id = 0;
     glGenBuffers(1, &id);
     buffer_meta_[id] = BufferMeta{desc.usage, desc.dynamic};
@@ -663,6 +691,7 @@ void GLDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
 // =============================================================================
 
 VertexLayoutHandle GLDevice::createVertexLayout(const VertexLayoutDesc& desc) {
+    if (!isDeviceLive()) return VertexLayoutHandle::Invalid;
     LayoutRecord rec;
     rec.desc = desc;
     rec.alive = true;
@@ -758,6 +787,7 @@ void GLDevice::uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bin
 // =============================================================================
 
 PipelineHandle GLDevice::createPipeline(const PipelineDesc& desc) {
+    if (!isDeviceLive()) return PipelineHandle::Invalid;
     for (u32 i = 0; i < pipelines_.size(); ++i) {
         if (pipelines_[i] == desc) {
             return static_cast<PipelineHandle>(i + 1);
@@ -837,17 +867,20 @@ void GLDevice::invalidatePipelineCache() {
 // =============================================================================
 
 void GLDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) {
+    if (!isDeviceLive()) return;
     prepareVertexState();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                    reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)));
 }
 
 void GLDevice::drawArrays(u32 first, u32 vertexCount) {
+    if (!isDeviceLive()) return;
     prepareVertexState();
     glDrawArrays(GL_TRIANGLES, static_cast<GLint>(first), static_cast<GLsizei>(vertexCount));
 }
 
 void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) {
+    if (!isDeviceLive()) return;
     prepareVertexState();
     glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                             reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)),
@@ -893,6 +926,7 @@ void GLDevice::evictSamplerBinding(u32 textureId) {
 }
 
 TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixels) {
+    if (!isDeviceLive()) return TextureHandle::Invalid;
     GLuint id = 0;
     glGenTextures(1, &id);
     texture_formats_[id] = desc.format;
@@ -919,6 +953,7 @@ TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixel
 
 TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
                                                 const void* data, u32 byteLength, u32 mipLevels) {
+    if (!isDeviceLive()) return TextureHandle::Invalid;
     GLuint id = 0;
     glGenTextures(1, &id);
     texture_formats_[id] = desc.format;
@@ -953,6 +988,7 @@ TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxComp
 }
 
 TextureHandle GLDevice::importExternalTexture(u32 nativeId, const TextureDesc& desc) {
+    if (!isDeviceLive()) return TextureHandle::Invalid;
     texture_formats_[nativeId] = desc.format;
     return TextureHandle{nativeId};
 }
@@ -996,6 +1032,7 @@ void GLDevice::generateMipmaps(TextureHandle texture) {
 // =============================================================================
 
 FramebufferHandle GLDevice::createFramebuffer(const FramebufferDesc& desc) {
+    if (!isDeviceLive()) return FramebufferHandle::Default;
     GLuint id = 0;
     glGenFramebuffers(1, &id);
     glBindFramebuffer(GL_FRAMEBUFFER, id);
@@ -1088,6 +1125,7 @@ void GLDevice::endRenderPass() {
 // =============================================================================
 
 ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
+    if (!isDeviceLive()) return ReadbackHandle::Invalid;
     if (w == 0 || h == 0) return ReadbackHandle::Invalid;
     std::vector<u8> pixels(static_cast<usize>(w) * h * 4);
     // Called outside a pass (framebuffer 0 bound); bind the source, read, restore.
@@ -1174,7 +1212,15 @@ void GLDevice::setWireframe(bool enabled) {
 }
 
 u32 GLDevice::getError() {
-    return static_cast<u32>(glGetError());
+    const GLenum err = glGetError();
+    // GL_CONTEXT_LOST is not an error to handle but the context announcing it is
+    // gone; the two enums for it differ by header origin. Reporting it here lets
+    // a build with error checking on notice in the same frame.
+    if (err == GL_CONTEXT_LOST || err == GL_CONTEXT_LOST_WEBGL) {
+        markDeviceLost(GfxDeviceLostReason::ContextLost,
+                       "glGetError returned GL_CONTEXT_LOST", "getError");
+    }
+    return static_cast<u32>(err);
 }
 
 std::string GLDevice::getString(GfxStringName name) {

@@ -195,6 +195,14 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                         const PassClear& clear) {
+    // A lost device makes the whole frame meaningless, so it is refused here
+    // rather than discovered by each pass and readback failing separately.
+    // in_frame_ stays false, which makes end() a no-op too: no half-frame.
+    if (!device_.beginDeviceFrame()) {
+        in_frame_ = false;
+        return;
+    }
+
     view_projection_ = view_projection;
     frustum_.extractFromMatrix(view_projection);
     current_target_ = target;
@@ -277,6 +285,11 @@ void RenderFrame::flush() {
     if (!in_frame_ || flushed_) return;
 
     flushed_ = true;
+
+    // The device can still die between begin() and here — a GL error check, a
+    // spontaneous WebGPU callback. Marked flushed above first, so end() does not
+    // come back for a second attempt at a frame that has nowhere to go.
+    if (!device_.isDeviceLive()) return;
 
     // Drop any pipeline a prior phase left bound, so the first draw re-applies its state.
     device_.invalidatePipelineCache();
@@ -435,6 +448,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
 void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
     if (w == 0 || h == 0) return;
+    if (!device_.isDeviceLive()) return;
 
     if (preview_rt_ == 0) {
         preview_rt_ = target_manager_.create(w, h, /*depth=*/false, /*linearFilter=*/false);

@@ -36,6 +36,12 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
+/** Dawn returns strings as pointer+length, with WGPU_STRLEN meaning "null-terminated". */
+std::string svText(const WGPUStringView& v) {
+    return v.data ? std::string(v.data, v.length == WGPU_STRLEN ? strlen(v.data) : v.length)
+                  : std::string();
+}
+
 /** Has the SDK's render pipeline taken over the frame? It declares itself through
  *  `es_jsOwnsFrame` (see HOST_FLAGS in the SDK's nativeBindings) once installed. */
 bool jsOwnsFrame(HostState& h) {
@@ -113,10 +119,28 @@ bool createDevice(HostState& h) {
     // Without this, a validation failure is silent: WebGPU does not throw, the
     // offending call is dropped, and all that reaches anyone is a black frame.
     dd.uncapturedErrorCallbackInfo.callback =
-        [](WGPUDevice const*, WGPUErrorType, WGPUStringView message, void*, void*) {
-            ESHOST_LOGE("WebGPU: %.*s", (int)(message.length == WGPU_STRLEN
-                                                  ? strlen(message.data) : message.length),
-                        message.data ? message.data : "");
+        [](WGPUDevice const*, WGPUErrorType type, WGPUStringView message, void*, void*) {
+            const std::string text = svText(message);
+            ESHOST_LOGE("WebGPU: %s", text.c_str());
+            // An out-of-memory or internal error is the device telling us it is
+            // finished; the backend decides which kinds end it.
+            if (hostAlive() && host().gfx) {
+                host().gfx->reportUncapturedError(static_cast<uint32_t>(type), text.c_str());
+            }
+        };
+    // Device loss can only be subscribed to HERE — WebGPU takes the callback in
+    // the descriptor that creates the device, and there is no way to attach one
+    // afterwards. A device created without it loses itself in silence.
+    dd.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
+    dd.deviceLostCallbackInfo.callback =
+        [](WGPUDevice const*, WGPUDeviceLostReason reason, WGPUStringView message, void*, void*) {
+            const std::string text = svText(message);
+            ESHOST_LOGE("WebGPU device lost (%d): %s", (int)reason, text.c_str());
+            if (hostAlive() && host().gfx) {
+                host().gfx->notifyDeviceLost(
+                    WebGPUDevice::reasonFromWgpu(static_cast<uint32_t>(reason)),
+                    text, "Dawn device-lost callback");
+            }
         };
     WGPURequestDeviceCallbackInfo dci = {};
     dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onDevice; dci.userdata1 = &h.device;
@@ -137,12 +161,8 @@ void logAdapter(HostState& h) {
     if (!h.adapter) return;
     WGPUAdapterInfo info = {};
     if (wgpuAdapterGetInfo(h.adapter, &info) != WGPUStatus_Success) return;
-    auto str = [](const WGPUStringView& v) {
-        return v.data ? std::string(v.data, v.length == WGPU_STRLEN ? strlen(v.data) : v.length)
-                      : std::string();
-    };
-    bootNote("gpu: %s %s (%s) — %s", str(info.vendor).c_str(), str(info.device).c_str(),
-             str(info.architecture).c_str(), str(info.description).c_str());
+    bootNote("gpu: %s %s (%s) — %s", svText(info.vendor).c_str(), svText(info.device).c_str(),
+             svText(info.architecture).c_str(), svText(info.description).c_str());
     wgpuAdapterInfoFreeMembers(info);
 }
 
