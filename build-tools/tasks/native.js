@@ -325,13 +325,22 @@ async function sdlPrefix(options, target) {
     return ensureSdlBuild({ sdl: sdlDir, target, macosArchs: options.macosArchs });
 }
 
+/** The desktop target this machine can build: a desktop host is never cross-compiled,
+ *  because its window, its GPU backend and its font stack are all the host OS's. */
+function hostDesktopTarget() {
+    if (process.platform === 'darwin') return 'macos';
+    if (process.platform === 'win32') return 'windows';
+    throw new Error(`The desktop host has no ${process.platform} support yet `
+        + '(its surface kind and font seam are not written) — see docs/REARCH_STEAM.md S3c.');
+}
+
 async function buildDesktopHost(options) {
-    if (process.platform !== 'darwin') {
-        throw new Error('The desktop host builds on macOS only so far (Windows and Linux are S1 too, '
-            + 'but their surface kind and font seam are not written yet).');
-    }
     const rootDir = config.paths.root;
-    const target = 'macos';
+    const target = hostDesktopTarget();
+    if (options.target && options.target.toLowerCase() !== target) {
+        throw new Error(`Cannot build the ${options.target} host on ${process.platform}: a desktop `
+            + 'host is not cross-compiled — its window, GPU backend and font stack are the host OS\'s.');
+    }
 
     const quickjs = quickjsDir(options);
     if (!quickjs) {
@@ -346,13 +355,15 @@ async function buildDesktopHost(options) {
     const genDir = await prepareGenerated(rootDir, buildDir, quickjs);
 
     const deploymentTarget = options.macosMin || MACOS_MIN;
-    logger.step(`Configuring desktop host (macOS ${deploymentTarget})...`);
+    logger.step(`Configuring desktop host (${target})...`);
     await runCommand('cmake', [
         '-S', path.join(rootDir, 'native'),
         '-B', buildDir,
         '-G', 'Ninja',
-        `-DCMAKE_OSX_ARCHITECTURES=${options.macosArchs || 'arm64'}`,
-        `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`,
+        ...(target === 'macos'
+            ? [`-DCMAKE_OSX_ARCHITECTURES=${options.macosArchs || 'arm64'}`,
+                `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`]
+            : []),
         '-DCMAKE_BUILD_TYPE=Release',
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${fwd(dawnDir)}`,
@@ -365,7 +376,7 @@ async function buildDesktopHost(options) {
     logger.step('Building desktop host...');
     await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
 
-    const exe = path.join(buildDir, 'estella_desktop');
+    const exe = path.join(buildDir, target === 'windows' ? 'estella_desktop.exe' : 'estella_desktop');
     logger.success(`Desktop host: ${path.relative(rootDir, exe)}`);
 
     // Same rule as the other two: the compiled half is project-independent, so it
@@ -479,6 +490,7 @@ const XCFRAMEWORK = path.join('build/cmake/native-ios', 'Estella.xcframework');
  *  are one per sysroot, because they are different binaries. */
 const DESKTOP_BUILD_DIR = {
     macos: 'build/cmake/native-macos',
+    windows: 'build/cmake/native-windows',
 };
 
 // Rebuild the xcframework from whichever slices exist. A device-only framework is

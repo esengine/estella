@@ -283,6 +283,17 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
             surface_ = wgpuInstanceCreateSurface(instance_, &sd);
             break;
         }
+        case NativeWindowKind::Win32Hwnd: {
+#if defined(_WIN32)
+            WGPUSurfaceSourceWindowsHWND win32{};
+            win32.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
+            win32.hinstance = window.instance;
+            win32.hwnd = window.handle;
+            sd.nextInChain = &win32.chain;
+            surface_ = wgpuInstanceCreateSurface(instance_, &sd);
+#endif
+            break;
+        }
     }
     if (!surface_) {
         ES_LOG_ERROR("WebGPUDevice::configureSurface(native): surface creation failed");

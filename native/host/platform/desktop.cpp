@@ -36,6 +36,8 @@
 
 #if defined(__APPLE__)
 #include "platform/apple_common.hpp"
+#elif defined(_WIN32)
+#include "platform/windows_common.hpp"
 #endif
 
 using esengine::u32;
@@ -97,6 +99,8 @@ struct DesktopPlatform final : eshost::Platform {
     SDL_Window* window = nullptr;
     /** The CAMetalLayer / HWND / Wayland surface Dawn draws into, from SDL. */
     void* nativeWindow = nullptr;
+    /** Win32 only: the HWND's HINSTANCE, which the surface descriptor also wants. */
+    void* windowInstance = nullptr;
     /** Where the packaged game's files are — see resolveContentRoot. */
     std::string contentRoot;
     /** SDL_GetPrefPath's directory, kept because every call allocates. */
@@ -160,8 +164,10 @@ struct DesktopPlatform final : eshost::Platform {
     WebGPUDevice::NativeSurface surface() override {
 #if defined(__APPLE__)
         return {WebGPUDevice::NativeWindowKind::MetalLayer, nativeWindow};
+#elif defined(_WIN32)
+        return {WebGPUDevice::NativeWindowKind::Win32Hwnd, nativeWindow, windowInstance};
 #else
-#error "The desktop host has only its Apple surface so far — see docs/REARCH_STEAM.md S1."
+#error "The desktop host has no Linux surface yet — see docs/REARCH_STEAM.md S3c."
 #endif
     }
 
@@ -219,6 +225,12 @@ struct DesktopPlatform final : eshost::Platform {
     }
 
     void startFetch(const eshost::FetchRequest& req) override { eshost::appleStartFetch(req); }
+#elif defined(_WIN32)
+    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::windowsLoadFont(family, codepoint, style);
+    }
+
+    void startFetch(const eshost::FetchRequest& req) override { eshost::windowsStartFetch(req); }
 #endif
 };
 
@@ -283,9 +295,13 @@ int main(int argc, char** argv) {
         SDL_free(pref);
     }
 
-    SDL_Window* window = SDL_CreateWindow(name.c_str(), kDefaultWidth, kDefaultHeight,
-                                          SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
-                                              | SDL_WINDOW_METAL);
+    // SDL_WINDOW_METAL only where Metal is the backend: elsewhere it is a request
+    // for a surface the platform does not have, and window creation fails.
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#if defined(__APPLE__)
+    flags |= SDL_WINDOW_METAL;
+#endif
+    SDL_Window* window = SDL_CreateWindow(name.c_str(), kDefaultWidth, kDefaultHeight, flags);
     if (!window) {
         SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
         SDL_Quit();
@@ -303,6 +319,17 @@ int main(int argc, char** argv) {
         return 1;
     }
     g_platform.nativeWindow = SDL_Metal_GetLayer(view);
+#elif defined(_WIN32)
+    // D3D12 draws straight into the window, so there is no view to make: the
+    // HWND and its HINSTANCE are what the surface descriptor asks for.
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    g_platform.nativeWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    g_platform.windowInstance = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
+    if (!g_platform.nativeWindow) {
+        SDL_Log("SDL gave no HWND for the window — cannot create a D3D12 surface.");
+        SDL_Quit();
+        return 1;
+    }
 #endif
 
     if (!eshost::boot(g_platform)) {

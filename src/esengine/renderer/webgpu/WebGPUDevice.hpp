@@ -190,14 +190,18 @@ public:
     bool configureSurface(const char* selector, u32 width, u32 height);
 #endif
 
-    /** The kind of native window a non-emscripten (iOS/Android) host draws into. */
-    enum class NativeWindowKind { MetalLayer, AndroidWindow };
+    /** The kind of native window a non-emscripten host draws into. */
+    enum class NativeWindowKind { MetalLayer, AndroidWindow, Win32Hwnd };
 
-    /** A `CAMetalLayer*` / `ANativeWindow*` for a native-C++ build; compiled out of
-     *  the wasm build, where the host injects an already-built surface instead. */
+    /** A `CAMetalLayer*` / `ANativeWindow*` / `HWND` for a native-C++ build;
+     *  compiled out of the wasm build, where the host injects an already-built
+     *  surface instead. */
     struct NativeSurface {
         NativeWindowKind kind;
         void* handle;
+        /** Win32 only: the `HINSTANCE` the window belongs to, which the surface
+         *  descriptor asks for beside the HWND. */
+        void* instance = nullptr;
     };
 
 #if !defined(__EMSCRIPTEN__)

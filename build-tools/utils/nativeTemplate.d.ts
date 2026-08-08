@@ -116,7 +116,7 @@ export function androidTemplateSources(dir: string): {
     bytecode: string;
 };
 
-export function desktopTemplateSources(dir: string): {
+export function desktopTemplateSources(dir: string, platform?: NativePlatform): {
     /** The runtime binary; the assembler renames it to the app. */
     executable: string;
     infoPlistIn: string;

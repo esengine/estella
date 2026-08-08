@@ -95,26 +95,33 @@ export function templateLayout(platform, options = {}) {
             },
         ];
     }
-    if (platform === 'macos') {
+    if (platform === 'macos' || platform === 'windows') {
+        const exe = platform === 'windows' ? 'estella_desktop.exe' : 'estella_desktop';
+        const buildDir = `build/cmake/native-${platform}`;
         // The shortest layout of the three, because a desktop build embeds
         // everything: Dawn and SDL are linked statically, so the runtime is one
         // executable and there is no second file to find at run time.
         return [
             {
-                rel: 'estella_desktop', strip: true,
-                from: (ctx) => path.join(ctx.root, 'build/cmake/native-macos', 'estella_desktop'),
+                // MSVC leaves debug info in a separate .pdb, so there is nothing to
+                // strip out of the executable — and no signature to invalidate.
+                rel: exe, strip: platform === 'macos',
+                from: (ctx) => path.join(ctx.root, buildDir, exe),
             },
             // Beside the game's own files, not in a directory of its own: the host
             // reads it through Platform::readAsset, which is one namespace — the
             // same one the APK's assets/ is.
             {
                 rel: BYTECODE_FILE, optional: true, releaseRequired: true,
-                from: (ctx) => path.join(ctx.root, 'build/cmake/native-macos', 'gen', BYTECODE_FILE),
+                from: (ctx) => path.join(ctx.root, buildDir, 'gen', BYTECODE_FILE),
             },
-            {
+            // The bundle description macOS wants; Windows has no counterpart, and
+            // an entry every consumer would have to check for is worse than a
+            // layout that differs where the platforms do.
+            ...(platform === 'macos' ? [{
                 rel: 'Info.plist.in',
                 from: (ctx) => path.join(ctx.root, 'native', 'desktop', 'Info.plist.in'),
-            },
+            }] : []),
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
@@ -422,9 +429,9 @@ export function iosTemplateSources(dir) {
 
 /** The desktop equivalent — the runtime binary and the three files the assembler
  *  composes an app bundle from. */
-export function desktopTemplateSources(dir) {
+export function desktopTemplateSources(dir, platform = 'macos') {
     return {
-        executable: path.join(dir, 'estella_desktop'),
+        executable: path.join(dir, platform === 'windows' ? 'estella_desktop.exe' : 'estella_desktop'),
         infoPlistIn: path.join(dir, 'Info.plist.in'),
         icon: path.join(dir, DEFAULT_ICON),
         bytecode: path.join(dir, BYTECODE_FILE),

@@ -23,9 +23,12 @@ elseif(ANDROID)
 elseif(APPLE)
     set(ESTELLA_DESKTOP ON)
     set(ESTELLA_MACOS ON)
+elseif(WIN32)
+    set(ESTELLA_DESKTOP ON)
+    set(ESTELLA_WINDOWS ON)
 else()
     message(FATAL_ERROR "Unsupported platform: configure with the NDK toolchain (Android), "
-        "-DCMAKE_SYSTEM_NAME=iOS, or run on macOS for the desktop host.")
+        "-DCMAKE_SYSTEM_NAME=iOS, or run on macOS/Windows for the desktop host.")
 endif()
 
 # The desktop host is an EXECUTABLE that embeds everything (see docs/REARCH_STEAM.md
@@ -48,7 +51,12 @@ set(TP "${REPO}/third_party")
 # each needs its own Dawn — see ESTELLA_IOS_SIMULATOR below.
 if(ESTELLA_IOS OR ESTELLA_DESKTOP)
     if(NOT ESTELLA_DAWN_LIB)
-        set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.a")
+        # MSVC names a static library <name>.lib; everyone else lib<name>.a.
+        if(ESTELLA_WINDOWS)
+            set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/webgpu_dawn.lib")
+        else()
+            set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.a")
+        endif()
     endif()
     add_library(webgpu_dawn STATIC IMPORTED)
 else()
@@ -304,17 +312,32 @@ if(ESTELLA_QUICKJS_DIR)
         # An executable, not a library: on desktop there is no app shell to link
         # into — the binary IS the app, and the assembler only renames it and puts
         # the game's files beside it (docs/REARCH_STEAM.md §3).
+        #
+        # One glue TU (desktop.cpp) plus the per-OS half SDL does not cover: the
+        # font match and the HTTP request.
+        if(ESTELLA_WINDOWS)
+            set(DESKTOP_OS_SOURCES host/platform/windows_common.cpp)
+        else()
+            set(DESKTOP_OS_SOURCES host/platform/apple_common.mm)
+        endif()
         add_executable(estella_js_host ${HOST_SOURCES} host/platform/desktop.cpp
-            host/platform/apple_common.mm)
+            ${DESKTOP_OS_SOURCES})
         set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
-        # As on iOS: miniaudio's CoreAudio backend reaches for the Obj-C runtime, so
-        # its TU is Objective-C++ on every Apple platform.
-        set_source_files_properties(host/media/native_audio.cpp host/media/audio_spectrum.cpp
-            PROPERTIES COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
-            estella_dragonbones qjs SDL3::SDL3
-            "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
-            "-framework CoreText" "-framework CoreGraphics" "-framework Foundation")
+            estella_dragonbones qjs SDL3::SDL3)
+        if(ESTELLA_WINDOWS)
+            # Dawn's D3D12 backend, DirectWrite for the font match, WinHTTP for the
+            # fetch. miniaudio reaches WASAPI through the COM headers it includes.
+            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp)
+        else()
+            # As on iOS: miniaudio's CoreAudio backend reaches for the Obj-C runtime,
+            # so its TU is Objective-C++ on every Apple platform.
+            set_source_files_properties(host/media/native_audio.cpp host/media/audio_spectrum.cpp
+                PROPERTIES COMPILE_OPTIONS "-x;objective-c++")
+            target_link_libraries(estella_js_host
+                "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
+                "-framework CoreText" "-framework CoreGraphics" "-framework Foundation")
+        endif()
     else()
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.

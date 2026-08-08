@@ -33,7 +33,7 @@ export function nativePins(rootDir = config.paths.root) {
 /** Whether a target is one of the desktop OSes — the ones whose window, event loop
  *  and gamepads come from SDL rather than from the OS's own app framework. */
 export function isDesktopTarget(target) {
-    return target === 'macos';
+    return target === 'macos' || target === 'windows';
 }
 
 /**
@@ -89,6 +89,7 @@ export async function fetchNativeDeps(options = {}) {
     logger.info('Build with: node build-tools/cli.js native            (Android)');
     logger.info('            node build-tools/cli.js native --target ios');
     logger.info('            node build-tools/cli.js native --target macos');
+    logger.info('            node build-tools/cli.js native --target windows   (from a vcvars64 shell)');
     return { dawn, quickjs, sdl };
 }
 
@@ -108,7 +109,9 @@ export async function ensureSdlBuild(options) {
     }
     const buildDir = options.buildDir || path.join(options.sdl, `out-${options.target}`);
     const prefix = path.join(buildDir, 'install');
-    if (existsSync(path.join(prefix, 'lib', 'libSDL3.a'))) return prefix;
+    // The package config, not the library: its name differs per toolchain
+    // (libSDL3.a, SDL3-static.lib) and this is what find_package looks for anyway.
+    if (existsSync(path.join(prefix, 'lib', 'cmake', 'SDL3'))) return prefix;
 
     const cmake = options.cmake || 'cmake';
     logger.step(`Building SDL3 for ${options.target} (once per pin)...`);
@@ -154,6 +157,7 @@ export const DAWN_TARGETS = {
     // Static like iOS, not shared like Android: a depot whose game is ONE
     // executable has no rpath to get wrong (docs/REARCH_STEAM.md §3).
     macos: { out: 'out-macos', backend: 'metal' },
+    windows: { out: 'out-windows', backend: 'd3d12' },
 };
 
 /**
@@ -172,10 +176,12 @@ function dawnBackendFlags(backend) {
  *  An arm64 binary claiming 10.15 claims something no machine can check. */
 export const MACOS_MIN = '11.0';
 
-/** Where a target's monolithic Dawn library lands, once built. */
+/** Where a target's monolithic Dawn library lands, once built. MSVC names a static
+ *  library `<name>.lib` and puts a multi-config build under its configuration. */
 export function dawnLibrary(dawnBuild, target) {
-    const name = DAWN_TARGETS[target].shared ? 'libwebgpu_dawn.so' : 'libwebgpu_dawn.a';
-    return path.join(dawnBuild, 'src', 'dawn', 'native', name);
+    const dir = path.join(dawnBuild, 'src', 'dawn', 'native');
+    if (target === 'windows') return path.join(dir, 'webgpu_dawn.lib');
+    return path.join(dir, DAWN_TARGETS[target].shared ? 'libwebgpu_dawn.so' : 'libwebgpu_dawn.a');
 }
 
 /** Dawn's build directory for a target. Android's is per-ABI — an emulator build
@@ -223,6 +229,10 @@ export async function ensureDawnBuild(options) {
             '-DANDROID_STL=c++_shared',
             monolithic,
         ];
+    } else if (options.target === 'windows') {
+        // Nothing to cross-compile and no sysroot; the toolchain comes from the
+        // environment, which on Windows means a shell that has run vcvars64.
+        perTarget = [monolithic];
     } else if (options.target === 'macos') {
         // A HOST build: no CMAKE_SYSTEM_NAME, no sysroot, nothing cross-compiled.
         // Intel is a release-time decision (--macos-archs), not a default: it
