@@ -49,7 +49,7 @@ import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
-import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
+import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../src/project/platforms';
 import type { DesktopPackaging, SteamPackaging } from '../src/project/format';
 import type { SizeBudget } from '../src/project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
@@ -205,9 +205,9 @@ export interface ExportGameResult {
   /** Android: the signed App Bundle, when the project asked for one. Play takes
    *  this; it is not installable. */
   aabFile?: string;
-  /** Desktop: the assembled app bundle. Absent when no desktop runtime template
-   *  is installed (the export still carries its content). */
-  appBundle?: string;
+  /** Desktop: the assembled apps, one per desktop OS a runtime template is
+   *  installed for. Empty when none is (the export still carries its content). */
+  appBundles?: { os: DesktopOs; dir: string }[];
   /** Desktop, Steam channel: the checklist naming this build's depot ids, launch
    *  string and cloud paths — the settings only the partner backend holds. */
   steamChecklist?: string;
@@ -350,10 +350,11 @@ export interface ExportGameOptions {
    *  which carries every architecture it will ship. Omitted (or null) exports
    *  content only. */
   androidTemplate?: string | null;
-  /** Desktop: the installed runtime template for THIS OS, resolved by the caller
-   *  (the template ids are per-OS where the platform id is not). Omitted (or
-   *  null) exports content only. */
-  desktopTemplate?: string | null;
+  /** Desktop: every installed runtime template, resolved by the caller — one app
+   *  is assembled per entry. Not filtered to the building machine's OS: assembly
+   *  is pure Node, and a Steam upload wants all of them. Empty exports content
+   *  only. */
+  desktopTemplates?: { os: DesktopOs; dir: string }[];
   /** Desktop: where this build goes (`packaging.platforms.desktop.channel`).
    *  Absent ⇒ standalone, which writes the app and nothing else. */
   desktopChannel?: DesktopPackaging['channel'];
@@ -424,10 +425,17 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
   // there loose, and the one a store/network takes is the deliverable the limit
   // applies to. The playable ships its single file as index.html unless a zip
   // was written for a zip-delivery network.
-  const packages = [result.apkFile, result.aabFile, result.zipFile].filter((p): p is string => !!p);
+  const desktopApps = result.appBundles ?? [];
+  const packages = [result.apkFile, result.aabFile, result.zipFile, ...desktopApps.map((a) => a.dir)]
+    .filter((p): p is string => !!p);
+  // Desktop makes one package per OS; the limit is judged on the one this machine
+  // could run, falling back to the first, because a per-OS budget would be a
+  // different setting and none of the three is "the" upload.
+  const desktopApp = desktopApps.find((a) => a.os === desktopTemplateFor(process.platform))
+    ?? desktopApps[0];
   const deliverable = result.platform === 'playable'
     ? result.zipFile ?? path.join(result.outDir, 'index.html')
-    : result.apkFile ?? result.aabFile ?? result.appBundle;
+    : result.apkFile ?? result.aabFile ?? desktopApp?.dir;
   try {
     const size = await measureBuild({
       root: result.outDir,
@@ -553,8 +561,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let androidProject: string | undefined;
   let apkFile: string | undefined;
   let aabFile: string | undefined;
-  /** Desktop: the assembled `<name>.app`. */
-  let appBundle: string | undefined;
+  /** Desktop: one assembled app per desktop OS a template is installed for. */
+  let appBundles: { os: DesktopOs; dir: string }[] = [];
   /** Desktop, Steam channel: the per-build checklist written beside the scripts. */
   let steamChecklist: string | undefined;
   await mkdir(payloadDir, { recursive: true });
@@ -721,41 +729,52 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     }
 
     if (platform === 'desktop') {
-      const template = opts.desktopTemplate ?? null;
-      if (!template) {
+      // One app per installed template, whichever OS is doing the building: the
+      // assembler is pure Node, so a Steam upload can carry every OS from one
+      // machine (docs/REARCH_STEAM.md §6.3).
+      const templates = opts.desktopTemplates ?? [];
+      if (templates.length === 0) {
         warnings.push('No desktop runtime template is installed for this editor version, so no app '
           + 'was assembled — the content is here. Install one from the Desktop row in Package '
           + 'Project, then export again.');
-      } else if (process.platform === 'darwin' || process.platform === 'win32') {
-        progress({ phase: 'Assembling the app' });
-        appBundle = await assembleDesktopApp({
-          platform: process.platform === 'darwin' ? 'macos' : 'windows',
-          templateDir: template, contentDir: absOut, outDir: absOut, app: appConfig,
-          iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
-          warn: (m: string) => warnings.push(m),
-        });
-        if (opts.desktopChannel === 'steam') {
-          const appId = opts.steam?.appId;
-          if (!appId) {
-            warnings.push('The Steam channel is selected but no App ID is set (Project Settings → '
-              + 'Packaging → Desktop), so no depot scripts were written — scripts built around a '
-              + 'guessed id would name someone else\'s game.');
-          } else {
-            progress({ phase: 'Writing the Steam build scripts' });
-            const os = 'macos';
-            const emitted = await emitSteamBuild({
-              outDir: absOut,
-              appId,
-              appName: appConfig.name,
-              description: opts.steam?.description,
-              depots: [{ os, depotId: opts.steam?.depots?.[os] ?? defaultDepotId(appId, 0) }],
-            });
-            steamChecklist = emitted.checklist;
-          }
+      }
+      for (const { os, dir } of templates) {
+        if (os === 'linux') {
+          warnings.push('The Linux desktop host is not written yet, so its template was skipped '
+            + '(docs/REARCH_STEAM.md §0g).');
+          continue;
         }
-      } else {
-        warnings.push(`Assembling a desktop app on ${process.platform} is not written yet — the `
-          + 'content is here, and a macOS editor packages it.');
+        progress({ phase: `Assembling the ${os} app` });
+        appBundles.push({
+          os,
+          dir: await assembleDesktopApp({
+            platform: os, templateDir: dir, contentDir: absOut, outDir: absOut, app: appConfig,
+            iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
+            warn: (m: string) => warnings.push(m),
+          }),
+        });
+      }
+      if (opts.desktopChannel === 'steam' && appBundles.length > 0) {
+        const appId = opts.steam?.appId;
+        if (!appId) {
+          warnings.push('The Steam channel is selected but no App ID is set (Project Settings → '
+            + 'Packaging → Desktop), so no depot scripts were written — scripts built around a '
+            + 'guessed id would name someone else\'s game.');
+        } else {
+          progress({ phase: 'Writing the Steam build scripts' });
+          // A depot for each app that was actually assembled. Naming an OS whose
+          // app is not there uploads an empty depot and reports success.
+          const emitted = await emitSteamBuild({
+            outDir: absOut,
+            appId,
+            appName: appConfig.name,
+            description: opts.steam?.description,
+            depots: appBundles.map(({ os }) => ({
+              os, depotId: opts.steam?.depots?.[os] ?? defaultDepotId(appId, os),
+            })),
+          });
+          steamChecklist = emitted.checklist;
+        }
       }
     }
 
@@ -789,7 +808,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
     warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
     ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
-    ...(appBundle ? { appBundle } : {}),
+    ...(appBundles.length > 0 ? { appBundles } : {}),
     ...(steamChecklist ? { steamChecklist } : {}),
   };
 }

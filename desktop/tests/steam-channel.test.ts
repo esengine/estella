@@ -24,7 +24,7 @@ afterEach(() => { rmSync(out, { recursive: true, force: true }); });
 
 const emit = () => emitSteamBuild({
     outDir: out, appId: 480, appName: 'Physics Spinner',
-    depots: [{ os: 'macos', depotId: defaultDepotId(480, 0) }],
+    depots: [{ os: 'macos', depotId: defaultDepotId(480, 'macos') }],
 });
 
 describe('the Steam channel', () => {
@@ -52,7 +52,7 @@ describe('the Steam channel', () => {
         // a depot that took both would ship every asset twice.
         writeFileSync(path.join(out, 'game.config.json'), '{}');
         await emit();
-        const depot = readFileSync(path.join(out, 'steam', 'depot_481_macos.vdf'), 'utf8');
+        const depot = readFileSync(path.join(out, 'steam', 'depot_482_macos.vdf'), 'utf8');
         expect(depot).toContain('"LocalPath"\t\t"Physics Spinner.app/*"');
         expect(depot).not.toContain('"LocalPath"\t\t"*"');
     });
@@ -67,7 +67,7 @@ describe('the Steam channel', () => {
     it('tells this build what the backend needs, not what a manual would', async () => {
         const { checklist } = await emit();
         const text = readFileSync(checklist, 'utf8');
-        expect(text).toContain('`481`');                       // the depot id in use
+        expect(text).toContain('`482`');                       // the depot id in use
         expect(text).toContain('`Physics Spinner.app`');        // the launch string
         // The save path the engine actually writes to, in the words Auto-Cloud uses.
         expect(text).toContain('`MacHome`');
@@ -77,6 +77,31 @@ describe('the Steam channel', () => {
     it('says the depot ids are a guess, because Valve assigns them', async () => {
         const { checklist } = await emit();
         expect(readFileSync(checklist, 'utf8')).toMatch(/guess|assigns/i);
+    });
+
+    it('guesses a depot id per OS, so a second platform cannot renumber the first', () => {
+        // Keyed by OS, not by position in the build: a project that shipped a macOS
+        // depot and then installs the Windows template must not find its macOS
+        // guess pointing at someone else's depot.
+        expect([480, 480, 480].map((id, n) => defaultDepotId(id, (['windows', 'macos', 'linux'] as const)[n])))
+            .toEqual([481, 482, 483]);
+    });
+
+    it('writes one depot per OS the build actually produced', async () => {
+        const { scripts } = await emitSteamBuild({
+            outDir: out, appId: 480, appName: 'Spinner',
+            depots: [
+                { os: 'windows', depotId: defaultDepotId(480, 'windows') },
+                { os: 'macos', depotId: defaultDepotId(480, 'macos') },
+            ],
+        });
+        expect(scripts.map((s) => path.basename(s))).toEqual([
+            'depot_481_windows.vdf', 'depot_482_macos.vdf', 'app_build_480.vdf',
+        ]);
+        // Both listed in the app build, or steamcmd uploads only the one it sees.
+        const build = readFileSync(path.join(out, 'steam', 'app_build_480.vdf'), 'utf8');
+        expect(build).toContain('"481"\t\t"depot_481_windows.vdf"');
+        expect(build).toContain('"482"\t\t"depot_482_macos.vdf"');
     });
 
     it('honours depot ids the project was given', async () => {

@@ -48,6 +48,30 @@ beforeAll(async () => {
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
+/** A template with the files the assembler reads. What is under test is the EXPORT
+ *  reaching the assembler; the assembler itself is pinned in desktop-app.test.ts. */
+function fakeTemplate(os: 'macos' | 'windows'): string {
+  const dir = path.join(root, `_template-${os}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, os === 'windows' ? 'estella_desktop.exe' : 'estella_desktop'), 'runtime');
+  writeFileSync(path.join(dir, 'esengine.native.qjsbc'), 'bytecode');
+  writeFileSync(path.join(dir, 'Info.plist.in'),
+    '<plist><dict><key>N</key><string>@APP_NAME@</string></dict></plist>');
+  return dir;
+}
+
+const desktopExport = (outDir: string) => ({
+  root,
+  entryScene: 'scenes/main.esscene',
+  gameHostEntry: GAME_HOST,
+  scriptsEntry: 'src/main.ts',
+  sdkDistDir: path.join(root, '_sdk'),
+  wasmDir: path.join(root, '_wasm'),
+  outDir,
+  title: 'Packed Game',
+  platform: 'desktop' as const,
+});
+
 describe('exportGame (desktop)', () => {
   it('exports app CONTENT, not a web payload in a shell', async () => {
     const res = await exportGame({
@@ -88,48 +112,69 @@ describe('exportGame (desktop)', () => {
 
     // No template installed in this test's environment ⇒ content, and a warning
     // that says so rather than a silent half-export.
-    if (!res.appBundle) {
+    if (!res.appBundles) {
       expect(res.warnings.join(' ')).toMatch(/runtime template/i);
     }
   }, 60_000);
 
-  it('assembles the app when a runtime template is there', async () => {
-    // A fake template, because what is under test is the EXPORT reaching the
-    // assembler — the assembler itself is pinned in desktop-app.test.ts.
-    const template = path.join(root, '_template');
-    mkdirSync(template, { recursive: true });
-    writeFileSync(path.join(template, 'estella_desktop'), 'runtime');
-    writeFileSync(path.join(template, 'esengine.native.qjsbc'), 'bytecode');
-    writeFileSync(path.join(template, 'Info.plist.in'),
-        '<plist><dict><key>N</key><string>@APP_NAME@</string></dict></plist>');
-
+  it('assembles one app per installed template, on whatever OS is building', async () => {
     const packed = path.join(root, 'dist-desktop-packed');
     const res = await exportGame({
-      root,
-      entryScene: 'scenes/main.esscene',
-      gameHostEntry: GAME_HOST,
-      scriptsEntry: 'src/main.ts',
-      sdkDistDir: path.join(root, '_sdk'),
-      wasmDir: path.join(root, '_wasm'),
-      outDir: packed,
-      title: 'Packed Game',
-      platform: 'desktop',
-      desktopTemplate: template,
+      ...desktopExport(packed),
+      desktopTemplates: [
+        { os: 'windows', dir: fakeTemplate('windows') },
+        { os: 'macos', dir: fakeTemplate('macos') },
+      ],
     });
 
     expect(res.ok).toBe(true);
-    if (process.platform !== 'darwin') {
-      // Honest rather than silent: assembly is written for macOS only so far.
-      expect(res.appBundle).toBeUndefined();
-      expect(res.warnings.join(' ')).toMatch(/not written yet/);
-      return;
-    }
-    expect(res.appBundle).toBe(path.join(packed, 'Packed Game.app'));
+    // Both, regardless of process.platform: the assembler is pure Node, so the
+    // machine doing the building is not an input (only signing a .app is).
+    expect(res.appBundles).toEqual([
+      { os: 'windows', dir: path.join(packed, 'Packed Game') },
+      { os: 'macos', dir: path.join(packed, 'Packed Game.app') },
+    ]);
+
     // The runtime's bytecode joins the game's files in ONE namespace, which is
-    // what the host reads — the whole reason the bundle is laid out this way.
-    const content = path.join(res.appBundle!, 'Contents/Resources/Content');
-    expect(existsSync(path.join(content, 'game.config.json'))).toBe(true);
-    expect(existsSync(path.join(content, 'esengine.native.qjsbc'))).toBe(true);
+    // what the host reads — the whole reason the bundles are laid out this way.
+    for (const content of ['Packed Game/Content', 'Packed Game.app/Contents/Resources/Content']) {
+      expect(existsSync(path.join(packed, content, 'game.config.json'))).toBe(true);
+      expect(existsSync(path.join(packed, content, 'esengine.native.qjsbc'))).toBe(true);
+    }
+    if (process.platform !== 'darwin') {
+      expect(res.warnings.join(' ')).toMatch(/UNSIGNED/);
+    }
+  }, 60_000);
+
+  it('writes a depot for each app it actually assembled, not for one fixed OS', async () => {
+    const packed = path.join(root, 'dist-desktop-steam');
+    const res = await exportGame({
+      ...desktopExport(packed),
+      desktopTemplates: [{ os: 'windows', dir: fakeTemplate('windows') }],
+      desktopChannel: 'steam',
+      steam: { appId: 480 },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.steamChecklist).toBe(path.join(packed, 'STEAM.md'));
+
+    // The Windows depot, and NOT a macOS one: a depot naming `<Name>.app/*` in a
+    // build that assembled `<Name>/` maps nothing, uploads an empty depot and
+    // reports success.
+    const scripts = readdirSync(path.join(packed, 'steam')).sort();
+    expect(scripts).toContain('depot_481_windows.vdf');
+    expect(scripts.some((f) => f.includes('macos'))).toBe(false);
+
+    const depot = readFileSync(path.join(packed, 'steam', 'depot_481_windows.vdf'), 'utf8');
+    expect(depot).toContain('"Packed Game/*"');
+    expect(depot).not.toContain('.app');
+
+    // And the checklist says what a player's Steam client will launch, plus where
+    // Auto-Cloud has to look — both per-OS, both wrong if the OS is assumed.
+    const checklist = readFileSync(res.steamChecklist!, 'utf8');
+    expect(checklist).toContain('Packed Game.exe');
+    expect(checklist).toContain('WinAppDataRoaming');
+    expect(checklist).not.toContain('MacHome');
   }, 60_000);
 
   it('no longer writes anything electron-builder would read', async () => {

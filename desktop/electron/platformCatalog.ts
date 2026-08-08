@@ -30,7 +30,7 @@ import {
   BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
   type PlayableAdProfile,
 } from './playableAdProfile';
-import { BUILTIN_PLATFORMS, desktopTemplateFor, type PlatformPrereq } from '../src/project/platforms';
+import { BUILTIN_PLATFORMS, DESKTOP_OSES, desktopTemplateFor, type PlatformPrereq } from '../src/project/platforms';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
@@ -92,12 +92,15 @@ function builtinReadiness(
 
     case 'desktop': {
       // Like Android: the runtime template IS the prerequisite, because the app is
-      // assembled here in pure Node. Which template depends on the OS — the ids
-      // are per-OS where the platform id is not.
-      const template = desktopTemplateFor(process.platform);
-      return resolveNativeTemplate(template, engineVersion)
-        ? { ready: true }
-        : { ready: false, prereq: { kind: 'template-missing', id: templateId(template), version: engineVersion } };
+      // assembled here in pure Node. ANY desktop template makes the target usable,
+      // not this machine's: assembly does not care which OS runs it, so a Mac with
+      // only the Windows template installed can still package — and does.
+      const installed = DESKTOP_OSES.filter((os) => resolveNativeTemplate(os, engineVersion));
+      if (installed.length > 0) return { ready: true };
+      // Which one to offer, though, IS this machine's: it is the build a developer
+      // can double-click when it comes out.
+      const mine = desktopTemplateFor(process.platform);
+      return { ready: false, prereq: { kind: 'template-missing', id: templateId(mine), version: engineVersion } };
     }
 
     case 'playable':

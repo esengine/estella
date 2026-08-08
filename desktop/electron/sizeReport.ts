@@ -158,6 +158,10 @@ export function bucketIndexFrom(manifest: unknown): Map<string, SizeBucket> {
 
 const normalizeRel = (p: string): string => p.replace(/\\/g, '/').replace(/^\.?\//, '');
 
+/** Whether @p rel is one of @p roots or sits inside one of them. */
+const isUnder = (rel: string, roots: readonly string[]): boolean =>
+    roots.some((root) => rel === root || rel.startsWith(`${root}/`));
+
 /**
  * Turn measured files into the report. Pure — the tests drive it with a list of
  * paths and sizes, no build required.
@@ -274,7 +278,7 @@ export async function measureBuild(opts: {
   deliverable?: string;
   /**
    * Absolute paths to packages written INSIDE `root` — the .apk, the .aab, the
-   * playable's .zip.
+   * playable's .zip, a desktop app DIRECTORY.
    *
    * Each is a repackaging of content that also sits beside it as loose files, so
    * counting both would double every byte and report a build at twice its
@@ -283,13 +287,17 @@ export async function measureBuild(opts: {
    */
   packages?: readonly string[];
 }): Promise<BuildSizeReport> {
-  const excluded = new Set<string>();
+  const excluded: string[] = [];
   for (const file of [...(opts.packages ?? []), ...(opts.deliverable ? [opts.deliverable] : [])]) {
     const rel = path.relative(opts.root, file);
     // path-sandbox: not a boundary — classifying which built files a report counts.
-    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) excluded.add(normalizeRel(rel));
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) excluded.push(normalizeRel(rel));
   }
-  const files = (await collectBuildFiles(opts.root)).filter((f) => !excluded.has(normalizeRel(f.path)));
+  // By prefix, because a package is not always a file: a desktop build's package
+  // is the assembled app DIRECTORY, and excluding only its own name would leave
+  // every byte inside it counted a second time.
+  const files = (await collectBuildFiles(opts.root))
+    .filter((f) => !isUnder(normalizeRel(f.path), excluded));
   let manifest: unknown = null;
   try {
     manifest = JSON.parse(await readFile(path.join(opts.root, 'asset-manifest.json'), 'utf8'));
@@ -298,7 +306,13 @@ export async function measureBuild(opts: {
   let deliverableBytes: number | undefined;
   if (opts.deliverable) {
     try {
-      deliverableBytes = (await stat(opts.deliverable)).size;
+      const info = await stat(opts.deliverable);
+      // A directory's own stat size is a few dozen bytes of bookkeeping, so a
+      // desktop app measured that way reports as weightless — and passes every
+      // limit. What ships is what is inside it.
+      deliverableBytes = info.isDirectory()
+        ? (await collectBuildFiles(opts.deliverable)).reduce((n, f) => n + f.bytes, 0)
+        : info.size;
     } catch { /* not produced (no template installed) — the limit is then skipped */ }
   }
 

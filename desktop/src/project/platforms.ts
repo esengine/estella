@@ -57,12 +57,20 @@ export function isNativePlatform(platform: ExportPlatform): platform is NativePl
 }
 
 /**
- * The runtime template a desktop package is assembled from, for the OS building
- * it — per-OS where the platform id is not, because the binaries are.
+ * The desktop OSes one `desktop` target is assembled for — per-OS where the
+ * platform id is not, because the binaries are.
  *
- * Assembly is pure Node, but only macOS can sign a macOS bundle.
+ * A build produces one app per INSTALLED template, not one for the machine doing
+ * the building: assembly is pure Node, so the OS running it is not an input. Only
+ * signing a macOS bundle is, and that is a warning on one output rather than a
+ * reason to withhold the others.
  */
-export function desktopTemplateFor(osPlatform: string): 'macos' | 'windows' | 'linux' {
+export const DESKTOP_OSES = ['windows', 'macos', 'linux'] as const;
+export type DesktopOs = (typeof DESKTOP_OSES)[number];
+
+/** The desktop OS this machine is, for the template hint a missing prerequisite
+ *  offers and for choosing which build a size limit is judged on. */
+export function desktopTemplateFor(osPlatform: string): DesktopOs {
     if (osPlatform === 'darwin') return 'macos';
     return osPlatform === 'win32' ? 'windows' : 'linux';
 }

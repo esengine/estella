@@ -38,7 +38,7 @@ import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
   removeNativeTemplate, downloadNativeTemplate,
 } from './nativeTemplates';
-import { desktopTemplateFor } from '../src/project/platforms';
+import { DESKTOP_OSES } from '../src/project/platforms';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
@@ -1204,10 +1204,15 @@ ipcMain.handle(
       androidTemplate: opts?.platform === 'android'
         ? (resolveNativeTemplate('android', app.getVersion())?.dir ?? null)
         : null,
-      // Desktop assembles the same way; the template it needs is this OS's.
-      desktopTemplate: opts?.platform === 'desktop'
-        ? (resolveNativeTemplate(desktopTemplateFor(process.platform), app.getVersion())?.dir ?? null)
-        : null,
+      // Desktop assembles the same way, once per installed template — not once
+      // for this machine's OS. The assembler is pure Node, so which OS is running
+      // it is not an input, and a Steam upload wants every OS at once.
+      desktopTemplates: opts?.platform === 'desktop'
+        ? DESKTOP_OSES.flatMap((os) => {
+          const found = resolveNativeTemplate(os, app.getVersion());
+          return found ? [{ os, dir: found.dir }] : [];
+        })
+        : [],
       desktopChannel: plat?.desktop?.channel,
       steam: plat?.desktop?.steam,
       androidOutput: plat?.android?.output,

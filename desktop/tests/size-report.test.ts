@@ -225,6 +225,23 @@ describe('measuring a build on disk', () => {
     expect(report.deliverableName).toBe('com.estella.game.apk');
   });
 
+  it('measures a desktop app as the directory it is, and counts it once', async () => {
+    // A desktop package is a DIRECTORY, and stat() on one reports a few dozen
+    // bytes of bookkeeping — so measured as a file it weighs nothing and passes
+    // every limit, while its contents are still counted loose beside it.
+    await write('assets/hero.png', 1000);
+    await write('game.config.json', 20);
+    await write('Cool Game/Cool Game.exe', 4000);
+    await write('Cool Game/Content/assets/hero.png', 1000);
+    await write('Cool Game/Content/game.config.json', 20);
+    const app = path.join(dir, 'Cool Game');
+    const report = await measureBuild({
+      root: dir, platform: 'desktop', deliverable: app, packages: [app],
+    });
+    expect(report.packageBytes).toBe(1020);        // the loose content only
+    expect(report.deliverableBytes).toBe(5020);    // everything inside the app
+  });
+
   it('reads the manifest the export wrote, so buckets agree with the runtime', async () => {
     await write('asset-manifest.json', 0);
     await writeFile(path.join(dir, 'asset-manifest.json'), JSON.stringify(MANIFEST));

@@ -56,9 +56,15 @@ function depotMapping(os, appName) {
  * Valve ASSIGNS depot ids; appid+1, appid+2 is only the usual shape of what it
  * assigns. So this is a starting point that the checklist tells you to check,
  * never a fact — an upload to a depot that is not yours simply fails.
+ *
+ * Keyed by OS rather than by position in the build, so installing a second
+ * platform's template cannot renumber the first one's depot: a guess that moves
+ * under an existing project is worse than a guess.
  */
-export function defaultDepotId(appId, index) {
-    return appId + 1 + index;
+const DEFAULT_DEPOT_OFFSET = { windows: 1, macos: 2, linux: 3 };
+
+export function defaultDepotId(appId, os) {
+    return appId + (DEFAULT_DEPOT_OFFSET[os] ?? 1);
 }
 
 /**
