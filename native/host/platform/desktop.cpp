@@ -275,6 +275,9 @@ int main(int argc, char** argv) {
 
     const std::string name = appName(argc, argv);
     g_platform.contentRoot = resolveContentRoot(argc, argv);
+    // The directory a store's cloud save syncs. Its shape per OS is written down a
+    // second time in build-tools/utils/steamChannel.js (CLOUD_ROOTS), because the
+    // backend has to be told it in its own words — change one and change that.
     if (char* pref = SDL_GetPrefPath("Estella", name.c_str())) {
         g_platform.prefPath = pref;
         SDL_free(pref);

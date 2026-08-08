@@ -47,8 +47,10 @@ import { androidTemplateSources } from '../../build-tools/utils/nativeTemplate.j
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { assembleMacApp } from '../../build-tools/utils/desktopApp.js';
+import { emitSteamBuild, defaultDepotId } from '../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
+import type { DesktopPackaging, SteamPackaging } from '../src/project/format';
 import type { SizeBudget } from '../src/project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
@@ -206,6 +208,9 @@ export interface ExportGameResult {
   /** Desktop: the assembled app bundle. Absent when no desktop runtime template
    *  is installed (the export still carries its content). */
   appBundle?: string;
+  /** Desktop, Steam channel: the checklist naming this build's depot ids, launch
+   *  string and cloud paths — the settings only the partner backend holds. */
+  steamChecklist?: string;
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
@@ -349,6 +354,11 @@ export interface ExportGameOptions {
    *  (the template ids are per-OS where the platform id is not). Omitted (or
    *  null) exports content only. */
   desktopTemplate?: string | null;
+  /** Desktop: where this build goes (`packaging.platforms.desktop.channel`).
+   *  Absent ⇒ standalone, which writes the app and nothing else. */
+  desktopChannel?: DesktopPackaging['channel'];
+  /** Desktop, Steam channel: what only the partner backend can tell you. */
+  steam?: SteamPackaging;
   /**
    * What an Android export produces. 'package' assembles the APK (and the App
    * Bundle beside it when asked); 'project' writes an Android Studio project the
@@ -545,6 +555,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let aabFile: string | undefined;
   /** Desktop: the assembled `<name>.app`. */
   let appBundle: string | undefined;
+  /** Desktop, Steam channel: the per-build checklist written beside the scripts. */
+  let steamChecklist: string | undefined;
   await mkdir(payloadDir, { recursive: true });
   const common: BuildOptions = {
     bundle: true,
@@ -721,6 +733,25 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
           warn: (m: string) => warnings.push(m),
         });
+        if (opts.desktopChannel === 'steam') {
+          const appId = opts.steam?.appId;
+          if (!appId) {
+            warnings.push('The Steam channel is selected but no App ID is set (Project Settings → '
+              + 'Packaging → Desktop), so no depot scripts were written — scripts built around a '
+              + 'guessed id would name someone else\'s game.');
+          } else {
+            progress({ phase: 'Writing the Steam build scripts' });
+            const os = 'macos';
+            const emitted = await emitSteamBuild({
+              outDir: absOut,
+              appId,
+              appName: appConfig.name,
+              description: opts.steam?.description,
+              depots: [{ os, depotId: opts.steam?.depots?.[os] ?? defaultDepotId(appId, 0) }],
+            });
+            steamChecklist = emitted.checklist;
+          }
+        }
       } else {
         warnings.push(`Assembling a desktop app on ${process.platform} is not written yet — the `
           + 'content is here, and a macOS editor packages it.');
@@ -758,5 +789,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
     ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
     ...(appBundle ? { appBundle } : {}),
+    ...(steamChecklist ? { steamChecklist } : {}),
   };
 }

@@ -165,7 +165,31 @@ export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand'
  *  Orientation is NOT here — it is one project-wide {@link ProjectPackaging.orientation}
  *  consumed by every target (a landscape build is landscape everywhere). */
 export interface WeChatPackaging { appid?: string; }
-export interface DesktopPackaging { appId?: string; productName?: string; }
+export interface DesktopPackaging {
+  appId?: string;
+  productName?: string;
+  /**
+   * Where this build goes. A CHANNEL, not a platform: Steam defines no runtime and
+   * no asset format, only a depot layout, a set of services and an upload — so it
+   * rides the desktop target the way an ad network rides the playable one
+   * (docs/REARCH_STEAM.md §1). Absent ⇒ standalone: just the app.
+   */
+  channel?: 'standalone' | 'steam';
+  steam?: SteamPackaging;
+}
+
+/** What only Valve can tell you, kept so a build can write its own scripts. */
+export interface SteamPackaging {
+  /** The application id from the partner backend. Without it nothing is emitted:
+   *  a depot script with a guessed appid uploads to someone else's game or, more
+   *  likely, to nothing at all. */
+  appId?: number;
+  /** Depot ids per OS. Valve assigns these; absent ⇒ `appId + 1`, …, which the
+   *  generated checklist tells you to check rather than trust. */
+  depots?: Partial<Record<'macos' | 'windows' | 'linux', number>>;
+  /** Build description shown in the backend's build list. */
+  description?: string;
+}
 
 /** Android's slice of the app identity. `appId` is the manifest package — the
  *  identity a store keeps forever; `versionCode` is the integer Play orders builds
@@ -568,6 +592,27 @@ export function parseManifest(raw: unknown): ProjectManifest {
         const d: DesktopPackaging = {};
         if (typeof dt.appId === 'string') d.appId = dt.appId;
         if (typeof dt.productName === 'string') d.productName = dt.productName;
+        if (dt.channel === 'steam' || dt.channel === 'standalone') d.channel = dt.channel;
+        const st = dt.steam as Record<string, unknown> | undefined;
+        if (st && typeof st === 'object') {
+          const steam: SteamPackaging = {};
+          // A non-integer or non-positive appid is not a typo to carry forward:
+          // every script written from it would name a game that is not this one.
+          if (typeof st.appId === 'number' && Number.isInteger(st.appId) && st.appId > 0) {
+            steam.appId = st.appId;
+          }
+          if (typeof st.description === 'string') steam.description = st.description;
+          const dp = st.depots as Record<string, unknown> | undefined;
+          if (dp && typeof dp === 'object') {
+            const depots: NonNullable<SteamPackaging['depots']> = {};
+            for (const os of ['macos', 'windows', 'linux'] as const) {
+              const id = dp[os];
+              if (typeof id === 'number' && Number.isInteger(id) && id > 0) depots[os] = id;
+            }
+            if (Object.keys(depots).length > 0) steam.depots = depots;
+          }
+          if (Object.keys(steam).length > 0) d.steam = steam;
+        }
         if (Object.keys(d).length > 0) platforms.desktop = d;
       }
       const an = pl.android as Record<string, unknown> | undefined;

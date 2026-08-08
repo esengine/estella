@@ -1208,6 +1208,8 @@ ipcMain.handle(
       desktopTemplate: opts?.platform === 'desktop'
         ? (resolveNativeTemplate(desktopTemplateFor(process.platform), app.getVersion())?.dir ?? null)
         : null,
+      desktopChannel: plat?.desktop?.channel,
+      steam: plat?.desktop?.steam,
       androidOutput: plat?.android?.output,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
