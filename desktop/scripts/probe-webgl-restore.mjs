@@ -42,6 +42,29 @@ app.whenReady().then(async () => {
   await win.loadURL(HTML);
   const onWindow = await probe('window');
 
-  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow }));
+  // The one difference left between this probe and the engine: the engine's
+  // canvas is never attached to the document.
+  await win.loadURL(HTML);
+  const detached = await win.webContents.executeJavaScript(`(async () => {
+    const c = document.createElement('canvas');   // deliberately NOT appended
+    c.width = 64; c.height = 64;
+    const gl = c.getContext('webgl2');
+    const ext = gl && gl.getExtension('WEBGL_lose_context');
+    const out = { attached: false, hasGl: !!gl, hasExt: !!ext };
+    if (!ext) return out;
+    let restoredFired = false;
+    c.addEventListener('webglcontextlost', (e) => { e.preventDefault(); });
+    c.addEventListener('webglcontextrestored', () => { restoredFired = true; });
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 200));
+    out.lostAfterLose = gl.isContextLost();
+    ext.restoreContext();
+    await new Promise((r) => setTimeout(r, 1500));
+    out.lostAfterRestore = gl.isContextLost();
+    out.restoredEventFired = restoredFired;
+    return out;
+  })()`, true);
+
+  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow, detached }));
   app.quit();
 });
