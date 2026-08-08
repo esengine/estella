@@ -4508,6 +4508,7 @@ onHide: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShow: ((callback: () => void) => () => void) | undefined
 onUnhandledError: ((callback: (error: unknown) => void) => () => void) | undefined
+pollGamepads: (() => GamepadSnapshot[]) | undefined
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
@@ -4569,6 +4570,7 @@ es_devicePixelRatio: (() => number) | undefined
 es_fetch: ((request: { url: string; method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer; responseType?: string; }, callback: (result: { ok: boolean; status: number; statusText: string; headers: Record<string, string>; arrayBuffer?: ArrayBuffer; text?: string; error?: string; }) => void) => void) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
 es_loadImagePixels: (path: string) => { width: number; height: number; pixels: ArrayBuffer; } | null
+es_pollGamepads: (() => { index: number; connected: boolean; buttons: number[]; axes: number[]; }[]) | undefined
 es_rasterizeGlyph: ((request: PlatformGlyphRequest) => { pixels: ArrayBuffer; width: number; height: number; advance: number; bearingX: number; bearingY: number; } | null) | undefined
 es_readAsset: (path: string) => ArrayBuffer | null
 es_readCacheFile: ((key: string) => ArrayBuffer | null) | undefined
@@ -4585,12 +4587,16 @@ es_writeDataFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => bo
 
 ## NativeInputListener — interface @beta
 ```
-onKeyDown: ((code: string) => void) | undefined
-onKeyUp: ((code: string) => void) | undefined
+onKeyDown: (code: string) => void
+onKeyUp: (code: string) => void
+onPointerDown: (button: number, x: number, y: number) => void
+onPointerMove: (x: number, y: number) => void
+onPointerUp: (button: number) => void
 onTouchCancel: (id: number) => void
 onTouchEnd: (id: number) => void
 onTouchMove: (id: number, x: number, y: number) => void
 onTouchStart: (id: number, x: number, y: number) => void
+onWheel: (deltaX: number, deltaY: number) => void
 ```
 
 ## NativeMemoryProvider — class
@@ -4623,6 +4629,7 @@ onAppShow: (callback: () => void) => () => void
 onContextLost: (callback: () => void) => () => void
 onMemoryWarning: (callback: () => void) => () => void
 onUnhandledError: (callback: (error: unknown) => void) => () => void
+pollGamepads: () => GamepadSnapshot[]
 rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: (key: string) => Promise<ArrayBuffer | null>
 readFile: (path: string) => Promise<ArrayBuffer>
