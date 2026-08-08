@@ -65,6 +65,32 @@ app.whenReady().then(async () => {
     return out;
   })()`, true);
 
-  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow, detached }));
+  // The other difference: the engine keeps running frames against the dead
+  // context between the loss and the restore.
+  await win.loadURL(HTML);
+  const busy = await win.webContents.executeJavaScript(`(async () => {
+    const c = document.getElementById('c');
+    const gl = c.getContext('webgl2');
+    const ext = gl && gl.getExtension('WEBGL_lose_context');
+    const out = { keepsDrawing: true, hasExt: !!ext };
+    if (!ext) return out;
+    let restoredFired = false;
+    c.addEventListener('webglcontextlost', (e) => { e.preventDefault(); });
+    c.addEventListener('webglcontextrestored', () => { restoredFired = true; });
+
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 200));
+    out.lostAfterLose = gl.isContextLost();
+
+    const hammer = setInterval(() => { gl.clear(gl.COLOR_BUFFER_BIT); gl.getError(); }, 16);
+    ext.restoreContext();
+    await new Promise((r) => setTimeout(r, 1500));
+    clearInterval(hammer);
+    out.lostAfterRestore = gl.isContextLost();
+    out.restoredEventFired = restoredFired;
+    return out;
+  })()`, true);
+
+  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow, detached, busy }));
   app.quit();
 });
