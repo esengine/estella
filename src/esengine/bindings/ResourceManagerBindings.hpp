@@ -27,6 +27,10 @@ u32 rm_createShader(resource::ResourceManager& rm,
                      const std::string& vertSrc, const std::string& fragSrc);
 u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
                                 u32 width, u32 height);
+/** @brief Points an EXISTING texture handle at a freshly uploaded GPU object. */
+bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
+                                u32 glTextureId, u32 width, u32 height);
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes);
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);

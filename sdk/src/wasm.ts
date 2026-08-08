@@ -62,6 +62,12 @@ export interface CppResourceManager {
      *  eviction budget (compressed textures are 4–8× smaller than the RGBA8
      *  estimate the plain variant books). */
     registerExternalTextureSized(glTextureId: number, width: number, height: number, bytes: number): number;
+    /**
+     * Point an EXISTING texture handle at a freshly uploaded GPU object, so a
+     * re-upload after a device loss is invisible to everything holding it.
+     * Optional: absent on an older wasm build.
+     */
+    retargetExternalTexture?(handle: number, glTextureId: number, width: number, height: number): boolean;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;

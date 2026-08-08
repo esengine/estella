@@ -165,6 +165,7 @@ registerTextureWithPath: (handle: number, path: string) => void
 releaseBitmapFont: (handle: number) => void
 releaseShader: (handle: number) => void
 releaseTexture: (handle: number) => void
+retargetExternalTexture: ((handle: number, glTextureId: number, width: number, height: number) => boolean) | undefined
 setTextureBudget: (bytes: number) => void
 setTextureMetadata: (handle: number, left: number, right: number, top: number, bottom: number) => void
 trimTextureCache: () => number

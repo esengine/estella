@@ -172,6 +172,14 @@ export class AsyncCache<T> {
         this.pending_.clear();
     }
 
+    /**
+     * Key/value pairs of what is resolved. `values()` is not enough for a sweep
+     * that has to RELOAD each entry: the key is what names the asset.
+     */
+    entries(): IterableIterator<[string, T]> {
+        return this.cache_.entries();
+    }
+
     values(): IterableIterator<T> {
         return this.cache_.values();
     }
