@@ -9,6 +9,13 @@ export default defineConfig({
         environment: 'happy-dom',
         setupFiles: ['tests/setup.ts'],
         include: ['tests/**/*.test.ts'],
+        // The soak suite judges heap growth, and a heap nobody can collect only
+        // climbs. Without this the census downgrades its heap counters to
+        // unasserted `info` rather than reporting every run as a leak.
+        poolOptions: {
+            forks: { execArgv: ['--expose-gc'] },
+            threads: { execArgv: ['--expose-gc'] },
+        },
         benchmark: {
             include: ['benchmarks/**/*.bench.ts'],
         },
