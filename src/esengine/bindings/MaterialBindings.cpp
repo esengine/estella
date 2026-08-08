@@ -94,7 +94,7 @@ u32 material_compileEsshader(const std::string& source, const std::string& featu
     if (!handle.isValid()) return 0;
     if (auto* rc = g_renderContext) {
         if (Shader* s = rm->getShader(handle)) {
-            rc->materials().registerLayout(s->getProgramId(), buildMaterialLayout(parsed, *rc));
+            rc->materials().registerLayout(handle, buildMaterialLayout(parsed, *rc));
             // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
             // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
             // Sampler seeding is a GLSL concept; on WGSL the unit rides the bind group.
@@ -115,16 +115,13 @@ u32 material_compileEsshader(const std::string& source, const std::string& featu
 void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags) {
     auto* rc = g_renderContext;
     if (!rc) return;
-    u32 programId = 0;
-    if (shaderHandle != 0) {
-        if (auto* rm = g_resourceManager) {
-            if (Shader* s = rm->getShader(resource::ShaderHandle(shaderHandle))) {
-                programId = s->getProgramId();
-            }
-        }
-    }
+    // The handle is the identity; the program id is a cache of what it currently
+    // resolves to, refreshed by refreshShaderPrograms when the device rebuilds it.
     MaterialRecord rec;
-    rec.shader = programId;
+    rec.shaderRef = resource::ShaderHandle(shaderHandle);
+    if (auto* rm = g_resourceManager) {
+        if (Shader* s = rm->getShader(rec.shaderRef)) rec.shader = s->getProgramId();
+    }
     rec.blend = static_cast<BlendMode>(blendMode);
     rec.depthTest = (flags & 0x1u) != 0;
     rec.depthWrite = (flags & 0x2u) != 0;

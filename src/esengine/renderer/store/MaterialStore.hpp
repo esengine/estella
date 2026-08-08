@@ -75,7 +75,7 @@ struct MaterialTextureSlot {
     MaterialDefaultTexture defaultTexture = MaterialDefaultTexture::White;
 };
 
-/** @brief A material's bound texture: the GL texture id at a sampler unit. */
+/** @brief A material's bound texture at a sampler unit. */
 struct MaterialTextureBinding {
     u32 unit = 0;
     /// The resource handle, NOT a resolved GPU id. Resolving at bind time is what
@@ -108,7 +108,11 @@ struct MaterialUniformLayout {
  * @brief A material's resolved render state (P0) plus its packed std140 constants (P1).
  */
 struct MaterialRecord {
-    u32 shader = 0;  ///< Shader program; 0 means "use the path's default batch shader".
+    /// The identity: what the layout is filed under, and what survives the
+    /// program being rebuilt. `shader` below caches what it currently resolves
+    /// to, because the collect path reads that per entity.
+    resource::ShaderHandle shaderRef;
+    u32 shader = 0;  ///< Program id; 0 means "use the path's default batch shader".
     BlendMode blend = BlendMode::Normal;
     bool depthTest = false;
     bool depthWrite = true;
@@ -120,7 +124,7 @@ struct MaterialRecord {
     BufferHandle ubo = BufferHandle::Invalid;
     bool uboDirty = false;
 
-    /// Texture params bound to sampler units (GL texture ids, resolved at set time).
+    /// Texture params bound to sampler units, by handle (see MaterialTextureBinding).
     std::vector<MaterialTextureBinding> textures;
 };
 
@@ -152,10 +156,17 @@ public:
     /// scene's materialIds stay meaningful. See the definition.
     void recreateGpuResources();
 
+    /// Re-resolves each material's cached program id from its shader handle, after
+    /// the device rebuilt the programs behind them.
+    void refreshShaderPrograms(resource::ResourceManager& resources);
+
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.
-    void registerLayout(u32 shaderId, MaterialUniformLayout layout) {
-        if (shaderId != 0) layouts_[shaderId] = std::move(layout);
+    /// Filed under the HANDLE, not the program id: rebuilding the program (a
+    /// device loss, a shader reload) changes the id, and a layout filed under the
+    /// old one would be unreachable from the material that still names it.
+    void registerLayout(resource::ShaderHandle shader, MaterialUniformLayout layout) {
+        if (shader.isValid()) layouts_[shader.id()] = std::move(layout);
     }
 
     /// Pushes a material's resolved render state. Preserves any already-packed constants
@@ -169,7 +180,7 @@ public:
             return;
         }
         MaterialRecord& rec = it->second;
-        const bool shaderChanged = rec.shader != record.shader;
+        const bool shaderChanged = rec.shaderRef != record.shaderRef;
         const BufferHandle ubo = rec.ubo;
         std::vector<u8> bytes = std::move(rec.uboBytes);
         std::vector<MaterialTextureBinding> texs = std::move(rec.textures);
@@ -191,7 +202,7 @@ public:
         auto it = materials_.find(materialId);
         if (it == materials_.end()) return;
         MaterialRecord& rec = it->second;
-        auto lit = layouts_.find(rec.shader);
+        auto lit = layouts_.find(rec.shaderRef.id());
         if (lit == layouts_.end()) return;
         const MaterialParamSlot* slot = lit->second.find(name);
         if (!slot) return;
@@ -206,7 +217,7 @@ public:
     void setTexture(u32 materialId, const std::string& name, resource::TextureHandle texture) {
         auto it = materials_.find(materialId);
         if (it == materials_.end()) return;
-        auto lit = layouts_.find(it->second.shader);
+        auto lit = layouts_.find(it->second.shaderRef.id());
         if (lit == layouts_.end()) return;
         const MaterialTextureSlot* slot = lit->second.findTexture(name);
         if (!slot) return;
@@ -228,8 +239,8 @@ public:
     /// The registered #pragma-param layout for a shader program, or nullptr.
     /// The post-process pipeline reads it to pack pass params through the same
     /// reflected MaterialConstants block a material would use.
-    const MaterialUniformLayout* layoutFor(u32 shaderId) const {
-        auto it = layouts_.find(shaderId);
+    const MaterialUniformLayout* layoutFor(resource::ShaderHandle shader) const {
+        auto it = layouts_.find(shader.id());
         return it != layouts_.end() ? &it->second : nullptr;
     }
 

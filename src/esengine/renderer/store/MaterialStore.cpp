@@ -39,9 +39,15 @@ void MaterialStore::recreateGpuResources() {
         rec.ubo = BufferHandle::Invalid;
         rec.uboDirty = true;
     }
-    // Texture bindings are NOT covered and cannot be from here: setTexture
-    // resolves a resource::TextureHandle to a raw GPU id at call time, so the
-    // record no longer knows which texture it meant.
+}
+
+void MaterialStore::refreshShaderPrograms(resource::ResourceManager& resources) {
+    // The cached program id is the one thing a record holds that the device can
+    // invalidate; shaderRef is what makes recomputing it possible at all.
+    for (auto& [id, rec] : materials_) {
+        rec.shader = 0;
+        if (Shader* shader = resources.getShader(rec.shaderRef)) rec.shader = shader->getProgramId();
+    }
 }
 
 void MaterialStore::bindForDraw(u32 materialId) {
@@ -50,7 +56,7 @@ void MaterialStore::bindForDraw(u32 materialId) {
     if (it == materials_.end()) return;
     MaterialRecord& rec = it->second;
 
-    auto lit = layouts_.find(rec.shader);
+    auto lit = layouts_.find(rec.shaderRef.id());
     if (lit != layouts_.end()) ensureDefaults(rec, lit->second);
 
     // Per-material constants UBO (binding 1) — present only when the shader declares params.

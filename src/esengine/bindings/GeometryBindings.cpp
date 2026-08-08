@@ -186,7 +186,7 @@ bool draw_meshWithMaterial(u32 geometryHandle, u32 materialId) {
     // #pragma-param layout (compileEsshader). A raw-GLSL createShader program has no
     // layout — return false so the SDK falls back to the legacy uniform-stream path.
     const MaterialRecord* rec = rc->materials().find(materialId);
-    if (!rec || !rc->materials().layoutFor(rec->shader)) return false;
+    if (!rec || !rc->materials().layoutFor(rec->shaderRef)) return false;
 
     auto* geom = g_geometryManager->get(geometryHandle);
     if (!geom || !geom->isValid()) return true;  // routed modern; nothing to draw

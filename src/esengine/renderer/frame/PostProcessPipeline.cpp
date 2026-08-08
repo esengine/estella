@@ -420,7 +420,7 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, TextureHandle inputT
     // (binding 1) exactly like a material's — compileEsshader registered the
     // layout when the effect compiled. Resolution-style inputs come from the
     // injected u_viewport, so nothing per-pass remains loose.
-    const MaterialUniformLayout* layout = context_.materials().layoutFor(shader->getProgramId());
+    const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader);
     if (layout) {
         if (layout->blockSize > 0) {
             if (pass.paramDirty || pass.paramBytes.size() < layout->blockSize) {
