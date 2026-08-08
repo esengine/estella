@@ -46,8 +46,6 @@ JSValue js_steam_init(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv
         steam().onOverlay([](bool covered) { deliverSteamOverlay(covered); });
         if (const char* self = std::getenv("ESTELLA_STEAM_SELFCHECK"); self && self[0] == '1') {
             steam().traceCallbacks(true);
-            steam().activateOverlay();
-            ESHOST_LOGI("steam: self-check opened the overlay — expecting callback %d", 331);
         }
     }
     if (!ok && !steam().lastError().empty()) {

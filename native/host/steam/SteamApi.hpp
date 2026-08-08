@@ -106,6 +106,7 @@ class SteamApi {
     std::int32_t pipe_ = 0;
     std::function<void(bool)> overlay_;
     bool traceCallbacks_ = false;
+    int pumps_ = 0;
     void* friends_ = nullptr;
     std::string error_;
 };

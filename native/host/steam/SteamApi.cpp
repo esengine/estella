@@ -131,6 +131,10 @@ constexpr std::int32_t kGameOverlayActivated = 331;
 /** Its first byte: non-zero while the overlay covers the game. */
 constexpr int kOverlayActiveOffset = 0;
 
+/** Which frame the self-check opens the overlay on — late enough that there is a
+ *  window to draw over. */
+constexpr int kSelfCheckPump = 120;
+
 /** Steam's error buffer is a fixed 1024 bytes (SteamErrMsg). */
 constexpr int kErrMsgSize = 1024;
 
@@ -327,6 +331,13 @@ void SteamApi::pump() {
         if (g_fns.runCallbacks) g_fns.runCallbacks();
         return;
     }
+    // The self-check opens the overlay from the FRAME, not from boot: Steam
+    // refuses to draw over a window that does not exist yet, and a refusal looks
+    // exactly like a callback that never came.
+    if (traceCallbacks_ && ++pumps_ == kSelfCheckPump) {
+        ESHOST_LOGI("steam: self-check opening the overlay at pump %d", kSelfCheckPump);
+        activateOverlay();
+    }
     g_fns.dispatchRunFrame(pipe_);
     CallbackMsg msg{};
     while (g_fns.dispatchNext(pipe_, &msg)) {
@@ -346,7 +357,12 @@ void SteamApi::pump() {
 }
 
 void SteamApi::activateOverlay() {
-    if (friends_ && g_fns.activateOverlay) g_fns.activateOverlay(friends_, "Friends");
+    if (!friends_ || !g_fns.activateOverlay) {
+        ESHOST_LOGI("steam: ActivateGameOverlay did not resolve (friends=%p fn=%p)",
+                    friends_, reinterpret_cast<void*>(g_fns.activateOverlay));
+        return;
+    }
+    g_fns.activateOverlay(friends_, "Friends");
 }
 
 }  // namespace eshost
