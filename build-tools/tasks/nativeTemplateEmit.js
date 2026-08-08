@@ -180,7 +180,14 @@ export async function emitNativeTemplate(options) {
             throw new Error(`Cannot emit the ${platform} template: ${entry.rel} is missing at ${src ?? '<unset>'}.`);
         }
         await mkdir(path.dirname(dest), { recursive: true });
-        if (entry.strip) {
+        if (entry.strip && platform === 'macos') {
+            // `strip` happens to re-sign today, but an arm64 binary whose
+            // signature does not match its bytes is KILLED at launch — too much to
+            // leave to a side effect.
+            await cp(src, dest);
+            await runCommand('strip', ['-x', dest]);
+            await runCommand('codesign', ['--force', '--sign', '-', dest]);
+        } else if (entry.strip) {
             await runCommand(ndkTool(options.ndk, 'llvm-strip'), ['--strip-all', '-o', dest, src]);
         } else {
             await cp(src, dest, { recursive: entry.kind === 'dir' });

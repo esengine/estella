@@ -70,7 +70,7 @@ export const ANDROID_ABIS = ['arm64-v8a', 'x86_64'];
  * whose debug info an app does not need — the host's is most of its size, and
  * shipping it unstripped also broke installing onto a clean device.
  *
- * @param {'android'|'ios'} platform
+ * @param {'android'|'ios'|'macos'} platform
  * @param {{abis?: readonly string[]}} [options] Android ABIs to describe.
  */
 export function templateLayout(platform, options = {}) {
@@ -93,6 +93,29 @@ export function templateLayout(platform, options = {}) {
                 rel: `assets/${BYTECODE_FILE}`, optional: true, releaseRequired: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native-ios', 'gen', BYTECODE_FILE),
             },
+        ];
+    }
+    if (platform === 'macos') {
+        // The shortest layout of the three, because a desktop build embeds
+        // everything: Dawn and SDL are linked statically, so the runtime is one
+        // executable and there is no second file to find at run time.
+        return [
+            {
+                rel: 'estella_desktop', strip: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native-macos', 'estella_desktop'),
+            },
+            // Beside the game's own files, not in a directory of its own: the host
+            // reads it through Platform::readAsset, which is one namespace — the
+            // same one the APK's assets/ is.
+            {
+                rel: BYTECODE_FILE, optional: true, releaseRequired: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native-macos', 'gen', BYTECODE_FILE),
+            },
+            {
+                rel: 'Info.plist.in',
+                from: (ctx) => path.join(ctx.root, 'native', 'desktop', 'Info.plist.in'),
+            },
+            { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
     if (platform === 'android') {
@@ -144,7 +167,7 @@ export function templateLayout(platform, options = {}) {
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
-    throw new Error(`Unknown native platform "${platform}" (expected android or ios).`);
+    throw new Error(`Unknown native platform "${platform}" (expected android, ios or macos).`);
 }
 
 /**
@@ -392,5 +415,16 @@ export function iosTemplateSources(dir) {
         infoPlistIn: path.join(dir, 'App', 'Info.plist.in'),
         icon: path.join(dir, DEFAULT_ICON),
         bytecode: path.join(dir, 'assets', BYTECODE_FILE),
+    };
+}
+
+/** The desktop equivalent — the runtime binary and the three files the assembler
+ *  composes an app bundle from. */
+export function desktopTemplateSources(dir) {
+    return {
+        executable: path.join(dir, 'estella_desktop'),
+        infoPlistIn: path.join(dir, 'Info.plist.in'),
+        icon: path.join(dir, DEFAULT_ICON),
+        bytecode: path.join(dir, BYTECODE_FILE),
     };
 }
