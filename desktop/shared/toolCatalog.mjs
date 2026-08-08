@@ -207,6 +207,11 @@ export const TOOLS = [
   { name: 'get_stats',
     description: 'Live counts: entity count + last frame draw calls (cheap render evidence).',
     schema: obj({}), method: 'getStats', args: () => [] },
+  { name: 'resource_census',
+    description: 'How many of everything the EDITOR realm is holding right now: entities, GL buffers/textures/programs, listeners, asset refs, physics bodies, both heaps. '
+      + 'Take one before a Play/Stop (or a hot reload, or a scene load) and one after: every counter tagged `conserved` must come back to the same number. '
+      + 'This is the door for "the editor got slower after an hour" — the question no screenshot answers.',
+    schema: obj({}), method: 'census', args: () => [], root: 'editor' },
   { name: 'get_subsystems',
     description: 'Lifecycle + liveness of every engine subsystem (physics, audio, …): phase and activity.',
     schema: obj({}), method: 'getSubsystems', args: () => [] },

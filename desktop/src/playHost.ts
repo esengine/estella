@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
@@ -457,6 +457,20 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       touchStart: (id: number, x: number, y: number) => injected.onTouchStart?.(id, x, y),
       touchMove: (id: number, x: number, y: number) => injected.onTouchMove?.(id, x, y),
       touchEnd: (id: number) => injected.onTouchEnd?.(id),
+    },
+    /**
+     * How many of everything is alive right now, as a plain object.
+     *
+     * This realm is behind an out-of-process frame, so a probe is the only way in
+     * from outside. Entries are flattened because a Map does not survive the JSON
+     * round trip. For leaks that OUTLIVE Stop, census the edit realm instead.
+     */
+    census: () => {
+      const c = takeCensus({ app: app ?? undefined });
+      return {
+        entries: [...c.entries.values()],
+        failedProbes: c.failedProbes,
+      };
     },
   };
   startFrameHeartbeat();

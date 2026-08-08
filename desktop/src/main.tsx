@@ -50,7 +50,7 @@ import { EditorControlSurface } from './engine/EditorSession';
 import { runContributedTool } from './plugins/agentTools';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
-import { Particle, getComponent } from 'esengine';
+import { Particle, getComponent, takeCensus } from 'esengine';
 import { actionNames, actionParams, conditionNames } from '@/ai/actionCatalog';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
@@ -313,6 +313,16 @@ function buildEditorAutomation(): unknown {
     /** Advance the EDIT-realm engine n frames (headless drivers: rAF may stall). */
     tickEngine: async (n: number, dt = 1 / 60) => {
       for (let i = 0; i < n; i++) await EngineHost.tick(dt);
+    },
+    /**
+     * How many of everything the EDIT realm holds — entities, GL objects,
+     * listeners, both heaps. This realm is where a Play/Stop leak lands: the play
+     * realm is an OOPIF that Stop destroys, taking its counters with it. A list,
+     * not a Map, so it survives the probe's JSON round trip.
+     */
+    census: () => {
+      const c = takeCensus({ app: EngineHost.app ?? undefined });
+      return { entries: [...c.entries.values()], failedProbes: c.failedProbes };
     },
     /** Live particle count of a SOURCE entity's emitter (edit-preview probes). */
     particleAlive: (id: number) => {

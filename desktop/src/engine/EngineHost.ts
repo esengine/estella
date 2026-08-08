@@ -104,6 +104,10 @@ class EngineHostImpl {
   getResource<T>(resource: ResourceDef<T>): T | undefined {
     return this.app_?.getResource(resource);
   }
+  /** The edit realm's App, for whole-app diagnostics (the resource census). */
+  get app(): App | null {
+    return this.app_;
+  }
   /** Cap the edit-realm engine loop (0 = uncapped). Survives reboot. */
   setTargetFrameRate(fps: number): void {
     this.targetFps_ = fps;
