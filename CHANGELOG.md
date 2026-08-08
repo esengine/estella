@@ -151,6 +151,14 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **`AdsHost` is now `TakeoverHost`, and `new AdsAPI(host)` takes a `Takeover`.**
+  The pause-and-silence ceremony an ad performs is the same one a store overlay
+  performs, so it moved out of the ads service into `createTakeover(host)` — one
+  ceremony for anything that covers the game, which is also what makes an overlay
+  opening during an ad correct. Games do not construct `AdsAPI` (the services
+  plugin does); code that referenced the `AdsHost` type should use `TakeoverHost`,
+  which has the same four members.
+
 - **A material names its texture and its shader by handle, not by a raw GPU id.**
   `material_setTexture` took a `resource::TextureHandle` and resolved it to a GPU
   id on the spot, and a layout's declared `default(white|black|flatnormal)` was
@@ -196,6 +204,25 @@ published separately; it ships inside the editor.
   there.
 
 ### Fixed
+
+- **A packaged desktop game could not be typed into.** The platform seam hands a
+  text field's value and caret to an OS editing surface — a UITextView, an
+  EditText, a hidden textarea — and desktop has none, so every field rendered and
+  swallowed every keystroke. The host is now that surface: a text model that
+  holds UTF-16 (the unit the seam's selection indices are in), converts only
+  where the value crosses into JS, and counts in characters rather than code
+  units, so a name entry containing an emoji backspaces once and not twice.
+  Committed text and IME preedit come from SDL; the caret, the selection, word
+  movement, clipboard and Enter/Escape are the model's. Keys still reach the game
+  as well as the field, which is what a browser does and what keeps play == ship.
+
+- **The Steam overlay did not pause the game.** It opens over a running game
+  without changing anything a host can observe — the window keeps its focus and
+  stays visible — so nothing fired and the player kept taking damage while
+  looking at their friends list. It now runs the same ceremony a fullscreen ad
+  does, and that ceremony became ref-counted in the process: opening the overlay
+  *during* an interstitial and closing it must not resume a game the ad is still
+  covering.
 
 - **A macOS game could never have reached Steam.** The host loaded the
   redistributable by its leaf name, and `dlopen` does not search the executable's
