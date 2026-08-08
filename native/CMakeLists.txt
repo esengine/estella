@@ -9,6 +9,11 @@ project(estella_native_host C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# The C dependencies (QuickJS-ng, Box2D) use C11 atomics. Clang and GCC default
+# high enough that this never had to be said; MSVC defaults to C89 and stops at
+# <stdatomic.h>.
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(NOT ESTELLA_DAWN_DIR OR NOT ESTELLA_DAWN_BUILD)
     message(FATAL_ERROR "Set ESTELLA_DAWN_DIR (Dawn source) and ESTELLA_DAWN_BUILD (Dawn arm64 build). See native/README.md.")
