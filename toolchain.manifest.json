@@ -44,6 +44,17 @@
         "quickjs": {
             "repo": "https://github.com/quickjs-ng/quickjs",
             "commit": "3d3cf3d86b66551403745a5b06acbed2b0f31dfd"
+        },
+        "sdl": {
+            "$comment": [
+                "The desktop window, event loop, gamepads and IME (release-3.4.14). Desktop only:",
+                "iOS and Android already have an OS event loop the host drives, and adding a second",
+                "one there would be a rewrite of two working platforms to no end.",
+                "Pinned to the tag's COMMIT, like the other two — a tag is a moving ref, and a",
+                "runtime template other people install has to rebuild to the same bytes."
+            ],
+            "repo": "https://github.com/libsdl-org/SDL",
+            "commit": "147a8ee32dbf9ac02f3794964490687b6bbda1bc"
         }
     },
     "cmake": {

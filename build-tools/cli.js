@@ -159,13 +159,16 @@ program
 
 program
     .command('native')
-    .description('Build the native (embedded-Dawn) host for Android or iOS arm64')
-    .option('--target <target>', 'android or ios', 'android')
+    .description('Build the native (embedded-Dawn) host for Android, iOS or the desktop')
+    .option('--target <target>', 'android, ios or macos', 'android')
     .option('--fetch-deps', 'Check out Dawn + QuickJS-ng at the pinned commits, then stop', false)
     .option('--build-deps', 'Build Dawn for every ABI/slice the target needs, then stop (for warming a cache)', false)
     .option('--dawn <dir>', 'Dawn source dir (default: the pinned checkout; or ESTELLA_DAWN_DIR)')
     .option('--dawn-build <dir>', 'Dawn build dir for this target (default: <dawn>/out-<target>, built if absent)')
     .option('--quickjs <dir>', 'QuickJS-ng source dir (default: the pinned checkout; or ESTELLA_QUICKJS_DIR)')
+    .option('--sdl <dir>', 'Desktop: SDL3 source dir or install prefix (default: the pinned checkout; or ESTELLA_SDL_DIR)')
+    .option('--macos-archs <archs>', 'Desktop: CMAKE_OSX_ARCHITECTURES (arm64, or "arm64;x86_64" for a universal build)')
+    .option('--macos-min <version>', 'Desktop: macOS deployment target')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-29')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
@@ -196,6 +199,9 @@ program
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
                 quickjs: options.quickjs,
+                sdl: options.sdl,
+                macosArchs: options.macosArchs,
+                macosMin: options.macosMin,
                 abi: options.abi,
                 platform: options.platform,
                 iosMin: options.iosMin,

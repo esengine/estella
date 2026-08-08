@@ -16,7 +16,10 @@ import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
-import { fetchNativeDeps, pinnedDep, ensureDawnBuild, dawnLibrary, DAWN_TARGETS } from './nativeDeps.js';
+import {
+    fetchNativeDeps, pinnedDep, ensureDawnBuild, ensureSdlBuild, dawnLibrary,
+    isDesktopTarget, DAWN_TARGETS, MACOS_MIN,
+} from './nativeDeps.js';
 import {
     ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
@@ -307,6 +310,66 @@ function quickjsDir(options) {
     return options.quickjs || process.env.ESTELLA_QUICKJS_DIR || pinnedDep('quickjs');
 }
 
+/** SDL's install prefix for a desktop target, built if it is not built yet — the
+ *  same "nothing has to be passed" rule as {@link dawnPaths}. */
+async function sdlPrefix(options, target) {
+    const sdlDir = options.sdl || process.env.ESTELLA_SDL_DIR || pinnedDep('sdl');
+    if (!sdlDir) {
+        throw new Error('SDL not configured. Run `node build-tools/cli.js native --fetch-deps` '
+            + '(it checks out the pinned commit), or pass --sdl <src> / set ESTELLA_SDL_DIR.');
+    }
+    // An install PREFIX passed straight through: a machine that already has SDL3
+    // installed can point at it, and there is nothing to build.
+    if (existsSync(path.join(sdlDir, 'lib', 'cmake', 'SDL3'))) return sdlDir;
+    return ensureSdlBuild({ sdl: sdlDir, target, macosArchs: options.macosArchs });
+}
+
+async function buildDesktopHost(options) {
+    if (process.platform !== 'darwin') {
+        throw new Error('The desktop host builds on macOS only so far (Windows and Linux are S1 too, '
+            + 'but their surface kind and font seam are not written yet).');
+    }
+    const rootDir = config.paths.root;
+    const target = 'macos';
+
+    const quickjs = quickjsDir(options);
+    if (!quickjs) {
+        throw new Error('The desktop host needs QuickJS: run `node build-tools/cli.js native --fetch-deps`, '
+            + 'or pass --quickjs <dir> (or set ESTELLA_QUICKJS_DIR).');
+    }
+    const { dawnDir, dawnBuild } = await dawnPaths(options, target);
+    const sdl = await sdlPrefix(options, target);
+
+    const buildDir = path.join(rootDir, DESKTOP_BUILD_DIR[target]);
+    await mkdir(buildDir, { recursive: true });
+    const genDir = await prepareGenerated(rootDir, buildDir, quickjs);
+
+    const deploymentTarget = options.macosMin || MACOS_MIN;
+    logger.step(`Configuring desktop host (macOS ${deploymentTarget})...`);
+    await runCommand('cmake', [
+        '-S', path.join(rootDir, 'native'),
+        '-B', buildDir,
+        '-G', 'Ninja',
+        `-DCMAKE_OSX_ARCHITECTURES=${options.macosArchs || 'arm64'}`,
+        `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`,
+        '-DCMAKE_BUILD_TYPE=Release',
+        '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
+        `-DESTELLA_DAWN_DIR=${fwd(dawnDir)}`,
+        `-DESTELLA_DAWN_BUILD=${fwd(dawnBuild)}`,
+        `-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`,
+        `-DESTELLA_SDL_DIR=${fwd(sdl)}`,
+        `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
+    ], { cwd: rootDir });
+
+    logger.step('Building desktop host...');
+    await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
+
+    const exe = path.join(buildDir, 'estella_desktop');
+    logger.success(`Desktop host: ${path.relative(rootDir, exe)}`);
+    logger.info(`Run an export with: ${path.relative(rootDir, exe)} <exported-project-dir>`);
+    return exe;
+}
+
 // CMake parses backslashes in -D string values as escapes (F:\estella -> \e), so
 // hand it forward-slash paths (valid on Windows too).
 const fwd = (p) => p.replace(/\\/g, '/');
@@ -404,6 +467,12 @@ const IOS_SLICES = {
     simulator: { dir: 'build/cmake/native-ios-sim', sysroot: 'iphonesimulator', label: 'simulator' },
 };
 const XCFRAMEWORK = path.join('build/cmake/native-ios', 'Estella.xcframework');
+
+/** Where each desktop OS's host build tree lives — one per OS, as the iOS slices
+ *  are one per sysroot, because they are different binaries. */
+const DESKTOP_BUILD_DIR = {
+    macos: 'build/cmake/native-macos',
+};
 
 // Rebuild the xcframework from whichever slices exist. A device-only framework is
 // valid — Xcode then simply has nothing to offer a simulator target.
@@ -676,6 +745,14 @@ async function buildNativeDeps(options) {
         logger.success(`Dawn built for ${ANDROID_ABIS.join(', ')}`);
         return;
     }
+    if (isDesktopTarget(target)) {
+        // Both of them: SDL is minutes where Dawn is tens of them, but a warm cache
+        // missing the small one still makes the next build fetch and configure.
+        await dawnPaths(options, target);
+        await sdlPrefix(options, target);
+        logger.success(`Dawn and SDL built for ${target}`);
+        return;
+    }
     const developerDir = await iosDeveloperDir();
     const env = developerDir ? { DEVELOPER_DIR: developerDir } : undefined;
     for (const slice of ['ios', 'ios-sim']) {
@@ -693,8 +770,18 @@ export async function buildNative(options = {}) {
             ? options.templateIndex : path.join(config.paths.root, options.templateIndex));
     }
     const target = (options.target || 'android').toLowerCase();
-    if (target !== 'ios' && target !== 'android') {
-        throw new Error(`Unknown --target ${target} (expected android or ios).`);
+    if (target !== 'ios' && target !== 'android' && !isDesktopTarget(target)) {
+        throw new Error(`Unknown --target ${target} (expected android, ios or macos).`);
+    }
+    if (isDesktopTarget(target)) {
+        // No template emit and no --package yet: those are S3, and a template that
+        // claimed to exist before the assembler that reads it would be a version
+        // the editor offers and cannot use.
+        if (options.templateOnly || options.package) {
+            throw new Error(`--${options.package ? 'package' : 'template-only'} is not implemented for `
+                + `${target} yet (S3 in docs/REARCH_STEAM.md).`);
+        }
+        return buildDesktopHost(options);
     }
     if (options.templateOnly) return emitFromExistingBuild(target, options);
     // Packaging is ASSEMBLY: every piece comes from the installed runtime template,

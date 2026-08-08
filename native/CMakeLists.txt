@@ -14,10 +14,28 @@ if(NOT ESTELLA_DAWN_DIR OR NOT ESTELLA_DAWN_BUILD)
     message(FATAL_ERROR "Set ESTELLA_DAWN_DIR (Dawn source) and ESTELLA_DAWN_BUILD (Dawn arm64 build). See native/README.md.")
 endif()
 
+# iOS is checked FIRST because it is also APPLE: the desktop branch below would
+# otherwise swallow it and try to open an SDL window on a phone.
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(ESTELLA_IOS ON)
-elseif(NOT ANDROID)
-    message(FATAL_ERROR "Unsupported platform: configure with the NDK toolchain (Android) or -DCMAKE_SYSTEM_NAME=iOS.")
+elseif(ANDROID)
+    # Its own branch by exclusion; nothing to set.
+elseif(APPLE)
+    set(ESTELLA_DESKTOP ON)
+    set(ESTELLA_MACOS ON)
+else()
+    message(FATAL_ERROR "Unsupported platform: configure with the NDK toolchain (Android), "
+        "-DCMAKE_SYSTEM_NAME=iOS, or run on macOS for the desktop host.")
+endif()
+
+# The desktop host is an EXECUTABLE that embeds everything (see docs/REARCH_STEAM.md
+# §3): SDL supplies the window, the event loop and the gamepads on all three OSes.
+if(ESTELLA_DESKTOP)
+    if(NOT ESTELLA_SDL_DIR)
+        message(FATAL_ERROR "Set ESTELLA_SDL_DIR (an SDL3 install prefix). "
+            "`node build-tools/cli.js native --fetch-deps` fetches it; the build installs it.")
+    endif()
+    find_package(SDL3 CONFIG REQUIRED PATHS "${ESTELLA_SDL_DIR}" NO_DEFAULT_PATH)
 endif()
 
 set(REPO "${CMAKE_CURRENT_SOURCE_DIR}/..")
@@ -28,7 +46,7 @@ set(TP "${REPO}/third_party")
 # the app embeds everything). Override ESTELLA_DAWN_LIB if your build lays it out
 # elsewhere. A device build and a simulator build are different target triples, so
 # each needs its own Dawn — see ESTELLA_IOS_SIMULATOR below.
-if(ESTELLA_IOS)
+if(ESTELLA_IOS OR ESTELLA_DESKTOP)
     if(NOT ESTELLA_DAWN_LIB)
         set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.a")
     endif()
@@ -43,10 +61,17 @@ if(NOT EXISTS "${ESTELLA_DAWN_LIB}")
     message(FATAL_ERROR "Dawn library not found: ${ESTELLA_DAWN_LIB}. Build Dawn for this platform (see native/README.md) or pass -DESTELLA_DAWN_LIB=<path>.")
 endif()
 set_target_properties(webgpu_dawn PROPERTIES IMPORTED_LOCATION "${ESTELLA_DAWN_LIB}")
-if(ESTELLA_IOS)
+if(APPLE AND NOT ANDROID)
     # Dawn's Metal backend pulls these in; a static Dawn does not carry them along.
+    # IOKit is macOS-only — the desktop backend enumerates adapters through the IO
+    # registry, which is not a thing an iOS app is allowed to do.
+    set(ESTELLA_DAWN_FRAMEWORKS
+        "-framework Metal;-framework QuartzCore;-framework Foundation;-framework IOSurface;-framework CoreGraphics")
+    if(ESTELLA_MACOS)
+        list(APPEND ESTELLA_DAWN_FRAMEWORKS "-framework IOKit" "-framework Cocoa")
+    endif()
     set_target_properties(webgpu_dawn PROPERTIES
-        INTERFACE_LINK_LIBRARIES "-framework Metal;-framework QuartzCore;-framework Foundation;-framework IOSurface;-framework CoreGraphics")
+        INTERFACE_LINK_LIBRARIES "${ESTELLA_DAWN_FRAMEWORKS}")
 endif()
 
 # glm + yoga (the engine's non-emscripten third-party deps).
@@ -274,6 +299,21 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:estella_dragonbones> $<TARGET_FILE:dragonbones_runtime>
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
+    elseif(ESTELLA_DESKTOP)
+        # An executable, not a library: on desktop there is no app shell to link
+        # into — the binary IS the app, and the assembler only renames it and puts
+        # the game's files beside it (docs/REARCH_STEAM.md §3).
+        add_executable(estella_js_host ${HOST_SOURCES} host/platform/desktop.cpp
+            host/platform/apple_common.mm)
+        set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
+        # As on iOS: miniaudio's CoreAudio backend reaches for the Obj-C runtime, so
+        # its TU is Objective-C++ on every Apple platform.
+        set_source_files_properties(host/media/native_audio.cpp host/media/audio_spectrum.cpp
+            PROPERTIES COMPILE_OPTIONS "-x;objective-c++")
+        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
+            estella_dragonbones qjs SDL3::SDL3
+            "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
+            "-framework CoreText" "-framework CoreGraphics" "-framework Foundation")
     else()
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
