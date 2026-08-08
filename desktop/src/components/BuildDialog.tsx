@@ -65,6 +65,10 @@ interface Result {
   apkFile?: string;
   /** Android: the App Bundle, when the project asked for one. */
   aabFile?: string;
+  /** Desktop, Steam channel: the checklist naming this build's depot ids, launch
+   *  string, cloud paths and achievement ids — the values only the partner
+   *  backend can be told, and the reason a Steam build is not just a folder. */
+  steamChecklist?: string;
   /** What the package weighs, measured by the export (electron/sizeReport.ts). */
   size?: BuildSizeReport;
 }
@@ -982,7 +986,9 @@ export function BuildDialog() {
                 </span>
                 {result.size && <BuildSizePanel report={result.size} />}
                 <div className="build__next selectable">
-                  {result.xcodeProject
+                  {result.steamChecklist
+                    ? t('build.next.steam', { out: result.outDir })
+                    : result.xcodeProject
                     ? t('build.next.iosProject')
                     : result.androidProject
                     ? t('build.next.androidProject')
@@ -1014,6 +1020,11 @@ export function BuildDialog() {
                     {result.apkFile && (
                       <Button variant="primary" onClick={() => void window.estella.shell?.showItem?.(result.apkFile!)}>
                         <FolderOpen size={13} /> {t('build.showApk')}
+                      </Button>
+                    )}
+                    {result.steamChecklist && (
+                      <Button variant="primary" onClick={() => void window.estella.shell?.openPath?.(result.steamChecklist!)}>
+                        <ExternalLink size={13} /> {t('build.openSteamChecklist')}
                       </Button>
                     )}
                     <Button onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>

@@ -62,4 +62,26 @@ describe('export progress', () => {
     // Cooking is first; writing the host page is among the last.
     expect(phases.indexOf('Cooking assets')).toBeLessThan(phases.indexOf('Writing host page'));
   }, 60_000);
+
+  it('does not claim a step a native target never takes', async () => {
+    // A progress line is a report of work. Desktop writes no host page — there is
+    // no browser to boot the game — and a log that says it did is one a developer
+    // reads while looking for what actually happened.
+    const phases: string[] = [];
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: path.join(root, 'out-desktop'),
+      platform: 'desktop',
+      onProgress: (p: ExportProgress) => phases.push(p.phase),
+    });
+
+    expect(res.ok).toBe(true);
+    expect(phases).toContain('Cooking assets');
+    expect(phases).not.toContain('Writing host page');
+  }, 60_000);
 });

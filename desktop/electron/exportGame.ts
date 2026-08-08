@@ -665,10 +665,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // it stages nothing and says so.
   warnings.push(...await stageProjectModules(projectModules, path.join(payloadDir, 'wasm'), platform));
 
-  // 5. Host page + entry-scene config. Web pins orientation (rotate-to-fit overlay);
-  //    desktop omits it — the Electron shell sizes its own window to the orientation.
-  progress({ phase: 'Writing host page' });
+  // 5. Host page + entry-scene config. Only where a BROWSER boots the game: a
+  //    native target has no page, and saying it wrote one is a progress line that
+  //    reports work nothing did.
   if (!nativeContent) {
+    progress({ phase: 'Writing host page' });
     await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, platform === 'web' ? orientation : undefined));
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be

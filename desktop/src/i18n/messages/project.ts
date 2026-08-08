@@ -165,6 +165,14 @@ export const projectMessages = defineMessages({
         en: 'Signed APK: {apk} (install it with adb install -r). App Bundle for Google Play: {aab} — upload it; a bundle cannot be installed directly.',
         zh: '已签名 APK：{apk}（用 adb install -r 安装）。Google Play 上传用 App Bundle：{aab} —— 直接上传即可，bundle 本身无法安装。',
     },
+    'build.next.steam': {
+        en: 'The app is in {out}/ — double-click it. The depot scripts are beside it, and STEAM.md '
+            + 'lists what only the Steamworks backend can be told: the depot ids, the launch string, '
+            + 'the cloud-save paths and the achievement ids to create.',
+        zh: '应用就在 {out}/ 中——双击即可运行。depot 脚本在它旁边，而 STEAM.md 列出了只能在 Steamworks '
+            + '后台填写的那些值:depot id、启动项、云存档路径,以及要去建的成就 id。',
+    },
+    'build.openSteamChecklist': { en: 'Open STEAM.md', zh: '打开 STEAM.md' },
     'build.showApk': { en: 'Show APK', zh: '显示 APK' },
     'build.appBundle': { en: 'Google Play App Bundle (.aab)', zh: 'Google Play App Bundle（.aab）' },
     'build.appBundleTip': {

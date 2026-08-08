@@ -216,6 +216,17 @@ published separately; it ships inside the editor.
   movement, clipboard and Enter/Escape are the model's. Keys still reach the game
   as well as the field, which is what a browser does and what keeps play == ship.
 
+- **The Steam checklist the export writes was never mentioned in the editor.**
+  `STEAM.md` carries the values only the Steamworks backend can be told — the
+  depot ids, the launch string, the Auto-Cloud paths, the achievement ids to
+  create — and the Package dialog finished a Steam build by telling you to
+  double-click the app. It now says what is beside it and offers to open it.
+
+- **A desktop export reported writing a host page it never wrote.** The phase
+  fired for every target; a native one has no browser to boot the game and writes
+  no page. A progress line is a report of work, and one that reports work nothing
+  did is read while looking for what actually happened.
+
 - **A Windows game shipped with the default executable icon.** The assembler
   wrote the macOS `.icns` and had nothing for the PE, so every Windows build
   carried whatever icon the runtime template's executable happened to have. The
