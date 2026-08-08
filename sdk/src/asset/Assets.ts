@@ -18,6 +18,7 @@ import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
+import { AssetRefLedger } from './AssetRefLedger';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
@@ -235,14 +236,8 @@ export class Assets {
         // owner; release its GL handle so it doesn't leak VRAM.
         requireResourceManager().releaseTexture(result.handle);
     });
-    /**
-     * Live texture references per cache key, oldest generation first.
-     *
-     * Carries the HANDLE, not just a count: invalidate() mints a new generation
-     * while the previous still has holders, and one slot per key attributed
-     * their release to the replacement — a texture stranded per hot reload.
-     */
-    private textureRefs_ = new Map<string, Array<{ handle: number; count: number }>>();
+    /** Live texture references per cache key. See {@link AssetRefLedger}. */
+    private textureRefs_ = new AssetRefLedger<number>();
 
     /**
      * Bumped by releaseAll(). A load in flight across one has no owner left: the
@@ -259,7 +254,7 @@ export class Assets {
      *  Same contract as textures: every load*() increments, every release*()
      *  decrements, and the loader's unload runs only at zero — so an asset
      *  shared by two scenes survives the first scene's unload. */
-    private genericRefCounts_ = new Map<string, number>();
+    private genericRefs_ = new AssetRefLedger<unknown>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
@@ -342,7 +337,7 @@ export class Assets {
                 `Assets were released while "${ref}" was loading; its texture has no owner. Load it again.`,
             );
         }
-        this.acquireTextureRef_(cacheKey, result.handle);
+        this.textureRefs_.acquire(cacheKey, result.handle);
         this.recordHandlePath_('texture', result.handle, path);
         // The 9-slice border belongs to the IMAGE, so it rides its import
         // settings and is stamped onto the handle here — the one place every
@@ -1190,45 +1185,22 @@ export class Assets {
     // Release
     // =========================================================================
 
-    /** Record one more holder of `handle` under `cacheKey`. */
-    private acquireTextureRef_(cacheKey: string, handle: number): void {
-        let generations = this.textureRefs_.get(cacheKey);
-        if (!generations) {
-            generations = [];
-            this.textureRefs_.set(cacheKey, generations);
-        }
-        const existing = generations.find((g) => g.handle === handle);
-        if (existing) existing.count++;
-        else generations.push({ handle, count: 1 });
-    }
-
     releaseTexture(ref: string): void {
         const path = this.resolveLoadPath_(ref);
         for (const flip of [true, false]) {
             const key = this.textureCacheKey_(path, flip);
-            const generations = this.textureRefs_.get(key);
-            if (!generations || generations.length === 0) continue;
-
-            // Oldest first, so a superseded generation drains as its holders let
-            // go. Holders are indistinguishable through a ref-keyed API, and a
-            // release naming the old handle never comes.
-            const oldest = generations[0];
-            oldest.count--;
-            if (oldest.count > 0) continue;
-
-            generations.shift();
-            if (generations.length === 0) this.textureRefs_.delete(key);
+            const dropped = this.textureRefs_.release(key);
+            if (!dropped?.exhausted) continue;
 
             // Last SDK reference: drop our one C++ ref. The pool decides what
             // that means — free immediately (no budget), or retain as an
             // evictable cache entry that the next load revives by key.
-            const rm = requireResourceManager();
-            rm.releaseTexture(oldest.handle);
-            evictTextureDimensions(oldest.handle);
+            requireResourceManager().releaseTexture(dropped.value);
+            evictTextureDimensions(dropped.value);
             // Only when it is still the cached value: a superseded handle left
             // the cache when its generation ended, and the entry there now
             // belongs to a generation with holders of its own.
-            if (this.textureCache_.get(key)?.handle === oldest.handle) {
+            if (this.textureCache_.get(key)?.handle === dropped.value) {
                 this.textureCache_.delete(key);
             }
         }
@@ -1273,22 +1245,16 @@ export class Assets {
 
     private releaseTyped(type: string, ref: string): void {
         const path = this.resolveLoadPath_(ref);
-        const cache = this.genericCache_.get(type);
-        if (!cache) return;
-        const entry = cache.get(path);
-        if (!entry) return;
-
+        // NOT gated on a live cache entry: a generation superseded by
+        // invalidate() is out of the cache while its holders still owe a
+        // release, and returning here left their asset unreachable.
         const key = `${type}:${path}`;
-        const count = this.genericRefCounts_.get(key);
-        if (count === undefined) return;
-        if (count > 1) {
-            this.genericRefCounts_.set(key, count - 1);
-            return;
-        }
-        const loader = this.loaders_.get(type);
-        loader?.unload(entry, this.getLoadContext_());
-        cache.delete(path);
-        this.genericRefCounts_.delete(key);
+        const dropped = this.genericRefs_.release(key);
+        if (!dropped?.exhausted) return;
+
+        this.loaders_.get(type)?.unload(dropped.value, this.getLoadContext_());
+        const cache = this.genericCache_.get(type);
+        if (cache && cache.get(path) === dropped.value) cache.delete(path);
     }
 
     /**
@@ -1334,7 +1300,7 @@ export class Assets {
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
         for (const [type, cache] of this.genericCache_.entries()) {
             if (cache.invalidate(path)) hit = true;
-            if (this.genericRefCounts_.delete(`${type}:${path}`)) hit = true;
+            // The ledger stays: the outgoing generation's holders still owe a release.
         }
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
@@ -1413,7 +1379,7 @@ export class Assets {
         return {
             textureCached: tex.cached,
             pendingLoads: pending,
-            refCounts: this.textureRefs_.size + this.genericRefCounts_.size,
+            refCounts: this.textureRefs_.size + this.genericRefs_.size,
             genericCaches: this.genericCache_.size,
             genericCached,
             handlePaths: this.handleToPath_.size,
@@ -1436,16 +1402,12 @@ export class Assets {
         this.textureCache_.clearAll();
         // Superseded generations are not in the cache and would otherwise
         // survive a releaseAll that claims to have let go of everything.
-        for (const generations of this.textureRefs_.values()) {
-            for (const generation of generations) {
-                if (!seen.has(generation.handle)) {
-                    seen.add(generation.handle);
-                    rm.releaseTexture(generation.handle);
-                    evictTextureDimensions(generation.handle);
-                }
-            }
+        for (const { value } of this.textureRefs_.drain()) {
+            if (seen.has(value)) continue;
+            seen.add(value);
+            rm.releaseTexture(value);
+            evictTextureDimensions(value);
         }
-        this.textureRefs_.clear();
 
         this.spineLoader_.releaseAll();
         this.materialLoader_?.releaseAll();
@@ -1454,7 +1416,9 @@ export class Assets {
             cache.clearAll();
         }
         this.genericCache_.clear();
-        this.genericRefCounts_.clear();
+        for (const { key, value } of this.genericRefs_.drain()) {
+            this.loaders_.get(key.slice(0, key.indexOf(':')))?.unload(value, this.getLoadContext_());
+        }
         this.handleToPath_.clear();
     }
 
@@ -1621,8 +1585,7 @@ export class Assets {
         const result = await (cache.getOrLoad(path, () =>
             loader.load(path, this.getLoadContext_()),
         ) as Promise<T>);
-        const key = `${type}:${path}`;
-        this.genericRefCounts_.set(key, (this.genericRefCounts_.get(key) ?? 0) + 1);
+        this.genericRefs_.acquire(`${type}:${path}`, result);
         const handle = (result as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
         return result;

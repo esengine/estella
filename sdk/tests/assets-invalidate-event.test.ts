@@ -42,11 +42,11 @@ describe('Assets.onInvalidate', () => {
         const internal = assets as unknown as {
             textureCache_: { cache_: Map<string, unknown> };
             textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: Map<string, Array<{ handle: number; count: number }>>;
+            textureRefs_: { acquire(key: string, handle: number): void };
         };
         const key = internal.textureCacheKey_('tex/hot.png', false);
         internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.set(key, [{ handle: 42, count: 1 }]);
+        internal.textureRefs_.acquire(key, 42);
 
         const listener = vi.fn();
         assets.onInvalidate(listener);
@@ -63,11 +63,11 @@ describe('Assets.onInvalidate', () => {
         const internal = assets as unknown as {
             textureCache_: { cache_: Map<string, unknown> };
             textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: Map<string, Array<{ handle: number; count: number }>>;
+            textureRefs_: { acquire(key: string, handle: number): void };
         };
         const key = internal.textureCacheKey_('tex/hot.png', false);
         internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.set(key, [{ handle: 42, count: 1 }]);
+        internal.textureRefs_.acquire(key, 42);
 
         const listener = vi.fn();
         const unsubscribe = assets.onInvalidate(listener);
@@ -79,7 +79,7 @@ describe('Assets.onInvalidate', () => {
 
         // Re-populate cache and invalidate again — listener should NOT fire.
         internal.textureCache_.cache_.set(key, { handle: 43 });
-        internal.textureRefs_.set(key, [{ handle: 43, count: 1 }]);
+        internal.textureRefs_.acquire(key, 43);
         assets.invalidate('tex/hot.png');
         expect(listener).toHaveBeenCalledTimes(1);
     });
@@ -89,11 +89,11 @@ describe('Assets.onInvalidate', () => {
         const internal = assets as unknown as {
             textureCache_: { cache_: Map<string, unknown> };
             textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: Map<string, Array<{ handle: number; count: number }>>;
+            textureRefs_: { acquire(key: string, handle: number): void };
         };
         const key = internal.textureCacheKey_('tex/hot.png', false);
         internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.set(key, [{ handle: 42, count: 1 }]);
+        internal.textureRefs_.acquire(key, 42);
 
         const bad = vi.fn(() => { throw new Error('listener failed'); });
         const good = vi.fn();
@@ -110,11 +110,11 @@ describe('Assets.onInvalidate', () => {
         const internal = assets as unknown as {
             textureCache_: { cache_: Map<string, unknown> };
             textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: Map<string, Array<{ handle: number; count: number }>>;
+            textureRefs_: { acquire(key: string, handle: number): void };
         };
         const key = internal.textureCacheKey_('tex/a.png', false);
         internal.textureCache_.cache_.set(key, { handle: 1 });
-        internal.textureRefs_.set(key, [{ handle: 1, count: 1 }]);
+        internal.textureRefs_.acquire(key, 1);
 
         const a = vi.fn();
         const b = vi.fn();

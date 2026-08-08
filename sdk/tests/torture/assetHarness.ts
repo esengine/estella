@@ -191,7 +191,7 @@ export type Scheduler = fc.Scheduler;
 
 /** One live generation of a texture: the handle its holders were given, and how many. */
 export interface TextureGeneration {
-    handle: number;
+    readonly value: number;
     count: number;
 }
 
@@ -201,5 +201,92 @@ export interface TextureGeneration {
  * through a public accessor would test the accessor. Nothing else reaches in.
  */
 export function textureRefs(assets: Assets): ReadonlyMap<string, readonly TextureGeneration[]> {
-    return (assets as unknown as { textureRefs_: Map<string, TextureGeneration[]> }).textureRefs_;
+    return (assets as unknown as {
+        textureRefs_: { entries(): ReadonlyMap<string, readonly TextureGeneration[]> };
+    }).textureRefs_.entries();
+}
+
+// =============================================================================
+// Generic assets — the other half of the ledger
+// =============================================================================
+
+/** What a generic (non-texture) loader did, as the test can see it. */
+export interface FakeGenericLoader {
+    /** load() invocations, in order. */
+    readonly loads: string[];
+    /** Entries handed to unload(). One appearing twice is a double free. */
+    readonly unloaded: unknown[];
+    /** Entries produced and not yet unloaded. */
+    live(): unknown[];
+}
+
+export interface GenericHarness {
+    readonly assets: Assets;
+    readonly loader: FakeGenericLoader;
+    failNext(path: string): void;
+    dispose(): void;
+}
+
+/**
+ * A tilemap loader whose settling the caller owns, standing in for every
+ * non-texture kind. They all share one code path (loadTyped/releaseTyped) and
+ * now one ledger, so proving the contract on one proves it for audio,
+ * materials, fonts, clips and prefabs too.
+ */
+export function makeGenericHarness(
+    scheduleLoad: (path: string) => Promise<unknown>,
+): GenericHarness {
+    initResourceManager({
+        releaseTexture: () => {},
+        getTextureDimensions: () => null,
+        setTextureMetadata: () => {},
+    } as never);
+
+    const backend = {
+        fetchBinary: async () => new ArrayBuffer(8),
+        fetchText: async () => '{}',
+        resolveUrl: (p: string) => `http://torture/${p}`,
+    } as unknown as Backend;
+    const assets = Assets.create({ backend, module: mockModule });
+
+    const loads: string[] = [];
+    const unloaded: unknown[] = [];
+    const produced: unknown[] = [];
+    const failing = new Set<string>();
+    let nextId = 1;
+
+    assets.register({
+        type: 'tilemap',
+        extensions: ['.estilemap'],
+        async load(path: string): Promise<unknown> {
+            loads.push(path);
+            const shouldFail = failing.delete(path);
+            await scheduleLoad(path);
+            if (shouldFail) throw new Error(`torture: generic load failed for ${path}`);
+            const entry = { id: nextId++, path };
+            produced.push(entry);
+            return entry;
+        },
+        unload(asset: unknown): void {
+            unloaded.push(asset);
+        },
+    } as never);
+
+    return {
+        assets,
+        loader: {
+            loads,
+            unloaded,
+            live: () => produced.filter((e) => !unloaded.includes(e)),
+        },
+        failNext: (path) => failing.add(path),
+        dispose: () => shutdownResourceManager(),
+    };
+}
+
+/** The generic half of the reference ledger, for the same reason as textureRefs. */
+export function genericRefs(assets: Assets): ReadonlyMap<string, readonly { value: unknown; count: number }[]> {
+    return (assets as unknown as {
+        genericRefs_: { entries(): ReadonlyMap<string, readonly { value: unknown; count: number }[]> };
+    }).genericRefs_.entries();
 }

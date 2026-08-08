@@ -116,10 +116,10 @@ function checkInvariants(model: Model, real: Real): void {
     for (const [key, generations] of textureRefs(assets)) {
         for (const generation of generations) {
             if (generation.count < 0) {
-                throw new Error(`refCount(${key}, handle ${generation.handle}) = ${generation.count} — a release outran its acquire`);
+                throw new Error(`refCount(${key}, handle ${generation.value}) = ${generation.count} — a release outran its acquire`);
             }
             if (generation.count === 0) {
-                throw new Error(`refCount(${key}, handle ${generation.handle}) = 0 is recorded rather than removed — a generation nothing can drain`);
+                throw new Error(`refCount(${key}, handle ${generation.value}) = 0 is recorded rather than removed — a generation nothing can drain`);
             }
         }
         if (generations.length === 0) {
@@ -207,7 +207,7 @@ function checkFullTeardown(model: Model, real: Real): void {
     if (refs.size > 0) {
         throw new Error(
             'refcount ledger is not empty after full teardown: '
-            + [...refs].map(([k, g]) => `${k}=[${g.map((x) => `h${x.handle}x${x.count}`).join(',')}]`).join(', '),
+            + [...refs].map(([k, g]) => `${k}=[${g.map((x) => `h${x.value}x${x.count}`).join(',')}]`).join(', '),
         );
     }
 }
