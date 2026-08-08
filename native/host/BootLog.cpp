@@ -9,12 +9,17 @@
 #include <ctime>
 #include <string>
 
-#include <sys/stat.h>
+#include <filesystem>
 
+// The crash handler is POSIX: signals, libunwind, dladdr. Windows catches a crash
+// through SEH and DbgHelp instead — a different implementation, not a different
+// spelling — so there the boot record works and the handler is absent.
+#if !defined(_WIN32)
 #include <csignal>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <unwind.h>
+#endif
 
 namespace eshost {
 namespace {
@@ -58,11 +63,8 @@ std::string fileStamp() {
 
 /** mkdir -p, for a public directory this app has never written to before. */
 void mkdirs(const std::string& dir) {
-    for (size_t i = 1; i <= dir.size(); i++) {
-        if (i < dir.size() && dir[i] != '/') continue;
-        const std::string part = dir.substr(0, i);
-        if (!part.empty()) mkdir(part.c_str(), 0775);
-    }
+    std::error_code ignored;
+    std::filesystem::create_directories(dir, ignored);
 }
 
 void writeLine(const char* prefix, const char* text) {
@@ -156,6 +158,15 @@ std::string publishPreviousCrash(const std::vector<std::string>& dirs) {
     }
     return {};
 }
+
+#if defined(_WIN32)
+
+// A Windows crash handler is SetUnhandledExceptionFilter + DbgHelp, which is its
+// own piece of work; until it exists a crash leaves the boot record it had
+// written, and no backtrace.
+void installCrashHandler() {}
+
+#else
 
 // =============================================================================
 // The crash handler
@@ -257,5 +268,7 @@ void installCrashHandler() {
     sigemptyset(&sa.sa_mask);
     for (int sig : {SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL}) sigaction(sig, &sa, nullptr);
 }
+
+#endif  // _WIN32
 
 }  // namespace eshost

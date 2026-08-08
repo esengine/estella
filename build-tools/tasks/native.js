@@ -127,13 +127,26 @@ async function generateSdkBundle(rootDir, genDir) {
     // out as a file too, because the bytecode step must compile these exact bytes
     // for the host to accept the result (see precompileBundleBytecode).
     const embedded = '\n' + js;
+    // MSVC refuses a string literal over 65535 bytes and the bundle is ~800 KB, so
+    // it is emitted as ADJACENT raw literals, which the language concatenates.
+    const CHUNK = 16384;
+    // The delimiter is what makes splitting safe at any offset; a bundle that
+    // contained it would end a literal early and ship truncated, silently.
+    if (embedded.includes(')ESJS"')) {
+        throw new Error('The SDK bundle contains the raw-string delimiter `)ESJS"` — '
+            + 'embedding it would truncate the bundle. Change the delimiter in generateSdkBundle.');
+    }
+    const chunks = [];
+    for (let at = 0; at < embedded.length; at += CHUNK) {
+        chunks.push(`R"ESJS(${embedded.slice(at, at + CHUNK)})ESJS"`);
+    }
     const header =
         '// The real esengine SDK, bundled (dist/index.native.bundled.js) — installs\n'
         + '// globalThis.ESEngine. Embedded by `cli native --quickjs` — DO NOT EDIT.\n'
         + '#pragma once\n'
-        + 'static const char* kSdkBundleJS = R"ESJS('
-        + embedded
-        + ')ESJS";\n';
+        + 'static const char* kSdkBundleJS =\n'
+        + chunks.join('\n')
+        + ';\n';
     const headerPath = path.join(genDir, 'esengine_bundle.h');
     writeFileSync(headerPath, header, 'utf8');
     writeFileSync(path.join(genDir, 'esengine_bundle.embedded.js'), embedded, 'utf8');
