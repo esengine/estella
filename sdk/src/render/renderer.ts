@@ -131,6 +131,61 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
     };
 }
 
+/** GPU device status, mirroring the engine's `GfxDeviceStatus`. */
+export const DeviceStatus = { Live: 0, Lost: 1, Recovering: 2, Dead: 3 } as const;
+
+/** Why a device was lost, mirroring the engine's `GfxDeviceLostReason`. */
+export const DeviceLostReason = {
+    Unknown: 0, ContextLost: 1, OutOfMemory: 2, Reset: 3,
+    Removed: 4, Destroyed: 5, Validation: 6, Internal: 7,
+} as const;
+
+/**
+ * Whether the GPU device can still be drawn to.
+ *
+ * Reports `Live` when the core cannot answer — an older wasm build, or a native
+ * backend with no heap to marshal. Treating "cannot tell" as a loss would black
+ * out every host predating this call.
+ */
+export function getDeviceStatus(): number {
+    return module?.deviceStatus?.() ?? DeviceStatus.Live;
+}
+
+/** The engine's one-line loss report (backend, GPU, driver, reason); empty while live. */
+export function getDeviceLostReport(): string {
+    return module?.deviceLostReport?.() ?? '';
+}
+
+/**
+ * Tell the engine about a loss the host observed.
+ *
+ * The browser reports context loss to JS, not to wasm, so without this the core
+ * keeps submitting until its own next poll notices.
+ */
+export function reportDeviceLost(reason: number, message: string): void {
+    module?.notifyDeviceLost?.(reason, message);
+}
+
+/**
+ * Subscribe to the host's `GPUDevice.lost`.
+ *
+ * WebGPU reports loss to whoever holds the JS device object, never to the
+ * engine — the page acquires it before the module exists. Reading it back off
+ * the module lets ONE subscription cover every host, instead of each wiring its own.
+ */
+export function watchWebGPUDeviceLoss(wasmModule: ESEngineModule): void {
+    const device = (wasmModule as unknown as {
+        preinitializedWebGPUDevice?: { lost?: Promise<{ reason?: string; message?: string }> };
+    }).preinitializedWebGPUDevice;
+    void device?.lost?.then((info) => {
+        // `destroyed` is us tearing the device down, not a failure.
+        const reason = info?.reason === 'destroyed'
+            ? DeviceLostReason.Destroyed
+            : DeviceLostReason.Unknown;
+        reportDeviceLost(reason, info?.message ?? 'The GPUDevice reported itself lost');
+    });
+}
+
 /** @internal Wired by the engine plugins — not part of the public API. */
 export function initRendererAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);

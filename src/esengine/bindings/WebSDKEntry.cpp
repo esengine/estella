@@ -238,6 +238,43 @@ resource::ResourceManager* getResourceManager() {
     return g_resourceManager;
 }
 
+// =============================================================================
+// Device Loss
+// =============================================================================
+
+namespace {
+GfxDevice* activeGfxDevice() {
+    return g_activeContext ? g_activeContext->tryGet<GfxDevice>() : nullptr;
+}
+}  // namespace
+
+/** @brief The device's status (see GfxDeviceStatus). Live when no device exists yet. */
+u32 deviceStatus() {
+    GfxDevice* device = activeGfxDevice();
+    return static_cast<u32>(device ? device->deviceStatus() : GfxDeviceStatus::Live);
+}
+
+/** @brief The formatted loss report; empty while the device is live. */
+std::string deviceLostReport() {
+    GfxDevice* device = activeGfxDevice();
+    if (!device) return {};
+    const GfxDeviceLostInfo* info = device->deviceLostInfo();
+    return info ? gfxFormatDeviceLost(*info) : std::string();
+}
+
+/**
+ * @brief Reports a loss the page observed.
+ * @details The browser tells JS, not wasm: `webglcontextlost` fires on the
+ *          canvas element and a GPUDevice resolves its `lost` promise. Both
+ *          arrive here so the C++ device stops submitting on the same frame
+ *          rather than after its own next poll.
+ */
+void notifyDeviceLost(u32 reason, const std::string& message) {
+    if (GfxDevice* device = activeGfxDevice()) {
+        device->notifyDeviceLost(static_cast<GfxDeviceLostReason>(reason), message, "host");
+    }
+}
+
 // Runtime glyph atlas: convert a Canvas2D-rasterized alpha
 // bitmap to a signed distance field. Both buffers are caller-allocated in WASM
 // linear memory (TS passes HEAPU8 pointers); `alpha` and `out` are width*height.
@@ -348,6 +385,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
+    emscripten::function("deviceStatus", &esengine::deviceStatus);
+    emscripten::function("deviceLostReport", &esengine::deviceLostReport);
+    emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)

@@ -30,6 +30,7 @@ import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera
 import { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
 import type { SideModuleHost } from '../sideModules/host';
+import { watchWebGPUDeviceLoss } from '../render/renderer';
 import { log } from '../util/logger';
 
 // =============================================================================
@@ -1253,6 +1254,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                     'WebGPU renderer initialization failed — the module needs a ' +
                     'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');
             }
+            watchWebGPUDeviceLoss(module);
             break;
         }
         case 'gl-context':

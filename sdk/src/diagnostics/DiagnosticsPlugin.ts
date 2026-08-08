@@ -36,6 +36,9 @@ import { log, LogLevel, type LogEntry, type LogHandler } from '../util/logger';
 import {
     platformOnContextLost, platformOnMemoryWarning, platformOnUnhandledError,
 } from '../platform';
+import {
+    DeviceLostReason, DeviceStatus, getDeviceLostReport, getDeviceStatus, reportDeviceLost,
+} from '../render/renderer';
 import { Diagnostics, DiagnosticsAPI, type DiagnosticsOptions } from './Diagnostics';
 
 export interface DiagnosticsPluginOptions extends DiagnosticsOptions {
@@ -81,14 +84,24 @@ export class DiagnosticsPlugin implements Plugin {
         this.handler_ = new DiagnosticsLogHandler(api, this.options_.captureLevel ?? LogLevel.Error);
         log.addHandler(this.handler_);
 
+        // Shared by both loss paths below so a single loss is reported once,
+        // whichever of them saw it first.
+        let lastDeviceStatus: number = DeviceStatus.Live;
+        const reportLoss = (fallback: string): void => {
+            lastDeviceStatus = getDeviceStatus();
+            api.report({ kind: 'context-lost', message: getDeviceLostReport() || fallback });
+        };
+
         this.unsubscribes_.push(
             platformOnUnhandledError((error) => api.reportError('unhandled', error)),
-            // No error object and nothing to name: what matters is that it
-            // happened, and when. The frames after it draw nothing.
-            platformOnContextLost(() => api.report({
-                kind: 'context-lost',
-                message: 'The rendering context was lost',
-            })),
+            // The event itself names nothing. Handed to the engine first, it
+            // stops submission on this frame and comes back naming the backend,
+            // GPU and driver recorded while they could still be asked.
+            platformOnContextLost(() => {
+                reportDeviceLost(DeviceLostReason.ContextLost,
+                                 'The host reported the rendering context was lost');
+                reportLoss('The rendering context was lost');
+            }),
             // Reported rather than acted on — the residency caches already
             // subscribe to this and trim themselves. What this adds is the
             // record, because the process being killed a moment later is the
@@ -102,6 +115,16 @@ export class DiagnosticsPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Last, defineSystem(
             [],
             () => {
+                // The engine notices losses the page never hears about (a GL
+                // error check, a WebGPU callback inside wasm). One integer read
+                // per frame is what gets those into a report.
+                const status = getDeviceStatus();
+                if (status !== lastDeviceStatus) {
+                    lastDeviceStatus = status;
+                    if (status !== DeviceStatus.Live) {
+                        reportLoss('The GPU device was lost');
+                    }
+                }
                 const time = app.getResource(Time);
                 app.getResource(Diagnostics)?.tick(time?.delta ?? 0);
             },

@@ -177,6 +177,20 @@ export interface ESEngineModule {
      */
     sdfFromAlpha?(alphaPtr: number, outPtr: number, width: number, height: number, spread: number): void;
     /**
+     * Whether the GPU device can still be drawn to: 0 live, 1 lost, 2 recovering,
+     * 3 dead. Reports live before a renderer exists — there is nothing to lose yet.
+     * Optional: an older wasm build does not carry it.
+     */
+    deviceStatus?(): number;
+    /** One-line loss report naming backend, GPU, driver and reason; empty while live. */
+    deviceLostReport?(): string;
+    /**
+     * Report a loss the page observed (`webglcontextlost`, a rejected GPUDevice
+     * `lost` promise) so the engine stops submitting on this frame rather than
+     * on its own next poll. Reason codes match GfxDeviceLostReason.
+     */
+    notifyDeviceLost?(reason: number, message: string): void;
+    /**
      * UI draw order of an entity (its UIVisual.uiOrder, assigned by the UI
      * render-order pass), so SDF text quads interleave with UI quads. -1 if the
      * entity is not a UI render node.
