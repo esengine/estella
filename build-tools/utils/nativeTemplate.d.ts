@@ -4,7 +4,10 @@
 // Types for nativeTemplate.js — the module is plain ESM so the CLI can run it
 // unbuilt, and this is how the editor's TypeScript sees it.
 
-export type NativePlatform = 'android' | 'ios';
+/** Every platform a runtime template exists for. `macos` is one of them because a
+ *  desktop package is assembled from a template exactly as a phone's is — that
+ *  sameness is the point (see docs/REARCH_STEAM.md §6.0). */
+export type NativePlatform = 'android' | 'ios' | 'macos';
 
 export interface NativeTemplateManifest {
     kind: 'estella-native-template';
@@ -110,6 +113,14 @@ export function androidTemplateSources(dir: string): {
     /** The default launcher icon, used when the project sets none. */
     icon: string;
     /** Precompiled SDK bytecode, when the template's build machine could produce it. */
+    bytecode: string;
+};
+
+export function desktopTemplateSources(dir: string): {
+    /** The runtime binary; the assembler renames it to the app. */
+    executable: string;
+    infoPlistIn: string;
+    icon: string;
     bytecode: string;
 };
 
