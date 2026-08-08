@@ -41,6 +41,15 @@ if(ESTELLA_DESKTOP)
     find_package(SDL3 CONFIG REQUIRED PATHS "${ESTELLA_SDL_DIR}" NO_DEFAULT_PATH)
 endif()
 
+# The engine's sources are UTF-8, and MSVC reads them in the machine's ANSI
+# codepage unless told otherwise — so on a Chinese or Japanese Windows a `…` inside
+# a string literal becomes "constant contains a newline" and the build stops. Not a
+# warning to silence: without this the compiler is reading different bytes than
+# were written.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # Vendored third-party code is not ours to lint — and the flag that says so is not
 # the same word in every compiler, which is how a build that only ever ran on
 # clang passed `-w` to cl.exe and stopped at the first file.
@@ -259,7 +268,7 @@ if(ESTELLA_QUICKJS_DIR)
         "${ESTELLA_QUICKJS_DIR}/libunicode.c" "${ESTELLA_QUICKJS_DIR}/dtoa.c")
     target_include_directories(qjs PUBLIC "${ESTELLA_QUICKJS_DIR}")
     target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
-    target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
+    es_silence_warnings(qjs)
 
     # basis_universal transcoder (KTX2 -> ETC2/ASTC/BC), one big vendored TU behind
     # host/media/ktx2_decode.cpp, plus basis's bundled single-file zstd decoder (KTX2
