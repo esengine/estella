@@ -49,6 +49,12 @@ void physics_step(float dt);
 void physics_setBodyTransform(uint32_t entityId, float x, float y, float angle);
 void physics_setBodyTargetTransform(uint32_t entityId, float x, float y, float angle, float dt);
 int physics_getDynamicBodyCount();
+// Resource-census counters: what physics is still holding, including the static
+// and kinematic bodies the dynamic readback cannot see.
+int physics_getBodyCount();
+int physics_getShapeCount();
+int physics_getJointCount();
+int physics_getTrackingRows();
 // @heapreturn physics_dynamicBodyTransformsBytes()
 uintptr_t physics_getDynamicBodyTransforms();
 // Render interpolation. The module keeps the two most recent fixed-step snapshots

@@ -486,11 +486,15 @@ ShaderHandle GLDevice::createProgram(const GfxShaderSource& source,
     glDeleteShader(fragmentShader);
 
     if (outFailedStage) *outFailedStage = GfxShaderStage::None;
+    ++live_programs_;
     return ShaderHandle{program};
 }
 
 void GLDevice::deleteProgram(ShaderHandle program) {
-    if (program != ShaderHandle::Invalid) glDeleteProgram(static_cast<GLuint>(program));
+    if (program != ShaderHandle::Invalid) {
+        glDeleteProgram(static_cast<GLuint>(program));
+        if (live_programs_ > 0) --live_programs_;
+    }
 }
 
 void GLDevice::useProgram(ShaderHandle program) {
@@ -1228,6 +1232,21 @@ bool GLDevice::supportsFloatTargets() {
     // half-float textures is core; only attachment renderability is gated).
     return glExtensionPresent("GL_EXT_color_buffer_float")
         || glExtensionPresent("EXT_color_buffer_float");
+}
+
+GfxLiveObjects GLDevice::liveObjects() const {
+    // Buffers and textures need no counter: the per-handle metadata maps are
+    // written on create and erased on delete, so their size IS the live set —
+    // and unlike a parallel counter it cannot drift out of agreement with them.
+    return GfxLiveObjects{
+        static_cast<u32>(buffer_meta_.size()),
+        static_cast<u32>(texture_formats_.size()),
+        live_programs_,
+        static_cast<u32>(layouts_.size()),
+        static_cast<u32>(pipelines_.size()),
+        static_cast<u32>(framebuffer_textures_.size()),
+        static_cast<u32>(readbacks_.size()),
+    };
 }
 
 }  // namespace esengine

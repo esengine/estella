@@ -39,6 +39,24 @@ namespace esengine {
 static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
 
 /**
+ * @brief GPU objects the device has created and not yet destroyed.
+ *
+ * @details ResourceManager reports a strict subset — render targets, the
+ *          transient pool and plugin-created textures bypass it.
+ * @note    Conserved: buffers, textures, programs, renderTargets. Caches that
+ *          plateau: layouts, pipelines. `readbacks` is a queue, empty at rest.
+ */
+struct GfxLiveObjects {
+    u32 buffers = 0;
+    u32 textures = 0;
+    u32 programs = 0;
+    u32 layouts = 0;
+    u32 pipelines = 0;
+    u32 renderTargets = 0;
+    u32 readbacks = 0;
+};
+
+/**
  * @brief Abstract graphics device interface
  *
  * @details The device owns its state: setPipeline binds an immutable pipeline and skips
@@ -426,6 +444,15 @@ public:
 
     /** @brief Queries a backend integer capability/limit */
     virtual i32 getInt(GfxIntParam name) = 0;
+
+    /**
+     * @brief GPU objects alive right now (see {@link GfxLiveObjects}).
+     * @details Not pure: a backend that cannot answer reports zeros rather than
+     *          forcing every device to carry the bookkeeping. The census treats
+     *          an all-zero result as "this backend does not report", which is a
+     *          different claim than "nothing is allocated" — see censusProbes.ts.
+     */
+    virtual GfxLiveObjects liveObjects() const { return {}; }
 };
 
 }  // namespace esengine

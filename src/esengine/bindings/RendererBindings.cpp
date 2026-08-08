@@ -497,6 +497,25 @@ u32 renderer_getDrawCalls() {
     return g_renderFrame->stats().draw_calls;
 }
 
+#ifdef __EMSCRIPTEN__
+emscripten::val renderer_getLiveObjects() {
+    auto* device = g_device;
+    // Null rather than zeros: with no device there is nothing to report, and a
+    // census that recorded 0 live textures would read as "everything was freed".
+    if (!device) return emscripten::val::null();
+    const GfxLiveObjects live = device->liveObjects();
+    auto out = emscripten::val::object();
+    out.set("buffers", static_cast<f64>(live.buffers));
+    out.set("textures", static_cast<f64>(live.textures));
+    out.set("programs", static_cast<f64>(live.programs));
+    out.set("layouts", static_cast<f64>(live.layouts));
+    out.set("pipelines", static_cast<f64>(live.pipelines));
+    out.set("renderTargets", static_cast<f64>(live.renderTargets));
+    out.set("readbacks", static_cast<f64>(live.readbacks));
+    return out;
+}
+#endif  // __EMSCRIPTEN__
+
 u32 renderer_getTriangles() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->stats().triangles;

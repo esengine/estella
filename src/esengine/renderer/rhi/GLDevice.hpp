@@ -122,6 +122,7 @@ public:
     u32 getError() override;
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam name) override;
+    GfxLiveObjects liveObjects() const override;
 
 private:
     // Clear machinery: backend-internal since RenderPassDesc became the only way
@@ -229,6 +230,11 @@ private:
 
     // 0 = unprobed, 1 = timer queries available, 2 = unavailable.
     int timer_query_state_ = 0;
+
+    // Linked programs alive. Unlike buffers and textures, programs have no
+    // per-handle metadata map whose size would answer this, and a program leaked
+    // by shader hot reload is the exact failure the census exists to catch.
+    u32 live_programs_ = 0;
 };
 
 }  // namespace esengine

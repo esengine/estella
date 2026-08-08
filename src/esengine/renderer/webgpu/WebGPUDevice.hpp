@@ -202,6 +202,18 @@ public:
     usize textureCount() const { return textures_.size(); }
     usize layoutCount() const { return layouts_.size(); }
     usize pipelineDescCount() const { return pipelines_.size(); }
+
+    GfxLiveObjects liveObjects() const override {
+        return GfxLiveObjects{
+            static_cast<u32>(buffers_.size()),
+            static_cast<u32>(textures_.size()),
+            static_cast<u32>(programs_.size()),
+            static_cast<u32>(layouts_.size()),
+            static_cast<u32>(pipelines_.size()),
+            static_cast<u32>(framebuffers_.size()),
+            static_cast<u32>(readbacks_.size()),
+        };
+    }
     const VertexLayoutDesc* layoutDesc(VertexLayoutHandle handle) const;
     const PipelineDesc* pipelineDesc(PipelineHandle handle) const;
 

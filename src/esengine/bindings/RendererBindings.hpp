@@ -92,6 +92,11 @@ u32 renderer_getTargetDepthTexture(u32 handle);
 void renderer_releaseTarget(u32 handle);
 u32 renderer_getTargetTexture(u32 handle);
 u32 renderer_getDrawCalls();
+#ifdef __EMSCRIPTEN__
+/// GPU objects the device has not destroyed, for the resource census. Null when
+/// no device is initialized — absent counters, not zeroed ones.
+emscripten::val renderer_getLiveObjects();
+#endif
 u32 renderer_getTriangles();
 u32 renderer_getSprites();
 #ifdef ES_ENABLE_SPINE

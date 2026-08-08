@@ -69,6 +69,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstddef>
+#include <malloc.h>
 #include <sstream>
 
 static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
@@ -87,6 +88,14 @@ static EstellaContext& ctx() { return activeCtx(); }
 #ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
+
+// Bytes malloc has handed out and not got back, for the resource census. The
+// reserved heap size cannot answer this: emscripten's heap only grows, so a leak
+// hides until it crosses a growth step. This is exact, and it falls on free.
+f64 es_getMallocBytes() {
+    const struct mallinfo mi = mallinfo();
+    return static_cast<f64>(static_cast<u32>(mi.uordblks));
+}
 
 // Cook-time introspection: assembles both GLSL stages exactly as the runtime would
 // (same parser + injected headers), plus the reflection a GLSL→WGSL converter needs
@@ -380,6 +389,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);
+    emscripten::function("es_getMallocBytes", &esengine::es_getMallocBytes);
     emscripten::function("material_define", &esengine::material_define);
     emscripten::function("material_setUniform", &esengine::material_setUniform);
     emscripten::function("material_setTexture", &esengine::material_setTexture);
@@ -512,6 +522,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getTargetTexture", &esengine::renderer_getTargetTexture);
     emscripten::function("renderer_getTargetDepthTexture", &esengine::renderer_getTargetDepthTexture);
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
+    emscripten::function("renderer_getLiveObjects", &esengine::renderer_getLiveObjects);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
     emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);
 #ifdef ES_ENABLE_SPINE

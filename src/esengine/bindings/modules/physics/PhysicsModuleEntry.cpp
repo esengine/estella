@@ -255,6 +255,34 @@ int physics_getDynamicBodyCount() {
     return static_cast<int>(g_ctx.dynamicBodyEntities.size());
 }
 
+// For the resource census. The dynamic count was the only one reachable, and it
+// is the subset that cannot show the leak worth finding: a static body outliving
+// its entity still collides, and never appears in a dynamic-body readback.
+EMSCRIPTEN_KEEPALIVE
+int physics_getBodyCount() {
+    return static_cast<int>(g_ctx.entityToBody.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_getShapeCount() {
+    size_t total = 0;
+    for (const auto& [entityId, shapes] : g_ctx.entityToShapes) total += shapes.size();
+    return static_cast<int>(total);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_getJointCount() {
+    return static_cast<int>(g_ctx.entityToJoint.size());
+}
+
+/// Rows in the side tables keyed by entity. They are invisible to gameplay and
+/// are exactly where a destroy path that forgets one map shows up.
+EMSCRIPTEN_KEEPALIVE
+int physics_getTrackingRows() {
+    return static_cast<int>(g_ctx.entityToShapes.size() + g_ctx.oneWayNormals.size()
+                            + g_ctx.posePrevIndex.size() + g_ctx.dynamicBodyEntities.size());
+}
+
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics_getDynamicBodyTransforms() {
     g_ctx.dynamicTransformBuffer.clear();
