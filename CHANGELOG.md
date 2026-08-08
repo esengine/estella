@@ -216,6 +216,20 @@ published separately; it ships inside the editor.
   movement, clipboard and Enter/Escape are the model's. Keys still reach the game
   as well as the field, which is what a browser does and what keeps play == ship.
 
+- **Every packaged desktop game opened 1280x720.** The window ignored the
+  project's design resolution — a portrait game got a landscape window — because
+  the host cannot read one: the window exists before any JS does and the host
+  parses no JSON. The size now crosses the seam once, through the projection
+  every other setting already travels, and the window is created hidden and shown
+  when a frame has been drawn on it rather than sitting empty at a default size
+  for the length of boot.
+
+- **A headless export shipped every project setting at its default.** The script
+  that packages a project without the editor — the one CI and the render checks
+  use — bundles the editor's own manifest parser precisely so it cannot drift,
+  then built the runtime config by not building one: no physics config, no theme,
+  no declared achievements, and the wrong design resolution.
+
 - **The Steam overlay did not pause the game.** It opens over a running game
   without changing anything a host can observe — the window keeps its focus and
   stays visible — so nothing fired and the player kept taking damage while
