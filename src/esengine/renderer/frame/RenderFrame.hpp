@@ -88,6 +88,10 @@ public:
     void shutdown();
     void resize(u32 width, u32 height);
 
+    /// Rebuilds everything this frame owns after a device loss: the transient
+    /// pool, the render targets, the batch program ids and the post-process chain.
+    void recreateGpuResources();
+
     /** @brief The frame's main-pass load-op: which attachments to clear, the color,
      *         and an optional region (w == 0 = full target — per-camera flows clear
      *         only their viewport on the shared default target). */
@@ -273,7 +277,9 @@ private:
     u32 batch_shader_id_ = 0;
     // Compiled batch-shader variants keyed by ShaderParser::variantKey(features).
     // {} → default, {"SDF"} → glyph-atlas text.
-    std::unordered_map<std::string, u32> batch_variants_;
+    /// Variant key -> the shader HANDLE. Not the program id: rebuilding the
+    /// device changes every id, and the handle is what stays true across it.
+    std::unordered_map<std::string, resource::ShaderHandle> batch_variants_;
     TransientBufferPool pool_;
     DrawList draw_list_;
     bool linear_color_ = false;
@@ -287,7 +293,7 @@ private:
     /// flush() uploads + binds the result so Lit2D material shaders read it.
     void collectLights(ecs::Registry& registry);
     u32 initBatchShader();
-    u32 compileBatchVariant(const std::vector<std::string>& features);
+    resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
 
     std::vector<GpuLight2D> light_scratch_;  // reused across frames; collectLights only
 

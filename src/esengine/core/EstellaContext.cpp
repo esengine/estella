@@ -113,6 +113,34 @@ bool EstellaContext::init(Unique<GfxDevice> device) {
     return true;
 }
 
+bool EstellaContext::recoverDevice() {
+    auto* device = services_.getService<GfxDevice>();
+    if (!device || !device->recoverDevice()) return false;
+
+    // The order is the substance. Shaders first: every program id cached
+    // downstream is read back from these handles. RenderContext next, because
+    // its white texture is the placeholder the textures get swept onto.
+    auto* resources = services_.getService<resource::ResourceManager>();
+    auto* renderContext = services_.getService<RenderContext>();
+    if (!resources || !renderContext) return false;
+
+    resources->recreateGpuShaders();
+    renderContext->recreateGpuResources();
+    renderContext->materials().refreshShaderPrograms(*resources);
+
+    if (auto* immediateDraw = services_.getService<ImmediateDraw>()) {
+        immediateDraw->recreateGpuResources();
+    }
+    if (auto* renderFrame = services_.getService<RenderFrame>()) {
+        renderFrame->recreateGpuResources();
+    }
+
+    // Last: the placeholder now exists to park them on. Their CONTENT is still
+    // missing, which is why this leaves the device Recovering, not Live.
+    resources->invalidateGpuTextures(renderContext->getWhiteTexture());
+    return true;
+}
+
 void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // The device arrives first: ResourceManager (the GPU-resource factory) and
     // every other renderer subsystem borrow this single device. Which backend

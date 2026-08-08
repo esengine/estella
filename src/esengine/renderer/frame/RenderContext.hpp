@@ -146,6 +146,10 @@ public:
      */
     u32 getWhiteTextureId() const { return static_cast<u32>(whiteTexture_); }
 
+    /// The white 1x1 as a typed handle — what a lost texture is parked on until
+    /// its content is re-uploaded.
+    TextureHandle getWhiteTexture() const { return whiteTexture_; }
+
 
     /**
      * @brief Uploads the per-frame view-projection into the shared FrameConstants UBO.

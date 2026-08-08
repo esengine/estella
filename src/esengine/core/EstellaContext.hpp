@@ -48,6 +48,16 @@ public:
     bool init(Unique<GfxDevice> device);
 
     /**
+     * @brief Brings the renderer back after a device loss.
+     * @details Rebuilds the device, then every subsystem that owns GPU objects,
+     *          in the one order that works (see the definition). Leaves the
+     *          device Recovering: it draws, but its textures are placeholders
+     *          until the asset layer re-uploads them.
+     * @return True when the renderer is usable again.
+     */
+    bool recoverDevice();
+
+    /**
      * @brief Shut down all subsystems and release resources
      */
     void shutdown();

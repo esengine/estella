@@ -161,6 +161,28 @@ void PostProcessPipeline::shutdown() {
     ES_LOG_INFO("PostProcessPipeline shutdown");
 }
 
+void PostProcessPipeline::recreateGpuResources() {
+    if (!initialized_) return;
+    // Handles dropped, not deleted; the framebuffers are Unique<> and simply let
+    // go of objects that no longer exist. ensureFBOs re-creates them at the
+    // current size on the next frame, exactly as a resize does.
+    screen_quad_vbo_ = BufferHandle::Invalid;
+    screen_quad_layout_ = VertexLayoutHandle::Invalid;
+    sceneTexture_ = TextureHandle::Invalid;
+    for (auto& pass : passes_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
+    for (auto& pass : screenPasses_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
+
+    fboA_.reset();
+    fboB_.reset();
+    fboOriginal_.reset();
+    screenFBO_.reset();
+    fbosCreated_ = false;
+    fboOriginalCreated_ = false;
+    screenFBOCreated_ = false;
+    screenCaptureActive_ = false;
+    ensureFBOs();
+}
+
 void PostProcessPipeline::resize(u32 width, u32 height) {
     if (!initialized_) return;
     if (width == width_ && height == height_) return;

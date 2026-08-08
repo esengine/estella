@@ -20,6 +20,7 @@
 
 #include "../../core/Types.hpp"
 #include "../../math/Math.hpp"
+#include "../../resource/Handle.hpp"
 #include "../rhi/PipelineState.hpp"
 #include "../rhi/TransientBufferPool.hpp"
 
@@ -74,6 +75,10 @@ public:
     // =========================================================================
 
     void init();
+
+    /// Re-creates the pool's buffers and re-reads the batch program id after a
+    /// device loss. The shader itself is rebuilt by the manager, behind its handle.
+    void recreateGpuResources();
     void shutdown();
 
     // =========================================================================
@@ -180,6 +185,9 @@ private:
     resource::ResourceManager& resource_manager_;
 
     TransientBufferPool pool_;
+    /// The handle is the identity; batch_shader_ caches the program id it
+    /// currently resolves to, re-read when the device rebuilds the program.
+    resource::ShaderHandle batch_shader_ref_;
     ShaderHandle batch_shader_ = ShaderHandle::Invalid;
     PipelineDesc base_desc_{};
     PipelineDesc current_desc_{};

@@ -178,6 +178,16 @@ void RenderFrame::shutdown() {
     ES_LOG_INFO("RenderFrame shutdown");
 }
 
+void RenderFrame::recreateGpuResources() {
+    pool_.recreateGpuResources();
+    target_manager_.recreateGpuResources();
+    // The variant handles are unchanged; this re-reads the program ids behind them.
+    batch_shader_id_ = initBatchShader();
+#ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_) post_process_->recreateGpuResources();
+#endif
+}
+
 void RenderFrame::resize(u32 width, u32 height) {
     width_ = width;
     height_ = height;
@@ -713,13 +723,16 @@ u32 RenderFrame::initBatchShader() {
 u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
     const std::string key = resource::ShaderParser::variantKey(features);
     auto it = batch_variants_.find(key);
-    if (it != batch_variants_.end()) return it->second;
-    const u32 prog = compileBatchVariant(features);
-    batch_variants_.emplace(key, prog);
-    return prog;
+    if (it == batch_variants_.end()) {
+        it = batch_variants_.emplace(key, compileBatchVariant(features)).first;
+    }
+    // Resolved per lookup rather than cached: the program id is what the device
+    // replaces on a rebuild, and the handle is what survives it.
+    Shader* shader = resource_manager_.getShader(it->second);
+    return shader ? shader->getProgramId() : 0;
 }
 
-u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
+resource::ShaderHandle RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
     // The batch shader is authored as a single .esshader with its WGSL twin,
     // embedded for the web build. Parse it and assemble the two stages for the
     // preferred target (single source of truth), injecting the requested
@@ -748,12 +761,12 @@ u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
             if (loc >= 0) device_.setUniform1i(loc, i);
         }
         shader->unbind();
-        return shader->getProgramId();
+        return handle;
     }
 
     const std::string vk = resource::ShaderParser::variantKey(features);
     ES_LOG_ERROR("Failed to create batch shader variant '{}'", vk.empty() ? "default" : vk.c_str());
-    return 0;
+    return {};
 }
 
 }  // namespace esengine
