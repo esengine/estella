@@ -115,6 +115,10 @@ public:
     /// The render path uses this device to create/upload/delete per-material UBOs.
     void setDevice(GfxDevice* device) { device_ = device; }
 
+    /// Drops every material UBO after a device loss, keeping the records so the
+    /// scene's materialIds stay meaningful. See the definition.
+    void recreateGpuResources();
+
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.
     void registerLayout(u32 shaderId, MaterialUniformLayout layout) {

@@ -35,6 +35,13 @@ public:
     /// The render path uses this device to create/upload/delete the lighting UBO.
     void setDevice(GfxDevice* device) { device_ = device; }
 
+    /// Forgets the UBO after a device loss WITHOUT deleting it — the buffer died
+    /// with the device, and the upload path creates a fresh one on demand.
+    void recreateGpuResources() {
+        ubo_ = BufferHandle::Invalid;
+        dirty_ = true;
+    }
+
     /// Begins a frame's collection: zeroes ambient + all light slots (inactive slots contribute
     /// nothing because their intensity is 0) and marks the UBO for re-upload.
     void clear() {

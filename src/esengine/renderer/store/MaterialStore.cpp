@@ -29,6 +29,19 @@ void MaterialStore::clear() {
     layouts_.clear();
 }
 
+void MaterialStore::recreateGpuResources() {
+    // Buffers are dropped, not deleted: they died with the device. The material
+    // RECORDS stay, so every materialId the scene refers to still resolves and
+    // bindForDraw re-creates the UBO from the parameters it already holds.
+    for (auto& [id, rec] : materials_) {
+        rec.ubo = BufferHandle::Invalid;
+        rec.uboDirty = true;
+    }
+    // Texture bindings are NOT covered and cannot be from here: setTexture
+    // resolves a resource::TextureHandle to a raw GPU id at call time, so the
+    // record no longer knows which texture it meant.
+}
+
 void MaterialStore::bindForDraw(u32 materialId) {
     if (!device_) return;
     auto it = materials_.find(materialId);
