@@ -30,7 +30,7 @@ import {
   BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
   type PlayableAdProfile,
 } from './playableAdProfile';
-import { BUILTIN_PLATFORMS, type PlatformPrereq } from '../src/project/platforms';
+import { BUILTIN_PLATFORMS, desktopTemplateFor, type PlatformPrereq } from '../src/project/platforms';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
@@ -85,11 +85,20 @@ function builtinReadiness(
 
   switch (id) {
     case 'web':
-    case 'desktop':
       // The web payload's engine runtime ships with the editor.
       return has(dirs.web, 'esengine.js')
         ? { ready: true }
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.web), looked: ['esengine.js'], command: 'node build-tools/cli.js build -t web' } };
+
+    case 'desktop': {
+      // Like Android: the runtime template IS the prerequisite, because the app is
+      // assembled here in pure Node. Which template depends on the OS — the ids
+      // are per-OS where the platform id is not.
+      const template = desktopTemplateFor(process.platform);
+      return resolveNativeTemplate(template, engineVersion)
+        ? { ready: true }
+        : { ready: false, prereq: { kind: 'template-missing', id: templateId(template), version: engineVersion } };
+    }
 
     case 'playable':
       // Playable inlines the WEB runtime (exportPlayable reads esengine.js) — it

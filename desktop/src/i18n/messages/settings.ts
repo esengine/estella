@@ -382,13 +382,13 @@ export const settingsMessages = defineMessages({
     },
     'set.project.packaging.desktop.appId': { en: 'Desktop App ID', zh: '桌面 App ID' },
     'set.project.packaging.desktop.appId.desc': {
-        en: 'Overrides the Application ID for the desktop installer only (electron-builder appId).',
-        zh: '仅为桌面安装包覆盖应用 ID（electron-builder appId）。',
+        en: 'Overrides the Application ID for the desktop app only (its bundle identifier).',
+        zh: '仅为桌面应用覆盖应用 ID（即其 bundle identifier）。',
     },
     'set.project.packaging.desktop.productName': { en: 'Product name', zh: '产品名称' },
     'set.project.packaging.desktop.productName.desc': {
-        en: 'Display name for the desktop app + installer (defaults to the project name).',
-        zh: '桌面应用与安装包的显示名称（默认为项目名）。',
+        en: 'Display name for the desktop app, and the name of the app itself (defaults to the project name).',
+        zh: '桌面应用的显示名称，也是应用本身的名字（默认为项目名）。',
     },
 
     // — Setting-fired feedback —

@@ -38,6 +38,7 @@ import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
   removeNativeTemplate, downloadNativeTemplate,
 } from './nativeTemplates';
+import { desktopTemplateFor } from '../src/project/platforms';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
@@ -1172,11 +1173,11 @@ ipcMain.handle(
       platform: opts?.platform,
       miniGameProfile: projectPlatform?.profile,
       playableAdProfile: playableAdProfile ?? undefined,
-      desktopAppId: plat?.desktop?.appId,
       desktopProductName: plat?.desktop?.productName,
       wechatAppid: plat?.wechat?.appid,
       // The app's identity, by the one rule every target resolves it with.
-      appId: opts?.platform === 'ios' ? resolveAppId(manifest, 'ios') : resolveAppId(manifest, 'android'),
+      appId: resolveAppId(manifest, opts?.platform === 'ios' ? 'ios'
+        : opts?.platform === 'desktop' ? 'desktop' : 'android'),
       appVersion: manifest.version,
       androidVersionCode: plat?.android?.versionCode,
       androidAppBundle: plat?.android?.appBundle,
@@ -1202,6 +1203,10 @@ ipcMain.handle(
       // the same template when the game needs to build it itself.
       androidTemplate: opts?.platform === 'android'
         ? (resolveNativeTemplate('android', app.getVersion())?.dir ?? null)
+        : null,
+      // Desktop assembles the same way; the template it needs is this OS's.
+      desktopTemplate: opts?.platform === 'desktop'
+        ? (resolveNativeTemplate(desktopTemplateFor(process.platform), app.getVersion())?.dir ?? null)
         : null,
       androidOutput: plat?.android?.output,
       onProgress: (p) => e.sender.send('project:exportProgress', p),

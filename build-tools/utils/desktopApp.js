@@ -13,7 +13,7 @@
 
 import path from 'path';
 import { existsSync } from 'fs';
-import { chmod, cp, mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { pngToIcns } from './icns.js';
 import { desktopTemplateSources } from './nativeTemplate.js';
 import { fillTemplate } from './nativeApp.js';
@@ -61,9 +61,17 @@ export async function assembleMacApp(options) {
     await cp(sources.executable, executable);
     await chmod(executable, 0o755);
 
-    await cp(contentDir, path.join(resources, 'Content'), { recursive: true });
+    // Entry by entry: the bundle usually lands INSIDE the export directory (the
+    // layout Android has), and copying a directory into itself is refused before
+    // any filter is consulted. Bundles are skipped as not-content.
+    const content = path.join(resources, 'Content');
+    await mkdir(content, { recursive: true });
+    for (const entry of await readdir(contentDir)) {
+        if (entry.endsWith('.app')) continue;
+        await cp(path.join(contentDir, entry), path.join(content, entry), { recursive: true });
+    }
     if (existsSync(sources.bytecode)) {
-        await cp(sources.bytecode, path.join(resources, 'Content', path.basename(sources.bytecode)));
+        await cp(sources.bytecode, path.join(content, path.basename(sources.bytecode)));
     }
 
     const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;

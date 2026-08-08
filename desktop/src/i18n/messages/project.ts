@@ -116,8 +116,8 @@ export const projectMessages = defineMessages({
         zh: '静态、自包含的网页构建——可托管在任何地方。',
     },
     'build.blurb.desktop': {
-        en: 'Electron app — package to .dmg / .exe / AppImage.',
-        zh: 'Electron 应用——可打包为 .dmg / .exe / AppImage。',
+        en: 'Content for the native desktop app (Metal / D3D12 / Vulkan) — a real app, not a browser.',
+        zh: '原生桌面应用（Metal / D3D12 / Vulkan）的内容——真正的应用，而非浏览器。',
     },
     'build.blurb.wechat': { en: 'WeChat MiniGame package.', zh: '微信小游戏包。' },
     'build.blurb.playable': {
@@ -137,8 +137,8 @@ export const projectMessages = defineMessages({
         zh: '在下方通过 http 预览，或将 {out}/ 上传到任意静态托管。（网页构建需要 http 源——直接打开 index.html 无法流式加载 wasm。）',
     },
     'build.next.desktop': {
-        en: 'cd {out} && npm install && npm start — or npm run dist for a native installer.',
-        zh: 'cd {out} && npm install && npm start——或运行 npm run dist 以生成原生安装包。',
+        en: 'The app is in {out}/ — double-click it. Nothing to install first.',
+        zh: '应用就在 {out}/ 中——双击即可运行，无需先安装任何东西。',
     },
     'build.next.wechat': {
         en: 'Open {out}/ in WeChat DevTools, then set your appid in project.config.json.',

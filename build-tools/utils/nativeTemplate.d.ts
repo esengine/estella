@@ -7,7 +7,7 @@
 /** Every platform a runtime template exists for. `macos` is one of them because a
  *  desktop package is assembled from a template exactly as a phone's is — that
  *  sameness is the point (see docs/REARCH_STEAM.md §6.0). */
-export type NativePlatform = 'android' | 'ios' | 'macos';
+export type NativePlatform = 'android' | 'ios' | 'macos' | 'windows' | 'linux';
 
 export interface NativeTemplateManifest {
     kind: 'estella-native-template';

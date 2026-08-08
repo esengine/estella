@@ -42,13 +42,29 @@ export type ExportPlatform = BuiltinPlatform | (string & {});
  * `native/README.md`). They share ONE runtime and ONE export payload — content
  * only, since the engine, the SDK and the game runtime live in the app binary —
  * and differ in how that content is assembled into an installable app.
+ *
+ * `desktop` is one of them. The rule is not "mobile" but whether the host is
+ * OURS: where a browser or a mini-game platform already provides JS and a GPU the
+ * web runtime fits, and where the app must BE the host the native one does
+ * (docs/REARCH_STEAM.md §6.0).
  */
-export const NATIVE_PLATFORMS = ['android', 'ios'] as const;
+export const NATIVE_PLATFORMS = ['android', 'ios', 'desktop'] as const;
 export type NativePlatform = (typeof NATIVE_PLATFORMS)[number];
 
 /** Whether this target's export is app CONTENT rather than a runnable payload. */
 export function isNativePlatform(platform: ExportPlatform): platform is NativePlatform {
-    return platform === 'android' || platform === 'ios';
+    return (NATIVE_PLATFORMS as readonly string[]).includes(platform);
+}
+
+/**
+ * The runtime template a desktop package is assembled from, for the OS building
+ * it — per-OS where the platform id is not, because the binaries are.
+ *
+ * Assembly is pure Node, but only macOS can sign a macOS bundle.
+ */
+export function desktopTemplateFor(osPlatform: string): 'macos' | 'windows' | 'linux' {
+    if (osPlatform === 'darwin') return 'macos';
+    return osPlatform === 'win32' ? 'windows' : 'linux';
 }
 
 /**

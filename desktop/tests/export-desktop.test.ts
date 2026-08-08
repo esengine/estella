@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Desktop (Electron) export. Asserts the web payload lands under app/ and a
- *        runnable Electron shell (main.cjs registering the game:// scheme +
- *        electron-builder-wired package.json) is staged beside it.
+ * @file  Desktop export. It is a NATIVE target now: the payload is app content —
+ *        no HTML page, no SDK/wasm tree — and the app is assembled from a runtime
+ *        template, exactly as the APK and the Xcode project are.
+ *
+ * Pinned here: no npm project, nothing for the user to install before running
+ * what the editor produced.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +49,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('exportGame (desktop)', () => {
-  it('stages an Electron shell around the web payload', async () => {
+  it('exports app CONTENT, not a web payload in a shell', async () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
@@ -57,51 +60,83 @@ describe('exportGame (desktop)', () => {
       outDir: out,
       title: 'My Cool Game',
       platform: 'desktop',
-      desktopAppId: 'com.studio.cool',
+      appId: 'com.studio.cool',
       desktopProductName: 'Cool Override',
     });
 
     expect(res.ok).toBe(true);
     expect(res.platform).toBe('desktop');
 
-    // Web payload nested under app/.
-    const app = path.join(out, 'app');
-    for (const f of ['index.html', 'game.js', 'scripts.mjs', 'game.config.json', 'asset-manifest.json']) {
-      expect(existsSync(path.join(app, f))).toBe(true);
+    // Content only, at the top level — no app/ nesting, because there is no shell
+    // to nest under any more.
+    const present = readdirSync(out).sort();
+    for (const f of ['game.config.json', 'app.config.json', 'asset-manifest.json', 'scripts.js']) {
+      expect(present, `missing ${f}`).toContain(f);
     }
-    expect(existsSync(path.join(app, 'wasm', 'esengine.js'))).toBe(true);
-    expect(existsSync(path.join(app, 'sdk', 'index.js'))).toBe(true);
-    // Content-addressed by default: the texture ships as assets/<hash>.png.
-    const m = JSON.parse(readFileSync(path.join(app, 'asset-manifest.json'), 'utf8')) as
-      { groups: Record<string, { assets: Record<string, { type: string; path: string }> }> };
-    const tex = Object.values(m.groups)
-      .flatMap((g) => Object.values(g.assets))
-      .find((a) => a.type === 'texture')!;
-    expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
-    expect(existsSync(path.join(app, tex.path))).toBe(true);
+    // The web payload's pieces are gone: the engine, the SDK and the runtime are
+    // in the app binary, so shipping them again would be shipping two engines.
+    for (const f of ['index.html', 'game.js', 'scripts.mjs', 'app', 'sdk', 'wasm']) {
+      expect(existsSync(path.join(out, f))).toBe(false);
+    }
 
-    // Electron shell beside it.
-    const main = readFileSync(path.join(out, 'main.cjs'), 'utf8');
-    expect(main).toContain('registerSchemesAsPrivileged');
-    expect(main).toContain("SCHEME = 'game'");
-    expect(main).toContain('://app/index.html'); // window loads the payload over the scheme
-    // Default landscape ⇒ 1280×720 window; the desktop page carries NO rotate overlay
-    // (a resizable desktop window isn't a phone — orientation is the window aspect).
-    expect(main).toContain('width: 1280');
-    expect(main).toContain('height: 720');
-    expect(readFileSync(path.join(app, 'index.html'), 'utf8')).not.toContain('rotate-hint');
+    // The identity a packager reads, by the same rule every native target uses.
+    const app = JSON.parse(readFileSync(path.join(out, 'app.config.json'), 'utf8'));
+    expect(app.id).toBe('com.studio.cool');
+    // productName was electron-builder's; it means what CFBundleName does, so it
+    // still names the app.
+    expect(app.name).toBe('Cool Override');
 
-    const pkg = JSON.parse(readFileSync(path.join(out, 'package.json'), 'utf8'));
-    expect(pkg.main).toBe('main.cjs');
-    expect(pkg.scripts.start).toBe('electron .');
-    expect(pkg.scripts.dist).toBe('electron-builder');
-    expect(pkg.build.appId).toBe('com.studio.cool');           // from Project Settings
-    expect(pkg.build.productName).toBe('Cool Override');
-    expect(pkg.name).toBe('cool-override');                     // slugified from product name
-    expect(pkg.build.files).toContain('app/**/*');
-
-    expect(existsSync(path.join(out, 'README.md'))).toBe(true);
+    // No template installed in this test's environment ⇒ content, and a warning
+    // that says so rather than a silent half-export.
+    if (!res.appBundle) {
+      expect(res.warnings.join(' ')).toMatch(/runtime template/i);
+    }
   }, 60_000);
+
+  it('assembles the app when a runtime template is there', async () => {
+    // A fake template, because what is under test is the EXPORT reaching the
+    // assembler — the assembler itself is pinned in desktop-app.test.ts.
+    const template = path.join(root, '_template');
+    mkdirSync(template, { recursive: true });
+    writeFileSync(path.join(template, 'estella_desktop'), 'runtime');
+    writeFileSync(path.join(template, 'esengine.native.qjsbc'), 'bytecode');
+    writeFileSync(path.join(template, 'Info.plist.in'),
+        '<plist><dict><key>N</key><string>@APP_NAME@</string></dict></plist>');
+
+    const packed = path.join(root, 'dist-desktop-packed');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: packed,
+      title: 'Packed Game',
+      platform: 'desktop',
+      desktopTemplate: template,
+    });
+
+    expect(res.ok).toBe(true);
+    if (process.platform !== 'darwin') {
+      // Honest rather than silent: assembly is written for macOS only so far.
+      expect(res.appBundle).toBeUndefined();
+      expect(res.warnings.join(' ')).toMatch(/not written yet/);
+      return;
+    }
+    expect(res.appBundle).toBe(path.join(packed, 'Packed Game.app'));
+    // The runtime's bytecode joins the game's files in ONE namespace, which is
+    // what the host reads — the whole reason the bundle is laid out this way.
+    const content = path.join(res.appBundle!, 'Contents/Resources/Content');
+    expect(existsSync(path.join(content, 'game.config.json'))).toBe(true);
+    expect(existsSync(path.join(content, 'esengine.native.qjsbc'))).toBe(true);
+  }, 60_000);
+
+  it('no longer writes anything electron-builder would read', async () => {
+    for (const f of ['main.cjs', 'package.json', 'README.md']) {
+      expect(existsSync(path.join(out, f))).toBe(false);
+    }
+  });
 
   it('leaves the web target unnested (no app/ wrapper)', async () => {
     const webOut = path.join(root, 'dist-web');
@@ -122,16 +157,4 @@ describe('exportGame (desktop)', () => {
     expect(existsSync(path.join(webOut, 'main.cjs'))).toBe(false);
   }, 60_000);
 
-  it('sizes the desktop window to a portrait orientation', async () => {
-    const pOut = path.join(root, 'dist-desktop-portrait');
-    const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
-      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
-      outDir: pOut, title: 'Portrait Game', platform: 'desktop', orientation: 'portrait',
-    });
-    expect(res.ok).toBe(true);
-    const main = readFileSync(path.join(pOut, 'main.cjs'), 'utf8');
-    expect(main).toContain('width: 720');
-    expect(main).toContain('height: 1280');
-  }, 60_000);
 });

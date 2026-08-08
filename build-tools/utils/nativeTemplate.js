@@ -167,7 +167,9 @@ export function templateLayout(platform, options = {}) {
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
-    throw new Error(`Unknown native platform "${platform}" (expected android, ios or macos).`);
+    // windows and linux are named ids with no layout yet (S3c): a template for one
+    // cannot be installed, so this is only reached if something invents one.
+    throw new Error(`No template layout for "${platform}" — android, ios and macos have one.`);
 }
 
 /**
