@@ -17,25 +17,11 @@ import path from 'node:path';
 import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
 import { pngToIcns, pngSize } from '../../build-tools/utils/icns.js';
 import { templateLayout, desktopTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
+import { solidPng } from './helpers/png';
+import { fakePe, readResources } from './helpers/pe';
 
-/** A minimal but REAL png — the icns writer reads IHDR, so a stub will not do. */
-function png(size: number): Buffer {
-    const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(size, 0);
-    ihdr.writeUInt32BE(size, 4);
-    ihdr[8] = 8;
-    ihdr[9] = 6;
-    const chunk = (type: string, data: Buffer) => {
-        const head = Buffer.alloc(8);
-        head.writeUInt32BE(data.length, 0);
-        head.write(type, 4, 'ascii');
-        return Buffer.concat([head, data, Buffer.alloc(4)]);
-    };
-    return Buffer.concat([
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-        chunk('IHDR', ihdr),
-    ]);
-}
+/** A real png: the icns writer reads only IHDR, but the Windows path DECODES it. */
+const png = (size: number): Buffer => solidPng(size);
 
 let dir: string;
 let templateDir: string;
@@ -122,8 +108,9 @@ describe('macOS app assembly', () => {
 
 describe('Windows assembly', () => {
     beforeEach(() => {
-        // The Windows template names its runtime .exe and carries the HLSL compiler.
-        writeFileSync(path.join(templateDir, 'estella_desktop.exe'), 'runtime');
+        // A structurally real PE, not a placeholder string: the icon is written
+        // INTO the executable on Windows, so the assembler parses what it copies.
+        writeFileSync(path.join(templateDir, 'estella_desktop.exe'), fakePe());
         writeFileSync(path.join(templateDir, 'd3dcompiler_47.dll'), 'compiler');
     });
 
@@ -143,6 +130,22 @@ describe('Windows assembly', () => {
             platform: 'windows', templateDir, contentDir, outDir, app: APP,
         });
         expect(existsSync(path.join(root, 'd3dcompiler_47.dll'))).toBe(true);
+    });
+
+    it('writes the icon INTO the executable, where Windows keeps one', async () => {
+        // Not beside it: an exe's icon is a resource inside it, so the assembler
+        // rewrites the binary it just copied rather than writing a second file.
+        const icon = path.join(dir, 'mark.png');
+        writeFileSync(icon, solidPng(64, [9, 8, 7, 255]));
+        const { dir: root } = await assembleDesktopApp({
+            platform: 'windows', templateDir, contentDir, outDir, app: APP, iconPng: icon,
+        });
+        const exe = readFileSync(path.join(root, 'Acme Game.exe'));
+        expect(exe.length).toBeGreaterThan(readFileSync(path.join(templateDir, 'estella_desktop.exe')).length);
+        // The group entry names one 64px image — read with the same spec reader
+        // pe-icon.test.ts uses, so this checks the wiring and not the writer.
+        const group = readResources(exe).find((r) => r.type === 14);
+        expect(group?.data[6]).toBe(64);
     });
 
     it('writes no Info.plist and no icns — those describe a bundle', async () => {
