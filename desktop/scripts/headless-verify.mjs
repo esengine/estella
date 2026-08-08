@@ -104,11 +104,9 @@ function finish(result, server) {
   const dl = result.deviceLoss;
   const deviceLossOk = !dl || (dl.supported && dl.statusAfterLoss === 1 &&
     (dl.reportAfterLoss?.length ?? 0) > 0 && dl.glLostAfterRestore === false &&
-    dl.recovered === true && dl.statusAfterRecover === 2);
-  // After a recovery the textures are placeholders until the asset layer
-  // re-uploads, so "did it draw content" is not the question a loss run asks —
-  // the cycle assertions above are. Restore this once re-upload lands.
-  const renderedOk = dl ? true : (result.capture?.rendered ?? false);
+    dl.recovered === true && dl.statusAfterRecover === 2 &&
+    dl.fullRecovered === true && dl.statusAfterFull === 0);
+  const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
     deviceLossOk;
@@ -257,6 +255,10 @@ app.whenReady().then(async () => {
           if (!out.recovered) await new Promise((r) => setTimeout(r, 100));
         }
         out.statusAfterRecover = d.status();
+
+        // The full cycle: rebuild, re-upload the textures, and declare it whole.
+        out.fullRecovered = await d.recoverFull();
+        out.statusAfterFull = d.status();
         api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;

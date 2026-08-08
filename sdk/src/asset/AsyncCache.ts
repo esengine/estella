@@ -172,6 +172,11 @@ export class AsyncCache<T> {
         this.pending_.clear();
     }
 
+    /** Re-file a value under `key`, for a sweep that removed it to force a reload. */
+    set(key: string, value: T): void {
+        this.cache_.set(key, value);
+    }
+
     /**
      * Key/value pairs of what is resolved. `values()` is not enough for a sweep
      * that has to RELOAD each entry: the key is what names the asset.

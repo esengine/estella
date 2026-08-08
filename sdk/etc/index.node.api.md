@@ -670,6 +670,7 @@ get: (key: string) => T | undefined
 getOrLoad: (key: string, loader: () => Promise<T>, timeout?: number) => Promise<T>
 has: (key: string) => boolean
 invalidate: (key: string) => boolean
+set: (key: string, value: T) => void
 sizes: () => { cached: number; pending: number; failed: number; }
 values: () => IterableIterator<T>
 static new <T>(dispose_?: ((value: T) => void) | undefined): AsyncCache<T>

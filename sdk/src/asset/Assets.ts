@@ -44,6 +44,7 @@ import type { AssetRegistry } from './AssetRegistry';
 import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../util/logger';
+import { recoverDevice, finishDeviceRecovery } from '../render/renderer';
 
 /** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries.
  *  `oldTextureHandle` is the texture handle that was bound before the drop (0 when
@@ -363,6 +364,59 @@ export class Assets {
 
     async loadTextureRaw(ref: string): Promise<TextureResult> {
         return this.loadTextureVariant_(ref, false);
+    }
+
+    /**
+     * Re-uploads every cached texture behind the handle it already has.
+     *
+     * The GPU objects died with the device; the handles did not. The load path
+     * runs again for its BYTES and the result is retargeted onto the original
+     * handle — reusing it keeps this one sweep, not one per upload path.
+     */
+    async reuploadTexturesAfterDeviceLoss(): Promise<number> {
+        const rm = requireResourceManager();
+        if (!rm.retargetExternalTexture) return 0;
+
+        let restored = 0;
+        for (const [key, previous] of [...this.textureCache_.entries()]) {
+            const cut = key.lastIndexOf(':');
+            if (cut < 0) continue;
+            const path = key.slice(0, cut);
+            const flip = key.slice(cut + 1) === 'f';
+
+            // Removed so the load is a real one: the cached entry names a GPU
+            // object that no longer exists.
+            this.textureCache_.delete(key);
+            try {
+                const fresh = await this.loadTextureVariant_(path, flip);
+                const glId = rm.getTextureGLId(fresh.handle);
+                if (glId && rm.retargetExternalTexture(previous.handle, glId, fresh.width, fresh.height)) {
+                    restored++;
+                }
+                // The fresh POOL entry is scaffolding; its GPU object now belongs
+                // to the original handle, and external textures are not owned, so
+                // releasing the record does not take it away.
+                if (fresh.handle !== previous.handle) rm.releaseTexture(fresh.handle);
+            } catch (e) {
+                log.warn('assets', `Device recovery: re-upload failed for ${path}`, e);
+            }
+            this.textureCache_.set(key, previous);
+        }
+        log.info('assets', `Device recovery: ${restored} texture(s) re-uploaded`);
+        return restored;
+    }
+
+    /**
+     * The whole recovery, in the order it has to happen: rebuild what the engine
+     * can, put the content back, then declare the device whole. Returns false
+     * while the context is not available yet — a browser restores when it is
+     * ready, so a caller retries rather than giving up.
+     */
+    async recoverFromDeviceLoss(): Promise<boolean> {
+        if (!recoverDevice()) return false;
+        await this.reuploadTexturesAfterDeviceLoss();
+        finishDeviceRecovery();
+        return true;
     }
 
     private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {

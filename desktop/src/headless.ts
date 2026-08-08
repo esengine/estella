@@ -13,7 +13,7 @@
 import { EngineHost } from './engine/EngineHost';
 import {
   DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice, finishDeviceRecovery,
-  getContextLossGuardInfo,
+  getContextLossGuardInfo, Assets,
 } from 'esengine';
 // From EditorSession: importing it constructs the default session (which wires the
 // Reconciler + SceneStore to the model) before the engine boots below.
@@ -32,6 +32,7 @@ declare global {
         report(): string;
         recover(): boolean;
         finishRecovery(): void;
+        recoverFull(): Promise<boolean>;
         lose(): boolean;
         contextLost(): boolean | null;
         guard(): { target: string; lostEventsSeen: number };
@@ -79,6 +80,11 @@ window.__estellaHeadless = {
     report: () => getDeviceLostReport(),
     recover: () => recoverDevice(),
     finishRecovery: () => finishDeviceRecovery(),
+    recoverFull: async () => {
+      const assets = EngineHost.getResource(Assets);
+      if (!assets) return false;
+      return assets.recoverFromDeviceLoss();
+    },
     guard: () => getContextLossGuardInfo(),
     contextLost: () => {
       const gl = EngineHost.canvas?.getContext('webgl2') as WebGL2RenderingContext | null;
