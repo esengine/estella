@@ -37,6 +37,16 @@ describe('the Steam channel', () => {
         expect(build).toContain('"SetLive"\t\t""');
     });
 
+    it('anchors a Windows depot at the app directory too, not at the export root', async () => {
+        await emitSteamBuild({
+            outDir: out, appId: 480, appName: 'Spinner',
+            depots: [{ os: 'windows', depotId: 481 }],
+        });
+        const depot = readFileSync(path.join(out, 'steam', 'depot_481_windows.vdf'), 'utf8');
+        expect(depot).toContain('"LocalPath"\t\t"Spinner/*"');
+        expect(depot).not.toContain('"LocalPath"\t\t"*"');
+    });
+
     it('maps only the app, so the loose content beside it is not uploaded', async () => {
         // The export dir holds the cooked content AND the app that contains it;
         // a depot that took both would ship every asset twice.

@@ -41,6 +41,17 @@ if(ESTELLA_DESKTOP)
     find_package(SDL3 CONFIG REQUIRED PATHS "${ESTELLA_SDL_DIR}" NO_DEFAULT_PATH)
 endif()
 
+# Vendored third-party code is not ours to lint — and the flag that says so is not
+# the same word in every compiler, which is how a build that only ever ran on
+# clang passed `-w` to cl.exe and stopped at the first file.
+function(es_silence_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /w)
+    else()
+        target_compile_options(${target} PRIVATE -w)
+    endif()
+endfunction()
+
 set(REPO "${CMAKE_CURRENT_SOURCE_DIR}/..")
 set(SRC "${REPO}/src")
 set(TP "${REPO}/third_party")
@@ -90,7 +101,7 @@ target_compile_definitions(glm INTERFACE GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_
 file(GLOB_RECURSE YOGA_SOURCES "${TP}/yoga/*.cpp")
 add_library(yogacore STATIC ${YOGA_SOURCES})
 target_include_directories(yogacore PUBLIC "${TP}")
-target_compile_options(yogacore PRIVATE -Wno-unused-parameter)
+es_silence_warnings(yogacore)
 
 # Box2D + the physics module's own TUs, compiled INTO the host. On the web physics
 # ships as a separate wasm side module (dynamic linking, its own emscripten runtime);
@@ -135,7 +146,7 @@ endif()
 
 add_library(spine_runtime STATIC ${SPINE_SOURCES})
 target_include_directories(spine_runtime PUBLIC "${SPINE_INCLUDE}")
-target_compile_options(spine_runtime PRIVATE -w)   # vendored, not ours to lint
+es_silence_warnings(spine_runtime)
 
 string(REPLACE "." "" SPINE_TAG ${ESTELLA_SPINE_VERSION})
 add_library(estella_spine STATIC
@@ -151,7 +162,7 @@ target_compile_definitions(estella_spine PRIVATE ES_SPINE_VERSION=${SPINE_TAG})
 file(GLOB_RECURSE DRAGONBONES_SOURCES "${TP}/dragonbones/src/dragonBones/*.cpp")
 add_library(dragonbones_runtime STATIC ${DRAGONBONES_SOURCES})
 target_include_directories(dragonbones_runtime PUBLIC "${TP}/dragonbones/src" "${TP}/rapidjson")
-target_compile_options(dragonbones_runtime PRIVATE -w)   # vendored, not ours to lint
+es_silence_warnings(dragonbones_runtime)
 
 add_library(estella_dragonbones STATIC
     "${SRC}/esengine/bindings/modules/dragonbones/DragonBonesModuleEntry.cpp"
@@ -255,7 +266,8 @@ if(ESTELLA_QUICKJS_DIR)
     # zstd supercompression). Third-party, so silence their warnings.
     set(BASIS_TRANSCODER "${TP}/basis_universal/transcoder/basisu_transcoder.cpp")
     set(BASIS_ZSTD "${TP}/basis_universal/zstd/zstddeclib.c")
-    set_source_files_properties("${BASIS_TRANSCODER}" "${BASIS_ZSTD}" PROPERTIES COMPILE_OPTIONS "-w")
+    set_source_files_properties("${BASIS_TRANSCODER}" "${BASIS_ZSTD}"
+        PROPERTIES COMPILE_OPTIONS "$<IF:$<BOOL:${MSVC}>,/w,-w>")
 
     # The host, by concern: the runtime + the es_* bindings + the frame are shared,
     # and each platform adds its own glue TU (the event loop, the window, the

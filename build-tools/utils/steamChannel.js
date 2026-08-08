@@ -30,20 +30,24 @@ const CLOUD_ROOTS = {
     linux: { root: 'LinuxHome', prefix: '.local/share/Estella' },
 };
 
-/** What Steam launches, per OS, relative to the depot root. */
+/** What Steam launches, per OS, relative to the DEPOT root (which is not the
+ *  export root — see depotMapping). */
 function launchTarget(os, appName) {
     if (os === 'macos') return `${appName}.app`;
     return os === 'windows' ? `${appName}.exe` : appName;
 }
 
-/** What the depot takes from the export directory. Everything else that is there
- *  — the loose cooked content the app already carries — is excluded by not being
- *  mapped, rather than by a rule someone has to maintain. */
+/**
+ * What the depot takes from the export directory.
+ *
+ * Always ANCHORED at the directory the assembler produced, never at the export
+ * root — the root also holds the loose cooked content the app already contains,
+ * so a `*` there would ship every asset twice and say nothing.
+ */
 function depotMapping(os, appName) {
-    const target = launchTarget(os, appName);
     return os === 'macos'
-        ? { LocalPath: `${target}/*`, DepotPath: `${target}/`, recursive: '1' }
-        : { LocalPath: '*', DepotPath: '.', recursive: '1' };
+        ? { LocalPath: `${appName}.app/*`, DepotPath: `${appName}.app/`, recursive: '1' }
+        : { LocalPath: `${appName}/*`, DepotPath: '.', recursive: '1' };
 }
 
 /**
