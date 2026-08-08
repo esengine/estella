@@ -25,7 +25,7 @@ import {
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
-import { assembleMacApp } from '../utils/desktopApp.js';
+import { assembleDesktopApp } from '../utils/desktopApp.js';
 import { assembleApk, apkFileName } from '../utils/apk.js';
 import { assembleAab, aabFileName } from '../utils/aab.js';
 import { debugSigningKey, signingKeyFromPem } from '../utils/androidKeystore.js';
@@ -685,15 +685,17 @@ function requireTemplate(platform) {
  * template stayed on the machine that built it.
  */
 async function packageDesktopApp(options) {
-    const template = requireTemplate('macos');
+    const platform = hostDesktopTarget();
+    const template = requireTemplate(platform);
     const contentDir = packagedContent(options);
     const app = readAppConfig(contentDir, (m) => logger.warn(m));
     const outDir = options.out
         ? (path.isAbsolute(options.out) ? options.out : path.join(config.paths.root, options.out))
         : path.dirname(contentDir);
 
-    logger.step(`Assembling ${app.name}.app...`);
-    const bundle = await assembleMacApp({
+    logger.step(`Assembling ${app.name} for ${platform}...`);
+    const bundle = await assembleDesktopApp({
+        platform,
         templateDir: template.dir,
         contentDir,
         outDir,
@@ -703,8 +705,8 @@ async function packageDesktopApp(options) {
         signIdentity: options.signIdentity,
         warn: (m) => logger.warn(m),
     });
-    logger.success(`macOS app: ${path.relative(config.paths.root, bundle) || bundle}`);
-    logger.info(`Run it with: open "${bundle}"`);
+    logger.success(`${platform} app: ${path.relative(config.paths.root, bundle) || bundle}`);
+    logger.info(platform === 'macos' ? `Run it with: open "${bundle}"` : `Run it: ${bundle}`);
     return bundle;
 }
 

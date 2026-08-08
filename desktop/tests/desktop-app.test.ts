@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { assembleMacApp } from '../../build-tools/utils/desktopApp.js';
+import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
 import { pngToIcns, pngSize } from '../../build-tools/utils/icns.js';
 import { templateLayout, desktopTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
 
@@ -71,7 +71,7 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 describe('macOS app assembly', () => {
     it('produces a bundle named and executed by the app, not by the runtime', async () => {
-        const bundle = await assembleMacApp({ templateDir, contentDir, outDir, app: APP });
+        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         expect(bundle).toBe(path.join(outDir, 'Acme Game.app'));
         // The executable carries the app's name because on desktop the executable
         // IS the identity — the host reads its own argv[0] rather than a config.
@@ -80,7 +80,7 @@ describe('macOS app assembly', () => {
     });
 
     it('puts the runtime bytecode in the SAME asset namespace as the game', async () => {
-        const bundle = await assembleMacApp({ templateDir, contentDir, outDir, app: APP });
+        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         const content = path.join(bundle, 'Contents/Resources/Content');
         expect(readFileSync(path.join(content, 'game.config.json'), 'utf8')).toContain('entryScene');
         // Beside the game's files, since that is the one path readAsset resolves.
@@ -89,8 +89,8 @@ describe('macOS app assembly', () => {
     });
 
     it('fills the identity into Info.plist', async () => {
-        const bundle = await assembleMacApp({
-            templateDir, contentDir, outDir, app: APP, macosMin: '12.3',
+        const bundle = await assembleDesktopApp({
+            platform: 'macos', templateDir, contentDir, outDir, app: APP, macosMin: '12.3',
         });
         const plist = readFileSync(path.join(bundle, 'Contents/Info.plist'), 'utf8');
         expect(plist).toContain('<string>Acme Game</string>');
@@ -102,21 +102,61 @@ describe('macOS app assembly', () => {
 
     it('refuses a content dir that is not an export', async () => {
         rmSync(path.join(contentDir, 'game.config.json'));
-        await expect(assembleMacApp({ templateDir, contentDir, outDir, app: APP }))
+        await expect(assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP }))
             .rejects.toThrow(/not an editor export/);
     });
 
     it('refuses a template with no runtime in it', async () => {
         rmSync(desktopTemplateSources(templateDir).executable);
-        await expect(assembleMacApp({ templateDir, contentDir, outDir, app: APP }))
+        await expect(assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP }))
             .rejects.toThrow(/no executable/);
     });
 
     it('reassembling replaces the bundle rather than merging into it', async () => {
-        const bundle = await assembleMacApp({ templateDir, contentDir, outDir, app: APP });
+        const bundle = await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         writeFileSync(path.join(bundle, 'Contents/Resources/Content/stale.txt'), 'x');
-        await assembleMacApp({ templateDir, contentDir, outDir, app: APP });
+        await assembleDesktopApp({ platform: 'macos', templateDir, contentDir, outDir, app: APP });
         expect(existsSync(path.join(bundle, 'Contents/Resources/Content/stale.txt'))).toBe(false);
+    });
+});
+
+describe('Windows assembly', () => {
+    beforeEach(() => {
+        // The Windows template names its runtime .exe and carries the HLSL compiler.
+        writeFileSync(path.join(templateDir, 'estella_desktop.exe'), 'runtime');
+        writeFileSync(path.join(templateDir, 'd3dcompiler_47.dll'), 'compiler');
+    });
+
+    it('lays the app out as a directory the depot can map whole', async () => {
+        const root = await assembleDesktopApp({
+            platform: 'windows', templateDir, contentDir, outDir, app: APP,
+        });
+        expect(root).toBe(path.join(outDir, 'Acme Game'));
+        expect(existsSync(path.join(root, 'Acme Game.exe'))).toBe(true);
+        expect(existsSync(path.join(root, 'Content', 'game.config.json'))).toBe(true);
+        // One namespace, as on macOS: the runtime's bytecode joins the game's files.
+        expect(existsSync(path.join(root, 'Content', 'esengine.native.qjsbc'))).toBe(true);
+    });
+
+    it('ships the HLSL compiler, without which Dawn creates no device at all', async () => {
+        const root = await assembleDesktopApp({
+            platform: 'windows', templateDir, contentDir, outDir, app: APP,
+        });
+        expect(existsSync(path.join(root, 'd3dcompiler_47.dll'))).toBe(true);
+    });
+
+    it('writes no Info.plist and no icns — those describe a bundle', async () => {
+        const root = await assembleDesktopApp({
+            platform: 'windows', templateDir, contentDir, outDir, app: APP,
+        });
+        expect(existsSync(path.join(root, 'Info.plist'))).toBe(false);
+        expect(existsSync(path.join(root, 'AppIcon.icns'))).toBe(false);
+    });
+
+    it('refuses a platform with no layout', async () => {
+        await expect(assembleDesktopApp({
+            platform: 'linux' as 'windows', templateDir, contentDir, outDir, app: APP,
+        })).rejects.toThrow(/no desktop layout/);
     });
 });
 

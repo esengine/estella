@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-//
 /**
  * @file  The desktop assembler: a runtime template plus an editor export, out the
  *        other side a thing you can double-click.
@@ -9,6 +8,10 @@
  * §3) — the toolchain stays on the machine that built the template and this step
  * is pure Node. Desktop had no such step at all: it wrote an npm project and
  * asked the user to install electron-builder.
+ *
+ * ONE function for every desktop OS, because they differ in less than they share:
+ * a directory named for the app, the runtime renamed to it, one asset namespace,
+ * an icon. Only the shape of that directory and how it is signed are per-OS.
  */
 
 import path from 'path';
@@ -22,24 +25,49 @@ import { fillTemplate } from './nativeApp.js';
 const PLIST_DEFAULT_MIN = '11.0';
 
 /**
- * Assemble `<out>/<name>.app` from @p template and @p contentDir.
+ * Where each OS puts the pieces, relative to the directory the assembler produces.
  *
- * The bundle's Resources hold ONE asset namespace — the game's exported files
- * plus the runtime's precompiled bytecode — because that is what the host reads
+ * `root` is that directory's own name — it is what the Steam depot maps and what
+ * a player drags, so it is the app's name on both.
+ */
+const LAYOUT = {
+    macos: {
+        root: (name) => `${name}.app`,
+        executable: (name) => path.join('Contents', 'MacOS', name),
+        content: path.join('Contents', 'Resources', 'Content'),
+        beside: path.join('Contents', 'Resources'),
+    },
+    windows: {
+        root: (name) => name,
+        executable: (name) => `${name}.exe`,
+        content: 'Content',
+        beside: '.',
+    },
+};
+
+/**
+ * Assemble the app for @p platform from a runtime template and an export.
+ *
+ * The app's asset directory holds ONE namespace — the game's exported files plus
+ * the runtime's precompiled bytecode — because that is what the host reads
  * through Platform::readAsset, exactly as the APK's assets/ is one namespace.
  *
  * @param {object} options
+ * @param {'macos'|'windows'} options.platform
  * @param {string} options.templateDir Installed runtime template.
  * @param {string} options.contentDir  The editor export to ship.
- * @param {string} options.outDir      Where the .app is written.
+ * @param {string} options.outDir      Where the app directory is written.
  * @param {{id: string, name: string, version: string, versionCode: number}} options.app
  * @param {string} [options.iconPng]   Project icon; the template's is used otherwise.
  * @param {string} [options.macosMin]  LSMinimumSystemVersion.
- * @returns {Promise<string>} the bundle's path.
+ * @returns {Promise<string>} the app directory's path.
  */
-export async function assembleMacApp(options) {
-    const { templateDir, contentDir, outDir, app } = options;
-    const sources = desktopTemplateSources(templateDir);
+export async function assembleDesktopApp(options) {
+    const { platform, templateDir, contentDir, outDir, app } = options;
+    const layout = LAYOUT[platform];
+    if (!layout) throw new Error(`no desktop layout for "${platform}" (macos, windows)`);
+
+    const sources = desktopTemplateSources(templateDir, platform);
     if (!existsSync(sources.executable)) {
         throw new Error(`runtime template has no executable at ${sources.executable}`);
     }
@@ -47,49 +75,54 @@ export async function assembleMacApp(options) {
         throw new Error(`${contentDir} is not an editor export (no game.config.json)`);
     }
 
-    // The bundle is named by the app, and so is the executable inside it: on
+    // The directory is named by the app, and so is the executable inside it: on
     // desktop the executable IS the identity, which is why the host reads its own
     // name rather than parsing a config (see desktop.cpp appName).
-    const bundle = path.join(outDir, `${app.name}.app`);
-    await rm(bundle, { recursive: true, force: true });
-    const macos = path.join(bundle, 'Contents', 'MacOS');
-    const resources = path.join(bundle, 'Contents', 'Resources');
-    await mkdir(macos, { recursive: true });
-    await mkdir(resources, { recursive: true });
+    const root = path.join(outDir, layout.root(app.name));
+    await rm(root, { recursive: true, force: true });
 
-    const executable = path.join(macos, app.name);
+    const executable = path.join(root, layout.executable(app.name));
+    await mkdir(path.dirname(executable), { recursive: true });
     await cp(sources.executable, executable);
     await chmod(executable, 0o755);
 
-    // Entry by entry: the bundle usually lands INSIDE the export directory (the
-    // layout Android has), and copying a directory into itself is refused before
-    // any filter is consulted. Bundles are skipped as not-content.
-    const content = path.join(resources, 'Content');
+    // Entry by entry: the app directory usually lands INSIDE the export directory
+    // (the layout Android has), and copying a directory into itself is refused
+    // before any filter is consulted. Previous packages are skipped as not-content.
+    const content = path.join(root, layout.content);
     await mkdir(content, { recursive: true });
+    const packaged = new Set(Object.values(LAYOUT).map((l) => l.root(app.name)));
     for (const entry of await readdir(contentDir)) {
-        if (entry.endsWith('.app')) continue;
+        if (entry.endsWith('.app') || packaged.has(entry)) continue;
         await cp(path.join(contentDir, entry), path.join(content, entry), { recursive: true });
     }
     if (existsSync(sources.bytecode)) {
         await cp(sources.bytecode, path.join(content, path.basename(sources.bytecode)));
     }
 
-    const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;
-    if (existsSync(iconPng)) {
-        await writeFile(path.join(resources, 'AppIcon.icns'), pngToIcns(await readFile(iconPng)));
+    // Whatever else the runtime needs beside the executable. On Windows that is
+    // the HLSL compiler Dawn loads before it can create a device at all.
+    if (platform === 'windows' && existsSync(sources.d3dCompiler)) {
+        await cp(sources.d3dCompiler, path.join(root, path.basename(sources.d3dCompiler)));
     }
 
-    const template = await readFile(sources.infoPlistIn, 'utf8');
-    await writeFile(path.join(bundle, 'Contents', 'Info.plist'), fillTemplate(template, {
-        APP_NAME: app.name,
-        APP_ID: app.id,
-        VERSION_NAME: app.version,
-        VERSION_CODE: String(app.versionCode),
-        MACOS_MIN: options.macosMin || PLIST_DEFAULT_MIN,
-    }));
+    const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;
+    if (platform === 'macos' && existsSync(iconPng)) {
+        await writeFile(path.join(root, layout.beside, 'AppIcon.icns'), pngToIcns(await readFile(iconPng)));
+    }
 
-    await signBundle(bundle, options);
-    return bundle;
+    if (platform === 'macos') {
+        const template = await readFile(sources.infoPlistIn, 'utf8');
+        await writeFile(path.join(root, 'Contents', 'Info.plist'), fillTemplate(template, {
+            APP_NAME: app.name,
+            APP_ID: app.id,
+            VERSION_NAME: app.version,
+            VERSION_CODE: String(app.versionCode),
+            MACOS_MIN: options.macosMin || PLIST_DEFAULT_MIN,
+        }));
+        await signBundle(root, options);
+    }
+    return root;
 }
 
 /**

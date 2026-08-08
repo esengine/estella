@@ -46,7 +46,7 @@ import { emitAndroidGradleProject } from '../../build-tools/utils/gradleProject.
 import { androidTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
 import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
 import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
-import { assembleMacApp } from '../../build-tools/utils/desktopApp.js';
+import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
@@ -726,9 +726,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         warnings.push('No desktop runtime template is installed for this editor version, so no app '
           + 'was assembled — the content is here. Install one from the Desktop row in Package '
           + 'Project, then export again.');
-      } else if (process.platform === 'darwin') {
-        progress({ phase: 'Assembling the app bundle' });
-        appBundle = await assembleMacApp({
+      } else if (process.platform === 'darwin' || process.platform === 'win32') {
+        progress({ phase: 'Assembling the app' });
+        appBundle = await assembleDesktopApp({
+          platform: process.platform === 'darwin' ? 'macos' : 'windows',
           templateDir: template, contentDir: absOut, outDir: absOut, app: appConfig,
           iconPng: opts.appIcon ? path.join(opts.root, opts.appIcon) : undefined,
           warn: (m: string) => warnings.push(m),

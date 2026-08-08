@@ -10,12 +10,14 @@ export interface DesktopAppIdentity {
     versionCode: number;
 }
 
-export function assembleMacApp(options: {
-    /** An installed macos runtime template. */
+export function assembleDesktopApp(options: {
+    /** Which desktop OS the app is for; also which template layout is read. */
+    platform: 'macos' | 'windows';
+    /** An installed runtime template for that OS. */
     templateDir: string;
     /** The export: cooked content plus the two configs. */
     contentDir: string;
-    /** Where `<name>.app` is written. */
+    /** Where the app directory is written. */
     outDir: string;
     app: DesktopAppIdentity;
     /** Square PNG; the template's mark is used when absent. */
