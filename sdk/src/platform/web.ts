@@ -336,7 +336,13 @@ class WebPlatformAdapter implements PlatformAdapter {
      */
     onContextLost(callback: () => void): () => void {
         if (typeof window === 'undefined') return () => {};
-        const onLost = (): void => { callback(); };
+        const onLost = (e: Event): void => {
+            // Without this the browser's default action is to abandon the context
+            // permanently: `webglcontextrestored` never fires, and no amount of
+            // recovery code downstream gets a chance to matter.
+            e.preventDefault();
+            callback();
+        };
         window.addEventListener('webglcontextlost', onLost, true);
         return () => window.removeEventListener('webglcontextlost', onLost, true);
     }

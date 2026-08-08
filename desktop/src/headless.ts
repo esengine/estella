@@ -32,6 +32,7 @@ declare global {
         recover(): boolean;
         finishRecovery(): void;
         lose(): boolean;
+        contextLost(): boolean | null;
         restore(): boolean;
       };
     };
@@ -69,6 +70,10 @@ window.__estellaHeadless = {
     report: () => getDeviceLostReport(),
     recover: () => recoverDevice(),
     finishRecovery: () => finishDeviceRecovery(),
+    contextLost: () => {
+      const gl = EngineHost.canvas?.getContext('webgl2') as WebGL2RenderingContext | null;
+      return gl ? gl.isContextLost() : null;
+    },
     lose: () => {
       const ext = loseContextExtension();
       if (!ext) return false;

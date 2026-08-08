@@ -224,15 +224,19 @@ app.whenReady().then(async () => {
         const out = { supported: d.lose() };
         if (!out.supported) return out;
 
-        // The browser reports the loss to JS asynchronously; step so the engine's
-        // own poll sees it too, then confirm it refuses to submit.
-        await new Promise((r) => setTimeout(r, 100));
-        api.step(3, 1 / 60);
+        // The browser reports the loss asynchronously and the engine polls on its
+        // own frame, so both are waited for rather than assumed.
+        for (let i = 0; i < 30 && d.status() === 0; i++) {
+          api.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 50));
+        }
         out.statusAfterLoss = d.status();
         out.reportAfterLoss = d.report();
 
+        out.glLostBeforeRestore = d.contextLost();
         d.restore();
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 500));
+        out.glLostAfterRestore = d.contextLost();
 
         // A context comes back when the browser is ready, not when asked.
         out.recovered = false;

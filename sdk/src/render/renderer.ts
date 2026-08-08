@@ -4,6 +4,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
 import { requireResourceManager } from '../wasm/resourceManager';
+import { platformOnContextLost } from '../platform';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 
 export enum RenderStage {
@@ -202,10 +203,28 @@ export function watchWebGPUDeviceLoss(wasmModule: ESEngineModule): void {
     });
 }
 
+let lossGuardInstalled = false;
+
+/**
+ * Subscribe to context loss unconditionally, at renderer init.
+ *
+ * The subscription is what calls preventDefault, and without that the browser
+ * abandons the context for good. That decision belongs to the renderer, not to
+ * whether a diagnostics plugin happens to be installed.
+ */
+function installContextLossGuard(): void {
+    if (lossGuardInstalled) return;
+    lossGuardInstalled = true;
+    platformOnContextLost(() => {
+        reportDeviceLost(DeviceLostReason.ContextLost, 'The host reported the rendering context was lost');
+    });
+}
+
 /** @internal Wired by the engine plugins — not part of the public API. */
 export function initRendererAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
+    installContextLossGuard();
     viewProjectionPtr = module._malloc(16 * 4);
     backend = wasmBackend(module);
 }
