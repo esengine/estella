@@ -12,6 +12,36 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **A 50,000-asset project, and a set of costs it has to stay under.** Every scale
+  problem this engine has had was reported by someone whose project was big enough
+  to notice — 36k assets where deleting 22 files took 52 seconds, a folder of 788
+  sprites that decoded 26 megapixels to show twenty. Nothing in this repository
+  was ever that big: the examples exist to teach, so they are small, and a cost
+  that only appears at 50k assets was invisible here until a user met it.
+  `node tools/stress-project.mjs` generates one — 50,000 assets, 10,000 sprites,
+  5,000 UI nodes with masks inside masks, 2,000 physics bodies, 500 skeletons,
+  3,000 prefab instances with overrides, a 256×256×4 tilemap, and one scene
+  holding all of it. It is generated rather than committed because 100,000 files
+  would sit in front of every clone to store bytes that are a pure function of one
+  script; the same seed gives the same tree byte for byte, in about eight seconds.
+  `pnpm run scale` measures seventeen costs against it and holds each to a
+  declared ceiling: project scan, incremental re-scan, delete, Find Usages, scene
+  open and save, prefab instantiate, per-frame update, and what a scene retains
+  after twenty open/close cycles.
+
+  The ceilings are the point. The performance snapshot that already existed
+  answers "did this change make it worse", and can always be accepted with
+  `--update` — so a feature that takes scene-open from 200ms to 900ms passes by
+  rewriting the number it is compared against. A ceiling cannot be raised by the
+  change that breaks it. Because milliseconds do not survive a two-core shared
+  runner, every budget is denominated in a reference workload measured in the same
+  run — parse, loop, or file-read, whichever matches the metric's shape — so the
+  same number means the same thing on a laptop and in CI.
+
 ## [0.46.0] - 2026-08-07
 
 ### Added
