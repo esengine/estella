@@ -54,6 +54,9 @@ constexpr const char* kUserAccessors[] = {
 constexpr const char* kFriendsAccessors[] = {
     "SteamAPI_SteamFriends_v018", "SteamAPI_SteamFriends_v017", "SteamAPI_SteamFriends_v016",
 };
+constexpr const char* kUtilsAccessors[] = {
+    "SteamAPI_SteamUtils_v011", "SteamAPI_SteamUtils_v010", "SteamAPI_SteamUtils_v009",
+};
 
 void* openLibrary(const char* name) {
 #if defined(_WIN32)
@@ -98,6 +101,7 @@ using PfnGetStatInt32 = bool (*)(void* self, const char* name, std::int32_t* out
 using PfnGetSteamID = std::uint64_t (*)(void* self);
 using PfnGetPersonaName = const char* (*)(void* self);
 using PfnActivateGameOverlay = void (*)(void* self, const char* dialog);
+using PfnIsOverlayEnabled = bool (*)(void* self);
 
 /**
  * Manual dispatch — how a binding that carries no Valve header reads callbacks.
@@ -150,6 +154,7 @@ struct Fns {
     PfnManualDispatchGetNextCallback dispatchNext = nullptr;
     PfnManualDispatchFreeLastCallback dispatchFree = nullptr;
     PfnActivateGameOverlay activateOverlay = nullptr;
+    PfnIsOverlayEnabled isOverlayEnabled = nullptr;
     PfnSetAchievement setAchievement = nullptr;
     PfnGetAchievement getAchievement = nullptr;
     PfnClearAchievement clearAchievement = nullptr;
@@ -257,6 +262,11 @@ bool SteamApi::init(std::uint32_t appId, const std::string& directory) {
         symbol(library_, "SteamAPI_ISteamFriends_GetPersonaName"));
     g_fns.activateOverlay = reinterpret_cast<PfnActivateGameOverlay>(
         symbol(library_, "SteamAPI_ISteamFriends_ActivateGameOverlay"));
+    const char* utilsVersion = "";
+    utils_ = resolveInterface(library_, kUtilsAccessors,
+                              (int)(sizeof(kUtilsAccessors) / sizeof(char*)), &utilsVersion);
+    g_fns.isOverlayEnabled = reinterpret_cast<PfnIsOverlayEnabled>(
+        symbol(library_, "SteamAPI_ISteamUtils_IsOverlayEnabled"));
 
     // Manual dispatch, AFTER init and before any other dispatch call — that order
     // is Valve's, and the wrong one leaves a pipe that answers nothing.
@@ -341,7 +351,11 @@ void SteamApi::pump() {
     if (traceCallbacks_ && !selfCheckDone_
         && std::chrono::steady_clock::now() - traceStart_ >= kSelfCheckDelay) {
         selfCheckDone_ = true;
-        ESHOST_LOGI("steam: self-check opening the overlay");
+        // Whether the overlay CAN draw at all. A game not launched by Steam gets
+        // the hook injected and the overlay still disabled, and the difference is
+        // invisible from the outside: both look like a callback that never came.
+        const bool enabled = utils_ && g_fns.isOverlayEnabled && g_fns.isOverlayEnabled(utils_);
+        ESHOST_LOGI("steam: self-check opening the overlay (IsOverlayEnabled=%d)", enabled ? 1 : 0);
         activateOverlay();
     }
     g_fns.dispatchRunFrame(pipe_);

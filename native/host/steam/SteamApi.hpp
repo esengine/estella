@@ -113,6 +113,7 @@ class SteamApi {
     bool selfCheckDone_ = false;
     std::chrono::steady_clock::time_point traceStart_{};
     void* friends_ = nullptr;
+    void* utils_ = nullptr;
     std::string error_;
 };
 
