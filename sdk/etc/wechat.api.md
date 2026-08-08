@@ -6198,6 +6198,7 @@ name: string
 registerDrawCallback: (id: string, fn: DrawCallback) => void
 setPersistent: (entity: Entity, persistent: boolean) => void
 spawn: () => Entity
+trackAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void
 unbindPostProcess: (camera: Entity) => void
 ```
 

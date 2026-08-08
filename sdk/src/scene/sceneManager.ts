@@ -44,6 +44,13 @@ export interface SceneContext {
     spawn(): Entity;
     /** Track an externally-spawned entity as scene-owned (despawned on unload). */
     adopt(entity: Entity): void;
+    /**
+     * Track assets a loader acquired for this scene, so unload gives them back.
+     *
+     * The asset half of {@link adopt}: a scene whose data arrives inside `setup`
+     * preloads its own, and a reference nothing records is one nothing releases.
+     */
+    trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
     bindPostProcess(camera: Entity, stack: PostProcessStack): void;
@@ -121,6 +128,17 @@ class SceneContextImpl implements SceneContext {
             scene: this.instance_.config.name,
             persistent: false,
         });
+    }
+
+    trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void {
+        for (const [type, paths] of byType) {
+            // Materials are handle-keyed and skeletons belong to the
+            // SpineManager; both are released through their own doors.
+            if (type === 'material' || type === 'spine') continue;
+            let bucket = this.instance_.loadedByType.get(type);
+            if (!bucket) { bucket = new Set(); this.instance_.loadedByType.set(type, bucket); }
+            for (const path of paths) bucket.add(path);
+        }
     }
 
     despawn(entity: Entity): void {

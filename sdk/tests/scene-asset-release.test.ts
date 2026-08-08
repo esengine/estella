@@ -112,6 +112,37 @@ describe('Scene unload releases all tracked asset categories', () => {
         }
     });
 
+    it('releases assets a scene tracked from inside setup (the packaged-game shape)', async () => {
+        // A packaged game's config carries no `data`: the bytes arrive inside
+        // setup(), which preloads its own. Unless that loader REPORTS what it
+        // acquired, unload releases nothing at all.
+        const releasedTextures: string[] = [];
+        const releasedTyped: Array<[string, string]> = [];
+        const app = createMockApp({
+            releaseTexture: (r: string) => { releasedTextures.push(r); },
+            releaseTyped: (t: string, r: string) => { releasedTyped.push([t, r]); },
+        });
+        const manager = new SceneManagerState(app as never);
+
+        manager.register({
+            name: 'packaged',
+            // No `data` — exactly what createRuntimeSceneConfig produces.
+            setup: (ctx) => {
+                ctx.trackAssets(new Map([
+                    ['texture', new Set(['tex/hero.png'])],
+                    ['audio', new Set(['sfx/hit.wav'])],
+                    ['tileset', new Set(['maps/tiles.estileset'])],
+                ]));
+            },
+        });
+        await manager.load('packaged');
+        await manager.unload('packaged');
+
+        expect(releasedTextures, 'a packaged scene released no textures').toContain('tex/hero.png');
+        expect(releasedTyped).toContainEqual(['audio', 'sfx/hit.wav']);
+        expect(releasedTyped).toContainEqual(['tileset', 'maps/tiles.estileset']);
+    });
+
     it('releases every type the scene acquired, whatever its type', async () => {
         const releasedTextures: string[] = [];
         const releasedTyped: Array<[string, string]> = [];
