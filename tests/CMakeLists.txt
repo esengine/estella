@@ -202,15 +202,15 @@ add_test(NAME test_boundary_span COMMAND test_boundary_span)
 # DrawCommand producer for every stream. Compiles BatchBuilder/DrawList/
 # TransientBufferPool against the MockGfxDevice and asserts per-stream baseVertex
 # math, texture-slot rules, instanced assembly, merge behavior, and execute() dispatch.
+#
+# LINKED against the engine rather than compiled from a hand-listed set of its
+# sources: that list said which units BatchBuilder needs, and stopped being true
+# the day a material started resolving its texture through the ResourceManager —
+# a link error, on every push, for as long as nobody read the C++ job's log.
 add_executable(test_batch_builder
     renderer/test_batch_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/BatchBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawList.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/TransientBufferPool.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/store/MaterialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/frame/FrameCapture.cpp
-    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
+target_link_libraries(test_batch_builder PRIVATE esengine)
 target_include_directories(test_batch_builder PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/third_party/glm
