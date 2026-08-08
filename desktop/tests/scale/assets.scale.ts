@@ -10,7 +10,7 @@
  * 36k assets, 52 seconds to delete 22 files. The corpus is bigger than that.
  */
 import { describe, it, beforeAll, expect } from 'vitest';
-import { readFile, writeFile, rm } from 'node:fs/promises';
+import { readFile, writeFile, rm, rename } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -108,6 +108,37 @@ describe(GROUP, () => {
             runs: 5,
         }, () => collectAssetUsagesOfAll(index, ['assets/textures/_bulk/tex-00100.png']));
     }, 300_000);
+
+    it('incremental scan after 22 files are renamed', async () => {
+        // Dragging a folder's worth somewhere else. An added path makes
+        // resolution global again, so this one is allowed to cost more than a
+        // delete — but still less than re-walking the tree.
+        const rels = Array.from({ length: 22 }, (_, i) => `assets/textures/_bulk/tex-${String(300 + i).padStart(5, '0')}.png`);
+        const moved: Array<[string, string]> = [];
+        for (const rel of rels) {
+            for (const f of [rel, `${rel}.meta`]) moved.push([f, f.replace('/tex-', '/moved-')]);
+        }
+        for (const [from, to] of moved) await rename(path.join(root, from), path.join(root, to));
+        try {
+            await budgeted({
+                name: 'assetdb: incremental scan, 22 files renamed',
+                group: GROUP,
+                unit: 'io',
+                budget: 8,
+                why: 'A rename is a removal and an add, and the add is what costs: a path or bare-uuid '
+                    + 'reference that resolved to nothing may now resolve, so the dependency graph is '
+                    + 'genuinely global again. Doing it incrementally must still beat re-walking the tree.',
+                runs: 3,
+            }, async () => {
+                const res = await updateAssetIndex(root, index, moved.flat(), { write: false });
+                expect(res.fullRescan).toBe(false);
+                expect(res.index.entries.length).toBe(50_000);
+                return res;
+            });
+        } finally {
+            for (const [from, to] of moved) await rename(path.join(root, to), path.join(root, from));
+        }
+    }, 600_000);
 
     it('incremental scan after 22 files are deleted', async () => {
         // The reported case, restored afterwards so the corpus survives the run:
