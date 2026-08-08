@@ -330,7 +330,11 @@ void SteamApi::pump() {
     g_fns.dispatchRunFrame(pipe_);
     CallbackMsg msg{};
     while (g_fns.dispatchNext(pipe_, &msg)) {
-        if (traceCallbacks_) ESHOST_LOGI("steam: callback %d (%d bytes)", msg.callback, msg.paramSize);
+        if (traceCallbacks_) {
+            ESHOST_LOGI("steam: callback user=%d id=%d bytes=%d first=%d",
+                        msg.steamUser, msg.callback, msg.paramSize,
+                        msg.param && msg.paramSize > 0 ? (int)msg.param[0] : -1);
+        }
         if (msg.callback == kGameOverlayActivated && msg.param && msg.paramSize > kOverlayActiveOffset) {
             const bool covered = msg.param[kOverlayActiveOffset] != 0;
             if (overlay_) overlay_(covered);
