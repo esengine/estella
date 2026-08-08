@@ -243,7 +243,9 @@ published separately; it ships inside the editor.
   parses no JSON. The size now crosses the seam once, through the projection
   every other setting already travels, and the window is created hidden and shown
   when a frame has been drawn on it rather than sitting empty at a default size
-  for the length of boot.
+  for the length of boot. It also raises itself when shown — a game launched from
+  a shortcut that opens behind the window it was launched from is one the player
+  has to go find, and a store draws its overlay only over the foreground window.
 
 - **A headless export shipped every project setting at its default.** The script
   that packages a project without the editor — the one CI and the render checks
