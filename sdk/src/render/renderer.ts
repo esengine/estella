@@ -169,6 +169,15 @@ export function reportDeviceLost(reason: number, message: string): void {
 }
 
 /**
+ * What the loss guard actually did — where it attached, and how many events it
+ * has seen. An observation point, because every inference about this has been
+ * wrong and only direct measurement has held.
+ */
+export function getContextLossGuardInfo(): { target: string; lostEventsSeen: number } {
+    return { target: lossGuardTarget, lostEventsSeen };
+}
+
+/**
  * Ask the engine to rebuild the renderer after a loss.
  *
  * False means "not yet", not "never": a browser hands a WebGL context back when
@@ -205,6 +214,8 @@ export function watchWebGPUDeviceLoss(wasmModule: ESEngineModule): void {
 }
 
 let lossGuardInstalled = false;
+let lossGuardTarget: 'none' | 'canvas' | 'window' = 'none';
+let lostEventsSeen = 0;
 
 /**
  * Subscribe to context loss unconditionally, at renderer init.
@@ -217,6 +228,7 @@ function installContextLossGuard(m: ESEngineModule): void {
     if (lossGuardInstalled) return;
     lossGuardInstalled = true;
     const onLost = (e?: Event): void => {
+        lostEventsSeen++;
         e?.preventDefault();
         reportDeviceLost(DeviceLostReason.ContextLost, 'The host reported the rendering context was lost');
     };
@@ -226,9 +238,11 @@ function installContextLossGuard(m: ESEngineModule): void {
     // that in a headless host.
     const canvas = findWebGL2Context(m.GL)?.canvas as EventTarget | undefined;
     if (canvas?.addEventListener) {
+        lossGuardTarget = 'canvas';
         canvas.addEventListener('webglcontextlost', onLost as EventListener);
         return;
     }
+    lossGuardTarget = 'window';
     platformOnContextLost(() => onLost());
 }
 

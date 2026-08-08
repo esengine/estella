@@ -172,6 +172,7 @@ export {
     reportDeviceLost,
     recoverDevice,
     finishDeviceRecovery,
+    getContextLossGuardInfo,
 } from './render/renderer';
 
 export {

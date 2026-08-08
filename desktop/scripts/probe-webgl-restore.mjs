@@ -91,6 +91,31 @@ app.whenReady().then(async () => {
     return out;
   })()`, true);
 
-  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow, detached, busy }));
+  // The last difference: the editor host creates its context with these
+  // attributes, preserveDrawingBuffer among them.
+  await win.loadURL(HTML);
+  const hostAttrs = await win.webContents.executeJavaScript(`(async () => {
+    const c = document.getElementById('c');
+    const gl = c.getContext('webgl2', {
+      alpha: false, antialias: true, depth: true, stencil: true,
+      premultipliedAlpha: false, preserveDrawingBuffer: true,
+    });
+    const ext = gl && gl.getExtension('WEBGL_lose_context');
+    const out = { hostAttrs: true, hasExt: !!ext };
+    if (!ext) return out;
+    let restoredFired = false;
+    c.addEventListener('webglcontextlost', (e) => { e.preventDefault(); });
+    c.addEventListener('webglcontextrestored', () => { restoredFired = true; });
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 200));
+    out.lostAfterLose = gl.isContextLost();
+    ext.restoreContext();
+    await new Promise((r) => setTimeout(r, 1500));
+    out.lostAfterRestore = gl.isContextLost();
+    out.restoredEventFired = restoredFired;
+    return out;
+  })()`, true);
+
+  console.log('PROBE ' + JSON.stringify({ onCanvas, onWindow, detached, busy, hostAttrs }));
   app.quit();
 });

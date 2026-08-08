@@ -13,6 +13,7 @@
 import { EngineHost } from './engine/EngineHost';
 import {
   DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice, finishDeviceRecovery,
+  getContextLossGuardInfo,
 } from 'esengine';
 // From EditorSession: importing it constructs the default session (which wires the
 // Reconciler + SceneStore to the model) before the engine boots below.
@@ -33,6 +34,7 @@ declare global {
         finishRecovery(): void;
         lose(): boolean;
         contextLost(): boolean | null;
+        guard(): { target: string; lostEventsSeen: number };
         restore(): boolean;
       };
     };
@@ -55,11 +57,18 @@ const depthLayers = Number(params.get('depthLayers')) || undefined;
 // Taking the context away FOR REAL, through the extension the browser provides
 // for exactly this. Simulating a loss by calling notifyDeviceLost would only
 // test the bookkeeping; the point is to make the GPU objects actually die.
+//
+// Held from before the loss: getExtension on an already-lost context is not
+// required to hand the object back, and restoreContext has to be called on the
+// same one that took the context away.
+let cachedLoseExt: { loseContext(): void; restoreContext(): void } | null = null;
 function loseContextExtension(): { loseContext(): void; restoreContext(): void } | null {
+  if (cachedLoseExt) return cachedLoseExt;
   // The host's canvas, not a query: on WebGL2 it is never attached to the
   // document, so document.querySelector finds nothing.
   const gl = EngineHost.canvas?.getContext('webgl2') as WebGL2RenderingContext | null;
-  return gl?.getExtension('WEBGL_lose_context') ?? null;
+  cachedLoseExt = gl?.getExtension('WEBGL_lose_context') ?? null;
+  return cachedLoseExt;
 }
 
 window.__estellaHeadless = {
@@ -70,6 +79,7 @@ window.__estellaHeadless = {
     report: () => getDeviceLostReport(),
     recover: () => recoverDevice(),
     finishRecovery: () => finishDeviceRecovery(),
+    guard: () => getContextLossGuardInfo(),
     contextLost: () => {
       const gl = EngineHost.canvas?.getContext('webgl2') as WebGL2RenderingContext | null;
       return gl ? gl.isContextLost() : null;

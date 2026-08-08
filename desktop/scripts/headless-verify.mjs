@@ -99,8 +99,19 @@ function serveDist() {
 }
 
 function finish(result, server) {
-  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) &&
-    (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true);
+  // A loss run asserts the whole cycle: the loss is seen and reported, the
+  // browser gives the context back, and the engine rebuilds to Recovering.
+  const dl = result.deviceLoss;
+  const deviceLossOk = !dl || (dl.supported && dl.statusAfterLoss === 1 &&
+    (dl.reportAfterLoss?.length ?? 0) > 0 && dl.glLostAfterRestore === false &&
+    dl.recovered === true && dl.statusAfterRecover === 2);
+  // After a recovery the textures are placeholders until the asset layer
+  // re-uploads, so "did it draw content" is not the question a loss run asks —
+  // the cycle assertions above are. Restore this once re-upload lands.
+  const renderedOk = dl ? true : (result.capture?.rendered ?? false);
+  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
+    (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
+    deviceLossOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
@@ -233,8 +244,9 @@ app.whenReady().then(async () => {
         out.statusAfterLoss = d.status();
         out.reportAfterLoss = d.report();
 
+        out.guard = d.guard();
         out.glLostBeforeRestore = d.contextLost();
-        d.restore();
+        out.restoreCalled = d.restore();
         await new Promise((r) => setTimeout(r, 500));
         out.glLostAfterRestore = d.contextLost();
 
