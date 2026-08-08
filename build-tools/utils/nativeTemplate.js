@@ -39,6 +39,21 @@ export const BYTECODE_FILE = 'esengine.native.qjsbc';
 export const DEFAULT_ICON = 'icon.png';
 
 /**
+ * The HLSL compiler Dawn's D3D backend loads before it can create a device.
+ *
+ * It ships WITH the game rather than being taken from System32: Dawn's own note
+ * says the OS copy has functionality and heap-corruption bugs on older Windows,
+ * so a game carries the SDK's. Dawn looks beside the executable first.
+ */
+export const D3D_COMPILER = 'd3dcompiler_47.dll';
+
+/** Where the Windows SDK keeps the redistributable D3D compiler, newest first. */
+function windowsSdkD3DRedist() {
+    const root = 'C:/Program Files (x86)/Windows Kits/10/Redist/D3D/x64';
+    return existsSync(path.join(root, D3D_COMPILER)) ? path.join(root, D3D_COMPILER) : null;
+}
+
+/**
  * A template's id: ONE per platform.
  *
  * Not per architecture. A platform's template carries every architecture that
@@ -121,6 +136,12 @@ export function templateLayout(platform, options = {}) {
             ...(platform === 'macos' ? [{
                 rel: 'Info.plist.in',
                 from: (ctx) => path.join(ctx.root, 'native', 'desktop', 'Info.plist.in'),
+            }] : []),
+            // Required to create a device at all, so a template without it produces
+            // an app that opens and immediately reports a lost device.
+            ...(platform === 'windows' ? [{
+                rel: D3D_COMPILER, releaseRequired: true, optional: true,
+                from: () => windowsSdkD3DRedist(),
             }] : []),
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
@@ -435,5 +456,7 @@ export function desktopTemplateSources(dir, platform = 'macos') {
         infoPlistIn: path.join(dir, 'Info.plist.in'),
         icon: path.join(dir, DEFAULT_ICON),
         bytecode: path.join(dir, BYTECODE_FILE),
+        /** Windows only; absent elsewhere. */
+        d3dCompiler: path.join(dir, D3D_COMPILER),
     };
 }

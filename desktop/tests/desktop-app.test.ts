@@ -154,8 +154,20 @@ describe('the layout table is the only thing that names files', () => {
     it('describes the macOS template the assembler reads', () => {
         const rels = templateLayout('macos').map((e: { rel: string }) => e.rel);
         const sources = desktopTemplateSources('T');
-        for (const file of Object.values(sources)) {
+        for (const [key, file] of Object.entries(sources)) {
+            // The D3D compiler is Windows-only; macOS has no counterpart.
+            if (key === 'd3dCompiler') continue;
             expect(rels).toContain(path.relative('T', file as string));
         }
+    });
+
+    it('carries the HLSL compiler on Windows, without which no device is created', () => {
+        const rels = templateLayout('windows').map((e: { rel: string }) => e.rel);
+        expect(rels).toContain('d3dcompiler_47.dll');
+        expect(rels).toContain('estella_desktop.exe');
+        // No Info.plist: a bundle description is macOS's, and an entry every
+        // consumer has to check for is worse than a layout that differs where the
+        // platforms do.
+        expect(rels).not.toContain('Info.plist.in');
     });
 });
