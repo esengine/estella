@@ -32,6 +32,8 @@
 
 #include "Host.hpp"
 
+#include "platform/desktop_keymap.hpp"
+
 #if defined(__APPLE__)
 #include "platform/apple_common.hpp"
 #endif
@@ -39,6 +41,11 @@
 using esengine::u32;
 using esengine::u8;
 using esengine::WebGPUDevice;
+using eshost::kGamepadButtonToStandard;
+using eshost::kScancodeNames;
+using eshost::kStandardLeftTrigger;
+using eshost::kStandardRightTrigger;
+using eshost::ScancodeName;
 
 namespace {
 
@@ -46,6 +53,31 @@ namespace {
  *  size every desktop display and every Steam Deck can show without scaling. */
 constexpr int kDefaultWidth = 1280;
 constexpr int kDefaultHeight = 720;
+
+/** Pixels per wheel notch. The same number the web adapter multiplies a
+ *  line-mode wheel event by, so a scroll moves a list equally far in both. */
+constexpr float kWheelLineHeight = 16.0f;
+
+/** SDL numbers mouse buttons from 1, the DOM from 0, and they disagree about the
+ *  middle and right order — hence a mapping rather than a subtraction. */
+int domButton(Uint8 sdlButton) {
+    switch (sdlButton) {
+        case SDL_BUTTON_LEFT: return 0;
+        case SDL_BUTTON_MIDDLE: return 1;
+        case SDL_BUTTON_RIGHT: return 2;
+        case SDL_BUTTON_X1: return 3;
+        case SDL_BUTTON_X2: return 4;
+        default: return 0;
+    }
+}
+
+/** The DOM `code` for a physical key, or null for one the tables do not name. */
+const char* domCode(SDL_Scancode scancode) {
+    for (const ScancodeName& entry : kScancodeNames) {
+        if (entry.scancode == scancode) return entry.code;
+    }
+    return nullptr;
+}
 
 /** Read a whole file, or an empty vector. */
 std::vector<u8> readFileBytes(const std::string& path) {
@@ -146,6 +178,41 @@ struct DesktopPlatform final : eshost::Platform {
                        "[Estella] %s", message);
     }
 
+    // SDL only surfaces a device as a gamepad once it has a mapping for it, so
+    // every pad here really is in the standard layout the SDK assumes.
+    void pollGamepads(std::vector<eshost::GamepadState>& out) override {
+        out.clear();
+        int count = 0;
+        SDL_JoystickID* ids = SDL_GetGamepads(&count);
+        if (!ids) return;
+        for (int i = 0; i < count; ++i) {
+            SDL_Gamepad* pad = SDL_GetGamepadFromID(ids[i]);
+            if (!pad) continue;
+            eshost::GamepadState state;
+            state.index = i;
+            state.connected = true;
+            for (int b = 0; b < (int)(sizeof(kGamepadButtonToStandard) / sizeof(int)); ++b) {
+                if (SDL_GetGamepadButton(pad, (SDL_GamepadButton)b)) {
+                    state.buttons[kGamepadButtonToStandard[b]] = 1.0f;
+                }
+            }
+            // Triggers are axes to SDL and analog BUTTONS to the standard layout,
+            // in [0,32767] rather than the sticks' signed range.
+            state.buttons[kStandardLeftTrigger] =
+                SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.0f;
+            state.buttons[kStandardRightTrigger] =
+                SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 32767.0f;
+            for (int a = 0; a < 4; ++a) {
+                const float raw = SDL_GetGamepadAxis(pad, (SDL_GamepadAxis)a);
+                // 32768 negative vs 32767 positive: dividing by the smaller
+                // magnitude would let a stick read past -1.
+                state.axes[a] = raw < 0 ? raw / 32768.0f : raw / 32767.0f;
+            }
+            out.push_back(state);
+        }
+        SDL_free(ids);
+    }
+
 #if defined(__APPLE__)
     eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
         return eshost::appleLoadFont(family, codepoint, style);
@@ -242,7 +309,9 @@ int main(int argc, char** argv) {
     }
 
     bool running = true;
-    bool pointerDown = false;
+    // SDL reports mouse positions in window coordinates; the host contract is
+    // surface pixels, as it is for touch.
+    auto pixelScale = [&] { return SDL_GetWindowPixelDensity(window); };
 
     auto handleEvent = [&](const SDL_Event& e) {
         switch (e.type) {
@@ -262,28 +331,44 @@ int main(int argc, char** argv) {
                 eshost::setVisible(true);
                 eshost::bindSurface();
                 break;
-            // Mouse as the primary pointer, so a touch-built game is playable.
-            // The real desktop surface (other buttons, wheel, keyboard, gamepads)
-            // is S2 — Host.hpp takes only touch today.
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (e.button.button == SDL_BUTTON_LEFT) {
-                    pointerDown = true;
-                    const float s = SDL_GetWindowPixelDensity(window);
-                    eshost::touch(0, 0, e.button.x * s, e.button.y * s);
-                }
+                eshost::pointer(0, domButton(e.button.button),
+                                e.button.x * pixelScale(), e.button.y * pixelScale());
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                if (pointerDown) {
-                    const float s = SDL_GetWindowPixelDensity(window);
-                    eshost::touch(1, 0, e.motion.x * s, e.motion.y * s);
-                }
+                // Unconditionally, as the web does: hover is an event there and a
+                // game that only heard about motion while a button was held could
+                // not implement one.
+                eshost::pointer(1, 0, e.motion.x * pixelScale(), e.motion.y * pixelScale());
                 break;
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                if (e.button.button == SDL_BUTTON_LEFT && pointerDown) {
-                    pointerDown = false;
-                    const float s = SDL_GetWindowPixelDensity(window);
-                    eshost::touch(2, 0, e.button.x * s, e.button.y * s);
+                eshost::pointer(2, domButton(e.button.button),
+                                e.button.x * pixelScale(), e.button.y * pixelScale());
+                break;
+            case SDL_EVENT_MOUSE_WHEEL: {
+                // SDL counts notches, positive AWAY from the user; the DOM counts
+                // pixels, positive TOWARD the content's end. So the vertical sign
+                // flips and both scale by the same line height the web adapter uses.
+                const float flip = e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                eshost::wheel(e.wheel.x * flip * kWheelLineHeight,
+                              -e.wheel.y * flip * kWheelLineHeight);
+                break;
+            }
+            case SDL_EVENT_KEY_DOWN:
+            case SDL_EVENT_KEY_UP:
+                // Repeats included: the DOM fires them too, and a game that reads
+                // the key's state is unaffected either way.
+                if (const char* code = domCode(e.key.scancode)) {
+                    eshost::key(e.type == SDL_EVENT_KEY_DOWN, code);
                 }
+                break;
+            // A pad appears as a joystick first; opening it is what makes SDL
+            // report it as a gamepad, and pollGamepads only sees opened ones.
+            case SDL_EVENT_GAMEPAD_ADDED:
+                SDL_OpenGamepad(e.gdevice.which);
+                break;
+            case SDL_EVENT_GAMEPAD_REMOVED:
+                if (SDL_Gamepad* pad = SDL_GetGamepadFromID(e.gdevice.which)) SDL_CloseGamepad(pad);
                 break;
             default:
                 break;
