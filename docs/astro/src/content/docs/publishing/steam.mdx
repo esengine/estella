@@ -1,0 +1,137 @@
+---
+title: Steam
+description: Ship an Estella game on Steam — the native desktop build, the depot scripts the export writes, achievements, cloud saves, and the settings only the partner backend holds.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Steam is a **channel on the desktop target**, not a platform of its own. It defines
+no runtime, no renderer and no asset format — it defines where a desktop build
+goes. So there is no "Steam build": there is a desktop build, and a switch that
+also writes what SteamPipe needs.
+
+The desktop build is a **native app** — the engine's C++ core with an embedded
+[Dawn](https://dawn.googlesource.com/dawn) (Metal on macOS, D3D12 on Windows) and
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs), on SDL3. There is no browser
+in the process, which is also why the Steam overlay, Steam Input and exclusive
+fullscreen behave the way players expect them to.
+
+<Aside type="note" title="One download per editor version">
+  The engine's compiled half is a **runtime template** you install once per editor
+  version (Package Project → the Desktop row). One per OS: install the Windows
+  template on a Mac and the same export produces the Windows build too — the
+  assembler is plain Node and does not care which OS runs it.
+</Aside>
+
+## What you need
+
+<Steps>
+
+1. **A Steamworks app.** An App ID from the partner backend — depots, launch
+   options and achievements live there and no build can write to them.
+
+2. **The Steamworks SDK**, downloaded from the partner site. Estella ships no copy
+   of it: its redistribution is licensed to Steamworks partners, and the runtime
+   template is one prebuilt binary shared by every game made with the engine.
+
+3. **`steamcmd`**, Valve's uploader. Log in with it once in a terminal so Steam
+   Guard is satisfied and cached — nothing in Estella stores a password.
+
+</Steps>
+
+## Setting it up
+
+**Project Settings → Packaging**:
+
+| Setting | What it is |
+|---|---|
+| **Desktop → Channel** | `Steam` — writes the depot scripts beside the build. |
+| **Steam App ID** | From the partner backend. Without it no scripts are written: a script built around a guessed id names someone else's game. |
+| **Steamworks SDK** | The SDK you downloaded. Its `redistributable_bin/<os>/` library ships inside the app. |
+| **Depot IDs** | Leave at 0 to use `App ID + 1`, … Valve *assigns* these; the generated checklist tells you to check them. |
+| **Achievements** | The ids your game unlocks (`packaging.achievements`), platform-neutral — every store has this same list under a different name. |
+
+Then **Package Project → Desktop**. Beside the app you get:
+
+```
+dist-desktop/
+  MyGame.app/            ← macOS, and/or
+  MyGame/                ← Windows: MyGame.exe + Content/
+  steam/
+    app_build_<appid>.vdf
+    depot_<id>_<os>.vdf
+  STEAM.md               ← this build's own values
+```
+
+`STEAM.md` is the part worth reading. Generic instructions belong in docs like this
+one; what cannot be looked up is what **this** build needs pasted where — the launch
+executable per OS, the depot ids it used, the Auto-Cloud paths the game really
+writes to, and the achievement ids to create.
+
+## Uploading
+
+```bash
+steamcmd +login <your-account> +run_app_build "…/steam/app_build_<appid>.vdf" +quit
+```
+
+The script is written with `Preview "1"`, so **the first run uploads nothing** — it
+reports what it would do. Remove it to upload for real. `SetLive` is deliberately
+empty: publishing to a branch is a separate decision, made in the backend, and it
+is the one that cannot be undone by uploading again.
+
+<Aside type="caution" title="steam_appid.txt is never written">
+  That file lets a build run outside Steam, and shipping it in a depot disables the
+  check that the game was launched by Steam at all. The export never writes one —
+  it is absent by construction, not by an exclusion rule someone has to maintain.
+</Aside>
+
+## Achievements
+
+`Achievements` is an engine service like `Ads` and `Leaderboard`, so the game's code
+is the same with or without a store:
+
+```ts
+import { Achievements } from 'esengine';
+
+const achievements = world.getResource(Achievements);
+achievements.setStat('enemies_defeated', count);
+await achievements.unlock('FIRST_BLOOD');
+await achievements.store();      // pushes to Steam; stores batch behind this
+```
+
+It always works. With no store behind it the unlock is recorded locally — the same
+data your own achievements screen reads — and `available` tells you whether a store
+will *also* hear about it, which is what a UI reads to decide between the platform's
+toast and drawing its own.
+
+Two ways an achievement silently does nothing, and what the engine does about each:
+
+- **An id the backend does not have.** Steam accepts it and does nothing; a player
+  finds out months later. So ids are declared once in Project Settings, and an
+  unlock outside that set is refused where it happens, listing what *is* declared.
+- **A build with no Steam library.** Point the SDK setting at your download; if it
+  is missing, the export warns and `STEAM.md` says so at the top.
+
+## Cloud saves
+
+`Storage` writes where the OS says it should, which is a path Steam Auto-Cloud can
+sync with no code in the game. Under **Steam Cloud → Auto-Cloud**, use the roots
+`STEAM.md` prints — they are read off what the app actually does, not from a table
+in a document:
+
+| OS | Root | Subdirectory |
+|---|---|---|
+| Windows | `WinAppDataRoaming` | `Estella/<Name>` |
+| macOS | `MacHome` | `Library/Application Support/Estella/<Name>` |
+
+## Honest boundaries
+
+- **macOS builds are signed ad-hoc**, and only on a Mac. Notarize with your own
+  Developer ID before a public release.
+- **Linux is not supported yet** — the desktop host has no Linux surface.
+- **`steamcmd` is not driven from the editor.** The checklist gives you the exact
+  command instead; a feature that cannot be verified here is worse than a line you
+  can copy.
+- Workshop, DLC, microtransactions and Steam Input action sets are not covered.
+  They all hang off the same flat API and the same service surface, but each is its
+  own feature rather than something "Steam support" drags in.

@@ -16,6 +16,37 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Desktop is a real target: one export, an app per OS, and a Steam channel.**
+  The desktop build used to be an Electron source tree you were expected to `npm
+  install` and package yourself — the only target in the repository that handed
+  its toolchain to the user. It is now the same three-layer path the phones take:
+  a prebuilt runtime template (a native host on SDL3 with Dawn and QuickJS
+  embedded, no Chromium), a pure-Node assembler, and a runnable build out the
+  other side. Windows and macOS templates are published with each release, so an
+  installed editor can package a desktop game with nothing else on the machine.
+
+  One export assembles an app for *every* desktop template installed, not for the
+  OS doing the building: the assembler never cared which OS ran it, and a Steam
+  upload normally carries all of them at once. Signing a `.app` is the one thing
+  that genuinely needs a Mac, and that is a warning on that one output.
+
+  Steam rides the desktop target as a *channel*, not as a platform — it defines
+  no runtime, no renderer and no asset format, only where a build goes. Selecting
+  it writes the SteamPipe depot scripts and a `STEAM.md` carrying this build's own
+  values: the depot ids, the launch string, the Auto-Cloud paths the game really
+  writes to, and the achievement ids to create in the partner backend. The first
+  run is always a preview, and `steam_appid.txt` is absent by construction rather
+  than by an exclusion rule someone has to maintain.
+
+  `Achievements` is an engine service like `Ads` and `Leaderboard`: it works with
+  no store behind it (unlocks are recorded locally — the same data a game's own
+  achievements screen reads), `available` says whether a store will also hear
+  about it, and an id outside the project's declared set is refused where it
+  happens instead of being accepted and silently dropped. Steam is one provider
+  behind it, reached by loading the redistributable at run time and resolving the
+  flat C API, so the engine binary contains no Valve code and no Valve header —
+  the SDK is the developer's own download, named in Project Settings.
+
 - **A lost GPU device is now a state the engine recovers from, not a black
   screen.** Every backend can lose its device — the browser fires
   `webglcontextlost` when the GPU resets or a tab is backgrounded too long,
@@ -165,6 +196,30 @@ published separately; it ships inside the editor.
   there.
 
 ### Fixed
+
+- **A macOS game could never have reached Steam.** The host loaded the
+  redistributable by its leaf name, and `dlopen` does not search the executable's
+  directory — it takes a leaf through the system paths and answers "no such file"
+  for a library sitting right next to the binary. The difference only shows once
+  the app is packaged: running the binary out of its build tree happens to work,
+  and a player double-clicking a `.app` does not. The platform now says where its
+  own libraries are and the loader is given a path, which it also names when it
+  fails, because "there is none" and "there is one and I looked elsewhere" read
+  identically otherwise.
+
+- **A Steam depot named an OS the build had not produced.** The desktop export
+  assembled for the machine's own OS and then wrote the depot script with macOS
+  hardcoded, so on Windows it mapped `<Name>.app/*` against a build that had
+  produced `<Name>/` — matching nothing, uploading an empty depot, reporting
+  success, and telling you to launch a bundle that does not exist. Depots now
+  follow what was actually assembled, and the default depot ids are a per-OS
+  table rather than a position in the build, so adding a second platform cannot
+  renumber a depot a project already uploaded to.
+
+- **A packaged desktop app weighed nothing, and everything twice.** The size
+  report treated the app as a file, and `stat` on a directory answers a few dozen
+  bytes of bookkeeping — so the deliverable passed every limit while its contents
+  were counted a second time as loose files beside it.
 
 - **A collider switched off was still solid.** Every collider carries an `enabled`
   flag — authored in the inspector, serialized, documented as "disable the shape"

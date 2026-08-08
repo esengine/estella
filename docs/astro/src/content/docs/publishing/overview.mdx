@@ -68,15 +68,17 @@ and opens it in your browser.
 | Target | What it produces | Output | Next step |
 |---|---|---|---|
 | **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
-| **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
+| **Desktop** | A runnable **native** app per installed desktop template — a `.app` on macOS, a `<Name>/` directory with `<Name>.exe` on Windows. No Chromium and no npm project. | `dist-desktop/` | Double-click it. Selecting the **Steam** channel also writes the depot scripts and a `STEAM.md` with this build's own values — see [Steam](/docs/publishing/steam/). |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/publishing/wechat/). |
 | **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
 | **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/publishing/android-ios/). |
 | **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project when the engine is built for iOS here. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/publishing/android-ios/). |
 
-The mobile targets export app **content**, not a runnable payload: the engine, the
-SDK and the game runtime live in the app binary. That is also why they need a
-toolchain the other four do not — see [prerequisites](#runtime-prerequisites) below.
+Desktop, Android and iOS export app **content**, not a runnable payload: the
+engine, the SDK and the game runtime live in the app binary. Each is assembled
+from a runtime template the editor installs, so packaging needs no toolchain of
+its own — see [prerequisites](#runtime-prerequisites) below. Only iOS still needs
+Xcode, because only Apple can sign for a device.
 
 ## Playable ad networks
 

@@ -58,14 +58,15 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | 目标 | 产出什么 | 输出 | 下一步 |
 |---|---|---|---|
 | **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
-| **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
+| **桌面** | 每装了一个桌面运行时模板,就出一个可直接运行的**原生**应用——macOS 上是 `.app`,Windows 上是含 `<Name>.exe` 的 `<Name>/` 目录。没有 Chromium,也没有 npm 工程。 | `dist-desktop/` | 双击即可。选了 **Steam** 渠道还会写出 depot 脚本和一份带本次构建确切取值的 `STEAM.md`——见 [Steam](/docs/zh-cn/publishing/steam/)。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
 | **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
 | **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
 | **iOS** | **原生** arm64 应用(Metal)的内容;若本机已为 iOS 构建过引擎,还会附带 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
 
-移动目标导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在应用二进制里。
-这也是它们需要另外四个目标不需要的工具链的原因——见下文的[前置条件](#运行时前置条件)。
+桌面、Android 与 iOS 导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在
+应用二进制里。三者都由编辑器安装的运行时模板组装而成,所以打包本身不需要任何工具链——见下文的
+[前置条件](#运行时前置条件)。只有 iOS 仍然需要 Xcode,因为只有 Apple 能为真机签名。
 
 ## 试玩广告平台
 

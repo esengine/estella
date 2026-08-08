@@ -290,6 +290,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'publishing/overview' },
             { label: 'Android & iOS', translations: { 'zh-CN': 'Android 与 iOS' }, slug: 'publishing/android-ios' },
+            { label: 'Steam', translations: { 'zh-CN': 'Steam' }, slug: 'publishing/steam' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'publishing/wechat' },
             { label: 'Mini-Game Platforms', translations: { 'zh-CN': '小游戏平台' }, slug: 'publishing/minigame-platforms' },
             { label: 'Hot Update', translations: { 'zh-CN': '热更新' }, slug: 'publishing/hot-update' },
