@@ -243,6 +243,7 @@ app.whenReady().then(async () => {
         out.reportAfterLoss = d.report();
 
         out.guard = d.guard();
+        out.tablesAtLoss = d.glTables();
         out.glLostBeforeRestore = d.contextLost();
         out.restoreCalled = d.restore();
         await new Promise((r) => setTimeout(r, 500));
@@ -259,6 +260,7 @@ app.whenReady().then(async () => {
         // The full cycle: rebuild, re-upload the textures, and declare it whole.
         out.fullRecovered = await d.recoverFull();
         out.statusAfterFull = d.status();
+        out.tablesAfterFull = d.glTables();
         api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;

@@ -33,6 +33,7 @@ declare global {
         recover(): boolean;
         finishRecovery(): void;
         recoverFull(): Promise<boolean>;
+        glTables(): Record<string, number>;
         lose(): boolean;
         contextLost(): boolean | null;
         guard(): { target: string; lostEventsSeen: number };
@@ -84,6 +85,23 @@ window.__estellaHeadless = {
       const assets = EngineHost.getResource(Assets);
       if (!assets) return false;
       return assets.recoverFromDeviceLoss();
+    },
+    // EXPERIMENT: emscripten's GL object tables are the suspected blocker —
+    // they hold wrappers minted against the dead context. Counting them says
+    // whether a rebuild refilled them or merely added to the stale ones.
+    glTables: () => {
+      const GL = (EngineHost.module as unknown as { GL?: Record<string, unknown> } | null)?.GL;
+      const count = (name: string): number => {
+        const t = GL?.[name] as unknown[] | undefined;
+        if (!t) return -1;
+        let n = 0;
+        for (const e of t) if (e) n++;
+        return n;
+      };
+      return {
+        programs: count('programs'), shaders: count('shaders'), buffers: count('buffers'),
+        textures: count('textures'), vaos: count('vaos'), framebuffers: count('framebuffers'),
+      };
     },
     guard: () => getContextLossGuardInfo(),
     contextLost: () => {

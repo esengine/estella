@@ -186,6 +186,23 @@ void RenderFrame::recreateGpuResources() {
 #ifdef ES_ENABLE_POSTPROCESS
     if (post_process_) post_process_->recreateGpuResources();
 #endif
+
+    // Plugins cache the batch program id at init, and that id died with the
+    // device — a collect pass would keep keying draws to a program the restored
+    // context rejects. init() is where they take it, so init() is what runs.
+    RenderFrameContext ctx{
+        context_,
+        resource_manager_,
+        context_.getWhiteTextureId(),
+        batch_shader_id_,
+        RenderStage::Transparent,
+        glm::mat4(1.0f),
+        nullptr,
+        this
+    };
+    for (auto& plugin : plugins_) {
+        plugin->init(ctx);
+    }
 }
 
 void RenderFrame::resize(u32 width, u32 height) {
