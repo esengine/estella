@@ -354,7 +354,9 @@ if(ESTELLA_QUICKJS_DIR)
         if(ESTELLA_WINDOWS)
             # Dawn's D3D12 backend, DirectWrite for the font match, WinHTTP for the
             # fetch. miniaudio reaches WASAPI through the COM headers it includes.
-            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp)
+            # kernelbase for CompareObjectHandles, which Dawn's D3D shared fences
+            # call and which kernel32 does not re-export.
+            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp kernelbase)
         else()
             # As on iOS: miniaudio's CoreAudio backend reaches for the Obj-C runtime,
             # so its TU is Objective-C++ on every Apple platform.
