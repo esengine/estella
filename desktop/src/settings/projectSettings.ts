@@ -17,6 +17,13 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { SORTING_LAYER_COUNT, type ScreenOrientation, type CameraScaleMode, type ScreenPreset } from '@/project/format';
 import { t } from '@/i18n';
 
+/** Where a desktop build goes. A channel, not a platform — see
+ *  docs/REARCH_STEAM.md §1. */
+const DESKTOP_CHANNEL = [
+  { value: 'standalone', label: t('set.desktop.channel.standalone') },
+  { value: 'steam', label: t('set.desktop.channel.steam') },
+];
+
 const ORIENTATION = [
   { value: 'portrait', label: t('set.orientation.portrait') },
   { value: 'landscape', label: t('set.orientation.landscape') },
@@ -443,6 +450,53 @@ settingsRegistry.register({
     set: (v) => void ProjectStore.setPlatformPackaging('desktop', { productName: v }),
   },
 });
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.channel',
+  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
+  label: t('set.project.packaging.desktop.channel'),
+  description: t('set.project.packaging.desktop.channel.desc'),
+  options: DESKTOP_CHANNEL, segmented: true, default: 'standalone',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.channel ?? 'standalone',
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', {
+      channel: v as 'standalone' | 'steam',
+    }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.steam.appId',
+  type: 'number', scope: 'project', section: 'packaging', group: t('set.group.steam'),
+  label: t('set.project.packaging.desktop.steam.appId'),
+  description: t('set.project.packaging.desktop.steam.appId.desc'),
+  default: 0, min: 0, step: 1,
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.steam?.appId ?? 0,
+    // 0 clears it rather than shipping a scripts-for-game-zero build: the export
+    // says so and writes no depot scripts.
+    set: (v) => void ProjectStore.setSteamPackaging({
+      appId: v > 0 ? Math.round(v) : undefined,
+    }),
+  },
+});
+
+// One row per OS, because Valve assigns a depot id per OS and they are rarely the
+// three consecutive numbers the default guesses. The generated STEAM.md prints
+// what this build used, next to where to check it.
+for (const os of ['macos', 'windows', 'linux'] as const) {
+  settingsRegistry.register({
+    id: `project.packaging.desktop.steam.depot.${os}`,
+    type: 'number', scope: 'project', section: 'packaging', group: t('set.group.steam'),
+    label: t(`set.project.packaging.desktop.steam.depot.${os}`),
+    description: t('set.project.packaging.desktop.steam.depot.desc'),
+    default: 0, min: 0, step: 1,
+    bind: {
+      get: () => ProjectStore.platformPackaging().desktop?.steam?.depots?.[os] ?? 0,
+      set: (v) => void ProjectStore.setSteamDepot(os, v > 0 ? Math.round(v) : undefined),
+    },
+  });
+}
 
 settingsRegistry.register({
   id: 'project.physics.gravityY',

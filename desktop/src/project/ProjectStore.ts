@@ -43,7 +43,7 @@ import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type SteamPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
@@ -1973,6 +1973,31 @@ class ProjectStoreImpl {
   }
 
   /** Persist one platform's packaging config (merged) to `project.esproject`. */
+  /**
+   * Merge into `packaging.platforms.desktop.steam`.
+   *
+   * Its own method because setPlatformPackaging merges one level: patching
+   * `{ steam: { appId } }` through it would DROP the depot ids the project had.
+   */
+  async setSteamPackaging(patch: Partial<SteamPackaging>): Promise<void> {
+    const steam = { ...this.platformPackaging().desktop?.steam, ...patch };
+    for (const key of Object.keys(steam) as (keyof SteamPackaging)[]) {
+      if (steam[key] === undefined) delete steam[key];
+    }
+    await this.setPlatformPackaging('desktop', {
+      steam: Object.keys(steam).length > 0 ? steam : undefined,
+    });
+  }
+
+  /** Set (or clear with undefined) one OS's depot id, keeping the others. */
+  async setSteamDepot(os: 'macos' | 'windows' | 'linux', id: number | undefined): Promise<void> {
+    const depots = { ...this.platformPackaging().desktop?.steam?.depots };
+    if (id === undefined) delete depots[os]; else depots[os] = id;
+    await this.setSteamPackaging({
+      depots: Object.keys(depots).length > 0 ? depots : undefined,
+    });
+  }
+
   async setPlatformPackaging<K extends keyof NonNullable<ProjectPackaging['platforms']>>(
     platform: K,
     patch: Partial<NonNullable<NonNullable<ProjectPackaging['platforms']>[K]>>,

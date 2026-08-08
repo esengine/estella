@@ -385,6 +385,32 @@ export const settingsMessages = defineMessages({
         en: 'Overrides the Application ID for the desktop app only (its bundle identifier).',
         zh: '仅为桌面应用覆盖应用 ID（即其 bundle identifier）。',
     },
+    'set.desktop.channel.standalone': { en: 'Standalone', zh: '独立发行' },
+    'set.desktop.channel.steam': { en: 'Steam', zh: 'Steam' },
+    'set.group.steam': { en: 'Steam', zh: 'Steam' },
+    'set.project.packaging.desktop.channel': { en: 'Distribution', zh: '发行渠道' },
+    'set.project.packaging.desktop.channel.desc': {
+        en: 'Where this desktop build goes. Steam also writes the depot scripts and a STEAM.md '
+            + 'listing the values only the partner backend can be told.',
+        zh: '这份桌面构建发往哪里。选 Steam 会额外写出 depot 脚本，以及一份 STEAM.md，'
+            + '列出只能在合作伙伴后台填写的那些值。',
+    },
+    'set.project.packaging.desktop.steam.appId': { en: 'Steam App ID', zh: 'Steam App ID' },
+    'set.project.packaging.desktop.steam.appId.desc': {
+        en: 'From the Steamworks partner site. Without it no depot scripts are written — scripts '
+            + 'built around a guessed id would name someone else\'s game.',
+        zh: '来自 Steamworks 合作伙伴后台。不填就不会写出任何 depot 脚本——'
+            + '用猜出来的 id 生成的脚本指向的是别人的游戏。',
+    },
+    'set.project.packaging.desktop.steam.depot.macos': { en: 'macOS depot ID', zh: 'macOS depot ID' },
+    'set.project.packaging.desktop.steam.depot.windows': { en: 'Windows depot ID', zh: 'Windows depot ID' },
+    'set.project.packaging.desktop.steam.depot.linux': { en: 'Linux depot ID', zh: 'Linux depot ID' },
+    'set.project.packaging.desktop.steam.depot.desc': {
+        en: 'Valve assigns depot ids; leave at 0 to use App ID + 1, …, which the generated '
+            + 'STEAM.md tells you to check against SteamPipe → Depots.',
+        zh: 'depot id 由 Valve 分配；留 0 则使用 App ID + 1、+2…，'
+            + '生成的 STEAM.md 会提示你去 SteamPipe → Depots 核对。',
+    },
     'set.project.packaging.desktop.productName': { en: 'Product name', zh: '产品名称' },
     'set.project.packaging.desktop.productName.desc': {
         en: 'Display name for the desktop app, and the name of the app itself (defaults to the project name).',
