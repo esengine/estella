@@ -570,17 +570,9 @@ export class SceneManagerState {
             ? this.app_.getResource(Assets)
             : null;
 
-        if (assetsRes) {
-            // Driven by what the scene acquired and the loader registry, not by a
-            // list: a type with a registered loader has a release channel, and a
-            // type without one no-ops. Adding an asset kind touches neither.
-            for (const [type, paths] of instance.loadedByType) {
-                for (const path of paths) {
-                    if (type === 'texture') assetsRes.releaseTexture(path);
-                    else assetsRes.releaseTyped(type, path);
-                }
-            }
-        }
+        // Whatever the scene acquired, through the one batch door. A type with a
+        // registered loader has a release channel; one without no-ops.
+        assetsRes?.releaseAssets(instance.loadedByType);
 
         if (instance.loadedMaterials) {
             for (const handle of instance.loadedMaterials) {

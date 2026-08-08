@@ -133,6 +133,14 @@ export {
     type SliceBorder,
 } from './scene/scene';
 
+/**
+ * Every asset a scene references, bucketed by declared type — the input to
+ * releasing what a document acquired.
+ *
+ * @beta Pre-1.0: the type vocabulary follows the loader registry.
+ */
+export { discoverSceneAssets, type SceneAssetRefs } from './asset/discoverAssets';
+
 // =============================================================================
 // Scene Manager
 // =============================================================================

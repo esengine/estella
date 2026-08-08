@@ -88,6 +88,21 @@ export class AssetRefLedger<T> {
         return this.byKey_.size;
     }
 
+    /**
+     * Live references across every key and generation.
+     *
+     * The distinction from {@link size} is the whole point: a key whose count
+     * climbs from one to a hundred is one key either way, so a census that
+     * reported only `size` would show a runaway acquire as a flat line.
+     */
+    get rows(): number {
+        let n = 0;
+        for (const generations of this.byKey_.values()) {
+            for (const generation of generations) n += generation.count;
+        }
+        return n;
+    }
+
     /** @internal Live generations of one key, oldest first — diagnostics and tests. */
     generations(key: string): readonly AssetRefGeneration<T>[] {
         return this.byKey_.get(key) ?? [];

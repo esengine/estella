@@ -20,6 +20,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { blankInputMap } from './inputMapDoc';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
+import { discoverSceneAssets } from 'esengine';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
 import { spritePrefab, sourceById, type EntitySource } from '@/engine/entitySources';
@@ -178,6 +179,13 @@ class ProjectStoreImpl {
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
+  /**
+   * What the open scene acquired, so the NEXT open can give it back.
+   *
+   * Without it a session only ever adds references, so the texture pool can
+   * never evict anything and its budget stops meaning anything.
+   */
+  private sceneAssetRefs: ReadonlyMap<string, ReadonlySet<string>> | null = null;
   /** The open document as it last was on disk — a scene, or the `.esprefab` in
    *  Prefab Mode. Answers "was that change ours" for the disk-change reconcile. */
   private diskText: string | null = null;
@@ -524,6 +532,10 @@ class ProjectStoreImpl {
     const assets = EngineHost.getResource(Assets);
     let resolved: SceneData = expandedRaw;
     if (assets) {
+      // The outgoing document lets go BEFORE the incoming one acquires, so an
+      // asset both scenes use is revived from the warm pool rather than refetched.
+      if (this.sceneAssetRefs) assets.releaseAssets(this.sceneAssetRefs);
+      this.sceneAssetRefs = discoverSceneAssets(expandedRaw).byType;
       const result = await bootProfiler.phase('preloadSceneAssets', () => assets.preloadSceneAssets(expandedRaw));
       resolved = JSON.parse(JSON.stringify(expandedRaw)) as SceneData; // resolveSceneAssetPaths mutates
       assets.resolveSceneAssetPaths(resolved, result);

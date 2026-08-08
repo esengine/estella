@@ -1279,6 +1279,23 @@ export class Assets {
     }
 
     /**
+     * Give back one reference to every asset in `byType` — what a scene, a
+     * document or a group acquired, in one call.
+     *
+     * Materials (handle-keyed) and skeletons (SpineManager's) are skipped.
+     * @beta Pre-1.0: the type vocabulary follows the loader registry.
+     */
+    releaseAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void {
+        for (const [type, paths] of byType) {
+            if (type === 'material' || type === 'spine') continue;
+            for (const path of paths) {
+                if (type === 'texture') this.releaseTexture(path);
+                else this.releaseTyped(type, path);
+            }
+        }
+    }
+
+    /**
      * @internal Release one reference to a typed asset by path — the door the
      * group channel table uses. Game code calls the named release* methods.
      */
@@ -1400,6 +1417,7 @@ export class Assets {
         textureCached: number;
         pendingLoads: number;
         refCounts: number;
+        refRows: number;
         genericCaches: number;
         genericCached: number;
         handlePaths: number;
@@ -1419,6 +1437,7 @@ export class Assets {
             textureCached: tex.cached,
             pendingLoads: pending,
             refCounts: this.textureRefs_.size + this.genericRefs_.size,
+            refRows: this.textureRefs_.rows + this.genericRefs_.rows,
             genericCaches: this.genericCache_.size,
             genericCached,
             handlePaths: this.handleToPath_.size,

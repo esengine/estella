@@ -36,7 +36,28 @@ import { SceneManagerState } from '../src/scene/sceneManager';
 import { Assets } from '../src/asset';
 import { Material } from '../src/render/material';
 
+/**
+ * The batch door, implemented as Assets implements it, so a stub stays
+ * observable through releaseTexture / releaseTyped — which is what the
+ * assertions read.
+ */
+function withBatchRelease(stub: Record<string, unknown>): Record<string, unknown> {
+    return {
+        ...stub,
+        releaseAssets(byType: ReadonlyMap<string, ReadonlySet<string>>) {
+            for (const [type, paths] of byType) {
+                if (type === 'material' || type === 'spine') continue;
+                for (const path of paths) {
+                    if (type === 'texture') (stub.releaseTexture as (r: string) => void)?.(path);
+                    else (stub.releaseTyped as (t: string, r: string) => void)?.(type, path);
+                }
+            }
+        },
+    };
+}
+
 function createMockApp(assets?: unknown) {
+    if (assets) assets = withBatchRelease(assets as Record<string, unknown>);
     const entities = new Map<number, Map<symbol, unknown>>();
     let nextEntity = 1;
     const resources = new Map<unknown, unknown>();

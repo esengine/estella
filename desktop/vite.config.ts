@@ -99,12 +99,15 @@ export default defineConfig({
         // electron-updater is external for a different reason: it resolves its own
         // package.json and requires its providers by path, and it must stay the
         // CommonJS package Node's interop knows how to load (see autoUpdate.ts).
+        // The cast keeps `rolldownOptions` — vite-plugin-electron types its
+        // `vite` option against a vite whose BuildOptions predates the rename,
+        // and `rollupOptions` is the wrong option for the bundler that runs.
         vite: {
           build: {
             rolldownOptions: {
               external: ['esbuild', 'typescript', 'ffmpeg-static', 'electron-updater', /[\\/]build-tools[\\/]basis[\\/]/],
             },
-          },
+          } as never,
         },
       },
       preload: {

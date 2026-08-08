@@ -148,6 +148,9 @@ export function installBuiltinCensusProbes(): void {
             const s = assets.sizes();
             return [
                 counter('asset.refCounts', s.refCounts, 'conserved'),
+                // Keys, above; REFERENCES, here. A key whose count runs away is
+                // still one key, so the first counter alone cannot see it.
+                counter('asset.refRows', s.refRows, 'conserved'),
                 counter('asset.handlePaths', s.handlePaths, 'conserved'),
                 counter('asset.trackedRefRows', s.trackedRefRows, 'conserved'),
                 counter('asset.invalidateListeners', s.invalidateListeners, 'conserved'),
