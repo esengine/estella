@@ -160,6 +160,20 @@ export {
     type RenderStats,
 } from './render/renderer';
 
+// =============================================================================
+// Device Loss
+// =============================================================================
+
+export {
+    DeviceStatus,
+    DeviceLostReason,
+    getDeviceStatus,
+    getDeviceLostReport,
+    reportDeviceLost,
+    recoverDevice,
+    finishDeviceRecovery,
+} from './render/renderer';
+
 export {
     LayerOrder,
     layerOrderOf,

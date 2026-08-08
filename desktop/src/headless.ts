@@ -11,6 +11,9 @@
  *          back for reproducible verification.
  */
 import { EngineHost } from './engine/EngineHost';
+import {
+  DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice, finishDeviceRecovery,
+} from 'esengine';
 // From EditorSession: importing it constructs the default session (which wires the
 // Reconciler + SceneStore to the model) before the engine boots below.
 import { EditorControlSurface, type EditorControlSurfaceT } from './engine/EditorSession';
@@ -22,6 +25,15 @@ declare global {
       /** Resolves once the engine is booted and ready to load a scene. */
       ready: Promise<void>;
       api: EditorControlSurfaceT;
+      /** Device-loss driving surface: lets a verifier take the GPU away for real. */
+      device: {
+        status(): number;
+        report(): string;
+        recover(): boolean;
+        finishRecovery(): void;
+        lose(): boolean;
+        restore(): boolean;
+      };
     };
   }
 }
@@ -39,7 +51,39 @@ const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
 // project setting would — the engine takes a mask, not a checkbox list.
 const depthLayers = Number(params.get('depthLayers')) || undefined;
 
+// Taking the context away FOR REAL, through the extension the browser provides
+// for exactly this. Simulating a loss by calling notifyDeviceLost would only
+// test the bookkeeping; the point is to make the GPU objects actually die.
+function loseContextExtension(): { loseContext(): void; restoreContext(): void } | null {
+  // The host's canvas, not a query: on WebGL2 it is never attached to the
+  // document, so document.querySelector finds nothing.
+  const gl = EngineHost.canvas?.getContext('webgl2') as WebGL2RenderingContext | null;
+  return gl?.getExtension('WEBGL_lose_context') ?? null;
+}
+
 window.__estellaHeadless = {
   ready: EngineHost.bootHeadless({ width, height, backend, colorSpace, depthLayers }),
   api: EditorControlSurface,
+  device: {
+    status: () => getDeviceStatus(),
+    report: () => getDeviceLostReport(),
+    recover: () => recoverDevice(),
+    finishRecovery: () => finishDeviceRecovery(),
+    lose: () => {
+      const ext = loseContextExtension();
+      if (!ext) return false;
+      ext.loseContext();
+      return true;
+    },
+    restore: () => {
+      const ext = loseContextExtension();
+      if (!ext) return false;
+      ext.restoreContext();
+      return true;
+    },
+  },
 };
+
+// Referenced so the unused-import check sees it; DeviceStatus is the vocabulary
+// a driver compares status() against.
+export const DEVICE_STATUS_VOCAB = DeviceStatus;

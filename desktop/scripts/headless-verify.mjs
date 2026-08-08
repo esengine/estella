@@ -130,6 +130,7 @@ app.whenReady().then(async () => {
     await win.loadURL(url);
 
     const exec = (code) => win.webContents.executeJavaScript(code, true);
+    let deviceLoss = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -211,6 +212,39 @@ app.whenReady().then(async () => {
       })()`);
     } else {
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
+
+    // ESTELLA_VERIFY_DEVICE_LOSS=1 takes the GPU away for real (WEBGL_lose_context)
+    // and drives the whole cycle, because everything downstream of a loss is
+    // reachable only by actually losing one.
+    if (process.env.ESTELLA_VERIFY_DEVICE_LOSS === '1') {
+      deviceLoss = await exec(`(async () => {
+        const d = window.__estellaHeadless.device;
+        const api = window.__estellaHeadless.api;
+        const out = { supported: d.lose() };
+        if (!out.supported) return out;
+
+        // The browser reports the loss to JS asynchronously; step so the engine's
+        // own poll sees it too, then confirm it refuses to submit.
+        await new Promise((r) => setTimeout(r, 100));
+        api.step(3, 1 / 60);
+        out.statusAfterLoss = d.status();
+        out.reportAfterLoss = d.report();
+
+        d.restore();
+        await new Promise((r) => setTimeout(r, 300));
+
+        // A context comes back when the browser is ready, not when asked.
+        out.recovered = false;
+        for (let i = 0; i < 20 && !out.recovered; i++) {
+          out.recovered = d.recover();
+          if (!out.recovered) await new Promise((r) => setTimeout(r, 100));
+        }
+        out.statusAfterRecover = d.status();
+        api.step(${STEPS}, 1 / 60);
+        out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
+        return out;
+      })()`);
     }
 
     // WebGPU: the engine has no synchronous readback (buffer maps are async)
@@ -416,7 +450,7 @@ app.whenReady().then(async () => {
         })()`);
       }
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
