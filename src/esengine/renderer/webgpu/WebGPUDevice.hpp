@@ -210,6 +210,35 @@ public:
      *         host must present the surface explicitly, once per frame after
      *         endRenderPass. No-op until a surface is configured. */
     void present();
+
+    /**
+     * @brief Configure the swapchain with CopySrc, so {@link captureNextFrame}
+     *        can read it. Must be set BEFORE the surface is configured.
+     *
+     * Off by default: a surface is entitled not to support the usage, and every
+     * shipped frame would pay for a check nobody asked for.
+     */
+    void setSurfaceReadback(bool enabled) { surface_readback_ = enabled; }
+
+    /**
+     * @brief Copy the next completed frame's swapchain image into a readback,
+     *        resolved through the usual pollReadback / takeReadback pair.
+     *
+     * Books the copy; endFrame performs it, because the renderer gives the
+     * swapchain image back there and every caller outside runs too late.
+     *
+     * Invalid without {@link setSurfaceReadback}, or with a capture in flight.
+     */
+    ReadbackHandle captureNextFrame(u32 w, u32 h);
+
+    /**
+     * @brief Whether bytes read back from the DEFAULT framebuffer are BGRA rather
+     *        than RGBA.
+     *
+     * The format is the surface's choice (BGRA8 on Metal, RGBA8 on Vulkan), so
+     * anyone writing an image has to ask rather than assume.
+     */
+    bool surfaceBytesAreBGRA() const;
 #endif
     void endFrame() override;
 
@@ -346,6 +375,10 @@ private:
     // masks and depth-tested draws target the backbuffer and expect them.
     WGPUSurface surface_ = nullptr;
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_RGBA8Unorm;
+    /** Whether the surface was configured with CopySrc — see setSurfaceReadback. */
+    bool surface_readback_ = false;
+    /** A capture booked by captureNextFrame, served by endFrame. 0 = none. */
+    u32 capture_id_ = 0;
     u32 surface_width_ = 0;
     u32 surface_height_ = 0;
     WGPUTexture surface_depth_texture_ = nullptr;
@@ -365,6 +398,9 @@ private:
                                  void* userdata1, void* userdata2);
     /** @brief Erases + releases a readback record (aborts a still-pending map). */
     void releaseReadback(u32 id);
+    /** A staging buffer + record with no copy submitted yet; 0 on failure. */
+    u32 allocReadback(u32 w, u32 h);
+    void submitReadbackCopy(u32 id, WGPUTexture source);
 
     // Internal clear family (region-scoped clears + mid-pass clearStencil).
     // Explicit layout so ONE bind group serves every write-mask variant.

@@ -293,6 +293,11 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
     return configureSwapchain(width, height);
 }
 
+bool WebGPUDevice::surfaceBytesAreBGRA() const {
+    return surface_format_ == WGPUTextureFormat_BGRA8Unorm
+        || surface_format_ == WGPUTextureFormat_BGRA8UnormSrgb;
+}
+
 void WebGPUDevice::present() {
     if (!surface_) return;
     wgpuSurfacePresent(surface_);
@@ -324,6 +329,10 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     cfg.device = device_;
     cfg.format = surface_format_;
     cfg.usage = WGPUTextureUsage_RenderAttachment;
+#if !defined(__EMSCRIPTEN__)
+    // Opt-in (setSurfaceReadback): lets requestReadback copy the presented frame.
+    if (surface_readback_) cfg.usage |= WGPUTextureUsage_CopySrc;
+#endif
     cfg.width = width;
     cfg.height = height;
     // Auto, not Opaque: let the backend pick a mode the surface advertises. A
@@ -1639,9 +1648,40 @@ void WebGPUDevice::endRenderPass() {
 /** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
  *  A frame may have opened several passes on it, so no single pass may do this. */
 void WebGPUDevice::endFrame() {
+#if !defined(__EMSCRIPTEN__)
+    // A capture is served HERE and nowhere else: this is the last instant at which
+    // the frame is both finished and still ours. Asking from outside cannot work —
+    // whoever could ask runs after the renderer has already given the image back.
+    if (capture_id_) {
+        const u32 id = capture_id_;
+        capture_id_ = 0;
+        if (frame_texture_) {
+            submitReadbackCopy(id, frame_texture_);
+        } else {
+            // Nothing drew, so there is no image to copy. Leaving the record
+            // Pending would hang whoever is polling it.
+            auto it = readbacks_.find(id);
+            if (it != readbacks_.end()) it->second.status = GfxReadbackStatus::Failed;
+        }
+    }
+#endif
     if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
 }
+
+#if !defined(__EMSCRIPTEN__)
+ReadbackHandle WebGPUDevice::captureNextFrame(u32 w, u32 h) {
+    if (!isDeviceUsable() || !device_ || w == 0 || h == 0) return ReadbackHandle::Invalid;
+    if (!surface_readback_) {
+        ES_LOG_ERROR("WebGPUDevice::captureNextFrame: the surface was configured without CopySrc "
+                     "(setSurfaceReadback must be on before configureSurface)");
+        return ReadbackHandle::Invalid;
+    }
+    if (capture_id_) return ReadbackHandle::Invalid;   // one in flight is enough
+    capture_id_ = allocReadback(w, h);
+    return static_cast<ReadbackHandle>(capture_id_);
+}
+#endif
 
 // =============================================================================
 // Readback (async seam: texture → staging copy, resolved when the map lands)
@@ -1675,9 +1715,10 @@ ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u3
         return ReadbackHandle::Invalid;
     }
     if (target == FramebufferHandle::Default) {
-        // The surface texture is released at endRenderPass and carries no CopySrc;
-        // page-level capture covers the presented frame instead.
-        stubOnce("requestReadback(default framebuffer)");
+        // Not addressable from out here: the renderer gives the swapchain image
+        // back at the end of its own frame, so any caller is already too late.
+        // captureNextFrame reads the presented frame instead.
+        stubOnce("requestReadback(default framebuffer) — use captureNextFrame");
         return ReadbackHandle::Invalid;
     }
     auto fit = framebuffers_.find(static_cast<u32>(target));
@@ -1685,6 +1726,16 @@ ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u3
     auto tit = textures_.find(fit->second.color0);
     if (tit == textures_.end() || !tit->second.texture) return ReadbackHandle::Invalid;
 
+    const u32 id = allocReadback(w, h);
+    if (!id) return ReadbackHandle::Invalid;
+    submitReadbackCopy(id, tit->second.texture);
+    return static_cast<ReadbackHandle>(id);
+}
+
+/** The staging buffer and its record, with no copy yet. Split from the copy so a
+ *  capture can be handed a handle to poll NOW and filled in later, at the only
+ *  moment the swapchain image exists (see captureNextFrame). */
+u32 WebGPUDevice::allocReadback(u32 w, u32 h) {
     // copyTextureToBuffer requires a 256-byte row alignment; rows are compacted
     // (and flipped to the bottom-up contract) in takeReadback.
     const u32 padded = (w * 4u + 255u) & ~255u;
@@ -1692,33 +1743,39 @@ ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u3
     bd.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
     bd.size = static_cast<u64>(padded) * h;
     WGPUBuffer buffer = wgpuDeviceCreateBuffer(device_, &bd);
-    if (!buffer) return ReadbackHandle::Invalid;
+    if (!buffer) return 0;
+    const u32 id = next_readback_id_++;
+    readbacks_[id] = ReadbackRec{buffer, w, h, padded, GfxReadbackStatus::Pending};
+    return id;
+}
+
+void WebGPUDevice::submitReadbackCopy(u32 id, WGPUTexture source) {
+    auto it = readbacks_.find(id);
+    if (it == readbacks_.end() || !source) return;
+    ReadbackRec& rec = it->second;
 
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
     WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-    src.texture = tit->second.texture;
+    src.texture = source;
     WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-    dst.buffer = buffer;
+    dst.buffer = rec.buffer;
     dst.layout.offset = 0;
-    dst.layout.bytesPerRow = padded;
-    dst.layout.rowsPerImage = h;
-    WGPUExtent3D size{w, h, 1};
+    dst.layout.bytesPerRow = rec.paddedBytesPerRow;
+    dst.layout.rowsPerImage = rec.height;
+    WGPUExtent3D size{rec.width, rec.height, 1};
     wgpuCommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &size);
     WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
     wgpuCommandEncoderRelease(encoder);
     wgpuQueueSubmit(queue_, 1, &commands);
     wgpuCommandBufferRelease(commands);
 
-    const u32 id = next_readback_id_++;
-    readbacks_[id] = ReadbackRec{buffer, w, h, padded, GfxReadbackStatus::Pending};
-
     WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
     cb.mode = WGPUCallbackMode_AllowSpontaneous;
     cb.callback = &WebGPUDevice::onReadbackMapped;
     cb.userdata1 = this;
     cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
-    wgpuBufferMapAsync(buffer, WGPUMapMode_Read, 0, bd.size, cb);
-    return static_cast<ReadbackHandle>(id);
+    wgpuBufferMapAsync(rec.buffer, WGPUMapMode_Read, 0,
+                       static_cast<u64>(rec.paddedBytesPerRow) * rec.height, cb);
 }
 
 GfxReadbackStatus WebGPUDevice::pollReadback(ReadbackHandle handle) {

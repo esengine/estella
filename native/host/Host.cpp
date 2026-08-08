@@ -21,6 +21,7 @@
 #include "BootLog.hpp"
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
+#include "Shot.hpp"
 #include "esengine/core/Log.hpp"
 #include "esengine/core/World.hpp"
 #include "esengine/ecs/TransformSystem.hpp"
@@ -174,6 +175,9 @@ bool bindSurface() {
     h.platform->surfaceSize(w, hh);
     h.w = (f32)w;
     h.h = (f32)hh;
+    // Before configureSurface, always: the copy usage is part of the swapchain's
+    // configuration, so asking afterwards would silently do nothing.
+    h.gfx->setSurfaceReadback(shotWanted());
     if (!h.gfx->configureSurface(h.platform->surface(), w, hh)) {
         ESHOST_LOGE("configureSurface failed");
         return false;
@@ -303,6 +307,10 @@ void frame() {
     h.lastFrameAt = nowAt;
     h.haveLastFrame = true;
 
+    // Booked before the game renders, because the copy is served from inside the
+    // renderer's own endFrame (see Shot.hpp).
+    shotBeforeFrame(*h.gfx, h.frame, (u32)h.w, (u32)h.h);
+
     JSValue dt = JS_NewFloat64(h.js, deltaSeconds);
     callJs(h, "update", 1, &dt);
     JS_FreeValue(h.js, dt);
@@ -328,8 +336,11 @@ void frame() {
     // left here is what only a host can do: flip the swapchain.
     if (!jsOwnsFrame(h)) fallbackFrame(h);
     h.gfx->present();
+    if (shotAfterPresent(*h.gfx)) h.quitRequested = true;
     if (++h.frame % 120 == 0) ESHOST_LOGI("real-SDK frame %llu", (unsigned long long)h.frame);
 }
+
+bool quitRequested() { return hostAlive() && host().quitRequested; }
 
 // Push one host touch to the game's es_onNativeTouch(type,id,x,y), which fans it
 // out to the NativeBridge's registered listener.

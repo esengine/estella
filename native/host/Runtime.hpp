@@ -76,6 +76,9 @@ struct HostState {
     esengine::f32 w = 0, h = 0;
     bool ready = false;             ///< engine + JS booted once
     bool surfaceReady = false;      ///< a live window surface is bound (false while screen off)
+    /// The host asked its event loop to stop. Only a capture run sets it (Shot.hpp);
+    /// a platform whose OS owns the app's lifetime is free to ignore it.
+    bool quitRequested = false;
     uint64_t frame = 0;
     /// When the last frame was stepped, for the delta the next one reports. Unset
     /// until the first frame and cleared whenever the surface goes away, so a

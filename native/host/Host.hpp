@@ -234,6 +234,11 @@ void memoryWarning();
 
 bool booted();
 
+/** @brief Whether the host has asked its event loop to stop. Set by a capture run
+ *         (`ESTELLA_SHOT_QUIT`, see Shot.hpp) and by nothing else; a platform
+ *         whose OS owns the app's lifetime may ignore it. */
+bool quitRequested();
+
 /** Whether a surface is currently bound — false while the window is gone, which is
  *  when an event loop should block for events instead of spinning on frames. */
 bool surfaceBound();
