@@ -267,7 +267,8 @@ bool GLDevice::recreateDevice() {
 #ifdef __EMSCRIPTEN__
     // There is no device to build: the browser restores the context on the same
     // handle, and until it does there is nothing to do but wait.
-    if (emscripten_is_webgl_context_lost(0)) return false;
+    const EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    if (ctx == 0 || emscripten_is_webgl_context_lost(ctx)) return false;
 #endif
 
     // Every GL object the old context held is gone. Layout DESCRIPTORS stay:
@@ -330,7 +331,12 @@ bool GLDevice::pollDeviceLost() {
     // Asked directly rather than waited for: a `webglcontextlost` listener
     // attached after the loss never fires, and a renderer that missed the event
     // would submit into a dead context forever.
-    if (emscripten_is_webgl_context_lost(0)) {
+    //
+    // The handle has to be the CURRENT context, not 0. Zero is not "whichever
+    // context is bound" — it is no context, which reports itself lost, and every
+    // frame would then be thrown away as a loss that never happened.
+    const EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    if (ctx != 0 && emscripten_is_webgl_context_lost(ctx)) {
         markDeviceLost(GfxDeviceLostReason::ContextLost,
                        "WebGL reports the context is lost", "pollDeviceLost");
         return true;
