@@ -73,13 +73,14 @@ class SceneInstance {
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
     readonly savedEnabled = new Map<Entity, Map<RenderableComponentDef, boolean>>();
     readonly systemIds: symbol[] = [];
-    loadedTextures: Set<string> | null = null;
+    /**
+     * Every path-keyed asset this scene acquired, by declared type. NOT a fixed
+     * list: it was seven fields, and the four types added since were preloaded
+     * and never released, because adding one meant remembering three places.
+     */
+    readonly loadedByType = new Map<string, Set<string>>();
+    /** Materials are keyed by HANDLE, not path — released through their own door. */
     loadedMaterials: Set<number> | null = null;
-    loadedFonts: Set<string> | null = null;
-    loadedAudio: Set<string> | null = null;
-    loadedAnimClips: Set<string> | null = null;
-    loadedTilemaps: Set<string> | null = null;
-    loadedTimelines: Set<string> | null = null;
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -472,21 +473,26 @@ export class SceneManagerState {
     ): Promise<void> {
         if (sceneData) {
             const discovered = discoverSceneAssets(sceneData);
-            instance.loadedTextures = discovered.byType.get('texture') ?? new Set();
+            instance.loadedByType.clear();
+            // Whatever the scene declared, whatever its type. Materials are
+            // collected as handles below; skeletons belong to the SpineManager.
+            for (const [type, paths] of discovered.byType) {
+                if (type === 'material' || type === 'spine') continue;
+                instance.loadedByType.set(type, new Set(paths));
+            }
+            const bucketFor = (type: string): Set<string> => {
+                let set = instance.loadedByType.get(type);
+                if (!set) { set = new Set(); instance.loadedByType.set(type, set); }
+                return set;
+            };
             instance.loadedMaterials = new Set();
-            instance.loadedFonts = discovered.byType.get('font') ?? new Set();
-            // Fire-and-forget asset types that previously leaked on unload —
-            // track what the scene declares so releaseSceneAssets_ can drop
-            // them via the matching Assets.release* method.
-            instance.loadedAudio = discovered.byType.get('audio') ?? new Set();
-            instance.loadedAnimClips = discovered.byType.get('anim-clip') ?? new Set();
-            instance.loadedTilemaps = discovered.byType.get('tilemap') ?? new Set();
-            instance.loadedTimelines = discovered.byType.get('timeline') ?? new Set();
 
             const collectAssets: LoadedSceneAssets = {
-                texturePaths: instance.loadedTextures,
+                // The SAME sets the preloader fills in with what it actually
+                // loaded, so the release side sees acquisitions, not intentions.
+                texturePaths: bucketFor('texture'),
                 materialHandles: instance.loadedMaterials,
-                fontPaths: instance.loadedFonts,
+                fontPaths: bucketFor('font'),
                 spineKeys: new Set(),
             };
 
@@ -547,9 +553,15 @@ export class SceneManagerState {
             ? this.app_.getResource(Assets)
             : null;
 
-        if (assetsRes && instance.loadedTextures) {
-            for (const path of instance.loadedTextures) {
-                assetsRes.releaseTexture(path);
+        if (assetsRes) {
+            // Driven by what the scene acquired and the loader registry, not by a
+            // list: a type with a registered loader has a release channel, and a
+            // type without one no-ops. Adding an asset kind touches neither.
+            for (const [type, paths] of instance.loadedByType) {
+                for (const path of paths) {
+                    if (type === 'texture') assetsRes.releaseTexture(path);
+                    else assetsRes.releaseTyped(type, path);
+                }
             }
         }
 
@@ -563,34 +575,8 @@ export class SceneManagerState {
             }
         }
 
-        if (assetsRes && instance.loadedFonts) {
-            for (const path of instance.loadedFonts) {
-                assetsRes.releaseFont(path);
-            }
-        }
-
-        if (assetsRes) {
-            if (instance.loadedAudio) {
-                for (const path of instance.loadedAudio) assetsRes.releaseAudio(path);
-            }
-            if (instance.loadedAnimClips) {
-                for (const path of instance.loadedAnimClips) assetsRes.releaseAnimClip(path);
-            }
-            if (instance.loadedTilemaps) {
-                for (const path of instance.loadedTilemaps) assetsRes.releaseTilemap(path);
-            }
-            if (instance.loadedTimelines) {
-                for (const path of instance.loadedTimelines) assetsRes.releaseTimeline(path);
-            }
-        }
-
-        instance.loadedTextures = null;
+        instance.loadedByType.clear();
         instance.loadedMaterials = null;
-        instance.loadedFonts = null;
-        instance.loadedAudio = null;
-        instance.loadedAnimClips = null;
-        instance.loadedTilemaps = null;
-        instance.loadedTimelines = null;
     }
 
     pause(name: string): void {

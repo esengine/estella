@@ -23,6 +23,14 @@ vi.mock('../src/render/material', () => ({
     Material: { release: vi.fn(), createShader: vi.fn() },
     defineResource: vi.fn(),
 }));
+// Discovery is stubbed so a scene can declare a type without the component
+// registry: the claim under test is that the manager buckets WHATEVER
+// discovery reports, not that discovery finds the right things.
+const discovered = { byType: new Map<string, Set<string>>() };
+vi.mock('../src/asset/discoverAssets', () => ({
+    discoverSceneAssets: vi.fn(() => discovered),
+    getAssetPathsByType: vi.fn(() => new Set()),
+}));
 
 import { SceneManagerState } from '../src/scene/sceneManager';
 import { Assets } from '../src/asset';
@@ -57,65 +65,92 @@ function createMockApp(assets?: unknown) {
 }
 
 describe('Scene unload releases all tracked asset categories', () => {
-    it('calls every category-specific release method on Assets', async () => {
-        const releaseLog: Record<string, string[]> = {
-            texture: [], font: [], audio: [], animClip: [], timeline: [], tilemap: [],
-        };
+    // Shared across the mock module, so a test that seeds it must not leak into
+    // the next one's scene.
+    beforeEach(() => { discovered.byType = new Map(); });
+
+    /**
+     * Every path-keyed type a scene can declare, one path each.
+     *
+     * `tileset`, `statemachine`, `behaviortree` and `animatorcontroller` are the
+     * four this list lacked: each was preloaded, none was tracked, so unload
+     * released nothing. A type with a registered loader belongs here.
+     */
+    const TRACKED: Array<[type: string, path: string]> = [
+        ['texture', 'tex/a.png'],
+        ['font', 'font/main.ttf'],
+        ['audio', 'sfx/boom.wav'],
+        ['anim-clip', 'anim/walk.json'],
+        ['timeline', 'timeline/intro.json'],
+        ['tilemap', 'maps/level1.tmx'],
+        ['tileset', 'maps/tiles.estileset'],
+        ['statemachine', 'ai/guard.esfsm'],
+        ['behaviortree', 'ai/patrol.esbt'],
+        ['animatorcontroller', 'anim/hero.esanimator'],
+    ];
+
+    it('buckets every type discovery reports, including ones added later', async () => {
+        // The original bug lived HERE, not in the release wiring: seven
+        // hard-coded buckets, so a scene declaring a tileset acquired a
+        // reference the manager never recorded and unload could not give back.
+        discovered.byType = new Map(TRACKED.map(([type, path]) => [type, new Set([path])]));
+
+        const app = createMockApp({ releaseTexture: vi.fn(), releaseTyped: vi.fn() });
+        const manager = new SceneManagerState(app as never);
+        manager.register({ name: 'declaring', data: { version: '1.0', name: 'd', entities: [] } });
+        await manager.load('declaring');
+
+        const instance = (manager as unknown as {
+            scenes_: Map<string, { loadedByType: Map<string, Set<string>> }>;
+        }).scenes_.get('declaring')!;
+
+        for (const [type, path] of TRACKED) {
+            expect(
+                [...(instance.loadedByType.get(type) ?? [])],
+                `the scene declared a ${type} and the manager kept no bucket for it`,
+            ).toContain(path);
+        }
+    });
+
+    it('releases every type the scene acquired, whatever its type', async () => {
+        const releasedTextures: string[] = [];
+        const releasedTyped: Array<[string, string]> = [];
         const assetsStub = {
-            releaseTexture: (r: string) => { releaseLog.texture.push(r); },
-            releaseFont: (r: string) => { releaseLog.font.push(r); },
-            releaseAudio: (r: string) => { releaseLog.audio.push(r); },
-            releaseAnimClip: (r: string) => { releaseLog.animClip.push(r); },
-            releaseTimeline: (r: string) => { releaseLog.timeline.push(r); },
-            releaseTilemap: (r: string) => { releaseLog.tilemap.push(r); },
+            releaseTexture: (r: string) => { releasedTextures.push(r); },
+            releaseTyped: (type: string, r: string) => { releasedTyped.push([type, r]); },
         };
 
         const app = createMockApp(assetsStub);
         const manager = new SceneManagerState(app as never);
-
-        manager.register({
-            name: 'level1',
-            data: { version: '1.0', name: 'level1', entities: [] },
-        });
+        manager.register({ name: 'level1', data: { version: '1.0', name: 'level1', entities: [] } });
         await manager.load('level1');
 
-        // Seed the scene-instance buckets with paths directly. This bypasses
-        // asset-field discovery (which needs component registry) and proves
-        // the release wiring itself is complete for every category the audit
-        // flagged as leaking.
+        // Seeded directly: discovery needs the component registry, and the claim
+        // here is about the release wiring, not about what a scene declares.
         const instance = (manager as unknown as {
-            scenes_: Map<string, {
-                loadedTextures: Set<string>;
-                loadedFonts: Set<string>;
-                loadedAudio: Set<string>;
-                loadedAnimClips: Set<string>;
-                loadedTimelines: Set<string>;
-                loadedTilemaps: Set<string>;
-                loadedMaterials: Set<number>;
-            }>;
+            scenes_: Map<string, { loadedByType: Map<string, Set<string>> }>;
         }).scenes_.get('level1')!;
-        instance.loadedTextures = new Set(['tex/a.png', 'tex/b.png']);
-        instance.loadedFonts = new Set(['font/main.ttf']);
-        instance.loadedAudio = new Set(['sfx/boom.wav']);
-        instance.loadedAnimClips = new Set(['anim/walk.json']);
-        instance.loadedTimelines = new Set(['timeline/intro.json']);
-        instance.loadedTilemaps = new Set(['maps/level1.tmx']);
+        for (const [type, path] of TRACKED) instance.loadedByType.set(type, new Set([path]));
 
         await manager.unload('level1');
 
-        expect(releaseLog.texture).toEqual(expect.arrayContaining(['tex/a.png', 'tex/b.png']));
-        expect(releaseLog.font).toEqual(['font/main.ttf']);
-        expect(releaseLog.audio).toEqual(['sfx/boom.wav']);
-        expect(releaseLog.animClip).toEqual(['anim/walk.json']);
-        expect(releaseLog.timeline).toEqual(['timeline/intro.json']);
-        expect(releaseLog.tilemap).toEqual(['maps/level1.tmx']);
+        for (const [type, path] of TRACKED) {
+            if (type === 'texture') {
+                expect(releasedTextures, 'a texture was never released').toContain(path);
+                continue;
+            }
+            expect(
+                releasedTyped,
+                `a ${type} the scene acquired was never released on unload`,
+            ).toContainEqual([type, path]);
+        }
     });
 
     it('releases tracked materials through Assets by handle, not a bare Material.release', async () => {
         vi.mocked(Material.release).mockClear();
         const releasedHandles: number[] = [];
         const assetsStub = {
-            releaseTexture: vi.fn(), releaseFont: vi.fn(), releaseAudio: vi.fn(),
+            releaseTexture: vi.fn(), releaseTyped: vi.fn(), releaseFont: vi.fn(), releaseAudio: vi.fn(),
             releaseAnimClip: vi.fn(), releaseTimeline: vi.fn(), releaseTilemap: vi.fn(),
             releaseMaterial: (h: number) => { releasedHandles.push(h); },
         };
