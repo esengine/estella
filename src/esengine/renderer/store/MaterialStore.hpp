@@ -23,6 +23,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../resource/Handle.hpp"
 #include "../draw/BlendMode.hpp"
 #include "../rhi/GfxEnums.hpp"
 
@@ -33,6 +34,9 @@
 #include <vector>
 
 namespace esengine {
+
+namespace resource { class ResourceManager; }
+
 
 class GfxDevice;
 
@@ -51,19 +55,33 @@ struct MaterialParamSlot {
     f32 defaults[4] = {0, 0, 0, 0};  ///< Shader-declared default(...); the block's initial value.
 };
 
+/** @brief Which built-in texture a param falls back to when a material leaves it unset. */
+enum class MaterialDefaultTexture : u8 { White, Black, FlatNormal };
+
+/** @brief Maps a shader's declared `default(<name>)` to the built-in it names. */
+inline MaterialDefaultTexture materialDefaultByName(const std::string& name) {
+    if (name == "black") return MaterialDefaultTexture::Black;
+    if (name == "flatnormal" || name == "normal") return MaterialDefaultTexture::FlatNormal;
+    return MaterialDefaultTexture::White;  // "white" / empty / unknown
+}
+
 /** @brief A texture param's sampler unit (>= MATERIAL_TEXTURE_UNIT_BASE, above the batch's 0..7). */
 struct MaterialTextureSlot {
     std::string name;
     u32 unit = 0;
-    /// GL texture bound when a material leaves this param unset — the shader's declared
-    /// `default(white|black|flatnormal)`. Resolved once when the layout is registered.
-    u32 defaultGlTexture = 0;
+    /// The shader's declared `default(white|black|flatnormal)`, kept as the CHOICE
+    /// rather than the resolved id: the built-ins are re-created when the device
+    /// is, and an id resolved at registration would outlive the texture it names.
+    MaterialDefaultTexture defaultTexture = MaterialDefaultTexture::White;
 };
 
 /** @brief A material's bound texture: the GL texture id at a sampler unit. */
 struct MaterialTextureBinding {
     u32 unit = 0;
-    u32 glTexture = 0;
+    /// The resource handle, NOT a resolved GPU id. Resolving at bind time is what
+    /// lets the texture behind it be re-uploaded — by a hot update, or by a device
+    /// loss — without every material that references it having to be re-bound.
+    resource::TextureHandle texture;
 };
 
 /** @brief A shader's layout: std140 block (scalar/vector params) + texture sampler slots. */
@@ -114,6 +132,21 @@ class MaterialStore {
 public:
     /// The render path uses this device to create/upload/delete per-material UBOs.
     void setDevice(GfxDevice* device) { device_ = device; }
+
+    /// Resolves texture handles at bind time; without one, texture params bind nothing.
+    void setResourceManager(resource::ResourceManager* resources) { resources_ = resources; }
+
+    /// The context's current built-in fallbacks. Pushed rather than cached from a
+    /// resolved id, so re-creating them after a device loss reaches the materials too.
+    void setBuiltinDefaults(TextureHandle white, TextureHandle black, TextureHandle flatNormal) {
+        defaultWhite_ = white;
+        defaultBlack_ = black;
+        defaultFlatNormal_ = flatNormal;
+    }
+
+    /// The context's current fallback for a declared `default(...)`. One authority,
+    /// so the post-process pipeline's params fall back to the same textures.
+    TextureHandle builtinDefault(MaterialDefaultTexture which) const;
 
     /// Drops every material UBO after a device loss, keeping the records so the
     /// scene's materialIds stay meaningful. See the definition.
@@ -168,9 +201,9 @@ public:
         rec.uboDirty = true;
     }
 
-    /// Binds a GL texture id to a named texture param's sampler unit. No-op if the material,
-    /// its layout, or the texture param is unknown. Render path binds it in bindForDraw.
-    void setTexture(u32 materialId, const std::string& name, u32 glTexture) {
+    /// Binds a texture to a named texture param's sampler unit. No-op if the material,
+    /// its layout, or the texture param is unknown. Render path resolves it in bindForDraw.
+    void setTexture(u32 materialId, const std::string& name, resource::TextureHandle texture) {
         auto it = materials_.find(materialId);
         if (it == materials_.end()) return;
         auto lit = layouts_.find(it->second.shader);
@@ -178,9 +211,9 @@ public:
         const MaterialTextureSlot* slot = lit->second.findTexture(name);
         if (!slot) return;
         for (auto& b : it->second.textures) {
-            if (b.unit == slot->unit) { b.glTexture = glTexture; return; }
+            if (b.unit == slot->unit) { b.texture = texture; return; }
         }
-        it->second.textures.push_back({ slot->unit, glTexture });
+        it->second.textures.push_back({ slot->unit, texture });
     }
 
     void undefine(u32 materialId);
@@ -223,6 +256,10 @@ private:
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;
     GfxDevice* device_ = nullptr;
+    resource::ResourceManager* resources_ = nullptr;
+    TextureHandle defaultWhite_ = TextureHandle::Invalid;
+    TextureHandle defaultBlack_ = TextureHandle::Invalid;
+    TextureHandle defaultFlatNormal_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine

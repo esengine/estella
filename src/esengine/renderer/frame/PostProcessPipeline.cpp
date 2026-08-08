@@ -456,11 +456,11 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, TextureHandle inputT
         // Texture params (LUTs, masks) bind at their reflected material units;
         // an unset param gets its declared default (white/black/flatnormal).
         for (const auto& slot : layout->textures) {
-            u32 glTexture = slot.defaultGlTexture;
+            TextureHandle gpu = context_.materials().builtinDefault(slot.defaultTexture);
             for (const auto& [name, glId] : pass.textureUniforms) {
-                if (name == slot.name && glId != 0) { glTexture = glId; break; }
+                if (name == slot.name && glId != 0) { gpu = TextureHandle{glId}; break; }
             }
-            if (glTexture != 0) device->bindTexture(slot.unit, TextureHandle{glTexture});
+            if (gpu != TextureHandle::Invalid) device->bindTexture(slot.unit, gpu);
         }
     } else if (glsl) {
         // Legacy loose-uniform path for raw-GLSL passes (addPass with a

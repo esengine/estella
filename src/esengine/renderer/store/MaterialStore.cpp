@@ -6,8 +6,10 @@
  */
 #include "./MaterialStore.hpp"
 
+#include "../../resource/ResourceManager.hpp"
 #include "../rhi/GfxDevice.hpp"
 #include "../rhi/GfxEnums.hpp"
+#include "../rhi/Texture.hpp"
 #include "./MaterialConstants.hpp"
 
 namespace esengine {
@@ -73,13 +75,31 @@ void MaterialStore::bindForDraw(u32 materialId) {
     // whatever stale texture is at the unit.
     if (lit != layouts_.end()) {
         for (const auto& slot : lit->second.textures) {
-            u32 glTexture = slot.defaultGlTexture;
+            TextureHandle gpu = builtinDefault(slot.defaultTexture);
             for (const auto& b : rec.textures) {
-                if (b.unit == slot.unit) { glTexture = b.glTexture; break; }
+                if (b.unit != slot.unit) continue;
+                // Resolved HERE rather than cached at set time. A pool lookup is
+                // an array index next to the GL call it precedes, and it is what
+                // lets a texture re-uploaded behind its handle reach the material.
+                if (resources_) {
+                    if (Texture* texture = resources_->getTexture(b.texture)) {
+                        gpu = texture->handle();
+                    }
+                }
+                break;
             }
-            if (glTexture != 0) device_->bindTexture(slot.unit, TextureHandle{glTexture});
+            if (gpu != TextureHandle::Invalid) device_->bindTexture(slot.unit, gpu);
         }
     }
+}
+
+TextureHandle MaterialStore::builtinDefault(MaterialDefaultTexture which) const {
+    switch (which) {
+    case MaterialDefaultTexture::Black:      return defaultBlack_;
+    case MaterialDefaultTexture::FlatNormal: return defaultFlatNormal_;
+    case MaterialDefaultTexture::White:      break;
+    }
+    return defaultWhite_;
 }
 
 }  // namespace esengine

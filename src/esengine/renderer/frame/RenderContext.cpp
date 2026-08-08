@@ -43,6 +43,7 @@ void RenderContext::init() {
     initDefaultTextures();
     initFrameUbo();
     materials_.setDevice(&device_);
+    materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_);
     lights_.setDevice(&device_);
 
     initialized_ = true;
@@ -94,12 +95,6 @@ void RenderContext::initDefaultTextures() {
     ES_LOG_DEBUG("Default textures created (white {}, black {}, flatNormal {})",
                  static_cast<u32>(whiteTexture_), static_cast<u32>(blackTexture_),
                  static_cast<u32>(flatNormalTexture_));
-}
-
-u32 RenderContext::defaultTextureByName(const std::string& name) const {
-    if (name == "black") return static_cast<u32>(blackTexture_);
-    if (name == "flatnormal" || name == "normal") return static_cast<u32>(flatNormalTexture_);
-    return static_cast<u32>(whiteTexture_);  // "white" / empty / unknown
 }
 
 void RenderContext::initFrameUbo() {

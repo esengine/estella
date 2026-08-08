@@ -52,7 +52,7 @@ static MaterialUniformLayout buildMaterialLayout(const resource::ParsedShader& p
                 // Resolve the param's `default(<name>)` to a built-in default texture, bound when
                 // a material leaves the param unset.
                 layout.textures.push_back({ p.name, static_cast<u32>(p.textureUnit),
-                                            rc.defaultTextureByName(p.defaultValue) });
+                                            materialDefaultByName(p.defaultValue) });
             }
         } else if (p.std140Offset >= 0) {
             MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), materialParamArity(p.type) };
@@ -143,15 +143,10 @@ void material_setUniform(u32 materialId, const std::string& name, u32 arity,
 void material_setTexture(u32 materialId, const std::string& name, u32 textureHandle) {
     auto* rc = g_renderContext;
     if (!rc) return;
-    u32 gpuTexture = 0;
-    if (textureHandle != 0) {
-        if (auto* rm = g_resourceManager) {
-            if (Texture* t = rm->getTexture(resource::TextureHandle(textureHandle))) {
-                gpuTexture = t->getId();
-            }
-        }
-    }
-    rc->materials().setTexture(materialId, name, gpuTexture);
+    // The handle is stored as-is. Resolving it here would freeze the material to
+    // the GPU object the texture happened to have at this moment, which is the
+    // one thing a re-upload behind that handle must not need to undo.
+    rc->materials().setTexture(materialId, name, resource::TextureHandle(textureHandle));
 }
 
 void material_undefine(u32 materialId) {

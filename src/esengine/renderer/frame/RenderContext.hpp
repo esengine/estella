@@ -142,13 +142,6 @@ public:
      */
     u32 getWhiteTextureId() const { return static_cast<u32>(whiteTexture_); }
 
-    /**
-     * @brief Texture handle value for a named built-in default texture, used to resolve a
-     *        material texture param's `#pragma param ... texture default(<name>)`.
-     * @details "black" → opaque black, "flatnormal"/"normal" → a flat tangent-space normal
-     *          (RGB 128,128,255 → (0,0,1)); anything else (incl. "white" / empty) → white.
-     */
-    u32 defaultTextureByName(const std::string& name) const;
 
     /**
      * @brief Uploads the per-frame view-projection into the shared FrameConstants UBO.

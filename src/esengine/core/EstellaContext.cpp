@@ -134,6 +134,9 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 
     auto renderContext = makeUnique<RenderContext>(*gfxDevicePtr);
     renderContext->init();
+    // Materials name their textures by resource handle and resolve them per draw,
+    // so the store needs the manager that owns the pool.
+    renderContext->materials().setResourceManager(services_.getService<resource::ResourceManager>());
     services_.registerOwned<RenderContext>(std::move(renderContext));
 
     // GPU state is owned by the device: pipelines (setPipeline) carry program/blend/depth/
