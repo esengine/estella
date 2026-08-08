@@ -481,6 +481,38 @@ settingsRegistry.register({
   },
 });
 
+// The ids this game unlocks. Platform-NEUTRAL and therefore not under Steam: every
+// store keeps this same list under a different name. Declared so that an unlock of
+// an id no backend has is refused here rather than accepted and dropped there.
+settingsRegistry.register({
+  id: 'project.packaging.achievements',
+  type: 'objectList', scope: 'project', section: 'packaging', group: t('set.group.achievements'),
+  label: t('set.project.packaging.achievements'),
+  description: t('set.project.packaging.achievements.desc'),
+  layout: 'block',
+  default: [],
+  columns: [
+    { key: 'id', label: t('set.achievement.id'), type: 'text', width: '1fr', placeholder: 'FIRST_BLOOD' },
+  ],
+  addLabel: t('set.achievement.add'),
+  emptyHint: t('set.achievement.empty'),
+  newRow: () => ({ id: '' }),
+  rowError: (row, all) => {
+    const id = String(row.id ?? '').trim();
+    if (!id) return t('set.achievement.errId');
+    // A store keys achievements by this exact string, so two rows differing only
+    // in whitespace are one achievement and one that never fires.
+    if (all.filter((r) => String(r.id ?? '').trim() === id).length > 1) return t('set.achievement.errDup');
+    return null;
+  },
+  bind: {
+    get: () => (ProjectStore.packagingSettings().achievements ?? []).map((id) => ({ id })),
+    set: (v) => void ProjectStore.setPackaging({
+      achievements: v.map((r) => String(r.id ?? '').trim()).filter(Boolean),
+    }),
+  },
+});
+
 // Where Steam's own library comes from. A path rather than a checkbox because the
 // engine has no copy to switch on: the SDK is the developer's download, and the
 // assembler takes exactly one file out of it.

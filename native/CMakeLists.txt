@@ -300,6 +300,9 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/InputBindings.cpp
         $<$<BOOL:${ESTELLA_DESKTOP}>:host/steam/SteamApi.cpp>
         $<$<BOOL:${ESTELLA_DESKTOP}>:host/bindings/SteamBindings.cpp>
+        # Desktop-only because it is the editing surface no desktop OS supplies;
+        # a phone's keyboard IS one, so there is nothing here for it to be.
+        $<$<BOOL:${ESTELLA_DESKTOP}>:host/media/text_edit.cpp>
         host/bindings/NetBindings.cpp
         host/bindings/TextEditorBindings.cpp
         host/media/native_audio.cpp

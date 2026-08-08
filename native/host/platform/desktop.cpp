@@ -32,6 +32,7 @@
 
 #include "Host.hpp"
 
+#include "media/text_edit.hpp"
 #include "platform/desktop_keymap.hpp"
 
 #if defined(__APPLE__)
@@ -129,6 +130,40 @@ struct DesktopPlatform final : eshost::Platform {
     std::string dataDir() override { return prefPath; }
 
     std::string executableDir() override { return exeDir; }
+
+    // The editing surface, which on desktop is US: a phone hands its keyboard the
+    // value and gets edits back, and SDL supplies only committed text and an IME
+    // preedit. The model in media/text_edit.hpp is the rest.
+    bool hasTextEditor() const override { return true; }
+
+    void textEditorFocus(const std::string& value, int selectionStart, int selectionEnd,
+                         bool multiline, int maxLength, bool password) override {
+        editor.focus(value, selectionStart, selectionEnd, multiline, maxLength, password);
+        // Without this SDL delivers no SDL_EVENT_TEXT_INPUT at all, and on the
+        // platforms with a compositor-side IME it is also what opens it.
+        if (window) SDL_StartTextInput(window);
+        reportEditor();
+    }
+
+    void textEditorBlur() override {
+        editor.blur();
+        if (window) SDL_StopTextInput(window);
+    }
+
+    void textEditorWrite(const std::string& value, int selectionStart, int selectionEnd) override {
+        editor.write(value, selectionStart, selectionEnd);
+        // NOT reported back: this edit came FROM the app, and echoing it would be
+        // a second truth racing the one it already has.
+    }
+
+    /** Push the model's state across the seam — after every change, because the
+     *  SDK's mirror is what a field reads while it renders. */
+    void reportEditor() {
+        eshost::deliverTextEditorState(editor.value(), editor.selectionStart(),
+                                       editor.selectionEnd(), editor.composing());
+    }
+
+    eshost::TextEditModel editor;
 
     /** The same directory: on desktop the player can open it, which is the whole
      *  reason the mobile platforms distinguish a log dir from a private one. */
@@ -261,6 +296,85 @@ std::string resolveContentRoot(int argc, char** argv) {
     // keep the game's separate — the layout the macOS .app and the Steam depot use.
     const std::string content = std::string(base) + "Content/";
     return readFileBytes(content + "game.config.json").empty() ? std::string(base) : content;
+}
+
+/**
+ * A key that edits the focused field, if there is one.
+ *
+ * Only the keys a field OWNS: printable ones arrive as SDL_EVENT_TEXT_INPUT,
+ * already through the layout and the IME. While an IME composes, nothing but
+ * cancel — stealing its arrows is how a candidate list stops working.
+ */
+void editKey(const SDL_KeyboardEvent& key) {
+    eshost::TextEditModel& editor = g_platform.editor;
+    if (!editor.focused()) return;
+
+    const bool shift = (key.mod & SDL_KMOD_SHIFT) != 0;
+    // The word-jump chord: Alt on macOS, Ctrl elsewhere — as every text field on
+    // each platform does it.
+#if defined(__APPLE__)
+    const bool word = (key.mod & SDL_KMOD_ALT) != 0;
+    const bool command = (key.mod & SDL_KMOD_GUI) != 0;
+#else
+    const bool word = (key.mod & SDL_KMOD_CTRL) != 0;
+    const bool command = (key.mod & SDL_KMOD_CTRL) != 0;
+#endif
+
+    if (editor.composing() && key.scancode != SDL_SCANCODE_ESCAPE) return;
+
+    switch (key.scancode) {
+        case SDL_SCANCODE_BACKSPACE: editor.backspace(); break;
+        case SDL_SCANCODE_DELETE: editor.deleteForward(); break;
+        case SDL_SCANCODE_LEFT: editor.moveLeft(shift, word); break;
+        case SDL_SCANCODE_RIGHT: editor.moveRight(shift, word); break;
+        // A single-line field has one line, so Up/Down are its ends — which is
+        // where a caret goes when there is nowhere else to go.
+        case SDL_SCANCODE_UP:
+        case SDL_SCANCODE_HOME: editor.moveToStart(shift); break;
+        case SDL_SCANCODE_DOWN:
+        case SDL_SCANCODE_END: editor.moveToEnd(shift); break;
+        case SDL_SCANCODE_RETURN:
+        case SDL_SCANCODE_KP_ENTER:
+            if (editor.multiline()) editor.insert("\n");
+            else { eshost::deliverTextEditorSubmit(); return; }
+            break;
+        case SDL_SCANCODE_ESCAPE:
+            if (editor.composing()) editor.setComposition("");
+            else { eshost::deliverTextEditorCancel(); return; }
+            break;
+        case SDL_SCANCODE_A:
+            if (!command) return;
+            editor.selectAll();
+            break;
+        case SDL_SCANCODE_C:
+        case SDL_SCANCODE_X: {
+            if (!command) return;
+            const std::string selected = editor.selectedText();
+            if (selected.empty()) return;
+            SDL_SetClipboardText(selected.c_str());
+            if (key.scancode == SDL_SCANCODE_X) editor.deleteSelection();
+            break;
+        }
+        case SDL_SCANCODE_V: {
+            if (!command) return;
+            char* text = SDL_GetClipboardText();
+            if (!text) return;
+            // Newlines in a single-line field are what a paste from a document
+            // brings; a field that took them would render one line and hold two.
+            std::string paste = text;
+            SDL_free(text);
+            if (!editor.multiline()) {
+                std::string flat;
+                flat.reserve(paste.size());
+                for (const char c : paste) flat.push_back(c == '\n' || c == '\r' ? ' ' : c);
+                paste.swap(flat);
+            }
+            editor.insert(paste);
+            break;
+        }
+        default: return;
+    }
+    g_platform.reportEditor();
 }
 
 /**
@@ -412,6 +526,24 @@ int main(int argc, char** argv) {
                 // the key's state is unaffected either way.
                 if (const char* code = domCode(e.key.scancode)) {
                     eshost::key(e.type == SDL_EVENT_KEY_DOWN, code);
+                }
+                // AND to the field, if one is focused — not instead. A browser
+                // does the same: the hidden textarea takes the key and it still
+                // bubbles to the game's own listener, so play == ship.
+                if (e.type == SDL_EVENT_KEY_DOWN) editKey(e.key);
+                break;
+            case SDL_EVENT_TEXT_INPUT:
+                if (g_platform.editor.focused()) {
+                    g_platform.editor.insert(e.text.text ? e.text.text : "");
+                    g_platform.reportEditor();
+                }
+                break;
+            // The IME's preedit. It is NOT in the value yet, and a field that
+            // ignored it would show nothing at all while a CJK user types.
+            case SDL_EVENT_TEXT_EDITING:
+                if (g_platform.editor.focused()) {
+                    g_platform.editor.setComposition(e.edit.text ? e.edit.text : "");
+                    g_platform.reportEditor();
                 }
                 break;
             // A pad appears as a joystick first; opening it is what makes SDL

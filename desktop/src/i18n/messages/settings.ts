@@ -411,6 +411,24 @@ export const settingsMessages = defineMessages({
         zh: 'depot id 由 Valve 分配；留 0 则使用 App ID + 1、+2…，'
             + '生成的 STEAM.md 会提示你去 SteamPipe → Depots 核对。',
     },
+    'set.group.achievements': { en: 'Achievements', zh: '成就' },
+    'set.project.packaging.achievements': { en: 'Achievement IDs', zh: '成就 ID' },
+    'set.project.packaging.achievements.desc': {
+        en: 'The ids this game unlocks, matching the API names in the store backend. Declaring them '
+            + 'lets an unlock of an id no backend has be refused where it happens — a store accepts '
+            + 'it, does nothing, and reports nothing. Platform-neutral: every store keeps this same '
+            + 'list under a different name.',
+        zh: '本游戏会解锁的 id,与商店后台的 API 名一一对应。声明它们,越界的 unlock 才能在发生处被拒绝——'
+            + '商店会接受它、什么也不做、也什么都不报。平台中立:每个商店都有这份同样的清单,只是名字不同。',
+    },
+    'set.achievement.id': { en: 'ID', zh: 'ID' },
+    'set.achievement.add': { en: 'Add achievement', zh: '添加成就' },
+    'set.achievement.empty': {
+        en: 'No achievements declared — an unlock of any id is then forwarded unchecked.',
+        zh: '尚未声明任何成就——此时任何 id 的 unlock 都会被不加检查地转发。',
+    },
+    'set.achievement.errId': { en: 'An id is required.', zh: '必须填写 id。' },
+    'set.achievement.errDup': { en: 'Already declared.', zh: '已经声明过了。' },
     'set.project.packaging.desktop.steam.sdkPath': { en: 'Steamworks SDK', zh: 'Steamworks SDK' },
     'set.project.packaging.desktop.steam.sdkPath.desc': {
         en: 'The Steamworks SDK you downloaded, on this machine. The package takes its '

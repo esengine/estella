@@ -8,7 +8,7 @@
  * the depot ids the project had. That is the whole reason these setters exist.
  */
 import { describe, it, expect } from 'vitest';
-import type { SteamPackaging } from '@/project/format';
+import { parseManifest, type SteamPackaging } from '@/project/format';
 
 /** The merge, as the store performs it, over a plain object. */
 function mergeSteam(prev: SteamPackaging | undefined, patch: Partial<SteamPackaging>): SteamPackaging | undefined {
@@ -53,5 +53,24 @@ describe('the Steam packaging settings', () => {
         // The settings row maps 0 to undefined; a build with appId 0 would write
         // scripts naming an app that is not anyone's.
         expect(mergeSteam(undefined, { appId: undefined })).toBeUndefined();
+    });
+});
+
+describe('the declared achievement ids', () => {
+    const parsed = (achievements: unknown) =>
+        parseManifest({ name: 'p', packaging: { achievements } }).packaging?.achievements;
+
+    it('are trimmed and deduplicated, because a store keys on the exact string', () => {
+        // Two rows differing only in whitespace are one achievement and one that
+        // never fires — and the settings table cannot tell them apart on screen.
+        expect(parsed(['FIRST_BLOOD', ' FIRST_BLOOD ', 'ALL_LEVELS'])).toEqual(['FIRST_BLOOD', 'ALL_LEVELS']);
+    });
+
+    it('are absent rather than empty when a project declares none', () => {
+        // Absence means "check nothing", which is what an older project gets; an
+        // empty list would have to mean the same thing in a second way.
+        expect(parsed([])).toBeUndefined();
+        expect(parsed(['   '])).toBeUndefined();
+        expect(parsed(undefined)).toBeUndefined();
     });
 });

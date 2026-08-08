@@ -289,3 +289,14 @@ if(ES_ENABLE_BOX2D)
     )
     add_test(NAME test_physics_interpolation COMMAND test_physics_interpolation)
 endif()
+
+# The desktop text-editing model. It lives in the native host rather than in the
+# engine, and it is compiled in directly (not linked) because the host is not a
+# library — which is fine, since the model is pure by construction: no SDL, no
+# host state, so the rules are testable as what they are.
+add_executable(test_text_edit
+    text/test_text_edit.cpp
+    ${CMAKE_SOURCE_DIR}/native/host/media/text_edit.cpp
+)
+target_include_directories(test_text_edit PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_text_edit COMMAND test_text_edit)
