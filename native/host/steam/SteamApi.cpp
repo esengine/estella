@@ -141,7 +141,7 @@ constexpr int kOverlayActiveOffset = 0;
  *  Seconds, not frames: an uncapped host runs a thousand frames in the first one,
  *  so a frame count fires before the window is on screen — and opening the overlay
  *  then is a refusal that looks exactly like a callback that never came. */
-constexpr std::chrono::seconds kSelfCheckDelay{6};
+constexpr std::chrono::seconds kSelfCheckDelay{25};
 
 /** Steam's error buffer is a fixed 1024 bytes (SteamErrMsg). */
 constexpr int kErrMsgSize = 1024;
@@ -348,15 +348,19 @@ void SteamApi::pump() {
     // The self-check opens the overlay from the FRAME, not from boot: Steam
     // refuses to draw over a window that does not exist yet, and a refusal looks
     // exactly like a callback that never came.
-    if (traceCallbacks_ && !selfCheckDone_
-        && std::chrono::steady_clock::now() - traceStart_ >= kSelfCheckDelay) {
-        selfCheckDone_ = true;
-        // Whether the overlay CAN draw at all. A game not launched by Steam gets
-        // the hook injected and the overlay still disabled, and the difference is
-        // invisible from the outside: both look like a callback that never came.
+    if (traceCallbacks_ && !selfCheckDone_) {
+        // Whether the overlay CAN draw. It answers false while still being
+        // injected AND when disabled, so this waits rather than reading once —
+        // the two are identical from outside and only one explains no callback.
         const bool enabled = utils_ && g_fns.isOverlayEnabled && g_fns.isOverlayEnabled(utils_);
-        ESHOST_LOGI("steam: self-check opening the overlay (IsOverlayEnabled=%d)", enabled ? 1 : 0);
-        activateOverlay();
+        const auto waited = std::chrono::steady_clock::now() - traceStart_;
+        if (enabled || waited >= kSelfCheckDelay) {
+            selfCheckDone_ = true;
+            ESHOST_LOGI("steam: self-check opening the overlay after %llds (IsOverlayEnabled=%d)",
+                        (long long)std::chrono::duration_cast<std::chrono::seconds>(waited).count(),
+                        enabled ? 1 : 0);
+            activateOverlay();
+        }
     }
     g_fns.dispatchRunFrame(pipe_);
     CallbackMsg msg{};
