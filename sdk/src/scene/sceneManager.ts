@@ -236,38 +236,37 @@ export class SceneManagerState {
             return;
         }
 
-        const transition = options?.transition ?? 'none';
-
-        if (transition === 'fade') {
-            const duration = options?.duration ?? RuntimeConfig.sceneTransitionDuration;
-            const color = options?.color ?? { ...RuntimeConfig.sceneTransitionColor };
-            const oldScene = this.activeScene_;
+        // One lock for both paths: "one switch at a time" is a single invariant,
+        // and a faded switch must hold the same one a plain switch does.
+        this.switching_ = true;
+        try {
+            if ((options?.transition ?? 'none') !== 'fade') {
+                await this.swapTo_(name, options);
+                return;
+            }
             await this.transitionController_.start(
                 {
-                    duration,
-                    color,
+                    duration: options?.duration ?? RuntimeConfig.sceneTransitionDuration,
+                    color: options?.color ?? { ...RuntimeConfig.sceneTransitionColor },
                     onStart: options?.onStart,
                     onComplete: options?.onComplete,
                 },
-                async () => {
-                    if (oldScene && oldScene !== name) {
-                        await this.unload(oldScene, options);
-                    }
-                    await this.load(name);
-                },
+                () => this.swapTo_(name, options),
             );
-            return;
-        }
-
-        this.switching_ = true;
-        try {
-            if (this.activeScene_ && this.activeScene_ !== name) {
-                await this.unload(this.activeScene_, options);
-            }
-            await this.load(name);
         } finally {
             this.switching_ = false;
         }
+    }
+
+    /** The swap itself: retire whatever is active, bring `name` up. */
+    private async swapTo_(name: string, options?: TransitionOptions): Promise<void> {
+        // Read at swap time, not at switchTo time: a fade puts half a second
+        // between the two, and the scene to retire is the one active NOW.
+        const outgoing = this.activeScene_;
+        if (outgoing && outgoing !== name) {
+            await this.unload(outgoing, options);
+        }
+        await this.load(name);
     }
 
     updateTransition(dt: number): void {
