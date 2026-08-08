@@ -208,6 +208,10 @@ export interface NativeBridge {
      *  a shell with no pads to report (a phone). */
     pollGamepads?(): GamepadSnapshot[];
 
+    /** Size the host's own window, in design pixels. Absent where the app is given
+     *  a screen instead of owning a window (a phone). */
+    setWindowSize?(width: number, height: number): void;
+
     /** The Steam client, on a shell that can have one (desktop). Absent everywhere
      *  else, and present-but-unavailable when no client is running. */
     steam?: NativeSteamBridge;

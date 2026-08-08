@@ -164,7 +164,10 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.ySortLayers ? { ySortLayers: rc.ySortLayers } : {}),
     ...(rc.depthLayers ? { depthLayers: rc.depthLayers } : {}),
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
-    ...(rc.screenFit.scaleMode >= 0 ? { screenFit: rc.screenFit } : {}),
+    // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
+    // resolution, which is what a desktop window opens at. One representation, or
+    // the window grows a second one that drifts.
+    screenFit: rc.screenFit,
     ...(rc.uiTheme === 'light' ? { uiTheme: rc.uiTheme } : {}),
     ...(Object.keys(rc.uiThemeColors).length > 0 ? { uiThemeColors: rc.uiThemeColors } : {}),
     // Physics and the mixer ride along only when the project actually declared

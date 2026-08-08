@@ -151,6 +151,15 @@ struct Platform {
     virtual std::string executableDir() { return {}; }
 
     /**
+     * Open a window this big, in design pixels.
+     *
+     * A window exists before any JS does and the host parses no JSON, so the
+     * project's design resolution arrives from the SDK once. Ignored where the app
+     * is given a screen rather than owning a window.
+     */
+    virtual void setWindowSize(int /*width*/, int /*height*/) {}
+
+    /**
      * Directories a PLAYER can browse to, best first — where a crash record is
      * copied so it can be sent.
      *

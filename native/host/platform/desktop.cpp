@@ -131,6 +131,32 @@ struct DesktopPlatform final : eshost::Platform {
 
     std::string executableDir() override { return exeDir; }
 
+    /**
+     * Open at the project's design resolution, once, before anyone has seen it.
+     *
+     * Clamped to the display: a 2160-tall design on a 1080 laptop must not open a
+     * window taller than the screen. Only the first ask counts.
+     */
+    void setWindowSize(int width, int height) override {
+        if (!window || sized || width <= 0 || height <= 0) return;
+        sized = true;
+        const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
+        if (mode && mode->w > 0 && mode->h > 0) {
+            // 90%, not 100%: a window exactly the size of the display has its title
+            // bar under the menu bar and its bottom under the taskbar.
+            const float fit = std::min(1.0f, std::min(mode->w * 0.9f / static_cast<float>(width),
+                                                      mode->h * 0.9f / static_cast<float>(height)));
+            width = static_cast<int>(static_cast<float>(width) * fit);
+            height = static_cast<int>(static_cast<float>(height) * fit);
+        }
+        SDL_SetWindowSize(window, width, height);
+        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    }
+
+    /** Whether the game has been given its size; a second ask is the game's own
+     *  business and not a boot decision. */
+    bool sized = false;
+
     // The editing surface, which on desktop is US: a phone hands its keyboard the
     // value and gets edits back, and SDL supplies only committed text and an IME
     // preedit. The model in media/text_edit.hpp is the rest.
@@ -433,7 +459,10 @@ int main(int argc, char** argv) {
 
     // SDL_WINDOW_METAL only where Metal is the backend: elsewhere it is a request
     // for a surface the platform does not have, and window creation fails.
-    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    // HIDDEN until the first frame is on it: the window exists before Dawn and
+    // before any JS, and showing it then is half a second of an empty white rect
+    // with the game's name on it.
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
 #endif
@@ -475,6 +504,7 @@ int main(int argc, char** argv) {
     }
 
     bool running = true;
+    bool shown = false;
     // SDL reports mouse positions in window coordinates; the host contract is
     // surface pixels, as it is for touch.
     auto pixelScale = [&] { return SDL_GetWindowPixelDensity(window); };
@@ -565,7 +595,16 @@ int main(int argc, char** argv) {
         // blocks for an event rather than spinning at the display's refresh rate.
         if (!eshost::surfaceBound() && SDL_WaitEvent(&e)) handleEvent(e);
         while (SDL_PollEvent(&e)) handleEvent(e);
-        if (running && eshost::surfaceBound()) eshost::frame();
+        if (running && eshost::surfaceBound()) {
+            eshost::frame();
+            // Shown once something has been drawn on it: sizing happens during
+            // boot, and a window shown before that is a default-sized empty
+            // rectangle that then jumps.
+            if (!shown) {
+                shown = true;
+                SDL_ShowWindow(window);
+            }
+        }
         if (eshost::quitRequested()) running = false;
     }
 

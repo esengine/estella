@@ -160,7 +160,7 @@ describe('exportGame', () => {
     }
   }, 60_000);
 
-  it('writes the project camera fit into game.config.json (only when opted in)', async () => {
+  it('writes the design resolution always, and the camera fit when opted in', async () => {
     const fitOut = path.join(root, 'dist-game-fit');
     const res = await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
@@ -174,14 +174,16 @@ describe('exportGame', () => {
     const cfg = JSON.parse(readFileSync(path.join(fitOut, 'game.config.json'), 'utf8'));
     expect(cfg.screenFit).toEqual({ designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.5 });
 
-    // Off (scaleMode -1) ⇒ no screenFit key, so an unconfigured game's config is unchanged.
+    // With the fit OFF the design resolution still ships — a desktop window opens
+    // at it — and `scaleMode: -1` is what tells the camera not to scale.
     const offOut = path.join(root, 'dist-game-fitoff');
     await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: offOut,
       runtime: runtimeConfigOf({ designResolution: { width: 1920, height: 1080 } }),
     });
-    expect(JSON.parse(readFileSync(path.join(offOut, 'game.config.json'), 'utf8')).screenFit).toBeUndefined();
+    expect(JSON.parse(readFileSync(path.join(offOut, 'game.config.json'), 'utf8')).screenFit)
+      .toEqual({ designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 });
   }, 60_000);
 
   it('content-addresses + KTX2-compresses cooked assets when opted in', async () => {

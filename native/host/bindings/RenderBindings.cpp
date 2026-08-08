@@ -134,6 +134,18 @@ JSValue js_renderer_surfaceSize(JSContext* ctx, JSValueConst, int, JSValueConst*
     return o;
 }
 
+// es_setWindowSize(w, h): the project's design resolution, which only the SDK can
+// read (the window exists before any JS, and the host parses no JSON). A platform
+// that is GIVEN its screen ignores it.
+JSValue js_setWindowSize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    int32_t w = 0, h = 0;
+    if (argc < 2 || JS_ToInt32(ctx, &w, argv[0]) < 0 || JS_ToInt32(ctx, &h, argv[1]) < 0) {
+        return JS_UNDEFINED;
+    }
+    if (host().platform) host().platform->setWindowSize(w, h);
+    return JS_UNDEFINED;
+}
+
 // es_registry_getCameraEntities() -> [entity]. Active cameras with a Transform,
 // as the web binding reports them (its sibling returns an emscripten::val array).
 JSValue js_registry_getCameraEntities(JSContext* ctx, JSValueConst, int, JSValueConst*) {
@@ -156,6 +168,7 @@ void registerRenderBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(h, global, "es_rasterizeGlyph", js_rasterizeGlyph, 1);
     bindGlobal(h, global, "es_renderer_surfaceSize", js_renderer_surfaceSize, 0);
+    bindGlobal(h, global, "es_setWindowSize", js_setWindowSize, 2);
     bindGlobal(h, global, "es_registry_getCameraEntities", js_registry_getCameraEntities, 0);
 }
 

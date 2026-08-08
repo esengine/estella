@@ -112,7 +112,15 @@ async function loadProjectFormat() {
     const dir = mkdtempSync(path.join(DESKTOP, '.format-'));
     const outfile = path.join(dir, 'format.mjs');
     await esbuild.build({
-        entryPoints: [path.join(DESKTOP, 'src', 'project', 'format.ts')],
+        // runtimeConfig re-exports nothing of format's, so both entries are bundled
+        // into one module: a headless export that derived the project's settings by
+        // hand would be a second answer to what a project MEANS.
+        stdin: {
+            contents: "export * from './src/project/format';\nexport * from './src/project/runtimeConfig';\n",
+            resolveDir: DESKTOP,
+            sourcefile: 'projectFormat.ts',
+            loader: 'ts',
+        },
         outfile, bundle: true, format: 'esm', platform: 'node', target: 'node20',
         external: ['esbuild', 'electron', 'sharp'], logLevel: 'error',
     });
@@ -190,7 +198,7 @@ const wasmDir = platform === 'wechat'
     ]) ?? path.join(DESKTOP, 'public', 'wasm')
     : path.join(DESKTOP, 'public', 'wasm');
 
-const { resolveOrientation, parseManifest } = await loadProjectFormat();
+const { resolveOrientation, parseManifest, runtimeConfigOf } = await loadProjectFormat();
 // PARSED, not read by hand: the parser normalizes legacy platform ids and drops
 // values that could not be judged against, and a budget read straight off the JSON
 // here would be the orientation bug again with a different field.
@@ -210,6 +218,10 @@ try {
         platform,
         title: opts.title ?? project.name ?? path.basename(opts.projectDir),
         orientation: resolveOrientation(project),
+        // The project's OWN settings, through the editor's own derivation: without
+        // it a headless package ships every setting at its default while claiming
+        // to be the package the dialog makes.
+        runtime: runtimeConfigOf(manifest),
         androidTemplate: platform === 'android' ? templateDir : null,
         desktopTemplates,
         desktopChannel: opts['steam-appid'] ? 'steam' : undefined,

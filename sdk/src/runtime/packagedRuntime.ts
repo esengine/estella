@@ -160,7 +160,7 @@ export function packagedAppOptions(
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
         'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements' | 'steamAppId'>,
+        | 'achievements' | 'steamAppId' | 'screenFit'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
@@ -169,6 +169,7 @@ export function packagedRuntimeInit(
     uiThemeOverrides?: ThemeOverrides;
     achievements?: string[];
     steamAppId?: number;
+    screenFit?: PackagedGameConfig['screenFit'];
 } {
     return {
         physicsEnabled: config.physicsEnabled,
@@ -178,6 +179,9 @@ export function packagedRuntimeInit(
         uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
         achievements: config.achievements,
         steamAppId: config.steamAppId,
+        // Also here, not only in packagedAppOptions: the camera fit is baked into
+        // the app's construction, but the WINDOW is sized on a live one.
+        screenFit: config.screenFit,
     };
 }
 

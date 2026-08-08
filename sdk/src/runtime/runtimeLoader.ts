@@ -515,6 +515,9 @@ export interface RuntimeInitConfig {
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides; see {@link LoadRuntimeSceneOptions.uiThemeOverrides}. */
     uiThemeOverrides?: ThemeOverrides;
+    /** The design resolution and camera fit. A desktop window opens at the design
+     *  size; the fit itself is applied by createWebApp/createNativeApp. */
+    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
     /** The achievement ids the project declares — the set an unlock is checked
      *  against, since a store would take an unknown one and do nothing. */
     achievements?: string[];
@@ -545,6 +548,13 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
 
     if (config.audioConfig && app.hasResource(Audio)) {
         applyAudioProjectConfig(app.getResource(Audio), config.audioConfig);
+    }
+
+    // A desktop window opens at the project's design resolution. The host cannot
+    // read it for itself — the window exists before any JS does, and the host has
+    // no JSON parser — so this is where the two meet.
+    if (config.screenFit) {
+        getPlatform().setWindowSize?.(config.screenFit.designWidth, config.screenFit.designHeight);
     }
 
     // The declared achievement ids, so an unlock outside the set is refused here

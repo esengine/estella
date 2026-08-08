@@ -78,6 +78,10 @@ export interface NativeHostBindings {
     es_steam_store?(): boolean;
     es_steam_reset?(): boolean;
 
+    /** Ask the host's window to open at this size. Absent on a host that is given
+     *  its screen rather than owning a window. */
+    es_setWindowSize?(width: number, height: number): void;
+
     /** Perform an HTTP request off the main thread (native TLS stack), calling
      *  back with the reply. Optional — a host without it stays offline (remote
      *  asset groups and hot-update do not resolve). */
@@ -229,6 +233,9 @@ export function createHostBridge(
                     },
                 },
             }
+            : {}),
+        ...(bindings.es_setWindowSize
+            ? { setWindowSize: (w: number, h: number) => bindings.es_setWindowSize!(w, h) }
             : {}),
         ...(bindings.es_pollGamepads
             // 'standard' is asserted HERE rather than by the host: the layout is

@@ -260,6 +260,12 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return steam?.available() ? steam.identity() : null;
     }
 
+    /** Open the window at the project's design resolution. A no-op on a host that
+     *  has no window of its own. */
+    setWindowSize(width: number, height: number): void {
+        this.bridge_.setWindowSize?.(width, height);
+    }
+
     /** The store overlay covering the game, and uncovering it. */
     onStoreOverlay(listener: (covered: boolean) => void): () => void {
         const steam = this.bridge_.steam;

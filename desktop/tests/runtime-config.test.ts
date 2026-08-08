@@ -65,10 +65,15 @@ describe('runtimeConfigOf', () => {
 });
 
 describe('packagedRuntimeFields', () => {
-  // Absence IS the default in game.config.json, so an untouched project has to
-  // produce an empty object — otherwise every existing build's config changes.
-  it('is empty for a project that declared nothing', () => {
-    expect(packagedRuntimeFields(runtimeConfigOf({}))).toEqual({});
+  // Absence IS the default in game.config.json, so an untouched project carries
+  // nothing it did not declare.
+  it('carries only the design resolution for a project that declared nothing', () => {
+    // Not a setting a project opts into: every project HAS a design resolution,
+    // and a desktop window opens at it. Everything else stays absent so a build
+    // with default settings keeps the config it has always had.
+    expect(packagedRuntimeFields(runtimeConfigOf({}))).toEqual({
+      screenFit: { designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 },
+    });
   });
 
   it('carries the 2.5D depth mask — the field that used to reach Play and no build', () => {
@@ -91,6 +96,18 @@ describe('packagedRuntimeFields', () => {
     );
     expect(fields.screenFit).toEqual({
       designWidth: 800, designHeight: 600, scaleMode: 2, matchWidthOrHeight: 0.5,
+    });
+  });
+
+  // The design resolution is what a desktop window opens at, and a window has a
+  // size whether or not the camera scales to it — so it ships even with the fit
+  // off, which is the case every project starts in.
+  it('carries the design resolution even when the camera fit is off', () => {
+    const fields = packagedRuntimeFields(runtimeConfigOf({
+      designResolution: { width: 1080, height: 1920 },
+    }));
+    expect(fields.screenFit).toEqual({
+      designWidth: 1080, designHeight: 1920, scaleMode: -1, matchWidthOrHeight: 0.5,
     });
   });
 

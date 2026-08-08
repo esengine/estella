@@ -5154,6 +5154,7 @@ removeStorageItem: (key: string) => void
 requestPayment: ((request: PlatformPaymentRequest) => Promise<void>) | undefined
 setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
+setWindowSize: ((width: number, height: number) => void) | undefined
 share: ((options: PlatformShareOptions) => void) | undefined
 steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
 steamIdentity: (() => { id: string; name: string; } | null) | undefined
@@ -6090,6 +6091,7 @@ physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined
 remoteRoot: string | undefined
 scenes: { name: string; data?: SceneData; path?: string; }[]
+screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
 source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
@@ -10313,7 +10315,7 @@ NavPlugin
 
 ## packagedRuntimeInit — function
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; }
+(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; }
 ```
 
 ## paramDefaultValue — function

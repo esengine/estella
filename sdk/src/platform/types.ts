@@ -450,6 +450,15 @@ export interface PlatformAdapter {
     steamIdentity?(): { id: string; name: string } | null;
 
     /**
+     * Ask for a window this big, in design pixels.
+     *
+     * Only a platform that OWNS a window has one to size — a phone is given a
+     * screen and a browser a canvas. Best-effort: the host clamps it to the
+     * display, and only the first ask counts.
+     */
+    setWindowSize?(width: number, height: number): void;
+
+    /**
      * Tell me when the store's overlay covers the game, and when it stops.
      *
      * A takeover the game did not ask for: the player pressed Shift+Tab and can
