@@ -536,6 +536,14 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-golden.mjs --tier pr
 
+    # Projects as they were RELEASED, opened by the editor of today. The golden
+    # corpus is re-saved by whoever last touched it, so it can only say that this
+    # version opens its own files; a person's project is not re-saved by anybody.
+    - name: Open released projects (PR tier)
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a node tools/verify-legacy.mjs --tier pr
+
     # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
     # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
     # runner verifies the second backend for real: WGSL twins, the reflected

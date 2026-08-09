@@ -164,6 +164,27 @@ export const GOLDEN = [
   },
 ];
 
+/**
+ * Projects as they were RELEASED — what a golden project cannot ask, since every
+ * example is re-saved by whoever last touched it. Git history rather than
+ * fixtures: an invented "old project" is only old in imitated ways. The risk is
+ * component data; the envelope has not changed since v0.20.0.
+ */
+export const LEGACY = [
+  { tag: 'v0.20.0', id: 'platformer', tier: 'pr' },
+  { tag: 'v0.30.0', id: 'platformer', tier: 'nightly' },
+  { tag: 'v0.30.0', id: 'ui-controls', tier: 'nightly' },
+  { tag: 'v0.40.0', id: 'tilemap-demo', tier: 'nightly' },
+  { tag: 'v0.46.0', id: 'space-shooter', tier: 'release' },
+];
+
+/** Released projects a tier must still be able to open. */
+export function legacyAtTier(tier) {
+  const want = TIERS.indexOf(tier);
+  if (want < 0) throw new Error(`unknown tier "${tier}" (have: ${TIERS.join(', ')})`);
+  return LEGACY.filter((l) => TIERS.indexOf(l.tier) <= want);
+}
+
 const rank = (tier) => TIERS.indexOf(tier);
 
 /** Golden projects that run at `tier` — cheaper tiers included (they are cumulative). */
