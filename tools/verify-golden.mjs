@@ -37,6 +37,10 @@ const NO_PARITY = argv.includes('--no-parity');
  *  A mini-game needs its vendor's globals, so it goes through its own launcher. */
 const OWNED = new Set(['web', 'playable', 'wechat']);
 const LAUNCHER = (target) => (target === 'wechat' ? 'launch-minigame.mjs' : 'launch-export.mjs');
+/** Targets whose surface this runner can size to the editor's, which is what
+ *  makes a frame comparable at all. Measured on one project: web 0.0009,
+ *  playable 0.0027, wechat 0.0027 — the packaging wrapper is not what differs. */
+const COMPARABLE = OWNED;
 
 const DESKTOP = path.join(ROOT, 'desktop');
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
@@ -50,14 +54,21 @@ const deferred = projects.flatMap((g) => g.targets.filter((t) => !OWNED.has(t)).
 console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair(s) here`
   + (deferred.length ? `, ${deferred.length} left to the platform verifiers` : ''));
 
-/** The shape the game is authored for. A package derives its orientation gate
- *  from this, so the comparison surface has to agree with it. */
-function designAspect(id) {
+/** What the project declares: the shape it is authored for, and the scene a
+ *  package will ship as its entry. */
+function manifestOf(id) {
   try {
-    const r = JSON.parse(readFileSync(path.join(projectDir(id), 'project.esproject'), 'utf8')).designResolution;
-    if (r?.width > 0 && r?.height > 0) return { w: r.width, h: r.height };
-  } catch { /* fall through to the default shape */ }
-  return { w: 16, h: 9 };
+    return JSON.parse(readFileSync(path.join(projectDir(id), 'project.esproject'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+/** A package derives its orientation gate from this, so the comparison surface
+ *  has to agree with it. */
+function designAspect(id) {
+  const r = manifestOf(id).designResolution;
+  return r?.width > 0 && r?.height > 0 ? { w: r.width, h: r.height } : { w: 16, h: 9 };
 }
 
 /**
@@ -79,6 +90,10 @@ function captureEditorFrame(id, out) {
       ...process.env,
       ESTELLA_SHOT: out,
       ESTELLA_SHOT_PROJECT: projectDir(id),
+      // The scene the PACKAGE ships, named rather than inherited: opening a
+      // project reopens whatever was last open, which is untracked local state —
+      // so the two sides would differ by a developer's workspace file.
+      ...(manifestOf(id).defaultScene ? { ESTELLA_SHOT_SCENE: manifestOf(id).defaultScene } : {}),
       ESTELLA_SHOT_PLAY: '1',
       ESTELLA_SHOT_CROP: 'iframe[title="Game"]',
       ESTELLA_SHOT_EVAL: `window.__estellaEditor.setPanelSize('viewport', ${JSON.stringify(panel)})`,
@@ -110,7 +125,7 @@ for (const { id, target } of pairs) {
   // Parity compares like for like, so the package is opened at exactly the size
   // the editor's play surface came out — never a guessed one.
   const golden = atTier(TIER).find((g) => g.id === id);
-  const tolerance = target === 'web' && !NO_PARITY ? parityFor(golden) : null;
+  const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;
   const editorPng = path.join(WORK, `${id}-editor.png`);
   const editor = tolerance != null ? captureEditorFrame(id, editorPng) : null;
   if (editor && !editor.ok) {

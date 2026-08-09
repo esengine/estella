@@ -153,6 +153,10 @@ export const GOLDEN = [
     certifies: ['single-file'],
     targets: ['playable', 'web'],
     tier: 'nightly',
+    // Measured: this package scores 0.0763 against ITSELF — it shuffles the tiles
+    // per run and the video is at a different timestamp each time. Nothing the
+    // comparison says about it would be about the packaging.
+    parityGap: 'shuffles per run and plays video; two runs of one build do not match either',
     interactGap: 'pointer-driven; no stable tile target pinned yet',
   },
   {
