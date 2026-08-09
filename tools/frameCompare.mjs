@@ -54,6 +54,23 @@ export function downsample(img, cols, rows, inset = 0) {
   return out;
 }
 
+/**
+ * The WORST cell's difference, 0..1 — "did anything change anywhere".
+ *
+ * A sprite crossing the screen is a big change over a small area, which the mean
+ * flattens away: driven against undriven, the mean scored 0.0115 vs a drift of
+ * 0.0102, and this scored 0.38 vs 0.04.
+ */
+export function cellMaxDistance(a, b) {
+  if (a.length !== b.length) throw new Error(`grid size mismatch: ${a.length} vs ${b.length}`);
+  let worst = 0;
+  for (let i = 0; i < a.length; i += 3) {
+    const d = (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2])) / 3 / 255;
+    if (d > worst) worst = d;
+  }
+  return worst;
+}
+
 /** Mean per-channel difference of two same-length grids, normalised to 0..1. */
 export function gridDistance(a, b) {
   if (a.length !== b.length) throw new Error(`grid size mismatch: ${a.length} vs ${b.length}`);
@@ -67,11 +84,22 @@ export function gridDistance(a, b) {
  * rather than stretching: two shapes letterbox differently and put screen-space
  * UI elsewhere, so the score would measure the harness, not the game.
  */
-export function frameDistance(pngA, pngB, { cols = 48, rows = 27, inset = DEFAULT_INSET } = {}) {
+export function frameDistance(pngA, pngB, opts = {}) {
+  const [ga, gb] = grids(pngA, pngB, opts);
+  return gridDistance(ga, gb);
+}
+
+/** How much the most-changed region moved between two captures, 0..1. */
+export function frameCellMax(pngA, pngB, opts = {}) {
+  const [ga, gb] = grids(pngA, pngB, opts);
+  return cellMaxDistance(ga, gb);
+}
+
+function grids(pngA, pngB, { cols = 48, rows = 27, inset = DEFAULT_INSET } = {}) {
   const a = readPNG(pngA);
   const b = readPNG(pngB);
   if (a.w !== b.w || a.h !== b.h) {
     throw new Error(`captures differ in size (${a.w}x${a.h} vs ${b.w}x${b.h}) — compare like for like`);
   }
-  return gridDistance(downsample(a, cols, rows, inset), downsample(b, cols, rows, inset));
+  return [downsample(a, cols, rows, inset), downsample(b, cols, rows, inset)];
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  verify-golden.mjs — carry each golden project through package → launch → compare.
+ * @file  verify-golden.mjs — carry each golden project through package → launch → drive → compare.
  *
  * The registry says which projects a tier certifies and for which targets; this
  * runs that matrix. Web and playable are driven here because both launch in the
@@ -18,8 +18,8 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, ROOT } from './goldenProjects.mjs';
-import { frameDistance, readPNG } from './frameCompare.mjs';
+import { atTier, projectDir, parityFor, interactFor, ROOT } from './goldenProjects.mjs';
+import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -145,10 +145,48 @@ for (const { id, target } of pairs) {
     console.log(`✗ ${id} ${target} — parity: ${e.message}`);
     continue;
   }
-  const ok = distance <= tolerance;
-  results.push({ id, target, stage: 'parity', ok, why: ok ? '' : `distance ${distance.toFixed(4)} > ${tolerance}` });
-  console.log(`${ok ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)} (limit ${tolerance})`);
-  if (!ok) console.log(`    the package is not showing what the editor showed; compare ${editorPng} and ${packagePng}`);
+  if (distance > tolerance) {
+    results.push({ id, target, stage: 'parity', ok: false, why: `distance ${distance.toFixed(4)} > ${tolerance}` });
+    console.log(`✗ ${id} ${target} — parity ${distance.toFixed(4)} (limit ${tolerance})`);
+    console.log(`    the package is not showing what the editor showed; compare ${editorPng} and ${packagePng}`);
+    continue;
+  }
+
+  // Does the package answer a keyboard? An A/B against the undriven capture, not
+  // a before/after: a game animates on its own, so only "it differs BECAUSE of
+  // the key" is a claim. The worst-cell reducer is what sees a sprite move.
+  const input = interactFor(golden);
+  if (!input) {
+    results.push({ id, target, stage: 'parity', ok: true });
+    console.log(`✓ ${id} ${target} — parity ${distance.toFixed(4)}`);
+    continue;
+  }
+
+  const drivenPng = path.join(WORK, `${id}-${target}-driven.png`);
+  const drive = spawnSync('npx', [
+    'electron', path.join('scripts', 'launch-export.mjs'),
+    '--dir', out, '--out', drivenPng,
+    '--w', String(editor.w), '--h', String(editor.h),
+    '--input', JSON.stringify({ keys: input.keys, frames: input.frames }),
+  ], { encoding: 'utf8', cwd: DESKTOP });
+  if (drive.status !== 0) {
+    results.push({ id, target, stage: 'interact', ok: false, why: 'the driven launch failed' });
+    console.log(`✗ ${id} ${target} — the driven launch failed`);
+    continue;
+  }
+
+  let response;
+  try {
+    response = frameCellMax(readFileSync(packagePng), readFileSync(drivenPng));
+  } catch (e) {
+    results.push({ id, target, stage: 'interact', ok: false, why: e.message });
+    console.log(`✗ ${id} ${target} — interact: ${e.message}`);
+    continue;
+  }
+  const answered = response >= input.responds;
+  results.push({ id, target, stage: 'interact', ok: answered, why: answered ? '' : `response ${response.toFixed(4)} < ${input.responds}` });
+  console.log(`${answered ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)}, responds ${response.toFixed(4)} to ${input.keys.join('+')}`);
+  if (!answered) console.log(`    the package did not visibly answer the key; compare ${packagePng} and ${drivenPng}`);
 }
 
 const bad = results.filter((r) => !r.ok);

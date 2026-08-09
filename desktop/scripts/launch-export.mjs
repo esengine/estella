@@ -20,6 +20,7 @@
  *     --settle <n>       frames to let run before capturing (default 30)
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
  *     --allow-flat       accept a single-colour frame (a deliberately blank scene)
+ *     --input <json>     hold keys and run on: {"keys":["ArrowRight"],"frames":40}
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -45,6 +46,7 @@ const OUT = flag('out', '');
 const W = Number(flag('w', '640'));
 const H = Number(flag('h', '360'));
 const SETTLE = Number(flag('settle', '30'));
+const INPUT = flag('input', '');
 const TIMEOUT = Number(flag('timeout', '30000'));
 
 const MIME = {
@@ -133,6 +135,30 @@ async function main() {
       requestAnimationFrame(tick);
     })
   `).catch((e) => { errors.push(String(e)); return false; });
+
+  // Drive the game, then let it run on. Real DOM key events on the page the build
+  // owns: a package has no automation hook, and the point is to exercise the path
+  // a player's keyboard takes, not a back door around it.
+  if (painted && INPUT) {
+    const spec = JSON.parse(INPUT);
+    const ran = await win.webContents.executeJavaScript(`
+      (async () => {
+        const raf = () => new Promise((r) => requestAnimationFrame(r));
+        const keys = ${JSON.stringify(spec.keys ?? [])};
+        const fire = (type, code) => {
+          const e = new KeyboardEvent(type, { key: code, code, bubbles: true, cancelable: true });
+          window.dispatchEvent(e);
+          document.dispatchEvent(e);
+        };
+        for (const k of keys) fire('keydown', k);
+        for (let i = 0; i < ${Number(spec.frames ?? 40)}; i++) await raf();
+        for (const k of keys) fire('keyup', k);
+        await raf();
+        return keys.length;
+      })()
+    `).catch((e) => { errors.push(`input: ${e}`); return -1; });
+    console.log(`  input: ${ran} key(s) held for ${Number(spec.frames ?? 40)} frames`);
+  }
 
   const image = await win.webContents.capturePage();
   if (OUT) await writeFile(OUT, image.toPNG());

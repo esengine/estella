@@ -36,6 +36,13 @@ export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'android', 'ios'
 export const DEFAULT_PARITY = 0.06;
 
 /**
+ * How much the most-changed region must move for input to count as having
+ * reached the game. Measured: two undriven runs of one package differ by 0.04
+ * and a driven one by 0.38, so this sits between them with room on both sides.
+ */
+export const DEFAULT_RESPONDS = 0.15;
+
+/**
  * What the suite claims to cover. A capability here with no project behind it
  * is a hole in the release argument, so the gate fails on one that is not in
  * {@link KNOWN_GAPS}.
@@ -76,6 +83,7 @@ export const KNOWN_GAPS = {
  *
  * `parity` overrides {@link DEFAULT_PARITY} for a game whose opening seconds
  * move too much to compare that tightly; `parityGap` opts out with a reason.
+ * `interact` is the input a package must visibly answer; `interactGap` opts out.
  */
 export const GOLDEN = [
   {
@@ -83,60 +91,73 @@ export const GOLDEN = [
     certifies: ['physics', 'input', 'animation'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
+    interact: { keys: ['ArrowRight'], frames: 40 },
   },
   {
     id: 'space-shooter',
     certifies: ['ecs', 'particles', 'audio'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
+    interact: { keys: ['ArrowLeft'], frames: 40 },
   },
   {
     id: 'ui-controls',
     certifies: ['ui-layout', 'text'],
     targets: ['web', 'desktop'],
     tier: 'pr',
+    interactGap: 'widgets are pointer-driven; no keyboard path to hold',
   },
   {
     id: 'tilemap-demo',
     certifies: ['tilemap', 'tile-collision'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
+    // Measured: the scene's own patrolling enemy moves as much as the player
+    // does (drift 0.041 against a driven 0.100), so a pixel A/B cannot say the
+    // key caused it. The keyboard is covered by platformer and input-actions.
+    interactGap: 'an autonomous enemy moves as much as the input does; the A/B cannot attribute it',
   },
   {
     id: 'spine-demo',
     certifies: ['spine', 'material', 'asset-lifecycle'],
     targets: ['web', 'desktop', 'android', 'ios'],
     tier: 'nightly',
+    interactGap: 'a showcase that cycles its own animations; nothing to press',
   },
   {
     id: 'save-load',
     certifies: ['persistence', 'save-versioning'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
+    interactGap: 'save slots are driven from the UI, not the keyboard',
   },
   {
     id: 'hot-update-demo',
     certifies: ['hot-update'],
     targets: ['web', 'android'],
     tier: 'nightly',
+    interactGap: 'swaps an asset on a timer; no input path',
   },
   {
     id: 'multiplayer-arena',
     certifies: ['networking'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
+    interactGap: 'needs a listen server up before input means anything',
   },
   {
     id: 'video-puzzle',
     certifies: ['single-file'],
     targets: ['playable', 'web'],
     tier: 'nightly',
+    interactGap: 'tiles are pointer-driven; no keyboard path',
   },
   {
     id: 'input-actions',
     certifies: ['input'],
     targets: ['web', 'desktop', 'wechat'],
     tier: 'release',
+    interact: { keys: ['KeyD'], frames: 40 },
   },
 ];
 
@@ -175,6 +196,12 @@ export function nonGoldenExamples() {
 export function parityFor(g) {
   if (g.parityGap) return null;
   return typeof g.parity === 'number' ? g.parity : DEFAULT_PARITY;
+}
+
+/** The input a project's package must answer, or null when it opted out. */
+export function interactFor(g) {
+  if (g.interactGap || !g.interact) return null;
+  return { keys: g.interact.keys ?? [], frames: g.interact.frames ?? 40, responds: g.interact.responds ?? DEFAULT_RESPONDS };
 }
 
 /** Absolute path to a golden project's directory. */

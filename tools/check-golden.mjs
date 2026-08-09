@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, TIERS, TARGETS,
-  atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor,
+  atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
 } from './goldenProjects.mjs';
 
 const problems = [];
@@ -61,6 +61,15 @@ for (const g of GOLDEN) {
     fail(`"${g.id}" has parity ${g.parity} — expected a tolerance between 0 and 1`);
   }
   if (g.parity !== undefined && g.parityGap) fail(`"${g.id}" both sets a parity tolerance and opts out`);
+  // Same bargain as parity: a project that cannot be driven says why.
+  if (g.interactGap !== undefined && !(typeof g.interactGap === 'string' && g.interactGap.trim())) {
+    fail(`"${g.id}" sets interactGap without a reason — say why nothing can be pressed`);
+  }
+  if (g.interact && g.interactGap) fail(`"${g.id}" both declares input and opts out of it`);
+  if (!g.interact && !g.interactGap) {
+    fail(`"${g.id}" neither declares input nor says why it has none — the chain has no interact step for it`);
+  }
+  if (g.interact && !(g.interact.keys?.length > 0)) fail(`"${g.id}" declares input with no keys to hold`);
   if (!g.certifies?.length) fail(`"${g.id}" certifies nothing — say what it is in the suite for`);
   for (const c of g.certifies ?? []) {
     if (!CAPABILITIES.includes(c)) fail(`"${g.id}" certifies "${c}", which is not a declared capability`);
@@ -91,12 +100,14 @@ if (problems.length) {
 }
 
 const noParity = GOLDEN.filter((g) => parityFor(g) === null);
+const driven = GOLDEN.filter((g) => interactFor(g) !== null);
 const gaps = Object.keys(KNOWN_GAPS).length;
 const pairs = TIERS.map((t) => `${t} ${atTier(t).length}`).join(' / ');
 console.log(
   `check-golden: ${GOLDEN.length} golden project(s) certify ${covered.size}/${CAPABILITIES.length} capabilities`
   + `, ${gaps} declared gap(s) — ok (${pairs})`,
 );
+console.log(`  ${driven.length} project(s) drive their package with input; ${GOLDEN.length - driven.length} say why they cannot`);
 for (const g of noParity) console.log(`  no editor/package comparison for ${g.id}: ${g.parityGap}`);
 const rest = nonGoldenExamples();
 if (rest.length) console.log(`  ${rest.length} example(s) outside the corpus (smoke-tested, not certified)`);

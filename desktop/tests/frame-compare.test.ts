@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { deflateSync } from 'node:zlib';
 // @ts-expect-error — plain-JS tool module, no d.ts
-import { downsample, gridDistance, frameDistance, DEFAULT_INSET } from '../../tools/frameCompare.mjs';
+import { downsample, gridDistance, cellMaxDistance, frameDistance, frameCellMax, DEFAULT_INSET } from '../../tools/frameCompare.mjs';
 
 interface Img { w: number; h: number; px(x: number, y: number): [number, number, number] }
 
@@ -117,6 +117,40 @@ function png(w: number, h: number, c: [number, number, number]): Buffer {
   ]);
 }
 
+/**
+ * The second question: not "is this the same game" but "did anything answer".
+ * Measured on real packages — driven 0.37, undriven drift 0.04, input silently
+ * dropped 0.09 — which is why the tolerance sits at 0.15 and not below it.
+ */
+describe('cellMaxDistance', () => {
+  const field = (w: number, h: number) => solid(w, h, [30, 30, 30]);
+  /** The same field with one small bright block, as a sprite at a position. */
+  const withSprite = (w: number, h: number, sx: number) =>
+    img(w, h, (x, y) => (x >= sx && x < sx + 4 && y >= 8 && y < 12 ? [255, 255, 255] : [30, 30, 30]));
+
+  it('is zero against itself', () => {
+    const g = downsample(withSprite(64, 32, 10), 16, 8);
+    expect(cellMaxDistance(g, g)).toBe(0);
+  });
+
+  it('sees a small sprite move where the mean does not', () => {
+    const a = downsample(withSprite(64, 32, 8), 16, 8);
+    const b = downsample(withSprite(64, 32, 40), 16, 8);
+    expect(gridDistance(a, b)).toBeLessThan(0.05); // averaged away
+    expect(cellMaxDistance(a, b)).toBeGreaterThan(0.3); // the moved cell shows
+  });
+
+  it('stays near zero when nothing moved but the field is busy', () => {
+    const a = downsample(field(64, 32), 16, 8);
+    const b = downsample(img(64, 32, (x, y) => (((x + y) % 17 === 0) ? [34, 34, 34] : [30, 30, 30])), 16, 8);
+    expect(cellMaxDistance(a, b)).toBeLessThan(0.05);
+  });
+
+  it('refuses grids of different sizes', () => {
+    expect(() => cellMaxDistance(new Float64Array(3), new Float64Array(6))).toThrow(/mismatch/);
+  });
+});
+
 describe('frameDistance', () => {
   it('scores two identical captures at zero', () => {
     expect(frameDistance(png(32, 18, [40, 80, 120]), png(32, 18, [40, 80, 120]))).toBe(0);
@@ -133,5 +167,9 @@ describe('frameDistance', () => {
 
   it('insets by default, so a play border never counts as a difference', () => {
     expect(DEFAULT_INSET).toBeGreaterThan(0);
+  });
+
+  it('frameCellMax refuses mismatched sizes too — both reducers share the guard', () => {
+    expect(() => frameCellMax(png(32, 18, [0, 0, 0]), png(64, 18, [0, 0, 0]))).toThrow(/differ in size/);
   });
 });
