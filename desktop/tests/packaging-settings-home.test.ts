@@ -15,6 +15,7 @@ import { settingsRegistry } from '@/settings/registry';
 import { ProjectStore } from '@/project/ProjectStore';
 import { BUILTIN_PLATFORMS } from '@/project/platforms';
 import { platformLabel, unlabeledBuiltins } from '@/project/platformLabels';
+import type { ObjectListSetting } from '@/settings/types';
 
 /** Every registered setting that claims a packaging target. */
 const targetOwned = () => settingsRegistry.all().filter((s) => s.platform);
@@ -81,6 +82,37 @@ describe('a packaging setting has one home', () => {
     }
     expect(settingsRegistry.settingsForSection('packaging').map((s) => s.id))
       .toEqual(expect.arrayContaining(['project.packaging.appId', 'project.packaging.achievements']));
+  });
+});
+
+describe('a list whose store normalizes rows away', () => {
+  const real = { get: ProjectStore.packagingSettings, set: ProjectStore.setPackaging };
+  afterEach(() => {
+    ProjectStore.packagingSettings = real.get;
+    ProjectStore.setPackaging = real.set;
+  });
+
+  it('flags a blank new row, because writing it through loses it', () => {
+    // The store drops an id no achievement could match, so a blank row written
+    // straight through never comes back and Add looks dead. Holding a row that
+    // `rowError` rejects is the rule that pairs with it.
+    const s = settingsRegistry.get('project.packaging.achievements') as ObjectListSetting;
+    let stored: string[] = [];
+    ProjectStore.packagingSettings = () => ({ achievements: stored });
+    ProjectStore.setPackaging = (async (p: { achievements?: string[] }) => {
+      stored = p.achievements ?? stored;
+    }) as typeof ProjectStore.setPackaging;
+
+    const row = s.newRow();
+    s.bind!.set([...s.bind!.get(), row]);
+    expect(s.bind!.get()).toHaveLength(0);
+    expect(s.rowError!(row, [row])).toBeTruthy();
+
+    // Once named it survives the same round trip.
+    const named = { id: 'FIRST_BLOOD' };
+    expect(s.rowError!(named, [named])).toBeNull();
+    s.bind!.set([named]);
+    expect(s.bind!.get()).toEqual([{ id: 'FIRST_BLOOD' }]);
   });
 });
 

@@ -201,8 +201,11 @@
 /* A path row is wider than a plain string: an absolute program path is long, and
    truncating the interesting end of it (the executable's name) is what makes the
    Cocos-style field hard to read at a glance. */
-.set-path { display: flex; align-items: center; gap: 4px; }
-.set-path .set-str { width: 300px; }
+/* Fills the control column rather than stating a width: a path is longer than any
+   column worth reserving, and a fixed one overflowed LEFT, over the label. The
+   full value is the input's own title. */
+.set-path { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.set-path .set-str { flex: 1; min-width: 0; }
 /* A credential: an entry field until one is held, then a statement that one is.
    Uncolored on purpose — "configured" is a fact, not a warning or a success. */
 .set-secret { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 100%; }

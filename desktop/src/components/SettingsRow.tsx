@@ -11,7 +11,7 @@
  *        on that target's page. One renderer, so a row cannot look or behave like
  *        two different things depending on which dialog you opened.
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { RotateCcw, FolderSearch, Plus, Trash2, ChevronRight, Check, KeyRound, X } from 'lucide-react';
@@ -24,7 +24,7 @@ import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { ColorControl } from '@/components/ColorControl';
 import { refreshSecret, secretStatus, storeSecret, forgetSecret, subscribeSecrets } from '@/store/SecretStore';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, PathSetting, SecretSetting, MatrixSetting, FlagListSetting, ObjectListSetting, ObjectListColumn } from '@/settings/types';
+import type { Setting, BooleanSetting, EnumSetting, NumberSetting, StringSetting, ColorSetting, ColorPickerSetting, KeybindingSetting, StringListSetting, PathSetting, SecretSetting, MatrixSetting, FlagListSetting, ObjectListSetting, ObjectListColumn } from '@/settings/types';
 import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -186,6 +186,7 @@ function PathControl({ setting }: { setting: PathSetting }) {
         <input
           className="set-str"
           value={value}
+          title={value}
           placeholder={setting.placeholder ?? ''}
           spellCheck={false}
           onChange={(e) => setValue(setting.id, e.target.value)}
@@ -366,7 +367,6 @@ function FlagListControl({ setting }: { setting: FlagListSetting }) {
  * every keystroke — the setting store is the working copy, and a row that is
  * momentarily invalid shows its complaint inline instead of being refused.
  */
-const EMPTY_ROWS: readonly Record<string, unknown>[] = [];
 
 /** Read `a.b.c` out of a row. */
 function readPath(row: Record<string, unknown>, path: string): unknown {
@@ -510,21 +510,56 @@ function ObjectListField({
  */
 function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
   const setValue = useSettings((s) => s.setValue);
-  // useShallow, not a bare selector: `getValue` hands back a fresh array each
-  // call, and Object.is on a new reference re-renders forever — the same reason
-  // FlagListControl below reads its value this way.
-  const rows = useSettings(useShallow((s) => s.getValue<Record<string, unknown>[]>(setting.id) ?? (EMPTY_ROWS as Record<string, unknown>[])));
+  /**
+   * Read through the serialized form, the only stable snapshot here: a bound list
+   * hands back fresh row OBJECTS, which a shallow compare never calls equal, so
+   * every read is a change and the tree re-renders until React kills it (#185).
+   * An empty list compares equal, which is why this can look fine for years.
+   */
+  const serialized = useSettings((s) => JSON.stringify(s.getValue<Record<string, unknown>[]>(setting.id) ?? []));
+  const rows = useMemo(() => JSON.parse(serialized) as Record<string, unknown>[], [serialized]);
+  /**
+   * Rows being typed, which the store has not been given yet. A row starts BLANK
+   * and a store may normalize a blank row away (an achievement id nothing could
+   * match), so writing it through makes Add a no-op. `rowError` already says
+   * which rows are real; a row waits here until it is one.
+   */
+  const [draft, setDraft] = useState<Record<string, unknown>[]>([]);
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set());
   const cols = setting.columns;
   const details = setting.detailColumns ?? [];
   const grid = { gridTemplateColumns: `${cols.map((c) => c.width ?? '1fr').join(' ')}${details.length > 0 ? ' 24px' : ''} 24px` };
+  const all = draft.length > 0 ? [...rows, ...draft] : rows;
+  const errorOf = (row: Record<string, unknown>, within: Record<string, unknown>[]) =>
+    setting.rowError?.(row, within) ?? null;
 
   // Read the CURRENT rows rather than the render's closure: editing two fields
   // in quick succession would otherwise have the second patch built from the
   // pre-first snapshot and silently drop the first edit.
   const patch = (i: number, key: string, v: unknown) => {
     const live = useSettings.getState().getValue<Record<string, unknown>[]>(setting.id) ?? rows;
-    setValue(setting.id, live.map((r, j) => (j === i ? writePath(r, key, v) : r)));
+    if (i < live.length) {
+      setValue(setting.id, live.map((r, j) => (j === i ? writePath(r, key, v) : r)));
+      return;
+    }
+    const edited = draft.map((r, j) => (j === i - live.length ? writePath(r, key, v) : r));
+    const merged = [...live, ...edited];
+    const ready = edited.filter((r) => !errorOf(r, merged));
+    if (ready.length > 0) setValue(setting.id, [...live, ...ready]);
+    setDraft(edited.filter((r) => errorOf(r, merged)));
+  };
+  const remove = (i: number, row: Record<string, unknown>) => {
+    if (i < rows.length) setValue(setting.id, rows.filter((_, j) => j !== i));
+    else setDraft(draft.filter((_, j) => j !== i - rows.length));
+    setting.onRowRemoved?.(row);
+    setExpanded(new Set());
+  };
+  // A new row joins the store directly when it is already valid there; only one
+  // that is not yet a row waits in the draft.
+  const add = () => {
+    const row = setting.newRow();
+    if (errorOf(row, [...rows, row])) setDraft([...draft, row]);
+    else setValue(setting.id, [...rows, row]);
   };
   const toggle = (i: number) => setExpanded((prev) => {
     const next = new Set(prev);
@@ -534,16 +569,16 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
 
   return (
     <div className="set-objlist">
-      {rows.length === 0 && setting.emptyHint && <div className="set-objlist-empty">{setting.emptyHint}</div>}
-      {rows.length > 0 && (
+      {all.length === 0 && setting.emptyHint && <div className="set-objlist-empty">{setting.emptyHint}</div>}
+      {all.length > 0 && (
         <div className="set-objlist-head" style={grid}>
           {cols.map((c) => <span key={c.key}>{c.label}</span>)}
           {details.length > 0 && <span />}
           <span />
         </div>
       )}
-      {rows.map((row, i) => {
-        const err = setting.rowError?.(row, rows) ?? null;
+      {all.map((row, i) => {
+        const err = errorOf(row, all);
         const open = expanded.has(i);
         return (
           <div key={i} className={`set-objlist-row${err ? ' invalid' : ''}`}>
@@ -566,11 +601,7 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
                 type="button"
                 className="set-objlist-del"
                 title={t('set.objList.remove')}
-                onClick={() => {
-                  setValue(setting.id, rows.filter((_, j) => j !== i));
-                  setting.onRowRemoved?.(row);
-                  setExpanded(new Set());
-                }}
+                onClick={() => remove(i, row)}
               >
                 <Trash2 size={12} strokeWidth={2} />
               </button>
@@ -593,7 +624,7 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
       <button
         type="button"
         className="set-objlist-add"
-        onClick={() => setValue(setting.id, [...rows, setting.newRow()])}
+        onClick={add}
       >
         <Plus size={12} strokeWidth={2.2} /> {setting.addLabel}
       </button>
@@ -601,89 +632,105 @@ function ObjectListControl({ setting }: { setting: ObjectListSetting }) {
   );
 }
 
-function Control({ setting }: { setting: Setting }) {
+/**
+ * A scalar control reads its OWN value, like every delegated control below.
+ * Reading one value for ALL types subscribes a row to a shape it does not
+ * render, and for a list of rows that snapshot is never equal to itself — an
+ * unbounded re-render (#185) driven by a control that is not even on screen.
+ */
+function BooleanControl({ setting }: { setting: BooleanSetting }) {
   const setValue = useSettings((s) => s.setValue);
-  // useShallow: a bound list setting returns a fresh array each read, which would
-  // otherwise make this snapshot change every render and loop.
-  const value = useSettings(useShallow((s) => s.getValue(setting.id)));
+  const on = useSettings((s) => Boolean(s.getValue(setting.id)));
+  return (
+    <span
+      className={`toggle${on ? ' on' : ''}`}
+      role="switch"
+      aria-checked={on}
+      tabIndex={0}
+      onClick={() => setValue(setting.id, !on)}
+      onKeyDown={(e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          setValue(setting.id, !on);
+        }
+      }}
+    />
+  );
+}
+
+function EnumControl({ setting }: { setting: EnumSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = String(useSettings((s) => s.getValue(setting.id)));
+  const options = setting.options.map((o) => ({ value: o.value, label: o.label }));
+  return setting.segmented ? (
+    <Segmented value={value} onChange={(v) => setValue(setting.id, v)} ariaLabel={setting.label} options={options} />
+  ) : (
+    <Select ariaLabel={setting.label} value={value} options={options} onChange={(v) => setValue(setting.id, v)} />
+  );
+}
+
+function SwatchControl({ setting }: { setting: ColorSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = String(useSettings((s) => s.getValue(setting.id) ?? ''));
+  return (
+    <div className="set-swatches">
+      {setting.swatches.map((c) => (
+        <span
+          key={c}
+          className={`set-swatch${value === c ? ' on' : ''}`}
+          style={{ background: c }}
+          title={c}
+          onClick={() => setValue(setting.id, c)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ColorPickerControl({ setting }: { setting: ColorPickerSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const hex = String(useSettings((s) => s.getValue(setting.id)) ?? '');
+  return (
+    <div className={`set-colorpicker${hex ? '' : ' inherited'}`}>
+      <ColorControl
+        value={hex || setting.placeholderColor?.() || '#00000000'}
+        onChange={(v) => setValue(setting.id, v)}
+      />
+      {!hex && <span className="set-inherit">{t('set.inherited')}</span>}
+    </div>
+  );
+}
+
+function StringControl({ setting }: { setting: StringSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = String(useSettings((s) => s.getValue(setting.id)) ?? '');
+  return (
+    <input
+      className="set-str"
+      value={value}
+      placeholder={setting.placeholder ?? ''}
+      spellCheck={false}
+      onChange={(e) => setValue(setting.id, e.target.value)}
+    />
+  );
+}
+
+function Control({ setting }: { setting: Setting }) {
   switch (setting.type) {
     case 'boolean':
-      return (
-        <span
-          className={`toggle${value ? ' on' : ''}`}
-          role="switch"
-          aria-checked={Boolean(value)}
-          tabIndex={0}
-          onClick={() => setValue(setting.id, !value)}
-          onKeyDown={(e) => {
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              setValue(setting.id, !value);
-            }
-          }}
-        />
-      );
-    case 'enum': {
-      const options = setting.options.map((o) => ({ value: o.value, label: o.label }));
-      if (setting.segmented) {
-        return (
-          <Segmented
-            value={String(value)}
-            onChange={(v) => setValue(setting.id, v)}
-            ariaLabel={setting.label}
-            options={options}
-          />
-        );
-      }
-      return (
-        <Select
-          ariaLabel={setting.label}
-          value={String(value)}
-          options={options}
-          onChange={(v) => setValue(setting.id, v)}
-        />
-      );
-    }
+      return <BooleanControl setting={setting} />;
+    case 'enum':
+      return <EnumControl setting={setting} />;
     case 'number':
       return <NumberControl setting={setting} />;
     case 'color':
-      return (
-        <div className="set-swatches">
-          {setting.swatches.map((c) => (
-            <span
-              key={c}
-              className={`set-swatch${value === c ? ' on' : ''}`}
-              style={{ background: c }}
-              title={c}
-              onClick={() => setValue(setting.id, c)}
-            />
-          ))}
-        </div>
-      );
-    case 'colorpicker': {
-      const hex = String(value ?? '');
-      return (
-        <div className={`set-colorpicker${hex ? '' : ' inherited'}`}>
-          <ColorControl
-            value={hex || setting.placeholderColor?.() || '#00000000'}
-            onChange={(v) => setValue(setting.id, v)}
-          />
-          {!hex && <span className="set-inherit">{t('set.inherited')}</span>}
-        </div>
-      );
-    }
+      return <SwatchControl setting={setting} />;
+    case 'colorpicker':
+      return <ColorPickerControl setting={setting} />;
     case 'keybinding':
       return <KeybindCapture setting={setting} />;
     case 'string':
-      return (
-        <input
-          className="set-str"
-          value={String(value ?? '')}
-          placeholder={setting.placeholder ?? ''}
-          spellCheck={false}
-          onChange={(e) => setValue(setting.id, e.target.value)}
-        />
-      );
+      return <StringControl setting={setting} />;
     case 'path':
       return <PathControl setting={setting} />;
     case 'secret':
