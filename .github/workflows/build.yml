@@ -657,10 +657,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers xvfb \
-            libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev \
-            libxinerama-dev libxkbcommon-dev libwayland-dev wayland-protocols \
-            libfontconfig1-dev libcurl4-openssl-dev libasound2-dev libpulse-dev \
-            libudev-dev libdrm-dev libgbm-dev
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
 
       - name: Fetch Dawn + QuickJS + SDL at their pinned commits
         run: node build-tools/cli.js native --fetch-deps
