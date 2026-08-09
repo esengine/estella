@@ -291,7 +291,6 @@
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .proj-card__desc {
   font-size: var(--fs-xs);
@@ -445,8 +444,13 @@
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
+/* Only the leading directories give way; the folder name is what tells two
+   same-named projects apart, so it never shrinks (see ProjectPath). */
+.proj-card__path,
+.proj-row__path { display: flex; }
+.pp-head { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pp-tail { flex: 0 0 auto; }
 .proj-row__col {
   font-size: var(--fs-xs);
   color: var(--text-dim);

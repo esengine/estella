@@ -202,9 +202,13 @@ interface Row {
 }
 const parentOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 
+// Where a project's content lives. The browser opens here, not at the project
+// root — whose listing is the same boilerplate for every project ever opened.
+const CONTENT_ROOT = 'assets';
+
 // Folder navigation with a back/forward history (the breadcrumb nav arrows).
 function useNav() {
-  const [nav, setNav] = useState<{ hist: string[]; i: number }>({ hist: [''], i: 0 });
+  const [nav, setNav] = useState<{ hist: string[]; i: number }>({ hist: [CONTENT_ROOT], i: 0 });
   const cwd = nav.hist[nav.i];
   const go = useCallback(
     (p: string) => setNav((n) => (p === n.hist[n.i] ? n : { hist: [...n.hist.slice(0, n.i + 1), p], i: n.i + 1 })),
@@ -213,7 +217,7 @@ function useNav() {
   const back = useCallback(() => setNav((n) => ({ ...n, i: Math.max(0, n.i - 1) })), []);
   const forward = useCallback(() => setNav((n) => ({ ...n, i: Math.min(n.hist.length - 1, n.i + 1) })), []);
   const up = useCallback(() => go(parentOf(cwd)), [go, cwd]);
-  const reset = useCallback(() => setNav({ hist: [''], i: 0 }), []);
+  const reset = useCallback((to: string = CONTENT_ROOT) => setNav({ hist: [to], i: 0 }), []);
   return { cwd, go, back, forward, up, reset, canBack: nav.i > 0, canForward: nav.i < nav.hist.length - 1, canUp: cwd !== '' };
 }
 
@@ -384,10 +388,21 @@ export function ContentBrowser() {
   // Reset navigation + selection + search/filter when the open project changes —
   // project A's query/type-filter must not carry into project B's browser.
   useEffect(() => {
+    let alive = true;
     reset();
     selectAsset(null);
     setQuery('');
     setFilters(new Set());
+    // A project laid out some other way has no assets/ — land on its root rather
+    // than on a folder that isn't there. Asked of the ROOT listing, which always
+    // reads, instead of probing the missing folder itself.
+    void window.estella?.fs
+      ?.readDir('')
+      .then((e) => {
+        if (alive && !e.some((d) => d.isDir && d.name === CONTENT_ROOT)) reset('');
+      })
+      .catch(() => {});
+    return () => { alive = false; };
   }, [project?.name, reset, selectAsset]);
   // Selection doesn't survive a folder change.
   useEffect(() => selectAsset(null), [cwd, selectAsset]);

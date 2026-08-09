@@ -46,6 +46,7 @@ import { secretStatus, subscribeSecrets, secretRevision } from '@/store/SecretSt
 import { useSettings } from '@/store/settingsStore';
 import { MarkdownView } from '@/components/MarkdownView';
 import { AgentMark } from '@/components/AgentMark';
+import { useHoverSelect } from '@/components/hoverSelect';
 import { OverlayDrawer } from '@/components/OverlayDrawer';
 import { readImageItems } from '@/agent/attachments';
 import { dockApi } from '@/layout/dockApi';
@@ -1073,6 +1074,7 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
   // menu that picks something other than what was highlighted.
   const [mention, setMention] = useState<{ query: string; items: Mention[]; at: number } | null>(null);
   const [mentionIdx, setMentionIdx] = useState(0);
+  const hoverSelect = useHoverSelect();
   const selected = useSelection((s) => s.selectedId);
   const selectedName = selected == null ? null : EditorControlSurface.getEntity(selected)?.name ?? null;
 
@@ -1151,7 +1153,7 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
                 type="button"
                 key={item.key}
                 className={`ag-mention-i${i === mentionIdx ? ' on' : ''}`}
-                onMouseEnter={() => { setMentionIdx(i); peekEntities(item.entity === null ? [] : [item.entity]); }}
+                {...hoverSelect(() => { setMentionIdx(i); peekEntities(item.entity === null ? [] : [item.entity]); })}
                 onMouseLeave={() => peekEntities([])}
                 onMouseDown={(e) => { e.preventDefault(); insertMention(item.insert); }}
               >

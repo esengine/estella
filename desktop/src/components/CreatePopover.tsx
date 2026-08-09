@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 import { allEntitySources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { useHoverSelect } from '@/components/hoverSelect';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { t } from '@/i18n';
 
@@ -51,6 +52,7 @@ export function CreatePopover({
   const activeRef = useRef<HTMLButtonElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
+  const hoverSelect = useHoverSelect();
 
   // Static builtins + the project's own components + its prefab assets. Computed
   // once per open, which is once per mount — the popover is unmounted when closed.
@@ -120,7 +122,7 @@ export function CreatePopover({
                       ref={isActive ? activeRef : undefined}
                       type="button"
                       className={`ac-item${isActive ? ' sel' : ''}`}
-                      onMouseEnter={() => setActive(idx)}
+                      {...hoverSelect(() => setActive(idx))}
                       onClick={() => commit(it)}
                     >
                       <span className="ai"><Icon size={16} /></span>

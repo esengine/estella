@@ -230,13 +230,31 @@
   box-shadow: var(--shadow-2);
   line-height: 0;
 }
-.viewport__minimap svg { display: block; cursor: crosshair; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.25); }
+/* Sized against the viewport rather than fixed: at 200px the map covered a third of a
+   squeezed dock, hiding the very content it summarises. The SVG keeps a fixed viewBox,
+   so only the rendered box shrinks. */
+.viewport__minimap svg {
+  display: block;
+  width: clamp(112px, 16cqw, 200px);
+  aspect-ratio: 200 / 128;
+  height: auto;
+  cursor: crosshair;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.25);
+}
+/* Too little room left to summarise anything — the map would be pure occlusion. */
+@container (max-width: 520px) {
+  .viewport__minimap { display: none; }
+}
 /* Wireframe outlines (matching the reference's schematic look) — reads clean even when
    a big background sprite spans the level; tilemaps get a faint filled region. */
 .viewport__minimap .mm-box { fill: none; stroke-width: 1; }
 .viewport__minimap .mm-sprite { stroke: var(--text-dim); opacity: 0.85; }
 .viewport__minimap .mm-tile { fill: color-mix(in srgb, var(--acc) 16%, transparent); stroke: color-mix(in srgb, var(--acc) 45%, transparent); opacity: 0.9; }
 .viewport__minimap .mm-icon { stroke: var(--text-mute); opacity: 0.45; }
+/* Selection reads over everything else — finding where the selected entity sits in a
+   level too big to see at once is what the map is for. */
+.viewport__minimap .mm-sel { stroke: var(--sel); stroke-width: 1.5; opacity: 1; }
 .viewport__minimap .mm-cam { fill: color-mix(in srgb, var(--acc) 10%, transparent); stroke: var(--acc); stroke-width: 1.5; }
 
 /* coord readout (bottom-left) */

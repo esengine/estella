@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { ComponentIcon } from '@/components/icons';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { useHoverSelect } from '@/components/hoverSelect';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { CATEGORY_ORDER } from '@/engine/schema';
 import { t } from '@/i18n';
@@ -59,6 +60,7 @@ export function AddComponentMenu({
   const activeRef = useRef<HTMLButtonElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
+  const hoverSelect = useHoverSelect();
 
   // Focus the search on open (type-to-filter immediately).
   useEffect(() => {
@@ -157,7 +159,7 @@ export function AddComponentMenu({
                       ref={isActive ? activeRef : undefined}
                       type="button"
                       className={`ac-item${isActive ? ' sel' : ''}`}
-                      onMouseEnter={() => setActive(idx)}
+                      {...hoverSelect(() => setActive(idx))}
                       onClick={() => commit(it.name)}
                     >
                       <span className="ai">

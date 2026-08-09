@@ -160,8 +160,10 @@ export type TilePiece = TileCollisionPiece & { planeZ?: number };
 
 /** World AABB union of the scene's content — the extent the minimap fits into. */
 export interface MinimapBounds { minX: number; minY: number; maxX: number; maxY: number; }
-/** One schematic box in the minimap: an entity's world AABB + a coarse kind for colour. */
-export interface MinimapBox { x0: number; y0: number; x1: number; y1: number; kind: 'sprite' | 'tile' | 'icon'; }
+/** One schematic box in the minimap: an entity's world AABB + a coarse kind for colour.
+ *  `src` is the SOURCE id selection speaks in (null for runtime-only projections), so
+ *  the map can mark what's selected without recollecting every box. */
+export interface MinimapBox { src: EntityId | null; x0: number; y0: number; x1: number; y1: number; kind: 'sprite' | 'tile' | 'icon'; }
 
 // Above this many boxes the minimap stops collecting (bounds still cover everything
 // collected) — a schematic overview needs the layout, not thousands of rects/rebuild.
@@ -604,8 +606,8 @@ export const ViewportController = {
     const world = EngineHost.world;
     const boxes: MinimapBox[] = [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    const add = (x0: number, y0: number, x1: number, y1: number, kind: MinimapBox['kind']) => {
-      if (boxes.length < MINIMAP_BOX_CAP) boxes.push({ x0, y0, x1, y1, kind });
+    const add = (e: EntityId, x0: number, y0: number, x1: number, y1: number, kind: MinimapBox['kind']) => {
+      if (boxes.length < MINIMAP_BOX_CAP) boxes.push({ src: SceneModel.sourceFor(e) ?? null, x0, y0, x1, y1, kind });
       minX = Math.min(minX, x0); minY = Math.min(minY, y0);
       maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1);
     };
@@ -614,7 +616,7 @@ export const ViewportController = {
         if (!world.valid(e) || !world.has(e, Transform) || world.has(e, UINode)) continue;
         if (world.has(e, TilemapLayer)) {
           const tb = this.tilemapWorldAABB(e);
-          if (tb) { add(tb.x0, tb.y0, tb.x1, tb.y1, 'tile'); continue; }
+          if (tb) { add(e, tb.x0, tb.y0, tb.x1, tb.y1, 'tile'); continue; }
         }
         const b = this.entityBounds(e);
         if (!b) continue;
@@ -623,7 +625,7 @@ export const ViewportController = {
           x0 = Math.min(x0, wx); y0 = Math.min(y0, wy);
           x1 = Math.max(x1, wx); y1 = Math.max(y1, wy);
         }
-        add(x0, y0, x1, y1, world.has(e, Sprite) ? 'sprite' : 'icon');
+        add(e, x0, y0, x1, y1, world.has(e, Sprite) ? 'sprite' : 'icon');
       }
     }
     const bounds = Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;

@@ -47,6 +47,23 @@ function Constellation() {
   );
 }
 
+/**
+ * A recent project's path with the folder name always legible: the leading
+ * directories ellipsise, the last segment never does. Clipping the tail instead
+ * renders same-named projects in different folders as the same string.
+ */
+function ProjectPath({ root, className }: { root: string; className: string }) {
+  const cut = Math.max(root.lastIndexOf('/'), root.lastIndexOf('\\'));
+  const head = cut > 0 ? root.slice(0, cut) : '';
+  const tail = cut > 0 ? root.slice(cut) : root;
+  return (
+    <span className={`${className} mono`} title={root}>
+      <span className="pp-head">{head}</span>
+      <span className="pp-tail">{tail}</span>
+    </span>
+  );
+}
+
 /** Project tile — the real thumbnail if present, else a star-chart placeholder. */
 function Thumb({ label, src }: { label: string; src?: string }) {
   return (
@@ -156,7 +173,7 @@ function RecentView({
               <div className="proj-card__body">
                 <span className="proj-card__name">{p.name}</span>
                 <span className="proj-card__meta mono">{relTime(p.openedAt)}</span>
-                <span className="proj-card__path mono">{p.root}</span>
+                <ProjectPath root={p.root} className="proj-card__path" />
               </div>
               {p.build && <span className="proj-card__build mono">{p.build}</span>}
               <button
@@ -189,7 +206,7 @@ function RecentView({
             >
               <span className="proj-row__main">
                 <span className="proj-row__name">{p.name}</span>
-                <span className="proj-row__path mono">{p.root}</span>
+                <ProjectPath root={p.root} className="proj-row__path" />
               </span>
               <span className="proj-row__col mono">{relTime(p.openedAt)}</span>
               <span className="proj-row__col">{p.build && <span className="lc-badge mono">{p.build}</span>}</span>

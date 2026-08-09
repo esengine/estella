@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { Sparkles } from 'lucide-react';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { useHoverSelect } from '@/components/hoverSelect';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { commands, formatKeybinding } from '@/commands';
 import { filterPalette, paletteItems, readsAsSentence, type PaletteItem } from '@/commands/palette';
@@ -27,6 +28,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
+  const hoverSelect = useHoverSelect();
 
   // Enablement is resolved once at open — the palette is a snapshot of what is
   // runnable now, and predicates read live store state (cheap but not reactive).
@@ -135,7 +137,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className={`ac-item cp-item cp-agent${active < 0 ? ' sel' : ''}`}
-                onMouseEnter={() => setActive(-1)}
+                {...hoverSelect(() => setActive(-1))}
                 onClick={handOff}
               >
                 <span className="at">
@@ -162,7 +164,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                   type="button"
                   className={`ac-item cp-item${isActive ? ' sel' : ''}${item.enabled ? '' : ' is-disabled'}`}
                   aria-disabled={!item.enabled}
-                  onMouseEnter={() => setActive(idx)}
+                  {...hoverSelect(() => setActive(idx))}
                   onClick={() => run(item)}
                 >
                   <span className="at">

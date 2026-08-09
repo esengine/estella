@@ -276,9 +276,14 @@
   color: var(--text);
   font-size: var(--fs-sm);
 }
+/* Wraps rather than scrolling sideways. The panel docks wide and short, so an
+   overflowing row put "Add Bus" — and every bus past the fold — behind a horizontal
+   scrollbar macOS only draws while scrolling: the button simply looked cut off.
+   Stretch so a bus without a ducking row doesn't leave the row ragged. */
 .mix-strips {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: stretch;
   gap: 8px;
   padding: 10px;
 }

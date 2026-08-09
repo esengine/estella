@@ -26,6 +26,7 @@ import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController, type JointGizmoType, type ColliderPointHandle, type MinimapBounds, type MinimapBox } from '@/engine/ViewportController';
+import { minimapFit, minimapBox, minimapCamRect, minimapToWorld } from '@/engine/minimapFit';
 import { ProjectStore } from '@/project/ProjectStore';
 import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
@@ -597,19 +598,33 @@ const MINIMAP_W = 200;
 const MINIMAP_H = 128;
 const MINIMAP_PAD = 8;
 
-const ViewportMinimap = memo(function ViewportMinimap({ data }: { data: { bounds: MinimapBounds | null; boxes: MinimapBox[] } }) {
+/**
+ * A counter that bumps two frames after any of `deps` changes — the point at which
+ * the engine has ticked and composed world transforms are readable. Anything derived
+ * from world-space geometry has to wait for it; reading on the change itself sees the
+ * pre-tick identity pose.
+ */
+function useComposedRev(...deps: unknown[]): number {
+  const [rev, setRev] = useState(0);
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setRev((r) => r + 1));
+    });
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return rev;
+}
+
+const ViewportMinimap = memo(function ViewportMinimap(
+  { data, selected }: { data: { bounds: MinimapBounds | null; boxes: MinimapBox[] }; selected: ReadonlySet<EntityId> },
+) {
   const win = usePanelWindow();
   const camRef = useRef<SVGRectElement>(null);
   // Fit the world bounds into the panel (preserve aspect, letterbox). Recomputed only
   // when the bounds change; the projection below closes over it.
-  const fit = useMemo(() => {
-    const b = data.bounds;
-    if (!b) return null;
-    const worldW = Math.max(b.maxX - b.minX, 1e-3);
-    const worldH = Math.max(b.maxY - b.minY, 1e-3);
-    const scale = Math.min((MINIMAP_W - 2 * MINIMAP_PAD) / worldW, (MINIMAP_H - 2 * MINIMAP_PAD) / worldH);
-    return { b, scale, offX: (MINIMAP_W - worldW * scale) / 2, offY: (MINIMAP_H - worldH * scale) / 2 };
-  }, [data.bounds]);
+  const fit = useMemo(() => minimapFit(data.bounds, MINIMAP_W, MINIMAP_H, MINIMAP_PAD), [data.bounds]);
 
   // Overlay the editor camera's world rect on the minimap every frame (it tracks
   // pan/zoom). Its own tiny rAF keeps this off the gizmo-heavy main viewport tick.
@@ -622,10 +637,11 @@ const ViewportMinimap = memo(function ViewportMinimap({ data }: { data: { bounds
       if (!rect) return;
       const v = ViewportController.editorViewRect();
       if (!v) { rect.style.opacity = '0'; return; }
-      rect.setAttribute('x', String(fit.offX + (v.cx - v.halfW - fit.b.minX) * fit.scale));
-      rect.setAttribute('y', String(fit.offY + (fit.b.maxY - (v.cy + v.halfH)) * fit.scale));
-      rect.setAttribute('width', String(Math.max(2, v.halfW * 2 * fit.scale)));
-      rect.setAttribute('height', String(Math.max(2, v.halfH * 2 * fit.scale)));
+      const r = minimapCamRect(fit, v, MINIMAP_W, MINIMAP_H);
+      rect.setAttribute('x', String(r.x));
+      rect.setAttribute('y', String(r.y));
+      rect.setAttribute('width', String(r.w));
+      rect.setAttribute('height', String(r.h));
       rect.style.opacity = '1';
     };
     raf = requestAnimationFrame(tick);
@@ -633,21 +649,24 @@ const ViewportMinimap = memo(function ViewportMinimap({ data }: { data: { bounds
   }, [fit, win]);
 
   // Minimap px → world, then recenter the camera there (click + drag, zoom untouched).
+  // The SVG is sized by CSS over a fixed viewBox, so client px scale by the rendered
+  // width — aiming at raw client offsets would land short on a shrunk map.
   const navTo = (e: ReactPointerEvent) => {
     if (!fit) return;
     const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
-    ViewportController.centerViewOn(
-      fit.b.minX + (e.clientX - r.left - fit.offX) / fit.scale,
-      fit.b.maxY - (e.clientY - r.top - fit.offY) / fit.scale,
-    );
+    const k = r.width > 0 ? MINIMAP_W / r.width : 1;
+    const p = minimapToWorld(fit, (e.clientX - r.left) * k, (e.clientY - r.top) * k);
+    ViewportController.centerViewOn(p.x, p.y);
   };
 
-  if (!fit || data.boxes.length === 0) return null;
+  // One box is not a map — a UI-only scene leaves just the camera icon, and a
+  // panel-sized overlay of it only hides the scene behind it.
+  if (!fit || data.boxes.length < 2) return null;
   return (
     <div className="viewport__minimap" title={t('vp.minimap')}>
       <svg
-        width={MINIMAP_W}
-        height={MINIMAP_H}
+        viewBox={`0 0 ${MINIMAP_W} ${MINIMAP_H}`}
+        preserveAspectRatio="none"
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
@@ -655,16 +674,19 @@ const ViewportMinimap = memo(function ViewportMinimap({ data }: { data: { bounds
         }}
         onPointerMove={(e) => { if (e.buttons & 1) navTo(e); }}
       >
-        {data.boxes.map((bx, i) => (
-          <rect
-            key={i}
-            className={`mm-box mm-${bx.kind}`}
-            x={fit.offX + (bx.x0 - fit.b.minX) * fit.scale}
-            y={fit.offY + (fit.b.maxY - bx.y1) * fit.scale}
-            width={Math.max(1, (bx.x1 - bx.x0) * fit.scale)}
-            height={Math.max(1, (bx.y1 - bx.y0) * fit.scale)}
-          />
-        ))}
+        {data.boxes.map((bx, i) => {
+          const r = minimapBox(fit, bx.x0, bx.y0, bx.x1, bx.y1);
+          return (
+            <rect
+              key={i}
+              className={`mm-box mm-${bx.kind}${bx.src != null && selected.has(bx.src) ? ' mm-sel' : ''}`}
+              x={r.x}
+              y={r.y}
+              width={r.w}
+              height={r.h}
+            />
+          );
+        })}
         <rect ref={camRef} className="mm-cam" />
       </svg>
     </div>
@@ -920,9 +942,13 @@ export function Viewport() {
   );
   // Minimap overview boxes + scene bounds — recomputed on structural / data change (the
   // camera rect updates live inside the minimap). dataRev catches entity moves on commit.
+  // `composedRev` is the third input because the boxes are COMPOSED world AABBs,
+  // which read (0,0) until the engine has ticked — and a scene adopt bumps structRev
+  // before that tick, with no further structural change coming to correct it.
+  const composedRev = useComposedRev(structRev, dataRev, engine.status);
   const minimap = useMemo(
     () => (engine.status === 'ready' ? ViewportController.minimapBoxes() : { bounds: null, boxes: [] }),
-    [structRev, dataRev, engine.status],
+    [structRev, dataRev, composedRev, engine.status],
   );
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
@@ -2560,7 +2586,7 @@ export function Viewport() {
         tool={tool}
         paintHint={inTilePaint && paintTool ? TILE_HINT[paintTool] : null}
       />
-      {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} />}
+      {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} selected={selectedIds} />}
       {/* Contributed gizmos. Gated on `showGizmos` with the built-in ones — a plugin
           overlay is a gizmo, so the same toggle has to silence it. */}
       {engine.status === 'ready' && showGizmos && !isPlaying && <PluginOverlays />}
