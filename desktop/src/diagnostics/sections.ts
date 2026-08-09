@@ -13,6 +13,7 @@
 import { takeCensus, getDeviceIdentity, getDeviceStatus, getDeviceLostReport } from 'esengine';
 import { diagnosticsRegistry } from './registry';
 import { personal } from './redact';
+import { timelineSnapshot } from './timeline';
 import { EngineHost } from '@/engine/EngineHost';
 import { checkEngineBuild } from '@/engine/EngineGuard';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -139,6 +140,21 @@ diagnosticsRegistry.register({
                 message: personal(e.message, 'text'),
             })),
         };
+    },
+});
+
+/**
+ * The run-up: what the editor was asked to do, newest last.
+ *
+ * Kept in the clear. Every entry is an id or a shape by construction (see
+ * timeline.ts), so there is nothing here to redact — and a timeline of
+ * placeholders would answer none of the questions a timeline is for.
+ */
+diagnosticsRegistry.register({
+    id: 'timeline',
+    collect: () => {
+        const t = timelineSnapshot(Date.now());
+        return t.kept > 0 ? t : null;
     },
 });
 

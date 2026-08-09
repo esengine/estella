@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
+import { note } from '@/diagnostics/timeline';
 
 /**
  * Editor undo/redo. One user gesture (a field edit, a drag, a future add/delete)
@@ -66,6 +67,29 @@ export interface HistoryChange {
  * and stays correct when the stack was empty at mark time. A mark holding the
  * head entry instead would have all three problems.
  */
+/**
+ * One line of what a step touched, for the crash timeline: how many entities and
+ * which components, never a name or a value. The timeline is kept unredacted, so
+ * what goes into it has to be safe by construction rather than by a later pass.
+ */
+/** `undo`, or `undo modify×1 Transform` when the step said what it touched. */
+function joinDetail(verb: string, shape: string | undefined): string {
+  return shape ? `${verb} ${shape}` : verb;
+}
+
+function describeChanges(changes: readonly HistoryChange[]): string | undefined {
+  if (changes.length === 0) return undefined;
+  const kinds = new Map<string, number>();
+  const components = new Set<string>();
+  for (const c of changes) {
+    kinds.set(c.kind, (kinds.get(c.kind) ?? 0) + 1);
+    if (c.component) components.add(c.component);
+  }
+  const parts = [...kinds].map(([k, n]) => `${k}×${n}`);
+  if (components.size > 0) parts.push([...components].sort().join('+'));
+  return parts.join(' ');
+}
+
 export interface HistoryMark {
   readonly seq: number;
 }
@@ -116,6 +140,10 @@ export class EditorHistoryImpl {
     this.undoStack.push({ id: ++this.seq, label, doc, ops, changes });
     if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
     this.redoStack.length = 0;
+    // The run-up to a crash, recorded where every edit already converges. What
+    // is noted is the SHAPE — kinds and components, never a name or a value —
+    // because this line is kept whether or not the report is ever redacted.
+    note('edit', label, describeChanges(changes));
     this.bump();
   }
 
@@ -304,6 +332,10 @@ export class EditorHistoryImpl {
     if (!entry) return;
     EditorHistoryImpl.apply(entry, 'undo');
     this.redoStack.push(entry);
+    // WHICH step was undone, not just that undo happened: a report showing
+    // "undo" with no subject cannot be replayed or even read, and the command
+    // itself has no way to know what it reached.
+    note('edit', entry.label, joinDetail('undo', describeChanges(entry.changes)));
     this.bump();
   }
   redo() {
@@ -311,6 +343,7 @@ export class EditorHistoryImpl {
     if (!entry) return;
     EditorHistoryImpl.apply(entry, 'redo');
     this.undoStack.push(entry);
+    note('edit', entry.label, joinDetail('redo', describeChanges(entry.changes)));
     this.bump();
   }
   canUndo() {

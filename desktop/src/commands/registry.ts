@@ -16,6 +16,7 @@
 import type { Command, Keybinding } from './types';
 import { chordMatches, normalizeChord } from './keybinding';
 import { PerfMonitor } from '@/engine/PerfMonitor';
+import { note } from '@/diagnostics/timeline';
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
 
 const OVERRIDE_KEY = 'estella.keybindings';
@@ -133,7 +134,15 @@ class CommandRegistry {
   /** Run a command by id (no-op if missing or currently disabled). */
   run(id: string): void {
     const c = this.contrib.get(id);
-    if (c && (c.isEnabled?.() ?? true)) PerfMonitor.measure(`cmd.${id}`, () => c.run());
+    if (!c) return;
+    // A command that was asked for and REFUSED is worth as much in a report as
+    // one that ran: "undo, nothing happened, undo again" is a bug report.
+    if (!(c.isEnabled?.() ?? true)) {
+      note('command', id, 'disabled');
+      return;
+    }
+    note('command', id);
+    PerfMonitor.measure(`cmd.${id}`, () => c.run());
   }
 
   /** The enabled command bound to a key event, if any (honors overrides). */

@@ -32,6 +32,22 @@ published separately; it ships inside the editor.
   name reads the same everywhere it appears, and keep the shape, because a value
   that was `undefined` and one that was `0` are different bugs.
 
+- **The bundle carries the run-up: what the editor was asked to do, in order.**
+  One stream rather than one per source, because a reproduction *is* an order —
+  opened a scene, deleted an entity, undid it, hot-reloaded, crashed — and two
+  streams only carry that order if whoever reads them re-merges by timestamp.
+
+  It is recorded at the two doors the editor already funnels through: the command
+  registry's single dispatch point and the undo stack's single commit. A command
+  that was **refused** is recorded too, since "I pressed undo and nothing
+  happened" is a bug report that a stream of successes would show as silence. An
+  undo names the step it reached, not just that undo occurred.
+
+  The stream is kept unredacted, which is only defensible because what enters it
+  is safe by construction: ids and shapes (`modify×1 Transform`), never a name or
+  a value. Repeats collapse with a count, so a gizmo drag cannot push the
+  interesting thing out of the buffer.
+
 - **The GPU is readable while it works.** The engine captured its backend, vendor,
   renderer and driver version at init all along — a lost backend cannot be asked
   who it was — but the only way to read them was off a *loss report*, so a healthy
