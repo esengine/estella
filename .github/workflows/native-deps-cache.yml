@@ -144,6 +144,10 @@ jobs:
         if: steps.restore.outputs.cache-hit != 'true'
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          # See build.yml's desktop-linux job: Dawn's C++20 module target needs a
+          # compiler CMake can scan, and gcc is not one.
+          CC: ${{ matrix.target == 'linux' && 'clang' || '' }}
+          CXX: ${{ matrix.target == 'linux' && 'clang++' || '' }}
         run: node build-tools/cli.js native --target ${{ matrix.target }} --build-deps
 
       - name: Save it for every ref in the repository

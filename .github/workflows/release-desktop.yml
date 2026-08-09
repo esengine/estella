@@ -217,8 +217,18 @@ jobs:
       # licensed to partners, so it reaches a package from the developer's own SDK
       # (Project Settings -> Packaging -> Steamworks SDK), never from here.
       - name: Build the desktop template
-        if: matrix.name == 'macos' || matrix.name == 'windows' || matrix.name == 'linux'
+        if: matrix.name == 'macos' || matrix.name == 'windows'
         run: node build-tools/cli.js native --target ${{ matrix.name }} --template-out artifacts
+
+      # Its own step for one reason: clang. Dawn ships a C++20 module target and
+      # CMake will not generate for a compiler whose import graph it cannot scan,
+      # which the runner's default gcc is.
+      - name: Build the desktop template (Linux)
+        if: matrix.name == 'linux'
+        env:
+          CC: clang
+          CXX: clang++
+        run: node build-tools/cli.js native --target linux --template-out artifacts
 
       # The claim a template archive cannot make: that a game packaged from it
       # DRAWS. These two runners are the platforms themselves, so the pixel judge

@@ -619,6 +619,12 @@ jobs:
   desktop-linux:
     name: Desktop host (Linux) + pixels
     runs-on: ubuntu-latest
+    # clang, not the runner's default gcc: Dawn ships a C++20 module target, and
+    # CMake refuses to generate for a compiler it cannot scan the import graph
+    # with. It is also what the other two desktops compile with.
+    env:
+      CC: clang
+      CXX: clang++
     # The first run on a new dependency pin builds Dawn, which is tens of minutes;
     # after that the cache makes it a compile of the host alone.
     timeout-minutes: 90
