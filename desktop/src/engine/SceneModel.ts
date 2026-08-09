@@ -37,6 +37,15 @@ export type ModelEvent =
 
 type Listener = (ev: ModelEvent) => void;
 
+/** A removed entity plus where it sat — everything an exact restore needs. */
+export interface RemovedEntity {
+  entity: SceneEntity;
+  /** Index in `data.entities`, which is painter order. */
+  index: number;
+  /** Index within the parent's `children[]`; -1 when it had no parent. */
+  childIndex: number;
+}
+
 /**
  * Marks a model entity as part of a prefab instance. The
  * editor expands a prefab instance into ordinary entities; these tags record
@@ -228,35 +237,47 @@ export class SceneModelImpl {
    * hierarchy stays consistent. The source↔runtime map is left to the Reconciler
    * to unbind on the emitted `entityRemoved`.
    */
-  removeEntityBySource(sourceId: number): SceneEntity | undefined {
+  removeEntityBySource(sourceId: number): RemovedEntity | undefined {
     if (!this.data) return undefined;
-    const idx = this.data.entities.findIndex((e) => e.id === sourceId);
-    if (idx < 0) return undefined;
-    const [removed] = this.data.entities.splice(idx, 1);
+    const index = this.data.entities.findIndex((e) => e.id === sourceId);
+    if (index < 0) return undefined;
+    const [entity] = this.data.entities.splice(index, 1);
     this.entityIndex_.delete(sourceId);
-    if (removed.parent != null) {
-      const p = this.entityBySource(removed.parent);
-      if (p) p.children = p.children.filter((c) => c !== sourceId);
+    let childIndex = -1;
+    if (entity.parent != null) {
+      const p = this.entityBySource(entity.parent);
+      if (p) {
+        childIndex = p.children.indexOf(sourceId);
+        if (childIndex >= 0) p.children.splice(childIndex, 1);
+      }
     }
     this.prefabTags.delete(sourceId);
     this.emit({ kind: 'entityRemoved', sourceId });
-    return removed;
+    return { entity, index, childIndex };
   }
 
   /**
-   * Re-insert a previously-removed source entity (undo of delete). Restores its
-   * link in the parent's `children[]`. The Reconciler respawns + binds a fresh
-   * runtime entity on the emitted `entityAdded`.
+   * Re-insert removed entities at the indices they left; the Reconciler respawns
+   * each on the emitted `entityAdded`. Index matters — `data.entities` order is
+   * painter order. Batched: the inverse of a run of splices is that run replayed
+   * backwards, while links and events stay parent-first.
    */
-  restoreEntity(entity: SceneEntity): void {
+  restoreEntities(records: readonly RemovedEntity[]): void {
     if (!this.data) return;
-    this.data.entities.push(entity);
-    this.entityIndex_.set(entity.id, entity);
-    if (entity.parent != null) {
-      const p = this.entityBySource(entity.parent);
-      if (p && !p.children.includes(entity.id)) p.children.push(entity.id);
+    for (let i = records.length - 1; i >= 0; i--) {
+      const { entity, index } = records[i];
+      this.data.entities.splice(Math.min(index, this.data.entities.length), 0, entity);
+      this.entityIndex_.set(entity.id, entity);
     }
-    this.emit({ kind: 'entityAdded', sourceId: entity.id });
+    for (const { entity, childIndex } of records) {
+      if (entity.parent != null) {
+        const p = this.entityBySource(entity.parent);
+        if (p && !p.children.includes(entity.id)) {
+          p.children.splice(childIndex < 0 ? p.children.length : Math.min(childIndex, p.children.length), 0, entity.id);
+        }
+      }
+      this.emit({ kind: 'entityAdded', sourceId: entity.id });
+    }
   }
 
   /**

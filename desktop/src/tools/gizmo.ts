@@ -142,3 +142,14 @@ export function rotateAround(p: Pt, c: Pt, angle: number): Pt {
 export function scaleAround(p: Pt, c: Pt, fx: number, fy: number): Pt {
   return { x: c.x + (p.x - c.x) * fx, y: c.y + (p.y - c.y) * fy };
 }
+
+/**
+ * Which collider-overlay handles may take the pointer.
+ *
+ * The overlay is drawn for EVERY collider in the scene, and the offset handle
+ * sits where Move and Scale keep their centre grab. So handles answer only for
+ * the selected entity, and the offset yields to any transform gizmo.
+ */
+export function colliderHandleClass(selected: boolean, mode: GizmoMode | 'select'): string {
+  return (selected ? ' is-live' : '') + (mode === 'select' ? '' : ' gizmo-owns-centre');
+}

@@ -95,7 +95,7 @@ describe('SceneModel (JSON-first source of truth)', () => {
         expect(SceneModel.entityBySource(1)).toBeUndefined();
         expect(agrees()).toBe(true);
 
-        SceneModel.restoreEntity(removed!);
+        SceneModel.restoreEntities([removed!]);
         expect(SceneModel.entityBySource(1)).toBe(scan(1));
         expect(agrees()).toBe(true);
 

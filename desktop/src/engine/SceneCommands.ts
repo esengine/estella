@@ -4,7 +4,7 @@ import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBind
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, AnchorAxis, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
-import { SceneModel, SceneModelImpl, type PrefabInstanceTag } from './SceneModel';
+import { SceneModel, SceneModelImpl, type PrefabInstanceTag, type RemovedEntity } from './SceneModel';
 import { SceneStore } from './SceneStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { ViewportController } from './ViewportController';
@@ -739,12 +739,12 @@ export class SceneCommandsImpl {
     const sourceId = this.model.addEntity('Entity', [
       { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) } as SceneComponent,
     ], parent);
-    let record: SceneEntity | undefined;
+    let record: RemovedEntity | undefined;
     this.history.describe({ kind: 'add', entity: sourceId, name: this.nameOf(sourceId) });
     this.history.record(
       'Add Entity',
       () => {
-        if (record) this.model.restoreEntity(record);
+        if (record) this.model.restoreEntities([record]);
       },
       () => {
         record = this.model.removeEntityBySource(sourceId);
@@ -756,23 +756,23 @@ export class SceneCommandsImpl {
   /**
    * Delete an entity AND its descendants (the World despawns children with their
    * parent, so the model removes the whole subtree to stay consistent). Undo
-   * re-creates the subtree losslessly, parent-before-child. Records are kept
-   * parent-first so restore re-links each child to its (already-restored) parent.
+   * re-creates the subtree losslessly, each entity back at the index it left —
+   * see SceneModel.restoreEntities for why the position is not decoration.
    */
   deleteEntity(sourceId: EntityId): void {
     const entity = this.model.entityBySource(sourceId);
     if (!entity) return;
     const name = entity.name || 'Entity';
-    const remove = (): SceneEntity[] =>
+    const remove = (): RemovedEntity[] =>
       this.model
         .collectSubtree(sourceId)
         .map((id) => this.model.removeEntityBySource(id))
-        .filter((r): r is SceneEntity => r !== undefined);
+        .filter((r): r is RemovedEntity => r !== undefined);
 
     let records = remove();
     if (records.length === 0) return;
     this.history.describe(...records.map((r) => ({
-      kind: 'remove' as const, entity: r.id, name: r.name || `Entity ${r.id}`,
+      kind: 'remove' as const, entity: r.entity.id, name: r.entity.name || `Entity ${r.entity.id}`,
     })));
     this.history.record(
       `Delete ${name}`,
@@ -780,7 +780,7 @@ export class SceneCommandsImpl {
         records = remove(); // redo
       },
       () => {
-        for (const r of records) this.model.restoreEntity(r); // parent-first
+        this.model.restoreEntities(records);
       },
     );
   }

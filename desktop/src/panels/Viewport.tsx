@@ -48,7 +48,7 @@ import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
-import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
+import { GIZMO, colliderHandleClass, type GizmoAxis } from '@/tools/gizmo';
 import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { TilePaintPreview } from '@/tools/tilePreview';
@@ -2321,7 +2321,10 @@ export function Viewport() {
             if (el) colliderRefs.current.set(id, el);
             else colliderRefs.current.delete(id);
           }}
-          className="viewport__collider-gizmo"
+          className={
+            'viewport__collider-gizmo'
+            + colliderHandleClass(selectedIds.has(SceneModel.sourceFor(id) ?? -1), tool)
+          }
           data-src={SceneModel.sourceFor(id)}
           aria-hidden="true"
         >

@@ -506,14 +506,21 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   stroke-dasharray: 4 3;
   opacity: 0.85;
 }
-/* Draggable handles — circle radius / box corner size (meters), written on canvas. */
+/* Draggable handles — circle radius / box corner size (meters), written on canvas.
+   Grabbable only on the selected entity (`.is-live`): the overlay is drawn for every
+   collider in the scene, and a handle on each would take the pointer from the entity
+   under it. */
 .viewport__collider-gizmo .cl-handle,
 .viewport__collider-gizmo .cl-size-handle {
   fill: var(--gizmo-collider);
   stroke: var(--srf-2);
   stroke-width: 1.5;
-  pointer-events: auto;
   cursor: ew-resize;
+}
+.viewport__collider-gizmo.is-live .cl-handle,
+.viewport__collider-gizmo.is-live .cl-size-handle,
+.viewport__collider-gizmo.is-live .cl-vert {
+  pointer-events: auto;
 }
 .viewport__collider-gizmo .cl-size-handle {
   cursor: nwse-resize;
@@ -524,8 +531,13 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   fill: var(--gizmo-collider);
   stroke: var(--srf-2);
   stroke-width: 1.25;
-  pointer-events: auto;
   cursor: move;
+}
+/* The offset handle sits exactly where Move/Scale put their centre grab. The
+   transform gizmo wins there; the offset stays draggable under Select, and typed
+   in the Inspector either way. */
+.viewport__collider-gizmo.gizmo-owns-centre .cl-offset {
+  pointer-events: none;
 }
 .viewport__collider-gizmo .cl-vert:hover {
   fill: color-mix(in srgb, var(--gizmo-collider) 70%, white);

@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GIZMO,
+  colliderHandleClass,
   hitTestGizmo,
   constrainWorldDelta,
   groupPivot,
@@ -84,5 +85,35 @@ describe('distToSegment', () => {
   });
   it('clamps to an endpoint past the segment', () => {
     expect(distToSegment({ x: 13, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 })).toBeCloseTo(3, 6);
+  });
+});
+
+/**
+ * Collider overlays are drawn for every collider in the scene, and the offset
+ * handle sits exactly where Move/Scale keep their centre grab. Ungated, dragging
+ * the middle of a platform to move it writes BoxCollider.offset instead.
+ */
+describe('colliderHandleClass', () => {
+  it('leaves an unselected entity\'s handles inert under every tool', () => {
+    for (const mode of ['select', 'move', 'rotate', 'scale'] as const) {
+      expect(colliderHandleClass(false, mode)).not.toContain('is-live');
+    }
+  });
+
+  it('arms the selected entity\'s handles', () => {
+    expect(colliderHandleClass(true, 'select')).toContain('is-live');
+  });
+
+  it('yields the centre to every transform gizmo, and only to those', () => {
+    expect(colliderHandleClass(true, 'move')).toContain('gizmo-owns-centre');
+    expect(colliderHandleClass(true, 'scale')).toContain('gizmo-owns-centre');
+    expect(colliderHandleClass(true, 'rotate')).toContain('gizmo-owns-centre');
+    expect(colliderHandleClass(true, 'select')).not.toContain('gizmo-owns-centre');
+  });
+
+  it('keeps the collider offset reachable: selected + Select tool arms it outright', () => {
+    const cls = colliderHandleClass(true, 'select');
+    expect(cls).toContain('is-live');
+    expect(cls).not.toContain('gizmo-owns-centre');
   });
 });
