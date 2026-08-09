@@ -69,7 +69,13 @@ for (const g of GOLDEN) {
   if (!g.interact && !g.interactGap) {
     fail(`"${g.id}" neither declares input nor says why it has none — the chain has no interact step for it`);
   }
-  if (g.interact && !(g.interact.keys?.length > 0)) fail(`"${g.id}" declares input with no keys to hold`);
+  if (g.interact && !(g.interact.keys?.length > 0) && !g.interact.pointer) {
+    fail(`"${g.id}" declares input with neither keys nor a pointer target`);
+  }
+  const pt = g.interact?.pointer;
+  if (pt && !(pt.x >= 0 && pt.x <= 1 && pt.y >= 0 && pt.y <= 1)) {
+    fail(`"${g.id}" has a pointer target outside the surface — x/y are fractions, not pixels`);
+  }
   if (!g.certifies?.length) fail(`"${g.id}" certifies nothing — say what it is in the suite for`);
   for (const c of g.certifies ?? []) {
     if (!CAPABILITIES.includes(c)) fail(`"${g.id}" certifies "${c}", which is not a declared capability`);

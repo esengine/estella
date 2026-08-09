@@ -84,6 +84,8 @@ export const KNOWN_GAPS = {
  * `parity` overrides {@link DEFAULT_PARITY} for a game whose opening seconds
  * move too much to compare that tightly; `parityGap` opts out with a reason.
  * `interact` is the input a package must visibly answer; `interactGap` opts out.
+ * A pointer target is a FRACTION of the surface and therefore tied to the layout
+ * it was aimed at: when one moves, the check fails loudly and names both frames.
  */
 export const GOLDEN = [
   {
@@ -105,7 +107,8 @@ export const GOLDEN = [
     certifies: ['ui-layout', 'text'],
     targets: ['web', 'desktop'],
     tier: 'pr',
-    interactGap: 'widgets are pointer-driven; no keyboard path to hold',
+    // Opens the modal — a whole-panel change, so the response is unmistakable.
+    interact: { pointer: { x: 0.625, y: 0.675 }, frames: 40 },
   },
   {
     id: 'tilemap-demo',
@@ -129,7 +132,7 @@ export const GOLDEN = [
     certifies: ['persistence', 'save-versioning'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
-    interactGap: 'save slots are driven from the UI, not the keyboard',
+    interactGap: 'pointer-driven; no stable slot target pinned yet',
   },
   {
     id: 'hot-update-demo',
@@ -150,7 +153,7 @@ export const GOLDEN = [
     certifies: ['single-file'],
     targets: ['playable', 'web'],
     tier: 'nightly',
-    interactGap: 'tiles are pointer-driven; no keyboard path',
+    interactGap: 'pointer-driven; no stable tile target pinned yet',
   },
   {
     id: 'input-actions',
@@ -201,7 +204,12 @@ export function parityFor(g) {
 /** The input a project's package must answer, or null when it opted out. */
 export function interactFor(g) {
   if (g.interactGap || !g.interact) return null;
-  return { keys: g.interact.keys ?? [], frames: g.interact.frames ?? 40, responds: g.interact.responds ?? DEFAULT_RESPONDS };
+  return {
+    keys: g.interact.keys ?? [],
+    pointer: g.interact.pointer ?? null,
+    frames: g.interact.frames ?? 40,
+    responds: g.interact.responds ?? DEFAULT_RESPONDS,
+  };
 }
 
 /** Absolute path to a golden project's directory. */

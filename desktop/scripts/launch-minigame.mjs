@@ -15,6 +15,7 @@
  *     --w / --h          surface size (default 640x360)
  *     --settle <n>       frames to let run before capturing (default 30)
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
+ *     --input <json>     drive it, same spec as launch-export
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -24,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from './rendererConsole.mjs';
 import { HOST_PAGE } from './minigameHost.mjs';
+import { inputScript } from './inputScript.mjs';
 
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
@@ -38,6 +40,7 @@ const W = Number(flag('w', '640'));
 const H = Number(flag('h', '360'));
 const SETTLE = Number(flag('settle', '30'));
 const TIMEOUT = Number(flag('timeout', '30000'));
+const INPUT = flag('input', '');
 
 const MIME = {
   '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
@@ -126,6 +129,13 @@ async function main() {
       requestAnimationFrame(tick);
     })
   `).catch((e) => { errors.push(String(e)); return false; });
+
+  if (painted && INPUT) {
+    const spec = JSON.parse(INPUT);
+    const ran = await win.webContents.executeJavaScript(inputScript(spec))
+      .catch((e) => { errors.push(`input: ${e}`); return -1; });
+    console.log(`  input: ${ran} source(s) over ${Number(spec.frames ?? 40)} frames`);
+  }
 
   const image = await win.webContents.capturePage();
   if (OUT) await writeFile(OUT, image.toPNG());

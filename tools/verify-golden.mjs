@@ -170,7 +170,7 @@ for (const { id, target } of pairs) {
     'electron', path.join('scripts', LAUNCHER(target)),
     '--dir', out, '--out', drivenPng,
     '--w', String(editor.w), '--h', String(editor.h),
-    '--input', JSON.stringify({ keys: input.keys, frames: input.frames }),
+    '--input', JSON.stringify({ keys: input.keys, pointer: input.pointer, frames: input.frames }),
   ], { encoding: 'utf8', cwd: DESKTOP });
   if (drive.status !== 0) {
     results.push({ id, target, stage: 'interact', ok: false, why: 'the driven launch failed' });
@@ -188,7 +188,9 @@ for (const { id, target } of pairs) {
   }
   const answered = response >= input.responds;
   results.push({ id, target, stage: 'interact', ok: answered, why: answered ? '' : `response ${response.toFixed(4)} < ${input.responds}` });
-  console.log(`${answered ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)}, responds ${response.toFixed(4)} to ${input.keys.join('+')}`);
+  const gesture = [input.keys.join('+'), input.pointer && `tap ${input.pointer.x}×${input.pointer.y}`]
+    .filter(Boolean).join(' + ');
+  console.log(`${answered ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)}, responds ${response.toFixed(4)} to ${gesture}`);
   if (!answered) console.log(`    the package did not visibly answer the key; compare ${packagePng} and ${drivenPng}`);
 }
 
