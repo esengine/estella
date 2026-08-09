@@ -31,4 +31,26 @@
  */
 
 /** @type {Array<{id: string, hurts: string, workaround: string, fix: string, issue?: string, allows?: string[]}>} */
-export const GAPS = [];
+export const GAPS = [
+  {
+    id: 'ui-visual-written-at-runtime',
+    hurts:
+      'A UIVisual written by a system renders in the wrong colour; the same component '
+      + 'left alone is pixel-exact. Measured on the packaged HUD meter: authored '
+      + '(231,90,105) stays exact while nothing writes it, and turns (51,28,43) under a '
+      + 'Mut write-back or (44,26,38) under an insert — the bar\'s LENGTH stays correct '
+      + 'either way, so it is the composite, not the value. The JS side reads the right '
+      + 'colour every frame. A probe project ruled out the node shape, the flex parent, '
+      + 'the Text sibling, the parent\'s alpha and the project\'s y-sort setting: standalone '
+      + 'and nested UIVisuals are all exact there — and nothing writes them.',
+    workaround:
+      'Write through world.insert and only when the value actually changed (what the '
+      + 'engine\'s own createProgress.setValue does). That keeps the untouched full-health '
+      + 'bar exact and leaves only a changed bar dim, rather than every frame of it.',
+    fix:
+      'Reproduce it in the probe by adding a system that writes a UIVisual — that isolates '
+      + 'it from the game — then root-cause it. Both write paths are suspect against UI '
+      + 'draw order, which C++ recomputes in uiRenderOrder_update during PostUpdate, the '
+      + 'same phase a gameplay system writes in.',
+  },
+];

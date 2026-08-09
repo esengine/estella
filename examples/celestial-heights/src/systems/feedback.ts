@@ -28,11 +28,16 @@ export const healthBarSystem = defineSystem(
  * the amount is the whole state — no geometry to keep in step with a layout.
  */
 export const vitalityMeterSystem = defineSystem(
-    [Query(Mut(UIVisual), VitalityMeter), Query(Health, Player)],
-    (meters, players) => {
-        for (const [, visual] of meters) {
+    [Query(UIVisual, VitalityMeter), Query(Health, Player), GetWorld()],
+    (meters, players, world) => {
+        for (const [entity, visual] of meters) {
             for (const [, health] of players) {
-                visual.fillAmount = health.max > 0 ? Math.max(0, health.current / health.max) : 0;
+                const amount = health.max > 0 ? Math.max(0, health.current / health.max) : 0;
+                // ENGINE-GAP(ui-visual-written-at-runtime): writing this every frame
+                // dims the bar, so it is written through insert, only on a change.
+                if (visual.fillAmount !== amount) {
+                    world.insert(entity, UIVisual, { ...visual, fillAmount: amount });
+                }
                 break;
             }
         }
