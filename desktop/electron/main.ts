@@ -667,6 +667,28 @@ ipcMain.handle('app:installUpdate', async () => {
   return installUpdate();
 });
 ipcMain.handle('diagnostics:openLogs', () => shell.openPath(logsDir()));
+
+/**
+ * Write a diagnostic bundle the renderer collected. Main picks the file and
+ * writes the text; WHAT goes in it is decided in the renderer, where the registry
+ * and the redaction level are — a second opinion about that, next to the
+ * filesystem, is the last place it should live.
+ */
+ipcMain.handle('diagnostics:saveBundle', async (_e, name: string, text: string) => {
+  if (!win) return { ok: false, error: 'no window' };
+  const res = await showSaveDialog(win, {
+    title: 'Export diagnostics',
+    defaultPath: name,
+    filters: [{ name: 'Estella diagnostics', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  try {
+    await writeFile(res.filePath, text, 'utf8');
+    return { ok: true, file: res.filePath };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
 ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', status));
 
 // — The MCP endpoint an external agent attaches to (mcpEndpoint.ts) —

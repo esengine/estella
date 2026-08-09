@@ -137,6 +137,7 @@ const BUILTIN_ITEMS: MenuContribution[] = [
   cmd('help', 'about', 'help.checkUpdates'),
   cmd('help', 'help', 'palette.open'),
   cmd('help', 'help', 'help.shortcuts'),
+  cmd('help', 'diagnostics', 'help.exportDiagnostics'),
   cmd('help', 'diagnostics', 'help.openLogs'),
 ];
 

@@ -28,6 +28,11 @@ export const menuMessages = defineMessages({
     },
     'menu.checkUpdates': { en: 'Check for Updates…', zh: '检查更新…' },
     'menu.openLogs': { en: 'Open Log Folder', zh: '打开日志文件夹' },
+    'menu.exportDiagnostics': { en: 'Export Diagnostics…', zh: '导出诊断信息…' },
+    'menu.exportDiagnosticsFull': {
+        en: 'Export Diagnostics (with project content)…',
+        zh: '导出诊断信息(含项目内容)…',
+    },
     'menu.keyboardShortcuts': { en: 'Keyboard Shortcuts', zh: '键盘快捷键' },
 
     'toast.extractedSchemas': { en: 'Extracted component schemas', zh: '组件 Schema 已提取' },

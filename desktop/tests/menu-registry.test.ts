@@ -54,7 +54,8 @@ describe('menu registry', () => {
     // dock tab and no chord of its own.
     expect(layout('window')).toEqual(['agent.open', 'view.resetLayout', 'plugins.open', null, 'project.close']);
     expect(layout('help')).toEqual([
-      'help.about', 'help.checkUpdates', null, 'palette.open', 'help.shortcuts', null, 'help.openLogs',
+      'help.about', 'help.checkUpdates', null, 'palette.open', 'help.shortcuts', null,
+      'help.exportDiagnostics', 'help.openLogs',
     ]);
   });
 

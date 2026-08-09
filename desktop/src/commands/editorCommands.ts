@@ -36,6 +36,7 @@ import { confirm } from '@/components/confirm';
 import { requestPluginPanelAction } from '@/plugins/panelActions';
 import { t } from '@/i18n';
 import { checkForUpdatesInteractive } from '@/update/updateToast';
+import { exportDiagnostics } from '@/diagnostics';
 import type { ToolMode } from '@/types';
 
 const editor = () => useEditorStore.getState();
@@ -635,6 +636,20 @@ commands.register({
   label: t('menu.checkUpdates'),
   category: t('cat.help'),
   run: () => void checkForUpdatesInteractive(),
+});
+commands.register({
+  id: 'help.exportDiagnostics',
+  label: t('menu.exportDiagnostics'),
+  category: t('cat.help'),
+  run: () => void exportDiagnostics('safe'),
+});
+// Not on the menu: carrying the project's own names and values out is a thing to
+// reach for deliberately, and the palette is where a deliberate reach lands.
+commands.register({
+  id: 'help.exportDiagnosticsFull',
+  label: t('menu.exportDiagnosticsFull'),
+  category: t('cat.help'),
+  run: () => void exportDiagnostics('full'),
 });
 commands.register({
   id: 'help.openLogs',

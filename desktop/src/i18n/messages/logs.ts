@@ -105,4 +105,36 @@ export const logsMessages = defineMessages({
     // — Profiler: Systems section —
     'prof.thisFrame': { en: 'this frame', zh: '当前帧' },
     'prof.noSystemTimings': { en: 'No system timings yet.', zh: '暂无系统耗时数据。' },
+
+    // — Diagnostic bundle (Help ▸ Export Diagnostics) —
+    'diag.confirm.title': { en: 'Export diagnostics', zh: '导出诊断信息' },
+    'diag.confirm.body': {
+        en: 'A structured report of what this editor is and what it was doing: build, GPU, '
+            + 'backend, counters and the recent log. Your project\'s names, paths and values '
+            + 'travel as stable placeholders, so the same name reads the same everywhere '
+            + 'without saying what it is. No scenes, scripts or assets are included.',
+        zh: '一份结构化报告:这个编辑器是什么、当时在做什么——构建、GPU、后端、计数器与近期日志。'
+            + '你项目里的名字、路径与取值以稳定占位形式出现,所以同一个名字在各处读起来一致,'
+            + '但不会说出它是什么。不包含任何场景、脚本或资产。',
+    },
+    'diag.confirm.titleFull': { en: 'Export diagnostics with project content', zh: '导出诊断信息(含项目内容)' },
+    'diag.confirm.bodyFull': {
+        en: 'This one carries the real names, paths and values — everything the safe export '
+            + 'replaces with placeholders. Send it only where you would send the project '
+            + 'itself. Scenes, scripts and assets are still not included.',
+        zh: '这一份带着真实的名字、路径与取值——也就是脱敏版会替换成占位的全部内容。'
+            + '只发给你愿意把项目本身交给的人。场景、脚本与资产仍然不包含。',
+    },
+    'diag.confirm.export': { en: 'Export', zh: '导出' },
+    'diag.summary.sections': {
+        en: 'Includes {count} sections: {names}',
+        zh: '包含 {count} 个部分:{names}',
+    },
+    'diag.summary.failed': {
+        en: 'Could not collect: {names}. That failure is itself in the report.',
+        zh: '未能采集:{names}。这个失败本身也会写进报告。',
+    },
+    'diag.saved': { en: 'Diagnostics exported.', zh: '诊断信息已导出。' },
+    'diag.reveal': { en: 'Show file', zh: '显示文件' },
+    'diag.failed': { en: 'Could not write the diagnostics: {error}', zh: '写出诊断信息失败:{error}' },
 });

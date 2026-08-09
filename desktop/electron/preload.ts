@@ -87,6 +87,9 @@ const api = {
     },
     /** Open the local diagnostics log folder (main-process errors, crash dumps). */
     openLogs: (): Promise<void> => ipcRenderer.invoke('diagnostics:openLogs'),
+    /** Write a bundle the renderer collected; main picks the file, nothing more. */
+    saveBundle: (name: string, text: string): Promise<{ ok: boolean; file?: string; canceled?: boolean; error?: string }> =>
+      ipcRenderer.invoke('diagnostics:saveBundle', name, text),
   },
 
   // — The MCP endpoint an external AI agent attaches to. Off unless asked for:

@@ -54,6 +54,7 @@ import { Particle, getComponent, takeCensus } from 'esengine';
 import { actionNames, actionParams, conditionNames } from '@/ai/actionCatalog';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
+import { captureBuildStamp, captureAppVersion, collectBundle } from './diagnostics';
 import { allEntitySources, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
 import { createTilemapFromTileset, createCollisionLayer } from './tilemap/createTilemap';
 import { applySceneOps, type SceneOp } from './engine/sceneOps';
@@ -85,6 +86,11 @@ import { applySettings } from './store/settingsStore';
 LogStore.install();
 // Apply persisted editor settings (accent, UI scale, log cap) before first paint.
 applySettings();
+// Read the identities a diagnostic bundle needs while they can still be asked
+// for: both are async, and the moment a report is wanted is the worst moment to
+// start awaiting one.
+captureAppVersion();
+captureBuildStamp();
 // Live-sync the asset registry + Content Browser with on-disk changes (incl.
 // edits made outside the editor) via the main-process project watcher.
 initFsWatch();
@@ -339,6 +345,10 @@ function buildEditorAutomation(): unknown {
       params: Object.fromEntries(actionNames().map((n) => [n, actionParams(n).map((p) => p.name)])),
     }),
     /** Dispatch any registered editor command by id (the UI's own channel). */
+    /** The diagnostic bundle, without writing a file — so a driver (or an agent
+     *  looking at a stuck editor) can read what a report would have said. */
+    collectDiagnostics: (detail: 'safe' | 'full' = 'safe') =>
+      collectBundle(detail, new Date().toISOString()),
     runCommand: (id: string) => commands.run(id),
     /**
      * The one door every plugin-contributed agent tool is dispatched through.
