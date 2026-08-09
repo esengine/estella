@@ -51,9 +51,15 @@ export function navGridFromTiles(
     return new NavGrid({ width, height, cellSize: opts.cellSize, origin: opts.origin, walkable });
 }
 
-/** Build a NavGrid from a live tilemap layer entity via TilemapAPI. */
+/**
+ * Build a NavGrid from a live tilemap layer entity via TilemapAPI.
+ *
+ * A tilemap's row 0 is its top and a NavGrid's cell 0 its bottom, so the row is
+ * flipped here — no `origin` could correct that mirroring. `origin` keeps its
+ * usual meaning: the world centre of the BOTTOM-left cell.
+ */
 export function navGridFromTilemapLayer(entity: Entity, opts: BuildNavGridOptions): NavGrid {
-    return navGridFromTiles((x, y) => TilemapAPI.getTile(entity, x, y), opts);
+    return navGridFromTiles((x, y) => TilemapAPI.getTile(entity, x, opts.height - 1 - y), opts);
 }
 
 function resolveBlocked(opts: BuildNavGridOptions): (tileId: number) => boolean {

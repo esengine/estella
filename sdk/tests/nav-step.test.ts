@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Transform } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import { NavGrid } from '../src/ai/nav/NavGrid';
@@ -11,7 +11,8 @@ import {
     type AgentRuntime,
     type NavWorldView,
 } from '../src/ai/nav/NavPlugin';
-import { navGridFromTiles } from '../src/ai/nav/navGridFromTilemap';
+import { navGridFromTiles, navGridFromTilemapLayer } from '../src/ai/nav/navGridFromTilemap';
+import { initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
 
 /** Minimal in-memory world satisfying what stepNavigation calls. */
 class FakeWorld implements NavWorldView {
@@ -174,5 +175,43 @@ describe('navGridFromTiles', () => {
         // 3 with a flip flag set in the high bits still reads as tile id 3.
         const grid = navGridFromTiles(() => 3 | 0x8000, { width: 1, height: 1, cellSize: 16 });
         expect(grid.isWalkable(0, 0)).toBe(false);
+    });
+});
+
+describe('navGridFromTilemapLayer', () => {
+    // A tilemap's row 0 is the map's top and a NavGrid's cell 0 its bottom, so
+    // only a map blocked along ONE edge says which way up the conversion is: a
+    // mirrored grid passes anything that reads the same upside down.
+    const map = [
+        [9, 9, 9], // tilemap row 0 — the map's TOP
+        [0, 0, 0],
+        [0, 0, 0],
+    ];
+
+    beforeEach(() => {
+        initTilemapAPI({
+            tilemap_getTile: (_e: number, x: number, y: number) => map[y][x],
+        } as never);
+    });
+    afterEach(() => shutdownTilemapAPI());
+
+    it('reads the tilemap top-down into a bottom-up grid', () => {
+        const grid = navGridFromTilemapLayer(7, { width: 3, height: 3, cellSize: 16 });
+        // The blocked tilemap row is the map's top, so it must land on the grid's
+        // TOP cell row — the highest gy, not gy 0.
+        expect(grid.isWalkable(1, 2)).toBe(false);
+        expect(grid.isWalkable(1, 0)).toBe(true);
+    });
+
+    it('puts an obstacle where cellToWorld says it is', () => {
+        const cellSize = 16;
+        // origin = world centre of the BOTTOM-left cell, per the NavGrid contract.
+        const grid = navGridFromTilemapLayer(7, {
+            width: 3, height: 3, cellSize, origin: { x: -16, y: -16 },
+        });
+        const blocked = grid.cellToWorld(1, 2);
+        // The tilemap draws its row 0 at the top: origin.y + (height-1)*cellSize.
+        expect(blocked.y).toBe(-16 + 2 * cellSize);
+        expect(grid.isWalkable(1, 2)).toBe(false);
     });
 });

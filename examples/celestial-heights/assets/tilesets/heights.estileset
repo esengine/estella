@@ -1,0 +1,15 @@
+{
+  "version": "1",
+  "texture": "@uuid:110f13ee-8280-4e9c-8bce-a5207e31edf6",
+  "tileWidth": 64,
+  "tileHeight": 64,
+  "columns": 6,
+  "margin": 0,
+  "spacing": 0,
+  "tileCount": 6,
+  "tiles": {
+    "4": { "collision": { "type": "box" } },
+    "5": { "collision": { "type": "box" } },
+    "6": { "collision": { "type": "box" } }
+  }
+}

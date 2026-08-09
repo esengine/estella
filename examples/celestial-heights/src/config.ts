@@ -18,10 +18,6 @@ export const Collide = {
     Enemy: 1 << 2,
 } as const;
 
-/** Half-extents of the walkable room, in world units. */
-export const ROOM_HALF_W = 800;
-export const ROOM_HALF_H = 450;
-
 /**
  * A 3/4 view foreshortens depth, so a step "north" covers less ground than a
  * step "east". Vertical input is scaled by this so the two read as one speed.

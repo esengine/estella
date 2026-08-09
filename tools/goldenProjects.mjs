@@ -61,7 +61,7 @@ export const CAPABILITIES = [
   // What a game needs and no sample carried end to end. Each holds a gap below
   // until the phase covering it lands, so the gate prints how much of a game the
   // corpus still cannot certify. See docs/REARCH_CELESTIAL_HEIGHTS.md.
-  'navigation', 'behavior-tree', 'scene-transition',
+  'navigation', 'behavior-tree', 'scene-transition', 'y-sort',
   'settings', 'controller', 'achievements', 'ui-inventory',
 ];
 
@@ -78,9 +78,6 @@ export const KNOWN_GAPS = {
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
-  navigation: 'enemy-ai navigates, but it is outside the corpus — Celestial Heights P2',
-  'behavior-tree': 'enemy-ai drives an FSM; nothing golden runs a behaviour tree — Celestial Heights P2',
-  'scene-transition': 'scene-flow switches scenes outside the corpus; no golden project streams between areas — Celestial Heights P2',
   settings: 'no project persists graphics/audio/language/rebinds and reads them back — Celestial Heights P3',
   controller: 'input-actions binds a gamepad, but no golden run drives one — Celestial Heights P5',
   achievements: 'the achievements service has no project that unlocks one in play — Celestial Heights P4',
@@ -172,6 +169,17 @@ export const GOLDEN = [
     // comparison says about it would be about the packaging.
     parityGap: 'shuffles per run and plays video; two runs of one build do not match either',
     interactGap: 'pointer-driven; no stable tile target pinned yet',
+  },
+  {
+    id: 'celestial-heights',
+    certifies: ['tilemap', 'tile-collision', 'navigation', 'behavior-tree', 'scene-transition', 'y-sort'],
+    targets: ['web', 'desktop'],
+    // Nightly, not pr: a project earns the release gate by having run, and this
+    // one has not run anywhere yet. It is also the biggest thing in the corpus.
+    tier: 'nightly',
+    // The camera follows Lyra, so walking scrolls the whole screen — no reading
+    // of a small sprite is needed to see that the key arrived.
+    interact: { keys: ['KeyD'], frames: 60 },
   },
   {
     id: 'input-actions',

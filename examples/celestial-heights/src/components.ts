@@ -12,6 +12,15 @@ export const Player = defineComponent('Player', {
 /** Anything the player fights. */
 export const Enemy = defineTag('Enemy');
 
+/** A way out of an area. `toScene` is the packaged scene name, e.g. `main`. */
+export const Gate = defineComponent('Gate', {
+    toScene: '',
+    radius: 90,
+});
+
+/** Set once a tilemap's navigation grid has been derived from its tiles. */
+export const NavGridBuilt = defineTag('NavGridBuilt');
+
 /**
  * Where the actor is facing, as a unit vector. Melee arcs and animation both
  * read it, so it is written once per actor rather than derived twice from

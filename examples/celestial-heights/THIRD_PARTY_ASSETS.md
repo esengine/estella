@@ -9,7 +9,17 @@ One row per asset or asset pack:
 
 | Asset | Where it is used | Source | Licence | Attribution required |
 |---|---|---|---|---|
-| _(none yet — the project runs on placeholder primitives)_ | | | | |
+| _(none yet — see placeholders below)_ | | | | |
+
+## Placeholders in the tree
+
+| File | Stands in for | Shape it commits to |
+|---|---|---|
+| `assets/textures/tileset.png` | the terrain atlas | 6 tiles, 64×64, one row, no margin or spacing; ids 1–3 walkable (grass, path, blossom), 4–6 solid (rock, water, wall) |
+
+Actors are still untextured `Sprite` colour quads at their final sizes: Lyra
+84×150, a wisp 64×96. Replacing any of these is a swap of the file plus the
+licence row above — not a change to a scene or a system.
 
 ## Rules
 

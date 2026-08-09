@@ -59,6 +59,25 @@ published separately; it ships inside the editor.
   a GPU. The unmasked strings are read where the browser allows it, so a report
   now names `ANGLE Metal Renderer: Apple M4` instead of a constant.
 
+### Fixed
+
+- **Navigation built from a tilemap was upside down, so enemies walked into
+  walls and stood still in the open.** `navGridFromTilemapLayer` read tilemap row
+  `y` for nav cell `y`, but the two count in opposite directions: a tilemap's row
+  0 is its TOP (`centre.y = originY - (row + 0.5) * tileH`) while a nav grid's
+  cell 0 is its BOTTOM (`cellToWorld.y = originY + gy * cellSize`). Every
+  obstacle therefore landed mirrored about the map's middle, and no `origin`
+  could correct it — the mirroring was in the row mapping, not the offset.
+
+  The visible symptom was worse than a wrong path: an agent whose own cell fell
+  outside the grid found no path at all and never moved, so an enemy that could
+  plainly see the player simply stood there.
+
+  The row is now flipped inside the wrapper, and `origin` keeps the meaning it
+  has everywhere else — the world centre of the bottom-left cell. The pure core
+  (`navGridFromTiles`) was always right and always tested; the seam where two
+  subsystems with opposite conventions meet had no test, and now does.
+
 ## [0.47.0] - 2026-08-08
 
 ### Added

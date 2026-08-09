@@ -1,10 +1,9 @@
 import {
-    defineSystem, Query, Mut, Res,
+    defineSystem, Query, Mut,
     registerAction, registerCondition, setNavDestination,
-    Nav, NavGrid, Perception, Status,
+    Perception, Status,
 } from 'esengine';
 import { Facing, MeleeAttack } from '../components';
-import { ROOM_HALF_W, ROOM_HALF_H } from '../config';
 
 // Leaves for assets/ai/wisp.esbt. The tree is authored as data and resolves
 // these names from the engine's AI registry, so the brain's shape is editable
@@ -49,17 +48,3 @@ export const perceiverFacingSystem = defineSystem(
     { name: 'PerceiverFacingSystem' },
 );
 
-/** An open grid over the room, until the room is a tilemap to derive one from. */
-export const setupNavGridSystem = defineSystem(
-    [Res(Nav)],
-    (nav) => {
-        const cell = 25;
-        nav.setGrid(new NavGrid({
-            width: (ROOM_HALF_W * 2) / cell,
-            height: (ROOM_HALF_H * 2) / cell,
-            cellSize: cell,
-            origin: { x: -ROOM_HALF_W, y: -ROOM_HALF_H },
-        }));
-    },
-    { name: 'SetupNavGridSystem' },
-);
