@@ -71,7 +71,6 @@ export const CAPABILITIES = [
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  localization: 'no example swaps locale at runtime; rich-text covers glyphs, not translation — Celestial Heights P3',
   touch: 'no example drives synthetic touch; input-actions is keyboard + gamepad — Celestial Heights P5',
   'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project — Celestial Heights P5',
   'pause-resume': 'lifecycle suspend/resume is covered by native hosts, not by a golden project — Celestial Heights P3',
@@ -172,7 +171,10 @@ export const GOLDEN = [
   },
   {
     id: 'celestial-heights',
-    certifies: ['tilemap', 'tile-collision', 'navigation', 'behavior-tree', 'scene-transition', 'y-sort'],
+    certifies: [
+      'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
+      'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
+    ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this
     // one has not run anywhere yet. It is also the biggest thing in the corpus.

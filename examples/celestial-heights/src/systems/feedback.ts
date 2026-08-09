@@ -1,7 +1,7 @@
 import {
-    defineSystem, Query, Mut, Transform, Sprite, Parent, GetWorld,
+    defineSystem, Query, Mut, Transform, Sprite, Parent, GetWorld, UIVisual,
 } from 'esengine';
-import { Health, HealthBarFill } from '../components';
+import { Health, HealthBarFill, Player, VitalityMeter } from '../components';
 
 /**
  * Shrinks a bar towards its left edge. Scaling would take it in from both
@@ -21,6 +21,23 @@ export const healthBarSystem = defineSystem(
         }
     },
     { name: 'HealthBarSystem' },
+);
+
+/**
+ * Drives the HUD meter from Lyra's health. The bar is a `Filled` UI visual, so
+ * the amount is the whole state — no geometry to keep in step with a layout.
+ */
+export const vitalityMeterSystem = defineSystem(
+    [Query(Mut(UIVisual), VitalityMeter), Query(Health, Player)],
+    (meters, players) => {
+        for (const [, visual] of meters) {
+            for (const [, health] of players) {
+                visual.fillAmount = health.max > 0 ? Math.max(0, health.current / health.max) : 0;
+                break;
+            }
+        }
+    },
+    { name: 'VitalityMeterSystem' },
 );
 
 /** Blinks whoever is in invulnerability frames, so a hit is visible at all. */

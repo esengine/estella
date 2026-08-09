@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "locale": "zh-CN",
+  "entries": {
+    "area.main": "樱林渡口",
+    "area.moonlit-gallery": "孤月回廊",
+    "hud.vitality": "生命"
+  }
+}

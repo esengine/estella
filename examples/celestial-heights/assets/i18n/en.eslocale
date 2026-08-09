@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "locale": "en",
+  "entries": {
+    "area.main": "Cherry Blossom Landing",
+    "area.moonlit-gallery": "Moonlit Gallery",
+    "hud.vitality": "Vitality"
+  }
+}

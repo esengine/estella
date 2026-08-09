@@ -21,6 +21,9 @@ export const Gate = defineComponent('Gate', {
 /** Set once a tilemap's navigation grid has been derived from its tiles. */
 export const NavGridBuilt = defineTag('NavGridBuilt');
 
+/** The HUD bar that reports Lyra's health; its `UIVisual` fill follows her. */
+export const VitalityMeter = defineTag('VitalityMeter');
+
 /**
  * Where the actor is facing, as a unit vector. Melee arcs and animation both
  * read it, so it is written once per actor rather than derived twice from
