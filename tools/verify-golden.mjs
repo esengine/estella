@@ -4,9 +4,10 @@
  * @file  verify-golden.mjs — carry each golden project through package → launch → drive → compare.
  *
  * The registry says which projects a tier certifies and for which targets; this
- * runs that matrix. Web and playable are driven here because both launch in the
- * Electron already on hand; desktop/android/ios packages are launched by
- * verify-desktop-render and verify-native-boot, which own their toolchains.
+ * runs that matrix. Web, playable and the mini-game targets are driven here
+ * because all three launch in the Electron already on hand; desktop/android/ios
+ * packages go to verify-desktop-render and verify-native-boot, which own their
+ * toolchains.
  *
  * Reports every pair rather than stopping at the first failure — a release
  * argument wants the whole matrix, not the first thing that broke.
@@ -32,8 +33,10 @@ const ONLY = flag('only', '');
 const SHOTS = flag('shots', '');
 const WORK = flag('work', path.join(ROOT, '.golden'));
 const NO_PARITY = argv.includes('--no-parity');
-/** Targets this runner owns; the rest belong to the native/desktop verifiers. */
-const OWNED = new Set(['web', 'playable']);
+/** Targets this runner owns; the rest belong to the native/desktop verifiers.
+ *  A mini-game needs its vendor's globals, so it goes through its own launcher. */
+const OWNED = new Set(['web', 'playable', 'wechat']);
+const LAUNCHER = (target) => (target === 'wechat' ? 'launch-minigame.mjs' : 'launch-export.mjs');
 
 const DESKTOP = path.join(ROOT, 'desktop');
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
@@ -118,7 +121,7 @@ for (const { id, target } of pairs) {
 
   const packagePng = SHOTS ? path.join(SHOTS, `${id}-${target}.png`) : path.join(WORK, `${id}-${target}.png`);
   const launch = spawnSync('npx', [
-    'electron', path.join('scripts', 'launch-export.mjs'),
+    'electron', path.join('scripts', LAUNCHER(target)),
     '--dir', out, '--out', packagePng,
     ...(editor ? ['--w', String(editor.w), '--h', String(editor.h)] : []),
   ], { encoding: 'utf8', cwd: DESKTOP });
@@ -164,7 +167,7 @@ for (const { id, target } of pairs) {
 
   const drivenPng = path.join(WORK, `${id}-${target}-driven.png`);
   const drive = spawnSync('npx', [
-    'electron', path.join('scripts', 'launch-export.mjs'),
+    'electron', path.join('scripts', LAUNCHER(target)),
     '--dir', out, '--out', drivenPng,
     '--w', String(editor.w), '--h', String(editor.h),
     '--input', JSON.stringify({ keys: input.keys, frames: input.frames }),
