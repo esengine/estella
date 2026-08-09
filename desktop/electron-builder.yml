@@ -87,6 +87,10 @@ extraResources:
       - "!**/node_modules/**"
       - "!**/dist/**"
       - "!**/dist-*/**"
+      # The flagship is a full game, not a sample: its art and audio would ride
+      # into every editor download. It lives in the repo for the certification
+      # chain and is distributed as a project, not as bundled content.
+      - "!celestial-heights/**"
 win:
   target: nsis
 # Assisted (non-oneClick) installer: electron-builder derives the oneClick

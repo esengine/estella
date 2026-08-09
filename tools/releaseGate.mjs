@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  releaseGate.mjs — what 0.48 has to be able to say, and what says it.
+ * @file  releaseGate.mjs — what 0.49 has to be able to say, and what says it.
  *
- * "Do not open 0.49 until these hold" is only a rule if the list is somewhere a
+ * "Do not open 0.50 until these hold" is only a rule if the list is somewhere a
  * machine reads. Written down anywhere else it decays the usual way: a criterion
  * loses the check that answered it and nobody notices, because nothing was ever
  * holding the two together.
@@ -15,7 +15,7 @@
  * This says the criteria are OWNED. Whether they PASS is what running them says.
  */
 
-export const RELEASE = '0.48';
+export const RELEASE = '0.49';
 
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files
@@ -96,6 +96,20 @@ export const CRITERIA = [
     says: 'every declared contract still holds (api surface, layers, corpus, host shim…)',
     answeredBy: 'pnpm run verify',
     needs: ['tools/check-golden.mjs', 'tools/check-minigame-host.mjs'],
+  },
+  {
+    id: 'no-engine-gaps-at-ship',
+    says: 'the flagship game had to route around the engine nowhere that is still open',
+    answeredBy: 'node tools/check-engine-gaps.mjs --empty',
+    needs: ['tools/check-engine-gaps.mjs', 'examples/celestial-heights/engine-gaps.mjs'],
+  },
+  {
+    id: 'site-shows-the-real-game',
+    says: 'the README and landing hero are frames of the game that ships, not a mock-up',
+    // A machine can compare two images; deciding that one of them is honest
+    // marketing is not a thing to compute. Whether the frame is sound is the
+    // flagship's parity run; whether it is the frame on the site is a person's.
+    manual: 'release captain, over docs/assets + docs/landing: the hero comes from a build of examples/celestial-heights',
   },
   {
     id: 'diagnostics-from-a-release-build',

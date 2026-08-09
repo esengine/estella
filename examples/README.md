@@ -53,6 +53,7 @@ for your own game.
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **video-puzzle** | Game | A tile-swap puzzle whose tiles are live regions of ONE playing video — texture-handle sharing + per-piece `uvOffset`/`uvScale`. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |
+| **celestial-heights** | Game | The flagship action-RPG vertical slice — the project the release argues from. Not bundled with the editor (size); see `docs/REARCH_CELESTIAL_HEIGHTS.md`. |
 
 ## Art & assets
 

@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "folders": ["Environment", "Actors"],
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 540, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1920, "y": 1080 }, "color": { "r": 0.106, "g": 0.09, "b": 0.169, "a": 1 }, "layer": -20 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "CobblestonePath",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -120, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1400, "y": 260 }, "color": { "r": 0.192, "g": 0.169, "b": 0.263, "a": 1 }, "layer": -10 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Lyra_Player",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -90, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 84, "y": 150 }, "color": { "r": 0.855, "g": 0.788, "b": 0.976, "a": 1 }, "layer": 10 } },
+        { "type": "Player", "data": {} }
+      ],
+      "visible": true
+    }
+  ]
+}

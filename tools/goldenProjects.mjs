@@ -58,6 +58,11 @@ export const CAPABILITIES = [
   'hot-update', 'rollback',
   'networking',
   'persistence', 'save-versioning',
+  // What a game needs and no sample carried end to end. Each holds a gap below
+  // until the phase covering it lands, so the gate prints how much of a game the
+  // corpus still cannot certify. See docs/REARCH_CELESTIAL_HEIGHTS.md.
+  'navigation', 'behavior-tree', 'scene-transition',
+  'settings', 'controller', 'achievements', 'ui-inventory',
 ];
 
 /**
@@ -66,11 +71,20 @@ export const CAPABILITIES = [
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  localization: 'no example swaps locale at runtime; rich-text covers glyphs, not translation',
-  touch: 'no example drives synthetic touch; input-actions is keyboard + gamepad',
-  'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project',
-  'pause-resume': 'lifecycle suspend/resume is covered by native hosts, not by a golden project',
+  localization: 'no example swaps locale at runtime; rich-text covers glyphs, not translation — Celestial Heights P3',
+  touch: 'no example drives synthetic touch; input-actions is keyboard + gamepad — Celestial Heights P5',
+  'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project — Celestial Heights P5',
+  'pause-resume': 'lifecycle suspend/resume is covered by native hosts, not by a golden project — Celestial Heights P3',
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
+  // Present in the engine and shown by non-golden samples, but never carried
+  // through the chain by a project the release argues from.
+  navigation: 'enemy-ai navigates, but it is outside the corpus — Celestial Heights P2',
+  'behavior-tree': 'enemy-ai drives an FSM; nothing golden runs a behaviour tree — Celestial Heights P2',
+  'scene-transition': 'scene-flow switches scenes outside the corpus; no golden project streams between areas — Celestial Heights P2',
+  settings: 'no project persists graphics/audio/language/rebinds and reads them back — Celestial Heights P3',
+  controller: 'input-actions binds a gamepad, but no golden run drives one — Celestial Heights P5',
+  achievements: 'the achievements service has no project that unlocks one in play — Celestial Heights P4',
+  'ui-inventory': 'ui-list virtualizes rows; no project builds an inventory a player operates — Celestial Heights P3',
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',

@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Celestial Heights",
+  "description": "An action-RPG vertical slice — the flagship project the release argues from.",
+  "tag": "Game",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "spineVersion": "none"
+}
