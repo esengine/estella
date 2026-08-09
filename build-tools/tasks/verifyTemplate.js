@@ -18,7 +18,8 @@ import { readFileSync } from 'fs';
 import * as logger from '../utils/logger.js';
 import { readZip } from '../utils/zip.js';
 import {
-    missingTemplateEntries, readTemplateManifest, TEMPLATE_MANIFEST, TEMPLATE_FORMAT,
+    missingTemplateEntries, readTemplateManifest, isTemplatePlatform,
+    TEMPLATE_MANIFEST, TEMPLATE_FORMAT,
 } from '../utils/nativeTemplate.js';
 
 /** The manifest inside the archive, without unpacking it. */
@@ -62,7 +63,7 @@ export function verifyTemplateZip(zipPath) {
     }
 
     const platform = manifest.platform ?? null;
-    if (platform !== 'android' && platform !== 'ios') {
+    if (!isTemplatePlatform(platform)) {
         problems.push(`platform "${platform}" is not one this build knows`);
         return { ok: false, problems, platform, engineVersion: manifest.engineVersion ?? null };
     }

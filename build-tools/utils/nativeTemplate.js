@@ -87,6 +87,19 @@ export function templateId(platform) {
 }
 
 /**
+ * Every platform a template is built and published for. One list, because the
+ * alternative already failed: the release gate kept its own pair of names while
+ * three desktop platforms landed in {@link templateLayout}, and the publish step
+ * then rejected three archives it had just built correctly.
+ */
+export const TEMPLATE_PLATFORMS = ['android', 'ios', 'macos', 'windows', 'linux'];
+
+/** Whether {@link templateLayout} can describe this platform. */
+export function isTemplatePlatform(platform) {
+    return TEMPLATE_PLATFORMS.includes(platform);
+}
+
+/**
  * The Android ABIs a template can carry, in the order a package lists them.
  * `arm64-v8a` is every real device; `x86_64` is the emulator, which is how anyone
  * without a phone tries the game at all.
@@ -222,9 +235,7 @@ export function templateLayout(platform, options = {}) {
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
         ];
     }
-    // windows and linux are named ids with no layout yet (S3c): a template for one
-    // cannot be installed, so this is only reached if something invents one.
-    throw new Error(`No template layout for "${platform}" — android, ios and macos have one.`);
+    throw new Error(`No template layout for "${platform}" — ${TEMPLATE_PLATFORMS.join(', ')} have one.`);
 }
 
 /**

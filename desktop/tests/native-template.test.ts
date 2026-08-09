@@ -21,8 +21,11 @@ import {
 import { listPlatforms } from '../electron/platformCatalog';
 import {
   requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
-  missingTemplateEntries, TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX,
+  missingTemplateEntries, isTemplatePlatform,
+  TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX, TEMPLATE_PLATFORMS,
+  type NativePlatform,
 } from '../../build-tools/utils/nativeTemplate.js';
+import { verifyTemplateZip } from '../../build-tools/tasks/verifyTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
 
 const VERSION = '9.9.9';
@@ -333,5 +336,50 @@ describe('what a PUBLISHED template must carry', () => {
   it('reads Windows separators, since that is where an archive may be listed', () => {
     const win = shipped([BYTECODE]).map((n) => n.split('/').join(String.fromCharCode(92)));
     expect(missingTemplateEntries(win, 'android', { release: true })).toEqual([]);
+  });
+});
+
+describe('the platforms templates are published for', () => {
+  /** A release-complete archive for any platform, built from that platform's own
+   *  layout so the fixture follows the contract instead of restating it. */
+  function releaseZip(platform: NativePlatform): Buffer {
+    const entries = requiredTemplateFiles(platform, { release: true })
+      .map((rel: string) => ({ name: rel, data: Buffer.from(`stand-in for ${rel}`) }));
+    entries.push({
+      name: TEMPLATE_MANIFEST,
+      data: Buffer.from(JSON.stringify({
+        kind: 'estella-native-template',
+        formatVersion: TEMPLATE_FORMAT,
+        id: platform,
+        platform,
+        engineVersion: VERSION,
+      })),
+    });
+    return makeZip(entries);
+  }
+
+  it('all have a layout, and the list is what asks', () => {
+    // The release gate kept its own pair of names while three desktop platforms
+    // landed in templateLayout, so v0.47.0 built five templates correctly and
+    // then refused to publish three. One list, and the layouts cannot part from it.
+    for (const p of TEMPLATE_PLATFORMS) {
+      expect(isTemplatePlatform(p)).toBe(true);
+      expect(templateLayout(p).length).toBeGreaterThan(0);
+    }
+    expect(isTemplatePlatform('playstation')).toBe(false);
+    expect(() => templateLayout('playstation' as NativePlatform)).toThrow();
+  });
+
+  it('are each accepted by the release verifier', () => {
+    // Through the verifier's own entry point, not a copy of its rule — having a
+    // copy was the defect.
+    for (const p of TEMPLATE_PLATFORMS) {
+      const zip = path.join(scratch, `t-${p}.zip`);
+      writeFileSync(zip, releaseZip(p));
+      const res = verifyTemplateZip(zip);
+      expect(res.platform).toBe(p);
+      expect(res.problems).toEqual([]);
+      expect(res.ok).toBe(true);
+    }
   });
 });

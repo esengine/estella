@@ -44,6 +44,11 @@ export const BYTECODE_FILE: string;
 export const ANDROID_ABIS: readonly string[];
 
 export function templateId(platform: NativePlatform): string;
+
+/** Every platform a template is built and published for — the one list the
+ *  layouts and the release verifier both ask. */
+export const TEMPLATE_PLATFORMS: readonly NativePlatform[];
+export function isTemplatePlatform(platform: unknown): platform is NativePlatform;
 export function templateAbis(dir: string): string[];
 export interface TemplateEntry {
     /** Path inside the template. */
@@ -57,7 +62,7 @@ export interface TemplateEntry {
 }
 
 export function templateLayout(platform: NativePlatform, options?: { abis?: readonly string[] }): TemplateEntry[];
-export function requiredTemplateFiles(platform: NativePlatform, options?: { abis?: readonly string[] }): string[];
+export function requiredTemplateFiles(platform: NativePlatform, options?: { abis?: readonly string[]; release?: boolean }): string[];
 export function missingTemplateFiles(dir: string, platform: NativePlatform, options?: { abis?: readonly string[] }): string[];
 /** The same question asked of a NAME LIST rather than a directory — what a zip
  *  is missing, checked before it is unpacked. */
