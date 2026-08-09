@@ -401,7 +401,7 @@ export const settingsMessages = defineMessages({
     'set.desktop.channel.standalone': { en: 'Standalone', zh: '独立发行' },
     'set.desktop.channel.steam': { en: 'Steam', zh: 'Steam' },
     'set.group.steam': { en: 'Steam', zh: 'Steam' },
-    'set.project.packaging.desktop.channel': { en: 'Distribution', zh: '发行渠道' },
+    'set.project.packaging.desktop.channel': { en: 'Channel', zh: '发行渠道' },
     'set.project.packaging.desktop.channel.desc': {
         en: 'Where this desktop build goes. Steam also writes the depot scripts and a STEAM.md '
             + 'listing the values only the partner backend can be told.',

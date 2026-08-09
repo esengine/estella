@@ -21,12 +21,15 @@ so what you shipped is what you tested (*play == ship*).
 1. Open **File → Build…** to bring up the **Package Project** dialog.
 2. Pick a **target** from the list — grouped as *General* (Web / Desktop /
    Playable), *Mini-games* (WeChat and any the project added), and *Mobile*
-   (Android / iOS).
-3. Choose a **build config** — *Development* or *Shipping* (Shipping minifies) — an
+   (Android / iOS). A target that ships to more than one place lists them beneath
+   it: Desktop branches into *Standalone* and *[Steam](/docs/publishing/steam/)*.
+3. Fill in that target's own settings, shown on its page — what the app is called
+   and identified by, and anything the store it goes to needs.
+4. Choose a **build config** — *Development* or *Shipping* (Shipping minifies) — an
    **output folder**, source maps, and the [asset cook options](#asset-cook-options).
-4. Check the **Scenes in build** list — untick scenes you don't want to ship, and
+5. Check the **Scenes in build** list — untick scenes you don't want to ship, and
    pin a different startup scene if needed (see below).
-5. Click **Package** and watch the live build log. When it finishes, the output
+6. Click **Package** and watch the live build log. When it finishes, the output
    folder opens (there's a checkbox to turn that off), and Web / Playable builds
    offer **Preview over http**.
 
@@ -68,7 +71,7 @@ and opens it in your browser.
 | Target | What it produces | Output | Next step |
 |---|---|---|---|
 | **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
-| **Desktop** | A runnable **native** app per installed desktop template — a `.app` on macOS, a `<Name>/` directory with `<Name>.exe` on Windows. No Chromium and no npm project. | `dist-desktop/` | Double-click it. Selecting the **Steam** channel also writes the depot scripts and a `STEAM.md` with this build's own values — see [Steam](/docs/publishing/steam/). |
+| **Desktop** | A runnable **native** app per installed desktop template — a `.app` on macOS, a `<Name>/` directory holding `<Name>.exe` on Windows or `<Name>` on Linux. No Chromium and no npm project. | `dist-desktop/` | Double-click it. Selecting the **Steam** channel also writes the depot scripts and a `STEAM.md` with this build's own values — see [Steam](/docs/publishing/steam/). |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/publishing/wechat/). |
 | **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
 | **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/publishing/android-ios/). |
@@ -264,16 +267,26 @@ output folder when the build finishes.
 
 ## Packaging settings
 
-Per-target metadata lives in **Project Settings → Packaging** and is saved with the
-project:
+What one *target* is called, where it goes and what a store knows it by is edited
+on that target's page in **File → Build…**, beside the build it changes:
+
+- **WeChat** — AppID.
+- **Desktop** — application id override, the product name (which names the app),
+  and the distribution channel (Standalone or [Steam](/docs/publishing/steam/)).
+- **Android** — version code (the integer Google Play orders builds by), whether
+  the build ends at an installable package or at the Gradle project, and whether
+  an App Bundle is written beside the APK.
+
+What holds for the project *whatever* it ships to stays in **Project Settings →
+Packaging**, and is saved with the project:
 
 - **Application ID** — the reverse-DNS id the installed app is known by: the
   Android manifest package, the iOS bundle id, the desktop installer id. Empty
   derives one from the project name; a published app should set its own, because a
   store keeps it forever.
-- **WeChat** — AppID.
-- **Desktop** — application id override and product name (used to name the installer).
-- **Android** — version code, the integer Google Play orders builds by.
+- **Icon** — one square PNG for every installable target.
+- **Achievements** — the ids your game unlocks. Platform-neutral: every store
+  keeps this same list under a different name.
 
 ### Screen orientation
 

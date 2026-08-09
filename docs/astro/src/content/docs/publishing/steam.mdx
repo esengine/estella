@@ -11,7 +11,8 @@ goes. So there is no "Steam build": there is a desktop build, and a switch that
 also writes what SteamPipe needs.
 
 The desktop build is a **native app** — the engine's C++ core with an embedded
-[Dawn](https://dawn.googlesource.com/dawn) (Metal on macOS, D3D12 on Windows) and
+[Dawn](https://dawn.googlesource.com/dawn) (Metal on macOS, D3D12 on Windows,
+Vulkan on Linux) and
 [QuickJS-ng](https://github.com/quickjs-ng/quickjs), on SDL3. There is no browser
 in the process, which is also why the Steam overlay, Steam Input and exclusive
 fullscreen behave the way players expect them to.
@@ -41,22 +42,31 @@ fullscreen behave the way players expect them to.
 
 ## Setting it up
 
-**Project Settings → Packaging**:
+Open **File → Build…** and pick **Steam**, listed under Desktop in the target
+list — Steam is a destination for the desktop build, so it branches that target
+rather than standing beside it. Everything the channel needs is on that page.
+
+![The Package Project dialog on Desktop → Steam: the Channel row set to Steam, and the Steam group with App ID, Steamworks SDK and the per-OS depot ids](@/assets/guides/en/steam-channel.png)
 
 | Setting | What it is |
 |---|---|
-| **Desktop → Channel** | `Steam` — writes the depot scripts beside the build. |
+| **Channel** | `Steam` — writes the depot scripts beside the build. Picking Steam in the target list sets this; they are the same value. |
 | **Steam App ID** | From the partner backend. Without it no scripts are written: a script built around a guessed id names someone else's game. |
 | **Steamworks SDK** | The SDK you downloaded. Its `redistributable_bin/<os>/` library ships inside the app. |
 | **Depot IDs** | Leave at 0 to use `App ID + 1`, … Valve *assigns* these; the generated checklist tells you to check them. |
-| **Achievements** | The ids your game unlocks (`packaging.achievements`), platform-neutral — every store has this same list under a different name. |
 
-Then **Package Project → Desktop**. Beside the app you get:
+The **achievement ids** are not here: they live in **Project Settings →
+Packaging**, because every store keeps that same list under a different name.
+Declaring them is what lets an unlock of an id no backend has be refused where it
+happens, instead of being accepted and silently dropped.
+
+Then press **Package**. Beside the app you get:
 
 ```
 dist-desktop/
   MyGame.app/            ← macOS, and/or
   MyGame/                ← Windows: MyGame.exe + Content/
+                         ← Linux:   MyGame     + Content/
   steam/
     app_build_<appid>.vdf
     depot_<id>_<os>.vdf
@@ -123,12 +133,12 @@ in a document:
 |---|---|---|
 | Windows | `WinAppDataRoaming` | `Estella/<Name>` |
 | macOS | `MacHome` | `Library/Application Support/Estella/<Name>` |
+| Linux | `LinuxHome` | `.local/share/Estella/<Name>` |
 
 ## Honest boundaries
 
 - **macOS builds are signed ad-hoc**, and only on a Mac. Notarize with your own
   Developer ID before a public release.
-- **Linux is not supported yet** — the desktop host has no Linux surface.
 - **`steamcmd` is not driven from the editor.** The checklist gives you the exact
   command instead; a feature that cannot be verified here is worse than a line you
   can copy.

@@ -19,12 +19,15 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 1. 打开 **文件 → Build…** 调出 **打包项目(Package Project)** 对话框。
 2. 从列表里选一个**目标**——分为*通用*(Web / 桌面 / Playable)、*小游戏*
-   (微信,以及项目自己添加的)、*移动*(Android / iOS)。
-3. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**、
+   (微信,以及项目自己添加的)、*移动*(Android / iOS)。发往不止一个地方的目标会把这些
+   去处列在它下面:桌面分叉为*独立发行*与 *[Steam](/docs/zh-cn/publishing/steam/)*。
+3. 填这个目标自己的设置,就在它的页面上——应用叫什么、用什么 id 认它,
+   以及它要发往的那个商店需要的东西。
+4. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**、
    source map,以及[资产烘焙选项](#资产烘焙选项)。
-4. 检查**构建场景(Scenes in build)**列表——取消勾选不想发布的场景,需要的话换一个
+5. 检查**构建场景(Scenes in build)**列表——取消勾选不想发布的场景,需要的话换一个
    启动场景(见下文)。
-5. 点 **Package**,看实时构建日志。完成后输出目录会自动打开(有复选框可关掉),
+6. 点 **Package**,看实时构建日志。完成后输出目录会自动打开(有复选框可关掉),
    Web / Playable 构建还会提供 **Preview over http**。
 
 </Steps>
@@ -58,7 +61,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | 目标 | 产出什么 | 输出 | 下一步 |
 |---|---|---|---|
 | **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
-| **桌面** | 每装了一个桌面运行时模板,就出一个可直接运行的**原生**应用——macOS 上是 `.app`,Windows 上是含 `<Name>.exe` 的 `<Name>/` 目录。没有 Chromium,也没有 npm 工程。 | `dist-desktop/` | 双击即可。选了 **Steam** 渠道还会写出 depot 脚本和一份带本次构建确切取值的 `STEAM.md`——见 [Steam](/docs/zh-cn/publishing/steam/)。 |
+| **桌面** | 每装了一个桌面运行时模板,就出一个可直接运行的**原生**应用——macOS 上是 `.app`,Windows 与 Linux 上是 `<Name>/` 目录(其中分别是 `<Name>.exe` 和 `<Name>`)。没有 Chromium,也没有 npm 工程。 | `dist-desktop/` | 双击即可。选了 **Steam** 渠道还会写出 depot 脚本和一份带本次构建确切取值的 `STEAM.md`——见 [Steam](/docs/zh-cn/publishing/steam/)。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
 | **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
 | **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
@@ -218,13 +221,21 @@ mip 链——下载更小、显存更省。
 
 ## 打包设置
 
-每个目标的元数据在 **项目设置 → 打包(Packaging)** 里,并随项目保存:
+某**一个目标**叫什么、发往哪里、商店用什么认它,在 **文件 → Build…** 里那个目标自己的
+页面上编辑——就在它所改变的那次构建旁边:
+
+- **微信** —— AppID。
+- **桌面** —— 应用 id 覆盖、产品名(用于命名应用),以及发行渠道
+  (独立发行或 [Steam](/docs/zh-cn/publishing/steam/))。
+- **Android** —— 版本号(Google Play 用来排序构建的整数)、构建产出安装包还是 Gradle 工程,
+  以及是否在 APK 之外再写一份 App Bundle。
+
+**无论发往哪里都成立**的那些,留在 **项目设置 → 打包(Packaging)**,并随项目保存:
 
 - **应用 ID** —— 已安装应用的反向域名 id:Android 的 manifest package、iOS 的 bundle id、
   桌面安装包的 id。留空则按项目名推导;正式发布的应用应当自己指定,因为应用商店会永久沿用它。
-- **微信** —— AppID。
-- **桌面** —— 应用 id 覆盖和产品名(用于命名安装包)。
-- **Android** —— 版本号,Google Play 用来排序构建的整数。
+- **应用图标** —— 一张方形 PNG,供所有可安装目标使用。
+- **成就** —— 你的游戏会解锁的 id。**平台中立**:每个商店都有这份同样的清单,只是名字不同。
 
 ### 屏幕方向
 

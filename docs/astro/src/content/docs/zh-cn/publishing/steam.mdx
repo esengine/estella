@@ -10,7 +10,7 @@ Steam 是**桌面目标下的一个发行渠道**,不是一个单独的平台。
 外加一个开关,让导出顺带写出 SteamPipe 需要的东西。
 
 桌面构建是**原生应用**——引擎的 C++ 核心,内嵌
-[Dawn](https://dawn.googlesource.com/dawn)(macOS 走 Metal,Windows 走 D3D12)与
+[Dawn](https://dawn.googlesource.com/dawn)(macOS 走 Metal,Windows 走 D3D12,Linux 走 Vulkan)与
 [QuickJS-ng](https://github.com/quickjs-ng/quickjs),窗口与输入来自 SDL3。进程里没有浏览器,
 这也是 Steam 覆盖层、Steam Input 和独占全屏能如玩家预期那样工作的原因。
 
@@ -37,22 +37,29 @@ Steam 是**桌面目标下的一个发行渠道**,不是一个单独的平台。
 
 ## 怎么配
 
-**Project Settings → Packaging**:
+打开 **文件 → Build…**,在目标列表里选 **Steam**——它列在「桌面」下面。Steam 是桌面构建的
+一个去处,所以它从那个目标分叉出来,而不是与它并列。这个渠道要填的东西都在这一页上。
+
+![打包项目对话框的 桌面 → Steam 页:发行渠道选中 Steam,以及 Steam 分组里的 App ID、Steamworks SDK 和各 OS 的 depot id](@/assets/guides/zh/steam-channel.png)
 
 | 设置 | 含义 |
 |---|---|
-| **Desktop → Channel** | 选 `Steam`——构建旁边会写出 depot 脚本。 |
+| **发行渠道** | 选 `Steam`——构建旁边会写出 depot 脚本。在目标列表里点 Steam 就是在设它,两者是同一个值。 |
 | **Steam App ID** | 来自合作伙伴后台。不填就什么也不写:用猜出来的 id 生成的脚本指向的是别人的游戏。 |
 | **Steamworks SDK** | 你下载的那份 SDK。它 `redistributable_bin/<os>/` 下的库会被打进应用。 |
 | **Depot ID** | 留 0 则用 `App ID + 1`、+2…。这些由 Valve **分配**,生成的清单会提示你去核对。 |
-| **成就** | 你的游戏会解锁的 id(`packaging.achievements`),**平台中立**——每个商店都有这份同样的清单,只是名字不同。 |
 
-然后 **Package Project → Desktop**。应用旁边会得到:
+**成就 id 不在这一页**,它在 **项目设置 → 打包** 里——因为每个商店都有这份同样的清单,
+只是名字不同。声明它们,才能让「解锁一个后台根本没有的 id」在发生处就被拒绝,
+而不是被接受、然后悄无声息地丢掉。
+
+然后点 **打包**。应用旁边会得到:
 
 ```
 dist-desktop/
   MyGame.app/            ← macOS,以及/或者
   MyGame/                ← Windows:MyGame.exe + Content/
+                         ← Linux:  MyGame     + Content/
   steam/
     app_build_<appid>.vdf
     depot_<id>_<os>.vdf
@@ -108,11 +115,11 @@ await achievements.store();      // 推到 Steam;商店在这一步后面做批�
 |---|---|---|
 | Windows | `WinAppDataRoaming` | `Estella/<名字>` |
 | macOS | `MacHome` | `Library/Application Support/Estella/<名字>` |
+| Linux | `LinuxHome` | `.local/share/Estella/<名字>` |
 
 ## 诚实边界
 
 - **macOS 构建是 ad-hoc 签名的**,而且只能在 Mac 上签。公开发布前请用你自己的 Developer ID 公证。
-- **Linux 尚未支持**——桌面宿主还没有 Linux 的 surface。
 - **`steamcmd` 没有做进编辑器。** 清单里给出的是可以照抄的确切命令;一个在这里验证不了的功能,
   不如一行你能复制的命令诚实。
 - 创意工坊、DLC、内购、Steam Input 动作集不在覆盖范围内。它们都能挂在同一套 flat API 和同一个
