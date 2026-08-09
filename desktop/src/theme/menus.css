@@ -295,6 +295,11 @@
   padding-left: 14px;
   overflow-y: auto;
 }
+/* A group states its own height; the column scrolls. Without this the default
+   flex-shrink squeezes a tall group instead, and `.build__group`'s overflow
+   clip then removes the squeezed-out rows outright — visible as a section that
+   simply ends mid-row, with nothing to scroll to. */
+.build__content > * { flex-shrink: 0; }
 .build__head { display: flex; flex-direction: column; gap: 3px; }
 .build__head-title { font-size: var(--fs-md); font-weight: 600; color: var(--text); }
 .build__label { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }
