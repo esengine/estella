@@ -12,7 +12,7 @@ export interface DesktopAppIdentity {
 
 export function assembleDesktopApp(options: {
     /** Which desktop OS the app is for; also which template layout is read. */
-    platform: 'macos' | 'windows';
+    platform: 'macos' | 'windows' | 'linux';
     /** An installed runtime template for that OS. */
     templateDir: string;
     /** The export: cooked content plus the two configs. */

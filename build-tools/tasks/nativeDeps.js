@@ -33,7 +33,7 @@ export function nativePins(rootDir = config.paths.root) {
 /** Whether a target is one of the desktop OSes — the ones whose window, event loop
  *  and gamepads come from SDL rather than from the OS's own app framework. */
 export function isDesktopTarget(target) {
-    return target === 'macos' || target === 'windows';
+    return target === 'macos' || target === 'windows' || target === 'linux';
 }
 
 /**
@@ -171,6 +171,8 @@ export const DAWN_TARGETS = {
     // executable has no rpath to get wrong (docs/REARCH_STEAM.md §3).
     macos: { out: 'out-macos', backend: 'metal' },
     windows: { out: 'out-windows', backend: 'd3d12' },
+    // Vulkan, as Android is — and static, as the other two desktops are.
+    linux: { out: 'out-linux', backend: 'vulkan' },
 };
 
 /**

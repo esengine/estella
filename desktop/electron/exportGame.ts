@@ -741,11 +741,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           + 'Project, then export again.');
       }
       for (const { os, dir } of templates) {
-        if (os === 'linux') {
-          warnings.push('The Linux desktop host is not written yet, so its template was skipped '
-            + '(docs/REARCH_STEAM.md §0g).');
-          continue;
-        }
         progress({ phase: `Assembling the ${os} app` });
         const built = await assembleDesktopApp({
           platform: os, templateDir: dir, contentDir: absOut, outDir: absOut, app: appConfig,

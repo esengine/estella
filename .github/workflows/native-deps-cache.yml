@@ -63,6 +63,8 @@ jobs:
             os: macos-latest
           - target: windows
             os: windows-latest
+          - target: linux
+            os: ubuntu-latest
     steps:
       # No submodules: Dawn and QuickJS are fetched into build/native-deps by
       # --fetch-deps, and third_party is the HOST's dependency, which this never
@@ -108,6 +110,18 @@ jobs:
       - name: Set up CMake + Ninja
         if: startsWith(matrix.os, 'macos') && steps.restore.outputs.cache-hit != 'true'
         run: brew install cmake ninja
+
+      # Vulkan headers for Dawn, and the display-server + font + HTTP libraries the
+      # host links. Named here rather than assumed: an ubuntu runner carries none
+      # of them, and the failure is a configure that cannot find a package.
+      - name: Set up the Linux desktop dependencies
+        if: matrix.target == 'linux' && steps.restore.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev libx11-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-dev \
+            wayland-protocols libfontconfig1-dev libcurl4-openssl-dev libasound2-dev \
+            libpulse-dev libudev-dev libdrm-dev libgbm-dev
 
       - name: Set up Ninja (Windows)
         if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'

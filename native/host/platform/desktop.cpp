@@ -39,6 +39,8 @@
 #include "platform/apple_common.hpp"
 #elif defined(_WIN32)
 #include "platform/windows_common.hpp"
+#else
+#include "platform/linux_common.hpp"
 #endif
 
 using esengine::u32;
@@ -100,8 +102,12 @@ struct DesktopPlatform final : eshost::Platform {
     SDL_Window* window = nullptr;
     /** The CAMetalLayer / HWND / Wayland surface Dawn draws into, from SDL. */
     void* nativeWindow = nullptr;
-    /** Win32 only: the HWND's HINSTANCE, which the surface descriptor also wants. */
+    /** What the window belongs to, which the surface descriptor wants beside it:
+     *  the HINSTANCE on Win32, the wl_display / Display on Linux. */
     void* windowInstance = nullptr;
+    /** Linux only: which display server this session actually is. Not a build-time
+     *  fact — one binary runs on both, and SDL is what knows. */
+    bool wayland = false;
     /** Where the packaged game's files are — see resolveContentRoot. */
     std::string contentRoot;
     /** SDL_GetPrefPath's directory, kept because every call allocates. */
@@ -232,7 +238,9 @@ struct DesktopPlatform final : eshost::Platform {
 #elif defined(_WIN32)
         return {WebGPUDevice::NativeWindowKind::Win32Hwnd, nativeWindow, windowInstance};
 #else
-#error "The desktop host has no Linux surface yet — see docs/REARCH_STEAM.md S3c."
+        return {wayland ? WebGPUDevice::NativeWindowKind::WaylandSurface
+                        : WebGPUDevice::NativeWindowKind::XlibWindow,
+                nativeWindow, windowInstance};
 #endif
     }
 
@@ -296,6 +304,12 @@ struct DesktopPlatform final : eshost::Platform {
     }
 
     void startFetch(const eshost::FetchRequest& req) override { eshost::windowsStartFetch(req); }
+#else
+    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::linuxLoadFont(family, codepoint, style);
+    }
+
+    void startFetch(const eshost::FetchRequest& req) override { eshost::linuxStartFetch(req); }
 #endif
 };
 
@@ -465,6 +479,10 @@ int main(int argc, char** argv) {
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
+#elif defined(__linux__)
+    // Dawn draws through Vulkan here, and a window created without this flag has
+    // no surface Vulkan can be handed.
+    flags |= SDL_WINDOW_VULKAN;
 #endif
     SDL_Window* window = SDL_CreateWindow(name.c_str(), kDefaultWidth, kDefaultHeight, flags);
     if (!window) {
@@ -492,6 +510,28 @@ int main(int argc, char** argv) {
     g_platform.windowInstance = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
     if (!g_platform.nativeWindow) {
         SDL_Log("SDL gave no HWND for the window — cannot create a D3D12 surface.");
+        SDL_Quit();
+        return 1;
+    }
+#elif defined(__linux__)
+    // Which display server, asked of the SESSION rather than of the build: one
+    // binary runs on both, and a Wayland desktop and an X11 one hand Vulkan
+    // entirely different handles.
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    g_platform.wayland = SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0;
+    if (g_platform.wayland) {
+        g_platform.windowInstance = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+        g_platform.nativeWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
+    } else {
+        g_platform.windowInstance = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+        // An XID, not a pointer: it crosses the seam in the window field as the
+        // integer it is (see NativeSurface).
+        const Sint64 xid = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+        g_platform.nativeWindow = reinterpret_cast<void*>(static_cast<uintptr_t>(xid));
+    }
+    if (!g_platform.nativeWindow || !g_platform.windowInstance) {
+        SDL_Log("SDL gave no %s handles for the window — cannot create a Vulkan surface.",
+                g_platform.wayland ? "Wayland" : "X11");
         SDL_Quit();
         return 1;
     }

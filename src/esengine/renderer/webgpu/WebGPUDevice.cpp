@@ -294,6 +294,31 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
 #endif
             break;
         }
+        case NativeWindowKind::WaylandSurface: {
+#if defined(__linux__)
+            WGPUSurfaceSourceWaylandSurface wayland{};
+            wayland.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
+            wayland.display = window.instance;   // wl_display*
+            wayland.surface = window.handle;     // wl_surface*
+            sd.nextInChain = &wayland.chain;
+            surface_ = wgpuInstanceCreateSurface(instance_, &sd);
+#endif
+            break;
+        }
+        case NativeWindowKind::XlibWindow: {
+#if defined(__linux__)
+            WGPUSurfaceSourceXlibWindow xlib{};
+            xlib.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
+            xlib.display = window.instance;      // Display*
+            // The XID is an integer, not a pointer — it travels in `handle`
+            // because the seam carries one window field, and is read back as the
+            // integer it is rather than dereferenced.
+            xlib.window = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(window.handle));
+            sd.nextInChain = &xlib.chain;
+            surface_ = wgpuInstanceCreateSurface(instance_, &sd);
+#endif
+            break;
+        }
     }
     if (!surface_) {
         ES_LOG_ERROR("WebGPUDevice::configureSurface(native): surface creation failed");

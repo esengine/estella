@@ -342,8 +342,9 @@ async function sdlPrefix(options, target) {
 function hostDesktopTarget() {
     if (process.platform === 'darwin') return 'macos';
     if (process.platform === 'win32') return 'windows';
-    throw new Error(`The desktop host has no ${process.platform} support yet `
-        + '(its surface kind and font seam are not written) — see docs/REARCH_STEAM.md S3c.');
+    if (process.platform === 'linux') return 'linux';
+    throw new Error(`The desktop host has no ${process.platform} support: its surface kind and `
+        + 'font seam are not written — see docs/REARCH_STEAM.md.');
 }
 
 async function buildDesktopHost(options) {
@@ -505,6 +506,7 @@ const XCFRAMEWORK = path.join('build/cmake/native-ios', 'Estella.xcframework');
 const DESKTOP_BUILD_DIR = {
     macos: 'build/cmake/native-macos',
     windows: 'build/cmake/native-windows',
+    linux: 'build/cmake/native-linux',
 };
 
 // Rebuild the xcframework from whichever slices exist. A device-only framework is

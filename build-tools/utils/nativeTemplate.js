@@ -130,7 +130,7 @@ export function templateLayout(platform, options = {}) {
             },
         ];
     }
-    if (platform === 'macos' || platform === 'windows') {
+    if (platform === 'macos' || platform === 'windows' || platform === 'linux') {
         const exe = platform === 'windows' ? 'estella_desktop.exe' : 'estella_desktop';
         const buildDir = `build/cmake/native-${platform}`;
         // The shortest layout of the three, because a desktop build embeds

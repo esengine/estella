@@ -191,16 +191,21 @@ public:
 #endif
 
     /** The kind of native window a non-emscripten host draws into. */
-    enum class NativeWindowKind { MetalLayer, AndroidWindow, Win32Hwnd };
+    /** Linux is TWO kinds because a Linux desktop is two display servers, and
+     *  which one a machine is running is not a build-time fact. */
+    enum class NativeWindowKind { MetalLayer, AndroidWindow, Win32Hwnd, WaylandSurface, XlibWindow };
 
-    /** A `CAMetalLayer*` / `ANativeWindow*` / `HWND` for a native-C++ build;
-     *  compiled out of the wasm build, where the host injects an already-built
-     *  surface instead. */
+    /** A `CAMetalLayer*` / `ANativeWindow*` / `HWND` / `wl_surface*` for a
+     *  native-C++ build; compiled out of the wasm build, where the host injects an
+     *  already-built surface instead. */
     struct NativeSurface {
         NativeWindowKind kind;
+        /** The window: an `HWND`, a `wl_surface*` — or, for Xlib, the `Window`
+         *  XID, which is an integer and travels here as one. */
         void* handle;
-        /** Win32 only: the `HINSTANCE` the window belongs to, which the surface
-         *  descriptor asks for beside the HWND. */
+        /** What the window belongs to, which the descriptor asks for beside it:
+         *  the `HINSTANCE` on Win32, the `wl_display*` on Wayland, the `Display*`
+         *  on Xlib. */
         void* instance = nullptr;
     };
 

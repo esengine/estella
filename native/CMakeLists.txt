@@ -31,9 +31,12 @@ elseif(APPLE)
 elseif(WIN32)
     set(ESTELLA_DESKTOP ON)
     set(ESTELLA_WINDOWS ON)
+elseif(UNIX)
+    set(ESTELLA_DESKTOP ON)
+    set(ESTELLA_LINUX ON)
 else()
     message(FATAL_ERROR "Unsupported platform: configure with the NDK toolchain (Android), "
-        "-DCMAKE_SYSTEM_NAME=iOS, or run on macOS/Windows for the desktop host.")
+        "-DCMAKE_SYSTEM_NAME=iOS, or run on macOS/Windows/Linux for the desktop host.")
 endif()
 
 # The desktop host is an EXECUTABLE that embeds everything (see docs/REARCH_STEAM.md
@@ -348,6 +351,8 @@ if(ESTELLA_QUICKJS_DIR)
         # font match and the HTTP request.
         if(ESTELLA_WINDOWS)
             set(DESKTOP_OS_SOURCES host/platform/windows_common.cpp)
+        elseif(ESTELLA_LINUX)
+            set(DESKTOP_OS_SOURCES host/platform/linux_common.cpp)
         else()
             set(DESKTOP_OS_SOURCES host/platform/apple_common.mm)
         endif()
@@ -364,6 +369,17 @@ if(ESTELLA_QUICKJS_DIR)
             # it lives in kernelbase, kernel32 does not re-export it, and the SDK
             # ships no kernelbase.lib — onecore is the umbrella that has it.
             target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp onecore)
+        elseif(ESTELLA_LINUX)
+            # fontconfig for the font match; libcurl for the fetch, because Linux
+            # is the one desktop with no OS-provided HTTP stack and no trust store
+            # of its own to reach (see host/platform/linux_common.hpp). Both are
+            # found through pkg-config, which is how every distribution describes
+            # where it put them.
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+            pkg_check_modules(LIBCURL REQUIRED IMPORTED_TARGET libcurl)
+            target_link_libraries(estella_js_host PkgConfig::FONTCONFIG PkgConfig::LIBCURL
+                ${CMAKE_DL_LIBS} pthread)
         else()
             # As on iOS: miniaudio's CoreAudio backend reaches for the Obj-C runtime,
             # so its TU is Objective-C++ on every Apple platform.

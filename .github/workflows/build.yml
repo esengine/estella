@@ -608,3 +608,60 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/hdr-bloom.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":25},{"x":0.64,"y":0.5,"rgb":[0,255,0],"tol":35},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'
+
+  # The native runtime, judged by pixels on a machine with no GPU.
+  #
+  # Until the desktop host existed the native runtime could only be checked on a
+  # simulator or a phone — where an OS dialog over the frame once made a dead app
+  # look healthy. A Linux runner IS one of the platforms it ships to, so it
+  # packages a real project the way the Package dialog does, runs the assembled
+  # app under a virtual display on a software Vulkan driver, and reads the frame.
+  desktop-linux:
+    name: Desktop host (Linux) + pixels
+    runs-on: ubuntu-latest
+    # The first run on a new dependency pin builds Dawn, which is tens of minutes;
+    # after that the cache makes it a compile of the host alone.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled into the host binary.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        run: node build-tools/cli.js native --deps-cache-key linux >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pinned checkouts + Dawn build
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      # Vulkan for Dawn, X11/Wayland for the window, fontconfig and libcurl for the
+      # per-OS seam, and the software driver + virtual display that let a runner
+      # with neither a GPU nor a screen answer a question about pixels.
+      - name: Set up the Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers xvfb \
+            libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libfontconfig1-dev \
+            libcurl4-openssl-dev libasound2-dev libpulse-dev libudev-dev libdrm-dev libgbm-dev
+
+      - name: Fetch Dawn + QuickJS + SDL at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      - name: Build the Linux host and its runtime template
+        run: node build-tools/cli.js native --target linux
+
+      - name: A game packaged from it renders
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world

@@ -123,6 +123,8 @@ jobs:
             os: macos-latest
           - name: windows
             os: windows-latest
+          - name: linux
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -159,6 +161,18 @@ jobs:
       - name: Set up CMake + Ninja
         if: startsWith(matrix.os, 'macos')
         run: brew install cmake ninja
+
+      # Vulkan for Dawn, X11/Wayland for the window, fontconfig and libcurl for the
+      # per-OS seam — plus the software Vulkan driver, which is what makes a
+      # runner with no GPU able to answer the pixel question below.
+      - name: Set up the Linux desktop dependencies
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers xvfb \
+            libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libfontconfig1-dev \
+            libcurl4-openssl-dev libasound2-dev libpulse-dev libudev-dev libdrm-dev libgbm-dev
 
       - name: Set up Ninja (Windows)
         if: matrix.name == 'windows'
@@ -203,7 +217,7 @@ jobs:
       # licensed to partners, so it reaches a package from the developer's own SDK
       # (Project Settings -> Packaging -> Steamworks SDK), never from here.
       - name: Build the desktop template
-        if: matrix.name == 'macos' || matrix.name == 'windows'
+        if: matrix.name == 'macos' || matrix.name == 'windows' || matrix.name == 'linux'
         run: node build-tools/cli.js native --target ${{ matrix.name }} --template-out artifacts
 
       # The claim a template archive cannot make: that a game packaged from it
@@ -213,6 +227,17 @@ jobs:
       - name: A game packaged from it renders
         if: matrix.name == 'macos' || matrix.name == 'windows'
         run: node tools/verify-desktop-render.mjs --examples hello-world,particle-demo
+
+      # Under a virtual display, on a software Vulkan driver: an ubuntu runner has
+      # neither a screen nor a GPU, and the judge reads PIXELS — so give it the two
+      # things it needs rather than weakening what it asks.
+      - name: A game packaged from it renders (Linux)
+        if: matrix.name == 'linux'
+        env:
+          # lavapipe. Without it Dawn picks nothing and the host reports a lost
+          # device, which is a true answer to a question about the runner.
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
 
       - name: Upload template artifact
         uses: actions/upload-artifact@v7

@@ -44,6 +44,14 @@ const LAYOUT = {
         content: 'Content',
         beside: '.',
     },
+    // The same shape as Windows, without the extension: a directory a depot maps
+    // whole, with the runtime at its root.
+    linux: {
+        root: (name) => name,
+        executable: (name) => name,
+        content: 'Content',
+        beside: '.',
+    },
 };
 
 /**
@@ -54,7 +62,7 @@ const LAYOUT = {
  * through Platform::readAsset, exactly as the APK's assets/ is one namespace.
  *
  * @param {object} options
- * @param {'macos'|'windows'} options.platform
+ * @param {'macos'|'windows'|'linux'} options.platform
  * @param {string} options.templateDir Installed runtime template.
  * @param {string} options.contentDir  The editor export to ship.
  * @param {string} options.outDir      Where the app directory is written.
@@ -70,7 +78,7 @@ const LAYOUT = {
 export async function assembleDesktopApp(options) {
     const { platform, templateDir, contentDir, outDir, app } = options;
     const layout = LAYOUT[platform];
-    if (!layout) throw new Error(`no desktop layout for "${platform}" (macos, windows)`);
+    if (!layout) throw new Error(`no desktop layout for "${platform}" (macos, windows, linux)`);
 
     const sources = desktopTemplateSources(templateDir, platform);
     if (!existsSync(sources.executable)) {
