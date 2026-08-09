@@ -1,12 +1,11 @@
-import { defineSystem, Query, Mut, Res, Input, UINode, UIDisplay } from 'esengine';
+import {
+    defineSystem, Query, Mut, Res, ResMut, Input, Time, UINode, UIDisplay,
+} from 'esengine';
 import { PauseOverlay } from '../components';
 import { session } from '../state';
 
-// Both systems stay OUT of the gameplay set: one has to be able to lift the
-// pause, and the other has to be able to draw it.
-
-// ENGINE-GAP(no-simulation-pause): this pause reaches the project's systems and
-// nothing the engine drives, so the world keeps moving behind the overlay.
+// These systems stay OUT of the gameplay set: one has to be able to lift the
+// pause, and the others have to be able to draw it and to stop the world.
 
 export const pauseInputSystem = defineSystem(
     [Res(Input)],
@@ -14,6 +13,21 @@ export const pauseInputSystem = defineSystem(
         if (input.isKeyPressed('Escape')) session.paused = !session.paused;
     },
     { name: 'PauseInputSystem' },
+);
+
+/**
+ * Stops the simulation. The run condition on the gameplay set only reaches this
+ * project's systems; everything the engine drives — the character controller
+ * integrating the velocity last written, navigation, behaviour trees — advances
+ * by `Time.delta`, so setting the scale to zero is what actually holds the world.
+ */
+export const pauseTimeSystem = defineSystem(
+    [ResMut(Time)],
+    (time) => {
+        const scale = session.paused ? 0 : 1;
+        if (time.get().scale !== scale) time.modify((t) => { t.scale = scale; });
+    },
+    { name: 'PauseTimeSystem' },
 );
 
 export const pauseOverlaySystem = defineSystem(

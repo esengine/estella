@@ -10,7 +10,7 @@ import {
 } from './systems/combat';
 import { healthBarSystem, hitFlashSystem, vitalityMeterSystem } from './systems/feedback';
 import { cameraBindSystem, navFromTerrainSystem, gateSystem } from './systems/world';
-import { pauseInputSystem, pauseOverlaySystem } from './systems/pause';
+import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
 import { cycleLanguageSystem } from './systems/settings';
 import { perceiverFacingSystem } from './ai/wisp';
 
@@ -40,6 +40,7 @@ addSystemSetToSchedule(Schedule.PostUpdate, defineSystemSet('combat', {
 // The pause itself and everything that reports state keep running: one has to be
 // able to lift the pause, the rest have to be able to show it.
 addSystemToSchedule(Schedule.Update, pauseInputSystem);
+addSystemToSchedule(Schedule.Update, pauseTimeSystem);
 addSystemToSchedule(Schedule.Update, cycleLanguageSystem);
 addSystemToSchedule(Schedule.PostUpdate, pauseOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);

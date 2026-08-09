@@ -177,6 +177,15 @@ export interface TimeData {
      * Netcode stamps snapshots and input commands with this.
      */
     fixedTick: number;
+    /**
+     * Multiplier on `delta` and on the fixed-step accumulation; negatives clamp
+     * to 0. At 0 the frame still runs — systems tick and a menu draws — while
+     * everything advancing by `delta` (movement, navigation, behaviour trees,
+     * the physics step) advances by nothing.
+     */
+    scale: number;
+    /** Real frame time, unaffected by `scale`, for whatever must keep moving. */
+    unscaledDelta: number;
 }
 
 export const Time = defineResource<TimeData>({
@@ -186,5 +195,7 @@ export const Time = defineResource<TimeData>({
     fixedDelta: 1 / 60,
     fixedAlpha: 0,
     fixedTick: 0,
+    scale: 1,
+    unscaledDelta: 0,
 }, 'Time');
 

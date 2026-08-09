@@ -16,6 +16,22 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **`Time.scale`: a paused world that is still a running frame.** Stopping a game
+  meant stopping the loop, and `App.setPaused` runs only `Schedule.Last` — which
+  also stops UI layout, so the menu a pause exists to show could not be drawn. A
+  project could gate its own systems with a `SystemSet` run condition, but that
+  reaches half the loop: the character controller kept integrating the velocity
+  last written to it, and navigation, behaviour trees and perception are engine
+  plugins outside any set a project can name.
+
+  `Time` now carries a `scale` applied to `delta` and to the fixed-step
+  accumulation, plus `unscaledDelta` for whatever must keep moving. At 0 the
+  frame still runs — systems tick, UI lays out, a menu draws and can dismiss
+  itself — while everything that advances by `delta` advances by nothing, the
+  physics step included, because the accumulator is scaled too. Measured on the
+  flagship, two captures 80 frames into a pause: 6.6% of the frame changed
+  before, 0.019% after.
+
 - **A project can register a system set, so a pause is one condition instead of
   a flag checked in nine systems.** `defineSystemSet` takes a `runIf` and its own
   documentation shows a pause as the example, but the only door to register one

@@ -728,7 +728,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
             }
             this.finishPlugins_();
         }
@@ -784,7 +784,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
             }
             this.finishPlugins_();
         }
@@ -877,7 +877,9 @@ export class App {
         } else {
             await this.runSchedule(Schedule.First);
 
-            this.fixedAccumulator_ += delta;
+            // The SCALED delta, so Time.scale = 0 stops the fixed steps too —
+            // otherwise physics would keep stepping through a paused world.
+            this.fixedAccumulator_ += this.resources_.get(Time).delta;
             let fixedSteps = 0;
             // Fixed steps read the input edge mirrors (which persist across frames
             // until a step consumes them) so a press on a sub-timestep frame isn't
@@ -1164,8 +1166,10 @@ export class App {
 
     private updateTime(delta: number): void {
         const time = this.resources_.get(Time);
-        time.delta = delta;
-        time.elapsed += delta;
+        const scale = time.scale >= 0 ? time.scale : 0;
+        time.unscaledDelta = delta;
+        time.delta = delta * scale;
+        time.elapsed += time.delta;
         time.frameCount++;
         time.fixedDelta = this.fixedTimestep_;
     }

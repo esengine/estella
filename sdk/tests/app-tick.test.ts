@@ -19,6 +19,27 @@ describe('App.tick()', () => {
         expect(time.delta).toBeCloseTo(1 / 60);
     });
 
+    it('scales delta and stops the fixed steps at scale 0', async () => {
+        const app = App.new();
+        let fixedSteps = 0;
+        app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => { fixedSteps++; }));
+
+        await app.tick(1 / 30);
+        expect(fixedSteps).toBeGreaterThan(0);
+
+        const before = fixedSteps;
+        app.getResource(Time).scale = 0;
+        for (let i = 0; i < 10; i++) await app.tick(1 / 30);
+
+        const time = app.getResource(Time);
+        expect(time.delta).toBe(0);
+        // Real time keeps flowing — whatever must move while the world does not
+        // has something to move by.
+        expect(time.unscaledDelta).toBeCloseTo(1 / 30);
+        // The whole point: physics is a fixed step, and a paused world takes none.
+        expect(fixedSteps).toBe(before);
+    });
+
     it('should run Startup schedule only once', async () => {
         const app = App.new();
         let startupCount = 0;

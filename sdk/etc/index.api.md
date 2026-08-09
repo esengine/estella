@@ -7740,6 +7740,8 @@ fixedAlpha: number
 fixedDelta: number
 fixedTick: number
 frameCount: number
+scale: number
+unscaledDelta: number
 ```
 
 ## Timeline — const

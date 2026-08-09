@@ -31,23 +31,4 @@
  */
 
 /** @type {Array<{id: string, hurts: string, workaround: string, fix: string, issue?: string, allows?: string[]}>} */
-export const GAPS = [
-  {
-    id: 'no-simulation-pause',
-    hurts:
-      'A pause stops only the project\'s own systems. Measured: with the overlay up, two '
-      + 'captures 80 frames apart differ across the WHOLE frame — the character controller '
-      + 'keeps integrating the velocity the player system last wrote, so Lyra walks on, and '
-      + 'the wisps keep pathing because perception, navigation and behaviour trees are '
-      + 'engine plugins outside any set a project can gate. A run condition reaches half '
-      + 'the loop, and the half it cannot reach is the simulation.',
-    workaround:
-      'Gate the project\'s systems with a SystemSet runIf and show the overlay. Everything '
-      + 'the engine drives keeps running behind it.',
-    fix:
-      'The runtime needs a paused simulation its own plugin systems honour — a Time scale '
-      + 'that everything integrating dt reads would do it, and Time has no scale today. '
-      + 'App.setPaused exists but runs only Schedule.Last, which stops UI layout too, so a '
-      + 'menu cannot be drawn while it is on.',
-  },
-];
+export const GAPS = [];
