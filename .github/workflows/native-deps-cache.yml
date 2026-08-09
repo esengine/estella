@@ -118,10 +118,10 @@ jobs:
         if: matrix.target == 'linux' && steps.restore.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libvulkan-dev libx11-dev libxrandr-dev \
-            libxi-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-dev \
-            wayland-protocols libfontconfig1-dev libcurl4-openssl-dev libasound2-dev \
-            libpulse-dev libudev-dev libdrm-dev libgbm-dev
+          sudo apt-get install -y ninja-build libvulkan-dev libx11-dev libx11-xcb-dev \
+            libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libfontconfig1-dev \
+            libcurl4-openssl-dev libasound2-dev libpulse-dev libudev-dev libdrm-dev libgbm-dev
 
       - name: Set up Ninja (Windows)
         if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'
