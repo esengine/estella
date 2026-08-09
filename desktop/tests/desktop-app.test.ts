@@ -157,9 +157,29 @@ describe('Windows assembly', () => {
     });
 
     it('refuses a platform with no layout', async () => {
+        // A desktop OS the assembler does not have a shape for: it says which it
+        // has rather than producing a directory shaped like the wrong one.
         await expect(assembleDesktopApp({
-            platform: 'linux' as 'windows', templateDir, contentDir, outDir, app: APP,
+            platform: 'freebsd' as 'windows', templateDir, contentDir, outDir, app: APP,
         })).rejects.toThrow(/no desktop layout/);
+    });
+
+    it('lays a Linux app out as the directory a depot maps whole', async () => {
+        // Windows' shape without the extension: the runtime at the root of a
+        // directory named for the app, its files beside it.
+        writeFileSync(path.join(templateDir, 'estella_desktop'), 'runtime');
+        const { dir: root } = await assembleDesktopApp({
+            platform: 'linux', templateDir, contentDir, outDir, app: APP,
+        });
+        expect(root).toBe(path.join(outDir, 'Acme Game'));
+        expect(existsSync(path.join(root, 'Acme Game'))).toBe(true);
+        expect(existsSync(path.join(root, 'Content', 'game.config.json'))).toBe(true);
+        // The icon is a FILE here, not something inside the binary: a .desktop
+        // entry points at one, and a PE rewriter run over an ELF would corrupt
+        // the executable it was meant to decorate.
+        expect(existsSync(path.join(root, 'icon.png'))).toBe(true);
+        expect(existsSync(path.join(root, 'AppIcon.icns'))).toBe(false);
+        expect(existsSync(path.join(root, 'Info.plist'))).toBe(false);
     });
 });
 

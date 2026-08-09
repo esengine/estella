@@ -135,13 +135,15 @@ export async function assembleDesktopApp(options) {
     const iconPng = options.iconPng && existsSync(options.iconPng) ? options.iconPng : sources.icon;
     if (existsSync(iconPng)) {
         const png = await readFile(iconPng);
-        // Where each OS keeps it: macOS beside the app's other resources, Windows
-        // INSIDE the executable — which is why one is a file to write and the
-        // other is a rewrite of the thing that was just copied.
+        // Three OSes, three places: a container beside the resources (macOS),
+        // INSIDE the executable (Windows), and a plain file a .desktop entry
+        // points at (Linux — a PE rewriter over an ELF would corrupt it).
         if (platform === 'macos') {
             await writeFile(path.join(root, layout.beside, 'AppIcon.icns'), pngToIcns(png));
-        } else {
+        } else if (platform === 'windows') {
             await writeFile(executable, setExeIcon(await readFile(executable), png));
+        } else {
+            await writeFile(path.join(root, 'icon.png'), png);
         }
     }
 
