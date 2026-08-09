@@ -15,6 +15,7 @@
  * as the web render checks do. Nothing here re-decides what "drew" means — a
  * second threshold would be a second answer to one question.
  *
+ *   node tools/verify-desktop-render.mjs --tier pr
  *   node tools/verify-desktop-render.mjs --examples hello-world,particle-demo
  *   node tools/verify-desktop-render.mjs --project examples/hello-world
  *
@@ -27,6 +28,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
+import { atTier, projectDir } from './goldenProjects.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST_OS = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
@@ -96,9 +98,31 @@ if (!templateDir || !existsSync(templateDir)) {
     process.exit(1);
 }
 
+/** Golden projects at `tier` that ask for a desktop package. A tier nobody spells
+ *  right is a workflow typo, and it should read as one rather than as a stack. */
+function goldenDesktopProjects(tier) {
+    try {
+        return atTier(tier).filter((g) => g.targets.includes('desktop')).map((g) => projectDir(g.id));
+    } catch (err) {
+        console.error(`✗ ${err.message}`);
+        process.exit(2);
+    }
+}
+
+// `--tier` takes the corpus from the golden registry — the same projects the web
+// and mini-game launchers carry, so "desktop is covered" means the same set of
+// games rather than whichever two were named here years ago.
 const projects = opts.project
     ? [path.resolve(opts.project)]
-    : opts.examples.split(',').map((n) => path.join(ROOT, 'examples', n.trim()));
+    : opts.tier
+        ? goldenDesktopProjects(opts.tier)
+        : opts.examples.split(',').map((n) => path.join(ROOT, 'examples', n.trim()));
+
+if (projects.length === 0) {
+    console.error(`✗ no projects selected${opts.tier ? ` — no golden project at tier "${opts.tier}" targets desktop` : ''}`);
+    process.exit(1);
+}
+console.log(`${projects.length} project(s)${opts.tier ? ` (golden ${opts.tier})` : ''}`);
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-desktop-render-'));
 let failed = 0;

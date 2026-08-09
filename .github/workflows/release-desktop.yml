@@ -237,9 +237,13 @@ jobs:
       # DRAWS. These two runners are the platforms themselves, so the pixel judge
       # the web target has always had finally reaches the native runtime — no
       # simulator, no device (docs/REARCH_STEAM.md 6.2).
+      # The corpus comes from the golden registry, so "desktop is covered" names the
+      # same games the web and mini-game launchers carry. Pinned to the PR tier
+      # until a nightly has shown the heavier ones (spine, multiplayer) package and
+      # run on these platforms — a release gate is the wrong place to find out.
       - name: A game packaged from it renders
         if: matrix.name == 'macos' || matrix.name == 'windows'
-        run: node tools/verify-desktop-render.mjs --examples hello-world,particle-demo
+        run: node tools/verify-desktop-render.mjs --tier pr
 
       # Under a virtual display, on a software Vulkan driver: an ubuntu runner has
       # neither a screen nor a GPU, and the judge reads PIXELS — so give it the two
@@ -251,7 +255,7 @@ jobs:
           # an ICD file by hand is how a driver stops being found at all, and the
           # symptom is Vulkan reporting no surface extension.
           ls -l /usr/share/vulkan/icd.d/ || true
-          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
 
       - name: Upload template artifact
         uses: actions/upload-artifact@v7

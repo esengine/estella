@@ -682,4 +682,4 @@ jobs:
       - name: A game packaged from it renders
         run: |
           ls -l /usr/share/vulkan/icd.d/ || true
-          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
