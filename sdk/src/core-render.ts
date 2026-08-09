@@ -168,6 +168,8 @@ export {
     DeviceStatus,
     DeviceLostReason,
     getDeviceStatus,
+    getDeviceIdentity,
+    type DeviceIdentity,
     getDeviceLostReport,
     reportDeviceLost,
     recoverDevice,

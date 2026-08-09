@@ -116,6 +116,19 @@ describe('the core sections', () => {
         expect(ids).toEqual(expect.arrayContaining(['editor', 'engine', 'project', 'census', 'log']));
     });
 
+    it('report the GPU in the clear — it is the machine, not the project', () => {
+        // The one section deliberately NOT redacted. A crash on "ANGLE Metal
+        // Renderer: Apple M4" is attributable; the same crash on a placeholder
+        // is not, and the string says nothing about what the user is building.
+        const gpu = diagnosticsRegistry.get('gpu');
+        expect(gpu).toBeDefined();
+        const collected = gpu!.collect() as Record<string, unknown> | null;
+        // Null without a live device (this suite has no wasm), which is the
+        // other half of the contract: absent rather than invented.
+        if (collected === null) return;
+        expect(JSON.stringify(resolve(collected, 'safe'))).toBe(JSON.stringify(collected));
+    });
+
     it('have distinct ids, so none silently replaces another', () => {
         const ids = diagnosticsRegistry.all().map((s) => s.id);
         expect(new Set(ids).size).toBe(ids.length);

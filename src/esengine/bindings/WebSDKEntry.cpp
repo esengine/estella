@@ -263,6 +263,21 @@ std::string deviceLostReport() {
 }
 
 /**
+ * @brief Who the device is, as `backend|vendor|renderer|version`.
+ * @details Readable while the device is LIVE, which the loss report is not — a
+ *          crash report needs the GPU it ran on, and by then the backend cannot
+ *          be asked. Pipe-joined: one crossing, and these are driver strings
+ *          rather than a schema.
+ */
+std::string deviceIdentity() {
+    GfxDevice* device = activeGfxDevice();
+    if (!device) return {};
+    const GfxDeviceIdentity& id = device->deviceIdentity();
+    if (!id.known()) return {};
+    return id.backend + "|" + id.vendor + "|" + id.renderer + "|" + id.version;
+}
+
+/**
  * @brief Rebuilds the renderer after a loss; see EstellaContext::recoverDevice.
  * @details Leaves the device Recovering — drawable, but its textures are
  *          placeholders until the asset layer re-uploads and calls
@@ -402,6 +417,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
     emscripten::function("deviceStatus", &esengine::deviceStatus);
     emscripten::function("deviceLostReport", &esengine::deviceLostReport);
+    emscripten::function("deviceIdentity", &esengine::deviceIdentity);
     emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
     emscripten::function("recoverDevice", &esengine::recoverDevice);
     emscripten::function("markDeviceRestored", &esengine::markDeviceRestored);

@@ -112,6 +112,14 @@ public:
     }
 
     /**
+     * @brief Who this device is — available WHILE it is alive, unlike the loss report.
+     * @details The identity was always captured at init; it was only reachable
+     *          through a report that exists after a loss, so a healthy session
+     *          could not say which GPU it was running on.
+     */
+    const GfxDeviceIdentity& deviceIdentity() const { return identity_; }
+
+    /**
      * @brief Declares the device lost from outside the backend.
      * @details The host observes losses the backend cannot: a browser firing
      *          `webglcontextlost`, a shell told by the OS that the adapter is
@@ -199,9 +207,6 @@ public:
     void setDeviceLostHandler(std::function<void(const GfxDeviceLostInfo&)> handler) {
         device_lost_handler_ = std::move(handler);
     }
-
-    /** @brief Backend identity captured at init (see {@link GfxDeviceLostInfo}). */
-    const GfxDeviceLostInfo& deviceIdentity() const { return device_info_; }
 
     // =========================================================================
     // Viewport & Clear
@@ -600,10 +605,10 @@ protected:
     /** @brief Records the backend identity; see {@link captureDeviceIdentity}. */
     void setDeviceIdentity(std::string backend, std::string vendor,
                            std::string renderer, std::string version) {
-        device_info_.backend = std::move(backend);
-        device_info_.vendor = std::move(vendor);
-        device_info_.renderer = std::move(renderer);
-        device_info_.version = std::move(version);
+        identity_.backend = std::move(backend);
+        identity_.vendor = std::move(vendor);
+        identity_.renderer = std::move(renderer);
+        identity_.version = std::move(version);
     }
 
     /**
@@ -617,6 +622,7 @@ protected:
         if (device_status_ != GfxDeviceStatus::Live) return false;
         device_status_ = GfxDeviceStatus::Lost;
         device_info_.reason = reason;
+        device_info_.identity = identity_;
         device_info_.message = std::move(message);
         device_info_.context = std::move(context);
         device_info_.frame = device_frame_;
@@ -626,6 +632,7 @@ protected:
 
 private:
     GfxDeviceStatus device_status_ = GfxDeviceStatus::Live;
+    GfxDeviceIdentity identity_;
     GfxDeviceLostInfo device_info_;
     u64 device_frame_ = 0;
     std::function<void(const GfxDeviceLostInfo&)> device_lost_handler_;

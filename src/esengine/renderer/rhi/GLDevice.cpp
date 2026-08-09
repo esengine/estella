@@ -257,10 +257,29 @@ void GLDevice::init() {
 }
 
 void GLDevice::captureDeviceIdentity() {
+    std::string vendor = getString(GfxStringName::Vendor);
+    std::string renderer = getString(GfxStringName::Renderer);
+#ifdef __EMSCRIPTEN__
+    // On the web GL_VENDOR/GL_RENDERER are MASKED — every Mac answers "WebKit
+    // WebGL", which names a browser, not a GPU. The real strings sit behind an
+    // extension that must be enabled before its enums resolve.
+    constexpr GLenum UNMASKED_VENDOR = 0x9245;
+    constexpr GLenum UNMASKED_RENDERER = 0x9246;
+    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
+                                          "WEBGL_debug_renderer_info")) {
+        const char* v = reinterpret_cast<const char*>(glGetString(UNMASKED_VENDOR));
+        const char* r = reinterpret_cast<const char*>(glGetString(UNMASKED_RENDERER));
+        // Kept only when the driver actually answered: a browser that refuses
+        // the extension leaves the masked pair, which is worse than nothing only
+        // if it is silently replaced by an empty string.
+        if (v && *v) vendor = v;
+        if (r && *r) renderer = r;
+    }
+#endif
     // Asked while the answer still exists: glGetString returns null on a lost
     // context, so a report assembled after the loss would name no driver.
-    setDeviceIdentity("WebGL2", getString(GfxStringName::Vendor),
-                      getString(GfxStringName::Renderer), getString(GfxStringName::Version));
+    setDeviceIdentity("WebGL2", std::move(vendor), std::move(renderer),
+                      getString(GfxStringName::Version));
 }
 
 bool GLDevice::recreateDevice() {

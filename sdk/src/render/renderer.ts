@@ -158,6 +158,29 @@ export function getDeviceLostReport(): string {
     return module?.deviceLostReport?.() ?? '';
 }
 
+/** Who the device is. */
+export interface DeviceIdentity {
+    backend: string;
+    vendor: string;
+    renderer: string;
+    /** Driver / API version string, as the driver spells it. */
+    version: string;
+}
+
+/**
+ * The GPU this session is running on, readable WHILE it works.
+ *
+ * The engine captured this at init all along — a lost backend cannot be asked
+ * who it was — but it could only be read off a loss report, so a healthy session
+ * could not say which GPU it had. Null before a device exists.
+ */
+export function getDeviceIdentity(): DeviceIdentity | null {
+    const raw = module?.deviceIdentity?.() ?? '';
+    if (!raw) return null;
+    const [backend = '', vendor = '', renderer = '', version = ''] = raw.split('|');
+    return { backend, vendor, renderer, version };
+}
+
 /**
  * Tell the engine about a loss the host observed.
  *

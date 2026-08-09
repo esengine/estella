@@ -12,6 +12,37 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **Export Diagnostics: one document that answers "the editor crashed yesterday".**
+  Everything a reproduction needs was already in the process — the build stamp the
+  boot guard reads, the census `resource_census` reads, the log the console
+  renders — with nothing that put them in one place. **Help ▸ Export Diagnostics**
+  now writes a structured report: editor and engine build (ABI, git sha, built-at),
+  the GPU, the project's shape, every census counter, the recent log, and the
+  settings that differ from their defaults.
+
+  The exporter knows no section names; a subsystem registers what it can say and
+  the bundle walks the registry, so a plugin contributes diagnostics through the
+  same door core uses. What a studio can hand out is decided per VALUE rather than
+  per collector: names, paths and values travel as stable placeholders, and the
+  full thing is a separate, explicit export. The placeholders are stable so one
+  name reads the same everywhere it appears, and keep the shape, because a value
+  that was `undefined` and one that was `0` are different bugs.
+
+- **The GPU is readable while it works.** The engine captured its backend, vendor,
+  renderer and driver version at init all along — a lost backend cannot be asked
+  who it was — but the only way to read them was off a *loss report*, so a healthy
+  session could not say which GPU it was running on. Identity is now its own type
+  with its own accessor (`getDeviceIdentity()`), and the loss report snapshots it.
+
+  On the web that answer used to be worthless anyway: `GL_VENDOR` and
+  `GL_RENDERER` are masked, and every Mac reports "WebKit WebGL" — a browser, not
+  a GPU. The unmasked strings are read where the browser allows it, so a report
+  now names `ANGLE Metal Renderer: Apple M4` instead of a constant.
+
 ## [0.47.0] - 2026-08-08
 
 ### Added

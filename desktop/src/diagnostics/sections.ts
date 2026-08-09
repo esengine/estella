@@ -10,7 +10,7 @@
  *          the counters from the same census the agent's `resource_census` tool
  *          reads, the log from the store the console renders.
  */
-import { takeCensus } from 'esengine';
+import { takeCensus, getDeviceIdentity, getDeviceStatus, getDeviceLostReport } from 'esengine';
 import { diagnosticsRegistry } from './registry';
 import { personal } from './redact';
 import { EngineHost } from '@/engine/EngineHost';
@@ -60,6 +60,23 @@ diagnosticsRegistry.register({
         colorSpace: EngineHost.activeColorSpace,
         booted: EngineHost.app !== null,
     }),
+});
+
+/**
+ * The GPU, as the driver names itself. Not personal: it identifies the machine's
+ * hardware, which is the point, and says nothing about the project.
+ *
+ * `lostReport` is empty on a healthy session — its presence in a bundle is the
+ * finding, not a field to fill in.
+ */
+diagnosticsRegistry.register({
+    id: 'gpu',
+    collect: () => {
+        const id = getDeviceIdentity();
+        if (!id) return null;
+        const lost = getDeviceLostReport();
+        return { ...id, status: getDeviceStatus(), ...(lost ? { lostReport: lost } : {}) };
+    },
 });
 
 /**

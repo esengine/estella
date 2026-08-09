@@ -375,20 +375,29 @@ enum class GfxDeviceLostReason : u8 {
  *          that says only "the context was lost" is what this type exists to
  *          replace.
  */
-struct GfxDeviceLostInfo {
-    GfxDeviceLostReason reason = GfxDeviceLostReason::Unknown;
-
-    /**
-     * Backend identity, captured at init() rather than at loss.
-     *
-     * A lost backend cannot be asked who it was — GL returns null from
-     * glGetString once the context is gone — so a report assembled at loss time
-     * would name no vendor, no driver and no GPU.
-     */
+/**
+ * @brief Who a device IS, captured at init() and true whether or not it still lives.
+ *
+ * @details A lost backend cannot be asked who it was (glGetString returns null
+ *          once the context is gone), so this is read while the device works.
+ *          Its own type because a device has an identity for its whole life,
+ *          while a loss report exists only after one.
+ */
+struct GfxDeviceIdentity {
     std::string backend;   ///< "WebGL2", "WebGPU".
     std::string vendor;
     std::string renderer;
-    std::string version;
+    std::string version;   ///< Driver / API version string.
+
+    bool known() const { return !backend.empty(); }
+};
+
+struct GfxDeviceLostInfo {
+    GfxDeviceLostReason reason = GfxDeviceLostReason::Unknown;
+
+    /** Snapshotted from the device at the moment of loss, so the report stays
+     *  immutable while the device goes on to be rebuilt with a new identity. */
+    GfxDeviceIdentity identity;
 
     /** Driver-supplied text; empty when the backend offered no detail. */
     std::string message;
@@ -425,10 +434,10 @@ inline const char* gfxDeviceLostReasonName(GfxDeviceLostReason reason) {
 inline std::string gfxFormatDeviceLost(const GfxDeviceLostInfo& info) {
     std::string out = "GPU device lost: ";
     out += gfxDeviceLostReasonName(info.reason);
-    out += " [backend=" + (info.backend.empty() ? std::string("unknown") : info.backend);
-    if (!info.vendor.empty())   out += ", vendor=" + info.vendor;
-    if (!info.renderer.empty()) out += ", gpu=" + info.renderer;
-    if (!info.version.empty())  out += ", driver=" + info.version;
+    out += " [backend=" + (info.identity.backend.empty() ? std::string("unknown") : info.identity.backend);
+    if (!info.identity.vendor.empty())   out += ", vendor=" + info.identity.vendor;
+    if (!info.identity.renderer.empty()) out += ", gpu=" + info.identity.renderer;
+    if (!info.identity.version.empty())  out += ", driver=" + info.identity.version;
     out += ", frame=" + std::to_string(info.frame) + "]";
     if (!info.context.empty()) out += " during " + info.context;
     if (!info.message.empty()) out += " — " + info.message;

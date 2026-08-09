@@ -193,6 +193,7 @@ anim_resumeTween: (registry: CppRegistry, tweenEntity: number) => void
 anim_setSequenceNext: (registry: CppRegistry, tweenEntity: number, nextEntity: number) => void
 anim_setTweenBezier: (registry: CppRegistry, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number) => void
 anim_updateTweens: (registry: CppRegistry, deltaTime: number) => void
+deviceIdentity: (() => string) | undefined
 deviceLostReport: (() => string) | undefined
 deviceStatus: (() => number) | undefined
 draw_begin: (matrixPtr: number) => void

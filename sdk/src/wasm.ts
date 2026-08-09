@@ -190,6 +190,8 @@ export interface ESEngineModule {
     deviceStatus?(): number;
     /** One-line loss report naming backend, GPU, driver and reason; empty while live. */
     deviceLostReport?(): string;
+    /** `backend|vendor|renderer|version`, or empty before a device exists. */
+    deviceIdentity?(): string;
     /**
      * Report a loss the page observed (`webglcontextlost`, a rejected GPUDevice
      * `lost` promise) so the engine stops submitting on this frame rather than
