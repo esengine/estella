@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A project can register a system set, so a pause is one condition instead of
+  a flag checked in nine systems.** `defineSystemSet` takes a `runIf` and its own
+  documentation shows a pause as the example, but the only door to register one
+  was `App.addSystemSetToSchedule` — and a project's systems arrive through the
+  module-level `addSystemToSchedule`, which takes a single system. There is now a
+  module-level `addSystemSetToSchedule`, and the bundle drain expands a set into
+  its members, so everything downstream (hot reload included) still sees a flat
+  list of user systems.
+
 - **Export Diagnostics: one document that answers "the editor crashed yesterday".**
   Everything a reproduction needs was already in the process — the build stamp the
   boot guard reads, the census `resource_census` reads, the log the console

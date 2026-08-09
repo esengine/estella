@@ -4,6 +4,7 @@
   "entries": {
     "area.main": "Cherry Blossom Landing",
     "area.moonlit-gallery": "Moonlit Gallery",
-    "hud.vitality": "Vitality"
+    "hud.vitality": "Vitality",
+    "menu.paused": "Paused"
   }
 }

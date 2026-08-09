@@ -344,6 +344,7 @@ export {
     addSystem,
     addStartupSystem,
     addSystemToSchedule,
+    addSystemSetToSchedule,
     GetWorld,
     SystemRunner,
     type GetWorldDescriptor,

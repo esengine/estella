@@ -24,6 +24,9 @@ export const NavGridBuilt = defineTag('NavGridBuilt');
 /** The HUD bar that reports Lyra's health; its `UIVisual` fill follows her. */
 export const VitalityMeter = defineTag('VitalityMeter');
 
+/** The panel shown while the game is paused. */
+export const PauseOverlay = defineTag('PauseOverlay');
+
 /**
  * Where the actor is facing, as a unit vector. Melee arcs and animation both
  * read it, so it is written once per actor rather than derived twice from

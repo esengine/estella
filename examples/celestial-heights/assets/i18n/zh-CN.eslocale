@@ -4,6 +4,7 @@
   "entries": {
     "area.main": "樱林渡口",
     "area.moonlit-gallery": "孤月回廊",
-    "hud.vitality": "生命"
+    "hud.vitality": "生命",
+    "menu.paused": "已暂停"
   }
 }

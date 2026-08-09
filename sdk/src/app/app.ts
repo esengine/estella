@@ -331,10 +331,18 @@ export class App {
      * from user code only by which door they came through.
      * @internal
      */
-    addBundleSystems(entries: ReadonlyArray<{ schedule: number; system: SystemDef }>): this {
+    addBundleSystems(entries: ReadonlyArray<{ schedule: number; system: SystemDef | SystemSet }>): this {
         this.addingBundleSystems_ = true;
         try {
-            for (const e of entries) this.addSystemToSchedule(e.schedule as Schedule, e.system);
+            for (const e of entries) {
+                // A set expands to its members here, so everything downstream —
+                // hot reload included — still sees a flat list of user systems.
+                if ((e.system as SystemSet)._kind === 'set') {
+                    this.addSystemSetToSchedule(e.schedule as Schedule, e.system as SystemSet);
+                } else {
+                    this.addSystemToSchedule(e.schedule as Schedule, e.system as SystemDef);
+                }
+            }
         } finally {
             this.addingBundleSystems_ = false;
         }

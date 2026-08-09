@@ -225,6 +225,15 @@ export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void
     getPendingSystems().push({ schedule, system });
 }
 
+/**
+ * Register a {@link SystemSet} from a project bundle, the module-level twin of
+ * `App.addSystemSetToSchedule`. Without it a project can define a set — the run
+ * condition a pause is written as — and have no door to register it through.
+ */
+export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void {
+    getPendingSystems().push({ schedule, system: set });
+}
+
 // =============================================================================
 // System Runner
 // =============================================================================
