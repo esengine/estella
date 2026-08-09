@@ -145,3 +145,6 @@ native/ios/Content/*
 # identity the exported project declares. See native/README.md.
 native/ios/App/Info.plist
 native/ios/app.generated.yml
+
+# verify-golden's package scratch (exports it launches and throws away)
+/.golden/
