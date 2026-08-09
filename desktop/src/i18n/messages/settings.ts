@@ -85,6 +85,19 @@ export const settingsMessages = defineMessages({
     },
     'set.inherited': { en: 'inherited', zh: '继承' },
     'set.section.packaging': { en: 'Packaging', zh: '打包' },
+    'set.section.packaging.hint': {
+        en: 'What is true of this project whatever it ships to. What one target is '
+            + 'called, where it goes and the ids a store knows it by are edited on that '
+            + "target's page in Package Project.",
+        zh: '这里是无论发往哪里都成立的部分。某个目标叫什么、发往哪里、商店用什么 id 认它,'
+            + '在「打包项目」里那个目标自己的页面上编辑。',
+    },
+    'set.inBuildDialog': { en: 'Edited in Package Project', zh: '在「打包项目」里编辑' },
+    'set.inBuildDialog.where': {
+        en: 'A {platform} packaging setting — it lives on that target\'s page.',
+        zh: '{platform}的打包设置——它在该目标自己的页面上。',
+    },
+    'set.openBuildDialog': { en: 'Open', zh: '打开' },
 
     // — Group headers —
     'set.group.appearance': { en: 'Appearance', zh: '外观' },
@@ -209,8 +222,8 @@ export const settingsMessages = defineMessages({
     'set.group.collisionLayers': { en: 'Collision Layers', zh: '碰撞层' },
     'set.group.solver': { en: 'Solver', zh: '求解器' },
     'set.group.application': { en: 'Application', zh: '应用' },
-    'set.group.wechat': { en: 'WeChat', zh: '微信' },
-    'set.group.desktop': { en: 'Desktop', zh: '桌面' },
+    'set.group.distribution': { en: 'Distribution', zh: '发行' },
+    'set.group.output': { en: 'Output', zh: '输出' },
 
     // — Editor settings —
     'set.appearance.language': { en: 'Language', zh: '语言' },

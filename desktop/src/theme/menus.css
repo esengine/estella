@@ -385,6 +385,15 @@
 .build__group-body .build__row { gap: 10px; }
 .build__group-body .build__label { width: 118px; }
 
+/* A target's own settings, rendered by the settings row renderer (SettingsRow.tsx)
+   so a packaging setting is the same row in both windows. Only the widths differ:
+   this dialog is narrower than the settings window, and the first group here sits
+   directly under the section head rather than needing its own top margin. */
+.build__settings .set-row { grid-template-columns: 1fr 190px 14px; gap: 10px; padding: 7px 0; }
+.build__settings .set-row:last-child { border-bottom: none; padding-bottom: 0; }
+.build__settings .set-group { font-size: var(--fs-xs); margin: 0 0 6px; padding-bottom: 5px; }
+.build__settings .set-group:not(:first-child) { margin-top: 14px; }
+
 /* Progressive disclosure: advanced (hot-update CDN / source maps / open folder). */
 .build__adv { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px 0; }
 .build__adv:hover { color: var(--text); }

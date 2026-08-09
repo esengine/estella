@@ -116,7 +116,10 @@ commands.register({
   category: t('cat.build'),
   keybinding: 'mod+shift+b',
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  run: () => editor().setBuildOpen(true),
+  // No target named: the dialog resumes where the project left off. Going through
+  // openBuild rather than setBuildOpen is what CLEARS a target another entry point
+  // asked for, so one trip through settings search does not pin every later build.
+  run: () => editor().openBuild(),
 });
 commands.register({
   id: 'project.close',

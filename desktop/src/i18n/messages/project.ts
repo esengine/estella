@@ -226,6 +226,7 @@ export const projectMessages = defineMessages({
     // — Section headers + asset-optimization mode (per-asset compression lives in
     //   the Inspector's Import Settings; the build only picks honor-vs-skip) —
     'build.secBuild': { en: 'Build', zh: '构建' },
+    'build.secTarget': { en: '{platform} settings', zh: '{platform}设置' },
     'build.advanced': { en: 'Advanced', zh: '高级' },
     'build.assetCompression': { en: 'Compression', zh: '资源压缩' },
     'build.assetAuto': { en: 'By import settings', zh: '按导入设置' },

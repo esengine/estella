@@ -53,9 +53,21 @@ class SettingsRegistry {
       .filter((g) => g.sections.length > 0);
   }
 
-  /** Settings in a section, in declared registration order. */
+  /**
+   * Settings in a section, in declared registration order.
+   *
+   * A setting that names a packaging target is NOT here: it is edited on that
+   * target's page in the Package Project dialog (see {@link Setting.platform}),
+   * and a value with two editors is a value with two answers.
+   */
   settingsForSection(sectionId: string): Setting[] {
-    return this.all().filter((s) => s.section === sectionId);
+    return this.all().filter((s) => s.section === sectionId && !s.platform);
+  }
+
+  /** The settings one packaging target declares, in registration order. Open to
+   *  a project's own platform id, since that is what a platform id is. */
+  settingsForPlatform(platform: string): Setting[] {
+    return this.all().filter((s) => s.platform === platform);
   }
 
   /** Retract every section + setting of one owner (plugin unload / disable). */

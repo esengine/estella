@@ -105,6 +105,11 @@ interface EditorState {
   // Package/Build dialog (File → Build) — the UE5-style export modal.
   buildOpen: boolean;
   setBuildOpen: (open: boolean) => void;
+  /** Target to open the build dialog on; null = the one the project last packaged
+   *  for. Set when something elsewhere means a SPECIFIC target's page — settings
+   *  search landing on a row that is edited there. */
+  buildPlatform: string | null;
+  openBuild: (platform?: string | null) => void;
 
   // Settings window (the registry-driven preferences dialog).
   settingsOpen: boolean;
@@ -223,6 +228,8 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   buildOpen: false,
   setBuildOpen: (buildOpen) => set({ buildOpen }),
+  buildPlatform: null,
+  openBuild: (platform = null) => set({ buildOpen: true, buildPlatform: platform }),
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),

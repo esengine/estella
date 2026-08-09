@@ -370,19 +370,14 @@ for (const role of THEME_COLOR_ROLES) {
   });
 }
 
-settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 4 });
-
-settingsRegistry.register({
-  id: 'project.packaging.wechat.appid',
-  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.wechat'),
-  label: t('set.project.packaging.wechat.appid'),
-  description: t('set.project.packaging.wechat.appid.desc'),
-  placeholder: 'wx0123456789abcdef', default: '',
-  bind: {
-    get: () => ProjectStore.platformPackaging().wechat?.appid ?? '',
-    set: (v) => void ProjectStore.setPlatformPackaging('wechat', { appid: v }),
-  },
+settingsRegistry.registerSection({
+  id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 4,
+  hint: t('set.section.packaging.hint'),
 });
+
+/** What this project's desktop build is being shipped through, for the rows that
+ *  only exist on one of those answers. */
+const desktopChannel = (): string => ProjectStore.platformPackaging().desktop?.channel ?? 'standalone';
 
 // The application identifier every installable target needs. One project ships as
 // one application, so it is declared once; a target that genuinely differs
@@ -412,72 +407,6 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.packagingSettings().icon ?? '',
     set: (v) => void ProjectStore.setPackaging({ icon: v || undefined }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.android.versionCode',
-  type: 'number', scope: 'project', section: 'packaging', group: t('set.group.application'),
-  label: t('set.project.packaging.android.versionCode'),
-  description: t('set.project.packaging.android.versionCode.desc'),
-  default: 1, min: 1, step: 1,
-  bind: {
-    get: () => ProjectStore.platformPackaging().android?.versionCode ?? 1,
-    set: (v) => void ProjectStore.setPlatformPackaging('android', { versionCode: Math.max(1, Math.round(v)) }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.desktop.appId',
-  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
-  label: t('set.project.packaging.desktop.appId'),
-  description: t('set.project.packaging.desktop.appId.desc'),
-  placeholder: 'com.studio.game', default: '',
-  bind: {
-    get: () => ProjectStore.platformPackaging().desktop?.appId ?? '',
-    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { appId: v }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.desktop.productName',
-  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
-  label: t('set.project.packaging.desktop.productName'),
-  description: t('set.project.packaging.desktop.productName.desc'),
-  placeholder: '(project name)', default: '',
-  bind: {
-    get: () => ProjectStore.platformPackaging().desktop?.productName ?? '',
-    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { productName: v }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.desktop.channel',
-  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
-  label: t('set.project.packaging.desktop.channel'),
-  description: t('set.project.packaging.desktop.channel.desc'),
-  options: DESKTOP_CHANNEL, segmented: true, default: 'standalone',
-  bind: {
-    get: () => ProjectStore.platformPackaging().desktop?.channel ?? 'standalone',
-    set: (v) => void ProjectStore.setPlatformPackaging('desktop', {
-      channel: v as 'standalone' | 'steam',
-    }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.desktop.steam.appId',
-  type: 'number', scope: 'project', section: 'packaging', group: t('set.group.steam'),
-  label: t('set.project.packaging.desktop.steam.appId'),
-  description: t('set.project.packaging.desktop.steam.appId.desc'),
-  default: 0, min: 0, step: 1,
-  bind: {
-    get: () => ProjectStore.platformPackaging().desktop?.steam?.appId ?? 0,
-    // 0 clears it rather than shipping a scripts-for-game-zero build: the export
-    // says so and writes no depot scripts.
-    set: (v) => void ProjectStore.setSteamPackaging({
-      appId: v > 0 ? Math.round(v) : undefined,
-    }),
   },
 });
 
@@ -513,17 +442,144 @@ settingsRegistry.register({
   },
 });
 
+// ── Per-target packaging ──────────────────────────────────────────────────────
+// A row naming a `platform` is edited on that target's page in Package Project;
+// `section` still applies, and settings search reports it from there.
+
+settingsRegistry.register({
+  id: 'project.packaging.wechat.appid',
+  type: 'string', scope: 'project', section: 'packaging', platform: 'wechat',
+  group: t('set.group.application'),
+  label: t('set.project.packaging.wechat.appid'),
+  description: t('set.project.packaging.wechat.appid.desc'),
+  placeholder: 'wx0123456789abcdef', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().wechat?.appid ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('wechat', { appid: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.android.versionCode',
+  type: 'number', scope: 'project', section: 'packaging', platform: 'android',
+  group: t('set.group.application'),
+  label: t('set.project.packaging.android.versionCode'),
+  description: t('set.project.packaging.android.versionCode.desc'),
+  default: 1, min: 1, step: 1,
+  bind: {
+    get: () => ProjectStore.platformPackaging().android?.versionCode ?? 1,
+    set: (v) => void ProjectStore.setPlatformPackaging('android', { versionCode: Math.max(1, Math.round(v)) }),
+  },
+});
+
+// Whether the build ends at an installable package or at the Gradle project one is
+// assembled from — the choice a project makes once and keeps, which is why it is
+// declared here rather than re-answered in the dialog on every build.
+settingsRegistry.register({
+  id: 'project.packaging.android.output',
+  type: 'enum', scope: 'project', section: 'packaging', platform: 'android',
+  group: t('set.group.output'),
+  label: t('build.androidOutput'),
+  description: t('build.androidOutputTip'),
+  default: 'package',
+  options: [
+    { value: 'package', label: t('build.androidOutput.package') },
+    { value: 'project', label: t('build.androidOutput.project') },
+  ],
+  bind: {
+    get: () => ProjectStore.platformPackaging().android?.output ?? 'package',
+    set: (v) => void ProjectStore.setPlatformPackaging('android', { output: v as 'package' | 'project' }),
+  },
+});
+
+// An App Bundle is a second FORMAT of the package, so it is a question only when
+// a package is what the build produces.
+settingsRegistry.register({
+  id: 'project.packaging.android.appBundle',
+  type: 'boolean', scope: 'project', section: 'packaging', platform: 'android',
+  group: t('set.group.output'),
+  label: t('build.appBundle'),
+  description: t('build.appBundleTip'),
+  default: false,
+  visibleWhen: () => (ProjectStore.platformPackaging().android?.output ?? 'package') === 'package',
+  bind: {
+    get: () => ProjectStore.platformPackaging().android?.appBundle ?? false,
+    set: (v) => void ProjectStore.setPlatformPackaging('android', { appBundle: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.appId',
+  type: 'string', scope: 'project', section: 'packaging', platform: 'desktop',
+  group: t('set.group.application'),
+  label: t('set.project.packaging.desktop.appId'),
+  description: t('set.project.packaging.desktop.appId.desc'),
+  placeholder: 'com.studio.game', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.appId ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { appId: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.productName',
+  type: 'string', scope: 'project', section: 'packaging', platform: 'desktop',
+  group: t('set.group.application'),
+  label: t('set.project.packaging.desktop.productName'),
+  description: t('set.project.packaging.desktop.productName.desc'),
+  placeholder: '(project name)', default: '',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.productName ?? '',
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', { productName: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.channel',
+  type: 'enum', scope: 'project', section: 'packaging', platform: 'desktop',
+  group: t('set.group.distribution'),
+  label: t('set.project.packaging.desktop.channel'),
+  description: t('set.project.packaging.desktop.channel.desc'),
+  options: DESKTOP_CHANNEL, segmented: true, default: 'standalone',
+  bind: {
+    get: () => desktopChannel(),
+    set: (v) => void ProjectStore.setPlatformPackaging('desktop', {
+      channel: v as 'standalone' | 'steam',
+    }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.desktop.steam.appId',
+  type: 'number', scope: 'project', section: 'packaging', platform: 'desktop',
+  group: t('set.group.steam'),
+  label: t('set.project.packaging.desktop.steam.appId'),
+  description: t('set.project.packaging.desktop.steam.appId.desc'),
+  default: 0, min: 0, step: 1,
+  visibleWhen: () => desktopChannel() === 'steam',
+  bind: {
+    get: () => ProjectStore.platformPackaging().desktop?.steam?.appId ?? 0,
+    // 0 clears it rather than shipping a scripts-for-game-zero build: the export
+    // says so and writes no depot scripts.
+    set: (v) => void ProjectStore.setSteamPackaging({
+      appId: v > 0 ? Math.round(v) : undefined,
+    }),
+  },
+});
+
 // Where Steam's own library comes from. A path rather than a checkbox because the
 // engine has no copy to switch on: the SDK is the developer's download, and the
 // assembler takes exactly one file out of it.
 settingsRegistry.register({
   id: 'project.packaging.desktop.steam.sdkPath',
   type: 'path', pick: 'directory',
-  scope: 'project', section: 'packaging', group: t('set.group.steam'),
+  scope: 'project', section: 'packaging', platform: 'desktop',
+  group: t('set.group.steam'),
   label: t('set.project.packaging.desktop.steam.sdkPath'),
   description: t('set.project.packaging.desktop.steam.sdkPath.desc'),
   pickTitle: t('set.project.packaging.desktop.steam.sdkPath.pick'),
   default: '',
+  visibleWhen: () => desktopChannel() === 'steam',
   bind: {
     get: () => ProjectStore.platformPackaging().desktop?.steam?.sdkPath ?? '',
     set: (v) => void ProjectStore.setSteamPackaging({ sdkPath: v.trim() || undefined }),
@@ -536,10 +592,12 @@ settingsRegistry.register({
 for (const os of ['macos', 'windows', 'linux'] as const) {
   settingsRegistry.register({
     id: `project.packaging.desktop.steam.depot.${os}`,
-    type: 'number', scope: 'project', section: 'packaging', group: t('set.group.steam'),
+    type: 'number', scope: 'project', section: 'packaging', platform: 'desktop',
+    group: t('set.group.steam'),
     label: t(`set.project.packaging.desktop.steam.depot.${os}`),
     description: t('set.project.packaging.desktop.steam.depot.desc'),
     default: 0, min: 0, step: 1,
+    visibleWhen: () => desktopChannel() === 'steam',
     bind: {
       get: () => ProjectStore.platformPackaging().desktop?.steam?.depots?.[os] ?? 0,
       set: (v) => void ProjectStore.setSteamDepot(os, v > 0 ? Math.round(v) : undefined),

@@ -101,6 +101,35 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* A section whose contents are only half the story says where the rest is. */
+.set-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-mute);
+  line-height: 1.5;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--srf-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+}
+
+/* A search hit this window does not edit: the control column holds the way to
+   where it IS edited, not a second copy of the control. */
+.set-goto {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  background: var(--srf-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.set-goto:hover { border-color: var(--acc); color: var(--acc); }
+
 .set-group {
   font-size: var(--fs-md);
   font-weight: 700;

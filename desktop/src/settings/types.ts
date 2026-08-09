@@ -11,6 +11,7 @@
  *  - `effect` — for store-owned settings, push the value to runtime on set + on
  *               hydrate (CSS variable, engine resource, …). Persisted by the store.
  */
+import type { ExportPlatform } from '@/project/platforms';
 
 /** Where a setting lives / persists. editor → per-user (localStorage). */
 export type SettingScope = 'editor' | 'project';
@@ -23,6 +24,9 @@ export interface SettingsSection {
   label: string;
   category: SettingCategory;
   order?: number;
+  /** A line above the section's rows, for a section whose contents are only half
+   *  the story — where the rest is edited says so rather than being folklore. */
+  hint?: string;
 }
 
 interface BaseSetting<T> {
@@ -33,6 +37,19 @@ interface BaseSetting<T> {
   section: string;
   /** Group header within the section content. */
   group?: string;
+  /**
+   * The packaging target this setting BELONGS to — a Steam depot id, a WeChat
+   * appid. Edited on that target's page in Package Project and nowhere else;
+   * unmarked ⇒ it holds whatever the project ships to. {@link section} still
+   * applies, so settings search finds it either way.
+   */
+  platform?: ExportPlatform;
+  /**
+   * Whether this row applies right now, read at render time — a depot id on a
+   * build that is not going to Steam is not a blank to fill in. A hidden row
+   * keeps its stored value.
+   */
+  visibleWhen?: () => boolean;
   label: string;
   description?: string;
   default: T;

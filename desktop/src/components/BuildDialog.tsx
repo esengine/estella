@@ -22,6 +22,11 @@
  *        authored per asset in the Inspector's Import Settings; the build only
  *        chooses whether to HONOR those settings (`assetCompression: 'auto'`) or
  *        skip them for fast iteration (`'skip'`). Every target is live.
+ *
+ *        What a TARGET is configured with (a WeChat appid, the desktop channel,
+ *        Steam's ids) is declared in the settings registry with a `platform` and
+ *        rendered here by the same row renderer the settings window uses — which
+ *        omits those rows, so each value has exactly one editor.
  */
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import {
@@ -29,6 +34,7 @@ import {
   Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Apple, Package, TriangleAlert, Plus,
 } from 'lucide-react';
 import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
+import { platformLabel } from '@/project/platformLabels';
 import type { PlayableNetworkOption } from '../../electron/platformCatalog';
 import type { BuildSizeReport } from '../../electron/sizeReport';
 import { formatBytes } from '@/project/sizeBudget';
@@ -37,6 +43,8 @@ import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { Button } from '@/components/Button';
+import { Group as SettingsGroup, groupByGroup } from '@/components/SettingsRow';
+import { settingsRegistry } from '@/settings/registry';
 import { ProjectStore } from '@/project/ProjectStore';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
@@ -124,25 +132,25 @@ interface PlatformDef {
  *  inlines the WEB runtime, not a `-t playable` one. */
 const BUILTIN_PLATFORMS: PlatformDef[] = [
   {
-    id: 'web', label: t('build.plat.web'), ready: true, category: 'general', icon: <Globe size={17} />,
+    id: 'web', label: platformLabel('web'), ready: true, category: 'general', icon: <Globe size={17} />,
     blurb: t('build.blurb.web'),
     defaultOut: 'dist-web', sourceMaps: true, httpPreview: true,
     next: (o) => t('build.next.web', { out: o }),
   },
   {
-    id: 'desktop', label: t('build.plat.desktop'), ready: true, category: 'general', icon: <Monitor size={17} />,
+    id: 'desktop', label: platformLabel('desktop'), ready: true, category: 'general', icon: <Monitor size={17} />,
     blurb: t('build.blurb.desktop'),
     defaultOut: 'dist-desktop', sourceMaps: true,
     next: (o) => t('build.next.desktop', { out: o }),
   },
   {
-    id: 'wechat', label: t('build.plat.wechat'), ready: true, category: 'minigame', icon: <MessageSquare size={17} />,
+    id: 'wechat', label: platformLabel('wechat'), ready: true, category: 'minigame', icon: <MessageSquare size={17} />,
     blurb: t('build.blurb.wechat'),
     defaultOut: 'dist-wechat', sourceMaps: false,
     next: (o) => t('build.next.wechat', { out: o }),
   },
   {
-    id: 'playable', label: t('build.plat.playable'), ready: true, category: 'general', icon: <Play size={16} />,
+    id: 'playable', label: platformLabel('playable'), ready: true, category: 'general', icon: <Play size={16} />,
     blurb: t('build.blurb.playable'),
     defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
     next: () => t('build.next.playable'),
@@ -152,13 +160,13 @@ const BUILTIN_PLATFORMS: PlatformDef[] = [
   // everything AROUND that differs: the toolchain, whether this machine has it,
   // and the command that turns the content into an installable app.
   {
-    id: 'android', label: t('build.plat.android'), ready: true, category: 'mobile', icon: <Smartphone size={17} />,
+    id: 'android', label: platformLabel('android'), ready: true, category: 'mobile', icon: <Smartphone size={17} />,
     blurb: t('build.blurb.android'),
     defaultOut: 'dist-android', sourceMaps: false,
     next: (o) => t('build.next.android', { out: o }),
   },
   {
-    id: 'ios', label: t('build.plat.ios'), ready: true, category: 'mobile', icon: <Apple size={17} />,
+    id: 'ios', label: platformLabel('ios'), ready: true, category: 'mobile', icon: <Apple size={17} />,
     blurb: t('build.blurb.ios'),
     defaultOut: 'dist-ios', sourceMaps: false,
     next: (o) => t('build.next.ios', { out: o }),
@@ -223,7 +231,9 @@ export function BuildDialog() {
 
   // Restore the project's persisted Package Project settings (project.esproject).
   const [saved] = useState(() => ProjectStore.packagingSettings());
-  const initialPlatform: Platform = saved.platform ?? 'web';
+  // Something elsewhere may mean a specific target's page (settings search landing
+  // on a row that is edited here); otherwise resume where the project left off.
+  const initialPlatform: Platform = useEditorStore.getState().buildPlatform ?? saved.platform ?? 'web';
   const initialDef = BUILTIN_PLATFORMS.find((p) => p.id === initialPlatform) ?? BUILTIN_PLATFORMS[0];
 
   // The built-ins are what we can draw immediately; readiness and the project's
@@ -248,11 +258,6 @@ export function BuildDialog() {
   // that is a per-build decision, not a property of the project. The list arrives from
   // the main process, since it includes the networks the PROJECT defines.
   const [adNetwork, setAdNetwork] = useState<string>(saved.platforms?.playable?.network ?? 'generic');
-  // The Play upload format, beside the installable APK. A per-build decision that
-  // the project remembers, like the ad network above.
-  const [appBundle, setAppBundle] = useState(saved.platforms?.android?.appBundle ?? false);
-  const [androidOutput, setAndroidOutput] = useState<'package' | 'project'>(
-    saved.platforms?.android?.output ?? 'package');
   const [adNetworks, setAdNetworks] = useState<PlayableNetworkOption[]>([]);
   const [advOpen, setAdvOpen] = useState(false);
   const [copiedFix, setCopiedFix] = useState(false);
@@ -275,6 +280,10 @@ export function BuildDialog() {
   const [cdnRoot, setCdnRoot] = useState(() => ProjectStore.activeProfileRemoteRoot());
 
   const def = platforms.find((p) => p.id === platform) ?? platforms[0];
+  // Re-derived per render rather than memoized: `visibleWhen` reads the project
+  // (a Steam depot id exists only on a Steam channel), and `project` above is what
+  // re-renders this dialog when that answer changes.
+  const platformSettings = groupByGroup(settingsRegistry.settingsForPlatform(platform));
   const running = phase === 'running';
   // Bumped when something the probes read changes on disk (a runtime template is
   // installed), so the rows re-probe instead of the dialog having to be reopened.
@@ -511,8 +520,6 @@ export function BuildDialog() {
     // Awaited, not fired-and-forgotten: the export resolves the network from the
     // manifest, so a race here would package for the previous one.
     if (platform === 'playable') await ProjectStore.setPlatformPackaging('playable', { network: adNetwork });
-    // Same reason: the export reads the bundle choice from the manifest.
-    if (platform === 'android') await ProjectStore.setPlatformPackaging('android', { appBundle, output: androidOutput });
     // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
     // texture/audio compression + Max Size); 'skip' → ship everything raw.
     const compress = assetCompression === 'auto';
@@ -766,31 +773,22 @@ export function BuildDialog() {
             </div>
           )}
 
+        {/* What this TARGET is — its identifier, its channel, the ids a store knows
+            it by. Declared in the settings registry with a `platform` and rendered
+            by the settings row renderer, so the row a developer edits here is the
+            same row, with the same reset and the same persistence, as every other
+            project setting. */}
+        {platformSettings.length > 0 && (
+          <Group title={t('build.secTarget', { platform: def.label })}>
+            <div className="build__settings">
+              {platformSettings.map((g) => (
+                <SettingsGroup key={g.label} label={g.label} settings={g.settings} />
+              ))}
+            </div>
+          </Group>
+        )}
+
         <Group title={t('build.secBuild')}>
-          {platform === 'android' && (
-            <>
-              <div className="build__row">
-                <span className="build__label" title={t('build.androidOutputTip')}>{t('build.androidOutput')}</span>
-                <Select
-                  ariaLabel={t('build.androidOutput')}
-                  value={androidOutput}
-                  options={[
-                    { value: 'package', label: t('build.androidOutput.package') },
-                    { value: 'project', label: t('build.androidOutput.project') },
-                  ]}
-                  onChange={(v) => setAndroidOutput(v as 'package' | 'project')}
-                />
-              </div>
-              {/* An App Bundle is a second FORMAT of the package; a project builds
-                  whichever format its own Gradle build is asked for. */}
-              {androidOutput === 'package' && (
-                <label className="build__opt" title={t('build.appBundleTip')}>
-                  <input type="checkbox" checked={appBundle} onChange={(e) => setAppBundle(e.target.checked)} />
-                  {t('build.appBundle')}
-                </label>
-              )}
-            </>
-          )}
           {platform === 'playable' && (
             <>
               <div className="build__row">
