@@ -174,6 +174,7 @@ export const GOLDEN = [
     certifies: [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
+      'persistence',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this

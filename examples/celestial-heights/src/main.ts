@@ -12,6 +12,9 @@ import { healthBarSystem, hitFlashSystem, vitalityMeterSystem } from './systems/
 import { cameraBindSystem, navFromTerrainSystem, gateSystem } from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
 import { cycleLanguageSystem } from './systems/settings';
+import {
+    saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem,
+} from './systems/save';
 import { perceiverFacingSystem } from './ai/wisp';
 
 // Perception, nav following, the behaviour-tree tick and scene switching are
@@ -22,6 +25,8 @@ import { perceiverFacingSystem } from './ai/wisp';
 // brings a new camera, a new terrain and a new player, and startup is long past.
 addSystemToSchedule(Schedule.PreUpdate, navFromTerrainSystem);
 addSystemToSchedule(Schedule.PreUpdate, cameraBindSystem);
+addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);
+addSystemToSchedule(Schedule.PreUpdate, applyRestoreSystem);
 
 // Everything the pause freezes says so once, as a set with one run condition,
 // rather than the same paused check written into eight systems.
@@ -42,6 +47,8 @@ addSystemSetToSchedule(Schedule.PostUpdate, defineSystemSet('combat', {
 addSystemToSchedule(Schedule.Update, pauseInputSystem);
 addSystemToSchedule(Schedule.Update, pauseTimeSystem);
 addSystemToSchedule(Schedule.Update, cycleLanguageSystem);
+addSystemToSchedule(Schedule.Update, saveRunSystem);
+addSystemToSchedule(Schedule.Update, loadRunSystem);
 addSystemToSchedule(Schedule.PostUpdate, pauseOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
