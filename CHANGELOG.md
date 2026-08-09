@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.47.0] - 2026-08-08
 
 ### Added
 
@@ -22,8 +22,9 @@ published separately; it ships inside the editor.
   its toolchain to the user. It is now the same three-layer path the phones take:
   a prebuilt runtime template (a native host on SDL3 with Dawn and QuickJS
   embedded, no Chromium), a pure-Node assembler, and a runnable build out the
-  other side. Windows and macOS templates are published with each release, so an
-  installed editor can package a desktop game with nothing else on the machine.
+  other side. Windows, macOS and Linux templates are published with each release,
+  so an installed editor can package a desktop game with nothing else on the
+  machine.
 
   One export assembles an app for *every* desktop template installed, not for the
   OS doing the building: the assembler never cared which OS ran it, and a Steam
@@ -149,6 +150,21 @@ published separately; it ships inside the editor.
   run — parse, loop, or file-read, whichever matches the metric's shape — so the
   same number means the same thing on a laptop and in CI.
 
+- **Native games get mouse buttons, the wheel and gamepads.** The native input
+  seam carried a single primary pointer, which is the whole of a touch screen and
+  a fraction of a desktop. It now answers what the web adapter answers, verbatim:
+  a pointer with a DOM button, a wheel in pixels, keys by DOM `code`, and gamepads
+  *polled* the way `navigator.getGamepads()` is polled, because a pad has a state
+  rather than events.
+
+  Every one of those tables fails silently when it is wrong — the key or the
+  button simply never arrives — so they are checked against a list written
+  independently from the W3C spec rather than derived from the same header, and
+  every standard button must be reachable exactly once. SDL and the DOM disagree
+  on nearly every number involved (mouse buttons start at 1 and order the middle
+  and right ones differently; a positive wheel means the opposite direction), so
+  the two adapters are compared trace-for-trace against the same input.
+
 ### Changed
 
 - **`AdsHost` is now `TakeoverHost`, and `new AdsAPI(host)` takes a `Takeover`.**
@@ -203,7 +219,71 @@ published separately; it ships inside the editor.
   worse than no answer. Five and a half seconds next to the twelve guards already
   there.
 
+- **A packaging target's settings are edited on that target's page, next to the
+  build they change.** What a target is called and identified by — the WeChat
+  appid, the desktop app id and channel, Steam's app and depot ids, the Android
+  version code — used to sit in the settings window in one flat list mixing every
+  target, while the Package Project dialog that consumes them showed none of them.
+  Shipping to Steam meant leaving the dialog, finding *Channel* among another
+  platform's rows, and coming back; the dialog never said Steam existed.
+
+  The line that decides where a value goes is now the only one there is: does it
+  belong to a target, or to the project? A setting that names a target is shown on
+  that target's page and nowhere else, so it has exactly one editor. What stays in
+  **Project Settings → Packaging** is what holds whatever the project ships to —
+  the application id, the icon, the achievement ids. Settings search still finds
+  the moved rows and says where they are, rather than offering a second copy of
+  the control.
+
+  The declaration also carries when a row applies at all, so the Steam group
+  appears on the Steam channel and the App Bundle row when the build produces a
+  package — conditions that used to be hand-written in the dialog. And a target
+  that ships to more than one place now branches the nav: **Steam** is listed under
+  Desktop, because the left rail answers "where does this go" and that is the
+  question someone has before they open the page. It is still a channel, not a
+  platform — the build is the same desktop app.
+
 ### Fixed
+
+- **A packaged native game started with half its project configuration.** There is
+  one projection of `game.config.json` into a running realm, written so that a
+  field added to the config reaches every host that spreads it — and the native
+  host listed the fields it knew about instead of using it. So the physics
+  configuration, the mixer state, the achievement ids and the Steam app id all
+  stopped at the export, for Android and iOS as much as for the desktop build.
+  Found because Steam never came up in a packaged game while nothing at all
+  reported an error: nothing was broken, the value simply never travelled.
+
+- **A native game had never received a key press — on any platform.**
+  `NativeInputListener.onKeyDown` was declared optional, and `es_onNativeKey`, the
+  entry point that would have fed it, was never written at all. So a keyboard on
+  Android, on iOS and on the desktop host reached the game as nothing, with
+  nothing reported: being optional is exactly how the missing half stayed
+  invisible, and the handler is now required.
+
+- **A settings list with something in it took the editor down.** Any list of rows
+  in the settings window — the achievement ids, the screen presets — re-rendered
+  without bound the moment it was not empty, until React tore the whole editor
+  tree away (`#185`). One value was read on behalf of every setting type with a
+  shallow compare, and a list of rows hands back fresh objects on every read, so
+  its snapshot was never equal to itself. It had never been seen because no such
+  list had ever *had* a row in it: adding one was impossible (below), and an empty
+  list does compare equal.
+
+- **Adding a row to a settings list did nothing.** A new row is blank, and a store
+  may normalize a blank row away — an achievement id nothing could match is
+  dropped on the way in and again on the way out — so the row was written straight
+  through and never came back. The row a list's own validation rejects now waits
+  in the control until it is real, and the store only ever sees rows it keeps.
+
+- **A file path field covered its own label.** The control stated a fixed 300px
+  width, which overflows *leftward* wherever the column is narrower than that —
+  over the label naming it. It fills the column it is in, and carries the full
+  path as its tooltip.
+
+- **A tall group in the Package Project dialog was clipped instead of scrolling.**
+  Its column let children shrink and then clipped the overflow, so a group taller
+  than the space left simply ended mid-row with nothing to scroll to.
 
 - **A packaged desktop game could not be typed into.** The platform seam hands a
   text field's value and caret to an OS editing surface — a UITextView, an
@@ -4433,7 +4513,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/esengine/estella/compare/v0.46.0...v0.47.0
+[0.46.0]: https://github.com/esengine/estella/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/esengine/estella/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/esengine/estella/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/esengine/estella/compare/v0.42.0...v0.43.0
