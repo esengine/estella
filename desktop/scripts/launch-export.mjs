@@ -100,7 +100,10 @@ async function main() {
   const base = `http://127.0.0.1:${server.address().port}/`;
 
   const win = new BrowserWindow({
-    width: W, height: H, show: false,
+    // Content size, not window size: with the frame counted in, the surface came
+    // out shorter than asked for, and a capture compared against another surface
+    // is only meaningful when the size requested is the size rendered.
+    width: W, height: H, useContentSize: true, show: false,
     webPreferences: { offscreen: false, backgroundThrottling: false },
   });
   await win.webContents.session.clearCache();

@@ -29,6 +29,13 @@ export const TIERS = ['pr', 'nightly', 'release'];
 export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'android', 'ios'];
 
 /**
+ * How far a packaged frame may sit from the editor's frame of the same game.
+ * Measured: the same game scores ~0.01 and two different games 0.37–0.48, so
+ * this sits an order of magnitude below anything that is actually a difference.
+ */
+export const DEFAULT_PARITY = 0.06;
+
+/**
  * What the suite claims to cover. A capability here with no project behind it
  * is a hole in the release argument, so the gate fails on one that is not in
  * {@link KNOWN_GAPS}.
@@ -66,6 +73,9 @@ export const KNOWN_GAPS = {
  * The corpus. `certifies` is the claim, `targets` the packages that must build
  * AND launch, `tier` the cheapest run that pays for it. Existing examples on
  * purpose — a parallel suite would be a second set of games to keep alive.
+ *
+ * `parity` overrides {@link DEFAULT_PARITY} for a game whose opening seconds
+ * move too much to compare that tightly; `parityGap` opts out with a reason.
  */
 export const GOLDEN = [
   {
@@ -159,6 +169,12 @@ export function nonGoldenExamples() {
     .map((e) => e.name)
     .filter((n) => !golden.has(n))
     .sort();
+}
+
+/** The parity tolerance in force for a project, or null when it opted out. */
+export function parityFor(g) {
+  if (g.parityGap) return null;
+  return typeof g.parity === 'number' ? g.parity : DEFAULT_PARITY;
 }
 
 /** Absolute path to a golden project's directory. */

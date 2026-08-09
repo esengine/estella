@@ -527,11 +527,11 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node scripts/editor-checks/run.mjs
 
-    # The golden corpus, packaged and opened the way a player opens it. Exporting
-    # was checked and the engine was checked; the package itself never was, which
-    # is where a wrong export default or a path that only resolves in the editor
-    # survives every other green check and ships.
-    - name: Launch the golden packages (PR tier)
+    # The golden corpus, packaged and opened the way a player opens it, then held
+    # against the editor's own frame of the same game. Exporting was checked and
+    # the engine was checked; the package never was — and "it launched" is not the
+    # claim, since a build that boots to its rotate-to-portrait gate launches fine.
+    - name: Launch the golden packages and compare them to the editor (PR tier)
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-golden.mjs --tier pr

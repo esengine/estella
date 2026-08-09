@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, TIERS, TARGETS,
-  atTier, uncoveredCapabilities, nonGoldenExamples, projectDir,
+  atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor,
 } from './goldenProjects.mjs';
 
 const problems = [];
@@ -53,6 +53,14 @@ for (const g of GOLDEN) {
   for (const t of g.targets ?? []) {
     if (!TARGETS.includes(t)) fail(`"${g.id}" names target "${t}" (have: ${TARGETS.join(', ')})`);
   }
+  // Parity is the release's own claim, so opting out of it is a sentence, not a flag.
+  if (g.parityGap !== undefined && !(typeof g.parityGap === 'string' && g.parityGap.trim())) {
+    fail(`"${g.id}" sets parityGap without a reason — say why its frames cannot be compared`);
+  }
+  if (g.parity !== undefined && !(typeof g.parity === 'number' && g.parity > 0 && g.parity < 1)) {
+    fail(`"${g.id}" has parity ${g.parity} — expected a tolerance between 0 and 1`);
+  }
+  if (g.parity !== undefined && g.parityGap) fail(`"${g.id}" both sets a parity tolerance and opts out`);
   if (!g.certifies?.length) fail(`"${g.id}" certifies nothing — say what it is in the suite for`);
   for (const c of g.certifies ?? []) {
     if (!CAPABILITIES.includes(c)) fail(`"${g.id}" certifies "${c}", which is not a declared capability`);
@@ -82,11 +90,13 @@ if (problems.length) {
   process.exit(1);
 }
 
+const noParity = GOLDEN.filter((g) => parityFor(g) === null);
 const gaps = Object.keys(KNOWN_GAPS).length;
 const pairs = TIERS.map((t) => `${t} ${atTier(t).length}`).join(' / ');
 console.log(
   `check-golden: ${GOLDEN.length} golden project(s) certify ${covered.size}/${CAPABILITIES.length} capabilities`
   + `, ${gaps} declared gap(s) — ok (${pairs})`,
 );
+for (const g of noParity) console.log(`  no editor/package comparison for ${g.id}: ${g.parityGap}`);
 const rest = nonGoldenExamples();
 if (rest.length) console.log(`  ${rest.length} example(s) outside the corpus (smoke-tested, not certified)`);
