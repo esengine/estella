@@ -257,13 +257,24 @@ export async function ensureDawnBuild(options) {
             `-DCMAKE_OSX_DEPLOYMENT_TARGET=${options.macosMin || MACOS_MIN}`,
             monolithic,
         ];
-    } else {
+    } else if (options.target === 'linux') {
+        // Also a host build. Named rather than left to the else: that branch is
+        // iOS's, and reaching it with a Linux target configured Dawn for a phone
+        // — "undefined is not an iOS SDK", from a build that never mentioned iOS.
+        perTarget = [monolithic];
+    } else if (target.sysroot) {
         perTarget = [
             '-DCMAKE_SYSTEM_NAME=iOS', '-DCMAKE_OSX_ARCHITECTURES=arm64',
             `-DCMAKE_OSX_DEPLOYMENT_TARGET=${options.iosMin || '17.0'}`,
             `-DCMAKE_OSX_SYSROOT=${target.sysroot}`,
             monolithic,
         ];
+    } else {
+        // Named, not defaulted: this was iOS's branch by fallthrough, so a new
+        // target inherited a phone's toolchain and failed as "undefined is not an
+        // iOS SDK" — about a platform it had nothing to do with.
+        throw new Error(`Dawn target ${options.target} has no configure recipe — add one beside `
+            + 'the others in ensureDawnBuild.');
     }
 
     logger.step(`Building Dawn for ${options.target} (once per pin; this takes a few minutes)...`);
