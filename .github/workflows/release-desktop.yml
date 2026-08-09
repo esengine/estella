@@ -246,11 +246,12 @@ jobs:
       # things it needs rather than weakening what it asks.
       - name: A game packaged from it renders (Linux)
         if: matrix.name == 'linux'
-        env:
-          # lavapipe. Without it Dawn picks nothing and the host reports a lost
-          # device, which is a true answer to a question about the runner.
-          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-        run: xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
+        run: |
+          # What the loader can actually see, printed rather than assumed: naming
+          # an ICD file by hand is how a driver stops being found at all, and the
+          # symptom is Vulkan reporting no surface extension.
+          ls -l /usr/share/vulkan/icd.d/ || true
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
 
       - name: Upload template artifact
         uses: actions/upload-artifact@v7

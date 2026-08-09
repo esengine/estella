@@ -671,6 +671,6 @@ jobs:
         run: node build-tools/cli.js native --target linux
 
       - name: A game packaged from it renders
-        env:
-          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-        run: xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
+        run: |
+          ls -l /usr/share/vulkan/icd.d/ || true
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --examples hello-world
