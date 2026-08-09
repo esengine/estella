@@ -15,7 +15,7 @@ import { settingsRegistry } from '@/settings/registry';
 import { ProjectStore } from '@/project/ProjectStore';
 import { BUILTIN_PLATFORMS } from '@/project/platforms';
 import { platformLabel, unlabeledBuiltins } from '@/project/platformLabels';
-import type { ObjectListSetting } from '@/settings/types';
+import type { EnumSetting, ObjectListSetting } from '@/settings/types';
 
 /** Every registered setting that claims a packaging target. */
 const targetOwned = () => settingsRegistry.all().filter((s) => s.platform);
@@ -113,6 +113,24 @@ describe('a list whose store normalizes rows away', () => {
     expect(s.rowError!(named, [named])).toBeNull();
     s.bind!.set([named]);
     expect(s.bind!.get()).toEqual([{ id: 'FIRST_BLOOD' }]);
+  });
+});
+
+describe('a target whose destinations branch the nav', () => {
+  it('is the desktop channel, and its options are the branches', () => {
+    const s = settingsRegistry.get('project.packaging.desktop.channel');
+    expect(s?.type === 'enum' && s.navBranch).toBe(true);
+    expect((s as EnumSetting).options.map((o) => o.value)).toEqual(['standalone', 'steam']);
+  });
+
+  it('is the only one, so the nav has one level of branching', () => {
+    // The nav takes the FIRST branch a target declares; a second would be
+    // silently ignored rather than shown, so there must not be one.
+    for (const p of BUILTIN_PLATFORMS) {
+      const branches = settingsRegistry.settingsForPlatform(p)
+        .filter((s) => s.type === 'enum' && s.navBranch);
+      expect(branches.length).toBeLessThanOrEqual(1);
+    }
   });
 });
 

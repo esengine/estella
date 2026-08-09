@@ -99,6 +99,14 @@ export interface EnumSetting extends BaseSetting<string> {
   options: { value: string; label: string }[];
   /** Render as a segmented control instead of a dropdown. */
   segmented?: boolean;
+  /**
+   * Also branch this target in the build dialog's nav, one entry per option.
+   *
+   * For an enum naming WHERE the build goes rather than how it is made: that is
+   * the question the left rail already answers, and a destination nobody can see
+   * until they open the page is one nobody knows exists.
+   */
+  navBranch?: boolean;
 }
 
 /** A single-line free-text setting (e.g. a WeChat appid, a desktop product name). */

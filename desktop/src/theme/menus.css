@@ -466,3 +466,25 @@
 .cp-agent .an { display: flex; align-items: center; gap: 8px; }
 .cp-agent .an svg { color: var(--text-faint); flex: none; }
 .cp-agent.sel .an svg { color: var(--star-hi); }
+
+/* A target's destinations, under its nav row: where the build GOES, which the
+   left rail already answers, rather than a row found after opening the page. */
+.build__nav-sub {
+  display: block;
+  width: 100%;
+  padding: 4px 10px 4px 34px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.build__nav-sub:hover { color: var(--text); background: var(--srf-4); }
+.build__nav-sub.active { color: var(--acc-hi); background: var(--acc-soft); }
+.build__nav-sub:disabled { cursor: default; }
+/* The parent of a branched target is not itself a destination: the highlighted
+   entry is whichever branch is selected, so the row only reads as expanded. */
+.build__nav-item.is-open { color: var(--text); }

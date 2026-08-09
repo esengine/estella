@@ -28,7 +28,7 @@
  *        rendered here by the same row renderer the settings window uses — which
  *        omits those rows, so each value has exactly one editor.
  */
-import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { useState, useEffect, useSyncExternalStore, Fragment, type ReactNode } from 'react';
 import {
   Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
   Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Apple, Package, TriangleAlert, Plus,
@@ -45,6 +45,7 @@ import { Select } from '@/components/Select';
 import { Button } from '@/components/Button';
 import { Group as SettingsGroup, groupByGroup } from '@/components/SettingsRow';
 import { settingsRegistry } from '@/settings/registry';
+import { useSettings } from '@/store/settingsStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
@@ -279,12 +280,22 @@ export function BuildDialog() {
   // assets are fetched from for hot update. Written on blur.
   const [cdnRoot, setCdnRoot] = useState(() => ProjectStore.activeProfileRemoteRoot());
 
+  const setSetting = useSettings((s) => s.setValue);
   const def = platforms.find((p) => p.id === platform) ?? platforms[0];
   // Re-derived per render rather than memoized: `visibleWhen` reads the project
   // (a Steam depot id exists only on a Steam channel), and `project` above is what
   // re-renders this dialog when that answer changes.
   const platformSettings = groupByGroup(settingsRegistry.settingsForPlatform(platform));
   const running = phase === 'running';
+
+  /** The enum a target declares as its nav branch (`navBranch`) — one nav entry
+   *  per option, so a destination is visible before its page is opened. */
+  const navBranchOf = (id: Platform) => {
+    const s = settingsRegistry.settingsForPlatform(id)
+      .find((x) => x.type === 'enum' && x.navBranch && x.visibleWhen?.() !== false);
+    if (!s || s.type !== 'enum') return null;
+    return { id: s.id, options: s.options, value: useSettings.getState().getValue<string>(s.id) };
+  };
   // Bumped when something the probes read changes on disk (a runtime template is
   // installed), so the rows re-probe instead of the dialog having to be reopened.
   const [probeTick, setProbeTick] = useState(0);
@@ -617,25 +628,46 @@ export function BuildDialog() {
                     </button>
                   )}
                 </div>
-                {items.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`build__nav-item${!creating && platform === p.id ? ' active' : ''}`}
-                    aria-current={!creating && platform === p.id}
-                    disabled={running}
-                    title={p.label}
-                    onClick={() => { setCreating(false); pickPlatform(p); }}
-                  >
-                    <span className="build__nav-icon">{p.icon}</span>
-                    <span className="build__nav-label">{p.label}</span>
-                    {p.loadError
-                      ? <AlertCircle size={12} className="build__nav-flag is-error" />
-                      : !p.ready
-                        ? <TriangleAlert size={12} className="build__nav-flag is-warn" />
-                        : null}
-                  </button>
-                ))}
+                {items.map((p) => {
+                  const branch = navBranchOf(p.id);
+                  const here = !creating && platform === p.id;
+                  return (
+                    <Fragment key={p.id}>
+                      <button
+                        type="button"
+                        className={`build__nav-item${here && !branch ? ' active' : ''}${here && branch ? ' is-open' : ''}`}
+                        aria-current={here && !branch}
+                        disabled={running}
+                        title={p.label}
+                        onClick={() => { setCreating(false); pickPlatform(p); }}
+                      >
+                        <span className="build__nav-icon">{p.icon}</span>
+                        <span className="build__nav-label">{p.label}</span>
+                        {p.loadError
+                          ? <AlertCircle size={12} className="build__nav-flag is-error" />
+                          : !p.ready
+                            ? <TriangleAlert size={12} className="build__nav-flag is-warn" />
+                            : null}
+                      </button>
+                      {branch?.options.map((o) => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          className={`build__nav-sub${here && branch.value === o.value ? ' active' : ''}`}
+                          aria-current={here && branch.value === o.value}
+                          disabled={running}
+                          onClick={() => {
+                            setCreating(false);
+                            if (platform !== p.id) pickPlatform(p);
+                            if (branch.value !== o.value) setSetting(branch.id, o.value);
+                          }}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </Fragment>
+                  );
+                })}
                 {cat === 'custom' && items.length === 0 && (
                   <div className="build__nav-empty">{t('build.noCustomPlatforms')}</div>
                 )}

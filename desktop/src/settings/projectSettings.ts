@@ -540,7 +540,7 @@ settingsRegistry.register({
   group: t('set.group.distribution'),
   label: t('set.project.packaging.desktop.channel'),
   description: t('set.project.packaging.desktop.channel.desc'),
-  options: DESKTOP_CHANNEL, segmented: true, default: 'standalone',
+  options: DESKTOP_CHANNEL, segmented: true, navBranch: true, default: 'standalone',
   bind: {
     get: () => desktopChannel(),
     set: (v) => void ProjectStore.setPlatformPackaging('desktop', {
