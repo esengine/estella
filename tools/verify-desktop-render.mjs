@@ -67,9 +67,12 @@ function packageAndRun(project, templateDir, work) {
     ], { cwd: ROOT, stdio: 'inherit' });
 
     const name = JSON.parse(readFileSync(path.join(out, 'app.config.json'), 'utf8')).name;
-    const exe = HOST_OS === 'macos'
-        ? path.join(out, `${name}.app`, 'Contents', 'MacOS', name)
-        : path.join(out, name, `${name}.exe`);
+    // Three layouts, not two: Linux is Windows' shape without the extension, and
+    // treating "not macOS" as Windows looks for a .exe that a Linux build never
+    // produced — a judge failing on its own path arithmetic.
+    const exe = HOST_OS === 'macos' ? path.join(out, `${name}.app`, 'Contents', 'MacOS', name)
+        : HOST_OS === 'windows' ? path.join(out, name, `${name}.exe`)
+            : path.join(out, name, name);
     if (!existsSync(exe)) throw new Error(`no assembled app at ${exe}`);
 
     // From a directory that is NOT the app's: a player's launcher does the same,
