@@ -17,6 +17,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type MouseEvent as ReactMouseEvent } from 'react';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { usePanelWindow } from '@/components/PanelWindow';
+import { ZoomControl } from '@/components/ZoomControl';
 import { t } from '@/i18n';
 
 export type { MenuItem };
@@ -111,6 +112,20 @@ export interface NodeGraphCanvasProps<N extends CanvasNode, E extends CanvasEdge
 const nx = (n: CanvasNode) => n.x ?? 0;
 const ny = (n: CanvasNode) => n.y ?? 0;
 
+/** How far the canvas zooms. The stepper and the wheel share these so the
+ *  readout can never show a zoom the wheel refuses (or the reverse). */
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 2.5;
+
+interface Viewport { x: number; y: number; zoom: number }
+
+/** Re-zoom about a fixed canvas point, so whatever is under `(mx, my)` stays there. */
+function zoomAbout(v: Viewport, zoom: number, mx: number, my: number): Viewport {
+  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+  const k = next / v.zoom;
+  return { x: mx - (mx - v.x) * k, y: my - (my - v.y) * k, zoom: next };
+}
+
 function bezier(x1: number, y1: number, x2: number, y2: number): string {
   const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
@@ -200,7 +215,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     if (!el || !b) return setVp({ x: 0, y: 0, zoom: 1 });
     const r = el.getBoundingClientRect(), pad = 60;
     const cw = Math.max(1, b.maxX - b.minX), ch = Math.max(1, b.maxY - b.minY);
-    const zoom = Math.min(1.5, Math.max(0.25, Math.min((r.width - pad * 2) / cw, (r.height - pad * 2) / ch)));
+    const zoom = Math.min(1.5, Math.max(ZOOM_MIN, Math.min((r.width - pad * 2) / cw, (r.height - pad * 2) / ch)));
     setVp({ x: (r.width - cw * zoom) / 2 - b.minX * zoom, y: (r.height - ch * zoom) / 2 - b.minY * zoom, zoom });
   };
   const resetView = () => setVp({ x: 0, y: 0, zoom: 1 });
@@ -430,11 +445,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
           const r = el.getBoundingClientRect();
           const mx = e.clientX - r.left;
           const my = e.clientY - r.top;
-          setVp(v => {
-            const zoom = Math.min(2.5, Math.max(0.25, v.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
-            const k = zoom / v.zoom;
-            return { x: mx - (mx - v.x) * k, y: my - (my - v.y) * k, zoom };
-          });
+          setVp(v => zoomAbout(v, v.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), mx, my));
         }}
         onContextMenu={e => { const p = toCanvas(e.clientX, e.clientY); openMenu(e, { kind: 'canvas', x: p.x, y: p.y }); }}>
         {nodes.length === 0 && emptyHint && <div className="ng-empty">{emptyHint}</div>}
@@ -520,6 +531,22 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
             </div>
           );
         })}
+        </div>
+        {/* Corner chrome, not a toolbar row: this canvas pans without bounds, so its
+            view controls belong to the surface — the same place the viewport keeps
+            its own. The stepper itself is the one every zoomed panel uses. */}
+        <div className="ng-viewctl" onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
+          <ZoomControl
+            zoom={vp.zoom}
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            onZoom={z => {
+              const r = canvasRef.current?.getBoundingClientRect();
+              setVp(v => zoomAbout(v, z, (r?.width ?? 0) / 2, (r?.height ?? 0) / 2));
+            }}
+            onFit={fitToContent}
+            fitTitle={t('ng.fit')}
+          />
         </div>
       </div>
 

@@ -15,6 +15,7 @@ export const nodegraphMessages = defineMessages({
     'ng.fsmEmpty': { en: 'No state machine open', zh: '未打开状态机' },
     'ng.btEmpty': { en: 'No behavior tree open', zh: '未打开行为树' },
     'ng.animatorEmpty': { en: 'No animation controller open', zh: '未打开动画控制器' },
+    'ng.fit': { en: 'Frame all nodes (F)', zh: '框选全部节点（F）' },
     'ng.save': { en: 'Save', zh: '保存' },
     'ng.deleteSelected': { en: 'Delete selected', zh: '删除所选' },
     'ng.name': { en: 'Name', zh: '名称' },

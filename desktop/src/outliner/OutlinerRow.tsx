@@ -91,6 +91,7 @@ function OutlinerRowInner(props: OutlinerRowProps) {
   const canRename = !!props.onCommitRename;
   const collapsible = props.collapsible !== false;
   const showTwist = hasChildren && collapsible;
+  const childCount = item.kind === 'folder' ? item.count : (item.node.children?.length ?? 0);
 
   return (
     <div
@@ -164,6 +165,11 @@ function OutlinerRowInner(props: OutlinerRowProps) {
           onDoubleClick={canRename && props.onStartRename ? () => props.onStartRename!(item) : undefined}
         >
           {highlightName(name, props.highlight)}
+          {/* "How many are inside me" — one fact, so a folder's items and an
+              entity's children read the same way. Inside the name so it hugs the
+              text; as a sibling it drifted to the far edge and collided with the
+              Type column. */}
+          {childCount > 0 && <span className="rcount">{childCount}</span>}
         </span>
       )}
 

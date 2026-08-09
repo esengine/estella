@@ -85,6 +85,14 @@
 .row .rcol-spacer { flex-shrink: 0; } /* aligns columns where a row has no cell (e.g. folder lock/vis) */
 .row .rtype { width: 78px; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); flex-shrink: 0; }
 .row.sel .rtype { color: rgba(255, 255, 255, 0.72); }
+/* Child/item count: reads as an annotation on the name, never competing with it. */
+.row .rcount {
+  margin-left: 6px;
+  font-size: var(--fs-2xs);
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+.row.sel .rcount { color: rgba(255, 255, 255, 0.6); }
 /* Narrow dock: the fixed Type column would eat the name into "C…" slivers —
    drop it and give the name the full row (lock/visibility keep their cells). */
 @container (max-width: 209px) {

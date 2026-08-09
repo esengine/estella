@@ -871,15 +871,23 @@ function ComponentSection({
         <span className="comp-arrow">
           <ChevronRight size={9} strokeWidth={3} />
         </span>
-        <span
-          className={`comp-chk${on ? ' on' : ''}${enable?.mixed ? ' mixed' : ''}`}
-          role={enable ? 'checkbox' : undefined}
-          aria-checked={enable ? (enable.mixed ? 'mixed' : enable.value) : undefined}
-          title={enable ? (enable.value ? t('det.disableComponent') : t('det.enableComponent')) : undefined}
-          onClick={enable ? toggleEnable : (e) => e.stopPropagation()}
-        >
-          {on && <Check size={9} strokeWidth={3.2} />}
-        </span>
+        {/* Only a section that CAN be turned off draws a box. Transform and the
+            importer/asset sections cannot, and a permanently ticked checkbox
+            promises a toggle that isn't there — they keep the slot for alignment
+            and leave it empty. */}
+        {enable ? (
+          <span
+            className={`comp-chk${on ? ' on' : ''}${enable.mixed ? ' mixed' : ''}`}
+            role="checkbox"
+            aria-checked={enable.mixed ? 'mixed' : enable.value}
+            title={enable.value ? t('det.disableComponent') : t('det.enableComponent')}
+            onClick={toggleEnable}
+          >
+            {on && <Check size={9} strokeWidth={3.2} />}
+          </span>
+        ) : (
+          <span className="comp-chk-slot" aria-hidden="true" />
+        )}
         {enable && enableGear}
         <span className="comp-icon">
           <Icon size={13} strokeWidth={1.9} />

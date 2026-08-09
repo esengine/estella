@@ -34,6 +34,20 @@
   background-image: radial-gradient(var(--srf-3) 1px, transparent 1px);
 }
 .ng-svg { position: absolute; top: 0; left: 0; width: 4000px; height: 4000px; overflow: visible; }
+/* View controls as canvas chrome, matching the viewport's own corner overlays. */
+.ng-viewctl {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  padding: 2px 4px;
+  background: rgba(var(--glass-rgb), 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+}
 .ng-empty {
   position: absolute;
   inset: 0;

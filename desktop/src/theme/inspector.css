@@ -67,6 +67,9 @@
 .comp.open .comp-arrow svg { transform: rotate(90deg); }
 .comp-chk { width: 14px; height: 14px; border: 1px solid var(--border-line); border-radius: var(--r-xs); display: grid; place-items: center; color: transparent; background: var(--inset); flex-shrink: 0; transition: all var(--t-fast); }
 .comp-chk.on { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }
+/* Holds the checkbox's place on a section that has nothing to toggle, so every
+   section's icon and name still line up. */
+.comp-chk-slot { width: 14px; flex-shrink: 0; }
 .comp-icon { color: var(--text-dim); display: grid; place-items: center; }
 .comp-name { font-weight: 600; font-size: var(--fs-sm); color: var(--text); flex: 1; }
 .comp.override .comp-name::after { content: ''; display: inline-block; width: 5px; height: 5px; background: var(--warn); border-radius: 50%; margin-left: 7px; vertical-align: middle; }

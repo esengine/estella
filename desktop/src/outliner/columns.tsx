@@ -40,7 +40,12 @@ export interface OutlinerColumn {
   render: (item: OutlinerItem, ctx: OutlinerColumnContext) => ReactNode;
 }
 
-/** Entity kind → the label shown in the Type column. */
+/**
+ * Entity kind → the Type column's label, or '' for a kind that tells the reader
+ * nothing. `empty` is every entity the classifier found no distinguishing
+ * component on, so labelling it "Entity" set most of a scene's rows to a word
+ * that is true of all of them; blank says the same thing without the noise.
+ */
 const KIND_TYPE: Record<NodeKind, string> = {
   camera: t('out.kindCamera'),
   sprite: t('out.kindSprite'),
@@ -50,24 +55,20 @@ const KIND_TYPE: Record<NodeKind, string> = {
   audio: t('out.kindAudio'),
   group: t('out.kindGroup'),
   light: t('out.kindLight'),
-  empty: t('out.kindEntity'),
+  empty: '',
 };
 
-/** Type / count column — prefab instances read "Prefab", others by kind + child count. */
+/** Type column — what this row IS. Prefab instances read "Prefab", which the
+ *  row's icon cannot say; everything else reads its kind. Counts are not a type
+ *  and live next to the name (see OutlinerRow). */
 export const TYPE_COLUMN: OutlinerColumn = {
   id: 'type',
   header: t('out.colType'),
   width: 78,
-  applies: () => true,
+  applies: (item) => item.kind === 'entity',
   render: (item, ctx) => {
-    let label: string;
-    if (item.kind === 'folder') {
-      label = item.count > 0 ? String(item.count) : '';
-    } else {
-      const childCount = item.node.children?.length ?? 0;
-      const base = ctx.isPrefab?.(item.id) ? t('out.prefab') : (KIND_TYPE[item.node.kind] ?? t('out.kindEntity'));
-      label = childCount > 0 ? `${base} · ${childCount}` : base;
-    }
+    if (item.kind !== 'entity') return null;
+    const label = ctx.isPrefab?.(item.id) ? t('out.prefab') : KIND_TYPE[item.node.kind];
     return <span className="rtype">{label}</span>;
   },
 };

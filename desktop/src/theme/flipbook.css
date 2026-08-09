@@ -191,6 +191,8 @@
 
 /* Transport-driven preview stage: a checkerboard view with the current frame
    (onion-skin ghosts behind it) over a control bar (shared <Transport> + onion). */
+/* The one section that takes the slack: every other row is content-sized, so a
+   tall dock used to end in dead space instead of a bigger sprite to judge. */
 .fb-pv {
   display: flex;
   flex-direction: column;
@@ -198,11 +200,13 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   background: var(--srf-2);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .fb-pv__view {
   position: relative;
-  height: 172px;
+  flex: 1 1 auto;
+  min-height: 172px;
   border-radius: var(--r-sm);
   overflow: hidden;
   background-color: var(--inset);

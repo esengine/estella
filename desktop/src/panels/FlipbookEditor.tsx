@@ -21,6 +21,7 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { GridField } from '@/components/GridField';
 import { ZoomControl } from '@/components/ZoomControl';
+import { useElementSize } from '@/components/useElementSize';
 import { Transport } from '@/components/Transport';
 import { SaveButton } from '@/components/SaveButton';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
@@ -60,6 +61,8 @@ export function FlipbookEditor() {
   const [zoom, setZoom] = useState(2);
   // Fit the whole sheet page into the scroll viewport (both axes).
   const canvasRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const stageBox = useElementSize(stageRef);
   const fitZoom = () => {
     const c = canvasRef.current;
     if (!c || !sheet || sheet.pageWidth <= 0 || sheet.pageHeight <= 0) return;
@@ -145,9 +148,13 @@ export function FlipbookEditor() {
     };
   };
 
+  // The sprite fills the stage the dock actually gave us, square and inset so the
+  // anchor handle stays grabbable at the edges. Falls back to the CSS min-height
+  // before the first measurement.
+  const STAGE = Math.max(120, Math.min(stageBox.w, stageBox.h || 172) - 20);
+
   // Onion skin: ghost the nearest frames behind the current one, fading with
   // distance. Only while paused — during playback the trail is just noise.
-  const STAGE = 152;
   const onionGhosts: { i: number; dir: number; op: number }[] = [];
   if (onion && !playing && asset.frames.length > 1) {
     const n = asset.frames.length;
@@ -230,7 +237,7 @@ export function FlipbookEditor() {
 
       {asset.frames.length > 0 && (
         <div className="fb-pv">
-          <div className="fb-pv__view">
+          <div className="fb-pv__view" ref={stageRef}>
             {onionGhosts.map((g) => (
               <span
                 key={`${g.dir}-${g.i}`}

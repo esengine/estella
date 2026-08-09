@@ -16,6 +16,7 @@
  * centre slice alive) lives in `project/nineSlice.ts` as pure functions.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useElementSize } from '@/components/useElementSize';
 import { t } from '@/i18n';
 import type { FieldWrite } from '@/types';
 import {
@@ -42,7 +43,8 @@ export function NineSliceEditor({ path, importer, write }: {
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [tex, setTex] = useState<{ w: number; h: number } | null>(null);
-  const [box, setBox] = useState({ w: 0, h: BOX_H });
+  // The drawn box is width-fluid (the inspector column), so measure it.
+  const box = useElementSize(boxRef);
   const [drag, setDrag] = useState<SliceEdge | null>(null);
   const [hover, setHover] = useState<SliceEdge | null>(null);
 
@@ -56,16 +58,6 @@ export function NineSliceEditor({ path, importer, write }: {
     return () => { alive = false; };
   }, [path]);
 
-  // The drawn box is width-fluid (the inspector column), so measure it.
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight });
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const texW = tex?.w ?? 0;
   const texH = tex?.h ?? 0;
