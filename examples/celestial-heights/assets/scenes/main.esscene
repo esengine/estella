@@ -22,7 +22,7 @@
       "folder": "Environment",
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 1920, "y": 1080 }, "color": { "r": 0.106, "g": 0.09, "b": 0.169, "a": 1 }, "layer": -20 } }
+        { "type": "Sprite", "data": { "size": { "x": 1600, "y": 900 }, "color": { "r": 0.106, "g": 0.09, "b": 0.169, "a": 1 }, "layer": 0 } }
       ],
       "visible": true
     },
@@ -34,20 +34,175 @@
       "folder": "Environment",
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": -120, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 1400, "y": 260 }, "color": { "r": 0.192, "g": 0.169, "b": 0.263, "a": 1 }, "layer": -10 } }
+        { "type": "Sprite", "data": { "size": { "x": 1200, "y": 260 }, "color": { "r": 0.192, "g": 0.169, "b": 0.263, "a": 1 }, "layer": 1 } }
       ],
       "visible": true
     },
     {
-      "id": 3,
+      "id": 10,
+      "name": "Wall_North",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 470, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1680, "y": 40 }, "color": { "r": 0.267, "g": 0.235, "b": 0.361, "a": 1 }, "layer": 2 } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 8.4, "y": 0.2 }, "categoryBits": 1, "maskBits": 65535 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "Wall_South",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -470, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1680, "y": 40 }, "color": { "r": 0.267, "g": 0.235, "b": 0.361, "a": 1 }, "layer": 2 } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 8.4, "y": 0.2 }, "categoryBits": 1, "maskBits": 65535 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "Wall_West",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -820, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 40, "y": 940 }, "color": { "r": 0.267, "g": 0.235, "b": 0.361, "a": 1 }, "layer": 2 } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.2, "y": 4.7 }, "categoryBits": 1, "maskBits": 65535 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "name": "Wall_East",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 820, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 40, "y": 940 }, "color": { "r": 0.267, "g": 0.235, "b": 0.361, "a": 1 }, "layer": 2 } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.2, "y": 4.7 }, "categoryBits": 1, "maskBits": 65535 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 20,
       "name": "Lyra_Player",
       "parent": null,
       "children": [],
       "folder": "Actors",
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": -90, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 84, "y": 150 }, "color": { "r": 0.855, "g": 0.788, "b": 0.976, "a": 1 }, "layer": 10 } },
-        { "type": "Player", "data": {} }
+        { "type": "Transform", "data": { "position": { "x": -260, "y": -90, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 84, "y": 150 }, "color": { "r": 0.855, "g": 0.788, "b": 0.976, "a": 1 }, "layer": 2 } },
+        { "type": "Player", "data": { "speed": 380 } },
+        { "type": "Facing", "data": { "x": 1, "y": 0 } },
+        { "type": "Health", "data": { "current": 120, "max": 120, "invulnerability": 0.5, "invulnerable": 0 } },
+        { "type": "MeleeAttack", "data": { "damage": 30, "reach": 110, "arcDegrees": 120, "cooldown": 0.4, "cooldownLeft": 0, "pending": false, "hits": 4 } },
+        { "type": "PerceptionTarget", "data": {} },
+        { "type": "RigidBody", "data": { "bodyType": 1 } },
+        { "type": "CircleCollider", "data": { "radius": 0.3, "offset": { "x": 0, "y": -0.5 }, "categoryBits": 2, "maskBits": 1 } },
+        { "type": "CharacterController", "data": { "up": { "x": 0, "y": 1 }, "snapLength": 0, "maskBits": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 30,
+      "name": "Wisp_A",
+      "parent": null,
+      "children": [300, 301],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 320, "y": 150, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 64, "y": 96 }, "color": { "r": 0.412, "g": 0.812, "b": 0.902, "a": 1 }, "layer": 2 } },
+        { "type": "Enemy", "data": {} },
+        { "type": "Facing", "data": { "x": -1, "y": 0 } },
+        { "type": "Health", "data": { "current": 60, "max": 60, "invulnerability": 0.2, "invulnerable": 0 } },
+        { "type": "MeleeAttack", "data": { "damage": 12, "reach": 76, "arcDegrees": 160, "cooldown": 1.2, "cooldownLeft": 0, "pending": false, "hits": 2 } },
+        { "type": "Perceiver", "data": { "range": 380, "fovDegrees": 360 } },
+        { "type": "NavAgent", "data": { "speed": 150, "arriveRadius": 48, "repathInterval": 0.35 } },
+        { "type": "BehaviorTreeAgent", "data": { "bt": "assets/ai/wisp.esbt" } },
+        { "type": "RigidBody", "data": { "bodyType": 1 } },
+        { "type": "CircleCollider", "data": { "radius": 0.26, "offset": { "x": 0, "y": -0.3 }, "categoryBits": 4, "maskBits": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 31,
+      "name": "Wisp_B",
+      "parent": null,
+      "children": [310, 311],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 460, "y": -220, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 64, "y": 96 }, "color": { "r": 0.522, "g": 0.729, "b": 0.976, "a": 1 }, "layer": 2 } },
+        { "type": "Enemy", "data": {} },
+        { "type": "Facing", "data": { "x": -1, "y": 0 } },
+        { "type": "Health", "data": { "current": 60, "max": 60, "invulnerability": 0.2, "invulnerable": 0 } },
+        { "type": "MeleeAttack", "data": { "damage": 12, "reach": 76, "arcDegrees": 160, "cooldown": 1.4, "cooldownLeft": 0, "pending": false, "hits": 2 } },
+        { "type": "Perceiver", "data": { "range": 320, "fovDegrees": 360 } },
+        { "type": "NavAgent", "data": { "speed": 125, "arriveRadius": 48, "repathInterval": 0.5 } },
+        { "type": "BehaviorTreeAgent", "data": { "bt": "assets/ai/wisp.esbt" } },
+        { "type": "RigidBody", "data": { "bodyType": 1 } },
+        { "type": "CircleCollider", "data": { "radius": 0.26, "offset": { "x": 0, "y": -0.3 }, "categoryBits": 4, "maskBits": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 300,
+      "name": "HealthBar_Back",
+      "parent": 30,
+      "children": [],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 66, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 76, "y": 12 }, "color": { "r": 0.078, "g": 0.067, "b": 0.125, "a": 1 }, "layer": 3 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 301,
+      "name": "HealthBar_Fill",
+      "parent": 30,
+      "children": [],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 66, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 8 }, "color": { "r": 0.906, "g": 0.353, "b": 0.412, "a": 1 }, "layer": 3 } },
+        { "type": "HealthBarFill", "data": { "width": 72 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 310,
+      "name": "HealthBar_Back",
+      "parent": 31,
+      "children": [],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 66, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 76, "y": 12 }, "color": { "r": 0.078, "g": 0.067, "b": 0.125, "a": 1 }, "layer": 3 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 311,
+      "name": "HealthBar_Fill",
+      "parent": 31,
+      "children": [],
+      "folder": "Actors",
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 66, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 72, "y": 8 }, "color": { "r": 0.906, "g": 0.353, "b": 0.412, "a": 1 }, "layer": 3 } },
+        { "type": "HealthBarFill", "data": { "width": 72 } }
       ],
       "visible": true
     }

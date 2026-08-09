@@ -1,27 +1,48 @@
-import { defineSystem, Query, Mut, Res, Time, Input, Transform } from 'esengine';
-import { Player } from '../components';
-import { WALK_HALF_W, WALK_HALF_H, DEPTH_FORESHORTEN } from '../config';
+import {
+    defineSystem, Query, Mut, Res, Input, CharacterController,
+} from 'esengine';
+import { Player, Facing, MeleeAttack } from '../components';
+import { DEPTH_FORESHORTEN } from '../config';
 
-const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
-
+/**
+ * Writes the desired velocity and lets the engine's character controller do the
+ * moving — it collides the capsule and resolves the slide, so walls are the
+ * physics world's business and not this system's.
+ */
 export const playerMoveSystem = defineSystem(
-    [Query(Mut(Transform), Player), Res(Input), Res(Time)],
-    (query, input, time) => {
-        for (const [, transform, player] of query) {
+    [Query(Mut(CharacterController), Mut(Facing), Player), Res(Input)],
+    (players, input) => {
+        for (const [, cc, facing, player] of players) {
             let dx = 0;
             let dy = 0;
             if (input.isKeyDown('KeyW') || input.isKeyDown('ArrowUp')) dy += 1;
             if (input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown')) dy -= 1;
             if (input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft')) dx -= 1;
             if (input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight')) dx += 1;
-            if (dx === 0 && dy === 0) continue;
 
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const step = (player.speed * time.delta) / len;
-            const p = transform.position;
-            p.x = clamp(p.x + dx * step, -WALK_HALF_W, WALK_HALF_W);
-            p.y = clamp(p.y + dy * step * DEPTH_FORESHORTEN, -WALK_HALF_H, WALK_HALF_H);
+            if (dx === 0 && dy === 0) {
+                cc.velocity.x = 0;
+                cc.velocity.y = 0;
+                continue;
+            }
+            const len = Math.hypot(dx, dy);
+            cc.velocity.x = (dx / len) * player.speed;
+            cc.velocity.y = (dy / len) * player.speed * DEPTH_FORESHORTEN;
+            // Facing follows input rather than resolved motion, so sliding along
+            // a wall does not turn Lyra to face it.
+            facing.x = dx / len;
+            facing.y = dy / len;
         }
     },
     { name: 'PlayerMoveSystem' },
+);
+
+/** Turns the attack key into the same `pending` flag the wisps' brain sets. */
+export const playerAttackSystem = defineSystem(
+    [Query(Mut(MeleeAttack), Player), Res(Input)],
+    (players, input) => {
+        if (!input.isKeyPressed('Space')) return;
+        for (const [, attack] of players) attack.pending = true;
+    },
+    { name: 'PlayerAttackSystem' },
 );

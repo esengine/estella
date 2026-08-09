@@ -15,12 +15,24 @@
 
 /**
  * JS source that plays `spec` and then lets the game run on.
- * `{ keys?: string[], pointer?: { x, y, action? }, frames?: number }`
+ * `{ keys?, pointer?, frames?, taps?: [{key, at}], holds?: [{key, from, to}] }`
+ *
+ * `keys` hold for the whole run, `taps` press at a frame index, `holds` hold over
+ * a frame range. A playthrough is a sequence, not a posture: "walk there, turn
+ * round, hit it" cannot be said by keys all pressed at frame zero.
  */
 export function inputScript(spec) {
   const keys = JSON.stringify(spec.keys ?? []);
   const pointer = JSON.stringify(spec.pointer ?? null);
   const frames = Number(spec.frames ?? 40);
+  const taps = JSON.stringify(
+    (spec.taps ?? []).map((t) => ({ key: String(t.key), at: Number(t.at) || 0 })),
+  );
+  const holds = JSON.stringify(
+    (spec.holds ?? []).map((h) => ({
+      key: String(h.key), from: Number(h.from) || 0, to: Number(h.to ?? frames),
+    })),
+  );
   return `
     (async () => {
       const raf = () => new Promise((r) => requestAnimationFrame(r));
@@ -58,10 +70,28 @@ export function inputScript(spec) {
         for (let i = 0; i < 4; i++) await raf();
         firePointer('up', pointer.x, pointer.y);
       }
-      for (let i = 0; i < ${frames}; i++) await raf();
+      const taps = ${taps};
+      const holds = ${holds};
+      const down = new Set();
+      for (let i = 0; i < ${frames}; i++) {
+        for (const h of holds) {
+          if (h.from === i) { fireKey('keydown', h.key); down.add(h.key); }
+          if (h.to === i && down.has(h.key)) { fireKey('keyup', h.key); down.delete(h.key); }
+        }
+        for (const t of taps) {
+          if (t.at !== i) continue;
+          fireKey('keydown', t.key);
+          // Held a couple of frames for the same reason a pointer press is:
+          // a key sampled once per frame can land between two of them.
+          for (let j = 0; j < 2; j++) await raf();
+          fireKey('keyup', t.key);
+        }
+        await raf();
+      }
+      for (const k of down) fireKey('keyup', k);
       for (const k of keys) fireKey('keyup', k);
       await raf();
-      return keys.length + (pointer ? 1 : 0);
+      return keys.length + taps.length + holds.length + (pointer ? 1 : 0);
     })()
   `;
 }

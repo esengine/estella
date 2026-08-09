@@ -1,0 +1,31 @@
+{
+  "root": {
+    "type": "selector",
+    "id": "n0",
+    "x": 60,
+    "y": 170,
+    "children": [
+      {
+        "type": "sequence",
+        "id": "n1",
+        "x": 300,
+        "y": 60,
+        "children": [
+          { "type": "condition", "id": "n2", "name": "inStrikeRange", "x": 560, "y": 20 },
+          { "type": "action", "id": "n3", "name": "strike", "x": 560, "y": 100 }
+        ]
+      },
+      {
+        "type": "sequence",
+        "id": "n4",
+        "x": 300,
+        "y": 200,
+        "children": [
+          { "type": "condition", "id": "n5", "name": "seesPlayer", "x": 560, "y": 160 },
+          { "type": "action", "id": "n6", "name": "chase", "x": 560, "y": 240 }
+        ]
+      },
+      { "type": "action", "id": "n7", "name": "hover", "x": 300, "y": 330 }
+    ]
+  }
+}

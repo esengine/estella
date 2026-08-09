@@ -9,5 +9,16 @@
     "width": 1920,
     "height": 1080
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "features": {
+    "physics": {
+      "enabled": true,
+      "gravity": { "x": 0, "y": 0 },
+      "collisionLayers": ["World", "Player", "Enemy"]
+    },
+    "rendering": {
+      "sortingLayers": ["Ground", "GroundDetail", "Actors", "Overhead", "Vfx"],
+      "ySortLayers": [2]
+    }
+  }
 }
