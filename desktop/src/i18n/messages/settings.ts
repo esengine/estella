@@ -36,7 +36,9 @@ export const settingsMessages = defineMessages({
     'set.section.performance': { en: 'Performance', zh: '性能' },
     'set.section.shortcuts': { en: 'Keyboard Shortcuts', zh: '键盘快捷键' },
     'set.section.console': { en: 'Console', zh: '控制台' },
-    'set.section.renderer': { en: 'Renderer', zh: '渲染器' },
+    // Names the GPU device it picks, not the subsystem: "Renderer" sat one word
+    // from the project's "Rendering" in the same rail, and holds nothing of it.
+    'set.section.renderer': { en: 'Graphics Backend', zh: '图形后端' },
     'set.section.externalTools': { en: 'External Tools', zh: '外部工具' },
     'set.section.agents': { en: 'AI Agents', zh: 'AI 代理' },
     'toast.programMissing': {

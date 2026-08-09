@@ -108,6 +108,7 @@ const BUILTIN_ITEMS: MenuContribution[] = [
   cmd('view', 'overlays', 'view.toggleMinimap'),
   cmd('view', 'overlays', 'view.toggleStats'),
   cmd('view', 'overlays', 'view.toggleCoords'),
+  cmd('view', 'overlays', 'view.toggleHints'),
   cmd('view', 'overlays', 'view.togglePerf'),
   cmd('view', 'gizmo', 'view.toggleCoordSpace'),
   cmd('view', 'gizmo', 'view.togglePivotMode'),

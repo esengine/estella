@@ -518,6 +518,13 @@ commands.register({
   isChecked: () => editor().showCoords,
   run: () => editor().toggleCoords(),
 });
+commands.register({
+  id: 'view.toggleHints',
+  label: t('cmd.view.toggleHints'),
+  category: t('cat.view'),
+  isChecked: () => editor().showHints,
+  run: () => editor().toggleHints(),
+});
 
 // — Editor —
 commands.register({

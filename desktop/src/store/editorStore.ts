@@ -55,8 +55,11 @@ interface EditorState {
   previewFx: boolean;
   /** Corner performance HUD (FPS / frame time / entity count). Off by default — opt-in. */
   showStats: boolean;
-  /** Bottom-left cursor / selection / zoom / tool-hint readout. Off by default. */
+  /** Bottom-left cursor / selection / zoom readout. */
   showCoords: boolean;
+  /** The instructional line under it. Its own switch because it is not a readout:
+   *  once you know the gizmo, it is a sentence that never stops being shown. */
+  showHints: boolean;
   /** Bottom-right scene minimap overview. On by default; toggle to reclaim the corner. */
   showMinimap: boolean;
   snapping: boolean;
@@ -89,6 +92,7 @@ interface EditorState {
   togglePreviewFx: () => void;
   toggleStats: () => void;
   toggleCoords: () => void;
+  toggleHints: () => void;
   toggleMinimap: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
@@ -196,6 +200,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   // brush flip/rotate, eyedropper…) + the cursor world coord / tile-cell readout —
   // the editor's cheapest self-teaching surface. FPS/entity stats stay opt-in.
   showCoords: true,
+  showHints: true,
   showMinimap: true,
   snapping: false,
   snapStep: 32,
@@ -216,6 +221,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   togglePreviewFx: () => set((s) => ({ previewFx: !s.previewFx })),
   toggleStats: () => set((s) => ({ showStats: !s.showStats })),
   toggleCoords: () => set((s) => ({ showCoords: !s.showCoords })),
+  toggleHints: () => set((s) => ({ showHints: !s.showHints })),
   toggleMinimap: () => set((s) => ({ showMinimap: !s.showMinimap })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),

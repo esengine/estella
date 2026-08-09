@@ -545,12 +545,13 @@ function HudCursor() {
 // The corner HUD (perf + coordinates). Owns the StatsStore subscription so the
 // slow stats updates re-render ONLY this leaf — not the whole, gizmo-heavy
 // Viewport.
-function ViewportHud({ ready, showStats, showCoords, selCount, zoomPct, tool, paintHint }: {
+function ViewportHud({ ready, showStats, showCoords, showHints, selCount, zoomPct, tool, paintHint }: {
   ready: boolean;
   /** Corner FPS/frame/entity HUD — opt-in (off by default). */
   showStats: boolean;
   /** Bottom-left cursor/selection/hint readout — opt-in (off by default). */
   showCoords: boolean;
+  showHints: boolean;
   selCount: number;
   zoomPct: number;
   tool: ToolMode;
@@ -577,13 +578,15 @@ function ViewportHud({ ready, showStats, showCoords, selCount, zoomPct, tool, pa
           </div>
         </div>
       )}
-      {showCoords && (
+      {(showCoords || showHints) && (
         <div className="vp-coord">
-          <div className="ro">
-            <HudCursor />
-            {t('vp.hud.sel')} <strong>{selCount}</strong> · {zoomPct}%
-          </div>
-          <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>
+          {showCoords && (
+            <div className="ro">
+              <HudCursor />
+              {t('vp.hud.sel')} <strong>{selCount}</strong> · {zoomPct}%
+            </div>
+          )}
+          {showHints && <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>}
         </div>
       )}
     </>
@@ -708,6 +711,7 @@ export function Viewport() {
   const previewFx = useEditorStore((s) => s.previewFx);
   const showStats = useEditorStore((s) => s.showStats);
   const showCoords = useEditorStore((s) => s.showCoords);
+  const showHints = useEditorStore((s) => s.showHints);
   const showMinimap = useEditorStore((s) => s.showMinimap);
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const coordSpace = useEditorStore((s) => s.coordSpace);
@@ -2581,6 +2585,7 @@ export function Viewport() {
         ready={engine.status === 'ready'}
         showStats={showStats}
         showCoords={showCoords}
+        showHints={showHints}
         selCount={selCount}
         zoomPct={zoomPct}
         tool={tool}
