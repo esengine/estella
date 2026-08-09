@@ -61,6 +61,24 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Writing a component from a system threw away the engine's own computed
+  state, and a UI element that was written drew underneath its own background.**
+  A HUD meter animated the ordinary way — query the `UIVisual`, assign
+  `fillAmount` — came out as its parent track composited over it. Read back from
+  the C++ pass that assigns it, the written element's `uiOrder` was 0 where its
+  unwritten twin's was one above its parent's.
+
+  `UIVisual` carries `uiOrder` and `uiCullBit`, which the UI render-order pass
+  writes each frame and no `ES_PROPERTY` declares — correctly, since they are not
+  authored and not serialized. But the generated binding replaced the whole
+  component with a struct built from the declared fields alone, so every write
+  from script reset the element's draw order to 0 and its canvas cull bit to
+  nothing. `UINode` carries its resolved size and subtree alpha the same way.
+
+  A component that already exists is now assigned field by field instead of
+  replaced, so state the engine computed survives a write from script. This is
+  generated for every component, not patched for one.
+
 - **Navigation built from a tilemap was upside down, so enemies walked into
   walls and stood still in the open.** `navGridFromTilemapLayer` read tilemap row
   `y` for nav cell `y`, but the two count in opposite directions: a tilemap's row

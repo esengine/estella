@@ -269,8 +269,7 @@ struct BitmapTextJS {
     bool enabled;
 };
 
-esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
-    esengine::ecs::BitmapText c;
+void bitmaptextApplyJS(esengine::ecs::BitmapText& c, const BitmapTextJS& js) {
     c.text = js.text;
     c.color = js.color;
     c.fontSize = js.fontSize;
@@ -280,6 +279,11 @@ esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
     c.layer = js.layer;
     c.font = resource::BitmapFontHandle(js.font);
     c.enabled = js.enabled;
+}
+
+esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
+    esengine::ecs::BitmapText c;
+    bitmaptextApplyJS(c, js);
     return c;
 }
 
@@ -312,8 +316,7 @@ struct CameraJS {
     u32 cullingMask;
 };
 
-esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
-    esengine::ecs::Camera c;
+void cameraApplyJS(esengine::ecs::Camera& c, const CameraJS& js) {
     c.projectionType = static_cast<ProjectionType>(js.projectionType);
     c.fov = js.fov;
     c.orthoSize = js.orthoSize;
@@ -326,6 +329,11 @@ esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
     c.clearFlags = static_cast<ClearFlags>(js.clearFlags);
     c.pixelPerfect = js.pixelPerfect;
     c.cullingMask = js.cullingMask;
+}
+
+esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
+    esengine::ecs::Camera c;
+    cameraApplyJS(c, js);
     return c;
 }
 
@@ -355,14 +363,18 @@ struct CanvasJS {
     i32 layer;
 };
 
-esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
-    esengine::ecs::Canvas c;
+void canvasApplyJS(esengine::ecs::Canvas& c, const CanvasJS& js) {
     c.designResolution = js.designResolution;
     c.pixelsPerUnit = js.pixelsPerUnit;
     c.scaleMode = static_cast<CanvasScaleMode>(js.scaleMode);
     c.matchWidthOrHeight = js.matchWidthOrHeight;
     c.backgroundColor = js.backgroundColor;
     c.layer = js.layer;
+}
+
+esengine::ecs::Canvas canvasFromJS(const CanvasJS& js) {
+    esengine::ecs::Canvas c;
+    canvasApplyJS(c, js);
     return c;
 }
 
@@ -381,10 +393,14 @@ struct ChildrenJS {
     std::vector<u32> entities;
 };
 
-esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
-    esengine::ecs::Children c;
+void childrenApplyJS(esengine::ecs::Children& c, const ChildrenJS& js) {
     c.entities.reserve(js.entities.size());
     for (auto v : js.entities) c.entities.push_back(Entity(v));
+}
+
+esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
+    esengine::ecs::Children c;
+    childrenApplyJS(c, js);
     return c;
 }
 
@@ -405,8 +421,7 @@ struct FlexContainerJS {
     Padding padding;
 };
 
-esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
-    esengine::ecs::FlexContainer c;
+void flexcontainerApplyJS(esengine::ecs::FlexContainer& c, const FlexContainerJS& js) {
     c.direction = static_cast<FlexDirection>(js.direction);
     c.wrap = static_cast<FlexWrap>(js.wrap);
     c.justifyContent = static_cast<JustifyContent>(js.justifyContent);
@@ -414,6 +429,11 @@ esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
     c.alignContent = static_cast<AlignContent>(js.alignContent);
     c.gap = js.gap;
     c.padding = js.padding;
+}
+
+esengine::ecs::FlexContainer flexcontainerFromJS(const FlexContainerJS& js) {
+    esengine::ecs::FlexContainer c;
+    flexcontainerApplyJS(c, js);
     return c;
 }
 
@@ -439,8 +459,7 @@ struct Mesh2DJS {
     bool enabled;
 };
 
-esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
-    esengine::ecs::Mesh2D c;
+void mesh2dApplyJS(esengine::ecs::Mesh2D& c, const Mesh2DJS& js) {
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
     c.layer = js.layer;
@@ -448,6 +467,11 @@ esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
     c.parallax = js.parallax;
     c.material = js.material;
     c.enabled = js.enabled;
+}
+
+esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
+    esengine::ecs::Mesh2D c;
+    mesh2dApplyJS(c, js);
     return c;
 }
 
@@ -467,9 +491,13 @@ struct ParentJS {
     u32 entity;
 };
 
+void parentApplyJS(esengine::ecs::Parent& c, const ParentJS& js) {
+    c.entity = Entity(js.entity);
+}
+
 esengine::ecs::Parent parentFromJS(const ParentJS& js) {
     esengine::ecs::Parent c;
-    c.entity = Entity(js.entity);
+    parentApplyJS(c, js);
     return c;
 }
 
@@ -540,8 +568,7 @@ struct ParticleEmitterJS {
     f32 collisionLifetimeLoss;
 };
 
-esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js) {
-    esengine::ecs::ParticleEmitter c;
+void particleemitterApplyJS(esengine::ecs::ParticleEmitter& c, const ParticleEmitterJS& js) {
     c.rate = js.rate;
     c.burstCount = js.burstCount;
     c.burstInterval = js.burstInterval;
@@ -600,6 +627,11 @@ esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js
     c.collisionBounce = js.collisionBounce;
     c.collisionFriction = js.collisionFriction;
     c.collisionLifetimeLoss = js.collisionLifetimeLoss;
+}
+
+esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js) {
+    esengine::ecs::ParticleEmitter c;
+    particleemitterApplyJS(c, js);
     return c;
 }
 
@@ -676,8 +708,7 @@ struct RigidBodyJS {
     bool enabled;
 };
 
-esengine::ecs::RigidBody rigidbodyFromJS(const RigidBodyJS& js) {
-    esengine::ecs::RigidBody c;
+void rigidbodyApplyJS(esengine::ecs::RigidBody& c, const RigidBodyJS& js) {
     c.bodyType = static_cast<BodyType>(js.bodyType);
     c.gravityScale = js.gravityScale;
     c.linearDamping = js.linearDamping;
@@ -685,6 +716,11 @@ esengine::ecs::RigidBody rigidbodyFromJS(const RigidBodyJS& js) {
     c.fixedRotation = js.fixedRotation;
     c.bullet = js.bullet;
     c.enabled = js.enabled;
+}
+
+esengine::ecs::RigidBody rigidbodyFromJS(const RigidBodyJS& js) {
+    esengine::ecs::RigidBody c;
+    rigidbodyApplyJS(c, js);
     return c;
 }
 
@@ -718,8 +754,7 @@ struct SpriteJS {
     bool enabled;
 };
 
-esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
-    esengine::ecs::Sprite c;
+void spriteApplyJS(esengine::ecs::Sprite& c, const SpriteJS& js) {
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
     c.size = js.size;
@@ -735,6 +770,11 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.parallax = js.parallax;
     c.material = js.material;
     c.enabled = js.enabled;
+}
+
+esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
+    esengine::ecs::Sprite c;
+    spriteApplyJS(c, js);
     return c;
 }
 
@@ -775,8 +815,7 @@ struct TilemapLayerJS {
     bool visible;
 };
 
-esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
-    esengine::ecs::TilemapLayer c;
+void tilemaplayerApplyJS(esengine::ecs::TilemapLayer& c, const TilemapLayerJS& js) {
     c.cellSize = js.cellSize;
     c.orientation = js.orientation;
     c.hexSideLength = js.hexSideLength;
@@ -791,6 +830,11 @@ esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
     c.opacity = js.opacity;
     c.parallaxFactor = js.parallaxFactor;
     c.visible = js.visible;
+}
+
+esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
+    esengine::ecs::TilemapLayer c;
+    tilemaplayerApplyJS(c, js);
     return c;
 }
 
@@ -828,8 +872,7 @@ struct TrailRendererJS {
     bool enabled;
 };
 
-esengine::ecs::TrailRenderer trailrendererFromJS(const TrailRendererJS& js) {
-    esengine::ecs::TrailRenderer c;
+void trailrendererApplyJS(esengine::ecs::TrailRenderer& c, const TrailRendererJS& js) {
     c.time = js.time;
     c.minVertexDistance = js.minVertexDistance;
     c.emitting = js.emitting;
@@ -842,6 +885,11 @@ esengine::ecs::TrailRenderer trailrendererFromJS(const TrailRendererJS& js) {
     c.layer = js.layer;
     c.material = js.material;
     c.enabled = js.enabled;
+}
+
+esengine::ecs::TrailRenderer trailrendererFromJS(const TrailRendererJS& js) {
+    esengine::ecs::TrailRenderer c;
+    trailrendererApplyJS(c, js);
     return c;
 }
 
@@ -868,11 +916,15 @@ struct UIMaskJS {
     f32 alphaCutoff;
 };
 
-esengine::ecs::UIMask uimaskFromJS(const UIMaskJS& js) {
-    esengine::ecs::UIMask c;
+void uimaskApplyJS(esengine::ecs::UIMask& c, const UIMaskJS& js) {
     c.enabled = js.enabled;
     c.mode = static_cast<MaskMode>(js.mode);
     c.alphaCutoff = js.alphaCutoff;
+}
+
+esengine::ecs::UIMask uimaskFromJS(const UIMaskJS& js) {
+    esengine::ecs::UIMask c;
+    uimaskApplyJS(c, js);
     return c;
 }
 
@@ -909,8 +961,7 @@ struct UINodeJS {
     Dimension insetBottom;
 };
 
-esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
-    esengine::ecs::UINode c;
+void uinodeApplyJS(esengine::ecs::UINode& c, const UINodeJS& js) {
     c.position = static_cast<UIPositionType>(js.position);
     c.display = static_cast<UIDisplay>(js.display);
     c.opacity = js.opacity;
@@ -933,6 +984,11 @@ esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
     c.insetTop = js.insetTop;
     c.insetRight = js.insetRight;
     c.insetBottom = js.insetBottom;
+}
+
+esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
+    esengine::ecs::UINode c;
+    uinodeApplyJS(c, js);
     return c;
 }
 
@@ -974,8 +1030,7 @@ struct UIScrollJS {
     f32 decelerationRate;
 };
 
-esengine::ecs::UIScroll uiscrollFromJS(const UIScrollJS& js) {
-    esengine::ecs::UIScroll c;
+void uiscrollApplyJS(esengine::ecs::UIScroll& c, const UIScrollJS& js) {
     c.enabled = js.enabled;
     c.content = js.content;
     c.horizontal = js.horizontal;
@@ -984,6 +1039,11 @@ esengine::ecs::UIScroll uiscrollFromJS(const UIScrollJS& js) {
     c.wheelSpeed = js.wheelSpeed;
     c.dragScroll = js.dragScroll;
     c.decelerationRate = js.decelerationRate;
+}
+
+esengine::ecs::UIScroll uiscrollFromJS(const UIScrollJS& js) {
+    esengine::ecs::UIScroll c;
+    uiscrollApplyJS(c, js);
     return c;
 }
 
@@ -1016,8 +1076,7 @@ struct UIVisualJS {
     bool enabled;
 };
 
-esengine::ecs::UIVisual uivisualFromJS(const UIVisualJS& js) {
-    esengine::ecs::UIVisual c;
+void uivisualApplyJS(esengine::ecs::UIVisual& c, const UIVisualJS& js) {
     c.visualType = static_cast<UIVisualType>(js.visualType);
     c.texture = resource::TextureHandle(js.texture);
     c.color = js.color;
@@ -1031,6 +1090,11 @@ esengine::ecs::UIVisual uivisualFromJS(const UIVisualJS& js) {
     c.fillAmount = js.fillAmount;
     c.material = js.material;
     c.enabled = js.enabled;
+}
+
+esengine::ecs::UIVisual uivisualFromJS(const UIVisualJS& js) {
+    esengine::ecs::UIVisual c;
+    uivisualApplyJS(c, js);
     return c;
 }
 
@@ -1448,6 +1512,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addBitmapText", optional_override([](Registry& r, u32 e, const BitmapTextJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::BitmapText>(entity)) {
+                bitmaptextApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::BitmapText>(entity, bitmaptextFromJS(js));
         }))
         .function("removeBitmapText", optional_override([](Registry& r, u32 e) {
@@ -1489,6 +1557,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addCamera", optional_override([](Registry& r, u32 e, const CameraJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Camera>(entity)) {
+                cameraApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Camera>(entity, cameraFromJS(js));
         }))
         .function("removeCamera", optional_override([](Registry& r, u32 e) {
@@ -1509,6 +1581,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addCanvas", optional_override([](Registry& r, u32 e, const CanvasJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Canvas>(entity)) {
+                canvasApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Canvas>(entity, canvasFromJS(js));
         }))
         .function("removeCanvas", optional_override([](Registry& r, u32 e) {
@@ -1550,6 +1626,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addChildren", optional_override([](Registry& r, u32 e, const ChildrenJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Children>(entity)) {
+                childrenApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Children>(entity, childrenFromJS(js));
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
@@ -1612,6 +1692,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addFlexContainer", optional_override([](Registry& r, u32 e, const FlexContainerJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::FlexContainer>(entity)) {
+                flexcontainerApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::FlexContainer>(entity, flexcontainerFromJS(js));
         }))
         .function("removeFlexContainer", optional_override([](Registry& r, u32 e) {
@@ -1674,6 +1758,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addMesh2D", optional_override([](Registry& r, u32 e, const Mesh2DJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Mesh2D>(entity)) {
+                mesh2dApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Mesh2D>(entity, mesh2dFromJS(js));
         }))
         .function("removeMesh2D", optional_override([](Registry& r, u32 e) {
@@ -1694,6 +1782,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addParent", optional_override([](Registry& r, u32 e, const ParentJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Parent>(entity)) {
+                parentApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Parent>(entity, parentFromJS(js));
         }))
         .function("removeParent", optional_override([](Registry& r, u32 e) {
@@ -1714,6 +1806,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addParticleEmitter", optional_override([](Registry& r, u32 e, const ParticleEmitterJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::ParticleEmitter>(entity)) {
+                particleemitterApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::ParticleEmitter>(entity, particleemitterFromJS(js));
         }))
         .function("removeParticleEmitter", optional_override([](Registry& r, u32 e) {
@@ -1755,6 +1851,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::RigidBody>(entity)) {
+                rigidbodyApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::RigidBody>(entity, rigidbodyFromJS(js));
         }))
         .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
@@ -1859,6 +1959,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::Sprite>(entity)) {
+                spriteApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
         }))
         .function("removeSprite", optional_override([](Registry& r, u32 e) {
@@ -1879,6 +1983,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addTilemapLayer", optional_override([](Registry& r, u32 e, const TilemapLayerJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::TilemapLayer>(entity)) {
+                tilemaplayerApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::TilemapLayer>(entity, tilemaplayerFromJS(js));
         }))
         .function("removeTilemapLayer", optional_override([](Registry& r, u32 e) {
@@ -1899,6 +2007,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addTrailRenderer", optional_override([](Registry& r, u32 e, const TrailRendererJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::TrailRenderer>(entity)) {
+                trailrendererApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::TrailRenderer>(entity, trailrendererFromJS(js));
         }))
         .function("removeTrailRenderer", optional_override([](Registry& r, u32 e) {
@@ -1963,6 +2075,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addUIMask", optional_override([](Registry& r, u32 e, const UIMaskJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::UIMask>(entity)) {
+                uimaskApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::UIMask>(entity, uimaskFromJS(js));
         }))
         .function("removeUIMask", optional_override([](Registry& r, u32 e) {
@@ -1983,6 +2099,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addUINode", optional_override([](Registry& r, u32 e, const UINodeJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::UINode>(entity)) {
+                uinodeApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::UINode>(entity, uinodeFromJS(js));
         }))
         .function("removeUINode", optional_override([](Registry& r, u32 e) {
@@ -2003,6 +2123,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addUIScroll", optional_override([](Registry& r, u32 e, const UIScrollJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::UIScroll>(entity)) {
+                uiscrollApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::UIScroll>(entity, uiscrollFromJS(js));
         }))
         .function("removeUIScroll", optional_override([](Registry& r, u32 e) {
@@ -2023,6 +2147,10 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addUIVisual", optional_override([](Registry& r, u32 e, const UIVisualJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::UIVisual>(entity)) {
+                uivisualApplyJS(*existing, js);
+                return;
+            }
             r.emplaceOrReplace<esengine::ecs::UIVisual>(entity, uivisualFromJS(js));
         }))
         .function("removeUIVisual", optional_override([](Registry& r, u32 e) {

@@ -185,8 +185,11 @@ class EmbindGenerator:
             lines.append('};')
             lines.append('')
 
-            lines.append(f'{full} {comp.name.lower()}FromJS(const {js}& js) {{')
-            lines.append(f'    {full} c;')
+            # Assign onto an existing component rather than build a new one: a
+            # component may carry engine-computed state that no ES_PROPERTY
+            # declares (UIVisual.uiOrder, UINode.computed_size_), and replacing
+            # the whole struct resets it.
+            lines.append(f'void {comp.name.lower()}ApplyJS({full}& c, const {js}& js) {{')
             for prop in comp.properties:
                 if self.types.is_skip(prop.cpp_type):
                     continue
@@ -207,6 +210,12 @@ class EmbindGenerator:
                     lines.append(f'      for (size_t i = 0; i < n; ++i) c.{prop.name}.push_back(js.{prop.name}[i].as<esengine::{elem}>()); }}')
                 else:
                     lines.append(f'    c.{prop.name} = js.{prop.name};')
+            lines.append('}')
+            lines.append('')
+
+            lines.append(f'{full} {comp.name.lower()}FromJS(const {js}& js) {{')
+            lines.append(f'    {full} c;')
+            lines.append(f'    {comp.name.lower()}ApplyJS(c, js);')
             lines.append('    return c;')
             lines.append('}')
             lines.append('')
@@ -344,6 +353,10 @@ class EmbindGenerator:
                 lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{')
                 lines.append(f'            auto entity = static_cast<Entity>(e);')
                 lines.append(f'            if (!r.valid(entity)) return;')
+                lines.append(f'            if (auto* existing = r.tryGet<{full}>(entity)) {{')
+                lines.append(f'                {name.lower()}ApplyJS(*existing, js);')
+                lines.append(f'                return;')
+                lines.append('            }')
                 lines.append(f'            r.emplaceOrReplace<{full}>(entity, {from_js}(js));')
                 lines.append('        }))')
             else:
