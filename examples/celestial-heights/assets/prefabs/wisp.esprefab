@@ -74,7 +74,7 @@
                 {
                     "type": "Perceiver",
                     "data": {
-                        "range": 520,
+                        "range": 420,
                         "fovDegrees": 360
                     }
                 },

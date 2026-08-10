@@ -630,6 +630,146 @@
           }
         }
       ]
+    },
+    {
+      "id": 600,
+      "name": "Spawner_20_6",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -224,
+              "y": 608,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": 601,
+      "name": "Spawner_40_25",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1056,
+              "y": -608,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": 602,
+      "name": "Drop_petal_16_3",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -480,
+              "y": 800,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.937,
+              "g": 0.588,
+              "b": 0.749,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "petal"
+          }
+        }
+      ]
+    },
+    {
+      "id": 603,
+      "name": "Drop_shard_44_15",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1312,
+              "y": 32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
     }
   ]
 }

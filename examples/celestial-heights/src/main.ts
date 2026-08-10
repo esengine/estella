@@ -14,7 +14,8 @@ import {
 } from './systems/feedback';
 import { bossPhaseSystem, summonSystem, chargeSystem } from './systems/boss';
 import {
-    cameraBindSystem, navFromTerrainSystem, gateSystem, hudSystem, areaLabelSystem,
+    cameraBindSystem, navFromTerrainSystem, gateSystem, gateLookSystem, hudSystem,
+    areaLabelSystem, spawnerSystem,
 } from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
 import { fallenSystem, fallenOverlaySystem } from './systems/fallen';
@@ -42,6 +43,7 @@ addSystemToSchedule(Schedule.PreUpdate, hudSystem);
 addSystemToSchedule(Schedule.PreUpdate, navFromTerrainSystem);
 addSystemToSchedule(Schedule.PreUpdate, cameraBindSystem);
 addSystemToSchedule(Schedule.PreUpdate, areaLabelSystem);
+addSystemToSchedule(Schedule.PreUpdate, spawnerSystem);
 addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);
 addSystemToSchedule(Schedule.PreUpdate, applyRestoreSystem);
 addSystemToSchedule(Schedule.PreUpdate, inventoryBuildSystem);
@@ -77,6 +79,7 @@ addSystemToSchedule(Schedule.PostUpdate, fallenOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
 addSystemToSchedule(Schedule.PostUpdate, bossMeterSystem);
+addSystemToSchedule(Schedule.PostUpdate, gateLookSystem);
 addSystemToSchedule(Schedule.PostUpdate, hitFlashSystem);
 addSystemToSchedule(Schedule.PostUpdate, inventorySyncSystem);
 addSystemToSchedule(Schedule.PostUpdate, achievementSystem);

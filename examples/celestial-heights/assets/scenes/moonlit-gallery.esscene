@@ -130,7 +130,9 @@
           "type": "Gate",
           "data": {
             "toScene": "spire",
-            "radius": 90
+            "radius": 90,
+            "requires": "shard",
+            "requiresCount": 3
           }
         }
       ]
@@ -815,6 +817,258 @@
           "data": {
             "toScene": "main",
             "radius": 90
+          }
+        }
+      ]
+    },
+    {
+      "id": 600,
+      "name": "Spawner_8_2",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -480,
+              "y": 480,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": 601,
+      "name": "Spawner_24_7",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 544,
+              "y": 160,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": 602,
+      "name": "Spawner_16_12",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 32,
+              "y": -160,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": 603,
+      "name": "Drop_shard_6_12",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -608,
+              "y": -160,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 604,
+      "name": "Drop_shard_26_2",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 672,
+              "y": 480,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 605,
+      "name": "Drop_petal_12_7",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -224,
+              "y": 160,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.937,
+              "g": 0.588,
+              "b": 0.749,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "petal"
+          }
+        }
+      ]
+    },
+    {
+      "id": 606,
+      "name": "Drop_ember_28_17",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 800,
+              "y": -480,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.976,
+              "g": 0.706,
+              "b": 0.376,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "ember"
           }
         }
       ]

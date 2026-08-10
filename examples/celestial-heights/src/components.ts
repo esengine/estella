@@ -67,11 +67,34 @@ export const Area = defineComponent('Area', {
 /** The HUD line that names the current area, filled in from {@link Area}. */
 export const AreaLabel = defineTag('AreaLabel');
 
-/** A way out of an area. `toScene` is the packaged scene name, e.g. `main`. */
+/**
+ * A way out of an area. `toScene` is the packaged scene name, e.g. `main`.
+ * A gate that asks for something stays shut until the pack holds that many of
+ * `requires` — which is what makes an area worth walking around rather than
+ * straight through.
+ */
 export const Gate = defineComponent('Gate', {
     toScene: '',
     radius: 90,
+    requires: '',
+    requiresCount: 0,
 });
+
+/**
+ * A place an area's enemies come from. An area declares where and how many
+ * rather than carrying a copy of the wisp per enemy: eleven authored entities
+ * per body is what makes a room expensive to populate, and a room nobody wants
+ * to populate is a game that stays a demo.
+ */
+export const Spawner = defineComponent('Spawner', {
+    prefab: '',
+    count: 3,
+    /** How far from the marker they are placed, in world units. */
+    radius: 220,
+});
+
+/** Set once a spawner has placed its bodies, so it does so exactly once. */
+export const Spawned = defineTag('Spawned');
 
 /** Set once a tilemap's navigation grid has been derived from its tiles. */
 export const NavGridBuilt = defineTag('NavGridBuilt');

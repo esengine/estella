@@ -1,9 +1,10 @@
 import {
     defineSystem, Query, Mut, Res, Commands, GetWorld,
-    Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly, Text,
+    Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly, Text, Sprite, Prefabs,
     Nav, navGridFromTilemapLayer, SceneManager, transitionTo,
 } from 'esengine';
-import { Area, AreaLabel, Player, Gate, NavGridBuilt } from '../components';
+import { Area, AreaLabel, Player, Gate, NavGridBuilt, Spawner, Spawned } from '../components';
+import { session } from '../state';
 
 /**
  * Points the camera at whoever is playing. The camera is authored per area and
@@ -94,13 +95,19 @@ export const areaLabelSystem = defineSystem(
     { name: 'AreaLabelSystem' },
 );
 
-/** Walking into a gate hands the game to the next area. */
+/** Whether the pack holds what a gate asks for. */
+export function gateIsOpen(gate: { requires: string; requiresCount: number }): boolean {
+    if (!gate.requires || gate.requiresCount <= 0) return true;
+    return (session.inventory[gate.requires] ?? 0) >= gate.requiresCount;
+}
+
+/** Walking into an open gate hands the game to the next area. */
 export const gateSystem = defineSystem(
     [Query(Transform, Gate), Query(Transform, Player), Res(SceneManager)],
     (gates, players, scenes) => {
         if (scenes.isTransitioning()) return;
         for (const [, gateTransform, gate] of gates) {
-            if (!gate.toScene) continue;
+            if (!gate.toScene || !gateIsOpen(gate)) continue;
             for (const [, playerTransform] of players) {
                 const dx = playerTransform.position.x - gateTransform.position.x;
                 const dy = playerTransform.position.y - gateTransform.position.y;
@@ -111,4 +118,51 @@ export const gateSystem = defineSystem(
         }
     },
     { name: 'GateSystem' },
+);
+
+/** A shut gate reads as shut, so nobody walks into it twice wondering why. */
+export const gateLookSystem = defineSystem(
+    [Query(Mut(Sprite), Gate)],
+    (gates) => {
+        for (const [, sprite, gate] of gates) {
+            const open = gateIsOpen(gate);
+            sprite.color.r = open ? 0.545 : 0.404;
+            sprite.color.g = open ? 0.902 : 0.376;
+            sprite.color.b = open ? 0.918 : 0.463;
+        }
+    },
+    { name: 'GateLookSystem' },
+);
+
+/**
+ * Places an area's enemies from its spawner markers, once each. They are
+ * instances of the same wisp prefab Vesper calls, so an area's population and a
+ * boss's reinforcements cannot describe different creatures.
+ */
+export const spawnerSystem = defineSystem(
+    [Query(Transform, Spawner).without(Spawned), Res(Prefabs), Commands()],
+    (spawners, prefabs, commands) => {
+        for (const [entity, transform, spawner] of spawners) {
+            commands.entity(entity).insert(Spawned, {}).insert(RuntimeOnly, {});
+            if (!spawner.prefab) continue;
+            for (let i = 0; i < spawner.count; i++) {
+                // A ring, foreshortened like everything else on this plane, so a
+                // marker reads as a group holding a place rather than a stack.
+                const angle = (Math.PI * 2 * i) / spawner.count + entity * 0.37;
+                void prefabs.instantiate(spawner.prefab, {
+                    overrides: [{
+                        type: 'property',
+                        componentType: 'Transform',
+                        propertyName: 'position',
+                        value: {
+                            x: transform.position.x + Math.cos(angle) * spawner.radius,
+                            y: transform.position.y + Math.sin(angle) * spawner.radius * 0.6,
+                            z: 0,
+                        },
+                    }],
+                });
+            }
+        }
+    },
+    { name: 'SpawnerSystem' },
 );
