@@ -42,7 +42,14 @@ function extract(tag, id, into) {
   const archive = spawnSync('git', ['archive', tag, `examples/${id}`], {
     cwd: ROOT, encoding: 'buffer', maxBuffer: 1 << 28,
   });
-  if (archive.status !== 0) return `no examples/${id} at ${tag}`;
+  if (archive.status !== 0) {
+    // Saying "the example is not there" of a clone that never fetched the tag
+    // sends the reader looking in the wrong place — which is where this spent
+    // its whole CI life, on a checkout with no tags at all.
+    const known = spawnSync('git', ['rev-parse', '--verify', `${tag}^{commit}`], { cwd: ROOT, encoding: 'utf8' });
+    if (known.status !== 0) return `cannot resolve ${tag} — an unknown tag, or a checkout fetched without tags`;
+    return `no examples/${id} at ${tag}`;
+  }
   const untar = spawnSync('tar', ['-x', '-C', into, '--strip-components=2'], { input: archive.stdout });
   if (untar.status !== 0) return `could not unpack ${id} at ${tag}`;
   return existsSync(path.join(into, 'project.esproject')) ? null : `${tag} has no project.esproject for ${id}`;

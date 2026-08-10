@@ -272,6 +272,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0
+        # …), which a shallow checkout has none of — the step failed on every run
+        # that ever reached it.
+        fetch-depth: 0
 
     - uses: ./.github/actions/setup
 
