@@ -21,6 +21,7 @@ import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, suspendFor, safeAreaFor, atlasFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
+import { retryOnDeadGpu } from './lib/deadGpu.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -108,16 +109,32 @@ function captureEditorFrame(id, out) {
 
 /** Where a packaged run says the named entities are, or null if it never said. */
 function probePositions(target, dir, w, h, names, extra = []) {
-  const r = spawnSync('npx', [
-    'electron', path.join('scripts', LAUNCHER(target)),
+  const r = launchPackage('probe', target, [
     '--dir', dir, '--w', String(w), '--h', String(h),
     '--probe', names.join(','), ...extra,
-  ], { encoding: 'utf8', cwd: DESKTOP });
+  ]);
   const line = (r.stdout || '').split('\n').find((l) => l.includes('probe:'));
   if (!line) return null;
   try {
     return JSON.parse(line.slice(line.indexOf('{'))).at ?? null;
   } catch { return null; }
+}
+
+/**
+ * Launch a package, once more if the GPU never came up. Every launch here goes
+ * through this: the runner kills the first electron of a job often enough that a
+ * per-call-site answer means some launches retry and others report a broken game.
+ */
+function launchPackage(id, target, args) {
+  const run = retryOnDeadGpu(
+    () => {
+      const r = spawnSync('npx', ['electron', path.join('scripts', LAUNCHER(target)), ...args],
+        { encoding: 'utf8', cwd: DESKTOP });
+      return { ok: r.status === 0, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, r };
+    },
+    () => console.log(`↻ ${id} ${target} — the GPU process died before it drew; launching again`),
+  );
+  return run.r;
 }
 
 const results = [];
@@ -172,11 +189,10 @@ for (const { id, target } of pairs) {
   }
 
   const packagePng = SHOTS ? path.join(SHOTS, `${id}-${target}.png`) : path.join(WORK, `${id}-${target}.png`);
-  const launch = spawnSync('npx', [
-    'electron', path.join('scripts', LAUNCHER(target)),
+  const launch = launchPackage(id, target, [
     '--dir', out, '--out', packagePng,
     ...(editor ? ['--w', String(editor.w), '--h', String(editor.h)] : []),
-  ], { encoding: 'utf8', cwd: DESKTOP });
+  ]);
 
   const line = (launch.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
   if (launch.status !== 0) {
@@ -247,16 +263,20 @@ for (const { id, target } of pairs) {
   let allAnswered = true;
   for (const gesture of gestures) {
     const drivenPng = path.join(WORK, `${id}-${target}-driven-${gesture.what.replace(/\W+/g, '-')}.png`);
-    const drive = spawnSync('npx', [
-      'electron', path.join('scripts', LAUNCHER(target)),
+    const drive = launchPackage(id, target, [
       '--dir', out, '--out', drivenPng,
       '--w', String(editor.w), '--h', String(editor.h),
       ...(gesture.touch ? ['--touch'] : []),
       '--input', JSON.stringify(gesture.spec),
-    ], { encoding: 'utf8', cwd: DESKTOP });
+    ]);
     if (drive.status !== 0) {
       results.push({ id, target, stage: 'interact', ok: false, why: `the driven launch failed (${gesture.what})` });
       console.log(`✗ ${id} ${target} — the driven launch failed for ${gesture.what}`);
+      // The tail, as the undriven launch already prints: "it failed" with no
+      // reason is a red nobody can act on without re-running it by hand.
+      for (const l of `${drive.stdout ?? ''}${drive.stderr ?? ''}`.split('\n').slice(-8)) {
+        if (l.trim()) console.log(`    ${l}`);
+      }
       allAnswered = false;
       continue;
     }

@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
+import { gpuNeverCameUp } from './lib/deadGpu.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -77,19 +78,6 @@ if (!NO_BUILD) {
   }
 }
 
-/**
- * Did the GPU never come up? A runner whose GPU process dies during init leaves
- * a context-lost renderer that cannot draw anything, which is NOT a pixel
- * verdict — reporting it as one says the scene drew the wrong thing when it drew
- * nothing at all. Observed on the FIRST launch of a job, three runs out of three.
- */
-function gpuNeverCameUp(out, scene) {
-  // A scene that TAKES the GPU away on purpose owns its own device-loss result.
-  if (scene.env.ESTELLA_VERIFY_DEVICE_LOSS) return false;
-  return /Exiting GPU process due to errors during initialization/.test(out)
-    || (/GPU device lost/.test(out) && /Failed to create framebuffer/.test(out));
-}
-
 function runScene(scene) {
   const args = XVFB
     ? ['-a', 'pnpm', 'exec', 'electron', 'scripts/headless-verify.mjs']
@@ -111,7 +99,8 @@ const failed = [];
 let retried = 0;
 for (const scene of scenes) {
   let run = runScene(scene);
-  if (!run.ok && gpuNeverCameUp(run.out, scene)) {
+  // A scene that TAKES the GPU away on purpose owns its own device-loss result.
+  if (!run.ok && !scene.env.ESTELLA_VERIFY_DEVICE_LOSS && gpuNeverCameUp(run.out)) {
     retried++;
     console.log(`↻ ${scene.id.padEnd(28)} the GPU process died before it drew; measuring again`);
     run = runScene(scene);
