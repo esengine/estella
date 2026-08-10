@@ -86,6 +86,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A particle emitter now takes its world Y into the draw key, like everything
+  else that draws.** Sprites set it, and a particle emitter's own trail set it;
+  the emitter's main draw did not, so on a y-sorted layer a burst always sorted
+  as though it stood at y = 0. Found while chasing a different bug, which it
+  turned out not to be — recorded because the omission is real either way.
+
 - **Writing a component from a system threw away the engine's own computed
   state, and a UI element that was written drew underneath its own background.**
   A HUD meter animated the ordinary way — query the `UIVisual`, assign

@@ -37,20 +37,25 @@ export const GAPS = [
     hurts:
       'Hits throw no sparks. The emitter is played, the particles exist and they age '
       + 'out on schedule — read back from the running package, getAliveCount goes 64, 60, '
-      + '33, 9, 0 over about thirty frames — and not one pixel changes. Three captures '
-      + 'taken while they were alive differ by 0 in the box around the player.',
+      + '33, 9, 0 over about thirty frames — and not one pixel changes. Bisected by '
+      + 'deleting halves of the scene, it comes down to ONE entity: with Lyra present a '
+      + 'burst at her position draws 0 warm pixels, without her 23, and with her present '
+      + 'but the emitter moved 300 units away, 41. Particles are drawn beneath a sprite '
+      + 'even from a HIGHER sorting layer — which is why only the bright young ones, the '
+      + 'ones still inside her silhouette, go missing.',
     workaround:
       'None available: the game does the correct thing and the frame does not show it, '
       + 'so the slice currently ships without hit feedback.',
     fix:
-      'Root-cause the draw. THE EMITTER IS NOT THE VARIABLE: the identical component '
-      + 'data draws 761 warm pixels in a probe project and 0 in this game\'s scene. Built '
-      + 'up one feature at a time, a probe still draws with physics, a tilemap, a '
-      + 'Canvas + UI, the same sortingLayers and ySortLayers, and a camera with '
-      + 'FollowTarget plus a sprite on the y-sorted layer. Also excluded: burst vs '
-      + 'continuous emission, the emitter\'s position, layers 2, 3 and 4, the blend mode, '
-      + 'and asset packaging (the texture ships; the emitter reads back texture=1, '
-      + 'enabled=true). So the cause is elsewhere in this scene or project — go the other '
-      + 'way and bisect by DELETING halves of the game scene until a burst appears.',
+      'Find why a particle draw loses to a sprite on a LOWER layer. By the key it cannot: '
+      + 'buildSortKey puts stage and layer above y, depth and blend, so layer 3 must draw '
+      + 'after layer 2. So the next step is not the ordering rule but whether that command '
+      + 'reaches the GPU at all — dump the particle DrawCommand\'s sort_key and its '
+      + 'survival through DrawList, and compare against the sprite it disappears behind. '
+      + 'Already excluded by measurement: the emitter data (identical data draws in a '
+      + 'probe), burst against continuous, position, layers 2/3/4, blend mode, asset '
+      + 'packaging, and — added one at a time to a probe that kept drawing — physics, a '
+      + 'tilemap, a Canvas with UI, the same sortingLayers/ySortLayers, and a following '
+      + 'camera with a sprite on the y-sorted layer.',
   },
 ];

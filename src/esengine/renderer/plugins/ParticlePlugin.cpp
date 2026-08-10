@@ -155,6 +155,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             .blend = blendMode,
             .textureId = textureId,
             .depth = emitterWorldPos.z,
+            // Sorted by world Y like every other draw — a burst left at y = 0
+            // loses to any sprite standing anywhere else, so an emitter placed on
+            // a character disappears behind them.
+            .y = emitterWorldPos.y,
             .entity = entity,
             .type = RenderType::Particle,
             .layoutId = LayoutId::ParticleInstance,
