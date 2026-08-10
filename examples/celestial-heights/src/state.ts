@@ -17,6 +17,8 @@ export const session = {
     inventoryOpen: false,
     /** Settings: whether hit sparks and other flourishes are drawn. */
     effects: true,
+    /** Whether this run has been touched — what puts the on-screen controls up. */
+    touched: false,
     /** Seconds left of the fallen screen; > 0 means the run is over and waiting. */
     fallenFor: 0,
     /**

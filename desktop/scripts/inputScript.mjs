@@ -15,11 +15,17 @@
 
 /**
  * JS source that plays `spec` and then lets the game run on.
- * `{ keys?, pointer?, frames?, taps?: [{key, at}], holds?: [{key, from, to}] }`
+ * `{ keys?, pointer?, frames?, taps?: [{key, at}], holds?: [{key, from, to}],
+ *    touches?: [{ from, to, x, y, toX?, toY? }] }`
  *
  * `keys` hold for the whole run, `taps` press at a frame index, `holds` hold over
  * a frame range. A playthrough is a sequence, not a posture: "walk there, turn
  * round, hit it" cannot be said by keys all pressed at frame zero.
+ *
+ * `touches` are real TouchEvents — what a phone sends and what the web platform
+ * binds; a mouse pointer proves nothing about playing with a thumb. Each presses
+ * at (x, y) and optionally drags to (toX, toY) over its frame range, in
+ * fractions of the surface.
  */
 export function inputScript(spec) {
   const keys = JSON.stringify(spec.keys ?? []);
@@ -27,6 +33,17 @@ export function inputScript(spec) {
   const frames = Number(spec.frames ?? 40);
   const taps = JSON.stringify(
     (spec.taps ?? []).map((t) => ({ key: String(t.key), at: Number(t.at) || 0 })),
+  );
+  const touches = JSON.stringify(
+    (spec.touches ?? []).map((t, i) => ({
+      id: i + 1,
+      from: Number(t.from) || 0,
+      to: Number(t.to ?? frames),
+      x: Number(t.x) || 0,
+      y: Number(t.y) || 0,
+      toX: t.toX === undefined ? Number(t.x) || 0 : Number(t.toX),
+      toY: t.toY === undefined ? Number(t.y) || 0 : Number(t.toY),
+    })),
   );
   const holds = JSON.stringify(
     (spec.holds ?? []).map((h) => ({
@@ -70,13 +87,63 @@ export function inputScript(spec) {
         for (let i = 0; i < 4; i++) await raf();
         firePointer('up', pointer.x, pointer.y);
       }
+      let touchBroken = null;
+      const fireTouch = (type, id, x, y, live) => {
+        if (!canvas || touchBroken) return;
+        try {
+        const r = canvas.getBoundingClientRect();
+        // Real Touch instances: TouchEvent's lists reject plain objects, and a
+        // constructor that throws leaves the driver's promise unresolved — the
+        // harness hangs rather than failing.
+        const make = (t) => new Touch({
+          identifier: t.id, target: canvas,
+          clientX: r.left + r.width * t.x, clientY: r.top + r.height * t.y,
+          pageX: r.left + r.width * t.x, pageY: r.top + r.height * t.y,
+          screenX: r.left + r.width * t.x, screenY: r.top + r.height * t.y,
+        });
+        const changed = [make({ id, x, y })];
+        // The full list is every finger still down; the changed list only the
+        // ones this event is about. A handler reading the wrong one loses a
+        // second finger, so the harness fills both.
+        const all = live.map((t) => make(t));
+        canvas.dispatchEvent(new TouchEvent(type, {
+          bubbles: true, cancelable: true,
+          touches: all, targetTouches: all, changedTouches: changed,
+        }));
+        } catch (e) {
+          touchBroken = String(e);
+          console.log('[engine] touch events unavailable: ' + touchBroken);
+        }
+      };
+
       const taps = ${taps};
       const holds = ${holds};
+      const touches = ${touches};
+      const live = [];
       const down = new Set();
       for (let i = 0; i < ${frames}; i++) {
         for (const h of holds) {
           if (h.from === i) { fireKey('keydown', h.key); down.add(h.key); }
           if (h.to === i && down.has(h.key)) { fireKey('keyup', h.key); down.delete(h.key); }
+        }
+        for (const t of touches) {
+          if (i === t.from) {
+            live.push({ id: t.id, x: t.x, y: t.y });
+            fireTouch('touchstart', t.id, t.x, t.y, live);
+          } else if (i > t.from && i < t.to) {
+            const k = (i - t.from) / Math.max(1, t.to - t.from);
+            const at = live.find((l) => l.id === t.id);
+            if (at) {
+              at.x = t.x + (t.toX - t.x) * k;
+              at.y = t.y + (t.toY - t.y) * k;
+              fireTouch('touchmove', t.id, at.x, at.y, live);
+            }
+          } else if (i === t.to) {
+            const at = live.find((l) => l.id === t.id);
+            const idx = live.indexOf(at);
+            if (idx >= 0) live.splice(idx, 1);
+            fireTouch('touchend', t.id, at ? at.x : t.toX, at ? at.y : t.toY, live);
+          }
         }
         for (const t of taps) {
           if (t.at !== i) continue;
@@ -91,7 +158,7 @@ export function inputScript(spec) {
       for (const k of down) fireKey('keyup', k);
       for (const k of keys) fireKey('keyup', k);
       await raf();
-      return keys.length + taps.length + holds.length + (pointer ? 1 : 0);
+      return keys.length + taps.length + holds.length + touches.length + (pointer ? 1 : 0);
     })()
   `;
 }

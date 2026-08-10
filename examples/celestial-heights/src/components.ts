@@ -105,6 +105,24 @@ export const VitalityMeter = defineTag('VitalityMeter');
 /** The panel shown while the game is paused. */
 export const PauseOverlay = defineTag('PauseOverlay');
 
+/**
+ * The on-screen controls, and the layer holding them. Shown once the game has
+ * been touched at all: a thumb is the only input a phone has, and a stick drawn
+ * over a keyboard player's world is clutter they never asked for.
+ */
+export const TouchLayer = defineTag('TouchLayer');
+
+/** The stick's base — dragged, and the drag is where the movement comes from. */
+export const TouchStick = defineTag('TouchStick');
+
+/** The part of the stick that follows the thumb. */
+export const TouchKnob = defineTag('TouchKnob');
+
+/** An on-screen button, naming the action it stands for. */
+export const TouchButton = defineComponent('TouchButton', {
+    action: '',
+});
+
 /** The screen shown for the couple of seconds a run takes to end and restart. */
 export const FallenOverlay = defineTag('FallenOverlay');
 

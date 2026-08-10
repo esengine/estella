@@ -238,6 +238,7 @@ export {
     Keys1D,
     Keys2D,
     Stick,
+    Virtual,
     Button,
     Axis1D,
     Axis2D,

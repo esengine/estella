@@ -427,6 +427,14 @@ export interface PlatformAdapter {
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 
+    /**
+     * Whether this device can be touched at all. A game that only shows its
+     * on-screen controls after the first touch asks its player to touch the
+     * screen twice, the first time at nothing — so the question has to be
+     * answerable before anyone has touched anything. Absent means no.
+     */
+    hasTouch?(): boolean;
+
     /** Tear down the listeners {@link bindInputEvents} registered. Optional — a
      *  headless host that never binds input (node) omits it. */
     unbindInputEvents?(): void;

@@ -28,7 +28,8 @@ export type Binding =
     | { kind: 'gpAxis'; axis: number; pad?: number; scale?: number }
     | { kind: 'keys1d'; neg: string; pos: string }
     | { kind: 'keys2d'; up: string; down: string; left: string; right: string }
-    | { kind: 'stick'; stick: 'left' | 'right'; pad?: number };
+    | { kind: 'stick'; stick: 'left' | 'right'; pad?: number }
+    | { kind: 'virtual'; id: string };
 
 export type ActionType = 'button' | 'axis' | 'axis2d';
 
@@ -58,6 +59,12 @@ export const Keys2D = (up: string, down: string, left: string, right: string): B
     ({ kind: 'keys2d', up, down, left, right });
 /** A gamepad stick → a 2D axis (up = +y; the raw Y axis is inverted to match Keys2D). */
 export const Stick = (stick: 'left' | 'right', pad?: number): Binding => ({ kind: 'stick', stick, pad });
+/**
+ * A named value the game writes itself (`Input.setVirtual`) — an on-screen
+ * stick or button, which is the only input a touch device has. Works as a
+ * scalar or a 2D source, so one kind covers both.
+ */
+export const Virtual = (id: string): Binding => ({ kind: 'virtual', id });
 
 // — Action constructors —
 export const Button = (...bindings: Binding[]): ActionDef => ({ type: 'button', bindings });
@@ -88,6 +95,7 @@ function evalScalar(b: Binding, input: InputState): number {
         case 'gpButton': return input.getGamepadButtonValue(b.button, b.pad ?? 0);
         case 'keys1d': return (input.isKeyDown(b.pos) ? 1 : 0) - (input.isKeyDown(b.neg) ? 1 : 0);
         case 'gpAxis': return input.getGamepadAxis(b.axis, b.pad ?? 0) * (b.scale ?? 1);
+        case 'virtual': return input.getVirtual(b.id).x;
         default: return 0; // keys2d / stick are 2D sources — no scalar contribution
     }
 }
@@ -104,6 +112,10 @@ function evalVec(b: Binding, input: InputState): Vec2 {
             const yAxis = b.stick === 'left' ? GamepadAxis.LeftY : GamepadAxis.RightY;
             // Gamepad Y is +down; invert so up = +y (matches Keys2D).
             return { x: input.getGamepadAxis(xAxis, pad), y: -input.getGamepadAxis(yAxis, pad) };
+        }
+        case 'virtual': {
+            const v = input.getVirtual(b.id);
+            return { x: v.x, y: v.y };
         }
         default: return { x: 0, y: 0 };
     }

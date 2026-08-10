@@ -37,6 +37,11 @@ class WebPlatformAdapter implements PlatformAdapter {
     readonly name = 'web' as const;
     private inputCleanup_: (() => void) | null = null;
 
+    hasTouch(): boolean {
+        return typeof navigator !== 'undefined'
+            && ((navigator.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in globalThis);
+    }
+
     async fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse> {
         const response = await globalThis.fetch(url, {
             method: options?.method ?? 'GET',

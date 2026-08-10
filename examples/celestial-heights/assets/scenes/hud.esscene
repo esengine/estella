@@ -12,7 +12,8 @@
         60,
         70,
         80,
-        84
+        84,
+        86
       ],
       "visible": true,
       "components": [
@@ -826,6 +827,221 @@
             },
             "align": 1,
             "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 86,
+      "name": "TouchLayer",
+      "parent": 50,
+      "children": [
+        87,
+        89
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "TouchLayer",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 87,
+      "name": "TouchStick",
+      "parent": 86,
+      "children": [
+        88
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 120,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 120,
+              "unit": 0
+            },
+            "width": {
+              "value": 280,
+              "unit": 0
+            },
+            "height": {
+              "value": 280,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 0.16
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {}
+        },
+        {
+          "type": "Draggable",
+          "data": {}
+        },
+        {
+          "type": "TouchStick",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "name": "TouchKnob",
+      "parent": 87,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 90,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 90,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 0
+            },
+            "height": {
+              "value": 100,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 0.5
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "TouchKnob",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "name": "TouchStrike",
+      "parent": 86,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetRight": {
+              "value": 140,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 150,
+              "unit": 0
+            },
+            "width": {
+              "value": 200,
+              "unit": 0
+            },
+            "height": {
+              "value": 200,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.906,
+              "g": 0.353,
+              "b": 0.412,
+              "a": 0.42
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {}
+        },
+        {
+          "type": "TouchButton",
+          "data": {
+            "action": "Attack"
           }
         }
       ]

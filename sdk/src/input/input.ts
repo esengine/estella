@@ -6,6 +6,7 @@ import type { App, Plugin } from '../app/app';
 import { getPlatform, platformUnbindInputEvents } from '../platform';
 import type { GamepadSnapshot, InputEventCallbacks } from '../platform/types';
 import { inputRouter } from './inputRouter';
+import type { Vec2 } from '../types';
 
 export interface TouchPoint {
     id: number;
@@ -54,6 +55,8 @@ interface PadState {
     axes: number[];
 }
 
+const ZERO_VIRTUAL: Vec2 = { x: 0, y: 0 };
+
 export class InputState {
     keysDown = new Set<string>();
     keysPressed = new Set<string>();
@@ -65,6 +68,9 @@ export class InputState {
     mouseButtonsReleased = new Set<number>();
     scrollDeltaX = 0;
     scrollDeltaY = 0;
+
+    /** Whether the device can be touched — asked of the platform, not of history. */
+    touchAvailable = false;
 
     touches = new Map<number, TouchPoint>();
     touchesStarted = new Map<number, TouchPoint>();
@@ -163,6 +169,30 @@ export class InputState {
 
     isTouchActive(id: number): boolean {
         return this.touches.has(id);
+    }
+
+    // — Virtual (an on-screen control, or anything else that decides to be input) —
+    /**
+     * Named 2D values a game writes itself — an on-screen control, the only
+     * input a touch device has. Named rather than a screen rectangle, so what
+     * is touched and what is read stay one object when the layout moves.
+     */
+    private virtual_ = new Map<string, Vec2>();
+
+    /** Set a named virtual input; held until overwritten, so stopping means
+     *  writing zero. `y` defaults to 0 for button/1D use. */
+    setVirtual(id: string, x: number, y = 0): void {
+        const v = this.virtual_.get(id);
+        if (v) { v.x = x; v.y = y; } else this.virtual_.set(id, { x, y });
+    }
+
+    getVirtual(id: string): Vec2 {
+        return this.virtual_.get(id) ?? ZERO_VIRTUAL;
+    }
+
+    /** Drop every virtual input — used when a control layer is torn down. */
+    clearVirtual(): void {
+        this.virtual_.clear();
     }
 
     // — Gamepad (polled each frame; edges via current/prev diff, not events) —
@@ -370,6 +400,7 @@ export class InputPlugin implements Plugin {
         const state = new InputState();
         app.insertResource(Input, state);
 
+        state.touchAvailable = getPlatform().hasTouch?.() ?? false;
         getPlatform().bindInputEvents(inputEventCallbacks(state), this.target_ ?? undefined);
 
         // Gamepads are polled (no DOM events). Web supplies pollGamepads; platforms

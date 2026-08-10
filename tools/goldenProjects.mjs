@@ -71,7 +71,6 @@ export const CAPABILITIES = [
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  touch: 'no example drives synthetic touch; input-actions is keyboard + gamepad — Celestial Heights P5',
   'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project — Celestial Heights P5',
   'pause-resume': 'lifecycle suspend/resume is covered by native hosts, not by a golden project — Celestial Heights P3',
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
@@ -172,15 +171,21 @@ export const GOLDEN = [
     certifies: [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
-      'persistence', 'ui-inventory', 'achievements',
+      'persistence', 'ui-inventory', 'achievements', 'touch',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this
     // one has not run anywhere yet. It is also the biggest thing in the corpus.
     tier: 'nightly',
-    // The camera follows Lyra, so walking scrolls the whole screen — no reading
-    // of a small sprite is needed to see that the key arrived.
-    interact: { keys: ['KeyD'], frames: 60 },
+    // The thumb drags the on-screen stick a touch device gets. Stricter than
+    // the default because this game moves on its own: a thumb on the stick
+    // measures 0.65, a thumb on empty background 0.40.
+    interact: {
+      keys: ['KeyD'],
+      frames: 60,
+      responds: 0.55,
+      touches: [{ from: 4, to: 58, x: 0.13, y: 0.78, toX: 0.30, toY: 0.78 }],
+    },
   },
   {
     id: 'input-actions',
@@ -255,6 +260,7 @@ export function interactFor(g) {
   return {
     keys: g.interact.keys ?? [],
     pointer: g.interact.pointer ?? null,
+    touches: g.interact.touches ?? null,
     frames: g.interact.frames ?? 40,
     responds: g.interact.responds ?? DEFAULT_RESPONDS,
   };

@@ -180,33 +180,63 @@ for (const { id, target } of pairs) {
     continue;
   }
 
-  const drivenPng = path.join(WORK, `${id}-${target}-driven.png`);
-  const drive = spawnSync('npx', [
-    'electron', path.join('scripts', LAUNCHER(target)),
-    '--dir', out, '--out', drivenPng,
-    '--w', String(editor.w), '--h', String(editor.h),
-    '--input', JSON.stringify({ keys: input.keys, pointer: input.pointer, frames: input.frames }),
-  ], { encoding: 'utf8', cwd: DESKTOP });
-  if (drive.status !== 0) {
-    results.push({ id, target, stage: 'interact', ok: false, why: 'the driven launch failed' });
-    console.log(`✗ ${id} ${target} — the driven launch failed`);
-    continue;
+  // Each input the project claims is driven ALONE. Sent together, a package
+  // whose touch controls do nothing still answers the keyboard, and the gate
+  // reads that as both of them working.
+  const gestures = [];
+  if (input.keys.length || input.pointer) {
+    gestures.push({
+      what: [input.keys.join('+'), input.pointer && `tap ${input.pointer.x}×${input.pointer.y}`]
+        .filter(Boolean).join(' + '),
+      spec: { keys: input.keys, pointer: input.pointer, frames: input.frames },
+      touch: false,
+    });
+  }
+  if (input.touches) {
+    gestures.push({
+      what: `${input.touches.length} touch(es)`,
+      spec: { touches: input.touches, frames: input.frames },
+      touch: true,
+    });
   }
 
-  let response;
-  try {
-    response = frameCellMax(readFileSync(packagePng), readFileSync(drivenPng));
-  } catch (e) {
-    results.push({ id, target, stage: 'interact', ok: false, why: e.message });
-    console.log(`✗ ${id} ${target} — interact: ${e.message}`);
-    continue;
+  let allAnswered = true;
+  for (const gesture of gestures) {
+    const drivenPng = path.join(WORK, `${id}-${target}-driven-${gesture.touch ? 'touch' : 'keys'}.png`);
+    const drive = spawnSync('npx', [
+      'electron', path.join('scripts', LAUNCHER(target)),
+      '--dir', out, '--out', drivenPng,
+      '--w', String(editor.w), '--h', String(editor.h),
+      ...(gesture.touch ? ['--touch'] : []),
+      '--input', JSON.stringify(gesture.spec),
+    ], { encoding: 'utf8', cwd: DESKTOP });
+    if (drive.status !== 0) {
+      results.push({ id, target, stage: 'interact', ok: false, why: `the driven launch failed (${gesture.what})` });
+      console.log(`✗ ${id} ${target} — the driven launch failed for ${gesture.what}`);
+      allAnswered = false;
+      continue;
+    }
+
+    let response;
+    try {
+      response = frameCellMax(readFileSync(packagePng), readFileSync(drivenPng));
+    } catch (e) {
+      results.push({ id, target, stage: 'interact', ok: false, why: e.message });
+      console.log(`✗ ${id} ${target} — interact: ${e.message}`);
+      allAnswered = false;
+      continue;
+    }
+    const answered = response >= input.responds;
+    allAnswered = allAnswered && answered;
+    results.push({
+      id, target, stage: 'interact', ok: answered,
+      why: answered ? '' : `${gesture.what}: response ${response.toFixed(4)} < ${input.responds}`,
+    });
+    console.log(`${answered ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)}, `
+      + `responds ${response.toFixed(4)} to ${gesture.what}`);
+    if (!answered) console.log(`    the package did not visibly answer it; compare ${packagePng} and ${drivenPng}`);
   }
-  const answered = response >= input.responds;
-  results.push({ id, target, stage: 'interact', ok: answered, why: answered ? '' : `response ${response.toFixed(4)} < ${input.responds}` });
-  const gesture = [input.keys.join('+'), input.pointer && `tap ${input.pointer.x}×${input.pointer.y}`]
-    .filter(Boolean).join(' + ');
-  console.log(`${answered ? '✓' : '✗'} ${id} ${target} — parity ${distance.toFixed(4)}, responds ${response.toFixed(4)} to ${gesture}`);
-  if (!answered) console.log(`    the package did not visibly answer the key; compare ${packagePng} and ${drivenPng}`);
+  void allAnswered;
 }
 
 const bad = results.filter((r) => !r.ok);

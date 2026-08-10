@@ -19,6 +19,7 @@ import {
 } from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
 import { fallenSystem, fallenOverlaySystem } from './systems/fallen';
+import { touchLayerSystem, touchStickSystem, touchButtonSystem } from './systems/touch';
 import { applySettingsSystem, cycleLanguageSystem } from './systems/settings';
 import {
     saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem, vitalitySystem,
@@ -68,6 +69,9 @@ addSystemSetToSchedule(Schedule.PostUpdate, defineSystemSet('combat', {
 
 // The pause itself and everything that reports state keep running: one has to be
 // able to lift the pause, the rest have to be able to show it.
+addSystemToSchedule(Schedule.PreUpdate, touchLayerSystem);
+addSystemToSchedule(Schedule.PreUpdate, touchStickSystem);
+addSystemToSchedule(Schedule.PreUpdate, touchButtonSystem);
 addSystemToSchedule(Schedule.Update, pauseInputSystem);
 addSystemToSchedule(Schedule.Update, fallenSystem);
 addSystemToSchedule(Schedule.Update, pauseTimeSystem);

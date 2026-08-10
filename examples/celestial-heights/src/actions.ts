@@ -1,5 +1,5 @@
 import {
-    defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton, GamepadButton,
+    defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton, GamepadButton, Virtual,
 } from 'esengine';
 
 /**
@@ -12,8 +12,9 @@ export const Actions = defineInputMap({
         Keys2D('KeyW', 'KeyS', 'KeyA', 'KeyD'),
         Keys2D('ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'),
         Stick('left'),
+        Virtual('move'),
     ),
-    Attack: Button(Key('Space'), GpButton(GamepadButton.West)),
+    Attack: Button(Key('Space'), GpButton(GamepadButton.West), Virtual('touch.Attack')),
     Pause: Button(Key('Escape'), GpButton(GamepadButton.Start)),
     Pack: Button(Key('Tab'), GpButton(GamepadButton.North)),
     Language: Button(Key('KeyL')),

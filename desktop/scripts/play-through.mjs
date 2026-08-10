@@ -214,6 +214,7 @@ async function main() {
     let lastGap = Infinity;
     let stuckFor = 0;
     let was = null;
+    let deaths = 0;
     let plan = [];
     let replan = 0;
     let last = null;
@@ -275,6 +276,9 @@ async function main() {
         // Pressed and did not move: back off the dead band so the other axis
         // comes into play, and re-plan sooner.
         const moved = was ? Math.hypot(me.x - was.x, me.y - was.y) : Infinity;
+        // Nobody walks 600 units in eight frames: that is a death putting her
+        // back at the area's entrance, and the leg deserves its time again.
+        if (moved > 600 && was) { deaths++; spent = 0; plan = []; }
         stuckFor = moved < 6 ? stuckFor + STEP : 0;
         was = me;
         if (stuckFor > 64) { replan = 0; }
@@ -303,7 +307,8 @@ async function main() {
     if (!arrived) {
       failure = `${label} — ${spent >= timeout ? 'ran out of leg budget' : 'ran out of run budget'} after ${spent} frames`
         + (last ? `; last seen ${Math.round(last.me.x)},${Math.round(last.me.y)} with the goal at `
-          + `${Math.round(last.goal.x)},${Math.round(last.goal.y)} (${Math.round(last.gap)} away)` : '; never saw both');
+          + `${Math.round(last.goal.x)},${Math.round(last.goal.y)} (${Math.round(last.gap)} away)` : '; never saw both')
+        + (deaths ? `; died ${deaths}x on this leg` : '');
       break;
     }
     done.push(label);

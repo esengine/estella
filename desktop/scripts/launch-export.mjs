@@ -21,6 +21,9 @@
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
  *     --allow-flat       accept a single-colour frame (a deliberately blank scene)
  *     --input <json>     drive it: {"keys":["ArrowRight"]} or {"pointer":{"x":.5,"y":.5}}
+ *     --touch            present as a touch device (maxTouchPoints > 0), so a
+ *                        build that puts its on-screen controls up for one can
+ *                        be driven the way a phone would drive it
  *     --log <regex>      also print console lines matching this (the engine's own
  *                        warnings say why a subsystem sat out; only `[engine]`
  *                        lines are forwarded otherwise, which means diagnosing
@@ -38,6 +41,13 @@ import { inputScript } from './inputScript.mjs';
 // capturePage pixels go through the OS display profile; pin sRGB so a colour
 // judgement reads the same on a wide-gamut machine as on a CI runner.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
+// A desktop Chromium reports no touch hardware, so a game that only shows its
+// on-screen controls to a touch device shows them to nobody here. This is the
+// emulation a phone would make true.
+if (process.argv.includes('--touch')) {
+  app.commandLine.appendSwitch('touch-events', 'enabled');
+  app.commandLine.appendSwitch('enable-features', 'TouchpadAndWheelScrollLatching');
+}
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => {
