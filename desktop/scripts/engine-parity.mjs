@@ -186,7 +186,8 @@ app.whenReady().then(async () => {
   console.log(`RESULT ${JSON.stringify(report)}`);
   console.log(`[parity] max cross-backend diff at probes: ${maxDiff}`);
   console.log(`\n[engine-parity] ${ok ? 'PASS' : 'FAIL'}`);
-  process.exitCode = ok ? 0 : 1;
   try { server.close(); } catch { /* ignore */ }
-  app.quit();
+  // app.exit, not process.exitCode + app.quit: Electron quits with status 0
+  // whatever exitCode says, so a FAIL would be reported to the caller as a pass.
+  app.exit(ok ? 0 : 1);
 });
