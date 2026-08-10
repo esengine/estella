@@ -22,6 +22,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { GATES, SCOPES } from './gates.mjs';
 
 const WORKFLOWS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows');
 const SETUP = './.github/actions/setup';
@@ -123,6 +124,32 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
     }
 }
 
+// The gate list is one list only while both scopes read it. A workflow that
+// enumerates check-*.mjs steps of its own is the second list growing back.
+const gateProblems = [];
+for (const g of GATES) {
+    if (g.where === undefined) continue;
+    if (!SCOPES.includes(g.where)) gateProblems.push(`gate "${g.id}" has scope "${g.where}" (have: ${SCOPES.join(', ')})`);
+    if (!(typeof g.why === 'string' && g.why.trim())) {
+        gateProblems.push(`gate "${g.id}" runs in ${g.where} only, with no reason — say why the other scope cannot`);
+    }
+}
+const ciYml = readFileSync(path.join(WORKFLOWS, 'build.yml'), 'utf8');
+if (!ciYml.includes('run-gates.mjs')) {
+    gateProblems.push('build.yml does not run tools/run-gates.mjs — CI would be back to a gate list of its own');
+}
+for (const g of GATES) {
+    const own = g.run.match(/tools\/(check-[\w-]+\.mjs)/);
+    if (own && ciYml.includes(own[1]) && g.where !== 'local') {
+        gateProblems.push(`build.yml names ${own[1]} directly; run-gates already runs it for the ci scope`);
+    }
+}
+if (gateProblems.length > 0) {
+    console.error('\n✗ the static gate list does not hold up:\n');
+    for (const p of gateProblems) console.error(`  ${p}`);
+    process.exit(1);
+}
+
 if (violations.length > 0) {
     console.error(`\n✗ ${violations.length} workflow step(s) run workspace tooling with no install:\n`);
     for (const v of violations) {
@@ -135,3 +162,4 @@ if (violations.length > 0) {
 }
 
 console.log('✓ every workflow step that runs workspace tooling installs it first');
+console.log(`✓ ${GATES.length} static gate(s) in one list; CI runs it through run-gates.mjs`);

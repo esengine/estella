@@ -146,52 +146,14 @@ jobs:
 
     - uses: ./.github/actions/setup
 
-    - name: Check GL boundary (no gl* outside GLDevice)
-      run: node tools/check-gl-boundary.mjs
-
-    - name: Check render-command boundary (DrawCommands built only by BatchBuilder)
-      run: node tools/check-draw-command-boundary.mjs
-
-    # The release path has no pull request to fail on, so a workflow step that
-    # cannot run is found by pushing a tag. Checked here, where every push is.
-    - name: Check workflows (tooling steps install the workspace)
-      run: node tools/check-workflows.mjs
-
-    # The device build's codegen, without the device build: it needs no compiler
-    # and takes a second, but nothing outside a release ran it — so a header that
-    # moved cost a full Dawn build to find out about, twice.
-    - name: Check native binding codegen (headers + the includes it generates)
-      run: node tools/check-native-bindings.mjs
-
-    # Filtered so the SDK is checked by ITS OWN pinned TypeScript (the workspace
-    # carries two majors — desktop is on 6.x); a bare root `pnpm exec tsc`
-    # resolves an arbitrary compiler. Mirrors the repo's `verify` gate exactly.
-    - name: Type-check SDK
-      run: pnpm --filter ./sdk exec tsc --noEmit
-
-    - name: Check API surface (snapshot + release-tag policy)
-      run: node tools/api-surface.mjs --check
-
-    - name: Build SDK
-      run: pnpm --filter ./sdk build
-
-    # The snapshot above is read out of the sources, so it says nothing about what
-    # the declaration build actually emitted. This is the only step that looks at
-    # the .d.ts a consumer installs.
-    - name: Check built declarations carry the API surface
-      run: node tools/api-surface.mjs --check-dts
-
-    - name: Type-check Examples
-      run: node build-tools/cli.js check-examples
-
-    - name: Validate prefab assets
-      run: node build-tools/cli.js validate-prefabs
+    # Every static gate, from the one list in tools/gates.mjs. CI and the
+    # pre-push hook used to enumerate their own — seventeen gates ran only on a
+    # machine with the hook installed, and five only here.
+    - name: Static gates
+      run: node tools/run-gates.mjs --scope ci
 
     - name: Run SDK tests
       run: pnpm --filter ./sdk exec vitest run
-
-    - name: Type-check Desktop
-      run: pnpm --filter @estella/editor exec tsc --noEmit
 
     # The Android packaging tests check what we write against implementations that
     # are not ours. androguard decodes the binary manifest; bundletool is the App
