@@ -70,7 +70,7 @@
     "verify:render:depth": "node ../tools/verify-render.mjs --only depth-on",
     "verify:render:depth:off": "node ../tools/verify-render.mjs --only depth-off",
     "verify:soak": "vite build && node scripts/editor-checks/run.mjs soak",
-    "verify:render:tier": "node ../tools/verify-render.mjs --tier"
+    "verify:render:nightly": "node ../tools/verify-render.mjs --tier nightly"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

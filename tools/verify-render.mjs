@@ -77,8 +77,20 @@ if (!NO_BUILD) {
   }
 }
 
-const failed = [];
-for (const scene of scenes) {
+/**
+ * Did the GPU never come up? A runner whose GPU process dies during init leaves
+ * a context-lost renderer that cannot draw anything, which is NOT a pixel
+ * verdict — reporting it as one says the scene drew the wrong thing when it drew
+ * nothing at all. Observed on the FIRST launch of a job, three runs out of three.
+ */
+function gpuNeverCameUp(out, scene) {
+  // A scene that TAKES the GPU away on purpose owns its own device-loss result.
+  if (scene.env.ESTELLA_VERIFY_DEVICE_LOSS) return false;
+  return /Exiting GPU process due to errors during initialization/.test(out)
+    || (/GPU device lost/.test(out) && /Failed to create framebuffer/.test(out));
+}
+
+function runScene(scene) {
   const args = XVFB
     ? ['-a', 'pnpm', 'exec', 'electron', 'scripts/headless-verify.mjs']
     : ['exec', 'electron', 'scripts/headless-verify.mjs'];
@@ -87,18 +99,32 @@ for (const scene of scenes) {
     encoding: 'utf8',
     env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ...scene.env },
   });
-  const verdict = ((r.stdout || '').match(/\[verify:render\][^\n]*/) ?? [''])[0];
-  const ok = r.status === 0;
-  if (!ok) failed.push(scene.id);
-  console.log(`${ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${verdict.replace('[verify:render] ', '')}`);
-  if (!ok) {
-    for (const l of `${r.stdout || ''}${r.stderr || ''}`.split('\n').slice(-8)) {
-      if (l.trim()) console.log(`    ${l}`);
-    }
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  return {
+    ok: r.status === 0,
+    out,
+    verdict: ((r.stdout || '').match(/\[verify:render\][^\n]*/) ?? [''])[0].replace('[verify:render] ', ''),
+  };
+}
+
+const failed = [];
+let retried = 0;
+for (const scene of scenes) {
+  let run = runScene(scene);
+  if (!run.ok && gpuNeverCameUp(run.out, scene)) {
+    retried++;
+    console.log(`↻ ${scene.id.padEnd(28)} the GPU process died before it drew; measuring again`);
+    run = runScene(scene);
+  }
+  if (!run.ok) failed.push(scene.id);
+  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${run.verdict}`);
+  if (!run.ok) {
+    for (const l of run.out.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
   }
 }
 
-console.log(`\nrender ${TIER}: ${scenes.length - failed.length}/${scenes.length} scene(s) drew what they claim`);
+console.log(`\nrender ${TIER}: ${scenes.length - failed.length}/${scenes.length} scene(s) drew what they claim`
+  + (retried ? `, ${retried} measured twice (the GPU had died)` : ''));
 if (failed.length) {
   for (const id of failed) console.log(`  ✗ ${id}`);
   process.exit(1);
