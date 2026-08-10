@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TIERS, SCENES, scenesAtTier, sceneFileOf } from './renderScenes.mjs';
+import { TIERS, SCENES, scenesAtTier, sceneFileOf, WEBGPU_GAP } from './renderScenes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'desktop', 'public');
@@ -86,5 +86,7 @@ if (problems.length) {
 const byTier = TIERS.map((t) => `${t} ${scenesAtTier(t).length}`).join(' / ');
 const weak = SCENES.filter((s) => s.rendersOnly);
 console.log(`check-render-scenes: ${SCENES.length} pixel gate(s) with a scene CI can find — ok (${byTier})`);
+const gpu = SCENES.filter((s) => s.webgpu);
+console.log(`  ${gpu.length} declare the second backend, which nothing runs: ${WEBGPU_GAP}`);
 console.log(`  ${SCENES.length - weak.length} probe pixels; ${weak.length} only assert that something drew:`);
 for (const s of weak) console.log(`    ${s.id}: ${s.rendersOnly}`);

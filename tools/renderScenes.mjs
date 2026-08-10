@@ -23,6 +23,13 @@
 export const TIERS = ['pr', 'nightly'];
 
 /**
+ * Why nothing runs the second backend, stated rather than left as an empty step.
+ * The scenes below that declare `webgpu` say which are MEANT to carry it, and a
+ * machine with a GPU can (`--backend webgpu`) — no automation can.
+ */
+export const WEBGPU_GAP = 'Dawn gets no adapter on a CI runner: the step was skipped for 25 runs, then failed on all ten scenes';
+
+/**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
  * verbatim — an empty one is the default sprite scene.
  */
