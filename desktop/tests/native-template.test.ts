@@ -23,7 +23,7 @@ import {
   requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
   missingTemplateEntries, isTemplatePlatform,
   TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX, TEMPLATE_PLATFORMS,
-  type NativePlatform,
+  type TemplatePlatform,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { verifyTemplateZip } from '../../build-tools/tasks/verifyTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
@@ -46,8 +46,10 @@ afterEach(() => {
 
 /** Every file the layout declares required, with a stand-in body — so the fixture
  *  follows the contract rather than a copy of it that can go stale. */
-function templateEntries(version: string, omit?: string): { name: string; data: Buffer }[] {
-  const entries = requiredTemplateFiles('ios')
+function templateEntries(
+  version: string, omit?: string, platform: TemplatePlatform = 'ios',
+): { name: string; data: Buffer }[] {
+  const entries = requiredTemplateFiles(platform)
     .filter((rel) => rel !== omit)
     .map((rel) => ({ name: rel, data: Buffer.from(`stand-in for ${rel}`) }));
   entries.push({
@@ -55,8 +57,8 @@ function templateEntries(version: string, omit?: string): { name: string; data: 
     data: Buffer.from(JSON.stringify({
       kind: 'estella-native-template',
       formatVersion: TEMPLATE_FORMAT,
-      id: 'ios',
-      platform: 'ios',
+      id: platform,
+      platform,
       engineVersion: version,
       spineVersion: '4.2',
       deploymentTarget: '17.0',
@@ -65,9 +67,9 @@ function templateEntries(version: string, omit?: string): { name: string; data: 
   return entries;
 }
 
-function writeTemplateZip(version: string, omit?: string): string {
-  const file = path.join(scratch, `template-${version}.zip`);
-  writeFileSync(file, makeZip(templateEntries(version, omit)));
+function writeTemplateZip(version: string, omit?: string, platform: TemplatePlatform = 'ios'): string {
+  const file = path.join(scratch, `template-${version}-${platform}.zip`);
+  writeFileSync(file, makeZip(templateEntries(version, omit, platform)));
   return file;
 }
 
@@ -177,6 +179,42 @@ describe('downloading a template from a release', () => {
     }) as unknown as typeof fetch;
     return { fetchImpl, served, zip };
   }
+
+  // Desktop templates are published per OS, and the download path takes them by
+  // that name rather than by the one export target they share.
+  it('installs a DESKTOP template, which is published per OS', async () => {
+    const zip = readFileSync(writeTemplateZip(VERSION, undefined, 'windows'));
+    const index = {
+      kind: 'estella-native-templates',
+      formatVersion: TEMPLATE_FORMAT,
+      engineVersion: VERSION,
+      templates: [{
+        id: 'windows', platform: 'windows',
+        file: `estella-native-windows-${VERSION}.zip`,
+        bytes: zip.length,
+        sha256: createHash('sha256').update(zip).digest('hex'),
+      }],
+    };
+    const fetchImpl = (async (url: string) => (url.endsWith(TEMPLATE_INDEX)
+      ? { ok: true, status: 200, json: async () => index } as unknown as Response
+      : { ok: true, status: 200, body: (async function* () { yield zip; })() } as unknown as Response
+    )) as unknown as typeof fetch;
+
+    const res = await downloadNativeTemplate('windows', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
+    expect(res).toMatchObject({ ok: true, id: 'windows' });
+    expect(resolveNativeTemplate('windows', VERSION)).not.toBeNull();
+  });
+
+  // `desktop` is an export target, not a template platform: the index publishes
+  // three desktop templates and none of them under that name.
+  it('says so when asked for a platform no template is published for', async () => {
+    const { fetchImpl } = release();
+    const res = await downloadNativeTemplate('desktop' as TemplatePlatform, VERSION, {
+      fetchImpl, baseUrl: 'https://example.test/r',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('no desktop template');
+  });
 
   it('installs what the index describes, and reports progress on the way', async () => {
     const { fetchImpl, served, zip } = release();
@@ -342,7 +380,7 @@ describe('what a PUBLISHED template must carry', () => {
 describe('the platforms templates are published for', () => {
   /** A release-complete archive for any platform, built from that platform's own
    *  layout so the fixture follows the contract instead of restating it. */
-  function releaseZip(platform: NativePlatform): Buffer {
+  function releaseZip(platform: TemplatePlatform): Buffer {
     const entries = requiredTemplateFiles(platform, { release: true })
       .map((rel: string) => ({ name: rel, data: Buffer.from(`stand-in for ${rel}`) }));
     entries.push({
@@ -367,7 +405,7 @@ describe('the platforms templates are published for', () => {
       expect(templateLayout(p).length).toBeGreaterThan(0);
     }
     expect(isTemplatePlatform('playstation')).toBe(false);
-    expect(() => templateLayout('playstation' as NativePlatform)).toThrow();
+    expect(() => templateLayout('playstation' as TemplatePlatform)).toThrow();
   });
 
   it('are each accepted by the release verifier', () => {

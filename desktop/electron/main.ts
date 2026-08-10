@@ -36,8 +36,9 @@ import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
-  removeNativeTemplate, downloadNativeTemplate,
+  removeNativeTemplate, downloadNativeTemplate, type TemplatePlatform,
 } from './nativeTemplates';
+import { isTemplatePlatform } from '../../build-tools/utils/nativeTemplate.js';
 import { DESKTOP_OSES } from '../src/project/platforms';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
@@ -1432,16 +1433,19 @@ ipcMain.handle('nativeTemplates:install', async () => {
   if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true };
   return installNativeTemplate(res.filePaths[0], app.getVersion());
 });
-ipcMain.handle('nativeTemplates:remove', (_e, platform: 'android' | 'ios', version: string) =>
-  removeNativeTemplate(platform, version),
+ipcMain.handle('nativeTemplates:remove', (_e, platform: TemplatePlatform, version: string) =>
+  (isTemplatePlatform(platform) ? removeNativeTemplate(platform, version) : false),
 );
 // Download + install this editor version's template. Progress is pushed rather
 // than polled: the renderer drew the button, so it owns the progress bar.
-ipcMain.handle('nativeTemplates:download', (e, platform: 'android' | 'ios') =>
-  downloadNativeTemplate(platform, app.getVersion(), {
+ipcMain.handle('nativeTemplates:download', (e, platform: TemplatePlatform) => {
+  // Validated at the trust boundary against the list that publishes them, so no
+  // caller has to keep its own copy of which platforms have a template.
+  if (!isTemplatePlatform(platform)) return { ok: false, error: `no runtime template for "${platform}"` };
+  return downloadNativeTemplate(platform, app.getVersion(), {
     onProgress: (p) => e.sender.send('nativeTemplates:downloadProgress', { platform, ...p }),
-  }),
-);
+  });
+});
 
 // New-project templates + creation (launcher New tab).
 ipcMain.handle('templates:list', () => listTemplates());

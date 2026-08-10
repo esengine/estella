@@ -65,6 +65,10 @@ export function isNativePlatform(platform: ExportPlatform): platform is NativePl
  * signing a macOS bundle is, and that is a warning on one output rather than a
  * reason to withhold the others.
  */
+/** Every platform a runtime template is published for — the mobile hosts plus
+ *  each desktop OS. Mirrors build-tools' TemplatePlatform; a test pins them equal. */
+export type TemplatePlatform = 'android' | 'ios' | DesktopOs;
+
 export const DESKTOP_OSES = ['windows', 'macos', 'linux'] as const;
 export type DesktopOs = (typeof DESKTOP_OSES)[number];
 
@@ -130,8 +134,10 @@ export type PlatformPrereq =
          * it is an artifact this editor release ships, installed once.
          */
         kind: 'template-missing';
-        /** The template looked for (`ios-arm64`). */
-        id: string;
+        /** The template looked for, in the vocabulary the release PUBLISHES them
+         *  in (`windows`, not the `desktop` target it belongs to) — this is the id
+         *  the download asks for. */
+        id: TemplatePlatform;
         /** The version it must carry — this editor's. A template is matched exactly:
          *  the SDK bundle is compiled into the app binary. */
         version: string;

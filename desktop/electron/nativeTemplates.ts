@@ -23,11 +23,11 @@ import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
     templateStoreDir, iosTemplateSources, releaseAssetBases, parseTemplateIndex,
     TEMPLATE_INDEX,
-    type NativePlatform, type NativeTemplateManifest,
+    type TemplatePlatform, type NativeTemplateManifest,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../build-tools/utils/zip.js';
 
-export type { NativePlatform, NativeTemplateManifest };
+export type { TemplatePlatform, NativeTemplateManifest };
 
 /** A template this editor can actually use, with where it came from. */
 export interface UsableTemplate {
@@ -42,7 +42,7 @@ export interface UsableTemplate {
  * A template whose files are incomplete counts as absent: half a template
  * produces an app that fails to link, which is worse than one that is not offered.
  */
-export function resolveNativeTemplate(platform: NativePlatform, engineVersion: string): UsableTemplate | null {
+export function resolveNativeTemplate(platform: TemplatePlatform, engineVersion: string): UsableTemplate | null {
     const found = findTemplate({ platform, engineVersion });
     if (!found || found.missing.length > 0) return null;
     return { dir: found.dir, manifest: found.manifest };
@@ -164,7 +164,7 @@ export interface TemplateDownloadProgress {
  * Never throws: every failure is a message on the row that offered the button.
  */
 export async function downloadNativeTemplate(
-    platform: NativePlatform,
+    platform: TemplatePlatform,
     engineVersion: string,
     options: {
         onProgress?: (progress: TemplateDownloadProgress) => void;
@@ -191,7 +191,7 @@ export async function downloadNativeTemplate(
 
 async function downloadFrom(
     base: string,
-    platform: NativePlatform,
+    platform: TemplatePlatform,
     engineVersion: string,
     fetchImpl: typeof fetch,
     onProgress?: (progress: TemplateDownloadProgress) => void,
@@ -242,7 +242,7 @@ async function downloadFrom(
 
 /** Delete an installed template. Takes the id + version rather than a path, so a
  *  renderer can never ask the main process to remove an arbitrary directory. */
-export function removeNativeTemplate(platform: NativePlatform, engineVersion: string): boolean {
+export function removeNativeTemplate(platform: TemplatePlatform, engineVersion: string): boolean {
     const dir = installedTemplateDir(engineVersion, platform);
     if (!readTemplateManifest(dir)) return false;
     rmSync(dir, { recursive: true, force: true });

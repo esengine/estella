@@ -7,13 +7,19 @@
 /** Every platform a runtime template exists for. `macos` is one of them because a
  *  desktop package is assembled from a template exactly as a phone's is — that
  *  sameness is the point (see docs/REARCH_STEAM.md §6.0). */
-export type NativePlatform = 'android' | 'ios' | 'macos' | 'windows' | 'linux';
+/**
+ * Every platform a runtime TEMPLATE is published for. Distinct from the export
+ * target vocabulary in desktop/src/project/platforms.ts, which spells the three
+ * desktop OSes as one `desktop` target — the two shared the name `NativePlatform`,
+ * and every layer above hand-narrowed this one back to the mobile pair.
+ */
+export type TemplatePlatform = 'android' | 'ios' | 'macos' | 'windows' | 'linux';
 
 export interface NativeTemplateManifest {
     kind: 'estella-native-template';
     formatVersion: number;
     id: string;
-    platform: NativePlatform;
+    platform: TemplatePlatform;
     /** Android only: the architectures this template carries. */
     abis?: string[];
     /** Matched EXACTLY against the editor's version: the SDK bundle is compiled
@@ -27,7 +33,7 @@ export interface NativeTemplateManifest {
 }
 
 export interface TemplateWant {
-    platform: NativePlatform;
+    platform: TemplatePlatform;
     engineVersion: string;
 }
 
@@ -43,12 +49,12 @@ export const TEMPLATE_MANIFEST: string;
 export const BYTECODE_FILE: string;
 export const ANDROID_ABIS: readonly string[];
 
-export function templateId(platform: NativePlatform): string;
+export function templateId(platform: TemplatePlatform): TemplatePlatform;
 
 /** Every platform a template is built and published for — the one list the
  *  layouts and the release verifier both ask. */
-export const TEMPLATE_PLATFORMS: readonly NativePlatform[];
-export function isTemplatePlatform(platform: unknown): platform is NativePlatform;
+export const TEMPLATE_PLATFORMS: readonly TemplatePlatform[];
+export function isTemplatePlatform(platform: unknown): platform is TemplatePlatform;
 export function templateAbis(dir: string): string[];
 export interface TemplateEntry {
     /** Path inside the template. */
@@ -61,31 +67,31 @@ export interface TemplateEntry {
     produced?: boolean;
 }
 
-export function templateLayout(platform: NativePlatform, options?: { abis?: readonly string[] }): TemplateEntry[];
-export function requiredTemplateFiles(platform: NativePlatform, options?: { abis?: readonly string[]; release?: boolean }): string[];
-export function missingTemplateFiles(dir: string, platform: NativePlatform, options?: { abis?: readonly string[] }): string[];
+export function templateLayout(platform: TemplatePlatform, options?: { abis?: readonly string[] }): TemplateEntry[];
+export function requiredTemplateFiles(platform: TemplatePlatform, options?: { abis?: readonly string[]; release?: boolean }): string[];
+export function missingTemplateFiles(dir: string, platform: TemplatePlatform, options?: { abis?: readonly string[] }): string[];
 /** The same question asked of a NAME LIST rather than a directory — what a zip
  *  is missing, checked before it is unpacked. */
 export function missingTemplateEntries(
   names: readonly string[],
-  platform: NativePlatform,
+  platform: TemplatePlatform,
   options?: { abis?: readonly string[]; release?: boolean },
 ): string[];
 export function writeTemplateManifest(
   dir: string,
-  meta: { platform: NativePlatform; engineVersion: string; abi?: string } & Record<string, unknown>,
+  meta: { platform: TemplatePlatform; engineVersion: string; abi?: string } & Record<string, unknown>,
 ): NativeTemplateManifest;
 export function readTemplateManifest(dir: string): NativeTemplateManifest | null;
 export function templateMatches(manifest: NativeTemplateManifest | null, want: TemplateWant): boolean;
-export function templateZipName(platform: NativePlatform, engineVersion: string): string;
+export function templateZipName(platform: TemplatePlatform, engineVersion: string): string;
 export function estellaDataDir(): string;
 export function templateStoreDir(): string;
 export function installedTemplateDir(
-    engineVersion: string, platform: NativePlatform, storeDir?: string): string;
+    engineVersion: string, platform: TemplatePlatform, storeDir?: string): string;
 export function findTemplate(want: TemplateWant, storeDir?: string): FoundTemplate | null;
 export interface PublishedTemplate {
     id: string;
-    platform: NativePlatform;
+    platform: TemplatePlatform;
     /** Archive filename, resolved against the release's asset base. */
     file: string;
     bytes: number;
@@ -121,7 +127,7 @@ export function androidTemplateSources(dir: string): {
     bytecode: string;
 };
 
-export function desktopTemplateSources(dir: string, platform?: NativePlatform): {
+export function desktopTemplateSources(dir: string, platform?: TemplatePlatform): {
     /** The runtime binary; the assembler renames it to the app. */
     executable: string;
     infoPlistIn: string;

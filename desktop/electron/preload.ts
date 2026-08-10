@@ -18,7 +18,7 @@ import type { DetectedEditor } from './editorCatalog';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
-import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
+import type { NativeTemplateEntry, InstallResult, TemplatePlatform } from './nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
@@ -358,10 +358,10 @@ const api = {
     /** Pick an archive and install it. Main owns the file dialog, so the renderer
      *  never handles a path it could have made up. */
     install: (): Promise<InstallResult & { canceled?: boolean }> => ipcRenderer.invoke('nativeTemplates:install'),
-    remove: (platform: 'android' | 'ios', version: string): Promise<boolean> =>
+    remove: (platform: TemplatePlatform, version: string): Promise<boolean> =>
       ipcRenderer.invoke('nativeTemplates:remove', platform, version),
     /** Fetch this editor version's template from the release and install it. */
-    download: (platform: 'android' | 'ios'): Promise<InstallResult> =>
+    download: (platform: TemplatePlatform): Promise<InstallResult> =>
       ipcRenderer.invoke('nativeTemplates:download', platform),
     /** Subscribe to download progress; returns an unsubscribe. */
     onDownloadProgress: (cb: (p: { platform: string; received: number; total: number }) => void): (() => void) => {

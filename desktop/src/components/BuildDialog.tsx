@@ -36,6 +36,7 @@ import {
 import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
 import { platformLabel } from '@/project/platformLabels';
 import type { PlayableNetworkOption } from '../../electron/platformCatalog';
+import type { TemplatePlatform } from '../../electron/nativeTemplates';
 import type { BuildSizeReport } from '../../electron/sizeReport';
 import { formatBytes } from '@/project/sizeBudget';
 import { BuildSizePanel } from '@/components/BuildSizePanel';
@@ -118,9 +119,9 @@ interface PlatformDef {
   /** What KIND of prerequisite — a missing engine runtime blocks the package, a
    *  missing native toolchain only blocks the final app assembly. */
   prereqKind?: PlatformPrereq['kind'];
-  /** The runtime template this target wants, when that is what is missing. Kept so
-   *  the install action can say which version a wrong archive should have been. */
-  templateWant?: { id: string; version: string };
+  /** The runtime template this target wants, when that is what is missing — the
+   *  id the download asks for, and the version a wrong archive should have been. */
+  templateWant?: { id: TemplatePlatform; version: string };
   /** http-servable target → offer a loopback-http Preview (opening the build via
    *  file:// hits the browser's opaque-origin rules; http is its real surface). */
   httpPreview?: boolean;
@@ -505,9 +506,12 @@ export function BuildDialog() {
     afterTemplate(res);
   };
 
-  /** Fetch it from this version's release. */
-  const downloadTemplate = async (platform: string) => {
-    if (platform !== 'android' && platform !== 'ios') return;
+  /** Fetch it from this version's release.
+   *
+   *  Takes the id the PREREQUISITE named, not the export target: `desktop` is one
+   *  target and three templates, and asking by target is how this button did
+   *  nothing at all on Windows, macOS and Linux. */
+  const downloadTemplate = async (platform: TemplatePlatform) => {
     setTemplateNote(null);
     setDownloading({ received: 0, total: 0 });
     try {
@@ -772,7 +776,7 @@ export function BuildDialog() {
                 </span>
                 {def.prereqKind === 'template-missing' && (
                   <div className="build__fix">
-                    <Button variant="primary" disabled={!!downloading} onClick={() => void downloadTemplate(def.id)}>
+                    <Button variant="primary" disabled={!!downloading} onClick={() => void downloadTemplate(def.templateWant!.id)}>
                       {downloading
                         ? <><Loader2 size={12} className="spin" /> {downloading.total > 0
                           ? t('build.downloadingTemplatePct', {
