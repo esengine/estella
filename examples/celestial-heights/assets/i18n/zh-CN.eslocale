@@ -5,6 +5,10 @@
     "area.main": "樱林渡口",
     "area.moonlit-gallery": "孤月回廊",
     "hud.vitality": "生命",
-    "menu.paused": "已暂停"
+    "menu.paused": "已暂停",
+    "menu.pack": "行囊",
+    "item.petal": "花瓣",
+    "item.shard": "晶屑",
+    "item.ember": "余烬"
   }
 }

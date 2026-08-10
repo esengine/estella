@@ -24,6 +24,7 @@ export const saveRunSystem = defineSystem(
                 health: health.current,
                 slain: (session.enemiesByArea[area] ?? []).filter((n) => !alive.has(n)),
                 locale: i18n.locale,
+                pack: { ...session.inventory },
             });
             session.savedAt = Date.now();
             return;
@@ -39,6 +40,7 @@ export const loadRunSystem = defineSystem(
         const run = saves.load<RunState>(SLOT);
         if (!run) return;
         i18n.setLocale(run.locale);
+        session.inventory = { ...(run.pack ?? {}) };
         session.restore = run;
         session.paused = false;
         if (scenes.getActive() !== run.area) void transitionTo(scenes, run.area, { type: 'fade', duration: 0.25 });

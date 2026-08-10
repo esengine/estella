@@ -15,6 +15,9 @@ import { cycleLanguageSystem } from './systems/settings';
 import {
     saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem,
 } from './systems/save';
+import {
+    pickupSystem, inventoryInputSystem, inventoryBuildSystem, inventorySyncSystem,
+} from './systems/inventory';
 import { perceiverFacingSystem } from './ai/wisp';
 
 // Perception, nav following, the behaviour-tree tick and scene switching are
@@ -27,11 +30,12 @@ addSystemToSchedule(Schedule.PreUpdate, navFromTerrainSystem);
 addSystemToSchedule(Schedule.PreUpdate, cameraBindSystem);
 addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);
 addSystemToSchedule(Schedule.PreUpdate, applyRestoreSystem);
+addSystemToSchedule(Schedule.PreUpdate, inventoryBuildSystem);
 
 // Everything the pause freezes says so once, as a set with one run condition,
 // rather than the same paused check written into eight systems.
 addSystemSetToSchedule(Schedule.Update, defineSystemSet('gameplay', {
-    systems: [playerMoveSystem, playerAttackSystem, perceiverFacingSystem, gateSystem],
+    systems: [playerMoveSystem, playerAttackSystem, perceiverFacingSystem, gateSystem, pickupSystem],
     runIf: () => !session.paused,
 }));
 
@@ -49,7 +53,9 @@ addSystemToSchedule(Schedule.Update, pauseTimeSystem);
 addSystemToSchedule(Schedule.Update, cycleLanguageSystem);
 addSystemToSchedule(Schedule.Update, saveRunSystem);
 addSystemToSchedule(Schedule.Update, loadRunSystem);
+addSystemToSchedule(Schedule.Update, inventoryInputSystem);
 addSystemToSchedule(Schedule.PostUpdate, pauseOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
 addSystemToSchedule(Schedule.PostUpdate, hitFlashSystem);
+addSystemToSchedule(Schedule.PostUpdate, inventorySyncSystem);

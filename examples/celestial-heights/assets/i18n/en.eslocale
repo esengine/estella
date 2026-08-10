@@ -5,6 +5,10 @@
     "area.main": "Cherry Blossom Landing",
     "area.moonlit-gallery": "Moonlit Gallery",
     "hud.vitality": "Vitality",
-    "menu.paused": "Paused"
+    "menu.paused": "Paused",
+    "menu.pack": "Pack",
+    "item.petal": "Petal",
+    "item.shard": "Shard",
+    "item.ember": "Ember"
   }
 }

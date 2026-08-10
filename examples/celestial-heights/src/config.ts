@@ -30,3 +30,16 @@ export const DEPTH_FORESHORTEN = 0.6;
  * noise, so a facing cone rejects or accepts it at random.
  */
 export const POINT_BLANK = 40;
+
+/** What a pickup is, and how its tile reads in the pack. */
+export const ITEM_KINDS = ['petal', 'shard', 'ember'] as const;
+export type ItemKind = typeof ITEM_KINDS[number];
+
+export const ITEM_COLOR: Record<string, { r: number; g: number; b: number; a: number }> = {
+    petal: { r: 0.937, g: 0.588, b: 0.749, a: 1 },
+    shard: { r: 0.545, g: 0.902, b: 0.918, a: 1 },
+    ember: { r: 0.976, g: 0.706, b: 0.376, a: 1 },
+};
+
+/** How close Lyra has to be to pick something up, in world units. */
+export const PICKUP_RADIUS = 70;

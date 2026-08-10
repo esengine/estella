@@ -12,4 +12,7 @@ export const session = {
     /** Area name → the enemies it was authored with. */
     enemiesByArea: {} as Record<string, string[]>,
     savedAt: 0,
+    /** Item kind → how many Lyra is carrying. */
+    inventory: {} as Record<string, number>,
+    inventoryOpen: false,
 };

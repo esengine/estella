@@ -127,6 +127,174 @@
       ]
     },
     {
+      "id": 80,
+      "name": "Pickup_petal_1",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -736,
+              "y": -32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.937,
+              "g": 0.588,
+              "b": 0.749,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "petal"
+          }
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "name": "Pickup_shard_2",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -288,
+              "y": -32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "name": "Pickup_ember_3",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 160,
+              "y": -32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.976,
+              "g": 0.706,
+              "b": 0.376,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "ember"
+          }
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "name": "Pickup_petal_4",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 544,
+              "y": -32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.937,
+              "g": 0.588,
+              "b": 0.749,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "petal"
+          }
+        }
+      ]
+    },
+    {
       "id": 20,
       "name": "Lyra_Player",
       "parent": null,
@@ -799,7 +967,8 @@
       "parent": null,
       "children": [
         51,
-        60
+        60,
+        70
       ],
       "visible": true,
       "components": [
@@ -1076,6 +1245,145 @@
         {
           "type": "PauseOverlay",
           "data": {}
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "name": "PackPanel",
+      "parent": 50,
+      "children": [
+        71,
+        72
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 560,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 300,
+              "unit": 0
+            },
+            "width": {
+              "value": 800,
+              "unit": 0
+            },
+            "height": {
+              "value": 360,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 1,
+            "gap": {
+              "x": 0,
+              "y": 16
+            },
+            "padding": {
+              "left": 24,
+              "top": 20,
+              "right": 24,
+              "bottom": 24
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.055,
+              "g": 0.047,
+              "b": 0.098,
+              "a": 0.92
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "name": "PackTitle",
+      "parent": 70,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 38,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "menu.pack",
+            "fontSize": 32,
+            "bold": true,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "name": "PackGrid",
+      "parent": 70,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 408,
+              "unit": 0
+            },
+            "height": {
+              "value": 200,
+              "unit": 0
+            }
+          }
         }
       ]
     },

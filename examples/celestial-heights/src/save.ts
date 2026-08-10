@@ -14,6 +14,8 @@ export interface RunState {
     /** Names of enemies already killed in that area. */
     slain: string[];
     locale: string;
+    /** Item kind → count. */
+    pack: Record<string, number>;
 }
 
 export const SLOT = 'run';

@@ -27,6 +27,11 @@ export const VitalityMeter = defineTag('VitalityMeter');
 /** The panel shown while the game is paused. */
 export const PauseOverlay = defineTag('PauseOverlay');
 
+/** A pickup lying in the world. `kind` keys into ITEM_COLOR and the locale table. */
+export const Item = defineComponent('Item', {
+    kind: '',
+});
+
 /**
  * Where the actor is facing, as a unit vector. Melee arcs and animation both
  * read it, so it is written once per actor rather than derived twice from
