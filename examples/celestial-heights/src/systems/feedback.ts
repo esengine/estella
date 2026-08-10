@@ -1,7 +1,9 @@
 import {
-    defineSystem, Query, Mut, Transform, Sprite, Parent, GetWorld, UIVisual,
+    defineSystem, Query, Mut, Transform, Sprite, Parent, GetWorld, UIVisual, UINode, UIDisplay,
 } from 'esengine';
-import { Health, HealthBarFill, Player, VitalityMeter } from '../components';
+import {
+    Boss, BossMeter, BossPanel, Health, HealthBarFill, Player, VitalityMeter,
+} from '../components';
 
 /**
  * Shrinks a bar towards its left edge. Scaling would take it in from both
@@ -38,6 +40,29 @@ export const vitalityMeterSystem = defineSystem(
         }
     },
     { name: 'VitalityMeterSystem' },
+);
+
+/**
+ * Shows the boss bar while an area has a boss in it, and reports its health.
+ * The bar lives in the shared HUD, so it is the presence of a boss that decides
+ * whether it is on screen — not which scene is loaded.
+ */
+export const bossMeterSystem = defineSystem(
+    [Query(Mut(UIVisual), BossMeter), Query(Mut(UINode), BossPanel), Query(Health, Boss)],
+    (meters, panels, bosses) => {
+        let fraction = -1;
+        for (const [, health] of bosses) {
+            fraction = health.max > 0 ? Math.max(0, health.current / health.max) : 0;
+            break;
+        }
+        const display = fraction < 0 ? UIDisplay.None : UIDisplay.Flex;
+        for (const [, node] of panels) {
+            if (node.display !== display) node.display = display;
+        }
+        if (fraction < 0) return;
+        for (const [, visual] of meters) visual.fillAmount = fraction;
+    },
+    { name: 'BossMeterSystem' },
 );
 
 /** Blinks whoever is in invulnerability frames, so a hit is visible at all. */

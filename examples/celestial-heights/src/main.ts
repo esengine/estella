@@ -9,7 +9,10 @@ import { playerMoveSystem, playerAttackSystem } from './systems/player';
 import {
     meleeResolveSystem, damageSystem, invulnerabilitySystem, deathSystem,
 } from './systems/combat';
-import { healthBarSystem, hitFlashSystem, vitalityMeterSystem } from './systems/feedback';
+import {
+    healthBarSystem, hitFlashSystem, vitalityMeterSystem, bossMeterSystem,
+} from './systems/feedback';
+import { bossPhaseSystem, summonSystem, chargeSystem } from './systems/boss';
 import {
     cameraBindSystem, navFromTerrainSystem, gateSystem, hudSystem, areaLabelSystem,
 } from './systems/world';
@@ -24,6 +27,7 @@ import {
 import { achievementSystem, achievementToastSystem } from './systems/achievements';
 import { hitSparkSystem } from './systems/spark';
 import { perceiverFacingSystem } from './ai/wisp';
+import './ai/vesper';
 
 // Perception, nav following, the behaviour-tree tick and scene switching are
 // engine plugins, and the runtime already knows every .esscene the package
@@ -44,7 +48,10 @@ addSystemToSchedule(Schedule.PreUpdate, inventoryBuildSystem);
 // Everything the pause freezes says so once, as a set with one run condition,
 // rather than the same paused check written into eight systems.
 addSystemSetToSchedule(Schedule.Update, defineSystemSet('gameplay', {
-    systems: [playerMoveSystem, playerAttackSystem, perceiverFacingSystem, gateSystem, pickupSystem],
+    systems: [
+        playerMoveSystem, playerAttackSystem, perceiverFacingSystem, gateSystem, pickupSystem,
+        bossPhaseSystem, summonSystem, chargeSystem,
+    ],
     runIf: () => !session.paused,
 }));
 
@@ -66,6 +73,7 @@ addSystemToSchedule(Schedule.Update, inventoryInputSystem);
 addSystemToSchedule(Schedule.PostUpdate, pauseOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
+addSystemToSchedule(Schedule.PostUpdate, bossMeterSystem);
 addSystemToSchedule(Schedule.PostUpdate, hitFlashSystem);
 addSystemToSchedule(Schedule.PostUpdate, inventorySyncSystem);
 addSystemToSchedule(Schedule.PostUpdate, achievementSystem);

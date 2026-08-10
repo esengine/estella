@@ -13,6 +13,49 @@ export const Player = defineComponent('Player', {
 export const Enemy = defineTag('Enemy');
 
 /**
+ * The one enemy a run ends on. `phase` is written from its health rather than
+ * by whatever last hit it, so the brain, the HUD bar and the arena all read the
+ * same number and a reloaded fight resumes in the phase the health says.
+ */
+export const Boss = defineComponent('Boss', {
+    phase: 0,
+});
+
+/**
+ * Calls help. Like every other attack in this game the brain only sets
+ * `pending`; a system with the prefab server does the spawning, because a
+ * behaviour tree decides and does not reach for engine resources.
+ */
+export const Summoner = defineComponent('Summoner', {
+    prefab: '',
+    /** How many arrive per call. */
+    count: 2,
+    /** Calls left in the fight — help is a phase, not an attrition strategy. */
+    remaining: 3,
+    cooldown: 9,
+    cooldownLeft: 0,
+    pending: false,
+});
+
+/**
+ * A telegraphed charge: wind up in place, then cross the arena. `state` is
+ * 0 idle / 1 winding up / 2 dashing — the wind-up is what makes it dodgeable
+ * rather than an unfair teleport.
+ */
+export const Charge = defineComponent('Charge', {
+    windup: 0.7,
+    dashSpeed: 900,
+    dashTime: 0.55,
+    cooldown: 6,
+    cooldownLeft: 0,
+    pending: false,
+    state: 0,
+    timer: 0,
+    dirX: 0,
+    dirY: 0,
+});
+
+/**
  * What an area says about itself. Every area scene carries exactly one, which is
  * how the shared HUD — a scene of its own, loaded once and never swapped — can
  * report where Lyra is without an area having to reach into it.
@@ -38,6 +81,12 @@ export const VitalityMeter = defineTag('VitalityMeter');
 
 /** The panel shown while the game is paused. */
 export const PauseOverlay = defineTag('PauseOverlay');
+
+/** The HUD's boss bar: shown only while there is a boss to report on. */
+export const BossPanel = defineTag('BossPanel');
+
+/** The filled part of that bar. */
+export const BossMeter = defineTag('BossMeter');
 
 /** The HUD line that announces an unlock, since no local store draws one. */
 export const AchievementToast = defineTag('AchievementToast');

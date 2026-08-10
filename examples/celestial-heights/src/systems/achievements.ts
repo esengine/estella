@@ -1,8 +1,8 @@
 import {
     defineSystem, Query, Mut, Res, EventReader, Achievements, SceneManager,
-    Time, Text, UINode, UIDisplay, Localization,
+    Time, Text, UINode, UIDisplay, Localization, GetWorld,
 } from 'esengine';
-import { Item, AchievementToast } from '../components';
+import { Boss, Item, AchievementToast } from '../components';
 import { Died } from '../events';
 import { session } from '../state';
 
@@ -14,22 +14,25 @@ import { session } from '../state';
 export const FIRST_BLOOD = 'first-blood';
 export const COLLECTOR = 'collector';
 export const WAYFARER = 'wayfarer';
+export const SPIRE_CLEARED = 'spire-cleared';
 
 /** How many distinct kinds count as having collected. */
 const KINDS_FOR_COLLECTOR = 3;
 
 /** Ids in the order they are announced, so a toast names what just happened. */
-const ALL = [FIRST_BLOOD, COLLECTOR, WAYFARER];
+const ALL = [FIRST_BLOOD, COLLECTOR, WAYFARER, SPIRE_CLEARED];
 const seen = new Set<string>();
 let toast = { id: '', left: 0 };
 
 export const achievementSystem = defineSystem(
-    [EventReader(Died), Query(Item), Res(Achievements), Res(SceneManager)],
-    (deaths, _items, achievements, scenes) => {
+    [EventReader(Died), Query(Item), Res(Achievements), Res(SceneManager), GetWorld()],
+    (deaths, _items, achievements, scenes, world) => {
         for (const death of deaths) {
             if (!death.isPlayer) {
                 void achievements.unlock(FIRST_BLOOD);
-                break;
+                // Vesper is despawned with every other enemy, so the death event
+                // is the last frame anything can be asked about her.
+                if (world.has(death.entity, Boss)) void achievements.unlock(SPIRE_CLEARED);
             }
         }
         const kinds = Object.values(session.inventory).filter((n) => n > 0).length;

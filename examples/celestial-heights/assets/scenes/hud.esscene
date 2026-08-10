@@ -10,7 +10,8 @@
       "children": [
         51,
         60,
-        70
+        70,
+        80
       ],
       "visible": true,
       "components": [
@@ -521,6 +522,200 @@
               "unit": 0
             }
           }
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "name": "BossPanel",
+      "parent": 50,
+      "children": [
+        81,
+        82
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 560,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 560,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 36,
+              "unit": 0
+            },
+            "height": {
+              "value": 70,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 0,
+            "gap": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "type": "BossPanel",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "name": "BossName",
+      "parent": 80,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 30,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "boss.vesper",
+            "fontSize": 28,
+            "bold": true,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "name": "BossTrack",
+      "parent": 80,
+      "children": [
+        83
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 24,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.078,
+              "g": 0.067,
+              "b": 0.125,
+              "a": 0.85
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "name": "BossFill",
+      "parent": 82,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "color": {
+              "r": 0.729,
+              "g": 0.616,
+              "b": 0.949,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "BossMeter",
+          "data": {}
         }
       ]
     }

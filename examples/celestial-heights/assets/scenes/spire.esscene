@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "name": "moonlit-gallery",
+  "name": "spire",
   "folders": [
     "Environment",
     "Actors"
@@ -17,8 +17,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -864,
-              "y": -32,
+              "x": -1248,
+              "y": 32,
               "z": 0
             }
           }
@@ -45,10 +45,10 @@
         {
           "type": "CameraBounds",
           "data": {
-            "minX": -1024,
-            "minY": -640,
-            "maxX": 1024,
-            "maxY": 640
+            "minX": -1536,
+            "minY": -1024,
+            "maxX": 1536,
+            "maxY": 1024
           }
         }
       ]
@@ -58,15 +58,15 @@
       "name": "Terrain",
       "parent": null,
       "children": [],
-      "folder": "Environment",
       "visible": true,
+      "folder": "Environment",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": -1024,
-              "y": 640,
+              "x": -1536,
+              "y": 1024,
               "z": 0
             }
           }
@@ -87,7 +87,22 @@
               5,
               6
             ],
-            "chunks": "RVNUTQQAAAAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABAAEAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEAAQABgACAAIAAgACAAYABgACAAIAAgACAAYABgACAAIAAgAGAAIAAgACAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAYAAgACAAIAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMABgADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAYABgACAAIAAgACAAYABgACAAIAAgAGAAIAAgACAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAYAAgACAAIAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAQAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABAAEAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAEAAQAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAYAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAgACAAIABgACAAYABgACAAIAAgACAAYABgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwAGAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAYAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAgACAAIABgACAAYABgACAAIAAgACAAYABgACAAIAAgACAAIAAgAGAAAAAAABAAAABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAQABAAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABAAEAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAQABAACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABAAEAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            "chunks": "RVNUTQYAAAAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAEAAQAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAQAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAgACAAIAAgAEAAQAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAwADAAMAAgACAAIAAgACAAIAAgACAAIAAgACAAMAAwADAAMAAwACAAIAAgACAAIAAgACAAIAAgACAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIAAgACAAMAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAMAAwADAAMAAwADAAMAAwACAAIAAgACAAIAAgACAAIAAwADAAMAAwADAAMAAwADAAIAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQAGAAIAAgACAAIAAgACAAIAAgACAAQAAgACAAIAAgACAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgADAAMAAwACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAMAAwADAAMAAwACAAIAAgACAAIAAgACAAIAAgACAAYAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAIABgADAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIAAgAGAAMAAwADAAMAAwADAAMAAwACAAIAAgACAAIAAgACAAYAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIABgAAAAAAAQAAAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAQABAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAQAAAAEAAAACAAIAAgACAAIAAgACAAIAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIAAgADAAMAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAIAAwADAAMAAwADAAMAAwACAAIAAgACAAIAAgACAAIAAgACAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIAAgACAAIAAgADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADAAMAAwACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIABAAEAAIAAgACAAIAAgACAAIAAgACAAYAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAAABAAAAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgACAAIABgADAAMAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgAGAAMAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAYAAwADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAIABgADAAMAAwADAAMAAgACAAIAAgACAAIAAgACAAIAAgAGAAMAAwADAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAgACAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAIAAgAEAAIAAgACAAIAAgAGAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgA"
+          }
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "name": "Area",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Area",
+          "data": {
+            "nameKey": "area.spire"
           }
         }
       ]
@@ -97,15 +112,15 @@
       "name": "Gate",
       "parent": null,
       "children": [],
-      "folder": "Environment",
       "visible": true,
+      "folder": "Environment",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": 928,
-              "y": -32,
+              "x": -1440,
+              "y": 32,
               "z": 0
             }
           }
@@ -129,7 +144,7 @@
         {
           "type": "Gate",
           "data": {
-            "toScene": "spire",
+            "toScene": "moonlit-gallery",
             "radius": 90
           }
         }
@@ -137,18 +152,18 @@
     },
     {
       "id": 80,
-      "name": "Pickup_shard_5",
+      "name": "Pickup_shard_7",
       "parent": null,
       "children": [],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Environment",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": -416,
-              "y": -32,
+              "x": -928,
+              "y": 32,
               "z": 0
             }
           }
@@ -179,18 +194,18 @@
     },
     {
       "id": 81,
-      "name": "Pickup_ember_6",
+      "name": "Pickup_ember_8",
       "parent": null,
       "children": [],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Environment",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": 288,
-              "y": -32,
+              "x": -224,
+              "y": -544,
               "z": 0
             }
           }
@@ -224,8 +239,8 @@
       "name": "SparkEmitter",
       "parent": null,
       "children": [],
-      "folder": "Environment",
       "visible": true,
+      "folder": "Environment",
       "components": [
         {
           "type": "Transform",
@@ -287,15 +302,15 @@
       "name": "Lyra_Player",
       "parent": null,
       "children": [],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Actors",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": -864,
-              "y": -32,
+              "x": -1248,
+              "y": 32,
               "z": 0
             }
           }
@@ -386,22 +401,22 @@
       ]
     },
     {
-      "id": 30,
-      "name": "Wisp_30",
+      "id": 50,
+      "name": "Vesper",
       "parent": null,
       "children": [
-        300,
-        301
+        500,
+        501
       ],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Actors",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
-              "x": 32,
-              "y": 224,
+              "x": 480,
+              "y": 32,
               "z": 0
             }
           }
@@ -410,13 +425,13 @@
           "type": "Sprite",
           "data": {
             "size": {
-              "x": 64,
-              "y": 96
+              "x": 132,
+              "y": 196
             },
             "color": {
-              "r": 0.412,
-              "g": 0.812,
-              "b": 0.902,
+              "r": 0.729,
+              "g": 0.616,
+              "b": 0.949,
               "a": 1
             },
             "layer": 2
@@ -425,6 +440,12 @@
         {
           "type": "Enemy",
           "data": {}
+        },
+        {
+          "type": "Boss",
+          "data": {
+            "phase": 0
+          }
         },
         {
           "type": "Facing",
@@ -436,18 +457,18 @@
         {
           "type": "Health",
           "data": {
-            "current": 60,
-            "max": 60,
-            "invulnerability": 0.2,
+            "current": 480,
+            "max": 480,
+            "invulnerability": 0.12,
             "invulnerable": 0
           }
         },
         {
           "type": "MeleeAttack",
           "data": {
-            "damage": 12,
-            "reach": 76,
-            "arcDegrees": 160,
+            "damage": 20,
+            "reach": 150,
+            "arcDegrees": 150,
             "cooldown": 1.1,
             "cooldownLeft": 0,
             "pending": false,
@@ -457,210 +478,48 @@
         {
           "type": "Perceiver",
           "data": {
-            "range": 400,
+            "range": 1100,
             "fovDegrees": 360
           }
         },
         {
           "type": "NavAgent",
           "data": {
-            "speed": 160,
-            "arriveRadius": 48,
-            "repathInterval": 0.4
+            "speed": 175,
+            "arriveRadius": 96,
+            "repathInterval": 0.35
           }
         },
         {
           "type": "BehaviorTreeAgent",
           "data": {
-            "bt": "assets/ai/wisp.esbt"
+            "bt": "assets/ai/vesper.esbt"
           }
         },
         {
-          "type": "RigidBody",
+          "type": "Summoner",
           "data": {
-            "bodyType": 1
-          }
-        },
-        {
-          "type": "CircleCollider",
-          "data": {
-            "radius": 0.26,
-            "offset": {
-              "x": 0,
-              "y": -0.3
-            },
-            "categoryBits": 4,
-            "maskBits": 1
-          }
-        }
-      ]
-    },
-    {
-      "id": 300,
-      "name": "HealthBar_Back",
-      "parent": 30,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 76,
-              "y": 12
-            },
-            "color": {
-              "r": 0.078,
-              "g": 0.067,
-              "b": 0.125,
-              "a": 1
-            },
-            "layer": 3
-          }
-        }
-      ]
-    },
-    {
-      "id": 301,
-      "name": "HealthBar_Fill",
-      "parent": 30,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 1
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 72,
-              "y": 8
-            },
-            "color": {
-              "r": 0.906,
-              "g": 0.353,
-              "b": 0.412,
-              "a": 1
-            },
-            "layer": 3
-          }
-        },
-        {
-          "type": "HealthBarFill",
-          "data": {
-            "width": 72
-          }
-        }
-      ]
-    },
-    {
-      "id": 31,
-      "name": "Wisp_31",
-      "parent": null,
-      "children": [
-        310,
-        311
-      ],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 416,
-              "y": -224,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 64,
-              "y": 96
-            },
-            "color": {
-              "r": 0.522,
-              "g": 0.729,
-              "b": 0.976,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Enemy",
-          "data": {}
-        },
-        {
-          "type": "Facing",
-          "data": {
-            "x": -1,
-            "y": 0
-          }
-        },
-        {
-          "type": "Health",
-          "data": {
-            "current": 60,
-            "max": 60,
-            "invulnerability": 0.2,
-            "invulnerable": 0
-          }
-        },
-        {
-          "type": "MeleeAttack",
-          "data": {
-            "damage": 12,
-            "reach": 76,
-            "arcDegrees": 160,
-            "cooldown": 1.3,
-            "cooldownLeft": 0,
+            "cooldown": 9,
+            "cooldownLeft": 3,
             "pending": false,
-            "hits": 2
+            "remaining": 3,
+            "count": 2,
+            "prefab": "assets/prefabs/wisp.esprefab"
           }
         },
         {
-          "type": "Perceiver",
+          "type": "Charge",
           "data": {
-            "range": 360,
-            "fovDegrees": 360
-          }
-        },
-        {
-          "type": "NavAgent",
-          "data": {
-            "speed": 140,
-            "arriveRadius": 48,
-            "repathInterval": 0.4
-          }
-        },
-        {
-          "type": "BehaviorTreeAgent",
-          "data": {
-            "bt": "assets/ai/wisp.esbt"
+            "cooldown": 6,
+            "cooldownLeft": 4,
+            "pending": false,
+            "windup": 0.7,
+            "dashSpeed": 900,
+            "dashTime": 0.55,
+            "state": 0,
+            "timer": 0,
+            "dirX": 0,
+            "dirY": 0
           }
         },
         {
@@ -672,31 +531,42 @@
         {
           "type": "CircleCollider",
           "data": {
-            "radius": 0.26,
+            "radius": 0.42,
             "offset": {
               "x": 0,
-              "y": -0.3
+              "y": -0.5
             },
             "categoryBits": 4,
+            "maskBits": 1
+          }
+        },
+        {
+          "type": "CharacterController",
+          "data": {
+            "up": {
+              "x": 0,
+              "y": 1
+            },
+            "snapLength": 0,
             "maskBits": 1
           }
         }
       ]
     },
     {
-      "id": 310,
+      "id": 500,
       "name": "HealthBar_Back",
-      "parent": 31,
+      "parent": 50,
       "children": [],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Actors",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
               "x": 0,
-              "y": 66,
+              "y": 112,
               "z": 0
             }
           }
@@ -705,8 +575,8 @@
           "type": "Sprite",
           "data": {
             "size": {
-              "x": 76,
-              "y": 12
+              "x": 112,
+              "y": 14
             },
             "color": {
               "r": 0.078,
@@ -720,19 +590,19 @@
       ]
     },
     {
-      "id": 311,
+      "id": 501,
       "name": "HealthBar_Fill",
-      "parent": 31,
+      "parent": 50,
       "children": [],
-      "folder": "Actors",
       "visible": true,
+      "folder": "Actors",
       "components": [
         {
           "type": "Transform",
           "data": {
             "position": {
               "x": 0,
-              "y": 66,
+              "y": 112,
               "z": 1
             }
           }
@@ -741,8 +611,8 @@
           "type": "Sprite",
           "data": {
             "size": {
-              "x": 72,
-              "y": 8
+              "x": 108,
+              "y": 10
             },
             "color": {
               "r": 0.906,
@@ -756,65 +626,7 @@
         {
           "type": "HealthBarFill",
           "data": {
-            "width": 72
-          }
-        }
-      ]
-    },
-    {
-      "id": 90,
-      "name": "Area",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Area",
-          "data": {
-            "nameKey": "area.moonlit-gallery"
-          }
-        }
-      ]
-    },
-    {
-      "id": 41,
-      "name": "Gate_back",
-      "parent": null,
-      "children": [],
-      "folder": "Environment",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": -960,
-              "y": -32,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 72,
-              "y": 132
-            },
-            "color": {
-              "r": 0.545,
-              "g": 0.902,
-              "b": 0.918,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Gate",
-          "data": {
-            "toScene": "main",
-            "radius": 90
+            "width": 108
           }
         }
       ]

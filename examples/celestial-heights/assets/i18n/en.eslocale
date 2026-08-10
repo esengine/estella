@@ -12,6 +12,9 @@
     "item.ember": "Ember",
     "achievement.first-blood": "Unlocked — First Blood",
     "achievement.collector": "Unlocked — Collector",
-    "achievement.wayfarer": "Unlocked — Wayfarer"
+    "achievement.wayfarer": "Unlocked — Wayfarer",
+    "area.spire": "Spire of Vesper",
+    "boss.vesper": "Vesper of the Waning Moon",
+    "achievement.spire-cleared": "Unlocked — Starfall"
   }
 }
