@@ -122,6 +122,20 @@ for (const g of GOLDEN) {
       fail(`"${g.id}" claims texture-atlas with no atlas: no <name>.atlas/ folder and no \`atlases\` entry`);
     }
   }
+  // The fixture is only a guard while it is still there AND still odd-sized.
+  if (g.oddSizedKtx2) {
+    const abs = path.join(projectDir(g.id), g.oddSizedKtx2);
+    if (!existsSync(abs)) fail(`"${g.id}" names oddSizedKtx2 ${g.oddSizedKtx2}, which is not there`);
+    else {
+      // KTX2 header: 12-byte identifier, vkFormat, typeSize, then width, height.
+      const head = readFileSync(abs).subarray(0, 28);
+      const w = head.readUInt32LE(20);
+      const h = head.readUInt32LE(24);
+      if (w % 4 === 0 && h % 4 === 0) {
+        fail(`"${g.id}" names oddSizedKtx2 ${g.oddSizedKtx2}, but ${w}x${h} IS whole blocks — it guards nothing`);
+      }
+    }
+  }
   const sa = g.safeArea;
   if (sa) {
     if (!sa.entity || !sa.reference) fail(`"${g.id}" declares safeArea without both an entity and a reference`);

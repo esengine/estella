@@ -98,6 +98,18 @@ export const GOLDEN = [
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowRight'], frames: 40 },
+    // A KTX2 that is not whole 4x4 blocks, on purpose: WebGPU refuses one, and a
+    // single failed texture blanks the frame — so the desktop run guards
+    // ktx2_decode.cpp's fallback. The cook only encodes .png, so this passes through.
+    oddSizedKtx2: 'assets/textures/block-guard.ktx2',
+    // Two textured platforms and the sky behind them. Measured over three runs
+    // and stable to the byte; the falling player is NOT, which is why it is not
+    // here. A frame that lost its textures still spreads, and still fails these.
+    desktopPixels: [
+      { x: 0.30, y: 0.35, rgb: [121, 76, 32], tol: 12 },
+      { x: 0.70, y: 0.20, rgb: [121, 76, 32], tol: 12 },
+      { x: 0.10, y: 0.10, rgb: [208, 244, 247], tol: 12 },
+    ],
   },
   {
     id: 'space-shooter',
@@ -328,6 +340,16 @@ export function safeAreaFor(g) {
 export function atlasFor(g) {
   if (!g.atlas) return null;
   return { packed: g.atlas.packed };
+}
+
+/**
+ * Points a packaged NATIVE frame must contain, or null when the project names
+ * none. The host's own verdict only says something drew — a game that lost every
+ * texture and cleared to a gradient passes that, so what drew has to be asked
+ * for. `x`/`y` are fractions of the surface, `y` from the top.
+ */
+export function desktopPixels(g) {
+  return g?.desktopPixels ?? null;
 }
 
 /** Absolute path to a golden project's directory. */

@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
-import { atTier, projectDir } from './goldenProjects.mjs';
+import { atTier, projectDir, GOLDEN, desktopPixels } from './goldenProjects.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST_OS = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
@@ -44,6 +44,29 @@ function parseArgs(argv) {
         if (key && argv[i + 1] !== undefined) opts[key] = argv[i + 1];
     }
     return opts;
+}
+
+/**
+ * Points a packaged game must have drawn, read out of the raw capture — the
+ * host's verdict only answers "did anything draw".
+ *
+ * The capture is bottom-up and BGRA unless the host says RGBA (Shot.cpp logs
+ * which); `y` is measured from the TOP, as every other expectation here is.
+ */
+function probePixels(rawPath, verdict, output, points) {
+    const bytes = readFileSync(rawPath);
+    const { w, h } = { w: verdict.w, h: verdict.h };
+    if (bytes.length < w * h * 4) return [{ ok: false, why: `capture is ${bytes.length} bytes, ${w}x${h} needs ${w * h * 4}` }];
+    const bgra = !/shot: \d+x\d+ RGBA bottom-up/.test(output);
+    return points.map((pt) => {
+        const px = Math.min(w - 1, Math.max(0, Math.round(pt.x * (w - 1))));
+        const py = Math.min(h - 1, Math.max(0, Math.round(pt.y * (h - 1))));
+        const i = ((h - 1 - py) * w + px) * 4;
+        const got = bgra ? [bytes[i + 2], bytes[i + 1], bytes[i]] : [bytes[i], bytes[i + 1], bytes[i + 2]];
+        const tol = pt.tol ?? 30;
+        const ok = got.every((c, k) => Math.abs(c - pt.rgb[k]) <= tol);
+        return { ok, why: ok ? '' : `${pt.x}x${pt.y}: want [${pt.rgb}] ±${tol}, got [${got}]` };
+    });
 }
 
 /** The verdict line the host logs, parsed. Null when it never got that far. */
@@ -86,7 +109,17 @@ function packageAndRun(project, templateDir, work) {
         encoding: 'utf8',
         timeout: 120_000,
     });
-    return { verdict: verdictIn(`${run.stdout ?? ''}${run.stderr ?? ''}`), status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` };
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    return { verdict: verdictIn(output), status: run.status, output, raw: path.join(out, 'frame.raw') };
+}
+
+/** What a golden project says its packaged frame must contain, or null. */
+function desktopPixelsFor(id) {
+    try {
+        return desktopPixels(GOLDEN.find((g) => g.id === id));
+    } catch {
+        return null;
+    }
 }
 
 const opts = parseArgs(process.argv.slice(2));
@@ -148,7 +181,17 @@ try {
             console.error(`✗ ${label}: ran and drew nothing — ${JSON.stringify(verdict)}`);
             failed += 1;
         } else {
-            console.log(`✓ ${label}: ${verdict.w}x${verdict.h}, spread ${verdict.spread}`);
+            const points = desktopPixelsFor(label);
+            const probes = points ? probePixels(result.raw, verdict, result.output, points) : [];
+            const bad = probes.filter((r) => !r.ok);
+            if (bad.length > 0) {
+                console.error(`✗ ${label}: drew, but not what it declared`);
+                for (const b of bad) console.error(`    ${b.why}`);
+                failed += 1;
+            } else {
+                console.log(`✓ ${label}: ${verdict.w}x${verdict.h}, spread ${verdict.spread}`
+                    + (probes.length ? `, ${probes.length} point(s) as declared` : ''));
+            }
         }
     }
 } finally {
@@ -156,7 +199,7 @@ try {
 }
 
 if (failed > 0) {
-    console.error(`verify-desktop-render: ${failed} of ${projects.length} did not draw.`);
+    console.error(`verify-desktop-render: ${failed} of ${projects.length} did not draw what they declare.`);
     process.exit(1);
 }
 console.log(`verify-desktop-render: ${projects.length} packaged game(s) drew on ${HOST_OS}.`);
