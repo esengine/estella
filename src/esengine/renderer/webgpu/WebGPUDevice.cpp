@@ -329,6 +329,11 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
     return configureSwapchain(width, height);
 }
 
+/** Whether a surface format makes the hardware encode on write. */
+static bool isSrgbFormat(WGPUTextureFormat f) {
+    return f == WGPUTextureFormat_BGRA8UnormSrgb || f == WGPUTextureFormat_RGBA8UnormSrgb;
+}
+
 bool WebGPUDevice::surfaceBytesAreBGRA() const {
     return surface_format_ == WGPUTextureFormat_BGRA8Unorm
         || surface_format_ == WGPUTextureFormat_BGRA8UnormSrgb;
@@ -352,11 +357,21 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // BGRA8Unorm, while Vulkan happens to take RGBA8 — and configuring a format the
     // surface does not advertise leaves every getCurrentTexture in error rather
     // than failing here. So ask, and take the surface's preferred (first) format.
+    //
+    // Of the formats it advertises, take a NON-sRGB one: the engine hands the
+    // surface values that are already display-encoded (the shaders in gamma
+    // mode, the final blit in linear), so an *Srgb surface encodes them twice.
     if (adapter_) {
         WGPUSurfaceCapabilities caps{};
         if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) == WGPUStatus_Success
             && caps.formatCount > 0) {
             surface_format_ = caps.formats[0];
+            for (size_t i = 0; i < caps.formatCount; ++i) {
+                if (!isSrgbFormat(caps.formats[i])) {
+                    surface_format_ = caps.formats[i];
+                    break;
+                }
+            }
             wgpuSurfaceCapabilitiesFreeMembers(caps);
         }
     }

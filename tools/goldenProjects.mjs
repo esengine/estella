@@ -105,11 +105,8 @@ export const GOLDEN = [
     // Two textured platforms and the sky behind them. Measured over three runs
     // and stable to the byte; the falling player is NOT, which is why it is not
     // here. A frame that lost its textures still spreads, and still fails these.
-    //
-    // macOS only, and that is a FINDING: Linux reads an exact sRGB encode of
-    // these on all three points, because WebGPUDevice takes `caps.formats[0]`
-    // and so the surface's sRGB-ness is the driver's answer, not the engine's.
-    desktopPixelsHosts: ['macos'],
+    // Every desktop OS must read the same values: the swapchain's sRGB-ness is
+    // the engine's decision, not the driver's, and these are what says so.
     desktopPixels: [
       { x: 0.30, y: 0.35, rgb: [121, 76, 32], tol: 12 },
       { x: 0.70, y: 0.20, rgb: [121, 76, 32], tol: 12 },
