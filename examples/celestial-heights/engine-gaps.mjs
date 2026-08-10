@@ -31,4 +31,24 @@
  */
 
 /** @type {Array<{id: string, hurts: string, workaround: string, fix: string, issue?: string, allows?: string[]}>} */
-export const GAPS = [];
+export const GAPS = [
+  {
+    id: 'particles-simulate-but-do-not-draw',
+    hurts:
+      'Hits throw no sparks. The emitter is played, the particles exist and they age '
+      + 'out on schedule — read back from the running package, getAliveCount goes 64, 60, '
+      + '33, 9, 0 over about thirty frames — and not one pixel changes. Three captures '
+      + 'taken while they were alive differ by 0 in the box around the player.',
+    workaround:
+      'None available: the game does the correct thing and the frame does not show it, '
+      + 'so the slice currently ships without hit feedback.',
+    fix:
+      'Root-cause the draw. Already excluded by measurement: the burst config (a '
+      + 'continuous emitter placed on screen is equally invisible), the emitter position, '
+      + 'the sorting layer (particle-demo keeps drawing after the same sortingLayers and '
+      + 'ySortLayers are added to it), the blend mode, the layer index, and asset '
+      + 'packaging — the texture ships and the emitter reads back texture=1, enabled=true, '
+      + 'layer=2. What is left is what this project has and particle-demo does not: a '
+      + 'tilemap and physics. Bisect from particle-demo\'s scene, adding one at a time.',
+  },
+];

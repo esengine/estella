@@ -211,6 +211,69 @@
       ]
     },
     {
+      "id": 45,
+      "name": "SparkEmitter",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "texture": "@uuid:a036a9cb-e792-40bf-8f6f-9a31b65889a7",
+            "shape": 1,
+            "shapeRadius": 10,
+            "rate": 0,
+            "burstCount": 20,
+            "burstInterval": 0,
+            "duration": 0.06,
+            "looping": false,
+            "playOnStart": false,
+            "maxParticles": 64,
+            "lifetimeMin": 0.25,
+            "lifetimeMax": 0.5,
+            "speedMin": 190,
+            "speedMax": 380,
+            "startSizeMin": 12,
+            "startSizeMax": 20,
+            "endSizeMin": 0,
+            "endSizeMax": 3,
+            "startColor": {
+              "r": 1,
+              "g": 0.86,
+              "b": 0.62,
+              "a": 1
+            },
+            "endColor": {
+              "r": 0.98,
+              "g": 0.35,
+              "b": 0.42,
+              "a": 0
+            },
+            "gravity": {
+              "x": 0,
+              "y": -260
+            },
+            "damping": 1.6,
+            "layer": 4,
+            "blendMode": 1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
       "id": 20,
       "name": "Lyra_Player",
       "parent": null,

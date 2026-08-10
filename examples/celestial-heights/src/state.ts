@@ -15,4 +15,6 @@ export const session = {
     /** Item kind → how many Lyra is carrying. */
     inventory: {} as Record<string, number>,
     inventoryOpen: false,
+    /** Settings: whether hit sparks and other flourishes are drawn. */
+    effects: true,
 };

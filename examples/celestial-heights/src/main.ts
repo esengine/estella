@@ -19,6 +19,7 @@ import {
     pickupSystem, inventoryInputSystem, inventoryBuildSystem, inventorySyncSystem,
 } from './systems/inventory';
 import { achievementSystem, achievementToastSystem } from './systems/achievements';
+import { hitSparkSystem } from './systems/spark';
 import { perceiverFacingSystem } from './ai/wisp';
 
 // Perception, nav following, the behaviour-tree tick and scene switching are
@@ -43,7 +44,7 @@ addSystemSetToSchedule(Schedule.Update, defineSystemSet('gameplay', {
 // Damage resolves after everyone has decided to swing, and death after damage,
 // so a hit lands in the frame it was thrown rather than the next one.
 addSystemSetToSchedule(Schedule.PostUpdate, defineSystemSet('combat', {
-    systems: [meleeResolveSystem, damageSystem, deathSystem, invulnerabilitySystem],
+    systems: [meleeResolveSystem, damageSystem, deathSystem, invulnerabilitySystem, hitSparkSystem],
     runIf: () => !session.paused,
 }));
 
