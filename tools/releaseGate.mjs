@@ -54,6 +54,15 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'every-pixel-gate-runs',
+    says: 'every declared pixel gate has run, not just the ones CI happens to list',
+    // CI pays for the pr tier on each push. The rest — spine, video, particles,
+    // every material scene, text, ktx2 — was declared and run by nothing at all
+    // until the registry gave the whole set one runner.
+    answeredBy: 'node tools/verify-render.mjs --tier nightly',
+    needs: ['tools/renderScenes.mjs', 'tools/verify-render.mjs'],
+  },
+  {
     id: 'hot-update-lands-or-rolls-back',
     says: 'a shipped build takes an update from a CDN, and refuses a broken one whole',
     // The corpus can package hot-update-demo and launch it; neither says an
