@@ -26,11 +26,12 @@
  *   hurts      what the game was trying to do, and where it hurt
  *   workaround what the game does instead, for now
  *   fix        what the engine should do so the workaround can be deleted
+ *   repro      the smallest thing that shows it, when one has been found
  *   issue      tracker link, when there is one
  *   allows     import specifiers this gap permits outside the `esengine` surface
  */
 
-/** @type {Array<{id: string, hurts: string, workaround: string, fix: string, issue?: string, allows?: string[]}>} */
+/** @type {Array<{id: string, hurts: string, workaround: string, fix: string, repro?: string, issue?: string, allows?: string[]}>} */
 export const GAPS = [
   {
     id: 'particles-simulate-but-do-not-draw',
@@ -46,6 +47,13 @@ export const GAPS = [
     workaround:
       'None available: the game does the correct thing and the frame does not show it, '
       + 'so the slice currently ships without hit feedback.',
+    repro:
+      'Five entities, no game: a camera, a tilemap, an 84x150 Sprite on sorting layer 2 '
+      + 'at the origin, and a looping ParticleEmitter on layer 3 at the same point. '
+      + 'Warm particle pixels: 243 with the sprite moved to layer 0 (where the tilemap '
+      + 'hides it, so nothing is in the way), 45 with it on layer 2, and 13 with layer 2 '
+      + 'also listed in ySortLayers. A draw on layer 3 is losing to one on layer 2, and '
+      + 'y-sorting the lower layer makes it lose harder.',
     fix:
       'Find why a particle draw loses to a sprite on a LOWER layer. By the key it cannot: '
       + 'buildSortKey puts stage and layer above y, depth and blend, so layer 3 must draw '
