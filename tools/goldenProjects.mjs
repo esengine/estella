@@ -71,7 +71,6 @@ export const CAPABILITIES = [
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
@@ -140,10 +139,14 @@ export const GOLDEN = [
   },
   {
     id: 'hot-update-demo',
-    certifies: ['hot-update'],
+    certifies: ['hot-update', 'rollback'],
     targets: ['web', 'android'],
     tier: 'nightly',
     interactGap: 'swaps an asset on a timer; no input path',
+    // Packaging cannot see either claim: one needs a second build served as a
+    // CDN, the other a manifest that lies about its bytes. check-golden refuses
+    // a runBy that no release criterion schedules.
+    runBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
   },
   {
     id: 'multiplayer-arena',

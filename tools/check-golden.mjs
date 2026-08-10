@@ -18,12 +18,21 @@ import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, TIERS, TARGETS,
   atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
 } from './goldenProjects.mjs';
+import { CRITERIA } from './releaseGate.mjs';
 
 const problems = [];
 const fail = (msg) => problems.push(msg);
 
 /** Capabilities a packaged frame cannot show, and the declaration whose run reads them. */
-const NEEDS_RUN = { 'safe-area': 'safeArea', 'pause-resume': 'suspend' };
+const NEEDS_RUN = {
+  'safe-area': 'safeArea',
+  'pause-resume': 'suspend',
+  'hot-update': 'runBy',
+  rollback: 'runBy',
+};
+
+/** Commands a release is defined as running — what makes `runBy` more than a string. */
+const SCHEDULED = CRITERIA.map((c) => c.answeredBy ?? '').join('\n');
 
 // 1. Every golden id is a project that exists and declares a scene to open.
 const seen = new Set();
@@ -89,6 +98,11 @@ for (const g of GOLDEN) {
     if (block && !g[block]) {
       fail(`"${g.id}" certifies "${c}" but declares no ${block} — a claim only a run can settle needs that run`);
     }
+  }
+  // A command nobody schedules is the hole this whole file exists to refuse: the
+  // hot-update run existed for a year and no criterion or workflow ever ran it.
+  if (g.runBy && !SCHEDULED.includes(g.runBy)) {
+    fail(`"${g.id}" is settled by \`${g.runBy}\`, which no release criterion runs — add it to releaseGate.mjs`);
   }
   const sa = g.safeArea;
   if (sa) {

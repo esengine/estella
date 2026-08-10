@@ -54,6 +54,18 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'hot-update-lands-or-rolls-back',
+    says: 'a shipped build takes an update from a CDN, and refuses a broken one whole',
+    // The corpus can package hot-update-demo and launch it; neither says an
+    // update ever applied. This one serves a second build as the CDN, then two
+    // manifests that lie, and reads the pixel after each.
+    answeredBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
+    needs: [
+      'desktop/scripts/headless-hotupdate-verify.mjs',
+      'desktop/tests/hotupdate-verify-fixture.test.ts',
+    ],
+  },
+  {
     id: 'old-projects-open',
     says: 'projects released by older versions still open, with nothing dropped',
     answeredBy: 'node tools/verify-legacy.mjs --tier release',
