@@ -39,6 +39,7 @@ export function formatBinding(b: Binding): string {
             return [b.up, b.left, b.down, b.right].map(keyName).join('');
         }
         case 'stick': return b.stick === 'left' ? 'Left stick' : 'Right stick';
+        case 'virtual': return `On-screen ${b.id}`;
     }
 }
 
