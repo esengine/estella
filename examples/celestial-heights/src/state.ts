@@ -17,4 +17,11 @@ export const session = {
     inventoryOpen: false,
     /** Settings: whether hit sparks and other flourishes are drawn. */
     effects: true,
+    /** Seconds left of the fallen screen; > 0 means the run is over and waiting. */
+    fallenFor: 0,
 };
+
+/** Whether the world is being held still — by the player, or by her death. */
+export function frozen(): boolean {
+    return session.paused || session.fallenFor > 0;
+}

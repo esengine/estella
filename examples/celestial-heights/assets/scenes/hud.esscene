@@ -11,7 +11,8 @@
         51,
         60,
         70,
-        80
+        80,
+        84
       ],
       "visible": true,
       "components": [
@@ -716,6 +717,116 @@
         {
           "type": "BossMeter",
           "data": {}
+        }
+      ]
+    },
+    {
+      "id": 84,
+      "name": "FallenPanel",
+      "parent": 50,
+      "children": [
+        85
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 1,
+            "alignItems": 1,
+            "gap": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.039,
+              "g": 0.024,
+              "b": 0.063,
+              "a": 0.82
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "FallenOverlay",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 85,
+      "name": "FallenLabel",
+      "parent": 84,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 64,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "menu.fallen",
+            "fontSize": 56,
+            "bold": true,
+            "color": {
+              "r": 0.906,
+              "g": 0.353,
+              "b": 0.412,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
         }
       ]
     }

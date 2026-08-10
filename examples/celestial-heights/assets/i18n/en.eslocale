@@ -15,6 +15,7 @@
     "achievement.wayfarer": "Unlocked — Wayfarer",
     "area.spire": "Spire of Vesper",
     "boss.vesper": "Vesper of the Waning Moon",
-    "achievement.spire-cleared": "Unlocked — Starfall"
+    "achievement.spire-cleared": "Unlocked — Starfall",
+    "menu.fallen": "Fallen"
   }
 }

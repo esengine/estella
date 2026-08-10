@@ -4,7 +4,7 @@ import {
 
 import './components';
 import './actions';
-import { session } from './state';
+import { frozen } from './state';
 import { playerMoveSystem, playerAttackSystem } from './systems/player';
 import {
     meleeResolveSystem, damageSystem, invulnerabilitySystem, deathSystem,
@@ -17,6 +17,7 @@ import {
     cameraBindSystem, navFromTerrainSystem, gateSystem, hudSystem, areaLabelSystem,
 } from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
+import { fallenSystem, fallenOverlaySystem } from './systems/fallen';
 import { applySettingsSystem, cycleLanguageSystem } from './systems/settings';
 import {
     saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem,
@@ -52,25 +53,27 @@ addSystemSetToSchedule(Schedule.Update, defineSystemSet('gameplay', {
         playerMoveSystem, playerAttackSystem, perceiverFacingSystem, gateSystem, pickupSystem,
         bossPhaseSystem, summonSystem, chargeSystem,
     ],
-    runIf: () => !session.paused,
+    runIf: () => !frozen(),
 }));
 
 // Damage resolves after everyone has decided to swing, and death after damage,
 // so a hit lands in the frame it was thrown rather than the next one.
 addSystemSetToSchedule(Schedule.PostUpdate, defineSystemSet('combat', {
     systems: [meleeResolveSystem, damageSystem, deathSystem, invulnerabilitySystem, hitSparkSystem],
-    runIf: () => !session.paused,
+    runIf: () => !frozen(),
 }));
 
 // The pause itself and everything that reports state keep running: one has to be
 // able to lift the pause, the rest have to be able to show it.
 addSystemToSchedule(Schedule.Update, pauseInputSystem);
+addSystemToSchedule(Schedule.Update, fallenSystem);
 addSystemToSchedule(Schedule.Update, pauseTimeSystem);
 addSystemToSchedule(Schedule.Update, cycleLanguageSystem);
 addSystemToSchedule(Schedule.Update, saveRunSystem);
 addSystemToSchedule(Schedule.Update, loadRunSystem);
 addSystemToSchedule(Schedule.Update, inventoryInputSystem);
 addSystemToSchedule(Schedule.PostUpdate, pauseOverlaySystem);
+addSystemToSchedule(Schedule.PostUpdate, fallenOverlaySystem);
 addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
 addSystemToSchedule(Schedule.PostUpdate, bossMeterSystem);

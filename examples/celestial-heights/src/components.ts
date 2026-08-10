@@ -82,6 +82,9 @@ export const VitalityMeter = defineTag('VitalityMeter');
 /** The panel shown while the game is paused. */
 export const PauseOverlay = defineTag('PauseOverlay');
 
+/** The screen shown for the couple of seconds a run takes to end and restart. */
+export const FallenOverlay = defineTag('FallenOverlay');
+
 /** The HUD's boss bar: shown only while there is a boss to report on. */
 export const BossPanel = defineTag('BossPanel');
 
