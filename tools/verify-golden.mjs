@@ -199,10 +199,17 @@ for (const { id, target } of pairs) {
       touch: true,
     });
   }
+  if (input.pad) {
+    gestures.push({
+      what: 'a gamepad',
+      spec: { pad: input.pad, frames: input.frames },
+      touch: false,
+    });
+  }
 
   let allAnswered = true;
   for (const gesture of gestures) {
-    const drivenPng = path.join(WORK, `${id}-${target}-driven-${gesture.touch ? 'touch' : 'keys'}.png`);
+    const drivenPng = path.join(WORK, `${id}-${target}-driven-${gesture.what.replace(/\W+/g, '-')}.png`);
     const drive = spawnSync('npx', [
       'electron', path.join('scripts', LAUNCHER(target)),
       '--dir', out, '--out', drivenPng,

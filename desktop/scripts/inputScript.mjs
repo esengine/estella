@@ -22,6 +22,10 @@
  * a frame range. A playthrough is a sequence, not a posture: "walk there, turn
  * round, hit it" cannot be said by keys all pressed at frame zero.
  *
+ * `pad` is a gamepad the harness holds: the engine polls navigator.getGamepads,
+ * so standing one up there drives its real polling path rather than poking its
+ * state. Each entry sets axes/buttons over a frame range.
+ *
  * `touches` are real TouchEvents — what a phone sends and what the web platform
  * binds; a mouse pointer proves nothing about playing with a thumb. Each presses
  * at (x, y) and optionally drags to (toX, toY) over its frame range, in
@@ -33,6 +37,14 @@ export function inputScript(spec) {
   const frames = Number(spec.frames ?? 40);
   const taps = JSON.stringify(
     (spec.taps ?? []).map((t) => ({ key: String(t.key), at: Number(t.at) || 0 })),
+  );
+  const pad = JSON.stringify(
+    (spec.pad ?? []).map((p) => ({
+      from: Number(p.from) || 0,
+      to: Number(p.to ?? frames),
+      axes: p.axes ?? {},
+      buttons: p.buttons ?? {},
+    })),
   );
   const touches = JSON.stringify(
     (spec.touches ?? []).map((t, i) => ({
@@ -119,12 +131,35 @@ export function inputScript(spec) {
       const taps = ${taps};
       const holds = ${holds};
       const touches = ${touches};
+      const padSpec = ${pad};
+      let padState = null;
+      if (padSpec.length) {
+        padState = {
+          index: 0, id: 'harness pad', connected: true, mapping: 'standard', timestamp: 0,
+          buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+          axes: [0, 0, 0, 0],
+        };
+        Object.defineProperty(navigator, 'getGamepads', {
+          value: () => [padState], configurable: true, writable: true,
+        });
+      }
       const live = [];
       const down = new Set();
       for (let i = 0; i < ${frames}; i++) {
         for (const h of holds) {
           if (h.from === i) { fireKey('keydown', h.key); down.add(h.key); }
           if (h.to === i && down.has(h.key)) { fireKey('keyup', h.key); down.delete(h.key); }
+        }
+        if (padState) {
+          for (const p of padSpec) {
+            const on = i >= p.from && i < p.to;
+            for (const k of Object.keys(p.axes)) padState.axes[+k] = on ? p.axes[k] : 0;
+            for (const k of Object.keys(p.buttons)) {
+              const v = on ? p.buttons[k] : 0;
+              padState.buttons[+k] = { pressed: v > 0.5, touched: v > 0, value: v };
+            }
+          }
+          padState.timestamp = i;
         }
         for (const t of touches) {
           if (i === t.from) {
@@ -158,7 +193,8 @@ export function inputScript(spec) {
       for (const k of down) fireKey('keyup', k);
       for (const k of keys) fireKey('keyup', k);
       await raf();
-      return keys.length + taps.length + holds.length + touches.length + (pointer ? 1 : 0);
+      return keys.length + taps.length + holds.length + touches.length + padSpec.length
+        + (pointer ? 1 : 0);
     })()
   `;
 }

@@ -77,7 +77,6 @@ export const KNOWN_GAPS = {
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
-  controller: 'input-actions binds a gamepad, but no golden run drives one — Celestial Heights P5',
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
@@ -171,7 +170,7 @@ export const GOLDEN = [
     certifies: [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
-      'persistence', 'ui-inventory', 'achievements', 'touch',
+      'persistence', 'ui-inventory', 'achievements', 'touch', 'controller',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this
@@ -185,6 +184,9 @@ export const GOLDEN = [
       frames: 60,
       responds: 0.55,
       touches: [{ from: 4, to: 58, x: 0.13, y: 0.78, toX: 0.30, toY: 0.78 }],
+      // Left stick east. The map binds it beside WASD, and nothing but a run
+      // that holds a pad proves the binding is more than a line of code.
+      pad: [{ from: 2, to: 58, axes: { 0: 1 } }],
     },
   },
   {
@@ -261,6 +263,7 @@ export function interactFor(g) {
     keys: g.interact.keys ?? [],
     pointer: g.interact.pointer ?? null,
     touches: g.interact.touches ?? null,
+    pad: g.interact.pad ?? null,
     frames: g.interact.frames ?? 40,
     responds: g.interact.responds ?? DEFAULT_RESPONDS,
   };
