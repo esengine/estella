@@ -17,8 +17,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -864,
-              "y": -32,
+              "x": -1568,
+              "y": 32,
               "z": 0
             }
           }
@@ -45,10 +45,10 @@
         {
           "type": "CameraBounds",
           "data": {
-            "minX": -1024,
-            "minY": -640,
-            "maxX": 1024,
-            "maxY": 640
+            "minX": -1920,
+            "minY": -1280,
+            "maxX": 1920,
+            "maxY": 1280
           }
         }
       ]
@@ -65,8 +65,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -1024,
-              "y": 640,
+              "x": -1920,
+              "y": 1280,
               "z": 0
             }
           }
@@ -87,136 +87,7 @@
               5,
               6
             ],
-            "chunks": "RVNUTQQAAAAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABAAEAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEAAQABgACAAIAAgACAAYABgACAAIAAgACAAYABgACAAIAAgAGAAIAAgACAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAYAAgACAAIAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMABgADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAYABgACAAIAAgACAAYABgACAAIAAgAGAAIAAgACAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAYAAgACAAIAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAQAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABAAEAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAEAAQAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAYAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAgACAAIABgACAAYABgACAAIAAgACAAYABgACAAIAAgACAAIAAgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwAGAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAIABgAGAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAYAAgAGAAYAAgACAAIAAgAGAAYAAgACAAIAAgACAAIABgACAAYABgACAAIAAgACAAYABgACAAIAAgACAAIAAgAGAAAAAAABAAAABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAQABAAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABAAEAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAQABAACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABAAEAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-          }
-        }
-      ]
-    },
-    {
-      "id": 40,
-      "name": "Gate",
-      "parent": null,
-      "children": [],
-      "folder": "Environment",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 928,
-              "y": -32,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 72,
-              "y": 132
-            },
-            "color": {
-              "r": 0.545,
-              "g": 0.902,
-              "b": 0.918,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Gate",
-          "data": {
-            "toScene": "spire",
-            "radius": 90,
-            "requires": "shard",
-            "requiresCount": 3
-          }
-        }
-      ]
-    },
-    {
-      "id": 80,
-      "name": "Pickup_shard_5",
-      "parent": null,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": -416,
-              "y": -32,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 44,
-              "y": 44
-            },
-            "color": {
-              "r": 0.545,
-              "g": 0.902,
-              "b": 0.918,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Item",
-          "data": {
-            "kind": "shard"
-          }
-        }
-      ]
-    },
-    {
-      "id": 81,
-      "name": "Pickup_ember_6",
-      "parent": null,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 288,
-              "y": -32,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 44,
-              "y": 44
-            },
-            "color": {
-              "r": 0.976,
-              "g": 0.706,
-              "b": 0.376,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Item",
-          "data": {
-            "kind": "ember"
+            "chunks": "RVNUTQwAAAAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAQAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAEAAgACAAIAAgACAAIAAgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIABgAGAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgAGAAYAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAEAAgACAAIAAgACAAYABgAGAAIAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgAGAAYAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAYABgABAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAIABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYAAgADAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAACAAIAAgACAAIAAgACAAIAAgACAAYABgAAAAAAAAAAAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAAAAAAAAAAAAAAAAAEAAAAGAAYAAgACAAEAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAEAAgACAAIAAgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAEAAAABAAAABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAMAAwADAAMAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgADAAMAAwADAAMAAwADAAMAAwADAAMAAgACAAIAAgACAAMAAwADAAMAAwADAAMAAwADAAMAAwACAAIAAgACAAIAAwADAAMAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgADAAMAAwADAAMAAwADAAMAAwADAAMABgAGAAYABgADAAMAAwADAAMAAwADAAMAAwADAAMAAwAGAAYABgAGAAIAAgACAAIAAgABAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAEAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYABgAGAAYAAgACAAIAAQACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgAGAAYAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAYABgACAAYABgAGAAYABgAGAAYAAQACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgACAAAAAQAAAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAIAAQADAAMAAwADAAMAAwADAAMAAwADAAMABgAGAAYAAgADAAMAAwADAAMAAwADAAMAAwADAAMAAgACAAIAAgABAAMAAwADAAMAAwADAAMAAwADAAMAAwACAAIAAgACAAIAAwADAAMAAwADAAMAAwADAAMAAwADAAIAAgACAAIAAgADAAMAAwADAAMAAwADAAMAAwABAAMAAgACAAIAAgACAAMAAwADAAMAAQADAAMAAwADAAMAAwADAAYABgAGAAIABgAGAAYAAgABAAIAAgACAAIAAgACAAIABgAGAAYAAgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgACAAYABgAGAAIAAgABAAIAAgACAAIAAgACAAYABgAGAAIABgAGAAYAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAYABgACAAYABgAGAAYABgAGAAYAAgACAAIAAgACAAIABgAGAAIABgAGAAYABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAYABgAGAAIAAgACAAIAAgACAAIAAQACAAYABgAGAAYAAwAAAAEAAAACAAIAAgACAAIAAgACAAIAAgACAAYABgAAAAAAAAAAAAIAAgAGAAYAAgACAAIAAgACAAIABgAGAAAAAAAAAAAAAgABAAYABgACAAIAAgACAAIAAgAGAAYAAAAAAAAAAAACAAIAAgACAAIAAgACAAIAAgACAAYABgAAAAAAAAAAAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAAAAAAAAAAAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAAAAAAAAAAACAAIAAgACAAIAAgAGAAYAAgACAAYABgAAAAAAAAAAAAIAAgACAAIAAgACAAIABgACAAIABgAGAAAAAAAAAAAAAgACAAIAAgACAAIAAgACAAIAAgAGAAYAAAAAAAAAAAABAAIAAgACAAIAAgACAAIAAgACAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAAAAAACAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAgAAAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAIAAAACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAYABgAGAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYABgAGAAYAAgACAAIAAgACAAIAAgACAAIAAgACAAIABgAGAAYABgACAAIAAgACAAIAAgACAAEAAgACAAIAAgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAACAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAYABgAGAAYABgAGAAYABgAGAAYABgAGAAAAAAAAAAAABgAGAAYABgAGAAYABgAGAAYABgAGAAYAAAAAAAAAAAAGAAYABgAGAAYABgAGAAYABgAGAAYABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
           }
         }
       ]
@@ -285,6 +156,21 @@
       ]
     },
     {
+      "id": 90,
+      "name": "Area",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Area",
+          "data": {
+            "nameKey": "area.moonlit-gallery"
+          }
+        }
+      ]
+    },
+    {
       "id": 20,
       "name": "Lyra_Player",
       "parent": null,
@@ -296,8 +182,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -864,
-              "y": -32,
+              "x": -1568,
+              "y": 32,
               "z": 0
             }
           }
@@ -388,399 +274,8 @@
       ]
     },
     {
-      "id": 30,
-      "name": "Wisp_30",
-      "parent": null,
-      "children": [
-        300,
-        301
-      ],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 32,
-              "y": 224,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 64,
-              "y": 96
-            },
-            "color": {
-              "r": 0.412,
-              "g": 0.812,
-              "b": 0.902,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Enemy",
-          "data": {}
-        },
-        {
-          "type": "Facing",
-          "data": {
-            "x": -1,
-            "y": 0
-          }
-        },
-        {
-          "type": "Health",
-          "data": {
-            "current": 60,
-            "max": 60,
-            "invulnerability": 0.2,
-            "invulnerable": 0
-          }
-        },
-        {
-          "type": "MeleeAttack",
-          "data": {
-            "damage": 12,
-            "reach": 76,
-            "arcDegrees": 160,
-            "cooldown": 1.1,
-            "cooldownLeft": 0,
-            "pending": false,
-            "hits": 2
-          }
-        },
-        {
-          "type": "Perceiver",
-          "data": {
-            "range": 400,
-            "fovDegrees": 360
-          }
-        },
-        {
-          "type": "NavAgent",
-          "data": {
-            "speed": 160,
-            "arriveRadius": 48,
-            "repathInterval": 0.4
-          }
-        },
-        {
-          "type": "BehaviorTreeAgent",
-          "data": {
-            "bt": "assets/ai/wisp.esbt"
-          }
-        },
-        {
-          "type": "RigidBody",
-          "data": {
-            "bodyType": 1
-          }
-        },
-        {
-          "type": "CircleCollider",
-          "data": {
-            "radius": 0.26,
-            "offset": {
-              "x": 0,
-              "y": -0.3
-            },
-            "categoryBits": 4,
-            "maskBits": 1
-          }
-        }
-      ]
-    },
-    {
-      "id": 300,
-      "name": "HealthBar_Back",
-      "parent": 30,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 76,
-              "y": 12
-            },
-            "color": {
-              "r": 0.078,
-              "g": 0.067,
-              "b": 0.125,
-              "a": 1
-            },
-            "layer": 3
-          }
-        }
-      ]
-    },
-    {
-      "id": 301,
-      "name": "HealthBar_Fill",
-      "parent": 30,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 1
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 72,
-              "y": 8
-            },
-            "color": {
-              "r": 0.906,
-              "g": 0.353,
-              "b": 0.412,
-              "a": 1
-            },
-            "layer": 3
-          }
-        },
-        {
-          "type": "HealthBarFill",
-          "data": {
-            "width": 72
-          }
-        }
-      ]
-    },
-    {
-      "id": 31,
-      "name": "Wisp_31",
-      "parent": null,
-      "children": [
-        310,
-        311
-      ],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 416,
-              "y": -224,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 64,
-              "y": 96
-            },
-            "color": {
-              "r": 0.522,
-              "g": 0.729,
-              "b": 0.976,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Enemy",
-          "data": {}
-        },
-        {
-          "type": "Facing",
-          "data": {
-            "x": -1,
-            "y": 0
-          }
-        },
-        {
-          "type": "Health",
-          "data": {
-            "current": 60,
-            "max": 60,
-            "invulnerability": 0.2,
-            "invulnerable": 0
-          }
-        },
-        {
-          "type": "MeleeAttack",
-          "data": {
-            "damage": 12,
-            "reach": 76,
-            "arcDegrees": 160,
-            "cooldown": 1.3,
-            "cooldownLeft": 0,
-            "pending": false,
-            "hits": 2
-          }
-        },
-        {
-          "type": "Perceiver",
-          "data": {
-            "range": 360,
-            "fovDegrees": 360
-          }
-        },
-        {
-          "type": "NavAgent",
-          "data": {
-            "speed": 140,
-            "arriveRadius": 48,
-            "repathInterval": 0.4
-          }
-        },
-        {
-          "type": "BehaviorTreeAgent",
-          "data": {
-            "bt": "assets/ai/wisp.esbt"
-          }
-        },
-        {
-          "type": "RigidBody",
-          "data": {
-            "bodyType": 1
-          }
-        },
-        {
-          "type": "CircleCollider",
-          "data": {
-            "radius": 0.26,
-            "offset": {
-              "x": 0,
-              "y": -0.3
-            },
-            "categoryBits": 4,
-            "maskBits": 1
-          }
-        }
-      ]
-    },
-    {
-      "id": 310,
-      "name": "HealthBar_Back",
-      "parent": 31,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 76,
-              "y": 12
-            },
-            "color": {
-              "r": 0.078,
-              "g": 0.067,
-              "b": 0.125,
-              "a": 1
-            },
-            "layer": 3
-          }
-        }
-      ]
-    },
-    {
-      "id": 311,
-      "name": "HealthBar_Fill",
-      "parent": 31,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 66,
-              "z": 1
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 72,
-              "y": 8
-            },
-            "color": {
-              "r": 0.906,
-              "g": 0.353,
-              "b": 0.412,
-              "a": 1
-            },
-            "layer": 3
-          }
-        },
-        {
-          "type": "HealthBarFill",
-          "data": {
-            "width": 72
-          }
-        }
-      ]
-    },
-    {
-      "id": 90,
-      "name": "Area",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Area",
-          "data": {
-            "nameKey": "area.moonlit-gallery"
-          }
-        }
-      ]
-    },
-    {
-      "id": 41,
-      "name": "Gate_back",
+      "id": 40,
+      "name": "Gate",
       "parent": null,
       "children": [],
       "folder": "Environment",
@@ -790,8 +285,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -960,
-              "y": -32,
+              "x": 1696,
+              "y": 32,
               "z": 0
             }
           }
@@ -815,18 +310,202 @@
         {
           "type": "Gate",
           "data": {
-            "toScene": "main",
-            "radius": 90
+            "toScene": "spire",
+            "radius": 90,
+            "requires": "shard",
+            "requiresCount": 4
           }
         }
       ]
     },
     {
       "id": 600,
-      "name": "Spawner_8_2",
+      "name": "Spawner_24_8",
       "parent": null,
       "children": [],
       "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -352,
+              "y": 736,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 170
+          }
+        }
+      ]
+    },
+    {
+      "id": 601,
+      "name": "Spawner_39_8",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 608,
+              "y": 736,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 170
+          }
+        }
+      ]
+    },
+    {
+      "id": 602,
+      "name": "Spawner_24_30",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -352,
+              "y": -672,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 170
+          }
+        }
+      ]
+    },
+    {
+      "id": 603,
+      "name": "Spawner_39_30",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 608,
+              "y": -672,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 170
+          }
+        }
+      ]
+    },
+    {
+      "id": 604,
+      "name": "Spawner_51_20",
+      "parent": null,
+      "children": [],
+      "folder": "Actors",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1376,
+              "y": -32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spawner",
+          "data": {
+            "prefab": "assets/prefabs/wisp.esprefab",
+            "count": 2,
+            "radius": 170
+          }
+        }
+      ]
+    },
+    {
+      "id": 605,
+      "name": "Drop_shard_16_19",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -864,
+              "y": 32,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 606,
+      "name": "Drop_shard_22_5",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
       "visible": true,
       "components": [
         {
@@ -834,91 +513,7 @@
           "data": {
             "position": {
               "x": -480,
-              "y": 480,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Spawner",
-          "data": {
-            "prefab": "assets/prefabs/wisp.esprefab",
-            "count": 2,
-            "radius": 180
-          }
-        }
-      ]
-    },
-    {
-      "id": 601,
-      "name": "Spawner_24_7",
-      "parent": null,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 544,
-              "y": 160,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Spawner",
-          "data": {
-            "prefab": "assets/prefabs/wisp.esprefab",
-            "count": 2,
-            "radius": 180
-          }
-        }
-      ]
-    },
-    {
-      "id": 602,
-      "name": "Spawner_16_12",
-      "parent": null,
-      "children": [],
-      "folder": "Actors",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 32,
-              "y": -160,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Spawner",
-          "data": {
-            "prefab": "assets/prefabs/wisp.esprefab",
-            "count": 2,
-            "radius": 180
-          }
-        }
-      ]
-    },
-    {
-      "id": 603,
-      "name": "Drop_shard_6_12",
-      "parent": null,
-      "children": [],
-      "folder": "Environment",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": -608,
-              "y": -160,
+              "y": 928,
               "z": 0
             }
           }
@@ -948,8 +543,8 @@
       ]
     },
     {
-      "id": 604,
-      "name": "Drop_shard_26_2",
+      "id": 607,
+      "name": "Drop_petal_41_5",
       "parent": null,
       "children": [],
       "folder": "Environment",
@@ -959,50 +554,8 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": 672,
-              "y": 480,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 44,
-              "y": 44
-            },
-            "color": {
-              "r": 0.545,
-              "g": 0.902,
-              "b": 0.918,
-              "a": 1
-            },
-            "layer": 2
-          }
-        },
-        {
-          "type": "Item",
-          "data": {
-            "kind": "shard"
-          }
-        }
-      ]
-    },
-    {
-      "id": 605,
-      "name": "Drop_petal_12_7",
-      "parent": null,
-      "children": [],
-      "folder": "Environment",
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": -224,
-              "y": 160,
+              "x": 736,
+              "y": 928,
               "z": 0
             }
           }
@@ -1032,8 +585,8 @@
       ]
     },
     {
-      "id": 606,
-      "name": "Drop_ember_28_17",
+      "id": 608,
+      "name": "Drop_shard_22_34",
       "parent": null,
       "children": [],
       "folder": "Environment",
@@ -1043,8 +596,92 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": 800,
-              "y": -480,
+              "x": -480,
+              "y": -928,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 609,
+      "name": "Drop_shard_41_34",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 736,
+              "y": -928,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
+          }
+        }
+      ]
+    },
+    {
+      "id": 610,
+      "name": "Drop_ember_30_19",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 32,
+              "y": 32,
               "z": 0
             }
           }
@@ -1069,6 +706,48 @@
           "type": "Item",
           "data": {
             "kind": "ember"
+          }
+        }
+      ]
+    },
+    {
+      "id": 611,
+      "name": "Drop_shard_53_24",
+      "parent": null,
+      "children": [],
+      "folder": "Environment",
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1504,
+              "y": -288,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 44,
+              "y": 44
+            },
+            "color": {
+              "r": 0.545,
+              "g": 0.902,
+              "b": 0.918,
+              "a": 1
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Item",
+          "data": {
+            "kind": "shard"
           }
         }
       ]
