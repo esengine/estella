@@ -120,6 +120,14 @@ const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
 
 /** PNG width/height from the IHDR (big-endian u32 at byte offsets 16 / 20) —
  *  a header peek, so the `maxSize` cap can skip decoding textures already in range. */
+function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
+  try {
+    return pngDimensions(png);
+  } catch {
+    return null;
+  }
+}
+
 function pngDimensions(png: Uint8Array): { width: number; height: number } {
   const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
   return { width: dv.getUint32(16), height: dv.getUint32(20) };
@@ -491,7 +499,16 @@ export async function cookAssets(
         // Per-asset compression: KTX2 (Basis) in the texture's chosen format, or
         // ship the raw/shrunk PNG when the asset opted out. Hash + name below
         // reflect the ENCODED bytes, so this composes with content-addressing.
-        if (tex.compress) {
+        // WebGPU refuses a compressed texture whose size is not a multiple of its
+        // 4x4 block, so a 70x70 sprite fails CreateTexture on the native runtime
+        // and the game draws nothing. Ship those raw instead.
+        const size = rgba ? { width: tw, height: th } : safePngDimensions(data);
+        const blockAligned = size !== null && size.width % 4 === 0 && size.height % 4 === 0;
+        if (tex.compress && !blockAligned) {
+          warnings.push(`${entry.path}: shipped raw — ${size ? `${size.width}x${size.height}` : 'its size'} `
+            + 'is not a multiple of 4, which a block-compressed texture must be');
+        }
+        if (tex.compress && blockAligned) {
           data = rgba
             ? await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: tex.format, srgb: tex.srgb })
             : await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.PNG, data }, { mode: tex.format, srgb: tex.srgb });
