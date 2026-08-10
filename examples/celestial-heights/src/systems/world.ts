@@ -3,6 +3,7 @@ import {
     Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly, Text, Sprite, Prefabs,
     Nav, navGridFromTilemapLayer, SceneManager, transitionTo,
 } from 'esengine';
+import type { NavGrid } from 'esengine';
 import { Area, AreaLabel, Player, Gate, NavGridBuilt, Spawner, Spawned } from '../components';
 import { session } from '../state';
 
@@ -140,8 +141,13 @@ export const gateLookSystem = defineSystem(
  * boss's reinforcements cannot describe different creatures.
  */
 export const spawnerSystem = defineSystem(
-    [Query(Transform, Spawner).without(Spawned), Res(Prefabs), Commands()],
-    (spawners, prefabs, commands) => {
+    [Query(Transform, Spawner).without(Spawned), Res(Prefabs), Res(Nav), Commands()],
+    (spawners, prefabs, nav, commands) => {
+        // Nothing may be placed before the terrain has said where the ground is:
+        // the grid is derived from the tilemap by a system that runs just ahead
+        // of this one, but not on the frame the area arrives.
+        if (!nav.hasGrid()) return;
+        const grid = nav.grid;
         for (const [entity, transform, spawner] of spawners) {
             commands.entity(entity).insert(Spawned, {}).insert(RuntimeOnly, {});
             if (!spawner.prefab) continue;
@@ -149,16 +155,16 @@ export const spawnerSystem = defineSystem(
                 // A ring, foreshortened like everything else on this plane, so a
                 // marker reads as a group holding a place rather than a stack.
                 const angle = (Math.PI * 2 * i) / spawner.count + entity * 0.37;
+                const at = standable(grid, {
+                    x: transform.position.x + Math.cos(angle) * spawner.radius,
+                    y: transform.position.y + Math.sin(angle) * spawner.radius * 0.6,
+                });
                 void prefabs.instantiate(spawner.prefab, {
                     overrides: [{
                         type: 'property',
                         componentType: 'Transform',
                         propertyName: 'position',
-                        value: {
-                            x: transform.position.x + Math.cos(angle) * spawner.radius,
-                            y: transform.position.y + Math.sin(angle) * spawner.radius * 0.6,
-                            z: 0,
-                        },
+                        value: { x: at.x, y: at.y, z: 0 },
                     }],
                 });
             }
@@ -166,3 +172,16 @@ export const spawnerSystem = defineSystem(
     },
     { name: 'SpawnerSystem' },
 );
+
+/**
+ * The nearest place on the ring that is actually ground. A body dropped inside
+ * a pillar is not merely stuck: line of sight is a raycast, so it never sees
+ * the player, never chases and never swings — an enemy that is scenery.
+ */
+function standable(grid: NavGrid | null, at: { x: number; y: number }): { x: number; y: number } {
+    if (!grid) return at;
+    const cell = grid.worldToCell(at.x, at.y);
+    if (grid.isWalkable(cell.x, cell.y)) return at;
+    const near = grid.nearestWalkable(cell.x, cell.y, 6);
+    return near ? grid.cellToWorld(near.x, near.y) : at;
+}

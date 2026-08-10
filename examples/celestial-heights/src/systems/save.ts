@@ -78,6 +78,35 @@ export const applyRestoreSystem = defineSystem(
     { name: 'ApplyRestoreSystem' },
 );
 
+/**
+ * Carries Lyra's health across a gate. Each area authors its own Lyra at full
+ * health, so what she walked in with has to be remembered by the run rather
+ * than by the entity — the same reason the pack lives in `session`.
+ */
+let lastArea = '';
+
+export const vitalitySystem = defineSystem(
+    [Query(Mut(Health), Player), Res(SceneManager)],
+    (players, scenes) => {
+        const area = scenes.getActive();
+        if (!area || scenes.isTransitioning()) return;
+        for (const [, health] of players) {
+            if (area !== lastArea) {
+                lastArea = area;
+                // Not on a restore — that owns the health it is about to write —
+                // and not on nothing, which is what a death left behind: coming
+                // back from one is the one arrival that should be at full.
+                if (!session.restore && session.vitality !== null && session.vitality > 0) {
+                    health.current = Math.min(session.vitality, health.max);
+                }
+            }
+            session.vitality = health.current;
+            return;
+        }
+    },
+    { name: 'VitalitySystem' },
+);
+
 /** Records the enemies an area was authored with, so a save can say what is gone. */
 export const rememberRosterSystem = defineSystem(
     [Query(Name, Enemy), Res(SceneManager)],

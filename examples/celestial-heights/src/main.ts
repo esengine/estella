@@ -21,7 +21,7 @@ import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems
 import { fallenSystem, fallenOverlaySystem } from './systems/fallen';
 import { applySettingsSystem, cycleLanguageSystem } from './systems/settings';
 import {
-    saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem,
+    saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem, vitalitySystem,
 } from './systems/save';
 import {
     pickupSystem, inventoryInputSystem, inventoryBuildSystem, inventorySyncSystem,
@@ -46,6 +46,7 @@ addSystemToSchedule(Schedule.PreUpdate, areaLabelSystem);
 addSystemToSchedule(Schedule.PreUpdate, spawnerSystem);
 addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);
 addSystemToSchedule(Schedule.PreUpdate, applyRestoreSystem);
+addSystemToSchedule(Schedule.PreUpdate, vitalitySystem);
 addSystemToSchedule(Schedule.PreUpdate, inventoryBuildSystem);
 
 // Everything the pause freezes says so once, as a set with one run condition,

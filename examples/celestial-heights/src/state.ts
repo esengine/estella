@@ -19,6 +19,13 @@ export const session = {
     effects: true,
     /** Seconds left of the fallen screen; > 0 means the run is over and waiting. */
     fallenFor: 0,
+    /**
+     * Lyra's health, carried between areas. Each area authors its own Lyra, so
+     * without this a gate is a full heal — which is not a door, it is a rest
+     * stop, and it flattens everything the areas were trying to build up.
+     * `null` until the first area has been played.
+     */
+    vitality: null as number | null,
 };
 
 /** Whether the world is being held still — by the player, or by her death. */
