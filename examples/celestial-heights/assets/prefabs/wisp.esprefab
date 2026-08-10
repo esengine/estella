@@ -83,7 +83,8 @@
                     "data": {
                         "speed": 165,
                         "arriveRadius": 48,
-                        "repathInterval": 0.4
+                        "repathInterval": 0.4,
+                        "radius": 26
                     }
                 },
                 {

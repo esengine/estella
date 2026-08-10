@@ -4546,11 +4546,12 @@ targetY: number
 ```
 cellSize: number
 cellToWorld: (gx: number, gy: number) => Vec2
+clearanceAt: (gx: number, gy: number) => number
 height: number
 inBounds: (gx: number, gy: number) => boolean
 index: (gx: number, gy: number) => number
 isWalkable: (gx: number, gy: number) => boolean
-nearestWalkable: (gx: number, gy: number, maxRadius?: number) => Cell | null
+nearestWalkable: (gx: number, gy: number, maxRadius?: number, clearance?: number) => Cell | null
 originX: number
 originY: number
 setWalkable: (gx: number, gy: number, walkable: boolean) => void
@@ -4580,7 +4581,7 @@ static prototype: NavPlugin
 
 ## Navigation — class
 ```
-findWorldPath: (from: Vec2, to: Vec2, opts?: PathfindOptions) => Vec2[] | null
+findWorldPath: (from: Vec2, to: Vec2, opts?: PathfindOptions & { radius?: number; }) => Vec2[] | null
 grid: NavGrid | null
 hasGrid: () => boolean
 setGrid: (grid: NavGrid | null) => void
@@ -4874,6 +4875,7 @@ static prototype: ParticlePlugin
 
 ## PathfindOptions — interface
 ```
+clearance: number | undefined
 diagonal: boolean | undefined
 snapRadius: number | undefined
 ```

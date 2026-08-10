@@ -72,6 +72,7 @@ export function stepNavigation(
             const path = nav.findWorldPath(
                 { x: tf.position.x, y: tf.position.y },
                 { x: agent.targetX, y: agent.targetY },
+                { radius: agent.radius },
             );
             rt = {
                 waypoints: path ?? [],

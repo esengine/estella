@@ -1445,8 +1445,8 @@
         {
           "key": "radius",
           "type": "number",
-          "default": "12",
-          "range": "≥ 1"
+          "default": "0",
+          "range": "≥ 0"
         },
         {
           "key": "arriveRadius",

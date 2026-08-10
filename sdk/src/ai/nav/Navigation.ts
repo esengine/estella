@@ -27,14 +27,18 @@ export class Navigation {
 
     /**
      * Plan a world-space path (cell-center waypoints) between two world points,
-     * or null if there is no grid or no route.
+     * or null if there is no grid or no route. `radius` is the body being
+     * routed, in world units: a path planned for a point is a path only the
+     * centre of an agent fits through.
      */
-    findWorldPath(from: Vec2, to: Vec2, opts?: PathfindOptions): Vec2[] | null {
+    findWorldPath(from: Vec2, to: Vec2, opts?: PathfindOptions & { radius?: number }): Vec2[] | null {
         const grid = this.grid;
         if (!grid) return null;
         const start = grid.worldToCell(from.x, from.y);
         const goal = grid.worldToCell(to.x, to.y);
-        const cells = findPath(grid, start, goal, opts);
+        const radius = opts?.radius ?? 0;
+        const clearance = opts?.clearance ?? (radius > 0 ? Math.ceil(radius / grid.cellSize) : 0);
+        const cells = findPath(grid, start, goal, { ...opts, clearance });
         return cells ? pathToWorld(grid, cells) : null;
     }
 }

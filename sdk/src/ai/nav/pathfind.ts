@@ -21,6 +21,12 @@ export interface PathfindOptions {
      * within this ring radius before searching. 0 disables snapping. Default 8.
      */
     snapRadius?: number;
+    /**
+     * Cells of room the agent needs on every step — a body has width, and a
+     * path planned for a point hands it one that only its centre fits through.
+     * 0 (default) plans for a point.
+     */
+    clearance?: number;
 }
 
 const SQRT2 = Math.SQRT2;
@@ -47,9 +53,10 @@ export function findPath(
 ): Cell[] | null {
     const diagonal = opts.diagonal ?? true;
     const snapRadius = opts.snapRadius ?? 8;
+    const clearance = Math.max(0, opts.clearance ?? 0);
 
-    const s = resolveEndpoint(grid, start, snapRadius);
-    const g = resolveEndpoint(grid, goal, snapRadius);
+    const s = resolveEndpoint(grid, start, snapRadius, clearance);
+    const g = resolveEndpoint(grid, goal, snapRadius, clearance);
     if (!s || !g) return null;
 
     const { width, height } = grid;
@@ -80,9 +87,9 @@ export function findPath(
             const [dx, dy] = i < 4 ? ORTHO[i] : DIAG[i - 4];
             const nx = cx + dx;
             const ny = cy + dy;
-            if (!grid.isWalkable(nx, ny)) continue;
+            if (!fits(grid, nx, ny, clearance)) continue;
             // No corner-cutting: a diagonal needs both shared orthogonals open.
-            if (i >= 4 && (!grid.isWalkable(cx + dx, cy) || !grid.isWalkable(cx, cy + dy))) continue;
+            if (i >= 4 && (!fits(grid, cx + dx, cy, clearance) || !fits(grid, cx, cy + dy, clearance))) continue;
 
             const nIdx = ny * width + nx;
             if (closed[nIdx]) continue;
@@ -105,10 +112,19 @@ export function pathToWorld(grid: NavGrid, path: Cell[]): Vec2[] {
     return path.map(c => grid.cellToWorld(c.x, c.y));
 }
 
-function resolveEndpoint(grid: NavGrid, c: Cell, snapRadius: number): Cell | null {
-    if (grid.isWalkable(c.x, c.y)) return c;
+/** Walkable, and with enough room around it for a body of this size. */
+function fits(grid: NavGrid, gx: number, gy: number, clearance: number): boolean {
+    if (!grid.isWalkable(gx, gy)) return false;
+    return clearance <= 0 || grid.clearanceAt(gx, gy) >= clearance;
+}
+
+function resolveEndpoint(grid: NavGrid, c: Cell, snapRadius: number, clearance: number): Cell | null {
+    if (fits(grid, c.x, c.y, clearance)) return c;
     if (snapRadius <= 0) return null;
-    return grid.nearestWalkable(c.x, c.y, snapRadius);
+    // An agent already jammed against a wall must still be given a way out, so
+    // a start that fits nowhere falls back to merely walkable.
+    return grid.nearestWalkable(c.x, c.y, snapRadius, clearance)
+        ?? grid.nearestWalkable(c.x, c.y, snapRadius);
 }
 
 function heuristic(ax: number, ay: number, bx: number, by: number, diagonal: boolean): number {

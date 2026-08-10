@@ -18,7 +18,12 @@ import type { Entity, Vec2 } from '../../types';
 export interface NavAgentData {
     /** Movement speed in world pixels per second. */
     speed: number;
-    /** Agent radius in pixels (arrival tolerance + future collision size). */
+    /**
+     * How wide the body is, in pixels. Planning routes it around anything it
+     * would not fit through. 0 routes it as a point, which is what every agent
+     * did before this was honoured — so it stays the default, rather than
+     * silently re-routing every project that already shipped.
+     */
     radius: number;
     /** Stop distance from the final goal, in pixels. */
     arriveRadius: number;
@@ -35,7 +40,7 @@ export interface NavAgentData {
 
 export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
     speed: 120,
-    radius: 12,
+    radius: 0,
     arriveRadius: 6,
     repathInterval: 0.5,
     hasTarget: false,
@@ -45,7 +50,7 @@ export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
 }, {
     fields: {
         speed: { min: 0, unit: 'px/s', category: 'Navigation' },
-        radius: { min: 1, unit: 'px', category: 'Navigation' },
+        radius: { min: 0, unit: 'px', category: 'Navigation' },
         arriveRadius: { min: 0, unit: 'px', category: 'Navigation' },
         repathInterval: {
             min: 0, unit: 's', category: 'Navigation',

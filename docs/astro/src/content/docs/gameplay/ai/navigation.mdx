@@ -65,7 +65,7 @@ stopNavAgent(world, entity);
 | `NavAgent` field | Default | Description |
 |---|---|---|
 | `speed` | `120` | Movement speed in world pixels per second. |
-| `radius` | `12` | Agent radius (arrival tolerance / collision size). |
+| `radius` | `0` | How wide the body is, in pixels. Planning routes it around anything it would not fit through; `0` routes it as a point. |
 | `arriveRadius` | `6` | Stop distance from the final goal. |
 | `repathInterval` | `0.5` | Seconds between replans while moving; `0` = replan only when the target changes. |
 | `hasTarget` | `false` | Whether a destination is set (managed for you). |
@@ -75,3 +75,15 @@ stopNavAgent(world, entity);
 `setNavDestination` is safe to call every frame to chase a moving target — the agent
 only replans when the target actually moves or `repathInterval` elapses. Read
 `agent.arrived` (or `Perception`) to know when to switch behavior.
+
+## Agents have width
+
+Set `radius` to the body's actual half-width and planning keeps it out of gaps
+it cannot fit through. Left at `0` an agent is routed as a point, which is what
+you want for something that has no collider — and what produces the classic
+sight of an enemy walking confidently into a doorway and stopping there, because
+the cell it was routed to is walkable and the half of it hanging over the next
+one is not.
+
+A goal the body cannot stand on (a pickup in a corner) is still reached: the
+plan ends as close as the body fits, and `arriveRadius` covers the rest.
