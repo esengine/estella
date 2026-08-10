@@ -105,15 +105,22 @@ for (const g of GOLDEN) {
   if (g.runBy && !SCHEDULED.includes(g.runBy)) {
     fail(`"${g.id}" is settled by \`${g.runBy}\`, which no release criterion runs — add it to releaseGate.mjs`);
   }
-  // A folder convention is only coverage while the folder is there: moving those
-  // textures back out would take the claim with them, silently.
+  // Membership is only coverage while it is declared somewhere: moving those
+  // textures out, or dropping the atlases entry, would take the claim with them.
   if (g.atlas) {
     if (!(g.atlas.packed > 0)) fail(`"${g.id}" declares atlas without a positive packed count`);
-    const dirs = existsSync(projectDir(g.id))
-      ? readdirSync(path.join(projectDir(g.id), 'assets'), { withFileTypes: true, recursive: true })
-        .filter((e) => e.isDirectory() && e.name.endsWith('.atlas'))
-      : [];
-    if (!dirs.length) fail(`"${g.id}" claims texture-atlas but has no <name>.atlas/ folder under assets/`);
+    const assets = path.join(projectDir(g.id), 'assets');
+    const byFolder = existsSync(assets)
+      && readdirSync(assets, { withFileTypes: true, recursive: true })
+        .some((e) => e.isDirectory() && e.name.endsWith('.atlas'));
+    let declared = false;
+    try {
+      const cfg = JSON.parse(readFileSync(path.join(projectDir(g.id), '.esengine', 'asset-groups.json'), 'utf8'));
+      declared = Object.keys(cfg.atlases ?? {}).length > 0;
+    } catch { declared = false; }
+    if (!byFolder && !declared) {
+      fail(`"${g.id}" claims texture-atlas with no atlas: no <name>.atlas/ folder and no \`atlases\` entry`);
+    }
   }
   const sa = g.safeArea;
   if (sa) {

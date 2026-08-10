@@ -503,6 +503,6 @@ export {
     type GlyphVertexData,
 } from './text/layout';
 
-export { ShelfPacker, type Packer, type PackPos } from './text/atlas-packer';
+export { ShelfPacker, type Packer, type PackPos } from '../util/shelfPack';
 export { sdfFromAlpha } from './text/sdf';
 export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     resolveAssetGroup,
+    resolveAtlas,
     activeRemoteRoot,
     modeToDelivery,
     folderGroupMode,
@@ -160,5 +161,42 @@ describe('activeRemoteRoot', () => {
         // because the project said so — reachability from a scene would cull it.
         expect(resolveAssetGroup('assets/markup/heart.png', cfg).alwaysInclude).toBe(true);
         expect(resolveAssetGroup('assets/plain/hero.png', cfg).alwaysInclude).toBe(false);
+    });
+});
+
+describe('resolveAtlas — packing is its own axis, declared or by folder', () => {
+    const config: AssetGroupsConfig = {
+        version: '1.0',
+        groups: { cdn: { folder: 'assets/art', mode: 'remote' } },
+        atlases: { ui: { folder: 'assets/art/ui' } },
+    };
+
+    it('packs a texture into the atlas whose folder is the longest prefix', () => {
+        expect(resolveAtlas('assets/art/ui/button.png', config)).toEqual({ name: 'ui', folder: 'assets/art/ui' });
+    });
+
+    it('leaves a texture outside every declared folder standalone', () => {
+        expect(resolveAtlas('assets/art/background.png', config)).toBeNull();
+    });
+
+    // The two axes are independent: this texture is in the `cdn` DELIVERY group
+    // and the `ui` atlas at once, which a flag on the group could not express.
+    it('is orthogonal to the delivery group', () => {
+        expect(resolveAssetGroup('assets/art/ui/button.png', config).name).toBe('cdn');
+        expect(resolveAtlas('assets/art/ui/button.png', config)?.name).toBe('ui');
+    });
+
+    it('falls back to the <name>.atlas/ folder convention, keyed by directory', () => {
+        expect(resolveAtlas('assets/textures/sprites.atlas/player.png', null))
+            .toEqual({ name: 'assets/textures/sprites.atlas', folder: 'assets/textures/sprites.atlas' });
+        // Same-named dirs in different places stay distinct atlases.
+        expect(resolveAtlas('assets/hud/sprites.atlas/heart.png', null)?.name)
+            .toBe('assets/hud/sprites.atlas');
+        expect(resolveAtlas('assets/textures/player.png', null)).toBeNull();
+    });
+
+    it('prefers a declared atlas over a .atlas/ folder the file also sits in', () => {
+        const both: AssetGroupsConfig = { version: '1.0', atlases: { hud: { folder: 'assets/x.atlas' } } };
+        expect(resolveAtlas('assets/x.atlas/a.png', both)?.name).toBe('hud');
     });
 });

@@ -32,7 +32,7 @@ import { contentHashHex } from '../../sdk/src/asset/contentHash';
 import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
-import { resolveAssetGroup, type AssetGroupsConfig } from '../../sdk/src/asset/assetGroups';
+import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../sdk/src/asset/assetGroups';
 import type { BundleMode } from '../../sdk/src/asset/AddressableManifest';
 
 const MANIFEST = 'assets.manifest.json';
@@ -81,7 +81,8 @@ export interface CookManifestEntry extends AssetEntry {
    * at the PAGE file (URL-level redirect for free) and this records where the
    * original image sits inside it. Frame pixels are in image space (y from the
    * page top); the runtime catalog derives uvOffset/uvScale from frame + page
-   * size. Produced by the `<name>.atlas/` folder convention.
+   * size. Membership comes from {@link resolveAtlas} — a declared atlas or the
+   * `<name>.atlas/` folder convention.
    */
   atlas?: {
     page: number;
@@ -91,23 +92,6 @@ export interface CookManifestEntry extends AssetEntry {
   };
 }
 
-/**
- * Folder-convention atlas detection: a PNG under a `<name>.atlas/` directory is
- * packed into that directory's atlas. Returns the directory path (the atlas's
- * identity — same-named dirs elsewhere are distinct atlases) or null.
- */
-const ATLAS_DIR_RE = /^(.*?(?:^|\/)[^/]+\.atlas)\//;
-export function atlasDirOf(projectRelPath: string): string | null {
-  const m = ATLAS_DIR_RE.exec(projectRelPath.replace(/\\/g, '/'));
-  return m ? m[1] : null;
-}
-
-/**
- * Folder-convention subpackage detection: an asset under `subpackages/<name>/…`
- * belongs to lazy group `<name>`. Returns null for main-package assets. The
- * single source of truth for the grouping — cook (here), export layout, and the
- * manifest all derive from it.
- */
 /**
  * Load the project's asset-delivery config (`.esengine/asset-groups.json`) — the
  * single authored source for which folders ship as remote (CDN) / subpackage
@@ -394,7 +378,7 @@ export async function cookAssets(
       const entry = byUuid.get(uuid);
       if (!entry || entry.type === 'scene') continue;
       if (path.extname(entry.path).toLowerCase() !== '.png') continue;
-      const dir = atlasDirOf(entry.path);
+      const dir = resolveAtlas(entry.path, groupsConfig)?.name ?? null;
       if (!dir) continue;
       let list = groups.get(dir);
       if (!list) groups.set(dir, (list = []));

@@ -45,6 +45,17 @@ export interface AssetGroupDef {
     alwaysInclude?: boolean;
 }
 
+/**
+ * One authored atlas: every texture under `folder` (recursively) packs into its
+ * pages. A SEPARATE axis from a delivery group on purpose — which assets travel
+ * together and which assets share a texture page are different decisions, and an
+ * atlas may span two groups or a group hold two atlases.
+ */
+export interface AtlasDef {
+    /** Project-relative folder whose textures pack together. */
+    folder: string;
+}
+
 /** A build environment's variables — currently just the CDN root remote groups
  *  are served from (dev vs prod differ; the export bakes the active one in). */
 export interface BuildProfile {
@@ -56,6 +67,8 @@ export interface AssetGroupsConfig {
     version: string;
     /** groupName → definition. */
     groups?: Record<string, AssetGroupDef>;
+    /** atlasName → definition. */
+    atlases?: Record<string, AtlasDef>;
     /** Which profile is active for a build (key into `profiles`). */
     activeProfile?: string;
     profiles?: Record<string, BuildProfile>;
@@ -77,6 +90,41 @@ export function modeToDelivery(mode: AssetGroupMode): BundleMode {
 
 const SUBPACKAGE_RE = /^subpackages\/([^/]+)\//;
 const REMOTE_RE = /^remote\/([^/]+)\//;
+const ATLAS_DIR_RE = /^(.*?(?:^|\/)[^/]+\.atlas)\//;
+
+/** The atlas an asset packs into: its name (the packing identity) and folder. */
+export interface ResolvedAtlas {
+    name: string;
+    folder: string;
+}
+
+/**
+ * The atlas a texture belongs to, or null for a standalone one. Priority mirrors
+ * {@link resolveAssetGroup}: an explicit `config.atlases` entry (longest folder
+ * prefix), else the `<name>.atlas/` folder convention, whose identity is the
+ * DIRECTORY PATH so same-named dirs stay distinct atlases.
+ */
+export function resolveAtlas(
+    projectRelPath: string,
+    config: AssetGroupsConfig | null | undefined,
+): ResolvedAtlas | null {
+    const path = projectRelPath.replace(/\\/g, '/');
+
+    if (config?.atlases) {
+        let best: { name: string; folder: string; len: number } | null = null;
+        for (const [name, def] of Object.entries(config.atlases)) {
+            const folder = def.folder.replace(/\\/g, '/').replace(/\/+$/, '');
+            if (folder === '') continue;
+            if (path.startsWith(`${folder}/`)) {
+                if (!best || folder.length > best.len) best = { name, folder, len: folder.length };
+            }
+        }
+        if (best) return { name: best.name, folder: best.folder };
+    }
+
+    const dir = ATLAS_DIR_RE.exec(path);
+    return dir ? { name: dir[1], folder: dir[1] } : null;
+}
 
 /**
  * The delivery group an asset belongs to, in priority order:

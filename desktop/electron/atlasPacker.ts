@@ -11,6 +11,7 @@
  * pixel fixtures.
  */
 import { PNG } from 'pngjs';
+import { ShelfPacker } from '../../sdk/src/util/shelfPack';
 
 export interface AtlasInputImage {
     /** Stable identity (the project-relative texture path). */
@@ -45,37 +46,29 @@ export interface PackOptions {
     padding?: number;
 }
 
-interface Shelf { y: number; height: number; x: number; }
-
-/** Shelf-pack `sorted` into one width×height page; null when anything overflows. */
+/**
+ * Shelf-pack `sorted` into one width×height page; null when anything overflows.
+ * All-or-nothing: the caller grows the page and asks again. Placement is
+ * util/shelfPack, the packer the runtime glyph atlas fills too.
+ */
 function tryPackPage(
     sorted: AtlasInputImage[],
     width: number,
     height: number,
     padding: number,
 ): AtlasPlacement[] | null {
-    const shelves: Shelf[] = [];
-    let yCursor = 0;
+    const packer = new ShelfPacker(width, height);
     const placements: AtlasPlacement[] = [];
     for (const img of sorted) {
-        const w = img.width + padding * 2;
-        const h = img.height + padding * 2;
-        if (w > width || h > height) return null;
-        let placed = false;
-        for (const shelf of shelves) {
-            if (h <= shelf.height && shelf.x + w <= width) {
-                placements.push({ key: img.key, x: shelf.x + padding, y: shelf.y + padding, width: img.width, height: img.height });
-                shelf.x += w;
-                placed = true;
-                break;
-            }
-        }
-        if (!placed) {
-            if (yCursor + h > height) return null;
-            shelves.push({ y: yCursor, height: h, x: w });
-            placements.push({ key: img.key, x: padding, y: yCursor + padding, width: img.width, height: img.height });
-            yCursor += h;
-        }
+        const pos = packer.pack(img.width + padding * 2, img.height + padding * 2);
+        if (!pos) return null;
+        placements.push({
+            key: img.key,
+            x: pos.x + padding,
+            y: pos.y + padding,
+            width: img.width,
+            height: img.height,
+        });
     }
     return placements;
 }

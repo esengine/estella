@@ -16,7 +16,7 @@
  * `sdfRenderSize`; the display size scales the quad at draw time. The cache key
  * therefore carries no display size — only (font, codepoint, style).
  */
-import { ShelfPacker, type Packer } from './atlas-packer';
+import { ShelfPacker, type Packer } from '../../util/shelfPack';
 
 /** A glyph rendered to an upload-ready bitmap plus its layout metrics (in render-size px). */
 export interface RasterGlyph {

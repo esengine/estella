@@ -27,6 +27,9 @@ export {
     type BuildProfile,
     type AssetGroupsConfig,
     type ResolvedAssetGroup,
+    resolveAtlas,
+    type AtlasDef,
+    type ResolvedAtlas,
 } from './assetGroups';
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';

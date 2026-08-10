@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  REARCH_GUI P1.1 — ShelfPacker (glyph atlas rectangle packer). Pure
- *        logic; verifies row advance, wrapping, no overlaps, page-full + oversize
- *        rejection, and reset.
+ * @file  ShelfPacker — the one rectangle packer, shared by the glyph atlas and
+ *        the asset cook. Verifies row advance, first-fit across open rows, no
+ *        overlaps, page-full + oversize rejection, and reset.
  */
 import { describe, it, expect } from 'vitest';
-import { ShelfPacker, type PackPos } from '../src/ui/text/atlas-packer';
+import { ShelfPacker, type PackPos } from '../src/util/shelfPack';
 
 function overlaps(a: PackPos & { w: number; h: number }, b: PackPos & { w: number; h: number }): boolean {
     return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-describe('REARCH_GUI P1.1: ShelfPacker', () => {
+describe('ShelfPacker', () => {
     it('advances along a row then wraps to the next shelf', () => {
         const p = new ShelfPacker(100, 100);
         expect(p.pack(40, 20)).toEqual({ x: 0, y: 0 });
@@ -57,6 +57,16 @@ describe('REARCH_GUI P1.1: ShelfPacker', () => {
         expect(p.pack(10, 40)).toBeNull(); // taller than page
         p.pack(32, 32);                    // fills the page
         expect(p.pack(1, 1)).toBeNull();   // no room left
+    });
+
+    // The behaviour the two implementations disagreed on: a row that a later,
+    // shorter rect still fits into is reused rather than abandoned.
+    it('fills an earlier row before opening a new one', () => {
+        const p = new ShelfPacker(100, 100);
+        expect(p.pack(60, 30)).toEqual({ x: 0, y: 0 });   // opens row 0, 30 tall
+        expect(p.pack(90, 10)).toEqual({ x: 0, y: 30 });  // too wide for row 0 → row 1
+        // Fits row 0's leftover (40 wide) AND row 0's height: it goes back up.
+        expect(p.pack(40, 10)).toEqual({ x: 60, y: 0 });
     });
 
     it('reset reclaims the whole page', () => {
