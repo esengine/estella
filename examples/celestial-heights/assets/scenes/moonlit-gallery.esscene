@@ -726,7 +726,8 @@
       "parent": 50,
       "children": [
         52,
-        53
+        53,
+        55
       ],
       "visible": true,
       "components": [
@@ -905,6 +906,53 @@
         },
         {
           "type": "VitalityMeter",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "name": "AchievementToast",
+      "parent": 51,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "display": 1,
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "fontSize": 26,
+            "bold": true,
+            "color": {
+              "r": 0.976,
+              "g": 0.831,
+              "b": 0.475,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "AchievementToast",
           "data": {}
         }
       ]

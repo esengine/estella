@@ -79,7 +79,6 @@ export const KNOWN_GAPS = {
   // through the chain by a project the release argues from.
   settings: 'no project persists graphics/audio/language/rebinds and reads them back — Celestial Heights P3',
   controller: 'input-actions binds a gamepad, but no golden run drives one — Celestial Heights P5',
-  achievements: 'the achievements service has no project that unlocks one in play — Celestial Heights P4',
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
@@ -173,7 +172,7 @@ export const GOLDEN = [
     certifies: [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
-      'persistence', 'ui-inventory',
+      'persistence', 'ui-inventory', 'achievements',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this

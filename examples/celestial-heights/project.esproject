@@ -13,12 +13,34 @@
   "features": {
     "physics": {
       "enabled": true,
-      "gravity": { "x": 0, "y": 0 },
-      "collisionLayers": ["World", "Player", "Enemy"]
+      "gravity": {
+        "x": 0,
+        "y": 0
+      },
+      "collisionLayers": [
+        "World",
+        "Player",
+        "Enemy"
+      ]
     },
     "rendering": {
-      "sortingLayers": ["Ground", "GroundDetail", "Actors", "Overhead", "Vfx"],
-      "ySortLayers": [2]
+      "sortingLayers": [
+        "Ground",
+        "GroundDetail",
+        "Actors",
+        "Overhead",
+        "Vfx"
+      ],
+      "ySortLayers": [
+        2
+      ]
     }
+  },
+  "packaging": {
+    "achievements": [
+      "first-blood",
+      "collector",
+      "wayfarer"
+    ]
   }
 }

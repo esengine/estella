@@ -27,6 +27,9 @@ export const VitalityMeter = defineTag('VitalityMeter');
 /** The panel shown while the game is paused. */
 export const PauseOverlay = defineTag('PauseOverlay');
 
+/** The HUD line that announces an unlock, since no local store draws one. */
+export const AchievementToast = defineTag('AchievementToast');
+
 /** A pickup lying in the world. `kind` keys into ITEM_COLOR and the locale table. */
 export const Item = defineComponent('Item', {
     kind: '',

@@ -9,6 +9,9 @@
     "menu.pack": "行囊",
     "item.petal": "花瓣",
     "item.shard": "晶屑",
-    "item.ember": "余烬"
+    "item.ember": "余烬",
+    "achievement.first-blood": "达成——初战告捷",
+    "achievement.collector": "达成——采集者",
+    "achievement.wayfarer": "达成——远行者"
   }
 }

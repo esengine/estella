@@ -18,6 +18,7 @@ import {
 import {
     pickupSystem, inventoryInputSystem, inventoryBuildSystem, inventorySyncSystem,
 } from './systems/inventory';
+import { achievementSystem, achievementToastSystem } from './systems/achievements';
 import { perceiverFacingSystem } from './ai/wisp';
 
 // Perception, nav following, the behaviour-tree tick and scene switching are
@@ -59,3 +60,5 @@ addSystemToSchedule(Schedule.PostUpdate, healthBarSystem);
 addSystemToSchedule(Schedule.PostUpdate, vitalityMeterSystem);
 addSystemToSchedule(Schedule.PostUpdate, hitFlashSystem);
 addSystemToSchedule(Schedule.PostUpdate, inventorySyncSystem);
+addSystemToSchedule(Schedule.PostUpdate, achievementSystem);
+addSystemToSchedule(Schedule.PostUpdate, achievementToastSystem);

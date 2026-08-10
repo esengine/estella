@@ -9,6 +9,9 @@
     "menu.pack": "Pack",
     "item.petal": "Petal",
     "item.shard": "Shard",
-    "item.ember": "Ember"
+    "item.ember": "Ember",
+    "achievement.first-blood": "Unlocked — First Blood",
+    "achievement.collector": "Unlocked — Collector",
+    "achievement.wayfarer": "Unlocked — Wayfarer"
   }
 }
