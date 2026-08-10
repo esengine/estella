@@ -71,7 +71,6 @@ export const CAPABILITIES = [
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project — Celestial Heights P5',
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
@@ -170,7 +169,7 @@ export const GOLDEN = [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
       'persistence', 'ui-inventory', 'achievements', 'touch', 'controller',
-      'pause-resume',
+      'pause-resume', 'safe-area',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this
@@ -192,6 +191,10 @@ export const GOLDEN = [
     // Lyra got to, because a frame comparison saturates the moment her sprite
     // stops overlapping itself and cannot tell 30 frames from 60.
     suspend: { entity: 'Lyra_Player', keys: ['KeyD'], frames: 80, hideFrom: 20, hideTo: 50, moves: 60 },
+    // The HUD has to come out from UNDER a notch, on the axis it came from. The
+    // two edges carry different insets on purpose, so the run also says the move
+    // scales with the inset instead of being one hardcoded nudge.
+    safeArea: { entity: 'HUD', reference: 'Canvas', top: 44, left: 88, moves: 40 },
   },
   {
     id: 'input-actions',
@@ -288,6 +291,23 @@ export function suspendFor(g) {
     hideFrom: g.suspend.hideFrom ?? 20,
     hideTo: g.suspend.hideTo ?? 50,
     moves: g.suspend.moves ?? 60,
+  };
+}
+
+/**
+ * What a project asks of a screen with a notch, or null when it claims nothing.
+ * `entity` is a node anchored top-left, read against a `reference` that rides the
+ * camera so the game's own drift cancels. `moves`: measured 88 world units on a
+ * 540-tall surface, 103 on a 461-tall one — 40 is under both, over an ignored 0.
+ */
+export function safeAreaFor(g) {
+  if (!g.safeArea) return null;
+  return {
+    entity: g.safeArea.entity,
+    reference: g.safeArea.reference,
+    top: g.safeArea.top,
+    left: g.safeArea.left,
+    moves: g.safeArea.moves ?? 40,
   };
 }
 

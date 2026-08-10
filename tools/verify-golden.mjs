@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, suspendFor, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, suspendFor, safeAreaFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 
 const argv = process.argv.slice(2);
@@ -104,6 +104,20 @@ function captureEditorFrame(id, out) {
   if (!existsSync(out)) return { ok: false, why: (r.stdout || r.stderr || '').trim().slice(-300) };
   const png = readPNG(readFileSync(out));
   return { ok: true, w: png.w, h: png.h };
+}
+
+/** Where a packaged run says the named entities are, or null if it never said. */
+function probePositions(target, dir, w, h, names, extra = []) {
+  const r = spawnSync('npx', [
+    'electron', path.join('scripts', LAUNCHER(target)),
+    '--dir', dir, '--w', String(w), '--h', String(h),
+    '--probe', names.join(','), ...extra,
+  ], { encoding: 'utf8', cwd: DESKTOP });
+  const line = (r.stdout || '').split('\n').find((l) => l.includes('probe:'));
+  if (!line) return null;
+  try {
+    return JSON.parse(line.slice(line.indexOf('{'))).at ?? null;
+  } catch { return null; }
 }
 
 const results = [];
@@ -249,19 +263,9 @@ for (const { id, target } of pairs) {
   // the same drive, read as how far the same entity got.
   const suspend = suspendFor(golden);
   if (suspend) {
-    const where = (hidden) => {
-      const r = spawnSync('npx', [
-        'electron', path.join('scripts', LAUNCHER(target)),
-        '--dir', out, '--w', String(editor.w), '--h', String(editor.h),
-        '--probe', suspend.entity,
-        '--input', JSON.stringify({ keys: suspend.keys, frames: suspend.frames, hidden }),
-      ], { encoding: 'utf8', cwd: DESKTOP });
-      const line = (r.stdout || '').split('\n').find((l) => l.includes('probe:'));
-      if (!line) return null;
-      try {
-        return JSON.parse(line.slice(line.indexOf('{'))).at?.[suspend.entity]?.x ?? null;
-      } catch { return null; }
-    };
+    const where = (hidden) => probePositions(target, out, editor.w, editor.h, [suspend.entity], [
+      '--input', JSON.stringify({ keys: suspend.keys, frames: suspend.frames, hidden }),
+    ])?.[suspend.entity]?.x ?? null;
 
     const never = where([]);
     const stayed = where([{ from: suspend.hideFrom, to: suspend.frames - 1 }]);
@@ -284,6 +288,50 @@ for (const { id, target } of pairs) {
       });
       console.log(`${ok ? '✓' : '✗'} ${id} ${target} — suspend: ${suspend.entity} at `
         + `${stayed.toFixed(0)} hidden, ${back.toFixed(0)} back, ${never.toFixed(0)} never stopped`);
+    }
+  }
+
+  // A notch takes screen away from one edge, and the HUD has to come out from
+  // under it. Read as an offset from a node that rides the camera: a live game
+  // is somewhere slightly different each run, and that cancels.
+  const safe = safeAreaFor(golden);
+  if (safe) {
+    const names = [safe.entity, safe.reference];
+    const offset = (insets) => {
+      const at = probePositions(target, out, editor.w, editor.h, names,
+        insets ? ['--safe-area', insets] : []);
+      const node = at?.[safe.entity];
+      const ref = at?.[safe.reference];
+      return node && ref ? { x: node.x - ref.x, y: node.y - ref.y } : null;
+    };
+
+    const flat = offset(null);
+    const notched = offset(`${safe.top},0,0,0`);
+    const sided = offset(`0,0,0,${safe.left}`);
+
+    if (!flat || !notched || !sided) {
+      results.push({ id, target, stage: 'safe-area', ok: false, why: `could not read ${safe.entity} against ${safe.reference}` });
+      console.log(`✗ ${id} ${target} — safe-area: could not read ${safe.entity} against ${safe.reference} in all three runs`);
+    } else {
+      // World y is up, so a notch at the top pushes the HUD DOWN. The axis the
+      // inset did not come from must not move at all — swapped edges are the
+      // failure this catches, and they move the right distance the wrong way.
+      const down = flat.y - notched.y;
+      const right = sided.x - flat.x;
+      const QUIET = 1;
+      const fellUnderNotch = down >= safe.moves && Math.abs(notched.x - flat.x) <= QUIET;
+      const clearedSide = right >= safe.moves && Math.abs(sided.y - flat.y) <= QUIET;
+      // The two edges carry different insets, so their moves must carry the same
+      // ratio. One hardcoded nudge satisfies everything above and fails here.
+      const scaled = down > 0 && Math.abs(right / down - safe.left / safe.top) <= 0.05;
+      const ok = fellUnderNotch && clearedSide && scaled;
+      results.push({
+        id, target, stage: 'safe-area', ok,
+        why: ok ? '' : `top ${safe.top} moved it (${(notched.x - flat.x).toFixed(1)}, ${(-down).toFixed(1)}), `
+          + `left ${safe.left} moved it (${right.toFixed(1)}, ${(sided.y - flat.y).toFixed(1)})`,
+      });
+      console.log(`${ok ? '✓' : '✗'} ${id} ${target} — safe-area: ${safe.entity} drops ${down.toFixed(1)} under a `
+        + `${safe.top} notch, clears ${right.toFixed(1)} past a ${safe.left} edge`);
     }
   }
 }

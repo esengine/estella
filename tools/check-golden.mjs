@@ -22,6 +22,9 @@ import {
 const problems = [];
 const fail = (msg) => problems.push(msg);
 
+/** Capabilities a packaged frame cannot show, and the declaration whose run reads them. */
+const NEEDS_RUN = { 'safe-area': 'safeArea', 'pause-resume': 'suspend' };
+
 // 1. Every golden id is a project that exists and declares a scene to open.
 const seen = new Set();
 for (const g of GOLDEN) {
@@ -79,6 +82,21 @@ for (const g of GOLDEN) {
   if (!g.certifies?.length) fail(`"${g.id}" certifies nothing — say what it is in the suite for`);
   for (const c of g.certifies ?? []) {
     if (!CAPABILITIES.includes(c)) fail(`"${g.id}" certifies "${c}", which is not a declared capability`);
+    // Packaging and parity come free with being in the corpus; these do not.
+    // Claiming one without declaring the run that reads it is how a capability
+    // ends up "covered" by a project that never exercises it.
+    const block = NEEDS_RUN[c];
+    if (block && !g[block]) {
+      fail(`"${g.id}" certifies "${c}" but declares no ${block} — a claim only a run can settle needs that run`);
+    }
+  }
+  const sa = g.safeArea;
+  if (sa) {
+    if (!sa.entity || !sa.reference) fail(`"${g.id}" declares safeArea without both an entity and a reference`);
+    if (sa.entity === sa.reference) fail(`"${g.id}" reads safeArea against itself — the reference must be a second node`);
+    // Equal insets would let a run that moves the node by one fixed amount pass.
+    if (!(sa.top > 0) || !(sa.left > 0)) fail(`"${g.id}" declares safeArea without a positive top and left inset`);
+    else if (sa.top === sa.left) fail(`"${g.id}" gives safeArea the same inset on both edges — then the run cannot see scaling`);
   }
 }
 
