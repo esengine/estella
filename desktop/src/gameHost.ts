@@ -15,7 +15,7 @@ import {
   createWebApp, setEditorMode, setPlayMode, Assets,
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
-  packagedAppOptions, packagedRuntimeInit,
+  packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav,
 } from 'esengine';
 import type { ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 
@@ -93,6 +93,47 @@ async function boot(): Promise<void> {
         const rgba = new Uint8Array(w * h * 4);
         gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
         return { width: w, height: h, rgba };
+      },
+      /**
+       * Where things are, for a driver that has to play rather than just look.
+       * Capture answers "did it draw"; walking a route needs "am I there yet",
+       * and guessing that from frame counts breaks on the first enemy in the
+       * way. Named entities only, and only the names asked for.
+       */
+      probe(names: string[] = []): {
+        scene: string | null;
+        transitioning: boolean;
+        at: Record<string, { x: number; y: number }>;
+      } {
+        const at: Record<string, { x: number; y: number }> = {};
+        for (const name of names) {
+          const entity = app.world.findEntityByName(name);
+          if (entity === null || !app.world.has(entity, Transform)) continue;
+          const p = app.world.get(entity, Transform).position;
+          at[name] = { x: p.x, y: p.y };
+        }
+        const scenes = app.hasResource(SceneManager) ? app.getResource(SceneManager) : null;
+        // A scene arrives entity by entity, and a driver polling from outside
+        // the frame loop can land in the middle of that. Half a world reads as
+        // "the thing I was walking to is gone", which is a lie with a cost.
+        return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * A way from one named entity to another, over the same navigation grid
+       * the game's own enemies walk. A driver that steers straight at its goal
+       * is a driver that walks into the first wall between them; asking the
+       * game means the route stays right when the level is re-authored.
+       */
+      pathBetween(fromName: string, toName: string): Array<{ x: number; y: number }> | null {
+        if (!app.hasResource(Nav)) return null;
+        const ends = [fromName, toName].map((name) => {
+          const entity = app.world.findEntityByName(name);
+          if (entity === null || !app.world.has(entity, Transform)) return null;
+          const p = app.world.get(entity, Transform).position;
+          return { x: p.x, y: p.y };
+        });
+        if (!ends[0] || !ends[1]) return null;
+        return app.getResource(Nav).findWorldPath(ends[0], ends[1]);
       },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a

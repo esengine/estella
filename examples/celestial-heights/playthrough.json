@@ -1,0 +1,67 @@
+{
+  "name": "Celestial Heights \u2014 start to Vesper",
+  "legs": [
+    {
+      "area": "main",
+      "goal": "Drop_petal_20_21",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "main",
+      "goal": "Drop_petal_30_4",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "main",
+      "goal": "Drop_petal_43_5",
+      "swing": true,
+      "timeout": 1200
+    },
+    {
+      "area": "main",
+      "goal": "Gate",
+      "swing": true,
+      "throughDoor": true,
+      "timeout": 2400
+    },
+    {
+      "area": "moonlit-gallery",
+      "goal": "Drop_shard_22_5",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "moonlit-gallery",
+      "goal": "Drop_shard_22_34",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "moonlit-gallery",
+      "goal": "Drop_shard_41_34",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "moonlit-gallery",
+      "goal": "Drop_shard_53_24",
+      "swing": true,
+      "timeout": 2400
+    },
+    {
+      "area": "moonlit-gallery",
+      "goal": "Gate",
+      "swing": true,
+      "throughDoor": true,
+      "timeout": 2400
+    },
+    {
+      "area": "spire",
+      "goal": "Vesper",
+      "swing": true,
+      "timeout": 3000
+    }
+  ]
+}
