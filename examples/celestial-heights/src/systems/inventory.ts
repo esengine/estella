@@ -45,9 +45,9 @@ export const inventoryInputSystem = defineSystem(
     { name: 'InventoryInputSystem' },
 );
 
-// The pack's grid is built into an authored anchor, and an area switch replaces
-// that anchor along with the rest of its scene — so the guard is whether the
-// anchor this was built into is still alive, not whether it was ever built.
+// The pack's grid is built into an authored anchor, so the guard is whether the
+// anchor it was built into is still alive rather than whether it was ever built
+// — a rebuilt HUD hands out a new anchor and the old grid goes with the old one.
 let built: { anchor: Entity; data: ArrayDataSource<Slot>; shown: Slot[] } | null = null;
 const tileLabel = new Map<Entity, Entity>();
 

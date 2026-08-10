@@ -10,7 +10,9 @@ import {
     meleeResolveSystem, damageSystem, invulnerabilitySystem, deathSystem,
 } from './systems/combat';
 import { healthBarSystem, hitFlashSystem, vitalityMeterSystem } from './systems/feedback';
-import { cameraBindSystem, navFromTerrainSystem, gateSystem } from './systems/world';
+import {
+    cameraBindSystem, navFromTerrainSystem, gateSystem, hudSystem, areaLabelSystem,
+} from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
 import { applySettingsSystem, cycleLanguageSystem } from './systems/settings';
 import {
@@ -31,8 +33,10 @@ import { perceiverFacingSystem } from './ai/wisp';
 // brings a new camera, a new terrain and a new player, and startup is long past.
 addStartupSystem(applySettingsSystem);
 
+addSystemToSchedule(Schedule.PreUpdate, hudSystem);
 addSystemToSchedule(Schedule.PreUpdate, navFromTerrainSystem);
 addSystemToSchedule(Schedule.PreUpdate, cameraBindSystem);
+addSystemToSchedule(Schedule.PreUpdate, areaLabelSystem);
 addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);
 addSystemToSchedule(Schedule.PreUpdate, applyRestoreSystem);
 addSystemToSchedule(Schedule.PreUpdate, inventoryBuildSystem);

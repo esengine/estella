@@ -1,0 +1,528 @@
+{
+  "version": "1.0",
+  "name": "hud",
+  "folders": [],
+  "entities": [
+    {
+      "id": 50,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        51,
+        60,
+        70
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "HUD",
+      "parent": 50,
+      "children": [
+        52,
+        53,
+        55
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 48,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 40,
+              "unit": 0
+            },
+            "width": {
+              "value": 460,
+              "unit": 0
+            },
+            "height": {
+              "value": 96,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 0,
+            "gap": {
+              "x": 0,
+              "y": 12
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "AreaName",
+      "parent": 51,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 34,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "",
+            "fontSize": 30,
+            "bold": true,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "AreaLabel",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "VitalityTrack",
+      "parent": 51,
+      "children": [
+        54
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 26,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.078,
+              "g": 0.067,
+              "b": 0.125,
+              "a": 0.85
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "name": "VitalityFill",
+      "parent": 53,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "color": {
+              "r": 0.906,
+              "g": 0.353,
+              "b": 0.412,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "VitalityMeter",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "name": "AchievementToast",
+      "parent": 51,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "display": 1,
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "fontSize": 26,
+            "bold": true,
+            "color": {
+              "r": 0.976,
+              "g": 0.831,
+              "b": 0.475,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "AchievementToast",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "name": "PauseOverlay",
+      "parent": 50,
+      "children": [
+        61
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 1,
+            "alignItems": 1,
+            "gap": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.02,
+              "g": 0.016,
+              "b": 0.04,
+              "a": 0.62
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "PauseOverlay",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "name": "PauseLabel",
+      "parent": 60,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 64,
+              "unit": 0
+            },
+            "width": {
+              "value": 600,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "menu.paused",
+            "fontSize": 56,
+            "bold": true,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "name": "PackPanel",
+      "parent": 50,
+      "children": [
+        71,
+        72
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": {
+              "value": 560,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 300,
+              "unit": 0
+            },
+            "width": {
+              "value": 800,
+              "unit": 0
+            },
+            "height": {
+              "value": 360,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 1,
+            "gap": {
+              "x": 0,
+              "y": 16
+            },
+            "padding": {
+              "left": 24,
+              "top": 20,
+              "right": 24,
+              "bottom": 24
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.055,
+              "g": 0.047,
+              "b": 0.098,
+              "a": 0.92
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "name": "PackTitle",
+      "parent": 70,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 38,
+              "unit": 0
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "i18nKey": "menu.pack",
+            "fontSize": 32,
+            "bold": true,
+            "color": {
+              "r": 0.925,
+              "g": 0.906,
+              "b": 0.98,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "name": "PackGrid",
+      "parent": 70,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 408,
+              "unit": 0
+            },
+            "height": {
+              "value": 200,
+              "unit": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

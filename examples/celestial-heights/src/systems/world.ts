@@ -1,9 +1,9 @@
 import {
     defineSystem, Query, Mut, Res, Commands, GetWorld,
-    Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly,
+    Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly, Text,
     Nav, navGridFromTilemapLayer, SceneManager, transitionTo,
 } from 'esengine';
-import { Player, Gate, NavGridBuilt } from '../components';
+import { Area, AreaLabel, Player, Gate, NavGridBuilt } from '../components';
 
 /**
  * Points the camera at whoever is playing. The camera is authored per area and
@@ -58,6 +58,41 @@ export const navFromTerrainSystem = defineSystem(
 
 /** Tiles that stop movement — mirrors `collision` in assets/tilesets/heights.estileset. */
 const SOLID_TILES = [4, 5, 6];
+
+/** The scene that holds the HUD, the pause panel and the pack. */
+const HUD_SCENE = 'hud';
+
+let hudArriving = false;
+
+/**
+ * Brings the HUD up beside whichever area is playing. An area switch retires
+ * only the scene it replaces, so a HUD loaded additively is authored once and
+ * survives every gate — rather than being copied into each area's scene, where
+ * the copies drift apart the moment one of them is edited.
+ */
+export const hudSystem = defineSystem(
+    [Res(SceneManager)],
+    (scenes) => {
+        if (hudArriving || scenes.isLoaded(HUD_SCENE)) return;
+        hudArriving = true;
+        void scenes.loadAdditive(HUD_SCENE).finally(() => { hudArriving = false; });
+    },
+    { name: 'HudSystem' },
+);
+
+/** Tells the shared HUD which area it is reporting on. */
+export const areaLabelSystem = defineSystem(
+    [Query(Mut(Text), AreaLabel), Query(Area)],
+    (labels, areas) => {
+        for (const [, area] of areas) {
+            for (const [, text] of labels) {
+                if (text.i18nKey !== area.nameKey) text.i18nKey = area.nameKey;
+            }
+            return;
+        }
+    },
+    { name: 'AreaLabelSystem' },
+);
 
 /** Walking into a gate hands the game to the next area. */
 export const gateSystem = defineSystem(

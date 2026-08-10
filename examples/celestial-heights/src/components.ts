@@ -12,6 +12,18 @@ export const Player = defineComponent('Player', {
 /** Anything the player fights. */
 export const Enemy = defineTag('Enemy');
 
+/**
+ * What an area says about itself. Every area scene carries exactly one, which is
+ * how the shared HUD — a scene of its own, loaded once and never swapped — can
+ * report where Lyra is without an area having to reach into it.
+ */
+export const Area = defineComponent('Area', {
+    nameKey: '',
+});
+
+/** The HUD line that names the current area, filled in from {@link Area}. */
+export const AreaLabel = defineTag('AreaLabel');
+
 /** A way out of an area. `toScene` is the packaged scene name, e.g. `main`. */
 export const Gate = defineComponent('Gate', {
     toScene: '',
