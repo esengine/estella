@@ -109,7 +109,10 @@ async function boot(): Promise<void> {
         for (const name of names) {
           const entity = app.world.findEntityByName(name);
           if (entity === null || !app.world.has(entity, Transform)) continue;
-          const p = app.world.get(entity, Transform).position;
+          // World, not local: a driver asks where something IS, and for anything
+          // parented (every UI node) the local offset answers a different question.
+          const t = app.world.get(entity, Transform);
+          const p = t.worldPosition ?? t.position;
           at[name] = { x: p.x, y: p.y };
         }
         const scenes = app.hasResource(SceneManager) ? app.getResource(SceneManager) : null;

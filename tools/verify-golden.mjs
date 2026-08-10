@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, suspendFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 
 const argv = process.argv.slice(2);
@@ -244,6 +244,48 @@ for (const { id, target } of pairs) {
     if (!answered) console.log(`    the package did not visibly answer it; compare ${packagePng} and ${drivenPng}`);
   }
   void allAnswered;
+
+  // Backgrounded, the world stops; brought back, it carries on. Three runs of
+  // the same drive, read as how far the same entity got.
+  const suspend = suspendFor(golden);
+  if (suspend) {
+    const where = (hidden) => {
+      const r = spawnSync('npx', [
+        'electron', path.join('scripts', LAUNCHER(target)),
+        '--dir', out, '--w', String(editor.w), '--h', String(editor.h),
+        '--probe', suspend.entity,
+        '--input', JSON.stringify({ keys: suspend.keys, frames: suspend.frames, hidden }),
+      ], { encoding: 'utf8', cwd: DESKTOP });
+      const line = (r.stdout || '').split('\n').find((l) => l.includes('probe:'));
+      if (!line) return null;
+      try {
+        return JSON.parse(line.slice(line.indexOf('{'))).at?.[suspend.entity]?.x ?? null;
+      } catch { return null; }
+    };
+
+    const never = where([]);
+    const stayed = where([{ from: suspend.hideFrom, to: suspend.frames - 1 }]);
+    const back = where([{ from: suspend.hideFrom, to: suspend.hideTo }]);
+
+    if (never === null || stayed === null || back === null) {
+      results.push({ id, target, stage: 'suspend', ok: false, why: `could not read ${suspend.entity}` });
+      console.log(`✗ ${id} ${target} — suspend: could not read ${suspend.entity} in all three runs`);
+    } else {
+      // Ordered, not merely different: a run left in the background must sit
+      // between nothing and a run that never stopped, or "resume" only means
+      // the frame kept being drawn.
+      const paused = Math.abs(never - stayed) >= suspend.moves;
+      const resumed = Math.abs(back - stayed) >= suspend.moves && Math.abs(never - back) >= suspend.moves;
+      const between = (back - stayed) * (never - back) > 0;
+      const ok = paused && resumed && between;
+      results.push({
+        id, target, stage: 'suspend', ok,
+        why: ok ? '' : `never ${never.toFixed(0)}, stayed hidden ${stayed.toFixed(0)}, came back ${back.toFixed(0)}`,
+      });
+      console.log(`${ok ? '✓' : '✗'} ${id} ${target} — suspend: ${suspend.entity} at `
+        + `${stayed.toFixed(0)} hidden, ${back.toFixed(0)} back, ${never.toFixed(0)} never stopped`);
+    }
+  }
 }
 
 const bad = results.filter((r) => !r.ok);

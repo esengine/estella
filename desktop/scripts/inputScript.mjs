@@ -22,6 +22,9 @@
  * a frame range. A playthrough is a sequence, not a posture: "walk there, turn
  * round, hit it" cannot be said by keys all pressed at frame zero.
  *
+ * `hidden` is a frame range the page spends in the background: document.hidden
+ * plus a visibilitychange, which is the pair the engine's lifecycle listens to.
+ *
  * `pad` is a gamepad the harness holds: the engine polls navigator.getGamepads,
  * so standing one up there drives its real polling path rather than poking its
  * state. Each entry sets axes/buttons over a frame range.
@@ -37,6 +40,9 @@ export function inputScript(spec) {
   const frames = Number(spec.frames ?? 40);
   const taps = JSON.stringify(
     (spec.taps ?? []).map((t) => ({ key: String(t.key), at: Number(t.at) || 0 })),
+  );
+  const hidden = JSON.stringify(
+    (spec.hidden ?? []).map((h) => ({ from: Number(h.from) || 0, to: Number(h.to ?? frames) })),
   );
   const pad = JSON.stringify(
     (spec.pad ?? []).map((p) => ({
@@ -131,6 +137,14 @@ export function inputScript(spec) {
       const taps = ${taps};
       const holds = ${holds};
       const touches = ${touches};
+      const hiddenSpec = ${hidden};
+      const setHidden = (h) => {
+        Object.defineProperty(document, 'hidden', { value: h, configurable: true });
+        Object.defineProperty(document, 'visibilityState', {
+          value: h ? 'hidden' : 'visible', configurable: true,
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
       const padSpec = ${pad};
       let padState = null;
       if (padSpec.length) {
@@ -149,6 +163,10 @@ export function inputScript(spec) {
         for (const h of holds) {
           if (h.from === i) { fireKey('keydown', h.key); down.add(h.key); }
           if (h.to === i && down.has(h.key)) { fireKey('keyup', h.key); down.delete(h.key); }
+        }
+        for (const h of hiddenSpec) {
+          if (i === h.from) setHidden(true);
+          else if (i === h.to) setHidden(false);
         }
         if (padState) {
           for (const p of padSpec) {
@@ -194,7 +212,7 @@ export function inputScript(spec) {
       for (const k of keys) fireKey('keyup', k);
       await raf();
       return keys.length + taps.length + holds.length + touches.length + padSpec.length
-        + (pointer ? 1 : 0);
+        + hiddenSpec.length + (pointer ? 1 : 0);
     })()
   `;
 }

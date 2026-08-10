@@ -72,7 +72,6 @@ export const CAPABILITIES = [
  */
 export const KNOWN_GAPS = {
   'safe-area': 'safe-area insets are exercised by the UI mode viewport, not by a project — Celestial Heights P5',
-  'pause-resume': 'lifecycle suspend/resume is covered by native hosts, not by a golden project — Celestial Heights P3',
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
@@ -171,6 +170,7 @@ export const GOLDEN = [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
       'persistence', 'ui-inventory', 'achievements', 'touch', 'controller',
+      'pause-resume',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this
@@ -188,6 +188,10 @@ export const GOLDEN = [
       // that holds a pad proves the binding is more than a line of code.
       pad: [{ from: 2, to: 58, axes: { 0: 1 } }],
     },
+    // Backgrounded, the world stops; brought back, it carries on. Read as where
+    // Lyra got to, because a frame comparison saturates the moment her sprite
+    // stops overlapping itself and cannot tell 30 frames from 60.
+    suspend: { entity: 'Lyra_Player', keys: ['KeyD'], frames: 80, hideFrom: 20, hideTo: 50, moves: 60 },
   },
   {
     id: 'input-actions',
@@ -266,6 +270,24 @@ export function interactFor(g) {
     pad: g.interact.pad ?? null,
     frames: g.interact.frames ?? 40,
     responds: g.interact.responds ?? DEFAULT_RESPONDS,
+  };
+}
+
+/**
+ * What a project asks of a run that goes to the background and comes back, or
+ * null when it makes no claim. `entity` is read three times — never hidden,
+ * hidden and left there, hidden and brought back — and how far it got has to
+ * order itself the same way.
+ */
+export function suspendFor(g) {
+  if (!g.suspend) return null;
+  return {
+    entity: g.suspend.entity,
+    keys: g.suspend.keys ?? [],
+    frames: g.suspend.frames ?? 80,
+    hideFrom: g.suspend.hideFrom ?? 20,
+    hideTo: g.suspend.hideTo ?? 50,
+    moves: g.suspend.moves ?? 60,
   };
 }
 
