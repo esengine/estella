@@ -105,6 +105,11 @@ export const GOLDEN = [
     // Two textured platforms and the sky behind them. Measured over three runs
     // and stable to the byte; the falling player is NOT, which is why it is not
     // here. A frame that lost its textures still spreads, and still fails these.
+    //
+    // macOS only, and that is a FINDING: Linux reads an exact sRGB encode of
+    // these on all three points, because WebGPUDevice takes `caps.formats[0]`
+    // and so the surface's sRGB-ness is the driver's answer, not the engine's.
+    desktopPixelsHosts: ['macos'],
     desktopPixels: [
       { x: 0.30, y: 0.35, rgb: [121, 76, 32], tol: 12 },
       { x: 0.70, y: 0.20, rgb: [121, 76, 32], tol: 12 },
@@ -348,8 +353,16 @@ export function atlasFor(g) {
  * texture and cleared to a gradient passes that, so what drew has to be asked
  * for. `x`/`y` are fractions of the surface, `y` from the top.
  */
-export function desktopPixels(g) {
-  return g?.desktopPixels ?? null;
+export function desktopPixels(g, host) {
+  if (!g?.desktopPixels) return null;
+  const hosts = g.desktopPixelsHosts;
+  return !hosts || hosts.includes(host) ? g.desktopPixels : null;
+}
+
+/** Why a project's points were skipped on this host, for the run to print. */
+export function desktopPixelsSkip(g, host) {
+  if (!g?.desktopPixels || !g.desktopPixelsHosts || g.desktopPixelsHosts.includes(host)) return null;
+  return `${g.id}: points hold on ${g.desktopPixelsHosts.join(', ')}, not ${host}`;
 }
 
 /** Absolute path to a golden project's directory. */

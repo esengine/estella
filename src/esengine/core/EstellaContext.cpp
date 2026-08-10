@@ -28,6 +28,7 @@
 #ifdef ES_ENABLE_PARTICLES
 #include "../renderer/plugins/ParticlePlugin.hpp"
 #include "../particle/ParticleSystem.hpp"
+#include "RandomSource.hpp"
 #endif
 #include "../renderer/plugins/TrailPlugin.hpp"
 #include "../trail/TrailSystem.hpp"
@@ -176,8 +177,15 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // they are already present.
     registerLogicSystems();
 
+    // Before the systems that draw from it: a consumer takes its stream at
+    // registration, so the seed has to be the engine's before anyone asks.
+    auto randomSource = makeUnique<RandomSource>();
+    // A seed the SDK set before this context existed (see setPendingRandomSeed).
+    if (u32 pending = 0; takePendingRandomSeed(pending)) randomSource->reseed(pending);
+    services_.registerOwned<RandomSource>(std::move(randomSource));
 #ifdef ES_ENABLE_PARTICLES
     services_.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
+    services_.getService<particle::ParticleSystem>()->reseedFrom(*services_.getService<RandomSource>());
 #endif
     services_.registerOwned<trail::TrailSystem>(makeUnique<trail::TrailSystem>());
 

@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
-import { atTier, projectDir, GOLDEN, desktopPixels } from './goldenProjects.mjs';
+import { atTier, projectDir, GOLDEN, desktopPixels, desktopPixelsSkip } from './goldenProjects.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST_OS = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
@@ -116,7 +116,7 @@ function packageAndRun(project, templateDir, work) {
 /** What a golden project says its packaged frame must contain, or null. */
 function desktopPixelsFor(id) {
     try {
-        return desktopPixels(GOLDEN.find((g) => g.id === id));
+        return desktopPixels(GOLDEN.find((g) => g.id === id), HOST_OS);
     } catch {
         return null;
     }
@@ -182,6 +182,10 @@ try {
             failed += 1;
         } else {
             const points = desktopPixelsFor(label);
+            // Never silently: a check that does not run has to say so where the
+            // result is read, or its absence reads as a pass.
+            const skipped = desktopPixelsSkip(GOLDEN.find((g) => g.id === label), HOST_OS);
+            if (skipped) console.log(`  … ${skipped}`);
             const probes = points ? probePixels(result.raw, verdict, result.output, points) : [];
             const bad = probes.filter((r) => !r.ok);
             if (bad.length > 0) {

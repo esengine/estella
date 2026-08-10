@@ -8,6 +8,7 @@
 
 set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/core/EstellaContext.cpp
+    ${ESENGINE_ROOT}/src/esengine/core/RandomSource.cpp
     ${ESENGINE_ROOT}/src/esengine/core/Log.cpp
     ${ESENGINE_ROOT}/src/esengine/resource/ResourceManager.cpp
     ${ESENGINE_ROOT}/src/esengine/resource/ShaderParser.cpp

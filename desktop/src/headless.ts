@@ -52,6 +52,10 @@ const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
 const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
 const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
+// A seed makes the run reproduce — a scene with particles has nothing constant
+// to assert without one.
+const seedParam = params.get('seed');
+const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 // A depth-layer mask, so the harness can exercise the 2.5D path the same way a
 // project setting would — the engine takes a mask, not a checkbox list.
 const depthLayers = Number(params.get('depthLayers')) || undefined;
@@ -74,7 +78,7 @@ function loseContextExtension(): { loseContext(): void; restoreContext(): void }
 }
 
 window.__estellaHeadless = {
-  ready: EngineHost.bootHeadless({ width, height, backend, colorSpace, depthLayers }),
+  ready: EngineHost.bootHeadless({ width, height, backend, colorSpace, depthLayers, randomSeed }),
   api: EditorControlSurface,
   device: {
     status: () => getDeviceStatus(),

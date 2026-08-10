@@ -48,6 +48,9 @@ const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'we
 // ESTELLA_VERIFY_COLORSPACE=linear boots the linear-light pipeline (sRGB decode
 // + linear blending + final OETF) — point expectations must be linear-derived.
 const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear' : '';
+// A scene whose emitters roll dice has no constant to assert until the run is
+// seeded; the engine seeds itself from the clock when nobody says otherwise.
+const SEED = process.env.ESTELLA_VERIFY_SEED ?? '';
 // ESTELLA_VERIFY_DEPTH_LAYERS=<mask> turns layers into depth-resolved ones (2.5D).
 const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
@@ -127,7 +130,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveDist();
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

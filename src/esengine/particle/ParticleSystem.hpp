@@ -17,6 +17,8 @@
 #include <random>
 #include <array>
 
+namespace esengine { class RandomSource; }
+
 namespace esengine::particle {
 
 // Resolution of the per-emitter over-life lookup tables (baked in TS from a
@@ -66,7 +68,14 @@ struct EmitterState {
 
 class ParticleSystem {
 public:
+    /** The engine stream this system draws from — see core/RandomSource.hpp. */
+    static constexpr const char* kRandomStream = "particles";
+
     ParticleSystem();
+
+    /** Re-derive this system's generator from the engine's seed. Spawns after
+     *  this point reproduce; particles already alive keep the values they got. */
+    void reseedFrom(const esengine::RandomSource& source);
 
     void update(ecs::Registry& registry, f32 dt);
 
@@ -110,6 +119,7 @@ private:
                          const ColorLut* colorLut, const SizeLut* sizeLut,
                          glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace);
     f32 randomRange(f32 min, f32 max);
+
     glm::vec2 randomDirection(f32 angleMin, f32 angleMax);
     glm::vec2 randomShapeOffset(const ecs::ParticleEmitter& emitter);
 

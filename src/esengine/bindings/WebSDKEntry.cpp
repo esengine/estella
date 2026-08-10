@@ -607,6 +607,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
     emscripten::function("renderer_getGpuTimeMs", &esengine::renderer_getGpuTimeMs);
     emscripten::function("engine_setCpuProfiling", &esengine::engine_setCpuProfiling);
+    emscripten::function("engine_setRandomSeed", &esengine::engine_setRandomSeed);
     emscripten::function("engine_getCpuScopes", &esengine::engine_getCpuScopes);
     emscripten::function("engine_getCounters", &esengine::engine_getCounters);
     emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);

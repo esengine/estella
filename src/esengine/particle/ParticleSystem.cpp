@@ -7,10 +7,15 @@
 #include <chrono>
 #include <cmath>
 
+#include "../core/RandomSource.hpp"
+
 namespace esengine::particle {
 
-ParticleSystem::ParticleSystem()
-    : rng_(static_cast<u32>(std::chrono::steady_clock::now().time_since_epoch().count())) {
+ParticleSystem::ParticleSystem() : rng_(RandomSource().stream(kRandomStream)) {
+}
+
+void ParticleSystem::reseedFrom(const esengine::RandomSource& source) {
+    rng_ = source.stream(kRandomStream);
 }
 
 void ParticleSystem::update(ecs::Registry& registry, f32 dt) {

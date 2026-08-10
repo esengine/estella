@@ -2077,6 +2077,7 @@ colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 plugins: Plugin[] | undefined
+randomSeed: number | undefined
 renderSurface: RenderSurfaceSource | undefined
 screenFit: ScreenScalingData | undefined
 sideModules: SideModuleHost | undefined
@@ -2627,6 +2628,7 @@ engine_getCounters: (() => string) | undefined
 engine_getCpuScopes: (() => string) | undefined
 engine_getGpuScopes: (() => string) | undefined
 engine_setCpuProfiling: ((on: boolean) => void) | undefined
+engine_setRandomSeed: ((seed: number) => void) | undefined
 es_getMallocBytes: (() => number) | undefined
 esshader_cookInfo: (source: string, featuresCsv: string) => { valid: boolean; error?: string; name: string; domain: string; hasWgslVertex: boolean; hasWgslFragment: boolean; hasSwitches: boolean; vertGlsl: string; fragGlsl: string; textures: Array<{ name: string; unit: number; }>; }
 geometry_create: () => number
@@ -8853,6 +8855,7 @@ colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 plugins: Plugin[] | undefined
+randomSeed: number | undefined
 renderSurface: RenderSurfaceSource | undefined
 screenFit: ScreenScalingData | undefined
 sideModules: SideModuleHost | undefined

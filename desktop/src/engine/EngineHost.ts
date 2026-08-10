@@ -526,6 +526,7 @@ class EngineHostImpl {
     backend?: 'webgl2' | 'webgpu';
     colorSpace?: 'gamma' | 'linear';
     depthLayers?: number;
+    randomSeed?: number;
   }): Promise<void> {
     if (this.booted) return;
     this.booted = true;
@@ -540,6 +541,7 @@ class EngineHostImpl {
         backend: size.backend,
         colorSpace: size.colorSpace,
         depthLayers: size.depthLayers,
+        randomSeed: size.randomSeed,
       });
     } catch (err) {
       this.swallowUnwind(err);
@@ -555,7 +557,7 @@ class EngineHostImpl {
     opts: {
       runLoop: boolean; loadInitialScene: boolean;
       backend?: 'webgl2' | 'webgpu'; colorSpace?: 'gamma' | 'linear';
-      depthLayers?: number;
+      depthLayers?: number; randomSeed?: number;
     },
   ) {
     const backend = opts.backend ?? 'webgl2';
@@ -679,6 +681,7 @@ class EngineHostImpl {
     const app = await bootProfiler.phase('createWebApp', () => createWebApp(module, {
       renderSurface,
       colorSpace: opts.colorSpace,
+      randomSeed: opts.randomSeed,
       depthLayers: opts.depthLayers,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
       // The per-version spine side modules are served next to esengine.wasm

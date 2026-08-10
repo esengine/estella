@@ -107,6 +107,9 @@ u32 renderer_getMeshes();
 u32 renderer_getCulled();
 f32 renderer_getGpuTimeMs();
 void engine_setCpuProfiling(bool on);
+/** Reseed the engine's randomness (core/RandomSource.hpp) so a run reproduces.
+ *  Unset, every run differs — which is what a player wants of particles. */
+void engine_setRandomSeed(u32 seed);
 std::string engine_getCpuScopes();
 std::string engine_getCounters();
 std::string engine_getGpuScopes();

@@ -26,6 +26,7 @@
 #include "../core/Log.hpp"
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
+#include "../core/RandomSource.hpp"
 #endif
 #include "../trail/TrailSystem.hpp"
 
@@ -555,6 +556,21 @@ f32 renderer_getGpuTimeMs() {
 
 void engine_setCpuProfiling(bool on) {
     FrameProfiler::get().setEnabled(on);
+}
+
+void engine_setRandomSeed(u32 seed) {
+    // Valid pre-init, and it has to be: the SDK sets this beside the colour
+    // space, before the context has registered anything. Remembered here, and
+    // adopted by EstellaContext when it creates the source.
+    setPendingRandomSeed(seed);
+    if (auto* source = ctx().tryGet<RandomSource>()) {
+        source->reseed(seed);
+        // Consumers derive a generator once, so each is re-derived here. One
+        // today; this list is where a second one announces itself.
+#ifdef ES_ENABLE_PARTICLES
+        if (auto* particles = g_particleSystem) particles->reseedFrom(*source);
+#endif
+    }
 }
 
 std::string engine_getCpuScopes() {

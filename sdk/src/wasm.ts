@@ -429,6 +429,8 @@ export interface ESEngineModule {
     renderer_setDepthLayers?(mask: number): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setColorSpace?(linear: number): void;
+    /** Reseed the engine's randomness so a run reproduces (core/RandomSource.hpp). */
+    engine_setRandomSeed?(seed: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
 
     // Clip Rect API

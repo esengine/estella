@@ -1232,6 +1232,12 @@ export interface WebAppOptions {
      */
     colorSpace?: 'gamma' | 'linear';
     /**
+     * Seed the engine's randomness so this run reproduces — a replay, a bug
+     * report, a pixel assertion. Absent, every run differs, which is what a
+     * player wants of particles.
+     */
+    randomSeed?: number;
+    /**
      * Project camera fit (Project Settings → Display). When set with a real
      * scaleMode (≥ 0), the MAIN scene camera letterboxes this design resolution
      * into the actual aspect regardless of any UI Canvas; omitted / scaleMode = -1
@@ -1256,6 +1262,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // Always applied (realm reloads must reset a prior session's mode too).
     setLinearColorSpace(options?.colorSpace === 'linear');
     module.renderer_setColorSpace?.(options?.colorSpace === 'linear' ? 1 : 0);
+    if (options?.randomSeed !== undefined) module.engine_setRandomSeed?.(options.randomSeed >>> 0);
 
     const surface: RenderSurfaceSource = options?.renderSurface ?? { kind: 'default' };
     switch (surface.kind) {
