@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, suspendFor, safeAreaFor, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, suspendFor, safeAreaFor, atlasFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 
 const argv = process.argv.slice(2);
@@ -139,6 +139,29 @@ for (const { id, target } of pairs) {
   // Parity compares like for like, so the package is opened at exactly the size
   // the editor's play surface came out — never a guessed one.
   const golden = atTier(TIER).find((g) => g.id === id);
+
+  // Did the cook actually pack? Parity cannot answer this: an atlas that stopped
+  // working still draws the same frame from nine standalone textures.
+  const atlas = atlasFor(golden);
+  if (atlas) {
+    let packed = 0;
+    try {
+      const manifest = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8'));
+      for (const group of Object.values(manifest.groups ?? {})) {
+        for (const asset of Object.values(group.assets ?? {})) {
+          if (asset.metadata?.atlasPage !== undefined) packed++;
+        }
+      }
+    } catch (e) {
+      packed = -1;
+    }
+    const ok = packed === atlas.packed;
+    results.push({
+      id, target, stage: 'atlas', ok,
+      why: ok ? '' : `${packed} texture(s) came out packed, the project claims ${atlas.packed}`,
+    });
+    console.log(`${ok ? '✓' : '✗'} ${id} ${target} — atlas: ${packed} texture(s) packed into a page`);
+  }
   const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;
   const editorPng = path.join(WORK, `${id}-editor.png`);
   const editor = tolerance != null ? captureEditorFrame(id, editorPng) : null;

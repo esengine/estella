@@ -54,6 +54,7 @@ export const CAPABILITIES = [
   'spine', 'material', 'asset-lifecycle',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
+  'texture-atlas',
   'single-file', 'startup-size',
   'hot-update', 'rollback',
   'networking',
@@ -100,10 +101,14 @@ export const GOLDEN = [
   },
   {
     id: 'space-shooter',
-    certifies: ['ecs', 'particles', 'audio'],
+    certifies: ['ecs', 'particles', 'audio', 'texture-atlas'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
+    // Its small sprites live in a `<name>.atlas/` folder, so the cook packs them
+    // into one page and the package samples frames the editor never sees. The
+    // count is the claim: packing that quietly stops still passes parity.
+    atlas: { packed: 7 },
   },
   {
     id: 'ui-controls',
@@ -312,6 +317,17 @@ export function safeAreaFor(g) {
     left: g.safeArea.left,
     moves: g.safeArea.moves ?? 40,
   };
+}
+
+/**
+ * What a project asks of the texture cook, or null when it claims nothing.
+ * `packed` is how many of its textures must come out of the cook inside an atlas
+ * page — a count, because packing that silently stops still draws the same frame
+ * and therefore still passes parity.
+ */
+export function atlasFor(g) {
+  if (!g.atlas) return null;
+  return { packed: g.atlas.packed };
 }
 
 /** Absolute path to a golden project's directory. */

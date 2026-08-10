@@ -12,7 +12,7 @@
  * target. A capability nothing covers is allowed — declared in KNOWN_GAPS, with
  * a reason, so the hole is a sentence somebody wrote.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, TIERS, TARGETS,
@@ -25,6 +25,7 @@ const fail = (msg) => problems.push(msg);
 
 /** Capabilities a packaged frame cannot show, and the declaration whose run reads them. */
 const NEEDS_RUN = {
+  'texture-atlas': 'atlas',
   'safe-area': 'safeArea',
   'pause-resume': 'suspend',
   'hot-update': 'runBy',
@@ -103,6 +104,16 @@ for (const g of GOLDEN) {
   // hot-update run existed for a year and no criterion or workflow ever ran it.
   if (g.runBy && !SCHEDULED.includes(g.runBy)) {
     fail(`"${g.id}" is settled by \`${g.runBy}\`, which no release criterion runs — add it to releaseGate.mjs`);
+  }
+  // A folder convention is only coverage while the folder is there: moving those
+  // textures back out would take the claim with them, silently.
+  if (g.atlas) {
+    if (!(g.atlas.packed > 0)) fail(`"${g.id}" declares atlas without a positive packed count`);
+    const dirs = existsSync(projectDir(g.id))
+      ? readdirSync(path.join(projectDir(g.id), 'assets'), { withFileTypes: true, recursive: true })
+        .filter((e) => e.isDirectory() && e.name.endsWith('.atlas'))
+      : [];
+    if (!dirs.length) fail(`"${g.id}" claims texture-atlas but has no <name>.atlas/ folder under assets/`);
   }
   const sa = g.safeArea;
   if (sa) {
