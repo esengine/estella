@@ -98,6 +98,19 @@ export const CRITERIA = [
     needs: ['tools/check-golden.mjs', 'tools/check-minigame-host.mjs'],
   },
   {
+    id: 'flagship-plays-through',
+    says: 'the flagship can be played from its first room to its boss, as a package',
+    // Every other gate asks whether something works. This asks the only thing a
+    // player asks — and a game whose second door cannot be opened passes all of
+    // the others.
+    answeredBy: 'node tools/verify-playthrough.mjs',
+    needs: [
+      'tools/verify-playthrough.mjs',
+      'desktop/scripts/play-through.mjs',
+      'examples/celestial-heights/playthrough.json',
+    ],
+  },
+  {
     id: 'no-engine-gaps-at-ship',
     says: 'the flagship game had to route around the engine nowhere that is still open',
     answeredBy: 'node tools/check-engine-gaps.mjs --empty',

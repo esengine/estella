@@ -26,13 +26,11 @@
  * `goal` is an entity name the probe can find, so a leg survives the level being
  * re-authored — the door moves, the route does not.
  *
- * NOT a gate yet, and deliberately not wired into verify. Runs of the same
- * package still disagree with each other: a leg occasionally reports arrival
- * from a pickup that was not taken, and the run then fails later at a door that
- * had every right to stay shut. Reading on a frame boundary and refusing a
- * world mid-transition fixed most of it; what remains is timing-sensitive
- * enough that adding console output changes the outcome, which is the shape of
- * a race that has not been found yet.
+ * Runs of one package agree to the frame, which took three rules: read on a
+ * frame boundary, never read a world mid-transition, and credit an arrival
+ * only from arm's reach with Lyra present.
+ *
+ * Answers `flagship-plays-through` via tools/verify-playthrough.mjs.
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -117,15 +115,18 @@ const stepScript = (keys, frames, tapKey) => `
 })()
 `;
 
-/** Which keys walk from `from` toward `to` on the ground plane. */
-function keysToward(from, to) {
+/**
+ * Which keys walk from `from` toward `to`. The dead band stops a stutter
+ * between opposite keys; shrinking it is how a driver gets off a wall. Feet
+ * collide where navigation planned from the origin, so a plan can be walkable
+ * for the middle and a wall for the feet.
+ */
+function keysToward(from, to, deadband = 40) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const keys = [];
-  // The dead band keeps a driver from stuttering between two opposite keys when
-  // it is already lined up on one axis.
-  if (Math.abs(dx) > 40) keys.push(dx > 0 ? 'KeyD' : 'KeyA');
-  if (Math.abs(dy) > 40) keys.push(dy > 0 ? 'KeyW' : 'KeyS');
+  if (Math.abs(dx) > deadband) keys.push(dx > 0 ? 'KeyD' : 'KeyA');
+  if (Math.abs(dy) > deadband) keys.push(dy > 0 ? 'KeyW' : 'KeyS');
   return keys;
 }
 
@@ -211,6 +212,8 @@ async function main() {
     let sawArea = false;
     let sawGoal = false;
     let lastGap = Infinity;
+    let stuckFor = 0;
+    let was = null;
     let plan = [];
     let replan = 0;
     let last = null;
@@ -240,7 +243,20 @@ async function main() {
       // A goal that was there and now is not was reached — taken, or killed —
       // but only while Lyra is beside it: an area rebuilding after a death
       // empties the world for a moment, and that is not an arrival.
-      if (sawGoal && !goal && me && lastGap < REACH && !leg.throughDoor) { arrived = true; break; }
+      if (sawGoal && !goal && me && lastGap < REACH && !leg.throughDoor) {
+        // One read is not evidence. Something that is really gone stays gone;
+        // something that blinked was a world caught mid-change, and crediting
+        // it costs the run a pickup it never took.
+        let gone = true;
+        for (let i = 0; i < 3 && gone; i++) {
+          await exec(stepScript([], 4, null));
+          spent += 4;
+          frames += 4;
+          gone = !(await probe([leg.goal])).at[leg.goal];
+        }
+        if (gone) { arrived = true; break; }
+        console.log(`  ${label}: goal blinked out and came back — not counting it`);
+      }
       if (goal) sawGoal = true;
       if (me && goal) {
         const gap = Math.hypot(goal.x - me.x, goal.y - me.y);
@@ -256,7 +272,21 @@ async function main() {
         replan -= STEP;
         while (plan.length && Math.hypot(plan[0].x - me.x, plan[0].y - me.y) < 70) plan.shift();
         const aim = plan[0] ?? goal;
-        const keys = keysToward(me, aim);
+        // Pressed and did not move: back off the dead band so the other axis
+        // comes into play, and re-plan sooner.
+        const moved = was ? Math.hypot(me.x - was.x, me.y - was.y) : Infinity;
+        stuckFor = moved < 6 ? stuckFor + STEP : 0;
+        was = me;
+        if (stuckFor > 64) { replan = 0; }
+        const keys = keysToward(me, aim, stuckFor > 32 ? 4 : 40);
+        if (stuckFor > 32) {
+          // Slide along whatever is in the way: press the axis the heading does
+          // not need, flipping which way every so often until something gives.
+          const alongX = Math.abs(aim.x - me.x) >= Math.abs(aim.y - me.y);
+          const up = Math.floor(stuckFor / 96) % 2 === 0;
+          const side = alongX ? (up ? 'KeyW' : 'KeyS') : (up ? 'KeyD' : 'KeyA');
+          if (!keys.includes(side)) keys.push(side);
+        }
         if (TRACE && spent % 160 === 0) {
           console.log(`  ${label} @${spent}: at ${Math.round(me.x)},${Math.round(me.y)} `
             + `aim ${Math.round(aim.x)},${Math.round(aim.y)} (${plan.length} waypoints) keys ${keys.join('+') || 'none'} gap ${Math.round(gap)}`);
