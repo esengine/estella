@@ -20,8 +20,6 @@ export const hitSparkSystem = defineSystem(
             for (const [entity, transform] of emitters) {
                 transform.position.x = at.x;
                 transform.position.y = at.y;
-                // ENGINE-GAP(particles-simulate-but-do-not-draw): this burst runs
-                // and ages out on schedule; nothing of it appears on screen.
                 particles.play(entity);
                 break;
             }
