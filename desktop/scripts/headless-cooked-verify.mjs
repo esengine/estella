@@ -46,6 +46,7 @@ function serve(dir) {
 
 app.whenReady().then(async () => {
   let server;
+  let failed = true;
   const diag = [];
   try {
     server = await serve(COOKED);
@@ -81,13 +82,15 @@ app.whenReady().then(async () => {
     const ok = greenOk && redOk && cornerBlack;
     console.log(`\n[verify:render:cooked] ${ok ? 'PASS' : 'FAIL'}`);
     console.log('DRIVE_RESULT ' + JSON.stringify({ ...cap, greenOk, redOk, cornerBlack, diag: diag.slice(0, 6) }));
-    process.exitCode = ok ? 0 : 1;
+    failed = !ok;
   } catch (e) {
     console.log('\n[verify:render:cooked] FAIL — ' + (e?.message ?? e));
     console.log('DRIVE_RESULT ' + JSON.stringify({ error: String(e?.message ?? e), diag: diag.slice(0, 6) }));
-    process.exitCode = 1;
+    failed = true;
   } finally {
     try { server?.close(); } catch { /* ignore */ }
-    app.quit();
+    // app.exit, not process.exitCode + app.quit: Electron quits with status 0
+    // whatever exitCode says, so a FAIL would be reported to the caller as a pass.
+    app.exit(failed ? 1 : 0);
   }
 });

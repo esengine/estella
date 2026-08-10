@@ -104,9 +104,10 @@ function finish(server) {
   const ok = checks.length > 0 && checks.every((c) => c.pass);
   console.log(`\n[smoke] ${ok ? 'PASS' : 'FAIL'} — model-authoritative runtime`);
   for (const c of checks) console.log(`  ${c.pass ? '✓' : '✗'} ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
-  process.exitCode = ok ? 0 : 1;
   try { server?.close(); } catch { /* ignore */ }
-  app.quit();
+  // app.exit, not process.exitCode + app.quit: Electron quits with status 0
+  // whatever exitCode says, so a FAIL would be reported to the caller as a pass.
+  app.exit(ok ? 0 : 1);
 }
 
 setTimeout(() => finish(), 45000);

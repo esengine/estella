@@ -112,13 +112,15 @@ function finish(result, server) {
     deviceLossOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
-  process.exitCode = ok ? 0 : 1;
   try {
     server?.close();
   } catch {
     /* ignore */
   }
-  app.quit();
+  // app.exit, not process.exitCode + app.quit: Electron leaves the process with
+  // status 0 on quit whatever exitCode says, so the FAIL above was printed and
+  // then reported as a pass to everything that ran this.
+  app.exit(ok ? 0 : 1);
 }
 
 app.whenReady().then(async () => {
