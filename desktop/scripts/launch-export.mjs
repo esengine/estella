@@ -42,6 +42,10 @@ import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from './rendererConsole.mjs';
 import { inputScript } from './inputScript.mjs';
 
+// Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
+// Without it Chromium refuses the context outright and the package boots to
+// "WebGL2 is not available" — which is a runner without a GPU, not a broken game.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 // capturePage pixels go through the OS display profile; pin sRGB so a colour
 // judgement reads the same on a wide-gamut machine as on a CI runner.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');

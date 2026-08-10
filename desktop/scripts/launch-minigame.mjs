@@ -27,6 +27,8 @@ import { onRendererConsole } from './rendererConsole.mjs';
 import { HOST_PAGE } from './minigameHost.mjs';
 import { inputScript } from './inputScript.mjs';
 
+// Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
 const argv = process.argv.slice(2);
