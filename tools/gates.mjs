@@ -25,7 +25,6 @@ export const SCOPES = ['local', 'ci'];
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
-  { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit' },
   { id: 'gl-boundary', run: 'node tools/check-gl-boundary.mjs' },
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
   {
@@ -35,10 +34,12 @@ export const GATES = [
     why: 'the EHT generator shells out to `python`, which macOS does not ship a runnable one of; run it by hand where you have one',
   },
   { id: 'api-surface', run: 'node tools/api-surface.mjs --check' },
-  // Everything below reads what this emits: the declaration snapshot compares
-  // against the built .d.ts, and the examples type-check against dist.
+  // Everything below reads what this emits: the declaration snapshot, the
+  // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },
   { id: 'api-surface-dts', run: 'node tools/api-surface.mjs --check-dts' },
+  // The editor imports `esengine` — it reads dist, not the SDK's sources.
+  { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
