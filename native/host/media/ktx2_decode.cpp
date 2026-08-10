@@ -60,7 +60,12 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     basist::transcoder_texture_format basisFmt = basist::transcoder_texture_format::cTFRGBA32;
     GfxCompressedFormat gfxFmt = GfxCompressedFormat::ETC2_RGBA8;
     bool compressed = false;
+    // Every choice below is a 4x4 block format, and WebGPU refuses a compressed
+    // texture whose size is not whole blocks — a 70x70 sprite fails CreateTexture
+    // and the game draws nothing. Device support is not the only question.
+    const bool wholeBlocks = (w % 4 == 0) && (h % 4 == 0);
     for (const FormatChoice& c : kChoices) {
+        if (!wholeBlocks) break;
         const GfxCompressedFormat want = srgb ? c.srgb : c.linear;
         if (device.supportsCompressedFormat(want)) {
             basisFmt = c.basisFmt;
