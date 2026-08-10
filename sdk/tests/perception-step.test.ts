@@ -73,6 +73,21 @@ describe('stepPerception', () => {
     expect(w.get(p, Perception).visible).toBe(true);
   });
 
+  // The callback is asked about the space BETWEEN two bodies, so it is told
+  // which two: a character's collider sits at its feet, so a ray aimed at the
+  // origin passes through the target's own capsule on the way in.
+  it('tells the occlusion check which two bodies are at the ends of the line', () => {
+    const w = new FakeWorld();
+    const p = spawnPerceiver(w, 0, 0);
+    const t = spawnTarget(w, 80, 0);
+    const ends: Array<[number, number]> = [];
+    stepPerception(w, (_ox, _oy, _tx, _ty, observer, target) => {
+      ends.push([observer, target]);
+      return false;
+    });
+    expect(ends).toEqual([[p, t]]);
+  });
+
   it('picks the nearest visible target', () => {
     const w = new FakeWorld();
     const p = spawnPerceiver(w, 0, 0);

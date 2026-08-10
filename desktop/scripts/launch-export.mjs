@@ -21,6 +21,10 @@
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
  *     --allow-flat       accept a single-colour frame (a deliberately blank scene)
  *     --input <json>     drive it: {"keys":["ArrowRight"]} or {"pointer":{"x":.5,"y":.5}}
+ *     --log <regex>      also print console lines matching this (the engine's own
+ *                        warnings say why a subsystem sat out; only `[engine]`
+ *                        lines are forwarded otherwise, which means diagnosing
+ *                        one costs a probe planted in the game)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -49,6 +53,8 @@ const H = Number(flag('h', '360'));
 const SETTLE = Number(flag('settle', '30'));
 const INPUT = flag('input', '');
 const TIMEOUT = Number(flag('timeout', '30000'));
+const LOG = flag('log', '');
+const logRe = LOG ? new RegExp(LOG, 'i') : null;
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -114,7 +120,7 @@ async function main() {
   const errors = [];
   const stop = onRendererConsole(win.webContents, (msg) => {
     if (/error|uncaught|failed/i.test(msg)) errors.push(msg.slice(0, 300));
-    if (msg.startsWith('[engine]')) console.log(`  ${msg}`);
+    if (msg.startsWith('[engine]') || logRe?.test(msg)) console.log(`  ${msg}`);
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 

@@ -30,7 +30,15 @@ export interface PerceptionWorldView {
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): unknown;
 }
 
-export type LosCheck = (ox: number, oy: number, tx: number, ty: number) => boolean;
+/**
+ * True when the line from (ox,oy) to (tx,ty) is occluded. `observer` and
+ * `target` are the two bodies at its ends — whatever they own is not what the
+ * check is asking about.
+ */
+export type LosCheck = (
+    ox: number, oy: number, tx: number, ty: number,
+    observer: Entity, target: Entity,
+) => boolean;
 
 /** Update every Perceiver's Perception with the nearest visible target. */
 export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck): void {
@@ -50,7 +58,8 @@ export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck)
         let best: { x: number; y: number; distance: number; dirX: number; dirY: number } | null = null;
         for (const t of targets) {
             if (t.e === e) continue;
-            const r = senseTarget(ox, oy, facing, t.x, t.y, cfg.range, halfFov, isBlocked);
+            const r = senseTarget(ox, oy, facing, t.x, t.y, cfg.range, halfFov,
+                isBlocked && ((ax, ay, bx, by) => isBlocked(ax, ay, bx, by, e, t.e)));
             if (r.visible && (!best || r.distance < best.distance)) {
                 best = { x: t.x, y: t.y, distance: r.distance, dirX: r.dirX, dirY: r.dirY };
             }
@@ -65,16 +74,20 @@ export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck)
     }
 }
 
-/** Build a raycast-backed line-of-sight check. Occluded if anything is hit before the target. */
+/**
+ * Raycast-backed line of sight: occluded by anything hit before the target that
+ * is not one of the two bodies at the ends. A character's collider sits at its
+ * feet, so a ray aimed at the origin passes through the target's own capsule —
+ * counting that hides everyone approached from below.
+ */
 export function makeLosCheck(physics: PhysicsAPI): LosCheck {
-    return (ox, oy, tx, ty) => {
+    return (ox, oy, tx, ty, observer, target) => {
         const dx = tx - ox;
         const dy = ty - oy;
         const dist = Math.hypot(dx, dy);
         if (dist === 0) return false;
         const hits = physics.raycast({ x: ox, y: oy }, { x: dx / dist, y: dy / dist }, dist);
-        // A hit clearly short of the target blocks the view (the last ~2% is the target itself).
-        return hits.some(h => h.fraction < 0.98);
+        return hits.some(h => h.fraction < 0.98 && h.entity !== observer && h.entity !== target);
     };
 }
 
