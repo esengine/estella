@@ -186,6 +186,29 @@ describe('ResourceStorage', () => {
             storage.insert(Counter, { count: 0 });
             expect(storage.has(Counter)).toBe(true);
         });
+
+        // Self-gating subsystems install on `has` being false, so materialising
+        // a default must not answer it — otherwise one system taking the
+        // resource as a parameter convinces the gate its plugin is installed.
+        it('stays false after a read materialises the default', () => {
+            expect(storage.get(Counter)).toEqual({ count: 0 });
+            expect(storage.has(Counter)).toBe(false);
+            storage.insert(Counter, { count: 7 });
+            expect(storage.has(Counter)).toBe(true);
+        });
+
+        it('goes back to false after remove, even once read again', () => {
+            storage.insert(Counter, { count: 3 });
+            storage.remove(Counter);
+            storage.get(Counter);
+            expect(storage.has(Counter)).toBe(false);
+        });
+
+        it('is true after set, which is a value somebody put there', () => {
+            storage.get(Counter);
+            storage.set(Counter, { count: 5 });
+            expect(storage.has(Counter)).toBe(true);
+        });
     });
 
     describe('remove', () => {

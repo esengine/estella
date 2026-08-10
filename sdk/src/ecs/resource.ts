@@ -93,9 +93,17 @@ export class ResourceStorage {
     private ticks_ = new Map<symbol, number>();
     private globalTick_ = 0;
     private nameRegistry_ = new Map<string, ResourceDef<unknown>>();
+    /**
+     * Slots holding a materialised default rather than a value somebody put
+     * there. `has` is what every self-gating subsystem asks before installing
+     * itself, so a read must not answer it: a resource defaulting to `null`
+     * would report present the moment any system took it as a parameter.
+     */
+    private defaulted_ = new Set<symbol>();
 
     insert<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
+        this.defaulted_.delete(resource._id);
         this.ticks_.set(resource._id, ++this.globalTick_);
         if (resource._name && !resource._name.startsWith('Resource_')) {
             this.nameRegistry_.set(resource._name, resource as ResourceDef<unknown>);
@@ -107,21 +115,24 @@ export class ResourceStorage {
             // Clone so each storage owns its default; mutating it never leaks
             // into the shared ResourceDef or a sibling world.
             this.resources_.set(resource._id, deepClone(resource._default));
+            this.defaulted_.add(resource._id);
         }
         return this.resources_.get(resource._id) as T;
     }
 
     set<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
+        this.defaulted_.delete(resource._id);
         this.ticks_.set(resource._id, ++this.globalTick_);
     }
 
     has<T>(resource: ResourceDef<T>): boolean {
-        return this.resources_.has(resource._id);
+        return this.resources_.has(resource._id) && !this.defaulted_.has(resource._id);
     }
 
     remove<T>(resource: ResourceDef<T>): void {
         this.resources_.delete(resource._id);
+        this.defaulted_.delete(resource._id);
         this.resMutPool_.delete(resource._id);
         this.ticks_.delete(resource._id);
         this.nameRegistry_.delete(resource._name);
