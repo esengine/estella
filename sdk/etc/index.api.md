@@ -5583,8 +5583,8 @@ value: unknown
 
 ## PrefabServer — class
 ```
-instantiate: (pathOrAddress: string, options?: { baseUrl?: string; parent?: Entity; overrides?: SpawnOverride[]; }) => Promise<InstantiatePrefabResult>
-static new (world: World, getAssets: () => AssetsClass): PrefabServer
+instantiate: (pathOrAddress: string, options?: { baseUrl?: string; parent?: Entity; overrides?: SpawnOverride[]; scene?: boolean; }) => Promise<InstantiatePrefabResult>
+static new (world: World, getAssets: () => AssetsClass, getScenes?: () => SceneManagerState | null): PrefabServer
 static prototype: PrefabServer
 ```
 
@@ -6348,6 +6348,7 @@ load: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneCon
 loadAdditive: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneContext>
 pause: (name: string) => void
 register: (config: SceneConfig) => void
+reload: (options?: TransitionOptions) => Promise<void>
 reset: () => void
 resume: (name: string) => void
 setInitial: (name: string) => void

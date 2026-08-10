@@ -76,9 +76,8 @@ describe.each(MODES)('switchTo ($name)', (mode) => {
         }
     });
 
-    /** Drive the switch to completion — a fade only advances on updateTransition. */
-    async function switchAndSettle(to: string): Promise<void> {
-        const done = manager.switchTo(to, mode.options);
+    /** Drive one to completion — a fade only advances on updateTransition. */
+    async function settle(done: Promise<void>): Promise<void> {
         for (let i = 0; i < 60 && manager.isTransitioning(); i++) {
             manager.updateTransition(0.05);
             await Promise.resolve();
@@ -90,6 +89,8 @@ describe.each(MODES)('switchTo ($name)', (mode) => {
             await Promise.resolve();
         }
     }
+
+    const switchAndSettle = (to: string): Promise<void> => settle(manager.switchTo(to, mode.options));
 
     it('brings the target up as the active scene', async () => {
         await switchAndSettle('alpha');
@@ -122,5 +123,21 @@ describe.each(MODES)('switchTo ($name)', (mode) => {
         await switchAndSettle('alpha');
         expect(manager.isActive('alpha')).toBe(true);
         expect(app.live.size, 'the active scene was torn down and rebuilt').toBe(before);
+    });
+
+    // Which is exactly why reload exists: a death, a retry and a restart all
+    // want the scene they are already in, built again from its data.
+    it('reload starts the active scene over', async () => {
+        await switchAndSettle('alpha');
+        const before = [...app.live];
+        await settle(manager.reload(mode.options));
+        expect(manager.isActive('alpha')).toBe(true);
+        expect(app.live.size, 'the rebuilt scene has the wrong population').toBe(before.length);
+        expect([...app.live], 'the entities were kept, so nothing was rebuilt').not.toEqual(before);
+    });
+
+    it('reload with nothing active does nothing', async () => {
+        await settle(manager.reload(mode.options));
+        expect(app.live.size).toBe(0);
     });
 });

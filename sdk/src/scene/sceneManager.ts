@@ -249,6 +249,29 @@ export class SceneManagerState {
     }
 
     async switchTo(name: string, options?: TransitionOptions): Promise<void> {
+        return this.switchTo_(name, options, false);
+    }
+
+    /**
+     * Start the active scene over: retire it and bring it back up, entities and
+     * all. `switchTo` cannot express this — asked for the scene already running
+     * it does nothing, which is the right answer for a gate and the wrong one
+     * for every death, retry and restart there is.
+     */
+    async reload(options?: TransitionOptions): Promise<void> {
+        const name = this.activeScene_;
+        if (!name) {
+            log.warn('scene', 'reload() with no active scene');
+            return;
+        }
+        return this.switchTo_(name, options, true);
+    }
+
+    private async switchTo_(
+        name: string,
+        options: TransitionOptions | undefined,
+        reload: boolean,
+    ): Promise<void> {
         if (this.transitionController_.isTransitioning() || this.switching_) {
             log.warn('scene', `Scene switch already in progress, ignoring switchTo("${name}")`);
             return;
@@ -259,7 +282,7 @@ export class SceneManagerState {
         this.switching_ = true;
         try {
             if ((options?.transition ?? 'none') !== 'fade') {
-                await this.swapTo_(name, options);
+                await this.swapTo_(name, options, reload);
                 return;
             }
             await this.transitionController_.start(
@@ -269,7 +292,7 @@ export class SceneManagerState {
                     onStart: options?.onStart,
                     onComplete: options?.onComplete,
                 },
-                () => this.swapTo_(name, options),
+                () => this.swapTo_(name, options, reload),
             );
         } finally {
             this.switching_ = false;
@@ -277,11 +300,15 @@ export class SceneManagerState {
     }
 
     /** The swap itself: retire whatever is active, bring `name` up. */
-    private async swapTo_(name: string, options?: TransitionOptions): Promise<void> {
+    private async swapTo_(
+        name: string,
+        options?: TransitionOptions,
+        reload = false,
+    ): Promise<void> {
         // Read at swap time, not at switchTo time: a fade puts half a second
         // between the two, and the scene to retire is the one active NOW.
         const outgoing = this.activeScene_;
-        if (outgoing && outgoing !== name) {
+        if (outgoing && (reload || outgoing !== name)) {
             await this.unload(outgoing, options);
         }
         await this.load(name);
