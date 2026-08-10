@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '@/project/runtimeConfig';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -18,6 +18,16 @@ import { exportGame } from '../electron/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HOST = path.join(HERE, '..', 'src', 'gameHost.ts');
+
+/** A solid RGBA PNG of an exact size — block alignment is what decides whether
+ *  the cook may compress it, so a fixture has to say which it is. */
+function solidPng(width: number, height: number): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PNG } = require('pngjs') as typeof import('pngjs');
+  const png = new PNG({ width, height });
+  for (let i = 0; i < width * height; i++) png.data.set([200, 60, 40, 255], i * 4);
+  return PNG.sync.write(png);
+}
 
 let root: string;
 let out: string;
@@ -30,8 +40,9 @@ beforeAll(async () => {
   // A texture asset + sidecar.
   mkdirSync(path.join(root, 'assets'), { recursive: true });
   // A real PNG so the content-addressed + KTX2-compress export path has valid input.
-  copyFileSync(path.resolve(HERE, '..', '..', 'examples', 'hello-world', 'assets', 'textures', 'logo.png'),
-    path.join(root, 'assets', 'hero.png'));
+  // 64x64, not hello-world's 70x70: the cook ships a texture that is not whole
+  // 4x4 blocks raw, because WebGPU cannot make a compressed texture of that size.
+  writeFileSync(path.join(root, 'assets', 'hero.png'), solidPng(64, 64));
   writeFileSync(path.join(root, 'assets', 'hero.png.meta'), meta(TEX, 'texture'));
   // A scene that references the texture by @uuid: + its sidecar.
   mkdirSync(path.join(root, 'scenes'), { recursive: true });

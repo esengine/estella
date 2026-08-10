@@ -60,6 +60,16 @@ afterAll(() => {
   if (root) rmSync(root, { recursive: true, force: true });
 });
 
+/** A solid RGBA PNG of an exact size — block alignment is a cook decision, so a
+ *  test that wants a texture compressed has to ask for whole 4x4 blocks. */
+function solidPng(width: number, height: number, rgba: [number, number, number, number]): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PNG } = require('pngjs') as typeof import('pngjs');
+  const png = new PNG({ width, height });
+  for (let i = 0; i < width * height; i++) png.data.set(rgba, i * 4);
+  return PNG.sync.write(png);
+}
+
 describe('cookAssets (A4)', () => {
   it('includes assets reachable from the entry scene and culls the rest', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
@@ -194,7 +204,9 @@ describe('cookAssets (A4)', () => {
     try {
       const TEX = '77777777-7777-4777-8777-777777777777';
       const SC = '88888888-8888-4888-8888-888888888888';
-      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      // 64x64: a block-compressed texture must be whole 4x4 blocks, so a source
+      // that is not (logo.png is 70x70) is shipped raw by design — see below.
+      const png = solidPng(64, 64, [200, 60, 40, 255]);
       const wa = (rel: string, type: string, uuid: string, body: Buffer | string): void => {
         const abs = path.join(r, rel);
         mkdirSync(path.dirname(abs), { recursive: true });
@@ -277,12 +289,39 @@ describe('cookAssets (A4)', () => {
     }
   }, 30_000);
 
+  it('ships a texture that is not whole 4x4 blocks raw, and says why', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-block-'));
+    try {
+      const TEX = '77777777-7777-4777-8777-777777777779';
+      const SC = '88888888-8888-4888-8888-888888888889';
+      // 70x70 — what hello-world ships, and what made every desktop package draw
+      // nothing: WebGPU refuses an ASTC texture that is not whole blocks.
+      const abs = path.join(r, 't/odd.png');
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, solidPng(70, 70, [10, 200, 40, 255]));
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid: TEX, version: '2.0', type: 'texture', importer: {} }));
+      const sc = path.join(r, 's/main.esscene');
+      mkdirSync(path.dirname(sc), { recursive: true });
+      writeFileSync(sc, JSON.stringify({ version: '1.0', name: 's', entities: [{ id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }));
+      writeFileSync(`${sc}.meta`, JSON.stringify({ uuid: SC, version: '2.0', type: 'scene', importer: {} }));
+
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', compressTextures: true });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const tex = m.entries.find((e) => e.uuid === TEX)!;
+      expect(tex.path).toMatch(/\.png$/);
+      expect(tex.compressedFormats).toBeUndefined();
+      expect(res.warnings.some((w) => w.includes('70x70') && w.includes('multiple of 4'))).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
+
   it('applies a per-platform texture override: one asset, smaller raw PNG for WeChat vs KTX2 for web', async () => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-platov-'));
     try {
       const TEX = '77777777-7777-4777-8777-777777777773';
       const SC = '88888888-8888-4888-8888-888888888883';
-      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      const png = solidPng(64, 64, [200, 60, 40, 255]);
       const abs = path.join(r, 't/logo.png');
       mkdirSync(path.dirname(abs), { recursive: true });
       writeFileSync(abs, png);
@@ -406,14 +445,6 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
   const TEX_B = 'cccc2222-2222-4222-8222-222222222222';
   const LOOSE = 'cccc3333-3333-4333-8333-333333333333';
   const SCENE = 'cccc4444-4444-4444-8444-444444444444';
-
-  function solidPng(width: number, height: number, rgba: [number, number, number, number]): Buffer {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PNG } = require('pngjs') as typeof import('pngjs');
-    const png = new PNG({ width, height });
-    for (let i = 0; i < width * height; i++) png.data.set(rgba, i * 4);
-    return PNG.sync.write(png);
-  }
 
   function makeAtlasProject(): string {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-atlas-'));
