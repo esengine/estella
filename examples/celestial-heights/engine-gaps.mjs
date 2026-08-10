@@ -43,12 +43,14 @@ export const GAPS = [
       'None available: the game does the correct thing and the frame does not show it, '
       + 'so the slice currently ships without hit feedback.',
     fix:
-      'Root-cause the draw. Already excluded by measurement: the burst config (a '
-      + 'continuous emitter placed on screen is equally invisible), the emitter position, '
-      + 'the sorting layer (particle-demo keeps drawing after the same sortingLayers and '
-      + 'ySortLayers are added to it), the blend mode, the layer index, and asset '
-      + 'packaging — the texture ships and the emitter reads back texture=1, enabled=true, '
-      + 'layer=2. What is left is what this project has and particle-demo does not: a '
-      + 'tilemap and physics. Bisect from particle-demo\'s scene, adding one at a time.',
+      'Root-cause the draw. THE EMITTER IS NOT THE VARIABLE: the identical component '
+      + 'data draws 761 warm pixels in a probe project and 0 in this game\'s scene. Built '
+      + 'up one feature at a time, a probe still draws with physics, a tilemap, a '
+      + 'Canvas + UI, the same sortingLayers and ySortLayers, and a camera with '
+      + 'FollowTarget plus a sprite on the y-sorted layer. Also excluded: burst vs '
+      + 'continuous emission, the emitter\'s position, layers 2, 3 and 4, the blend mode, '
+      + 'and asset packaging (the texture ships; the emitter reads back texture=1, '
+      + 'enabled=true). So the cause is elsewhere in this scene or project — go the other '
+      + 'way and bisect by DELETING halves of the game scene until a burst appears.',
   },
 ];
