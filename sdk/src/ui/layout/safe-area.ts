@@ -101,22 +101,19 @@ export class SafeAreaPlugin implements Plugin {
         registerComponent('SafeArea', SafeArea);
 
         const world = app.world;
-        let cachedInsets: SafeAreaInsets = getSafeAreaInsets();
-        let dirty = true;
+        // Read on demand rather than once at build: on iOS the env() values are
+        // only real after the first layout, and a plugin that built before that
+        // would hold zeros for the life of the game.
+        let cachedInsets: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+        let stale = true;
         let prevScreenH = 0;
         let prevWorldH = 0;
 
         if (isWeChat()) {
             const g = globalThis as unknown as WxGlobal;
-            g.wx?.onWindowResize?.(() => {
-                cachedInsets = getSafeAreaInsets();
-                dirty = true;
-            });
+            g.wx?.onWindowResize?.(() => { stale = true; });
         } else if (typeof window !== 'undefined') {
-            this.onResize_ = () => {
-                cachedInsets = getSafeAreaInsets();
-                dirty = true;
-            };
+            this.onResize_ = () => { stale = true; };
             window.addEventListener('resize', this.onResize_);
         }
 
@@ -129,11 +126,16 @@ export class SafeAreaPlugin implements Plugin {
                 if (camera.screenH !== prevScreenH || worldH !== prevWorldH) {
                     prevScreenH = camera.screenH;
                     prevWorldH = worldH;
-                    dirty = true;
+                    stale = true;
                 }
 
-                if (!dirty) return;
-                dirty = false;
+                // Only the READ is throttled; the nodes are visited every frame.
+                // A scene loaded later brings its own, and deciding once on
+                // frame one never looks at them.
+                if (stale) {
+                    stale = false;
+                    cachedInsets = getSafeAreaInsets();
+                }
 
                 const dpr = platformDevicePixelRatio();
                 const insetScale = isWeChat() ? (worldH / camera.screenH) : (dpr * worldH / camera.screenH);

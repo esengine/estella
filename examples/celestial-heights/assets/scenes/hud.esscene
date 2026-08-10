@@ -8,12 +8,9 @@
       "name": "Canvas",
       "parent": null,
       "children": [
-        51,
         60,
-        70,
-        80,
         84,
-        86
+        95
       ],
       "visible": true,
       "components": [
@@ -40,7 +37,7 @@
     {
       "id": 51,
       "name": "HUD",
-      "parent": 50,
+      "parent": 95,
       "children": [
         52,
         53,
@@ -391,7 +388,7 @@
     {
       "id": 70,
       "name": "PackPanel",
-      "parent": 50,
+      "parent": 95,
       "children": [
         71,
         72
@@ -530,7 +527,7 @@
     {
       "id": 80,
       "name": "BossPanel",
-      "parent": 50,
+      "parent": 95,
       "children": [
         81,
         82
@@ -834,7 +831,7 @@
     {
       "id": 86,
       "name": "TouchLayer",
-      "parent": 50,
+      "parent": 95,
       "children": [
         87,
         89
@@ -1042,6 +1039,55 @@
           "type": "TouchButton",
           "data": {
             "action": "Attack"
+          }
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "name": "SafeFrame",
+      "parent": 50,
+      "children": [
+        51,
+        70,
+        80,
+        86
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "SafeArea",
+          "data": {
+            "applyTop": true,
+            "applyBottom": true,
+            "applyLeft": true,
+            "applyRight": true
           }
         }
       ]

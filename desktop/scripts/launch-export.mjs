@@ -24,6 +24,10 @@
  *     --touch            present as a touch device (maxTouchPoints > 0), so a
  *                        build that puts its on-screen controls up for one can
  *                        be driven the way a phone would drive it
+ *     --safe-area t,r,b,l  a screen with insets (a notch, a home bar), via the
+ *                        CSS variables the web platform reads
+ *     --probe a,b,c      after settling, print where those named entities are
+ *                        (opens the package with ?headless)
  *     --log <regex>      also print console lines matching this (the engine's own
  *                        warnings say why a subsystem sat out; only `[engine]`
  *                        lines are forwarded otherwise, which means diagnosing
@@ -77,14 +81,27 @@ const MIME = {
 
 /** Serve the export directory. Range requests are not implemented: a build that
  *  needs them (video seek) would read as a broken asset here, not a broken server. */
-function serve(root) {
+function serve(root, safeArea) {
   const server = http.createServer(async (req, res) => {
     try {
       let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
       if (rel === '') rel = 'index.html';
       const abs = path.join(root, rel);
       if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
+      let bytes = await readFile(abs);
+      // Insets have to exist before the first script runs: the engine reads
+      // them once when its UI plugins build, and a variable set from the
+      // outside after that is a variable nobody ever asks about again.
+      if (safeArea && rel === 'index.html') {
+        const [t = 0, r = 0, b = 0, l = 0] = safeArea.split(',').map(Number);
+        const html = String(bytes);
+        const injected = html.replace(
+          '<head>',
+          `<head><style>:root{--sat:${t}px;--sar:${r}px;--sab:${b}px;--sal:${l}px}</style>`,
+        );
+        if (injected === html) console.log('  safe-area: no <head> to inject into');
+        bytes = Buffer.from(injected);
+      }
       res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
         .end(bytes);
     } catch {
@@ -115,8 +132,9 @@ async function main() {
     app.exit(2);
     return;
   }
-  const server = await serve(DIR);
-  const base = `http://127.0.0.1:${server.address().port}/`;
+  const PROBE = flag('probe', '');
+  const server = await serve(DIR, flag('safe-area', ''));
+  const base = `http://127.0.0.1:${server.address().port}/${PROBE ? '?headless' : ''}`;
 
   const win = new BrowserWindow({
     // Content size, not window size: with the frame counted in, the surface came
@@ -159,6 +177,14 @@ async function main() {
     const ran = await win.webContents.executeJavaScript(inputScript(spec))
       .catch((e) => { errors.push(`input: ${e}`); return -1; });
     console.log(`  input: ${ran} source(s) over ${Number(spec.frames ?? 40)} frames`);
+  }
+
+  if (PROBE) {
+    const names = PROBE.split(',').map((n) => n.trim()).filter(Boolean);
+    const seen = await win.webContents.executeJavaScript(
+      `window.__estellaCooked?.probe(${JSON.stringify(names)}) ?? null`,
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  probe: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();
