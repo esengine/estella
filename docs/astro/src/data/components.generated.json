@@ -381,6 +381,38 @@
       ]
     },
     {
+      "name": "CameraBounds",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "minX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "minY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxY",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "animatable": [
+        "minX",
+        "minY",
+        "maxX",
+        "maxY"
+      ]
+    },
+    {
       "name": "Canvas",
       "source": "cpp",
       "fields": [

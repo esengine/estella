@@ -41,6 +41,15 @@
             "deadzone": 40,
             "damping": 0.18
           }
+        },
+        {
+          "type": "CameraBounds",
+          "data": {
+            "minX": -1024,
+            "minY": -640,
+            "maxX": 1024,
+            "maxY": 640
+          }
         }
       ]
     },

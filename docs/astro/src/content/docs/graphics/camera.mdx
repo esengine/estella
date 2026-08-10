@@ -140,6 +140,36 @@ the camera's `Transform` directly (so the director blends already-followed views
 and runs in **play mode only** — the editor's navigation view is never dragged
 around by it.
 
+## Keep the camera inside the level
+
+Add a `CameraBounds` to the camera and the view never leaves the rectangle — the
+level's edge stays at the edge of the screen instead of showing the void past it:
+
+```typescript
+import { Camera, CameraBounds } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraBounds, {
+  minX: -1280, maxX: 1280,   // the level's world rectangle
+  minY: -768,  maxY: 768,
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `minX` / `maxX` | number | `0` | Horizontal interval the view stays inside. |
+| `minY` / `maxY` | number | `0` | Vertical interval the view stays inside. |
+
+Each axis opts in by naming a real interval, so an axis left at `0`/`0` (or any
+`max ≤ min`) is unconstrained — bound the horizontal one alone for a level that
+scrolls sideways forever. When an interval is narrower than the view, the whole
+of it is shown centred rather than pinned against one wall.
+
+The clamp runs after everything that moves a camera, `FollowTarget` included: it
+constrains where a camera ends its frame, not what put it there. Orthographic
+cameras only — a perspective camera's half extents depend on how far away the
+subject is, which no camera property describes. Like the follow, it runs in
+**play mode only**.
+
 ## Screen ↔ world coordinates
 
 Read the `CameraView` resource to convert between the two spaces — for placing

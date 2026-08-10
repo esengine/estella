@@ -11,6 +11,7 @@ import { Schedule, defineSystem } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { followUpdate } from './FollowTarget';
+import { cameraBoundsUpdate } from './CameraBounds';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -626,6 +627,14 @@ export function cameraPlugin(
                 [Res(Time)],
                 (time: TimeData) => followUpdate(app.world, time.delta),
                 { name: 'CameraFollowSystem' },
+            ), { runIf: playModeOnly });
+
+            // Runs last of the camera movers: bounds constrain where a camera
+            // ends its frame, whatever put it there.
+            app.addSystemToSchedule(Schedule.Update, defineSystem(
+                [],
+                () => cameraBoundsUpdate(app.world),
+                { name: 'CameraBoundsSystem' },
             ), { runIf: playModeOnly });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);

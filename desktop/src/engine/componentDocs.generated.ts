@@ -12,6 +12,7 @@ export const COMPONENT_DOC_PATHS: Readonly<Record<string, string>> = {
   BoxCollider: 'reference/components/physics/#boxcollider',
   CacheAsBitmap: 'reference/components/graphics/#cacheasbitmap',
   Camera: 'reference/components/graphics/#camera',
+  CameraBounds: 'reference/components/graphics/#camerabounds',
   Canvas: 'reference/components/graphics/#canvas',
   CapsuleCollider: 'reference/components/physics/#capsulecollider',
   ChainCollider: 'reference/components/physics/#chaincollider',

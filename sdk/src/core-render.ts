@@ -50,6 +50,8 @@ export { installEditorGrid } from './camera/editorGridRenderer';
 export { CameraDirector, setViewTarget, shakeCamera, BlendCurve } from './camera/CameraDirector';
 export { FollowTarget } from './camera/FollowTarget';
 export type { FollowTargetData } from './camera/FollowTarget';
+export { CameraBounds } from './camera/CameraBounds';
+export type { CameraBoundsData } from './camera/CameraBounds';
 export type { CameraDirectorState } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
 export { computeEffectiveOrthoSize, uiLayoutRect, EDITOR_VIEW_ENTITY, EDITOR_UI_ANCHOR } from './camera/uiLayoutRect';

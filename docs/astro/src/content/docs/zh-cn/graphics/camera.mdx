@@ -128,6 +128,33 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 数据形状导出为 `FollowTargetData` 类型。跟随系统直接写相机的 `Transform`(所以 director
 混合的是已跟随的视图),且**只在 play 模式运行**——编辑器的导航视图永远不会被它拖走。
 
+## 把相机限制在关卡内
+
+给相机加一个 `CameraBounds`,视野就再也不会离开这个矩形——关卡的边缘停在屏幕边缘,
+而不是露出外面的虚空:
+
+```typescript
+import { Camera, CameraBounds } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraBounds, {
+  minX: -1280, maxX: 1280,   // 关卡的世界矩形
+  minY: -768,  maxY: 768,
+});
+```
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `minX` / `maxX` | number | `0` | 视野保持在其中的水平区间。 |
+| `minY` / `maxY` | number | `0` | 视野保持在其中的垂直区间。 |
+
+每个轴通过给出一个真实区间来启用,所以留在 `0`/`0`(或任何 `max ≤ min`)的轴不受约束——
+一个横向无限滚动的关卡只约束水平轴即可。当区间比视野还窄时,整个区间会居中显示,
+而不是贴住某一面墙。
+
+这个钳制跑在所有移动相机的东西之后,包括 `FollowTarget`:它约束的是相机结束这一帧时在
+哪里,而不是谁把它放到那里的。只对正交相机生效——透视相机的半尺寸取决于被拍摄物有多远,
+没有任何相机属性描述它。和跟随一样,**只在 play 模式运行**。
+
 ## 屏幕 ↔ 世界坐标
 
 读 `CameraView` 资源在两个空间之间转换——用于把实体放到光标下,或检测什么可见。无活动相机
