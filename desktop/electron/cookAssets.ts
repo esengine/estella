@@ -245,6 +245,13 @@ export interface CookResult {
   /** uuids present in the project but unreachable — culled from the build. */
   unused: string[];
   warnings: string[];
+  /**
+   * Assets the game REACHES that could not be produced, as `<path>: <why>`. Each
+   * one is a hole in the package: the scene still references it and the runtime
+   * fetches a path nothing staged. Kept apart from `warnings` because it is the
+   * one cook outcome a caller must not ship.
+   */
+  failed: string[];
 }
 
 /**
@@ -270,6 +277,7 @@ export async function cookAssets(
   const platform = opts.platform;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const warnings: string[] = [];
+  const failed: string[] = [];
   // Second gate: nothing reaches it while the scanner drops these upstream, but
   // this is where bytes become an artifact someone else runs. Warns rather than
   // dropping silently — an asset missing from a build has to say why.
@@ -624,7 +632,9 @@ export async function cookAssets(
         });
       }
     } catch (err) {
-      warnings.push(`copy failed ${entry.path}: ${err instanceof Error ? err.message : String(err)}`);
+      const why = err instanceof Error ? err.message : String(err);
+      warnings.push(`copy failed ${entry.path}: ${why}`);
+      failed.push(`${entry.path}: ${why}`);
     }
   }
   manifestEntries.sort((a, b) => a.path.localeCompare(b.path));
@@ -637,5 +647,8 @@ export async function cookAssets(
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
   const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
-  return { ok: true, outDir: absOut, manifestPath, included: [...reachable], includedPaths, unused, warnings };
+  return {
+    ok: failed.length === 0,
+    outDir: absOut, manifestPath, included: [...reachable], includedPaths, unused, warnings, failed,
+  };
 }

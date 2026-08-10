@@ -593,6 +593,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   const projectModules = await loadProjectModules(opts.root, platform);
   const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform });
   warnings.push(...cook.warnings);
+  // An asset the game reaches and the cook could not produce is a hole, not a
+  // note: the scene still references it and the runtime 404s at boot.
+  for (const f of cook.failed) errors.push(`asset not packaged — ${f}`);
   warnings.push(...await unsupportedContentWarnings(opts.root, cook.includedPaths, platform));
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 

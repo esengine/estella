@@ -88,7 +88,11 @@ async function loadExportGame() {
     await esbuild.build({
         entryPoints: [path.join(DESKTOP, 'electron', 'exportGame.ts')],
         outfile, bundle: true, format: 'esm', platform: 'node', target: 'node20',
-        external: ['esbuild', 'electron', 'sharp'], logLevel: 'error',
+        // The Basis encoder finds its own .cjs/.wasm through `import.meta.url`,
+        // so inlining it makes it look beside the BUNDLE. External keeps the
+        // specifier, and the temp dir is as deep under desktop/ as electron/ is.
+        external: ['esbuild', 'electron', 'sharp', '../../build-tools/basis/encoder.mjs'],
+        logLevel: 'error',
         banner: {
             js: "import { createRequire as __esCreateRequire } from 'node:module';\n"
                 + `const require = __esCreateRequire('${fileUrl(path.join(DESKTOP, 'package.json'))}');\n`,
@@ -198,7 +202,7 @@ const wasmDir = platform === 'wechat'
     ]) ?? path.join(DESKTOP, 'public', 'wasm')
     : path.join(DESKTOP, 'public', 'wasm');
 
-const { resolveOrientation, parseManifest, runtimeConfigOf } = await loadProjectFormat();
+const { resolveOrientation, parseManifest, runtimeConfigOf, cookOptionsOf } = await loadProjectFormat();
 // PARSED, not read by hand: the parser normalizes legacy platform ids and drops
 // values that could not be judged against, and a budget read straight off the JSON
 // here would be the orientation bug again with a different field.
@@ -222,6 +226,9 @@ try {
         // it a headless package ships every setting at its default while claiming
         // to be the package the dialog makes.
         runtime: runtimeConfigOf(manifest),
+        // Same bargain, one field over: the cook flags are ALSO the project's
+        // own, and passing none of them shipped every automated package raw.
+        ...cookOptionsOf(manifest),
         androidTemplate: platform === 'android' ? templateDir : null,
         desktopTemplates,
         desktopChannel: opts['steam-appid'] ? 'steam' : undefined,

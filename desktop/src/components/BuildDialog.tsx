@@ -47,6 +47,7 @@ import { Group as SettingsGroup, groupByGroup } from '@/components/SettingsRow';
 import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
 import { ProjectStore } from '@/project/ProjectStore';
+import { cookOptionsOf } from '@/project/runtimeConfig';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { t } from '@/i18n';
@@ -531,9 +532,9 @@ export function BuildDialog() {
     // Awaited, not fired-and-forgotten: the export resolves the network from the
     // manifest, so a race here would package for the previous one.
     if (platform === 'playable') await ProjectStore.setPlatformPackaging('playable', { network: adNetwork });
-    // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
-    // texture/audio compression + Max Size); 'skip' → ship everything raw.
-    const compress = assetCompression === 'auto';
+    // What 'auto' / 'skip' MEANS is one function, shared with the headless
+    // export: deriving it here on its own is how the two came to disagree.
+    const cook = cookOptionsOf({ packaging: { assetCompression } });
     // Live build log (UE-style): each export phase streams over IPC.
     const unsub = window.estella.project?.onExportProgress?.((p) =>
       setLog((l) => [...l, p.detail ? `${p.phase} — ${p.detail}` : p.phase]),
@@ -544,9 +545,7 @@ export function BuildDialog() {
         outDir,
         minify: config === 'shipping',
         sourcemap: def.sourceMaps && sourceMaps,
-        compressTextures: compress,
-        atlasTextures: compress,
-        compressAudio: compress,
+        ...cook,
       })) as Result | null;
       if (!res) {
         setResult({ ok: false, outDir, included: 0, warnings: [], errors: [t('build.noProjectOpen')] });

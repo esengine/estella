@@ -187,6 +187,24 @@ function isDefaultPhysics(config: PhysicsPluginConfig): boolean {
   return JSON.stringify(config) === JSON.stringify(DEFAULT_PHYSICS_CONFIG);
 }
 
+/** What the cook does to a project's assets, as three flags it takes. */
+export interface CookOptions {
+  compressTextures: boolean;
+  compressAudio: boolean;
+  atlasTextures: boolean;
+}
+
+/**
+ * The cook flags a project's `assetCompression` means. One derivation for the
+ * same reason {@link runtimeConfigOf} is one: the Build dialog derived these
+ * itself and the headless export passed none of them, so every automated
+ * package shipped raw — verifying a build configuration no user ships.
+ */
+export function cookOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): CookOptions {
+  const on = (manifest.packaging?.assetCompression ?? 'auto') === 'auto';
+  return { compressTextures: on, compressAudio: on, atlasTextures: on };
+}
+
 /** The effective settings of a project with nothing declared — every default. */
 export const DEFAULT_RUNTIME_CONFIG: RuntimeProjectConfig = runtimeConfigOf({});
 
