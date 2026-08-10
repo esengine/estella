@@ -1,8 +1,9 @@
 import {
-    addSystemToSchedule, addSystemSetToSchedule, defineSystemSet, Schedule,
+    addStartupSystem, addSystemToSchedule, addSystemSetToSchedule, defineSystemSet, Schedule,
 } from 'esengine';
 
 import './components';
+import './actions';
 import { session } from './state';
 import { playerMoveSystem, playerAttackSystem } from './systems/player';
 import {
@@ -11,7 +12,7 @@ import {
 import { healthBarSystem, hitFlashSystem, vitalityMeterSystem } from './systems/feedback';
 import { cameraBindSystem, navFromTerrainSystem, gateSystem } from './systems/world';
 import { pauseInputSystem, pauseTimeSystem, pauseOverlaySystem } from './systems/pause';
-import { cycleLanguageSystem } from './systems/settings';
+import { applySettingsSystem, cycleLanguageSystem } from './systems/settings';
 import {
     saveRunSystem, loadRunSystem, applyRestoreSystem, rememberRosterSystem,
 } from './systems/save';
@@ -28,6 +29,8 @@ import { perceiverFacingSystem } from './ai/wisp';
 
 // The world systems run every frame rather than at startup: an area switch
 // brings a new camera, a new terrain and a new player, and startup is long past.
+addStartupSystem(applySettingsSystem);
+
 addSystemToSchedule(Schedule.PreUpdate, navFromTerrainSystem);
 addSystemToSchedule(Schedule.PreUpdate, cameraBindSystem);
 addSystemToSchedule(Schedule.PreUpdate, rememberRosterSystem);

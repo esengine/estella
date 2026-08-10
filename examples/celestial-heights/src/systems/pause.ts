@@ -1,6 +1,5 @@
-import {
-    defineSystem, Query, Mut, Res, ResMut, Input, Time, UINode, UIDisplay,
-} from 'esengine';
+import { defineSystem, Query, Mut, ResMut, Time, UINode, UIDisplay } from 'esengine';
+import { Actions } from '../actions';
 import { PauseOverlay } from '../components';
 import { session } from '../state';
 
@@ -8,9 +7,9 @@ import { session } from '../state';
 // pause, and the others have to be able to draw it and to stop the world.
 
 export const pauseInputSystem = defineSystem(
-    [Res(Input)],
-    (input) => {
-        if (input.isKeyPressed('Escape')) session.paused = !session.paused;
+    [],
+    () => {
+        if (Actions.pressed('Pause')) session.paused = !session.paused;
     },
     { name: 'PauseInputSystem' },
 );

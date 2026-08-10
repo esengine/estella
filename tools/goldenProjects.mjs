@@ -77,7 +77,7 @@ export const KNOWN_GAPS = {
   rollback: 'hot-update-demo swaps forward; nothing exercises a failed manifest rolling back',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
-  settings: 'no project persists graphics/audio/language/rebinds and reads them back — Celestial Heights P3',
+  settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
   controller: 'input-actions binds a gamepad, but no golden run drives one — Celestial Heights P5',
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.

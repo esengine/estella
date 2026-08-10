@@ -1,15 +1,16 @@
 import {
     defineSystem, Query, Mut, Res, Commands, GetWorld,
-    Input, Transform, Name, SceneManager, Localization, transitionTo,
+    Transform, Name, SceneManager, Localization, transitionTo,
 } from 'esengine';
 import { Enemy, Health, Player } from '../components';
 import { saves, SLOT, type RunState } from '../save';
+import { Actions } from '../actions';
 import { session } from '../state';
 
 export const saveRunSystem = defineSystem(
-    [Query(Transform, Health, Player), Query(Name, Enemy), Res(Input), Res(SceneManager), Res(Localization)],
-    (players, living, input, scenes, i18n) => {
-        if (!input.isKeyPressed('F5')) return;
+    [Query(Transform, Health, Player), Query(Name, Enemy), Res(SceneManager), Res(Localization)],
+    (players, living, scenes, i18n) => {
+        if (!Actions.pressed('Save')) return;
         const area = scenes.getActive();
         if (!area) return;
         // Which enemies the scene HAD, minus the ones still standing: a save
@@ -34,9 +35,9 @@ export const saveRunSystem = defineSystem(
 );
 
 export const loadRunSystem = defineSystem(
-    [Res(Input), Res(SceneManager), Res(Localization)],
-    (input, scenes, i18n) => {
-        if (!input.isKeyPressed('F9')) return;
+    [Res(SceneManager), Res(Localization)],
+    (scenes, i18n) => {
+        if (!Actions.pressed('Load')) return;
         const run = saves.load<RunState>(SLOT);
         if (!run) return;
         i18n.setLocale(run.locale);

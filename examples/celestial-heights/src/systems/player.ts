@@ -1,7 +1,6 @@
-import {
-    defineSystem, Query, Mut, Res, Input, CharacterController,
-} from 'esengine';
+import { defineSystem, Query, Mut, CharacterController } from 'esengine';
 import { Player, Facing, MeleeAttack } from '../components';
+import { Actions } from '../actions';
 import { DEPTH_FORESHORTEN } from '../config';
 
 /**
@@ -10,15 +9,12 @@ import { DEPTH_FORESHORTEN } from '../config';
  * physics world's business and not this system's.
  */
 export const playerMoveSystem = defineSystem(
-    [Query(Mut(CharacterController), Mut(Facing), Player), Res(Input)],
-    (players, input) => {
+    [Query(Mut(CharacterController), Mut(Facing), Player)],
+    (players) => {
+        const move = Actions.axis2d('Move');
         for (const [, cc, facing, player] of players) {
-            let dx = 0;
-            let dy = 0;
-            if (input.isKeyDown('KeyW') || input.isKeyDown('ArrowUp')) dy += 1;
-            if (input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown')) dy -= 1;
-            if (input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft')) dx -= 1;
-            if (input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight')) dx += 1;
+            const dx = move.x;
+            const dy = move.y;
 
             if (dx === 0 && dy === 0) {
                 cc.velocity.x = 0;
@@ -39,9 +35,9 @@ export const playerMoveSystem = defineSystem(
 
 /** Turns the attack key into the same `pending` flag the wisps' brain sets. */
 export const playerAttackSystem = defineSystem(
-    [Query(Mut(MeleeAttack), Player), Res(Input)],
-    (players, input) => {
-        if (!input.isKeyPressed('Space')) return;
+    [Query(Mut(MeleeAttack), Player)],
+    (players) => {
+        if (!Actions.pressed('Attack')) return;
         for (const [, attack] of players) attack.pending = true;
     },
     { name: 'PlayerAttackSystem' },

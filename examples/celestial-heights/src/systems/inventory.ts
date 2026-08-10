@@ -1,12 +1,13 @@
 import {
     defineSystem, Query, Mut, Res, Commands, GetWorld,
-    Input, Transform, UINode, UIDisplay, Text, Localization,
+    Transform, UINode, UIDisplay, Text, Localization,
     ArrayDataSource, createListView, spawnUIEntity, px, uiPlugin,
     UIPositionType, TextAlign, TextVerticalAlign,
 } from 'esengine';
 import type { Entity, World, TextData, UIVisualData } from 'esengine';
 import { UIVisual } from 'esengine';
 import { Item, Player } from '../components';
+import { Actions } from '../actions';
 import { ITEM_COLOR, PICKUP_RADIUS } from '../config';
 import { session } from '../state';
 
@@ -37,9 +38,9 @@ export const pickupSystem = defineSystem(
 );
 
 export const inventoryInputSystem = defineSystem(
-    [Res(Input)],
-    (input) => {
-        if (input.isKeyPressed('Tab')) session.inventoryOpen = !session.inventoryOpen;
+    [],
+    () => {
+        if (Actions.pressed('Pack')) session.inventoryOpen = !session.inventoryOpen;
     },
     { name: 'InventoryInputSystem' },
 );
