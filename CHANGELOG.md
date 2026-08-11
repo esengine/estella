@@ -84,6 +84,64 @@ published separately; it ships inside the editor.
   a GPU. The unmasked strings are read where the browser allows it, so a report
   now names `ANGLE Metal Renderer: Apple M4` instead of a constant.
 
+
+- **`examples/celestial-heights` — a game the engine is judged by.** Not a
+  showcase: an ARPG built to be played from its first room to its boss, whose
+  purpose is to find where the engine hurts. Everything below in this release
+  that is not the editor came out of building it, and the rule was that a place
+  it hurt got fixed in the ENGINE — a ledger (`engine-gaps.mjs`) held every
+  workaround, with a gate that refuses a release while the ledger is non-empty.
+  It ships at zero entries.
+
+- **`CameraBounds`: a level's edge belongs at the edge of the screen.** A camera
+  that follows a character walked off the map with it, and every project solved
+  that by clamping in its own follow script — so the constraint lived in whichever
+  system happened to move the camera. It is now a property of where the camera IS:
+  applied after every camera mover, opted into per axis (max > min), centring the
+  view when the interval is narrower than the viewport. Orthographic only.
+
+- **`SceneManager.reload()`: a run can start over.** `switchTo(theSceneYouAreIn)`
+  is a no-op — correct for a door, and no way at all to express dying, retrying,
+  or starting a new run.
+
+- **A prefab spawned at runtime belongs to the scene it landed in.** Entities
+  created from script had no scene, so a scene switch left them behind — the
+  spawner's bullets outliving the level. They now adopt the active scene at spawn;
+  `scene: false` opts out for something deliberately global.
+
+- **`NavAgent.radius` is finally read.** The field was declared and nothing
+  consumed it, so every path was planned for a point and a body-sized agent
+  clipped every corner. Paths are now planned against a clearance field (two-pass
+  chamfer, out-of-bounds counted as blocked, computed on first ask and dropped
+  when walkability changes). **The default changed from 12 to 0**: a field that
+  never took effect would otherwise silently re-route every already-published
+  project the moment it started working.
+
+- **`Virtual('id')`: an input a thumb can reach.** A binding could name a key, a
+  button or an axis, and nothing a finger touches. A named virtual input is an
+  ordinary binding — it serializes, rebinds and lives in a `.inputmap` like the
+  rest — so an on-screen control feeds the same action a key does, rather than a
+  game reading screen rectangles that drift when the layout moves.
+
+- **`PlatformAdapter.hasTouch()`.** "Show the on-screen stick only on a touch
+  device" was unanswerable, so the alternative was to wait for a first touch —
+  which asks the player to touch nothing, twice.
+
+- **`randomSeed`, and one place a seed lives.** The engine's randomness was a
+  particle-system member seeded from the clock, so a run could never be repeated:
+  no replay, no reproducible bug report, and nothing constant to assert about a
+  frame with particles in it. `RandomSource` is the engine's source now, still
+  clock-seeded so an unconfigured game varies; pass `randomSeed` at boot and the
+  run reproduces. Consumers take a NAMED stream rather than sharing a generator,
+  so adding an emitter cannot change what something else rolled.
+
+- **Atlas membership is declared, like delivery already was.** Which textures
+  pack into one page was a `<name>.atlas/` folder convention known only to the
+  cook. `.esengine/asset-groups.json` now carries an `atlases` section, resolved
+  by `resolveAtlas` beside `resolveAssetGroup`. It is a SEPARATE axis from a
+  delivery group on purpose: an atlas may span two groups, and a group may hold
+  two atlases. The folder convention stays as the zero-config default.
+
 ### Fixed
 
 - **A particle emitter now takes its world Y into the draw key, like everything
@@ -126,6 +184,55 @@ published separately; it ships inside the editor.
   has everywhere else — the world centre of the bottom-left cell. The pure core
   (`navGridFromTiles`) was always right and always tested; the seam where two
   subsystems with opposite conventions meet had no test, and now does.
+
+
+- **Safe-area insets are asked for again, not decided on frame one.** The insets
+  were read once when the plugin built and written once to the nodes that existed
+  then. On iOS `env()` has no value until after the first layout, so that read was
+  always zero; and a HUD loaded additively afterwards brought nodes nobody ever
+  visited. The read is throttled and the nodes are walked every frame. Measured
+  under a 44px notch: the node used to receive 0 and now receives 88.
+
+- **Asking a resource store for a value is not the same as having one.**
+  `get` materialised a default into the same table `has` reads, so one system
+  touching a resource was enough to make an install gate believe its plugin was
+  already there. Localization defaults to null, so an additively-loaded scene lost
+  every translation — 38 errors on one scene, none after.
+
+- **A body does not block the view of itself.** Line-of-sight cast from origin to
+  origin while colliders sit at the feet (the 2.5D norm), so the ray entered the
+  target's own capsule before reaching it. The symptom hid well: visible from the
+  side, invisible from below. 49 sightings and no damage before; 571 and a hurt
+  player after.
+
+- **A desktop package built with default settings drew nothing.** Every format a
+  KTX2 transcodes to is a 4x4 block format, and WebGPU refuses a compressed
+  texture whose size is not whole blocks — WebGL does not, so the web package was
+  fine and the native one could not create a single texture. A 70x70 sprite was
+  enough to blank the frame. The cook ships such a texture raw and names it in a
+  warning; the runtime no longer picks a block format for an image that cannot be
+  whole blocks.
+
+- **The same game no longer differs by an sRGB encode between desktop platforms.**
+  The swapchain took whatever format the surface preferred, so whether it encoded
+  on write was the driver's answer. The engine hands that surface values that are
+  already display-encoded, so a platform whose preferred format was *Srgb encoded
+  them twice. Measured: one platform read an exact sRGB encode of the other, on
+  every probe.
+
+- **A headless export could not compress a texture, and said nothing.** The Basis
+  encoder finds its own binary through `import.meta.url`, and the headless path
+  bundles the cook into a temp directory — so it looked for it beside the bundle
+  and threw on every texture. Worse, the cook answered that by DROPPING each
+  asset: no file staged, no manifest entry, and a report that said the build was
+  clean. An asset the game reaches and the cook cannot produce is now an error.
+
+- **The desktop runtime templates can be downloaded.** The Windows, macOS and
+  Linux templates are published, valid and reachable; the button did nothing at
+  all, because two different types were both called `NativePlatform` — the export
+  targets (one `desktop` for three OSes) and the platforms a template is published
+  for — and every layer above the download hand-narrowed it back to the mobile
+  pair.
 
 ## [0.47.0] - 2026-08-08
 

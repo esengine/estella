@@ -243,13 +243,31 @@ picks whether to honor those settings at all:
 
 - **Compression → By import settings** — each texture and audio clip compresses per
   its Import Settings (PNG → **KTX2** Basis Universal, Max Size, WAV → MP3), and
-  `<name>.atlas/` folders pack into atlas pages so many small sprites ship as one
-  texture and batch in one draw call.
+  textures that share an atlas pack into atlas pages so many small sprites ship as
+  one texture and batch in one draw call. Membership comes from a `<name>.atlas/`
+  folder, or from an [`atlases` entry](/docs/publishing/hot-update/#esengineasset-groupsjson)
+  in `.esengine/asset-groups.json`.
 - **Compression → Skip all** — ship everything raw, for fast iteration.
 
 KTX2 textures are transcoded by the runtime to the best format each device
 supports (ASTC → ETC2 → S3TC, falling back to RGBA8), with their mip chains —
 smaller downloads and less VRAM.
+
+:::caution[A texture is compressed only if its size is whole 4×4 blocks]
+Every format a KTX2 transcodes to is block-compressed, and WebGPU refuses a
+compressed texture whose width or height is not a multiple of 4 — so a 70×70
+sprite would fail to create on the native runtime, and one failed texture blanks
+the frame. The build ships such a texture **raw** instead and names it in a
+warning:
+
+```
+assets/textures/platform.png: shipped raw — 70x70 is not a multiple of 4,
+which a block-compressed texture must be
+```
+
+Resize it (or pad it) to a multiple of 4 to get the compression back. Atlas pages
+are always whole blocks, so packing small odd-sized sprites is the other way out.
+:::
 
 **Content addressing** is on by default for Web/Desktop (each file named by a hash
 of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN root

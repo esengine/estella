@@ -47,6 +47,7 @@ await app.run();
 | `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` 走注入设备路径——宿主必须先取得 `GPUDevice` 并在实例化前作为模块工厂的 `preinitializedWebGPUDevice` 传入。 |
 | `canvasSelector` | `string` | `'#canvas'` | WebGPU 交换链画布的 CSS 选择器(必须已在 DOM 中)。WebGL 忽略它。 |
 | `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | 项目色彩空间。`'linear'` 在线性光下渲染(采样时 sRGB 解码、线性混合、最终 blit 显式编码)。必须**在创建应用时**声明——着色器按它编译。 |
+| `randomSeed` | `number` | — | 给引擎的随机性播种,让这次运行可复现——回放、bug 复现、对某一帧下断言。不填则每次运行都不同,这对粒子正是玩家想要的。各子系统取的是按名字独立的流,所以新增一个发射器不会改变别处抽到的数。 |
 | `ySortLayers` | `number` | `0` | 渲染层位掩码(bit 0–31):层内按世界 Y 排序(俯视遮挡)。 |
 | `screenFit` | `ScreenScalingData` | 关(`scaleMode: -1`) | 项目相机适配:把设计分辨率 letterbox 进实际宽高比。仅当 `scaleMode` 为真实模式(≥ 0)时安装;`SCREEN_FIT_OFF`(-1)保持旧行为(有 Canvas 用 Canvas 适配,否则用原始 orthoSize)。 |
 

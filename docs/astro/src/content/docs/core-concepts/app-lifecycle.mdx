@@ -51,6 +51,7 @@ importable from `esengine`) with `wasmBaseUrl`:
 | `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` boots the injected-device path — the host must have acquired a `GPUDevice` and passed it as the module factory's `preinitializedWebGPUDevice` before instantiation. |
 | `canvasSelector` | `string` | `'#canvas'` | CSS selector for the WebGPU swapchain canvas (must be in the DOM). WebGL ignores it. |
 | `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | Project color space. `'linear'` renders in linear light (sRGB decode on sample, linear blending, explicit encode in the final blit). Must be declared **at app creation** — shaders compile against it. |
+| `randomSeed` | `number` | — | Seed the engine's randomness so the run reproduces — a replay, a bug report, an assertion about a frame. Absent, every run differs, which is what a player wants of particles. Subsystems take independent named streams, so adding an emitter cannot change what something else rolled. |
 | `ySortLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) that sort by world Y within the layer (top-down occlusion). |
 | `screenFit` | `ScreenScalingData` | off (`scaleMode: -1`) | Project camera fit: letterboxes a design resolution into the actual aspect. Only installed when `scaleMode` is a real mode (≥ 0); `SCREEN_FIT_OFF` (-1) keeps the legacy Canvas-or-raw fit. |
 

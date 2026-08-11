@@ -80,6 +80,9 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
   "groups": {
     "cdn": { "folder": "assets/cdn", "mode": "remote" }
   },
+  "atlases": {
+    "ui": { "folder": "assets/art/ui" }
+  },
   "activeProfile": "dev",
   "profiles": {
     "dev":  { "remoteRoot": "" },
@@ -93,6 +96,8 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | `version` | `string` | 配置版本（`"1.0"`）。 |
 | `groups` | `Record<name, {folder, mode}>` | 文件夹 → 交付方式的指派。 |
 | `groups.<name>.folder` | `string` | 项目相对文件夹；其下（递归）每个资产都归入该组。文件夹嵌套时，**最长**匹配前缀胜出。 |
+| `atlases` | `Record<name, {folder}>` | 其下纹理打进同一张图集页的文件夹。与 `groups` 是**互相独立的两个轴**：哪些资产一起交付、哪些资产共享一张纹理页，是两个不同的决定——所以一张图集可以跨两个交付组，一个交付组里也可以有两张图集。不写 ⇒ 仍然沿用 `<name>.atlas/` 文件夹约定。 |
+| `atlases.<name>.folder` | `string` | 项目相对文件夹；其下每张纹理都打进这张图集。最长匹配前缀胜出。 |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
 | `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
 | `activeProfile` | `string` | 构建使用哪个 profile（`profiles` 的键）。 |

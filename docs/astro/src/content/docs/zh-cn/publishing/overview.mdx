@@ -201,12 +201,28 @@ node build-tools/cli.js build -t wechat
 每个平台一个页签,所以一张纹理可以为手机压得比网页端更狠。构建这一层只决定是否遵循这些设置:
 
 - **资源压缩 → 按导入设置** —— 每张纹理与每段音频按各自的导入设置压缩
-  (PNG → **KTX2** Basis Universal、Max Size、WAV → MP3),`<name>.atlas/` 文件夹打包成图集页,
-  于是许多小精灵作为一张纹理发布、在一次绘制里合批。
+  (PNG → **KTX2** Basis Universal、Max Size、WAV → MP3),同属一张图集的纹理打包成图集页,
+  于是许多小精灵作为一张纹理发布、在一次绘制里合批。图集成员来自 `<name>.atlas/` 文件夹,
+  或 `.esengine/asset-groups.json` 里的
+  [`atlases` 条目](/docs/zh-cn/publishing/hot-update/#esengineasset-groupsjson)。
 - **资源压缩 → 全部跳过** —— 一律原样输出,便于快速迭代。
 
 KTX2 纹理由运行时转码为设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8),并带上
 mip 链——下载更小、显存更省。
+
+:::caution[只有尺寸是完整 4×4 块的纹理才会被压缩]
+KTX2 能转码到的每一种格式都是块压缩格式,而 WebGPU 拒绝宽或高不是 4 的倍数的压缩纹理——
+所以一张 70×70 的精灵在原生运行时上会创建失败,**而一张纹理失败就会让整帧变黑**。
+构建会把这类纹理**原样发布**,并在警告里点名:
+
+```
+assets/textures/platform.png: shipped raw — 70x70 is not a multiple of 4,
+which a block-compressed texture must be
+```
+
+把它改成 4 的倍数(缩放或补边)就能恢复压缩。图集页永远是完整块,所以把尺寸零碎的小图
+打进图集是另一条出路。
+:::
 
 **内容寻址** 对 Web/桌面默认开启(每个文件按字节哈希命名——URL 不可变、自动去重)。
 **高级**里放着[热更新](/docs/zh-cn/publishing/hot-update/)的 CDN 根地址、source map,
