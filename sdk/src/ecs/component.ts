@@ -91,6 +91,13 @@ export interface FieldMeta {
     advanced?: boolean;
 }
 
+/**
+ * What a component declares about its fields beyond their default values: which
+ * are assets, which the editor may keyframe, which replicate. Optional
+ * throughout — a component that says nothing gets the derived defaults.
+ *
+ * @public
+ */
 export interface ComponentMetadata {
     assetFields?: AssetFieldMeta[];
     skeletalFields?: SkeletalFieldMeta;
@@ -164,10 +171,22 @@ export function enumOptions(
 // Component Definition
 // =============================================================================
 
+/**
+ * A component type, as {@link defineComponent} returns it. Pass it to queries,
+ * `world.get`/`world.insert` and `Commands`; the reflection members below are
+ * what the editor and the asset cook read, derived from the metadata given at
+ * definition. The underscored members are engine plumbing.
+ *
+ * @public
+ */
 export interface ComponentDef<T> {
+    /** @internal */
     readonly _id: symbol;
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _default: T;
+    /** @internal */
     readonly _builtin: false;
     readonly assetFields: readonly AssetFieldMeta[];
     readonly skeletalFields?: SkeletalFieldMeta;
@@ -448,6 +467,13 @@ export interface BuiltinComponentDef<T> {
 // Component Type Union
 // =============================================================================
 
+/**
+ * Either kind of component type: one a project declared, or one the engine
+ * ships. Everything that takes "a component" takes this, so a query or a
+ * command reads a built-in and a user component the same way.
+ *
+ * @public
+ */
 export type AnyComponentDef = ComponentDef<any> | BuiltinComponentDef<any>;
 
 export function isBuiltinComponent(comp: AnyComponentDef): comp is BuiltinComponentDef<any> {

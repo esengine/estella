@@ -22,6 +22,7 @@
  * hole stays visible instead of passing for coverage.
  *
  *   node tools/check-freeze-bar.mjs
+ *   node tools/check-freeze-bar.mjs --why A,B,C   what freezing these would cost
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -117,7 +118,28 @@ function exercisedByGolden() {
 // Report
 // ---------------------------------------------------------------------------
 
-const frozen = frozenSymbols();
+const askFlag = process.argv.find((a) => a.startsWith('--why'));
+const asked = askFlag
+    ? (askFlag.includes('=') ? askFlag.split('=')[1] : process.argv[process.argv.indexOf(askFlag) + 1] ?? '')
+        .split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+const frozen = asked.length ? new Map() : frozenSymbols();
+if (asked.length) {
+    // Planning a wave asks the bar about symbols that are not tagged yet, so the
+    // kind comes from the snapshot the same way it does for a frozen one.
+    const all = new Map();
+    for (const entryName of Object.keys(ENTRIES)) {
+        const file = join(ETC, `${entryName}.api.md`);
+        if (!existsSync(file)) continue;
+        for (const [name, s] of parseSnapshot(readFileSync(file, 'utf8'))) if (!all.has(name)) all.set(name, s.kind);
+    }
+    for (const name of asked) {
+        if (all.has(name)) frozen.set(name, all.get(name));
+        else console.error(`  ${name} — not an exported symbol`);
+    }
+}
+
 if (frozen.size === 0) {
     console.log('check-freeze-bar: nothing is @public yet — no promise to hold up.');
     process.exit(0);
@@ -163,6 +185,16 @@ for (const [name, kind] of [...frozen].sort()) {
 
 for (const [name, why] of Object.entries(EXEMPT)) {
     if (!frozen.has(name)) failures.push({ name, say: `is exempt from the freeze bar but is not @public — ${why}` });
+}
+
+if (asked.length) {
+    const short = (n) => `${n}${' '.repeat(Math.max(0, 22 - n.length))}`;
+    for (const [name, kind] of frozen) {
+        const f = failures.find((x) => x.name === name);
+        console.log(`  ${short(name)} ${kind.padEnd(10)} ${f ? f.say : 'meets the bar'}`);
+    }
+    console.log(`\n${frozen.size} asked, ${frozen.size - failures.length} would pass as they stand.`);
+    process.exit(0);
 }
 
 const values = [...frozen].filter(([, k]) => VALUE_KINDS.has(k)).length;

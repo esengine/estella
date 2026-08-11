@@ -15,7 +15,15 @@ import { log } from '../util/logger';
 // Commands Descriptor (for system parameters)
 // =============================================================================
 
+/**
+ * A request for a command queue in a system's parameter list, as
+ * {@link Commands} returns it. Opaque — the system body receives a
+ * `CommandsInstance`, which is the thing with methods.
+ *
+ * @public
+ */
 export interface CommandsDescriptor {
+    /** @internal */
     readonly _type: 'commands';
 }
 

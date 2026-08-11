@@ -38,6 +38,15 @@ export function parseSnapshot(text) {
 }
 
 /**
+ * The part of a body that carries a promise. An `@internal` member is in the
+ * shipped `.d.ts` and in the snapshot so it is visible, but it is not something
+ * a release promised, so changing one is not breaking one.
+ */
+export function promisedBody(body) {
+    return body.split('\n').filter((l) => !l.startsWith('@internal ')).join('\n');
+}
+
+/**
  * Compare one entry against its released self. Only @public carries a promise,
  * so only @public produces a failure; @beta is noted because "may adjust" should
  * still read as a decision someone made rather than a silent edit.
@@ -56,12 +65,14 @@ export function baselineFindings(was, now) {
                 failures.push(`${name} — @public at baseline, now @${after.tier}; a freeze does not thaw`);
             } else if (after.kind !== before.kind) {
                 failures.push(`${name} — @public ${before.kind} became a ${after.kind}`);
-            } else if (after.body !== before.body) {
+            } else if (promisedBody(after.body) !== promisedBody(before.body)) {
                 failures.push(`${name} — @public signature changed`);
             }
         } else if (before.tier === 'beta') {
             if (!after) notes.push(`${name} — @beta removed`);
-            else if (after.body !== before.body) notes.push(`${name} — @beta signature changed`);
+            else if (promisedBody(after.body) !== promisedBody(before.body)) {
+                notes.push(`${name} — @beta signature changed`);
+            }
         }
     }
     return { failures, notes };

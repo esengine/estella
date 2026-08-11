@@ -14,8 +14,16 @@ import { computeQueryCacheKey } from './world';
 // Mutable Component Wrapper
 // =============================================================================
 
+/**
+ * A query argument asking for write access, as {@link Mut} returns it. Opaque —
+ * the query yields the component's data, not this.
+ *
+ * @public
+ */
 export interface MutWrapper<T extends AnyComponentDef> {
+    /** @internal */
     readonly _type: 'mut';
+    /** @internal */
     readonly _component: T;
 }
 
@@ -72,6 +80,13 @@ export function isChangedWrapper(value: unknown): value is ChangedWrapper<AnyCom
  * Every value accepted as a positional `Query(...)` argument: a bare component,
  * or a component wrapped for mutation / change detection. Exported so `system.ts`
  * can constrain `SystemParam` against the exact same set — the two must never drift.
+ */
+/**
+ * Anything {@link Query} accepts: a component for read access, or one wrapped in
+ * {@link Mut} to write, `Added()` to match only entities that just gained it, or
+ * `Changed()` to match only those whose copy was written since the last run.
+ *
+ * @public
  */
 export type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 
@@ -182,19 +197,42 @@ function compileFilter(expr: FilterExpr, world: World): (entity: Entity) => bool
 // Query Descriptor
 // =============================================================================
 
+/**
+ * A settled query request in a system's parameter list. Opaque — the system body
+ * receives a `QueryInstance` to iterate.
+ *
+ * @public
+ */
 export interface QueryDescriptor<C extends readonly QueryArg[]> {
+    /** @internal */
     readonly _type: 'query';
+    /** @internal */
     readonly _components: C;
+    /** @internal */
     readonly _mutIndices: number[];
+    /** @internal */
     readonly _with: AnyComponentDef[];
+    /** @internal */
     readonly _without: AnyComponentDef[];
+    /** @internal */
     readonly _addedFilters: Array<{ index: number; component: AnyComponentDef }>;
+    /** @internal */
     readonly _changedFilters: Array<{ index: number; component: AnyComponentDef }>;
+    /** @internal */
     readonly _filter: FilterExpr | null;
 }
 
+/**
+ * A {@link Query} before it is handed to a system, narrowable by components the
+ * match must or must not have. Each call returns a NEW builder, so narrowing a
+ * shared query does not disturb it, and any of them is a valid parameter.
+ *
+ * @public
+ */
 export interface QueryBuilder<C extends readonly QueryArg[]> extends QueryDescriptor<C> {
+    /** Match only entities that also carry all of these; their data is not yielded. */
     with(...components: AnyComponentDef[]): QueryBuilder<C>;
+    /** Exclude entities carrying any of these. */
     without(...components: AnyComponentDef[]): QueryBuilder<C>;
     /** Attach a composable filter expression. Replaces any prior call. */
     filter(expr: FilterExpr): QueryBuilder<C>;

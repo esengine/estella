@@ -49,6 +49,13 @@ export function GetWorld(): GetWorldDescriptor {
 // System Parameter Types
 // =============================================================================
 
+/**
+ * Anything that may appear in a system's parameter list — what {@link Query},
+ * {@link Res}, {@link Commands} and their siblings return. Each is a request for
+ * access, resolved to a live value by {@link InferParams} when the system runs.
+ *
+ * @public
+ */
 export type SystemParam =
     | QueryDescriptor<readonly QueryArg[]>
     | ResDescriptor<unknown>
@@ -74,6 +81,13 @@ export type InferParam<P> =
     P extends GetWorldDescriptor ? World :
     never;
 
+/**
+ * The values a system body receives, derived from the parameters it declared —
+ * a `Query(...)` becomes a `QueryInstance`, a `Res(X)` becomes the resource
+ * value. Inferred, so a system body's arguments are typed without annotation.
+ *
+ * @public
+ */
 export type InferParams<P extends readonly SystemParam[]> = {
     [K in keyof P]: InferParam<P[K]>;
 };
@@ -85,17 +99,37 @@ export type InferParams<P extends readonly SystemParam[]> = {
 /** Predicate evaluated per-frame; returning false skips the system for that tick. */
 export type RunCondition = () => boolean;
 
+/**
+ * A declared system, as {@link defineSystem} returns it. Opaque: hand it to
+ * `addSystem`, a {@link SystemSet} or a schedule rather than reading it — every
+ * member is engine plumbing and may change.
+ *
+ * @public
+ */
 export interface SystemDef {
+    /** @internal */
     readonly _id: symbol;
+    /** @internal */
     readonly _params: readonly SystemParam[];
+    /** @internal */
     readonly _fn: (...args: never[]) => void | Promise<void>;
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _runBefore?: readonly string[];
+    /** @internal */
     readonly _runAfter?: readonly string[];
 }
 
 let templateCounter_ = 0;
 
+/**
+ * Ordering a system carries with it. The names are matched against other
+ * systems' names and against {@link SystemSet} names, so a set can be ordered
+ * against without knowing which systems are in it.
+ *
+ * @public
+ */
 export interface SystemOptions {
     /** Name other systems reference in their ordering edges. */
     name?: string;

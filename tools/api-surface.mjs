@@ -14,7 +14,8 @@
  *   @public        frozen — 1.0 is expected not to break it
  *   @beta          may still adjust
  *   @experimental  no compatibility claim (the default)
- *   @internal      must not be exported from a public entry
+ *   @internal      must not be exported from a public entry; on a MEMBER it is
+ *                  allowed and marked, and carries no promise
  *
  *   --check          exit 1 on drift or policy violation
  *   --update         accept surface changes
@@ -226,16 +227,11 @@ function memberLines(type, location, owner) {
     for (const member of type.getProperties()) {
         if (isPrivateMember(member)) continue;
         if (isAmbientMember(member)) continue;
-        // R1 only ever saw top-level exports, so an @internal member rode out in the
-        // public .d.ts with nothing to stop a creator autocompleting it.
-        const internal = tagNames(member).has('internal');
-        if (owner.tier === 'public' && internal) {
-            errors.push(`R3: '${owner.name}' is @public but its member '${member.name}' is @internal`);
-        }
         const memberType = checker.getTypeOfSymbolAtLocation(member, location);
-        // Kept in the snapshot because it is in the shipped .d.ts, marked because
-        // it carries no promise — what it names does not constrain the type's.
-        const mark = internal ? '@internal ' : '';
+        // R1 only ever saw top-level exports, so an @internal member rode out in the
+        // public .d.ts unannounced. Marked here, in the shipped .d.ts, and skipped by
+        // the leak and baseline rules: it is present, and it promises nothing.
+        const mark = tagNames(member).has('internal') ? '@internal ' : '';
         lines.push(`${mark}${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
     }
     return lines.sort();

@@ -11,9 +11,19 @@ import { deepClone } from '../util/deepClone';
 // Resource Definition
 // =============================================================================
 
+/**
+ * A resource type, as {@link defineResource} returns it: the world holds one
+ * value per definition. Opaque — pass it to `Res`/`ResMut`, `insertResource` or
+ * `getResource` rather than reading it.
+ *
+ * @public
+ */
 export interface ResourceDef<T> {
+    /** @internal */
     readonly _id: symbol;
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _default: T;
 }
 
@@ -32,8 +42,16 @@ export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T
 // Resource Descriptors (for system parameters)
 // =============================================================================
 
+/**
+ * A request for read access to a resource, as {@link Res} returns it. Opaque —
+ * the system body receives the resource value itself.
+ *
+ * @public
+ */
 export interface ResDescriptor<T> {
+    /** @internal */
     readonly _type: 'res';
+    /** @internal */
     readonly _resource: ResourceDef<T>;
 }
 

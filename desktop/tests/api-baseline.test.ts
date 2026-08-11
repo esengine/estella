@@ -91,4 +91,18 @@ describe('baselineFindings', () => {
         expect(failures).toEqual([]);
         expect(notes).toEqual([]);
     });
+
+    it('lets an @internal member change, because none was promised', () => {
+        const was = snapshot(sig('Handle — class @public', 'get(): number\n@internal _raw: string'));
+        const now = snapshot(sig('Handle — class @public', 'get(): number\n@internal _raw: number'));
+        expect(baselineFindings(was, now).failures).toEqual([]);
+    });
+
+    it('still fails when a promised member beside an @internal one changes', () => {
+        const was = snapshot(sig('Handle — class @public', 'get(): number\n@internal _raw: string'));
+        const now = snapshot(sig('Handle — class @public', 'get(): string\n@internal _raw: string'));
+        expect(baselineFindings(was, now).failures).toEqual([
+            expect.stringContaining('@public signature changed'),
+        ]);
+    });
 });
