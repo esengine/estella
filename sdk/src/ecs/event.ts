@@ -9,12 +9,28 @@
 // Event Definition
 // =============================================================================
 
+/**
+ * An event type, as {@link defineEvent} returns it. Opaque — pass it to
+ * {@link EventWriter} / {@link EventReader} rather than reading it.
+ *
+ * @public
+ */
 export interface EventDef<T> {
+    /** @internal */
     readonly _id: symbol;
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _phantom?: T;
 }
 
+/**
+ * Declare an event type. The bus is double-buffered: an event sent this frame is
+ * readable for exactly the next one, so a reader that misses a frame misses the
+ * event — events are for this-frame signalling, not a queue.
+ *
+ * @public
+ */
 export function defineEvent<T>(name: string): EventDef<T> {
     return {
         _id: Symbol(`Event_${name}`),
@@ -105,10 +121,23 @@ export interface EventReaderDescriptor<T> {
     readonly _event: EventDef<T>;
 }
 
+/**
+ * Ask a system for send access to an event. The body receives an
+ * {@link EventWriterInstance}; what it sends is readable next frame.
+ *
+ * @public
+ */
 export function EventWriter<T>(event: EventDef<T>): EventWriterDescriptor<T> {
     return { _type: 'event_writer', _event: event };
 }
 
+/**
+ * Ask a system for receive access to an event. Each declaring system keeps its
+ * own cursor, so two readers both see every event rather than consuming it from
+ * each other.
+ *
+ * @public
+ */
 export function EventReader<T>(event: EventDef<T>): EventReaderDescriptor<T> {
     return { _type: 'event_reader', _event: event };
 }

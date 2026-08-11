@@ -12,7 +12,7 @@ import {
     defineComponent, defineSystem, defineResource, defineEvent, Query, Mut, Res, ResMut,
     Commands, With, Without, And, Or, Not, Added, Changed, Removed,
     EventReader, EventWriter, GetWorld, Transform, World, QueryInstance,
-    Parent, Children, Name, getComponentDefaults,
+    Parent, Children, Name, getComponentDefaults, defineTag,
     vec2, vec3, vec4, quat, color,
 } from '../src/core';
 import type {
@@ -20,7 +20,7 @@ import type {
     QueryBuilder, QueryDescriptor, MutWrapper, AddedWrapper, ChangedWrapper,
     FilterExpr, RemovedQueryDescriptor,
     ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
-    EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
+    EventDef, EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
     SystemDef, SystemOptions, SystemParam, InferParam, InferParams,
     Entity, QueryResult, ChildrenData, ParentData, NameData, TransformData,
     Vec2, Vec3, Vec4, Quat, Color,
@@ -183,6 +183,33 @@ describe('resource vocabulary', () => {
         const Score: ResourceDef<{ points: number }> = defineResource({ points: 0 }, 'VocabScore');
         const descriptor: ResDescriptor<{ points: number }> = Res(Score);
         expect(descriptor._resource).toBe(Score);
+    });
+
+    it('two definitions are two resources however they are named', () => {
+        // The name is diagnostics, not identity: a project that reuses one must
+        // still get its own value rather than silently sharing.
+        const a = defineResource(0, 'VocabDuplicate');
+        const b = defineResource(0, 'VocabDuplicate');
+        expect(a._id).not.toBe(b._id);
+    });
+});
+
+describe('event vocabulary', () => {
+    it('defineEvent answers an EventDef both descriptors are built over', () => {
+        const Hit: EventDef<{ damage: number }> = defineEvent('VocabHit');
+        const writer: EventWriterDescriptor<{ damage: number }> = EventWriter(Hit);
+        const reader: EventReaderDescriptor<{ damage: number }> = EventReader(Hit);
+        expect(writer._event).toBe(Hit);
+        expect(reader._event).toBe(Hit);
+    });
+});
+
+describe('tag vocabulary', () => {
+    it('defineTag answers a fieldless ComponentDef, and the same one twice', () => {
+        const Frozen: ComponentDef<{}> = defineTag('VocabFrozen');
+        expect(Frozen.create()).toEqual({});
+        // A tag carries no data, so re-declaring one cannot conflict with itself.
+        expect(defineTag('VocabFrozen')).toBe(Frozen);
     });
 });
 

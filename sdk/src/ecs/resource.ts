@@ -29,6 +29,13 @@ export interface ResourceDef<T> {
 
 let resourceCounter = 0;
 
+/**
+ * Declare a resource: one value the whole world shares, addressed by the
+ * definition rather than by a name. `name` is for diagnostics and the editor
+ * only — two calls answer two distinct resources however they are named.
+ *
+ * @public
+ */
 export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T> {
     const id = ++resourceCounter;
     return {
@@ -82,6 +89,13 @@ export function Res<T>(resource: ResourceDef<T>): ResDescriptor<T> {
     return { _type: 'res', _resource: resource };
 }
 
+/**
+ * Ask a system for write access to a resource. The body receives a
+ * {@link ResMutInstance}, not the value: `set` or `modify` is what stores it back
+ * and stamps the change tick a `Changed` filter reads.
+ *
+ * @public
+ */
 export function ResMut<T>(resource: ResourceDef<T>): ResMutDescriptor<T> {
     return { _type: 'res_mut', _resource: resource };
 }

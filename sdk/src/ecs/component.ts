@@ -373,6 +373,14 @@ export function defineComponent<T extends object>(
     return def;
 }
 
+/**
+ * Declare a component with no fields — a marker a query filters on. Returning
+ * the existing definition for a name already declared is deliberate: a tag
+ * carries no data, so re-declaring one cannot conflict with itself the way
+ * {@link defineComponent} can.
+ *
+ * @public
+ */
 export function defineTag(name: string): ComponentDef<{}> {
     const existing = userComponents().get(name);
     if (existing) return existing as ComponentDef<{}>;
