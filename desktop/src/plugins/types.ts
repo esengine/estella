@@ -14,6 +14,26 @@
  * particular exposes the model write door (undoable, transactional) and omits the
  * verification/headless machinery on the internal control surface, which plugins
  * have no business driving.
+ *
+ * ---------------------------------------------------------------------------
+ * STABILITY: EXPERIMENTAL — this surface is NOT part of Estella's 1.x
+ * compatibility contract, and will keep changing after 1.0. See the
+ * "Editor Plugin API" section of VERSIONING.md for the whole policy.
+ *
+ * What you can rely on instead:
+ *   - `engines.editor` is honoured. A plugin outside its declared range is
+ *     refused with a reason and never half-loaded, so a change here costs you a
+ *     version bump — never a user a broken editor.
+ *   - Every breaking change is in the CHANGELOG under "Editor plugin API",
+ *     with what to change.
+ *   - A contribution point is deprecated for one MINOR before it is removed.
+ *
+ * Why it is not frozen: the contribution registries are still converging onto
+ * one ownership mechanism; a plugin runs as TRUSTED code in the editor's
+ * renderer, and the isolation a third-party ecosystem needs would make this API
+ * asynchronous; and no shipped plugin yet holds any of these shapes up, which is
+ * the same evidence the SDK requires before it freezes anything.
+ * ---------------------------------------------------------------------------
  */
 
 /** A human string a plugin supplies, per locale (falling back to `en`). */

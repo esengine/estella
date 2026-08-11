@@ -115,6 +115,33 @@ const NOT_PROSE = /^\s*(\/\*+\s*$|\*\/|\/\/\s*[=-]+\s*$|\*\s*$|\/\/\s*$)|@(param
 /** A Doxygen file header states why the file exists; that is its job. */
 const FILE_HEADER = /@file\b/;
 
+const headerSpanCache = new Map();
+
+/**
+ * Whether a line falls inside the file's `@file` header. Reading the diff means a
+ * paragraph added to the MIDDLE of a header arrives without the `@file` line, so
+ * the exemption has to be looked up on disk or the header's own budget is charged
+ * to whoever edits it.
+ */
+function insideFileHeader(file, line) {
+  if (!headerSpanCache.has(file)) {
+    let span = null;
+    try {
+      const lines = readFileSync(path.join(ROOT, file), 'utf8').split('\n');
+      const open = lines.findIndex((t) => /^\s*\/\*\*/.test(t));
+      if (open >= 0) {
+        const close = lines.findIndex((t, i) => i >= open && /\*\//.test(t));
+        if (close >= 0 && lines.slice(open, close + 1).some((t) => FILE_HEADER.test(t))) {
+          span = [open + 1, close + 1];
+        }
+      }
+    } catch { /* vanished, or unreadable — no exemption */ }
+    headerSpanCache.set(file, span);
+  }
+  const span = headerSpanCache.get(file);
+  return span !== null && line >= span[0] && line <= span[1];
+}
+
 function scan(byFile) {
   const findings = [];
   for (const [file, lines] of byFile) {
@@ -123,7 +150,8 @@ function scan(byFile) {
     const flushBlock = () => {
       if (block.length === 0) return;
       const prose = block.filter(([, t]) => !NOT_PROSE.test(t));
-      const isHeader = block.some(([, t]) => FILE_HEADER.test(t));
+      const isHeader = block.some(([, t]) => FILE_HEADER.test(t))
+        || insideFileHeader(file, block[0][0]);
       // A block edited inside an existing `/** */` shows up in the diff without its
       // opener, so a run of ` * ` continuation lines counts as a doc block too.
       const isDoc = block.some(([, t]) => /^\s*\/\*\*/.test(t))

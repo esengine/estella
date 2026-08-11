@@ -36,6 +36,47 @@ release: internal C++ headers under `src/`, unexported SDK internals, editor
 internals, the embedded origin signatures (see [PROVENANCE.md](PROVENANCE.md)),
 private fields, and anything marked `@internal` or `@experimental`.
 
+## The Editor Plugin API
+
+The editor's plugin API — `@estella/editor-api`, the shapes in
+`desktop/src/plugins/types.ts` that the editor writes into your project as
+`.esengine/plugins/.types/editor-api.d.ts` — is **not** one of the four surfaces
+above. It is **experimental**, and it is not covered by the MAJOR-line promise:
+it will keep changing after 1.0.
+
+This is a decision, not an omission. Three reasons:
+
+- **The extension points are still converging.** The design is that a plugin
+  registers through the same registries the editor's own features use, with one
+  ownership mechanism behind all of them. Finishing that convergence changes the
+  shape of contribution points, and freezing now would freeze the half-converged
+  spelling.
+- **The trust model is pre-isolation.** A plugin runs as trusted code inside the
+  editor's renderer, at the same privilege as your project's game code. A real
+  third-party ecosystem needs process isolation, and isolation makes an API
+  asynchronous — so freezing today's synchronous surface would be promising the
+  shape that has to change.
+- **Nothing holds it up.** A symbol reaches `@public` in the SDK only once a game
+  we certify releases against calls it. No shipped plugin exercises these shapes,
+  so there is no evidence pinning them, and a promise with nothing holding it is
+  the kind that gets broken by the first refactor.
+
+What you **can** rely on while it is experimental:
+
+- **`engines.editor` is honoured.** A plugin declares the editor range it works
+  with, and one outside that range is refused with a stated reason rather than
+  half-loaded. A breaking change therefore costs a plugin author a version bump —
+  never a user a broken editor.
+- **Breaking changes are written down.** Every one appears in the CHANGELOG under
+  an **Editor plugin API** heading, with what to change.
+- **Removal is deprecated first.** A contribution point being withdrawn keeps
+  working, and says so, for at least one MINOR release.
+
+The route out of experimental is the same bar the SDK uses: a contribution point
+earns a compatibility promise once a shipped plugin exercises it. Parts of this
+surface will be frozen that way, individually, rather than the whole of it at
+once by a version number.
+
 ## Stability tiers
 
 Surface 1 is large, and not all of it is equally settled. Every exported symbol

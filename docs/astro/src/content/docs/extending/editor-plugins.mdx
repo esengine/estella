@@ -80,6 +80,29 @@ plugin pins it to the editor doing the creating, so copying an older range in fr
 somewhere else is how a plugin arrives already marked *incompatible*.
 </Aside>
 
+## What this API promises
+
+The plugin API is **experimental**, and it is not part of Estella's 1.x
+compatibility contract — it will keep changing after 1.0. That is a decision, and
+[VERSIONING.md](https://github.com/esengine/estella/blob/master/VERSIONING.md)
+states it alongside the SDK's own [stability tiers](/docs/reference/api-stability/):
+the extension points are still converging on one mechanism, a plugin runs as
+trusted code in the editor's renderer rather than in isolation, and no shipped
+plugin yet holds any of these shapes up.
+
+Three things you can rely on while that is true:
+
+- **`engines.editor` is honoured.** A plugin outside its declared range is refused
+  with a stated reason and never half-loaded, so a change on our side costs you a
+  version bump — never a user a broken editor.
+- **Breaking changes are written down**, in the CHANGELOG under **Editor plugin
+  API**, with what to change.
+- **Removal is deprecated first** — a contribution point being withdrawn keeps
+  working, and says so, for at least one minor release.
+
+Parts of this surface will be frozen individually, as shipped plugins come to
+exercise them, rather than all at once by a version number.
+
 ## Seeing what a plugin contributed
 
 Every running plugin has a **Contributes** row in the Plugins panel. Expand it for

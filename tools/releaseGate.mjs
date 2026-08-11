@@ -179,6 +179,15 @@ export const CRITERIA = [
     needs: ['tools/api-surface.mjs', 'tools/lib/sdkProgram.mjs'],
   },
   {
+    id: 'plugin-api-answers-for-itself',
+    says: 'the editor plugin API states which side of the 1.x contract it is on, everywhere it is read',
+    // The question 0.50 had to answer, and the answer is "experimental, outside
+    // the contract". What fails a release is not the answer but its absence from
+    // one of the places somebody acts on it.
+    answeredBy: 'node tools/check-plugin-api-contract.mjs',
+    needs: ['tools/check-plugin-api-contract.mjs', 'desktop/src/plugins/types.ts'],
+  },
+  {
     id: 'creator-can-say-what-is-safe',
     says: 'the docs name the four tiers and which APIs are in each, in both languages',
     // What a tier MEANS is a promise to people, and the sentence making it is
