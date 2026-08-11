@@ -228,11 +228,15 @@ function memberLines(type, location, owner) {
         if (isAmbientMember(member)) continue;
         // R1 only ever saw top-level exports, so an @internal member rode out in the
         // public .d.ts with nothing to stop a creator autocompleting it.
-        if (owner.tier === 'public' && tagNames(member).has('internal')) {
+        const internal = tagNames(member).has('internal');
+        if (owner.tier === 'public' && internal) {
             errors.push(`R3: '${owner.name}' is @public but its member '${member.name}' is @internal`);
         }
         const memberType = checker.getTypeOfSymbolAtLocation(member, location);
-        lines.push(`${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
+        // Kept in the snapshot because it is in the shipped .d.ts, marked because
+        // it carries no promise — what it names does not constrain the type's.
+        const mark = internal ? '@internal ' : '';
+        lines.push(`${mark}${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
     }
     return lines.sort();
 }

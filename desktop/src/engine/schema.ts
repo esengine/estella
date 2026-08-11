@@ -27,9 +27,12 @@ export type WorldT = App['world'];
  * door (EngineHost.mutableWorld, used only by SceneCommands and bulk scene load).
  * Adding a method here is the deliberate way to widen the read surface.
  */
+// The two bridge accessors are here because the editor is a HOST: it reaches the
+// engine core the same way the runtime does. They stay off the game's contract.
 export type ReadonlyWorldT = Pick<
   WorldT,
   'valid' | 'has' | 'get' | 'getAllEntities' | 'getEntitiesWithComponents' | 'entityCount' | 'getWorldVersion'
+  | 'getCppRegistry' | 'getWasmModule'
 >;
 export type AnyComp = Parameters<WorldT['has']>[1];
 

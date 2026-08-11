@@ -8,7 +8,8 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App } from 'esengine';
-import type { ESEngineModule, EventBindingRow, SceneData } from 'esengine';
+import type { EventBindingRow, SceneData } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 const host = vi.hoisted(() => ({ world: null as unknown as App['world'] }));

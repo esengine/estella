@@ -15,7 +15,7 @@ import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder, reorderMapByRank } from './entityOrder';
-import { nativeEngineApi } from './bridge/engineApi';
+import { worldEngineApi } from './bridge/engineApi';
 import { withScratch } from '../wasm/wasmScratch';
 import { log } from '../util/logger';
 import { getDefaultContext, type EditorBridge } from './context';
@@ -128,10 +128,18 @@ export class World {
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
 
+    /** @internal */
     get builtin(): BuiltinBridge {
         return this.builtin_;
     }
 
+    /**
+     * Bind this world to an engine core. The embedding contract, not the game
+     * one: a host instantiates the module and calls this, and everything below
+     * reaches the same registry through {@link getCppRegistry}.
+     *
+     * @internal
+     */
     connectCpp(
         cppRegistry: CppRegistry,
         module?: ESEngineModule,
@@ -140,14 +148,17 @@ export class World {
         this.builtin_.connect(cppRegistry, module, options);
     }
 
+    /** @internal */
     disconnectCpp(): void {
         this.builtin_.disconnect();
     }
 
+    /** Whether an engine core is bound — false in a pure-JS world. */
     get hasCpp(): boolean {
         return this.builtin_.hasCpp;
     }
 
+    /** @internal */
     getCppRegistry(): CppRegistry | null {
         return this.builtin_.getCppRegistry();
     }
@@ -434,7 +445,7 @@ export class World {
     private pushEntityOrderToCore_(entities: readonly Entity[]): void {
         const cppRegistry = this.builtin_.getCppRegistry();
         if (!cppRegistry) return;
-        const core = (this.builtin_.getWasmModule() ?? nativeEngineApi()) as EntityOrderCore | null;
+        const core = worldEngineApi(this) as EntityOrderCore | null;
         const push = core?.renderer_setEntityDrawOrder;
         if (!core || !push || !core._malloc || !core._free || !core.HEAPU32) return;
         try {

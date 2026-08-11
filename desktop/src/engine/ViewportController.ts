@@ -271,12 +271,10 @@ export const ViewportController = {
     const module = EngineHost.module;
     const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
     if (!world || !module || !cam?.valid) return [];
-    type Registry = Parameters<typeof uiPickAllWorld>[1];
-    const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
     const s = clientToScreen(clientX, clientY);
-    if (!reg || !s) return [];
+    if (!s) return [];
     const wp = screenToUiWorld(cam, s.sx, s.sy);
-    return uiPickAllWorld(module, reg, wp.x, wp.y).filter((hit) => {
+    return uiPickAllWorld(world, wp.x, wp.y).filter((hit) => {
       const src = SceneModel.sourceFor(hit);
       return src == null || SceneModel.isPickable(src);
     });
@@ -413,8 +411,7 @@ export const ViewportController = {
     const world = EngineHost.world;
     const module = EngineHost.module;
     if (!world || !module || !world.has(id, UINode) || !world.has(id, Transform)) return null;
-    type Registry = Parameters<typeof uiPickAllWorld>[1];
-    const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
+    const reg = world.getCppRegistry();
     if (!reg) return null;
     const t = world.get(id, Transform);
     const w = module.uiNode_computedWidth(reg, id) * t.worldScale.x;

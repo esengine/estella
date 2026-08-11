@@ -185,11 +185,23 @@ The members exported for users, grouped:
 |---|---|
 | `app.world` | The ECS `World` — entities, components, queries. |
 | `app.insertResource(def, value)` / `app.getResource(def)` / `app.hasResource(def)` | The resource store systems read via `Res(...)`. `getResource` on a never-inserted resource installs and returns the def's default value — use `hasResource` to distinguish. |
-| `app.wasmModule` | The connected `ESEngineModule`, or `null` before `connectCpp`. |
+| `app.wasmModule` | The connected `ESEngineModule`, or `null` before `connectCpp`. Part of the **embedding** contract — see below. |
 | `app.pipeline` | The `RenderPipeline`, or `null` in headless apps. |
 | `app.subsystems` | The per-app [`SubsystemRegistry`](#subsystem-observability). |
 | `app.sideModules` | The realm's [`SideModuleHost`](#side-modules), or `null` (headless/test apps without one). |
 | `app.getPlugin(Ctor)` | The installed plugin instance of a class, if any. |
+
+### Embedding the engine
+
+`connectCpp`, `app.wasmModule` and `world.getCppRegistry()` belong to a different
+contract than the rest of this page: they are how a **host** — the editor, the
+packaged game shell, a custom runtime — binds an engine core to an app. A game
+never calls them, because the App it is handed is already connected.
+
+They are marked `@internal` for that reason, and the types they speak in
+(`ESEngineModule`, `CppRegistry`, `CppResourceManager`) are exported from
+`esengine/wasm` rather than `esengine`. If you are writing a host, import them
+from there; if you are writing a game, you should never need to name them.
 
 ### Systems and events
 

@@ -55,11 +55,15 @@ function surface() {
 
 const api = surface();
 
-/** Exported symbols a body names. A type not in the surface is a built-in or private. */
+/**
+ * Exported symbols a body names. A type not in the surface is a built-in or
+ * private; an `@internal` member carries no promise, so what it names does not
+ * constrain the promise its type makes.
+ */
 function referenced(name) {
-    const body = api.get(name)?.body ?? '';
+    const lines = (api.get(name)?.body ?? '').split('\n').filter((l) => !l.startsWith('@internal '));
     const out = new Set();
-    for (const id of body.match(/[A-Za-z_$][\w$]*/g) ?? []) {
+    for (const id of lines.join('\n').match(/[A-Za-z_$][\w$]*/g) ?? []) {
         if (id !== name && api.has(id)) out.add(id);
     }
     return out;

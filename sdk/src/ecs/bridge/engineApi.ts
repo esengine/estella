@@ -55,3 +55,12 @@ export function engineApi(app: App): EngineApi | null {
 export function nativeEngineApi(): EngineApi | null {
     return native_;
 }
+
+/**
+ * The same answer for a world rather than an app, so a caller holding one does
+ * not open-code the module-else-native choice this file exists to make. Typed
+ * structurally: the World imports this module, not the other way round.
+ */
+export function worldEngineApi(world: { getWasmModule(): unknown }): EngineApi | null {
+    return (world.getWasmModule() as EngineApi | null) ?? native_;
+}

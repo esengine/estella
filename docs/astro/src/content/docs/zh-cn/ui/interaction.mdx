@@ -190,7 +190,7 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 ## 手动拾取
 
 游戏代码需要自己拾取时——自定义光标、任意 UI 上的 tooltip、编辑器工具——命中
-测试辅助函数已导出。它们与 C++ 内核对话,因此需要 wasm module 和 registry:
+测试辅助函数已导出。它们接收 world,自己去找背后的引擎内核:
 
 ```typescript
 import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine';
@@ -198,18 +198,18 @@ import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine
 const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) => {
   if (!camera.valid) return;
   const hit = uiPickWorld(
-    module, registry,                          // app.wasmModule / world.getCppRegistry()
-    camera.worldMouseX, camera.worldMouseY,    // cursor already projected to world
+    world,
+    camera.worldMouseX, camera.worldMouseY,    // 光标已投影到世界坐标
   );
-  if (hit !== null) { /* show tooltip for `hit` */ }
+  if (hit !== null) { /* 为 `hit` 显示 tooltip */ }
 });
 ```
 
 | 辅助函数 | 返回 | 用途 |
 |---|---|---|
-| `uiHitTestWorld(module, registry, x, y, …)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
-| `uiPickWorld(module, registry, x, y)` | 最顶层 UI 实体或 `null` | 编辑器式拾取,无视 `Interactable`。 |
-| `uiPickAllWorld(module, registry, x, y)` | 该点下全部 UI 实体,最具体的在前 | 穿透式菜单、调试叠层。 |
+| `uiHitTestWorld(world, x, y, …)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
+| `uiPickWorld(world, x, y)` | 最顶层 UI 实体或 `null` | 编辑器式拾取,无视 `Interactable`。 |
+| `uiPickAllWorld(world, x, y)` | 该点下全部 UI 实体,最具体的在前 | 穿透式菜单、调试叠层。 |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` 世界点 | 把 GL 朝向的屏幕点经 UI 相机投到世界。 |
 | `uiWorldToScreen(camera, x, y)` | `{ x, y }` 屏幕点 | 逆变换——把 DOM/屏幕特效对到 UI 节点上。 |
 

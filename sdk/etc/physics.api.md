@@ -255,6 +255,7 @@ ResourceDef<PhysicsAPI>
 
 ## PhysicsAPI — class @experimental
 ```
+@internal setPixelsPerUnit: (ppu: number) => void
 applyAngularImpulse: (entity: Entity, impulse: number) => void
 applyForce: (entity: Entity, force: Vec2) => void
 applyImpulse: (entity: Entity, impulse: Vec2) => void
@@ -310,7 +311,6 @@ setMotorJointLinearVelocity: (entity: Entity, velocity: Vec2, ppu?: number) => v
 setMotorJointMaxVelocityForce: (entity: Entity, force: number) => void
 setMotorJointMaxVelocityTorque: (entity: Entity, torque: number) => void
 setMouseTarget: (target: Vec2, ppu?: number) => void
-setPixelsPerUnit: (ppu: number) => void
 setPrismaticJointLimits: (entity: Entity, lower: number, upper: number, ppu?: number) => void
 setPrismaticJointMaxMotorForce: (entity: Entity, force: number) => void
 setPrismaticJointMotorSpeed: (entity: Entity, speed: number) => void
@@ -323,7 +323,7 @@ setWheelJointMotorSpeed: (entity: Entity, speed: number) => void
 shapeCastBox: (center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCapsule: (center1: Vec2, center2: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCircle: (center: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
-static _fromModule: (module: PhysicsWasmModule) => PhysicsAPI
+static @internal _fromModule: (module: PhysicsWasmModule) => PhysicsAPI
 static new (app: App): PhysicsAPI
 static prototype: PhysicsAPI
 static setDebugDraw: (app: App, enabled: boolean) => void

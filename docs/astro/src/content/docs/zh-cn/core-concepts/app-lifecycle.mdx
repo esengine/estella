@@ -171,11 +171,21 @@ export const scorePlugin: Plugin = {
 |---|---|
 | `app.world` | ECS `World`——实体、组件、查询。 |
 | `app.insertResource(def, value)` / `app.getResource(def)` / `app.hasResource(def)` | 系统经 `Res(...)` 读取的资源存储。对从未插入过的资源,`getResource` 会安装并返回其定义的默认值——用 `hasResource` 区分。 |
-| `app.wasmModule` | 已连接的 `ESEngineModule`,`connectCpp` 之前为 `null`。 |
+| `app.wasmModule` | 已连接的 `ESEngineModule`,`connectCpp` 之前为 `null`。属于**嵌入**契约——见下文。 |
 | `app.pipeline` | `RenderPipeline`,无头应用里为 `null`。 |
 | `app.subsystems` | 该应用专属的 [`SubsystemRegistry`](#子系统可观测性)。 |
 | `app.sideModules` | 该 realm 的 [`SideModuleHost`](#侧模块),或 `null`(没有它的无头/测试应用)。 |
 | `app.getPlugin(Ctor)` | 已安装的某个类插件实例(若有)。 |
+
+### 嵌入引擎
+
+`connectCpp`、`app.wasmModule` 和 `world.getCppRegistry()` 属于与本页其余部分不同的
+契约:它们是**宿主**——编辑器、打包后的游戏外壳、自定义运行时——把引擎内核绑定到
+应用上的方式。游戏本身从不调用它们,因为拿到手的 App 已经连好了。
+
+正因如此它们被标记为 `@internal`,而它们所使用的类型(`ESEngineModule`、`CppRegistry`、
+`CppResourceManager`)从 `esengine/wasm` 导出,而不是 `esengine`。写宿主就从那里导入;
+写游戏则完全不需要写出这些名字。
 
 ### 系统与事件
 

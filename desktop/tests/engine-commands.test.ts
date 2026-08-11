@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App, Transform, Parent, Children, Sprite, Interactable, BoxCollider, CircleCollider, PolygonCollider, BUILTIN_UI_PREFABS } from 'esengine';
-import type { ESEngineModule } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 // Per-test World, injected into the mocked EngineHost. `vi.hoisted` so the

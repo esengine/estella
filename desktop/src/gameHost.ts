@@ -17,8 +17,8 @@ import {
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav,
 } from 'esengine';
-import type { ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
-
+import type { SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   // Render-verification hook: with ?headless the cooked build keeps its drawing

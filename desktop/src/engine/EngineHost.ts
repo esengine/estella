@@ -15,7 +15,8 @@ import {
   setEditorMode,
   setPlayMode,
 } from 'esengine';
-import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource } from 'esengine';
+import type { App, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 import { SpinePlugin } from 'esengine/spine';
 import type { SpineManager } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';

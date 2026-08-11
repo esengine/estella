@@ -52,6 +52,7 @@ export {
     uiHitTestWorld,
     uiPickWorld,
     uiPickAllWorld,
+    type PickableWorld,
     TextInput,
     FillMethod,
     FillOrigin,

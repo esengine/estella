@@ -15,7 +15,8 @@
  *        sidestepping the custom-scheme cross-fetch ban.
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
-import type { App, ESEngineModule, SceneData } from 'esengine';
+import type { App, SceneData } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';

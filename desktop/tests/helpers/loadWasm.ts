@@ -3,8 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
-import type { ESEngineModule } from 'esengine';
-
+import type { ESEngineModule } from 'esengine/wasm';
 // Where the editor's engine-coupled tests find the built WASM SDK. Mirrors the
 // SDK test helper: the in-repo CMake/Emscripten output, then desktop/public
 // (the synced copy). Tests skip via `describe.skipIf(!HAS_WASM)` if absent.

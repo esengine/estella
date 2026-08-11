@@ -204,8 +204,8 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 ## Manual picking
 
 When game code needs its own picking — a custom cursor, tooltips over arbitrary
-UI, an editor tool — the hit-test helpers are exported. They talk to the C++
-core, so they take the wasm module and registry:
+UI, an editor tool — the hit-test helpers are exported. They take the world and
+find the engine core behind it themselves:
 
 ```typescript
 import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine';
@@ -213,7 +213,7 @@ import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine
 const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) => {
   if (!camera.valid) return;
   const hit = uiPickWorld(
-    module, registry,                          // app.wasmModule / world.getCppRegistry()
+    world,
     camera.worldMouseX, camera.worldMouseY,    // cursor already projected to world
   );
   if (hit !== null) { /* show tooltip for `hit` */ }
@@ -222,9 +222,9 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 | Helper | Returns | Use |
 |---|---|---|
-| `uiHitTestWorld(module, registry, x, y, …)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
-| `uiPickWorld(module, registry, x, y)` | Topmost UI entity or `null` | Editor-style pick, ignores `Interactable`. |
-| `uiPickAllWorld(module, registry, x, y)` | All UI entities under the point, most specific first | Pick-through menus, debug overlays. |
+| `uiHitTestWorld(world, x, y, …)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
+| `uiPickWorld(world, x, y)` | Topmost UI entity or `null` | Editor-style pick, ignores `Interactable`. |
+| `uiPickAllWorld(world, x, y)` | All UI entities under the point, most specific first | Pick-through menus, debug overlays. |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` world point | Project a GL-oriented screen point through the UI camera. |
 | `uiWorldToScreen(camera, x, y)` | `{ x, y }` screen point | The inverse — place DOM/screen effects over a UI node. |
 

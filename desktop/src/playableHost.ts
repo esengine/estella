@@ -14,7 +14,8 @@ import {
   createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
   packagedAppOptions, packagedRuntimeInit,
 } from 'esengine';
-import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';
+import type { SceneData, EmbeddedSideModuleRegistry } from 'esengine';
+import type { ESEngineModule as EngineModule } from 'esengine/wasm';
 import type { PackagedRuntimeFields } from '@/project/runtimeConfig';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;

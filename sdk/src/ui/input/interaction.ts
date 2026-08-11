@@ -107,7 +107,7 @@ export class UIInteractionPlugin implements Plugin {
                 let hitEntity: Entity | null = hoveredEntity;
                 if (needsHitTest) {
                     hitEntity = uiHitTestWorld(
-                        engine, registry,
+                        world,
                         worldMouse.x, worldMouse.y,
                         mouseDown, mousePressed, mouseReleased,
                     );

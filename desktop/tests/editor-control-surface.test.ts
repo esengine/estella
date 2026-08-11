@@ -15,7 +15,8 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { App, Transform, Sprite, migratePrefabData } from 'esengine';
-import type { ESEngineModule, PrefabData } from 'esengine';
+import type { PrefabData } from 'esengine';
+import type { ESEngineModule } from 'esengine/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 // Per-test state, injected into the mocked EngineHost. `vi.hoisted` so the mock

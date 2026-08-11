@@ -499,6 +499,13 @@ export class App {
     // C++ Integration
     // =========================================================================
 
+    /**
+     * Bind the app to an engine core. Part of the embedding contract, which is
+     * `esengine/wasm` — a host builds the module and calls this; a game is
+     * handed an App that is already connected.
+     *
+     * @internal
+     */
     connectCpp(
         cppRegistry: CppRegistry,
         module?: ESEngineModule,
@@ -513,6 +520,7 @@ export class App {
         return this;
     }
 
+    /** @internal */
     get wasmModule(): ESEngineModule | null {
         return this.module_;
     }

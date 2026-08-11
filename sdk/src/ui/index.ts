@@ -353,6 +353,7 @@ export {
 } from './core/ui-camera-info';
 
 export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
+export type { PickableWorld } from './util/ui-pick';
 
 export {
     UILayoutGeneration,

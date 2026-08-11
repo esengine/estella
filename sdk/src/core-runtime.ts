@@ -377,7 +377,6 @@ export { World } from './ecs/world';
 export { PTR_LAYOUTS } from './wasm/ptrLayouts.generated';
 export type { PtrLayout } from './wasm/ptrLayouts.generated';
 export { writePtrField, readPtrField } from './ecs/bridge/BuiltinBridge';
-export type { BuiltinBridge } from './ecs/bridge/BuiltinBridge';
 
 // =============================================================================
 // App
@@ -404,15 +403,9 @@ export type {
     SubsystemEvent,
 } from './app/subsystems';
 
-// =============================================================================
-// WASM Types
-// =============================================================================
-
-export type {
-    ESEngineModule,
-    CppRegistry,
-    CppResourceManager,
-} from './wasm';
+// The embedding contract — how a HOST instantiates the engine and hands it a
+// registry — is `esengine/wasm`, not this entry. A game is written against the
+// engine; only something embedding it needs to name the module.
 
 // =============================================================================
 // Environment
