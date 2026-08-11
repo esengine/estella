@@ -139,6 +139,9 @@ function status(pct) { return pct > 100 ? 'FAIL' : pct > 70 ? 'near' : '  ok'; }
 
 function meter(pct) {
     const width = 20;
-    const filled = Math.min(width, Math.round((pct / 100) * width));
+    // Clamped at BOTH ends: a measurement can legitimately come out negative (a
+    // heap that shrank), and an unclamped bar threw a RangeError instead of
+    // printing which measurement it was.
+    const filled = Math.max(0, Math.min(width, Math.round((pct / 100) * width)));
     return `[${'#'.repeat(filled)}${'.'.repeat(width - filled)}]`;
 }
