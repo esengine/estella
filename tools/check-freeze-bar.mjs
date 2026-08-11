@@ -38,6 +38,10 @@ import { GOLDEN, projectDir } from './goldenProjects.mjs';
  */
 const RECEIVED = 'received from a declared parameter, never imported — golden projects run it, no import list names it';
 export const EXEMPT = {
+    // Same shape of blindness: the engine maintains this one from Parent, so a
+    // game reads it and every golden project's layout walks it every frame, but
+    // nothing imports the name.
+    Children: 'engine-maintained from Parent — walked every frame, named in no import list',
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,

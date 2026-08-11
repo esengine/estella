@@ -88,17 +88,35 @@ export const INVALID_MATERIAL = 0;
 // Math Types
 // =============================================================================
 
+/**
+ * A 2D vector in world units. Plain data, so it is what a component field holds
+ * and what crosses to the engine — `v2` builds one, and `scalar`/`v2` carry the
+ * operations rather than the value.
+ *
+ * @public
+ */
 export interface Vec2 {
     x: number;
     y: number;
 }
 
+/**
+ * A 3D vector. `z` orders drawing within a layer rather than adding depth: the
+ * renderer is 2D, and a Transform's z is a sort key.
+ *
+ * @public
+ */
 export interface Vec3 {
     x: number;
     y: number;
     z: number;
 }
 
+/**
+ * Four components, for a shader uniform or a rect passed as one value.
+ *
+ * @public
+ */
 export interface Vec4 {
     x: number;
     y: number;
@@ -106,6 +124,13 @@ export interface Vec4 {
     w: number;
 }
 
+/**
+ * A rotation. Stored as a quaternion because the engine composes transforms
+ * with it; for 2D work, `quat`'s helpers and `quaternionToAngle2D` are the way
+ * in and out of an angle.
+ *
+ * @public
+ */
 export interface Quat {
     w: number;
     x: number;
@@ -113,6 +138,11 @@ export interface Quat {
     z: number;
 }
 
+/**
+ * A colour with straight (non-premultiplied) alpha, each channel 0..1.
+ *
+ * @public
+ */
 export interface Color {
     r: number;
     g: number;

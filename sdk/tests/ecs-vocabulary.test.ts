@@ -12,6 +12,8 @@ import {
     defineComponent, defineSystem, defineResource, defineEvent, Query, Mut, Res, ResMut,
     Commands, With, Without, And, Or, Not, Added, Changed, Removed,
     EventReader, EventWriter, GetWorld, Transform, World, QueryInstance,
+    Parent, Children, Name, getComponentDefaults,
+    vec2, vec3, vec4, quat, color,
 } from '../src/core';
 import type {
     AnyComponentDef, BuiltinComponentDef, ComponentDef, ComponentMetadata, FieldMeta,
@@ -20,7 +22,8 @@ import type {
     ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
     EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
     SystemDef, SystemOptions, SystemParam, InferParam, InferParams,
-    Entity, QueryResult,
+    Entity, QueryResult, ChildrenData, ParentData, NameData, TransformData,
+    Vec2, Vec3, Vec4, Quat, Color,
 } from '../src/core';
 
 const Position = defineComponent('VocabPosition', { x: 0, y: 0 });
@@ -53,6 +56,21 @@ describe('component vocabulary', () => {
         expect(Health.renderableField).toBeNull();
     });
 
+    it('the hierarchy and naming components carry the shapes they promise', () => {
+        // Their defaults, not a live tree: Parent/Children are engine-backed, so
+        // reparenting needs a C++ registry this suite deliberately runs without.
+        const parent = getComponentDefaults('Parent') as unknown as ParentData;
+        const children = getComponentDefaults('Children') as unknown as ChildrenData;
+        // Name is the odd one: a user component, so it lives in the context
+        // registry rather than the global builtin one, and makes its own value.
+        const name: NameData = Name.create();
+        expect(parent).toHaveProperty('entity');
+        expect(children).toHaveProperty('entities');
+        expect(name.value).toBe('');
+        const defs: AnyComponentDef[] = [Parent, Children, Name];
+        expect(defs.map((d) => d._name)).toEqual(['Parent', 'Children', 'Name']);
+    });
+
     it('an engine component reflects the same way a declared one does', () => {
         // Both halves of AnyComponentDef answer the reflection tooling reads, so
         // an editor or a cook never asks which kind it is holding.
@@ -60,12 +78,38 @@ describe('component vocabulary', () => {
         expect(builtin._builtin).toBe(true);
         expect(Array.isArray(builtin.readonlyFields)).toBe(true);
         expect(typeof builtin.fieldMeta).toBe('object');
+        // The world fields are engine-COMPUTED, and saying so is the contract
+        // that stops an editor projecting them back over the composed value.
+        expect(builtin.readonlyFields).toEqual(
+            expect.arrayContaining(['worldPosition', 'worldRotation', 'worldScale']),
+        );
+        // No create() on this half of the union — an engine component is made by
+        // the registry, so its shape is read from the defaults instead.
+        const shape = getComponentDefaults('Transform') as unknown as TransformData;
+        expect(Object.keys(shape)).toEqual(expect.arrayContaining(['position', 'rotation', 'scale']));
     });
 
     it('FieldMeta is the per-field policy a definition carries', () => {
         const meta: Record<string, FieldMeta> = { hp: { min: 0, max: 100 } };
         const def = defineComponent('VocabFieldMeta', { hp: 1 }, { fields: meta });
         expect(def.fieldMeta.hp).toEqual({ min: 0, max: 100 });
+    });
+});
+
+describe('math vocabulary', () => {
+    it('the value types a component field holds are plain data', () => {
+        const position: Vec3 = vec3(1, 2, 3);
+        const uv: Vec2 = vec2(0.5, 0.25);
+        const uniform: Vec4 = vec4(1, 0, 0, 1);
+        const rotation: Quat = quat(0, 0, 0, 1);
+        const tint: Color = color(1, 1, 1, 1);
+        // Plain, because they cross to the engine as struct memory: own keys
+        // only, and JSON round-trips them unchanged.
+        for (const v of [position, uv, uniform, rotation, tint]) {
+            expect(JSON.parse(JSON.stringify(v))).toEqual(v);
+        }
+        expect(Object.keys(position)).toEqual(['x', 'y', 'z']);
+        expect(Object.keys(tint)).toEqual(['r', 'g', 'b', 'a']);
     });
 });
 

@@ -755,6 +755,12 @@ export interface CameraData extends CameraDataCpp {
     showFrustum: boolean;
 }
 
+/**
+ * {@link Name}'s single field. TS-only: the engine keeps names in its own index
+ * rather than as a C++ component.
+ *
+ * @public
+ */
 export interface NameData {
     value: string;
 }
@@ -786,10 +792,25 @@ function metaDefaults<T>(name: string, overrides?: Partial<T>): T {
 // can't be a static annotation — `enum`/`flags` built from a runtime TS constant, or a
 // TS-only field with no C++ backing — stays here as a per-field override (deep-merged
 // over the generated base by defineBuiltin).
+/**
+ * Where an entity is. `position`/`rotation`/`scale` are the authoring inputs,
+ * relative to the parent; `worldPosition`/`worldRotation`/`worldScale` are what
+ * the engine composed from them and must not be written back.
+ *
+ * @public
+ */
 export const Transform = defineBuiltin<TransformData>('Transform',
     metaDefaults<TransformData>('Transform')
 );
+/**
+ * @deprecated A legacy spelling of {@link Transform} — the same component. Scene
+ * loading normalises the name away, and both spellings will go at 1.0.
+ */
 export const LocalTransform = Transform;
+/**
+ * @deprecated A legacy spelling of {@link Transform} — the same component, whose
+ * world fields it was once separate from. Read `Transform.worldPosition` instead.
+ */
 export const WorldTransform = Transform;
 
 // size's authoring default (100×100 vs the {1,1} ctor value) is authored at the
@@ -845,10 +866,24 @@ export const Velocity = defineBuiltin<VelocityData>('Velocity',
     metaDefaults<VelocityData>('Velocity')
 );
 
+/**
+ * An entity's parent. The engine keeps this and {@link Children} in step, so
+ * set the relationship through `world.setParent` rather than by writing either
+ * side; a transform composes against whatever this names.
+ *
+ * @public
+ */
 export const Parent = defineBuiltin<ParentData>('Parent',
     metaDefaults<ParentData>('Parent')
 );
 
+/**
+ * An entity's children, in order. The order is the draw order within a layer
+ * for UI, and the engine maintains the list — {@link Parent} is the side to
+ * write.
+ *
+ * @public
+ */
 export const Children = defineBuiltin<ChildrenData>('Children',
     metaDefaults<ChildrenData>('Children')
 );
@@ -978,6 +1013,10 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
     }
 );
 
+/**
+ * Marks an entity inactive: it keeps its components and its place in the tree,
+ * and the engine's systems skip it. A tag, so it carries no data.
+ */
 export const Disabled = defineTag('Disabled');
 
 /**
@@ -985,9 +1024,17 @@ export const Disabled = defineTag('Disabled');
  * (the child layer entities a `Tilemap.source` projects, runtime tile
  * colliders, …). Scene serialization skips tagged entities entirely:
  * persisting one would duplicate it against the next derivation.
+ *
+ * @public
  */
 export const RuntimeOnly = defineTag('RuntimeOnly');
 
+/**
+ * An entity's name — what the outliner shows and `findEntityByName` looks up.
+ * Not an identity: nothing stops two entities sharing one.
+ *
+ * @public
+ */
 export const Name = defineComponent<NameData>('Name', { value: '' });
 
 export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {

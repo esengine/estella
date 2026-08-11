@@ -42,7 +42,7 @@ namespace esengine::ecs {
  * registry.get<Children>(parent).entities.push_back(child);
  * @endcode
  */
-ES_COMPONENT()
+ES_COMPONENT(stability=public)
 struct Parent {
     /** @brief Parent entity ID */
     ES_PROPERTY(entity_ref)
@@ -62,7 +62,7 @@ struct Parent {
  * @details Stores references to all child entities. Maintained in sync
  *          with Parent components by the hierarchy management system.
  */
-ES_COMPONENT()
+ES_COMPONENT(stability=public)
 struct Children {
     /** @brief List of child entity IDs */
     ES_PROPERTY(entity_ref)

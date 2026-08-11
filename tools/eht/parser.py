@@ -70,7 +70,10 @@ class CppParser:
     # validated by the same rules (unknown key = warning, malformed known key =
     # hard error). See Reflection.hpp for what each one means.
     COMPONENT_FLAG_ANNOTATIONS = frozenset({'transient'})
-    COMPONENT_KV_ANNOTATIONS = frozenset({'renderable'})
+    COMPONENT_KV_ANNOTATIONS = frozenset({'renderable', 'stability'})
+    #: What `stability=` may say. The SDK's tiers, declared at the component
+    #: rather than in the generated file, which nobody may edit.
+    STABILITY_TIERS = frozenset({'public', 'beta', 'experimental'})
     VALID_ASSET_TYPES = frozenset({
         'texture', 'material', 'font', 'audio',
         # A skeletal runtime's two halves. Recognised as a PAIR (see
@@ -221,6 +224,12 @@ class CppParser:
                 self.warnings.append(
                     f"{loc}: unknown ES_COMPONENT annotation '{key}' (known: {known})"
                 )
+                continue
+            # stability names a tier, not a field of this struct.
+            if key == 'stability':
+                if value not in self.STABILITY_TIERS:
+                    known = ', '.join(sorted(self.STABILITY_TIERS))
+                    self.errors.append(f"{loc}: stability='{value}' is not a tier (known: {known})")
                 continue
             # A kv annotation written as a bare flag parses as the string 'true',
             # which names no field — say what it needs rather than what it got.

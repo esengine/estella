@@ -31,6 +31,10 @@
  *          of the generated `COMPONENT_META`. `renderable` names the bool gating
  *          this component's drawing — a hard EHT error unless that bool exists.
  *
+ *          `stability=public|beta|experimental` is the SDK tier of the generated
+ *          `<Name>Data` interface, declared here because the generated file is
+ *          not editable and an untagged symbol is experimental by default.
+ *
  * @code
  * ES_COMPONENT(renderable=enabled)
  * struct Sprite {

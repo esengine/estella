@@ -38,7 +38,7 @@ namespace esengine::ecs {
  * // transform.worldPosition contains final world-space position
  * @endcode
  */
-ES_COMPONENT()
+ES_COMPONENT(stability=public)
 struct Transform {
     ES_PROPERTY(animatable, anim_override, replicated, tooltip="Local position in world units, relative to the parent.")
     glm::vec3 position{0.0f, 0.0f, 0.0f};

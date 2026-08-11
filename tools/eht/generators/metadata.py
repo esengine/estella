@@ -261,6 +261,17 @@ class MetadataGenerator:
                 elif base in self.types.CUSTOM_STRUCTS:
                     used_struct.add(base)
                 field_lines.append(f'    {prop.name}: {ts};')
+            # The SDK's tier, from ES_COMPONENT(stability=). It has to sit on the
+            # declaration: a release tag in this file's header would not survive
+            # the declaration bundle a project compiles against.
+            tier = comp.annotations.get('stability')
+            if tier:
+                lines.append('/**')
+                lines.append(f' * The fields of the engine\'s `{comp.name}` component, generated from')
+                lines.append(' * the C++ struct so the two shapes cannot drift.')
+                lines.append(' *')
+                lines.append(f' * @{tier}')
+                lines.append(' */')
             lines.append(f'export interface {comp.name}Data {{')
             lines.extend(field_lines)
             lines.append('}')

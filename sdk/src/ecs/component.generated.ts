@@ -914,6 +914,12 @@ export interface CapsuleColliderData {
     maskBits: number;
 }
 
+/**
+ * The fields of the engine's `Children` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @public
+ */
 export interface ChildrenData {
     entities: Entity[];
 }
@@ -987,6 +993,12 @@ export interface Mesh2DData {
     enabled: boolean;
 }
 
+/**
+ * The fields of the engine's `Parent` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @public
+ */
 export interface ParentData {
     entity: Entity;
 }
@@ -1165,6 +1177,12 @@ export interface TrailRendererData {
     enabled: boolean;
 }
 
+/**
+ * The fields of the engine's `Transform` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @public
+ */
 export interface TransformData {
     position: Vec3;
     rotation: Quat;
