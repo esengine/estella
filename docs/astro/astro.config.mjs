@@ -337,6 +337,11 @@ export default defineConfig({
                 { label: 'Gameplay', translations: { 'zh-CN': '玩法' }, slug: 'reference/components/gameplay' },
               ],
             },
+            {
+              label: 'API Stability',
+              translations: { 'zh-CN': 'API 稳定性' },
+              slug: 'reference/api-stability',
+            },
             typeDocSidebarGroup,
             // Doxygen output is merged in beside the Astro build, not routed by
             // it, and it isn't translated. A root-relative link would get BOTH

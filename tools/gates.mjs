@@ -68,6 +68,7 @@ export const GATES = [
   { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
+  { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'prefabs', run: 'node build-tools/cli.js validate-prefabs' },
 ];

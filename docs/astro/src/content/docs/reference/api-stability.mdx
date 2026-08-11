@@ -1,0 +1,37 @@
+---
+title: API stability
+description: "What each Estella API promises you, and which APIs are in each tier."
+---
+
+import ApiStability from '@/components/ApiStability.astro';
+
+Estella is pre-1.0, and not all of its API is equally settled. Rather than ask you
+to guess which parts are, every exported symbol carries exactly one stability tier
+as a JSDoc tag on its declaration — so it ships in the `.d.ts` your project
+compiles against, and your editor shows it when you hover.
+
+| Tier | Tag | What it promises |
+| --- | --- | --- |
+| **Stable Candidate** | `@public` | We expect 1.0 not to break it. Removing or changing one takes a deprecation release first. |
+| **Beta** | `@beta` | Shipping and supported; the shape may still adjust before 1.0. |
+| **Experimental** | `@experimental` | No compatibility claim. It may change or disappear in any release. |
+| **Internal** | `@internal` | Not for you to depend on. It is a build error for one to be exported at all. |
+
+There is no stable-by-default. An untagged symbol is **Experimental**, so freezing
+an API is something we decide, never something we forget to prevent.
+
+A symbol only reaches Stable Candidate once three things are true: it is
+documented, a test pins its behaviour, and one of the games we certify releases
+against actually calls it. That bar is a build gate, not a habit — and so is the
+promise itself, which is compared against the previous release tag on every push.
+
+The full list below is generated from the same snapshots the guards read.
+
+<ApiStability />
+
+## What this does not cover
+
+The tiers above describe the TypeScript API. Estella's 1.0 promise also covers the
+project and asset formats, the WASM runtime contract, and the documented build CLI
+— see [Versioning Policy](https://github.com/esengine/estella/blob/master/VERSIONING.md)
+for what a breaking change means for each.

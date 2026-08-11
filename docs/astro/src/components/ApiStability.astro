@@ -1,0 +1,131 @@
+---
+// The tier inventory, derived from sdk/etc/*.api.md (tools/api-stability.mjs)
+// so what this page claims is frozen cannot drift from what the guard enforces.
+import snapshot from '@/data/apiStability.generated.json';
+
+interface Symbol {
+  name: string;
+  kind: string;
+  deprecated: boolean;
+  entries: string[];
+}
+
+const zh = Astro.url.pathname.includes('/zh-cn/');
+const t = (en: string, cn: string) => (zh ? cn : en);
+
+const counts = snapshot.counts as Record<string, number>;
+const pub = snapshot.public as Symbol[];
+const beta = snapshot.beta as Symbol[];
+---
+
+<div class="st-counts">
+  <div class="st-count st-public">
+    <strong>{counts.public}</strong>
+    <span>{t('Stable Candidate', '稳定候选')}</span>
+  </div>
+  <div class="st-count st-beta">
+    <strong>{counts.beta}</strong>
+    <span>{t('Beta', 'Beta')}</span>
+  </div>
+  <div class="st-count st-exp">
+    <strong>{counts.experimental}</strong>
+    <span>{t('Experimental', '实验性')}</span>
+  </div>
+</div>
+
+<p class="st-note">
+  {t(
+    `${snapshot.total} exported symbols in total. Experimental is the default: a symbol reaches a
+     stronger tier only when someone decides it has, so this page grows one deliberate step at a time.`,
+    `共 ${snapshot.total} 个导出符号。实验性是默认值——一个符号只有在有人明确决定时才会升级，所以这份清单是一步步长出来的。`,
+  )}
+</p>
+
+<h2 id="stable-candidate">{t('Stable Candidate', '稳定候选')}</h2>
+<p>
+  {t(
+    'We expect 1.0 not to break these. Each one is documented, pinned by a test, and used by a game we certify releases against; changing or removing one takes a deprecation release first.',
+    '我们预计 1.0 不会破坏这些。每一个都有文档、有测试钉住、并被我们用来验收发布的游戏真实调用；要改动或移除，必须先经过一个弃用版本。',
+  )}
+</p>
+<table>
+  <thead>
+    <tr><th>{t('Symbol', '符号')}</th><th>{t('Kind', '种类')}</th></tr>
+  </thead>
+  <tbody>
+    {pub.map((s) => (
+      <tr>
+        <td><code>{s.name}</code>{s.deprecated && <span class="st-flag">{t('deprecated', '已弃用')}</span>}</td>
+        <td>{s.kind}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+
+<h2 id="beta">Beta</h2>
+<p>
+  {t(
+    'Shipping and supported, but the shape may still adjust before 1.0. Build on them; expect to read the changelog.',
+    '已发布并受支持，但形状在 1.0 前仍可能调整。可以用，但升级时请读 changelog。',
+  )}
+</p>
+<table>
+  <thead>
+    <tr><th>{t('Symbol', '符号')}</th><th>{t('Kind', '种类')}</th></tr>
+  </thead>
+  <tbody>
+    {beta.map((s) => (
+      <tr>
+        <td><code>{s.name}</code>{s.deprecated && <span class="st-flag">{t('deprecated', '已弃用')}</span>}</td>
+        <td>{s.kind}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+
+<h2 id="experimental">{t('Experimental', '实验性')}</h2>
+<p>
+  {t(
+    'Everything else, which is most of the surface. It works and it is what the editor itself is built on, but no compatibility claim is attached: it may change or disappear in any release. Your editor shows the tier on hover, and sdk/etc/*.api.md in the repository is the full inventory.',
+    '其余全部，也就是这个面的绝大部分。它们能用，编辑器本身就建立在它们之上，但不附带任何兼容性承诺：任何版本都可能改动或消失。编辑器里悬停即可看到分级，仓库中的 sdk/etc/*.api.md 是完整清单。',
+  )}
+</p>
+
+<style>
+  .st-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-block: 1.5rem;
+  }
+  .st-count {
+    flex: 1 1 8rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.5rem;
+    border-top-width: 3px;
+  }
+  .st-count strong {
+    display: block;
+    font-size: 1.75rem;
+    line-height: 1.1;
+  }
+  .st-count span {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .st-public { border-top-color: var(--sl-color-green); }
+  .st-beta { border-top-color: var(--sl-color-blue); }
+  .st-exp { border-top-color: var(--sl-color-gray-4); }
+  .st-note {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .st-flag {
+    margin-inline-start: 0.4rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.25rem;
+    background: var(--sl-color-orange-low);
+    font-size: var(--sl-text-xs);
+  }
+</style>
