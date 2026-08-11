@@ -3,10 +3,10 @@
   "counts": {
     "public": 6,
     "beta": 24,
-    "experimental": 1594,
+    "experimental": 1595,
     "deprecated": 1
   },
-  "total": 1624,
+  "total": 1625,
   "public": [
     {
       "name": "Commands",

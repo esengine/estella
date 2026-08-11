@@ -165,6 +165,12 @@ export const CRITERIA = [
     needs: ['tools/api-surface.mjs', 'tools/lib/apiSnapshot.mjs'],
   },
   {
+    id: 'frozen-api-spelled-in-frozen-types',
+    says: 'no @public signature names a type at a weaker tier except where the gap is declared',
+    answeredBy: 'node tools/check-tier-leaks.mjs',
+    needs: ['tools/check-tier-leaks.mjs'],
+  },
+  {
     id: 'tiers-reach-the-creator',
     says: 'the stability tier is in the .d.ts a project compiles against, not only in our snapshot',
     // The 17 @beta symbols index claimed while the built declarations carried 3

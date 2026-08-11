@@ -267,6 +267,7 @@ export {
     QueryInstance,
     RemovedQueryInstance,
     type FilterExpr,
+    type QueryArg,
     type QueryBuilder,
     type QueryDescriptor,
     type QueryResult,
