@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.49.0] - 2026-08-10
 
 ### Added
 
