@@ -83,6 +83,13 @@ type Command =
 // Entity Commands (Builder for spawning)
 // =============================================================================
 
+/**
+ * One entity's share of a {@link CommandsInstance}: chain `insert`/`remove` and
+ * let the queue apply them. Asking {@link EntityCommands.id} for a spawn's
+ * entity materialises it early, because an id has to exist to be answered.
+ *
+ * @public
+ */
 export class EntityCommands {
     private readonly commands_: CommandsInstance;
     private readonly entityRef_: { entity: Entity };
@@ -147,6 +154,13 @@ export class EntityCommands {
 // Commands Instance (Runtime)
 // =============================================================================
 
+/**
+ * The command queue a system declared with {@link Commands}. Records structural
+ * work — spawn, despawn, add or remove a component, install a resource — and
+ * applies it when the system returns, so nothing moves under a running query.
+ *
+ * @public
+ */
 export class CommandsInstance {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;

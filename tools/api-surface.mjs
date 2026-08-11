@@ -154,7 +154,10 @@ function fileLevelTier(sourceFile) {
     const text = sourceFile.getFullText();
     for (const range of ts.getLeadingCommentRanges(text, 0) ?? []) {
         const comment = text.slice(range.pos, range.end);
-        if (!comment.startsWith('/**')) continue;
+        // Every comment before the first token is "leading", so the doc on a
+        // file's first declaration is in here too. `@file` is what makes one a
+        // header, and tagging that declaration is not tagging the module.
+        if (!comment.startsWith('/**') || !/@file\b/.test(comment)) continue;
         if (/^\s*\*\s*@public\b/m.test(comment)) {
             const where = relative(ROOT, sourceFile.fileName).replace(/\\/g, '/');
             errors.push(`R4: '${where}' claims @public in its @file header — tag the declaration, a header does not reach the .d.ts`);
@@ -204,8 +207,20 @@ function isAmbientMember(member) {
     return decls.every((d) => d.getSourceFile().fileName.replace(/\\/g, '/').includes('/node_modules/'));
 }
 
+/** A well-known symbol member — `__@iterator@16`, whose trailing id is a checker
+ *  counter and therefore not stable enough to put in a snapshot. */
+const WELL_KNOWN_SYMBOL = /^__@(\w+)@\d+$/;
+
+/** `[Symbol.iterator]`, so `for…of` is part of the recorded surface. */
+function memberName(member) {
+    const wellKnown = WELL_KNOWN_SYMBOL.exec(member.escapedName?.toString() ?? '');
+    return wellKnown ? `[Symbol.${wellKnown[1]}]` : member.name;
+}
+
 function isPrivateMember(member) {
-    if (member.escapedName?.toString().startsWith('__')) return true;
+    const escaped = member.escapedName?.toString() ?? '';
+    if (WELL_KNOWN_SYMBOL.test(escaped)) return false;
+    if (escaped.startsWith('__')) return true;
     for (const decl of member.declarations ?? []) {
         if (decl.name && ts.isPrivateIdentifier(decl.name)) return true;
         const mods = ts.canHaveModifiers(decl) ? ts.getModifiers(decl) : undefined;
@@ -232,7 +247,7 @@ function memberLines(type, location, owner) {
         // public .d.ts unannounced. Marked here, in the shipped .d.ts, and skipped by
         // the leak and baseline rules: it is present, and it promises nothing.
         const mark = tagNames(member).has('internal') ? '@internal ' : '';
-        lines.push(`${mark}${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
+        lines.push(`${mark}${memberName(member)}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
     }
     return lines.sort();
 }

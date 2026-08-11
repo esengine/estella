@@ -27,11 +27,15 @@ import { parseSnapshot } from './lib/apiSnapshot.mjs';
  * one is the ECS vocabulary the six Wave 1 symbols are written in — descriptors,
  * defs and the parameter union — none of which has been through the freeze bar.
  */
+// World carries the host's binding seam (connectCpp, getCppRegistry), so
+// freezing it would freeze that too, and 0.50 deliberately does not.
+const WORLD = 'names World, which is not frozen while it carries the host binding seam';
+
 export const ACCEPTED = {
-    // A game is HANDED the instance classes and never imports one, so no golden
-    // import list names them and the bar cannot see them run. World is separate:
-    // it carries the host's binding seam, and freezing it would freeze that.
-    InferParam: 'the instance classes it resolves to, and World, are not frozen yet',
+    CommandsInstance: WORLD,
+    InferParam: WORLD,
+    QueryInstance: WORLD,
+    RemovedQueryInstance: WORLD,
 };
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */

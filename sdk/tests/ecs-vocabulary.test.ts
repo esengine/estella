@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
     defineComponent, defineSystem, defineResource, defineEvent, Query, Mut, Res, ResMut,
     Commands, With, Without, And, Or, Not, Added, Changed, Removed,
-    EventReader, EventWriter, GetWorld, Transform,
+    EventReader, EventWriter, GetWorld, Transform, World, QueryInstance,
 } from '../src/core';
 import type {
     AnyComponentDef, BuiltinComponentDef, ComponentDef, ComponentMetadata, FieldMeta,
@@ -20,6 +20,7 @@ import type {
     ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
     EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
     SystemDef, SystemOptions, SystemParam, InferParam, InferParams,
+    Entity, QueryResult,
 } from '../src/core';
 
 const Position = defineComponent('VocabPosition', { x: 0, y: 0 });
@@ -88,6 +89,21 @@ describe('query vocabulary', () => {
     it('filter replaces a prior expression rather than adding to it', () => {
         const q = Query(Position).filter(With(Health)).filter(With(Position));
         expect(q._filter).toEqual({ kind: 'with', component: Position });
+    });
+
+    it('QueryResult is the entity followed by the components asked for', () => {
+        const world = new World();
+        const e = world.spawn();
+        world.insert(e, Position, { x: 3, y: 4 });
+        world.insert(e, Health, { hp: 20 });
+        const rows: QueryResult<[typeof Position, typeof Health]>[] =
+            new QueryInstance(world, Query(Position, Health)).toArray();
+        expect(rows).toHaveLength(1);
+        const [entity, position, health] = rows[0];
+        const id: Entity = entity;
+        expect(id).toBe(e);
+        expect(position).toEqual({ x: 3, y: 4 });
+        expect(health).toEqual({ hp: 20 });
     });
 
     it('FilterExpr composes and stays readable without running the query', () => {

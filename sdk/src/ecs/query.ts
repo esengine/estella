@@ -343,6 +343,13 @@ type ComponentsData<C extends readonly QueryArg[]> = {
     [K in keyof C]: ComponentData<UnwrapQueryArg<C[K]>>;
 };
 
+/**
+ * One step of a {@link QueryInstance}: the entity, then each requested
+ * component's data in the order it was asked for. A tuple, so destructuring it
+ * in a `for…of` is typed without annotation.
+ *
+ * @public
+ */
 export type QueryResult<C extends readonly QueryArg[]> = [
     Entity,
     ...ComponentsData<C>
@@ -352,6 +359,14 @@ export type QueryResult<C extends readonly QueryArg[]> = [
 // Query Instance (Runtime)
 // =============================================================================
 
+/**
+ * A live query, as a system body receives it. Iterate it — each step yields the
+ * entity followed by its components — or use `forEach`, `single`, `toArray`,
+ * `count` and `isEmpty`. Any {@link Mut} argument is written back and marked
+ * changed as iteration leaves each entity, so leaving the loop early is safe.
+ *
+ * @public
+ */
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
     private readonly world_: World;
     private readonly descriptor_: QueryDescriptor<C>;
@@ -727,6 +742,13 @@ export function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDe
     return { _type: 'removed', _component: component };
 }
 
+/**
+ * The entities that lost a component since this system last ran, as
+ * {@link Removed} asked for. Yields entities only — the component is gone, so
+ * there is nothing left to read from it.
+ *
+ * @public
+ */
 export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
     private readonly world_: World;
     private readonly component_: T;

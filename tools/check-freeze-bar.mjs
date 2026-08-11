@@ -30,8 +30,22 @@ import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram, leadingDoc, docProseLine
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
 import { GOLDEN, projectDir } from './goldenProjects.mjs';
 
-/** Frozen symbols that cannot meet part of the bar, and why. */
-export const EXEMPT = {};
+/**
+ * Frozen symbols that cannot meet part of the bar, and why. Every one here is a
+ * class a system body is HANDED by a declared parameter, so a game never writes
+ * its name and no import list can show it — while every golden project runs one
+ * every frame. The criterion is blind to them, not unmet by them.
+ */
+const RECEIVED = 'received from a declared parameter, never imported — golden projects run it, no import list names it';
+export const EXEMPT = {
+    CommandsInstance: RECEIVED,
+    EntityCommands: RECEIVED,
+    EventReaderInstance: RECEIVED,
+    EventWriterInstance: RECEIVED,
+    QueryInstance: RECEIVED,
+    RemovedQueryInstance: RECEIVED,
+    ResMutInstance: RECEIVED,
+};
 
 /** Snapshot kinds that a game calls at runtime; the rest are shapes. */
 const VALUE_KINDS = new Set(['class', 'enum', 'function', 'const', 'value', 'namespace']);
@@ -183,8 +197,12 @@ for (const [name, kind] of [...frozen].sort()) {
     failures.push({ name, say: `${missing.join(', ')}`, where });
 }
 
-for (const [name, why] of Object.entries(EXEMPT)) {
-    if (!frozen.has(name)) failures.push({ name, say: `is exempt from the freeze bar but is not @public — ${why}` });
+// Not in --why: that mode is asked about a chosen few, so every other exemption
+// would read as an inconsistency it did not ask about.
+if (!asked.length) {
+    for (const [name, why] of Object.entries(EXEMPT)) {
+        if (!frozen.has(name)) failures.push({ name, say: `is exempt from the freeze bar but is not @public — ${why}` });
+    }
 }
 
 if (asked.length) {

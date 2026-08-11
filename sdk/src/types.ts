@@ -23,6 +23,8 @@
  *
  * The value is transported across the WASM boundary as a plain u32 and used
  * directly as a Map/Set key on the JS side.
+ *
+ * @public
  */
 export type Entity = number;
 

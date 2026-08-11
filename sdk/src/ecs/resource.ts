@@ -90,6 +90,13 @@ export function ResMut<T>(resource: ResourceDef<T>): ResMutDescriptor<T> {
 // Resource Instances (Runtime)
 // =============================================================================
 
+/**
+ * Write access to a resource, as {@link ResMut} asked for. `get` reads,
+ * `set` replaces, `modify` edits in place — and both writers store the value
+ * back and bump the change tick, which is the part `Res` cannot do.
+ *
+ * @public
+ */
 export class ResMutInstance<T> {
     private value_: T;
     private readonly setter_: (v: T) => void;
