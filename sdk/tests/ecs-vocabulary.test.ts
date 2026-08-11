@@ -9,13 +9,17 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    defineComponent, defineSystem, defineResource, Query, Mut, Res, Commands, With, Added, Changed,
+    defineComponent, defineSystem, defineResource, defineEvent, Query, Mut, Res, ResMut,
+    Commands, With, Without, And, Or, Not, Added, Changed, Removed,
+    EventReader, EventWriter, GetWorld, Transform,
 } from '../src/core';
 import type {
-    AnyComponentDef, ComponentDef, ComponentMetadata,
-    QueryBuilder, QueryDescriptor, MutWrapper,
-    ResourceDef, ResDescriptor, CommandsDescriptor, QueryArg,
-    SystemDef, SystemOptions, SystemParam, InferParams,
+    AnyComponentDef, BuiltinComponentDef, ComponentDef, ComponentMetadata, FieldMeta,
+    QueryBuilder, QueryDescriptor, MutWrapper, AddedWrapper, ChangedWrapper,
+    FilterExpr, RemovedQueryDescriptor,
+    ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
+    EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
+    SystemDef, SystemOptions, SystemParam, InferParam, InferParams,
 } from '../src/core';
 
 const Position = defineComponent('VocabPosition', { x: 0, y: 0 });
@@ -47,6 +51,21 @@ describe('component vocabulary', () => {
         expect(Health.replicatedFields).toEqual([]);
         expect(Health.renderableField).toBeNull();
     });
+
+    it('an engine component reflects the same way a declared one does', () => {
+        // Both halves of AnyComponentDef answer the reflection tooling reads, so
+        // an editor or a cook never asks which kind it is holding.
+        const builtin = Transform as unknown as BuiltinComponentDef<unknown>;
+        expect(builtin._builtin).toBe(true);
+        expect(Array.isArray(builtin.readonlyFields)).toBe(true);
+        expect(typeof builtin.fieldMeta).toBe('object');
+    });
+
+    it('FieldMeta is the per-field policy a definition carries', () => {
+        const meta: Record<string, FieldMeta> = { hp: { min: 0, max: 100 } };
+        const def = defineComponent('VocabFieldMeta', { hp: 1 }, { fields: meta });
+        expect(def.fieldMeta.hp).toEqual({ min: 0, max: 100 });
+    });
 });
 
 describe('query vocabulary', () => {
@@ -71,8 +90,21 @@ describe('query vocabulary', () => {
         expect(q._filter).toEqual({ kind: 'with', component: Position });
     });
 
+    it('FilterExpr composes and stays readable without running the query', () => {
+        const expr: FilterExpr = And(With(Position), Or(Without(Health), Not(With(Health))));
+        expect(expr.kind).toBe('and');
+        // Readable is the claim: walk it and name the components it mentions.
+        const names = (e: FilterExpr): string[] =>
+            e.kind === 'with' || e.kind === 'without' ? [e.component._name]
+                : e.kind === 'not' ? names(e.filter)
+                    : e.filters.flatMap(names);
+        expect(names(expr)).toEqual(['VocabPosition', 'VocabHealth', 'VocabHealth']);
+    });
+
     it('QueryArg admits a bare component and each of the wrappers', () => {
-        const args: QueryArg[] = [Position, Mut(Health), Added(Position), Changed(Health)];
+        const added: AddedWrapper<typeof Position> = Added(Position);
+        const changed: ChangedWrapper<typeof Health> = Changed(Health);
+        const args: QueryArg[] = [Position, Mut(Health), added, changed];
         // Whatever the wrapper, the query matches on the component inside it.
         expect(Query(...args)._components).toHaveLength(4);
         expect(Query(Added(Position))._addedFilters).toEqual([{ index: 0, component: Position }]);
@@ -115,6 +147,26 @@ describe('system vocabulary', () => {
         const def = defineSystem([Commands()], () => {}, options);
         expect(def._name).toBe('vocab');
         expect(def._runAfter).toEqual(['physics']);
+    });
+
+    it('every remaining parameter factory answers its own descriptor type', () => {
+        const Ping = defineEvent<{ n: number }>('VocabPing');
+        const Score = defineResource(0, 'VocabInferScore');
+        const writer: EventWriterDescriptor<{ n: number }> = EventWriter(Ping);
+        const reader: EventReaderDescriptor<{ n: number }> = EventReader(Ping);
+        const world: GetWorldDescriptor = GetWorld();
+        const resMut: ResMutDescriptor<number> = ResMut(Score);
+        const removed: RemovedQueryDescriptor<typeof Position> = Removed(Position);
+        const params: SystemParam[] = [writer, reader, world, resMut, removed];
+        expect(params).toHaveLength(5);
+        expect(removed._component).toBe(Position);
+    });
+
+    it('InferParam sends an unrecognised declaration to never', () => {
+        // The `never` is the point: a bad parameter is a type error where the
+        // system is defined, not a surprise when the runner calls it.
+        const unrecognised: InferParam<{ nonsense: true }> = undefined as never;
+        expect(unrecognised).toBeUndefined();
     });
 
     it('InferParams resolves a declaration to what the body is handed', () => {

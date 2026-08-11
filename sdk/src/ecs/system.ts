@@ -37,7 +37,14 @@ export enum Schedule {
 // World Access Descriptor
 // =============================================================================
 
+/**
+ * A request for the {@link World} itself, as {@link GetWorld} returns it — the
+ * escape hatch for work the declared parameters cannot express.
+ *
+ * @public
+ */
 export interface GetWorldDescriptor {
+    /** @internal */
     readonly _type: 'get_world';
 }
 
@@ -70,6 +77,14 @@ export type SystemParam =
 // Parameter Type Inference
 // =============================================================================
 
+/**
+ * One parameter's declaration resolved to the value a system body receives.
+ * {@link InferParams} maps this over a whole list; a request this does not
+ * recognise resolves to `never`, which is what makes a bad parameter a type
+ * error at the definition rather than a surprise at the call.
+ *
+ * @public
+ */
 export type InferParam<P> =
     P extends QueryDescriptor<infer C> ? QueryInstance<C> :
     P extends ResDescriptor<infer T> ? T :

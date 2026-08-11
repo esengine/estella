@@ -55,8 +55,17 @@ export interface ResDescriptor<T> {
     readonly _resource: ResourceDef<T>;
 }
 
+/**
+ * A request for write access to a resource, as {@link ResMut} returns it.
+ * Opaque — the body receives a `ResMutInstance`, whose `set`/`modify` are what
+ * store the value back.
+ *
+ * @public
+ */
 export interface ResMutDescriptor<T> {
+    /** @internal */
     readonly _type: 'res_mut';
+    /** @internal */
     readonly _resource: ResourceDef<T>;
 }
 

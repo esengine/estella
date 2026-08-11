@@ -47,6 +47,8 @@ export interface AssetRef {
  * back to value-shape inference for any field without metadata. None of this is
  * read by the runtime (which stores raw values); it is purely authoring policy
  * co-located with the component so the inspector and the data never diverge.
+ *
+ * @public
  */
 export interface FieldMeta {
     /** Render as a dropdown of these options; the stored value is the option's int. */
@@ -439,11 +441,23 @@ function registerToEditor(
 // Builtin Component Definition (C++ backed)
 // =============================================================================
 
+/**
+ * A component the engine ships, whose storage lives in C++. Carries the same
+ * reflection a {@link ComponentDef} does, authored at the `ES_PROPERTY` site
+ * instead of in a metadata argument, so tooling reads both the same way.
+ *
+ * @public
+ */
 export interface BuiltinComponentDef<T> {
+    /** @internal */
     readonly _id: symbol;
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _cppName: string;
+    /** @internal */
     readonly _builtin: true;
+    /** @internal */
     readonly _default: T;
     readonly assetFields: readonly AssetFieldMeta[];
     readonly skeletalFields?: SkeletalFieldMeta;

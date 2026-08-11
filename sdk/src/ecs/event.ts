@@ -79,13 +79,29 @@ export class EventRegistry {
 // System Parameter Descriptors
 // =============================================================================
 
+/**
+ * A request for send access to an event in a system's parameter list, as
+ * {@link EventWriter} returns it. Opaque — the body receives the instance.
+ *
+ * @public
+ */
 export interface EventWriterDescriptor<T> {
+    /** @internal */
     readonly _type: 'event_writer';
+    /** @internal */
     readonly _event: EventDef<T>;
 }
 
+/**
+ * A request for receive access to an event, as {@link EventReader} returns it.
+ * Each reader keeps its own cursor, so two systems both see every event.
+ *
+ * @public
+ */
 export interface EventReaderDescriptor<T> {
+    /** @internal */
     readonly _type: 'event_reader';
+    /** @internal */
     readonly _event: EventDef<T>;
 }
 

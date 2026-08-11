@@ -50,13 +50,31 @@ type UnwrapMut<T> = T extends MutWrapper<infer C> ? C : T;
 // Change Detection Wrappers
 // =============================================================================
 
+/**
+ * A query argument matching only entities that gained the component since this
+ * system last ran, as {@link Added} returns it. Opaque — the query still yields
+ * the component's data.
+ *
+ * @public
+ */
 export interface AddedWrapper<T extends AnyComponentDef> {
+    /** @internal */
     readonly _filterType: 'added';
+    /** @internal */
     readonly _component: T;
 }
 
+/**
+ * A query argument matching only entities whose component was written since
+ * this system last ran, as {@link Changed} returns it. A write is what
+ * {@link Mut} records, so an unwrapped read never marks one.
+ *
+ * @public
+ */
 export interface ChangedWrapper<T extends AnyComponentDef> {
+    /** @internal */
     readonly _filterType: 'changed';
+    /** @internal */
     readonly _component: T;
 }
 
@@ -98,6 +116,13 @@ export type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrap
 // `filter(expr)` accepts arbitrary combinations of And/Or/Not for cases the
 // flat API can't express, e.g. `Or(With(A), Without(B))`.
 
+/**
+ * A composable match expression for {@link QueryBuilder.filter}, built with
+ * `With`/`Without`/`And`/`Or`/`Not`. A readable data shape on purpose: an
+ * editor or a tool can inspect one without running the query.
+ *
+ * @public
+ */
 export type FilterExpr =
     | { readonly kind: 'with'; readonly component: AnyComponentDef }
     | { readonly kind: 'without'; readonly component: AnyComponentDef }
@@ -684,8 +709,17 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 // Removed Query
 // =============================================================================
 
+/**
+ * A request to iterate the entities that LOST a component since this system
+ * last ran, as {@link Removed} returns it. Opaque — the body receives an
+ * instance yielding entities, since the component itself is already gone.
+ *
+ * @public
+ */
 export interface RemovedQueryDescriptor<T extends AnyComponentDef> {
+    /** @internal */
     readonly _type: 'removed';
+    /** @internal */
     readonly _component: T;
 }
 

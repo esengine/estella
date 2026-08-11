@@ -28,13 +28,10 @@ import { parseSnapshot } from './lib/apiSnapshot.mjs';
  * defs and the parameter union — none of which has been through the freeze bar.
  */
 export const ACCEPTED = {
-    AnyComponentDef: 'BuiltinComponentDef, the engine-side half of the union, is not frozen yet',
-    ComponentDef: 'FieldMeta, the per-field editor policy it reflects, is not frozen yet',
-    ComponentMetadata: 'FieldMeta, the per-field editor policy it declares, is not frozen yet',
-    InferParams: 'InferParam, the per-parameter mapping it maps over, is not frozen yet',
-    QueryArg: 'the Added and Changed wrappers it admits are not frozen yet',
-    QueryBuilder: 'FilterExpr, the composable filter it accepts, is not frozen yet',
-    SystemParam: 'the event, removed-query, res-mut and get-world descriptors are not frozen yet',
+    // A game is HANDED the instance classes and never imports one, so no golden
+    // import list names them and the bar cannot see them run. World is separate:
+    // it carries the host's binding seam, and freezing it would freeze that.
+    InferParam: 'the instance classes it resolves to, and World, are not frozen yet',
 };
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */
