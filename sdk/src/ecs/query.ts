@@ -19,6 +19,15 @@ export interface MutWrapper<T extends AnyComponentDef> {
     readonly _component: T;
 }
 
+/**
+ * Ask a {@link Query} for write access to `component`.
+ *
+ * An unwrapped engine component is yielded as a copy, so assigning to it changes
+ * nothing. Wrapped, the yielded data is written back to the world as iteration
+ * leaves the entity, and the component is marked changed for `Changed()`.
+ *
+ * @public
+ */
 export function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T> {
     return { _type: 'mut', _component: component };
 }
@@ -245,6 +254,15 @@ function createQueryDescriptor<C extends readonly QueryArg[]>(
 // Query Factory
 // =============================================================================
 
+/**
+ * Match the entities carrying every one of `components`, yielding the entity
+ * followed by each component's data in the order asked for.
+ *
+ * Read-only unless an argument is wrapped in {@link Mut}; narrow further with
+ * the builder's `with`/`without`, or per-component with `Added()`/`Changed()`.
+ *
+ * @public
+ */
 export function Query<C extends QueryArg[]>(...components: C): QueryBuilder<C> {
     return createQueryDescriptor(components);
 }

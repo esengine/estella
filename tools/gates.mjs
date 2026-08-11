@@ -37,6 +37,7 @@ export const GATES = [
   // Reads the snapshot the gate above just proved current, against the one the
   // last release tag shipped — drift says the surface moved, this says a promise did.
   { id: 'api-surface-baseline', run: 'node tools/api-surface.mjs --check-baseline' },
+  { id: 'freeze-bar', run: 'node tools/check-freeze-bar.mjs' },
   // Everything below reads what this emits: the declaration snapshot, the
   // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },

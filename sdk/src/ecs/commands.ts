@@ -19,6 +19,15 @@ export interface CommandsDescriptor {
     readonly _type: 'commands';
 }
 
+/**
+ * Ask a system for a command queue: spawning, despawning and adding or removing
+ * components, recorded now and applied together.
+ *
+ * It flushes when the system returns — on a throw too, and after an async body's
+ * await — so structural edits never land mid-iteration of that system's queries.
+ *
+ * @public
+ */
 export function Commands(): CommandsDescriptor {
     return { _type: 'commands' };
 }

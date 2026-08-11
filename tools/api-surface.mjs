@@ -380,7 +380,8 @@ if (fromDts) {
         for (const [n, s] of rekinded.slice(0, 15)) console.error(`  ${n}: ${s.kind} became ${emitted.get(n)}`);
     }
 
-    for (const e of errors) console.error(`POLICY ${e}`);
+    // One violation per symbol, not per entry that re-exports it.
+for (const e of new Set(errors)) console.error(`POLICY ${e}`);
     if (broken || errors.length) {
         console.error('\napi-surface: the declaration build is not shipping the documented surface.');
         process.exit(1);
@@ -419,9 +420,10 @@ for (const [entryName, entryPath] of Object.entries(entryPaths)) {
     }
 }
 
-for (const e of errors) console.error(`POLICY ${e}`);
+// One violation per symbol, not per entry that re-exports it.
+for (const e of new Set(errors)) console.error(`POLICY ${e}`);
 if (errors.length || drift) {
-    console.error(`\napi-surface: ${errors.length} policy violation(s), ${drift} drifted snapshot(s).`);
+    console.error(`\napi-surface: ${new Set(errors).size} policy violation(s), ${drift} drifted snapshot(s).`);
     console.error('Fix violations, then: node tools/api-surface.mjs --update');
     process.exit(1);
 }

@@ -42,6 +42,15 @@ export interface ResMutDescriptor<T> {
     readonly _resource: ResourceDef<T>;
 }
 
+/**
+ * Ask a system for read access to a resource: the world's single instance of
+ * `resource`, passed to the system body as the stored value itself.
+ *
+ * Not a copy — an object resource's fields are reachable through it. Replacing
+ * the value, and the change tick recording it, is what {@link ResMut} is for.
+ *
+ * @public
+ */
 export function Res<T>(resource: ResourceDef<T>): ResDescriptor<T> {
     return { _type: 'res', _resource: resource };
 }

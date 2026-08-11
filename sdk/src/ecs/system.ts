@@ -112,6 +112,8 @@ export interface SystemOptions {
  * the system is registered — including the top-level {@link addSystem}, which
  * takes no options of its own. Edges given again at the registration site (or
  * on the enclosing {@link SystemSet}) are added to these, not replaced.
+ *
+ * @public
  */
 export function defineSystem<P extends readonly SystemParam[]>(
     params: [...P],

@@ -322,6 +322,15 @@ function userComponents(): Map<string, AnyComponentDef> {
     return getDefaultContext().componentRegistry as Map<string, AnyComponentDef>;
 }
 
+/**
+ * Declare a component type from its name and the defaults every instance starts
+ * with. `name` is the identity a scene file stores, so it is what a saved entity
+ * is rebound by; defining the same name twice returns the first definition
+ * rather than replacing it, so a hot reload cannot orphan live entities.
+ *
+ * @throws if `name` is already taken by a built-in engine component.
+ * @public
+ */
 export function defineComponent<T extends object>(
     name: string,
     defaults: T,
