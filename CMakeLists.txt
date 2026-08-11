@@ -35,6 +35,13 @@ option(ES_PHYSICS_ESM "Emit the physics module as an ES6 module (web) instead of
 # ASan + UBSan for the test harnesses (the sanitizers job in build.yml). Findings
 # are fatal: without -fno-sanitize-recover UBSan prints and continues, which a CI
 # gate reads as green. clang/gcc/emcc flags — MSVC has no UBSan.
+# The sources are UTF-8; without this MSVC reads them in the host's ANSI codepage,
+# so a non-ASCII literal becomes mojibake and then a syntax error. Only the host
+# locale decides, which is why it compiles on one Windows machine and not the next.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 option(ES_SANITIZE "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
 if(ES_SANITIZE)
     if(MSVC)

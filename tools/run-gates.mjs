@@ -34,6 +34,13 @@ console.log(`gates ${SCOPE}: ${gates.length} of ${GATES.length}`);
 
 for (const gate of gates) {
   const r = spawnSync('sh', ['-c', gate.run], { cwd: ROOT, stdio: 'inherit' });
+  // A shell that would not start is not a gate that failed. Reported as one it
+  // sends the reader after the first gate's subject, which said nothing at all.
+  if (r.error) {
+    console.error(`\n✗ could not run the gates: ${r.error.message}`);
+    console.error('  they are shell commands — run this from a shell that has `sh` on PATH.');
+    process.exit(2);
+  }
   if (r.status !== 0) {
     console.error(`\n✗ ${gate.id} — \`${gate.run}\``);
     // Naming what did NOT run matters at the moment of failure: the gates after

@@ -29,7 +29,10 @@ const BUILD = path.join(ROOT, 'build', 'cmake', 'native-tests');
 
 /** The harness targets, read off the CI list so the two cannot drift. */
 function harnessTargets() {
-    const workflow = readFileSync(path.join(ROOT, '.github', 'workflows', 'build.yml'), 'utf8');
+    // Normalised first: a Windows checkout has CRLF here and the line pattern
+    // would not match, so this gate could only ever run on the LF side.
+    const workflow = readFileSync(path.join(ROOT, '.github', 'workflows', 'build.yml'), 'utf8')
+        .replace(/\r\n?/g, '\n');
     const block = workflow.match(/CPP_TESTS:\s*>-\s*\n((?:\s{4}.*\n)+)/);
     if (!block) throw new Error('build.yml no longer declares CPP_TESTS — this gate reads it');
     return block[1].split(/\s+/).filter(Boolean);
@@ -68,8 +71,9 @@ for (const target of buildable) {
     if (run.status === 0) { built.push(target); continue; }
     // A target the native configure never produced is not a broken one: some are
     // declared behind an option this tree does not set. Saying which is the
-    // difference between a gate and a green light.
-    if (/No rule to make target|unknown target|does not exist/i.test(out)) { absent.push(target); continue; }
+    // difference between a gate and a green light. MSB1009 is matched by code
+    // because MSBuild says "project file does not exist" in the host's language.
+    if (/No rule to make target|unknown target|does not exist|MSB1009/i.test(out)) { absent.push(target); continue; }
     console.error(`check-cpp-tests: ${target} does not build.\n`);
     console.error(out.split('\n').filter((l) => /error|Undefined|undefined symbol/i.test(l)).slice(0, 12).join('\n'));
     console.error(`\nReproduce: cmake -S . -B ${path.relative(ROOT, BUILD)} -DES_BUILD_TESTS=ON`
