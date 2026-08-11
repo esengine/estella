@@ -25,7 +25,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative } from 'node:path';
-import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram } from './lib/sdkProgram.mjs';
+import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram, leadingDoc } from './lib/sdkProgram.mjs';
 import { TIERS, parseSnapshot, baselineFindings } from './lib/apiSnapshot.mjs';
 
 const MODES = ['--check', '--update', '--check-dts', '--check-baseline'];
@@ -358,15 +358,29 @@ if (fromDts) {
             continue;
         }
         const emitted = new Map();
+        const declared = new Map();
         for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
             if (symbol.name.startsWith('__')) continue;
             const desc = describeSymbol(symbol.name, symbol);
-            if (desc) emitted.set(desc.name, desc.kind);
+            if (!desc) continue;
+            emitted.set(desc.name, desc.kind);
+            const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+            if (resolved.declarations?.[0]) declared.set(desc.name, resolved.declarations[0]);
         }
 
         // Only name and kind are compared: a tier can come from a `@file` header,
         // and a header cannot survive into a bundled .d.ts.
         const snapshot = parseSnapshot(readFileSync(join(ETC, `${entryName}.api.md`), 'utf8'));
+
+        // A freeze the creator's editor cannot show them is not a promise they
+        // can act on, and a dropped tag is invisible without something asking.
+        for (const [name, s] of snapshot) {
+            if (s.tier !== 'public') continue;
+            const decl = declared.get(name);
+            if (decl && !/@public\b/.test(leadingDoc(decl))) {
+                errors.push(`R5: '${name}' is @public but the built ${entryName}.d.ts does not carry the tag`);
+            }
+        }
 
         const dropped = [...snapshot.keys()].filter((n) => !emitted.has(n));
         const extra = [...emitted.keys()].filter((n) => !snapshot.has(n));

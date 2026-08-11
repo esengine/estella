@@ -15,7 +15,7 @@
  * This says the criteria are OWNED. Whether they PASS is what running them says.
  */
 
-export const RELEASE = '0.49';
+export const RELEASE = '0.50';
 
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files
@@ -151,6 +151,33 @@ export const CRITERIA = [
     // No runner: it needs an installed, signed application, which is the one
     // artifact CI produces and cannot then run as a user would.
     manual: 'release captain, on the downloaded build: Help → Export Diagnostics',
+  },
+  {
+    id: 'frozen-api-earned',
+    says: 'every @public symbol is documented, pinned by a test, and called by a golden project',
+    answeredBy: 'node tools/check-freeze-bar.mjs',
+    needs: ['tools/check-freeze-bar.mjs', 'tools/goldenProjects.mjs'],
+  },
+  {
+    id: 'frozen-api-kept',
+    says: 'the @public promises the last release shipped are all still kept',
+    answeredBy: 'node tools/api-surface.mjs --check-baseline',
+    needs: ['tools/api-surface.mjs', 'tools/lib/apiSnapshot.mjs'],
+  },
+  {
+    id: 'tiers-reach-the-creator',
+    says: 'the stability tier is in the .d.ts a project compiles against, not only in our snapshot',
+    // The 17 @beta symbols index claimed while the built declarations carried 3
+    // is what this is for: a tier nobody can see is a tier nobody can act on.
+    answeredBy: 'node tools/api-surface.mjs --check-dts',
+    needs: ['tools/api-surface.mjs', 'tools/lib/sdkProgram.mjs'],
+  },
+  {
+    id: 'creator-can-say-what-is-safe',
+    says: 'the docs name the four tiers and which APIs are in each, in both languages',
+    // What a tier MEANS is a promise to people, and the sentence making it is
+    // not something to compute from a snapshot.
+    manual: 'release captain, over docs/astro: the stability page matches sdk/etc and VERSIONING.md',
   },
   {
     id: 'no-p0-packaging-bugs',

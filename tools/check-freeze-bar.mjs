@@ -25,7 +25,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram } from './lib/sdkProgram.mjs';
+import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram, leadingDoc, docProseLines } from './lib/sdkProgram.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
 import { GOLDEN, projectDir } from './goldenProjects.mjs';
 
@@ -56,30 +56,9 @@ function frozenSymbols() {
 // Documented
 // ---------------------------------------------------------------------------
 
-/** The node a doc comment attaches to — for `export const x`, the statement. */
-function docAnchor(decl) {
-    let node = decl;
-    if (ts.isVariableDeclaration(node) && node.parent?.parent) node = node.parent.parent;
-    return node;
-}
-
-/**
- * A leading `/** *\/` block carrying at least one line that is not a tag.
- * Read from source text rather than the AST helpers so it says the same thing
- * about a declaration however TypeScript reshuffles its JSDoc accessors.
- */
+/** A leading doc block carrying at least one line that is not a tag. */
 function hasDocProse(decl) {
-    const node = docAnchor(decl);
-    const text = node.getSourceFile().getFullText();
-    for (const range of ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []) {
-        const comment = text.slice(range.pos, range.end);
-        if (!comment.startsWith('/**')) continue;
-        const prose = comment.split('\n')
-            .map((l) => l.replace(/^\s*\/?\*+\/?/, '').replace(/\*\/\s*$/, '').trim())
-            .filter((l) => l && !l.startsWith('@'));
-        if (prose.length) return true;
-    }
-    return false;
+    return docProseLines(leadingDoc(decl)).length > 0;
 }
 
 // ---------------------------------------------------------------------------

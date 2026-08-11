@@ -19,6 +19,36 @@ export const ETC = join(SDK, 'etc');
 
 export const ts = createRequire(join(SDK, '/'))('typescript');
 
+/** The node a doc comment attaches to — for `export const x`, the statement. */
+function docAnchor(decl) {
+    let node = decl;
+    if (ts.isVariableDeclaration(node) && node.parent?.parent) node = node.parent.parent;
+    return node;
+}
+
+/**
+ * The `/** *\/` blocks immediately above a declaration, as raw text. Read from
+ * source rather than the AST's JSDoc accessors so it answers the same way for a
+ * hand-written source file and a bundler's re-printed declaration.
+ */
+export function leadingDoc(decl) {
+    const node = docAnchor(decl);
+    const text = node.getSourceFile().getFullText();
+    const out = [];
+    for (const range of ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []) {
+        const comment = text.slice(range.pos, range.end);
+        if (comment.startsWith('/**')) out.push(comment);
+    }
+    return out.join('\n');
+}
+
+/** Lines of a doc block that are neither delimiters nor tags. */
+export function docProseLines(doc) {
+    return doc.split('\n')
+        .map((l) => l.replace(/^\s*\/?\*+\/?/, '').replace(/\*\/\s*$/, '').trim())
+        .filter((l) => l && !l.startsWith('@'));
+}
+
 /** Typed public entries (mirrors package.json "exports" + rollup dtsBuilds). */
 export const ENTRIES = {
     'index': 'src/index.ts',
