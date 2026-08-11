@@ -212,9 +212,19 @@ export class ResourceStorage {
 // Builtin Resources
 // =============================================================================
 
+/**
+ * The frame's clock, as {@link Time} carries it. `delta` is what almost
+ * everything integrates by — it is already multiplied by `scale`, so honouring a
+ * pause costs a system nothing.
+ *
+ * @public
+ */
 export interface TimeData {
+    /** Seconds since the previous frame, scaled by `scale`. */
     delta: number;
+    /** Seconds since the app started. */
     elapsed: number;
+    /** Render frames completed — machine-dependent; see `fixedTick`. */
     frameCount: number;
     /** Fixed-update timestep in seconds — the FixedUpdate / physics cadence. */
     fixedDelta: number;
@@ -236,12 +246,22 @@ export interface TimeData {
      * to 0. At 0 the frame still runs — systems tick and a menu draws — while
      * everything advancing by `delta` (movement, navigation, behaviour trees,
      * the physics step) advances by nothing.
+     *
+     * Read once at the top of the frame, before any system runs, so a write
+     * takes effect from the next frame: a game that pauses in `Update`
+     * integrates that frame in full and freezes from the one after.
      */
     scale: number;
     /** Real frame time, unaffected by `scale`, for whatever must keep moving. */
     unscaledDelta: number;
 }
 
+/**
+ * The frame clock, as `Res(Time)`. The engine writes it once per frame before
+ * any system runs; `scale` is the one field a project sets.
+ *
+ * @public
+ */
 export const Time = defineResource<TimeData>({
     delta: 0,
     elapsed: 0,

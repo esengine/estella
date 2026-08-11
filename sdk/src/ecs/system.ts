@@ -21,6 +21,14 @@ import type { World } from './world';
 // Schedule Phases
 // =============================================================================
 
+/**
+ * When in a frame a system runs, in the order listed; `Startup` runs once before
+ * the first frame. The `Fixed*` three are the simulation's cadence, running zero
+ * or more times per frame as `Time.fixedDelta` accumulates — where anything that
+ * must be deterministic belongs.
+ *
+ * @public
+ */
 export enum Schedule {
     Startup = 0,
     First = 1,
@@ -111,7 +119,13 @@ export type InferParams<P extends readonly SystemParam[]> = {
 // System Definition
 // =============================================================================
 
-/** Predicate evaluated per-frame; returning false skips the system for that tick. */
+/**
+ * Predicate evaluated per-frame; returning false skips the system for that tick.
+ * It is asked once per schedule run, so a set of nine systems gated on one pause
+ * flag reads it once and either all nine run or none do.
+ *
+ * @public
+ */
 export type RunCondition = () => boolean;
 
 /**
@@ -208,16 +222,30 @@ export function mergeOrderingEdges(
  *
  * Build one with {@link defineSystemSet}; the underscore-prefixed fields are
  * the scheduler's, not an authoring surface.
+ *
+ * @public
  */
 export interface SystemSet {
+    /** @internal */
     readonly _kind: 'set';
+    /** @internal */
     readonly _name: string;
+    /** @internal */
     readonly _systems: readonly SystemDef[];
+    /** @internal */
     readonly _runIf?: RunCondition;
+    /** @internal */
     readonly _runBefore?: readonly string[];
+    /** @internal */
     readonly _runAfter?: readonly string[];
 }
 
+/**
+ * What a {@link SystemSet} is built out of. `systems` keeps the order it is
+ * written in; `runIf` and the two edge lists apply to every member.
+ *
+ * @public
+ */
 export interface SystemSetOptions {
     /** Systems contained in the set. */
     systems: SystemDef[];
@@ -243,6 +271,8 @@ export interface SystemSetOptions {
  *
  * Members keep the order they are listed in; anything constraining `'physics'`
  * constrains all of them.
+ *
+ * @public
  */
 export function defineSystemSet(name: string, options: SystemSetOptions): SystemSet {
     if (!name) throw new Error('SystemSet requires a name');
@@ -268,10 +298,25 @@ export function addSystem(system: SystemDef): void {
     getPendingSystems().push({ schedule: Schedule.Update, system });
 }
 
+/**
+ * Register a system to run once, before the first frame — where a project spawns
+ * its world. Startup runs after the engine's own startup, so the components and
+ * resources a system asks for are there.
+ *
+ * @public
+ */
 export function addStartupSystem(system: SystemDef): void {
     getPendingSystems().push({ schedule: Schedule.Startup, system });
 }
 
+/**
+ * Register a system in a {@link Schedule}. This is how a project bundle's
+ * systems reach the loop: the call records them, and the app drains what was
+ * recorded when it starts, so module-level registration works before an `App`
+ * exists.
+ *
+ * @public
+ */
 export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void {
     getPendingSystems().push({ schedule, system });
 }
@@ -280,6 +325,8 @@ export function addSystemToSchedule(schedule: Schedule, system: SystemDef): void
  * Register a {@link SystemSet} from a project bundle, the module-level twin of
  * `App.addSystemSetToSchedule`. Without it a project can define a set — the run
  * condition a pause is written as — and have no door to register it through.
+ *
+ * @public
  */
 export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void {
     getPendingSystems().push({ schedule, system: set });
