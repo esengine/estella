@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  apiSnapshot.mjs — reading sdk/etc/*.api.md, and what a release promised.
+ *
+ * Pure text in, findings out: no compiler and no filesystem, so the rule that
+ * decides whether a promise was broken can be tested directly instead of only
+ * being observable the release after it was needed.
+ */
+
+/** Stability tiers, most-frozen first. A symbol carries exactly one. */
+export const TIERS = ['public', 'beta', 'experimental', 'internal'];
+
+/** What a snapshot heading says when no release named a tier for the symbol. */
+export const UNCLAIMED = 'unclaimed';
+
+/**
+ * Parse a `<entry>.api.md` into `name -> { kind, tier, deprecated, body }`.
+ * Snapshots written before the tiers existed carry no tag; those read as
+ * {@link UNCLAIMED}, which is the truth about them — nothing was promised.
+ */
+export function parseSnapshot(text) {
+    const out = new Map();
+    for (const section of text.replace(/\r\n?/g, '\n').split(/^## /m).slice(1)) {
+        const nl = section.indexOf('\n');
+        const heading = nl < 0 ? section : section.slice(0, nl);
+        const m = /^(\S+) — (\S+)(.*)$/.exec(heading);
+        if (!m) continue;
+        const [, name, kind, tags] = m;
+        out.set(name, {
+            kind,
+            tier: new RegExp(`@(${TIERS.join('|')})\\b`).exec(tags)?.[1] ?? UNCLAIMED,
+            deprecated: /@deprecated\b/.test(tags),
+            body: (nl < 0 ? '' : section.slice(nl + 1)).trim(),
+        });
+    }
+    return out;
+}
+
+/**
+ * Compare one entry against its released self. Only @public carries a promise,
+ * so only @public produces a failure; @beta is noted because "may adjust" should
+ * still read as a decision someone made rather than a silent edit.
+ */
+export function baselineFindings(was, now) {
+    const failures = [];
+    const notes = [];
+    for (const [name, before] of was) {
+        const after = now.get(name);
+        if (before.tier === 'public') {
+            if (!after) {
+                // Deprecated for a release first is exactly what earns a removal.
+                if (before.deprecated) continue;
+                failures.push(`${name} — removed while @public and never @deprecated`);
+            } else if (after.tier !== 'public') {
+                failures.push(`${name} — @public at baseline, now @${after.tier}; a freeze does not thaw`);
+            } else if (after.kind !== before.kind) {
+                failures.push(`${name} — @public ${before.kind} became a ${after.kind}`);
+            } else if (after.body !== before.body) {
+                failures.push(`${name} — @public signature changed`);
+            }
+        } else if (before.tier === 'beta') {
+            if (!after) notes.push(`${name} — @beta removed`);
+            else if (after.body !== before.body) notes.push(`${name} — @beta signature changed`);
+        }
+    }
+    return { failures, notes };
+}

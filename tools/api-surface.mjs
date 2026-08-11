@@ -1,49 +1,112 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-// =============================================================================
-// API surface guard (1.0 governance)
-//
-// The SDK's public surface is a promise: every exported symbol's signature is
-// snapshotted into sdk/etc/<entry>.api.md. Any surface change must ship with a
-// regenerated snapshot, making API drift a reviewed diff instead of an
-// accident. Release tags at the declaration are the single authority for
-// stability: untagged = stable, @beta = experimental, @internal = must not be
-// exported from a public entry (policy error).
-//
-// Run: node tools/api-surface.mjs --check     (CI: exit 1 on drift/violation)
-//      node tools/api-surface.mjs --update    (accept surface changes)
-//      node tools/api-surface.mjs --check-dts (built .d.ts still carries it)
-// =============================================================================
+/**
+ * @file  api-surface.mjs — the SDK's public surface, snapshotted and governed.
+ *
+ * Every exported symbol's signature is snapshotted into sdk/etc/<entry>.api.md,
+ * so a surface change is a reviewed diff rather than an accident.
+ *
+ * A declaration's release tag is the single authority for stability, and there
+ * is no stable-by-default: an untagged symbol is @experimental, so freezing is
+ * something a maintainer DOES rather than something they forget to prevent.
+ *
+ *   @public        frozen — 1.0 is expected not to break it
+ *   @beta          may still adjust
+ *   @experimental  no compatibility claim (the default)
+ *   @internal      must not be exported from a public entry
+ *
+ *   --check          exit 1 on drift or policy violation
+ *   --update         accept surface changes
+ *   --check-dts      the built .d.ts still carries the documented surface
+ *   --check-baseline the last release's @public promises still hold
+ */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { join, relative } from 'node:path';
+import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram } from './lib/sdkProgram.mjs';
+import { TIERS, parseSnapshot, baselineFindings } from './lib/apiSnapshot.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SDK = join(ROOT, 'sdk');
-const ETC = join(SDK, 'etc');
-const ts = createRequire(join(SDK, '/'))('typescript');
-
-// Typed public entries (mirrors package.json "exports" + rollup dtsBuilds).
-const ENTRIES = {
-    'index': 'src/index.ts',
-    'index.node': 'src/index.node.ts',
-    'index.native': 'src/index.native.ts',
-    'physics': 'src/physics/index.ts',
-    'spine': 'src/spine/index.ts',
-    'dragonbones': 'src/dragonbones/index.ts',
-    'wasm': 'src/wasm.ts',
-    'wechat': 'src/index.wechat.ts',
-    'minigame': 'src/index.minigame.ts',
-};
-
+const MODES = ['--check', '--update', '--check-dts', '--check-baseline'];
 const mode = process.argv[2];
-if (mode !== '--check' && mode !== '--update' && mode !== '--check-dts') {
-    console.error('usage: node tools/api-surface.mjs --check | --update | --check-dts');
+if (!MODES.includes(mode)) {
+    console.error(`usage: node tools/api-surface.mjs ${MODES.join(' | ')}`);
     process.exit(2);
 }
+
+const errors = [];
+
+// ---------------------------------------------------------------------------
+// Baseline — what the last release promised, and whether it still holds
+// ---------------------------------------------------------------------------
+
+/**
+ * The snapshots as of the last release tag. Git rather than a committed copy:
+ * the tag is already the authority for what shipped, and a second copy would
+ * need its own guard to stay honest.
+ */
+function baselineSnapshots(ref) {
+    const out = new Map();
+    for (const entryName of Object.keys(ENTRIES)) {
+        const spec = `${ref}:sdk/etc/${entryName}.api.md`;
+        try {
+            const text = execFileSync('git', ['show', spec], {
+                cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+            });
+            out.set(entryName, parseSnapshot(text));
+        } catch {
+            // An entry that did not exist at the tag promised nothing.
+        }
+    }
+    return out;
+}
+
+function lastReleaseRef() {
+    const flag = process.argv.find((a) => a.startsWith('--baseline='));
+    if (flag) return flag.slice('--baseline='.length);
+    try {
+        return execFileSync('git', ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*'], {
+            cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+    } catch {
+        return null;
+    }
+}
+
+if (mode === '--check-baseline') {
+    const ref = lastReleaseRef();
+    if (!ref) {
+        console.log('api-surface: no release tag to compare against — nothing was promised yet.');
+        process.exit(0);
+    }
+    const baseline = baselineSnapshots(ref);
+    let failed = 0;
+    let claims = 0;
+    for (const [entryName, was] of baseline) {
+        const file = join(ETC, `${entryName}.api.md`);
+        if (!existsSync(file)) continue;
+        const now = parseSnapshot(readFileSync(file, 'utf8'));
+        claims += [...was.values()].filter((s) => s.tier === 'public').length;
+        const { failures, notes } = baselineFindings(was, now);
+        for (const n of notes) console.log(`  note ${entryName}: ${n}`);
+        if (!failures.length) continue;
+        failed += failures.length;
+        console.error(`BROKEN PROMISE: ${entryName} — ${ref} froze these and this tree does not keep them.`);
+        for (const f of failures) console.error(`  ${f}`);
+    }
+    if (failed) {
+        console.error(`\napi-surface: ${failed} broken promise(s) against ${ref}.`);
+        console.error('Deprecate for a release before removing, or restore the signature.');
+        process.exit(1);
+    }
+    console.log(`api-surface: ${claims} @public symbol(s) promised at ${ref}, all kept.`);
+    process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Program setup
+// ---------------------------------------------------------------------------
 
 // `--check-dts` reads the same entries out of the BUILT declarations. The
 // snapshot stays the one authority for what the surface is; this only asks
@@ -58,41 +121,9 @@ const entryPaths = fromDts
         .map(([name, p]) => [name, p.replace(/^src\//, 'dist/').replace(/\.ts$/, '.d.ts')]))
     : ENTRIES;
 
-// ---------------------------------------------------------------------------
-// Program setup
-// ---------------------------------------------------------------------------
-
-const configPath = join(SDK, 'tsconfig.json');
-const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
-const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, SDK);
-const rootNames = Object.values(entryPaths).map((p) => join(SDK, p));
-const absent = rootNames.filter((p) => !existsSync(p));
-if (absent.length) {
-    console.error('api-surface: the SDK is not built — run `pnpm --filter ./sdk build` first.');
-    for (const p of absent) console.error(`  missing ${p.replace(SDK + '/', '')}`);
-    process.exit(2);
-}
-// `rootDir` is src, and in --check-dts the roots live under dist; nothing is
-// emitted here, so drop it rather than let TS reject the roots as out of scope.
-// `skipLibCheck` has to go with it: it skips checking .d.ts files, which in this
-// mode is every file we came to check — left on, a declaration referring to a
-// type that did not survive the bundle passes silently.
-const options = {
-    ...parsed.options,
-    noEmit: true,
-    rootDir: undefined,
-    ...(fromDts ? { skipLibCheck: false } : {}),
-};
-// typeToString relativizes import("...") type paths against the host cwd — pin
-// it so the report is byte-identical no matter where the tool is invoked from.
-const host = ts.createCompilerHost(options);
-host.getCurrentDirectory = () => SDK;
-const program = ts.createProgram({ rootNames, options, host });
-const checker = program.getTypeChecker();
+const { program, checker } = createSdkProgram(entryPaths, { strictLibCheck: fromDts });
 
 const FMT = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
-
-const errors = [];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -111,36 +142,53 @@ function normalizeType(text) {
 
 const fileTagCache = new Map();
 
-/** Release tag from a file's leading `@file` JSDoc header (module-wide fallback). */
-function fileLevelTag(sourceFile) {
+/**
+ * Tier from a file's leading `@file` JSDoc header, as a module-wide fallback.
+ * A header cannot confer @public: declaration bundlers drop it, so the freeze
+ * would be invisible in the `.d.ts` a creator actually reads.
+ */
+function fileLevelTier(sourceFile) {
     if (fileTagCache.has(sourceFile.fileName)) return fileTagCache.get(sourceFile.fileName);
-    let tag = null;
+    let tier = null;
     const text = sourceFile.getFullText();
     for (const range of ts.getLeadingCommentRanges(text, 0) ?? []) {
         const comment = text.slice(range.pos, range.end);
         if (!comment.startsWith('/**')) continue;
-        if (/^\s*\*\s*@beta\b/m.test(comment)) tag = 'beta';
-        else if (/^\s*\*\s*@internal\b/m.test(comment)) tag = 'internal';
-    }
-    fileTagCache.set(sourceFile.fileName, tag);
-    return tag;
-}
-
-/** Declaration-site tag wins; else the declaring file's header tag; else stable. */
-function releaseTag(symbol) {
-    for (const decl of symbol.declarations ?? []) {
-        for (const tag of ts.getJSDocTags(decl)) {
-            const name = tag.tagName.text;
-            if (name === 'beta') return 'beta';
-            if (name === 'internal') return 'internal';
-            if (name === 'deprecated') return 'deprecated';
+        if (/^\s*\*\s*@public\b/m.test(comment)) {
+            const where = relative(ROOT, sourceFile.fileName).replace(/\\/g, '/');
+            errors.push(`R4: '${where}' claims @public in its @file header — tag the declaration, a header does not reach the .d.ts`);
+        }
+        for (const t of ['internal', 'beta', 'experimental']) {
+            if (new RegExp(`^\\s*\\*\\s*@${t}\\b`, 'm').test(comment)) { tier = t; break; }
         }
     }
+    fileTagCache.set(sourceFile.fileName, tier);
+    return tier;
+}
+
+/** Every JSDoc tag name on a symbol's declarations. */
+function tagNames(symbol) {
+    const out = new Set();
     for (const decl of symbol.declarations ?? []) {
-        const tag = fileLevelTag(decl.getSourceFile());
-        if (tag) return tag;
+        for (const tag of ts.getJSDocTags(decl)) out.add(tag.tagName.text);
     }
-    return 'stable';
+    return out;
+}
+
+/**
+ * Tier and deprecation, as separate axes: a symbol can be frozen AND on its way
+ * out, and the baseline rule needs to read the second without losing the first.
+ * Declaration-site tag wins; else the declaring file's header; else experimental.
+ */
+function releaseTag(symbol) {
+    const tags = tagNames(symbol);
+    const deprecated = tags.has('deprecated');
+    for (const t of TIERS) if (tags.has(t)) return { tier: t, deprecated };
+    for (const decl of symbol.declarations ?? []) {
+        const tier = fileLevelTier(decl.getSourceFile());
+        if (tier) return { tier, deprecated };
+    }
+    return { tier: 'experimental', deprecated };
 }
 
 /** A member inherited from an ambient built-in (the TS lib or @types/node) — e.g. an
@@ -167,7 +215,7 @@ function isPrivateMember(member) {
     return false;
 }
 
-function memberLines(type, location) {
+function memberLines(type, location, owner) {
     const lines = [];
     for (const sig of type.getCallSignatures()) {
         lines.push(`call ${normalizeType(checker.signatureToString(sig, location, FMT))}`);
@@ -178,6 +226,11 @@ function memberLines(type, location) {
     for (const member of type.getProperties()) {
         if (isPrivateMember(member)) continue;
         if (isAmbientMember(member)) continue;
+        // R1 only ever saw top-level exports, so an @internal member rode out in the
+        // public .d.ts with nothing to stop a creator autocompleting it.
+        if (owner.tier === 'public' && tagNames(member).has('internal')) {
+            errors.push(`R3: '${owner.name}' is @public but its member '${member.name}' is @internal`);
+        }
         const memberType = checker.getTypeOfSymbolAtLocation(member, location);
         lines.push(`${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
     }
@@ -191,7 +244,8 @@ function describeSymbol(name, symbol) {
         errors.push(`R2: export '${name}' does not resolve to a declaration`);
         return null;
     }
-    const tag = releaseTag(resolved);
+    const { tier, deprecated } = releaseTag(resolved);
+    const owner = { name, tier };
     const flags = resolved.flags;
     const body = [];
     let kind = 'value';
@@ -200,11 +254,11 @@ function describeSymbol(name, symbol) {
         kind = 'class';
         const instance = checker.getDeclaredTypeOfSymbol(resolved);
         const statics = checker.getTypeOfSymbolAtLocation(resolved, decl);
-        body.push(...memberLines(instance, decl));
-        body.push(...memberLines(statics, decl).map((l) => `static ${l}`));
+        body.push(...memberLines(instance, decl, owner));
+        body.push(...memberLines(statics, decl, owner).map((l) => `static ${l}`));
     } else if (flags & ts.SymbolFlags.Interface) {
         kind = 'interface';
-        body.push(...memberLines(checker.getDeclaredTypeOfSymbol(resolved), decl));
+        body.push(...memberLines(checker.getDeclaredTypeOfSymbol(resolved), decl, owner));
     } else if (flags & ts.SymbolFlags.TypeAlias) {
         kind = 'type';
         const aliasDecl = resolved.declarations.find(ts.isTypeAliasDeclaration);
@@ -231,7 +285,7 @@ function describeSymbol(name, symbol) {
         for (const m of checker.getExportsOfModule(resolved)) body.push(m.name);
         body.sort();
     }
-    return { name, kind, tag, body };
+    return { name, kind, tier, deprecated, body };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,17 +307,18 @@ function buildReport(entryName, entryPath) {
     out.push('');
     out.push('<!-- Generated by tools/api-surface.mjs — do not edit. Run --update to accept changes. -->');
     out.push('');
-    const counts = { stable: 0, beta: 0, deprecated: 0 };
+    const counts = { public: 0, beta: 0, experimental: 0, deprecated: 0 };
     for (const symbol of exports) {
         const desc = describeSymbol(symbol.name, symbol);
         if (!desc) continue;
-        if (desc.tag === 'internal') {
+        if (desc.tier === 'internal') {
             errors.push(`R1: '${entryName}' exports @internal symbol '${symbol.name}'`);
             continue;
         }
-        counts[desc.tag] = (counts[desc.tag] ?? 0) + 1;
-        const tagSuffix = desc.tag === 'stable' ? '' : ` @${desc.tag}`;
-        out.push(`## ${desc.name} — ${desc.kind}${tagSuffix}`);
+        counts[desc.tier]++;
+        if (desc.deprecated) counts.deprecated++;
+        const suffix = ` @${desc.tier}${desc.deprecated ? ' @deprecated' : ''}`;
+        out.push(`## ${desc.name} — ${desc.kind}${suffix}`);
         if (desc.body.length) {
             out.push('```');
             out.push(...desc.body);
@@ -271,7 +326,7 @@ function buildReport(entryName, entryPath) {
         }
         out.push('');
     }
-    out.splice(3, 0, `Symbols: ${counts.stable} stable · ${counts.beta} beta · ${counts.deprecated} deprecated`);
+    out.splice(3, 0, `Symbols: ${counts.public} public · ${counts.beta} beta · ${counts.experimental} experimental · ${counts.deprecated} deprecated`);
     // Multi-line declaration bodies are extracted verbatim from source text, so
     // on a CRLF checkout they carry \r — normalize so the snapshot (and the
     // drift compare below) is byte-identical across platforms.
@@ -309,22 +364,20 @@ if (fromDts) {
             if (desc) emitted.set(desc.name, desc.kind);
         }
 
-        // The snapshot's headings are `## <name> — <kind>[ @tag]`; the tag comes
-        // from a `@file` header as often as a declaration, and a header cannot
-        // survive into a bundled .d.ts, so only name and kind are compared.
-        const snapshot = readFileSync(join(ETC, `${entryName}.api.md`), 'utf8');
-        const expected = new Map([...snapshot.matchAll(/^## (\S+) — (\S+)/gm)].map((m) => [m[1], m[2]]));
+        // Only name and kind are compared: a tier can come from a `@file` header,
+        // and a header cannot survive into a bundled .d.ts.
+        const snapshot = parseSnapshot(readFileSync(join(ETC, `${entryName}.api.md`), 'utf8'));
 
-        const dropped = [...expected.keys()].filter((n) => !emitted.has(n));
-        const extra = [...emitted.keys()].filter((n) => !expected.has(n));
-        const rekinded = [...expected].filter(([n, k]) => emitted.has(n) && emitted.get(n) !== k);
+        const dropped = [...snapshot.keys()].filter((n) => !emitted.has(n));
+        const extra = [...emitted.keys()].filter((n) => !snapshot.has(n));
+        const rekinded = [...snapshot].filter(([n, s]) => emitted.has(n) && emitted.get(n) !== s.kind);
         if (!dropped.length && !extra.length && !rekinded.length) continue;
 
         broken++;
         console.error(`DIVERGED: ${entryName} — the built .d.ts does not carry the documented surface.`);
         for (const n of dropped.slice(0, 15)) console.error(`  missing from .d.ts: ${n}`);
         for (const n of extra.slice(0, 15)) console.error(`  only in .d.ts:      ${n}`);
-        for (const [n, k] of rekinded.slice(0, 15)) console.error(`  ${n}: ${k} became ${emitted.get(n)}`);
+        for (const [n, s] of rekinded.slice(0, 15)) console.error(`  ${n}: ${s.kind} became ${emitted.get(n)}`);
     }
 
     for (const e of errors) console.error(`POLICY ${e}`);

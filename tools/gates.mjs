@@ -34,6 +34,9 @@ export const GATES = [
     why: 'the EHT generator shells out to `python`, which macOS does not ship a runnable one of; run it by hand where you have one',
   },
   { id: 'api-surface', run: 'node tools/api-surface.mjs --check' },
+  // Reads the snapshot the gate above just proved current, against the one the
+  // last release tag shipped — drift says the surface moved, this says a promise did.
+  { id: 'api-surface-baseline', run: 'node tools/api-surface.mjs --check-baseline' },
   // Everything below reads what this emits: the declaration snapshot, the
   // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },
