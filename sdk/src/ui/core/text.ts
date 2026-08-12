@@ -32,16 +32,19 @@ export const TextVerticalAlign = {
 export type TextVerticalAlign = (typeof TextVerticalAlign)[keyof typeof TextVerticalAlign];
 
 /**
- * What a run too big for its box does — NOT HONOURED YET. No layout or render
- * path reads {@link TextData.overflow}, so every value behaves as `Visible`.
- * Unfrozen for that reason: freezing it would promise a behaviour that does not
- * exist.
+ * What a run too big for its box does. Needs a box: `Clip` and `Ellipsis` drop the
+ * lines past the box height, and trim a line past the box width. Trimming is
+ * whole-glyph — text does not go through a scissor, so a partial glyph is not
+ * something this can draw.
+ *
+ * @public
  */
 export const TextOverflow = {
     Visible: 0,
     Clip: 1,
     Ellipsis: 2,
 } as const;
+/** @public */
 export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
 
 /** Glyph pipeline for a Text.
@@ -88,7 +91,6 @@ export interface TextData {
     align: TextAlign;
     verticalAlign: TextVerticalAlign;
     wordWrap: boolean;
-    /** Not honoured yet — see {@link TextOverflow}. Stored and ignored. */
     overflow: TextOverflow;
     lineHeight: number;
     bold: boolean;
@@ -168,8 +170,7 @@ export const Text = defineComponent<TextData>('Text', {
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
         overflow: {
             enum: enumOptions(TextOverflow),
-            label: 'Overflow (not implemented)',
-            tooltip: 'Not honoured yet: nothing reads this field, so every value renders as Visible. Shown so the data a scene already carries stays editable.',
+            tooltip: 'What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width.',
         },
         renderMode: { enum: enumOptions(TextRenderMode) },
         layer: { tooltip: 'Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides.' },

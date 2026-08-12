@@ -28,9 +28,7 @@ import { parseSnapshot } from './lib/apiSnapshot.mjs';
  * is the goal state: the whole ECS vocabulary went through the bar, World
  * included. A line here is a promise with a declared hole in it.
  */
-export const ACCEPTED = {
-    TextData: 'names TextOverflow, unfrozen because no layout or render path reads the field it types',
-};
+export const ACCEPTED = {};
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */
 function surface() {

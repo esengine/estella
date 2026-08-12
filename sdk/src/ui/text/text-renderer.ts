@@ -46,6 +46,8 @@ export interface DrawTextParams {
     verticalAlign?: number;
     /** Box height (px) for vertical alignment; 0/undefined = boxless (anchor to origin). */
     boxHeight?: number;
+    /** What a run too big for the box does: 0 visible | 1 clip | 2 ellipsis. */
+    overflow?: number;
     /**
      * Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill.
      * `blur` (px, 0 = hard) spreads that copy into a ring so the shadow reads as
@@ -177,6 +179,8 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         color: p.color,
         maxWidth: p.maxWidth,
         boxWidth: p.boxWidth,
+        boxHeight: p.boxHeight,
+        overflow: p.overflow,
     }, p.style ?? 0);
     if (layout.glyphs.length === 0) return;
 

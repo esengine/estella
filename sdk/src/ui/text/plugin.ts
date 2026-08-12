@@ -215,6 +215,7 @@ export class TextPlugin implements Plugin {
                         maxWidth,
                         boxWidth,
                         boxHeight,
+                        overflow: t.overflow,
                         originX,
                         originY,
                         shadow,

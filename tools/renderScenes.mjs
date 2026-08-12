@@ -79,6 +79,10 @@ export const SCENES = [
     // exactly one sits in a stroke wide enough to be flat either side of it, and
     // the rest of the frame is the background this distinguishes it from.
   { id: "text", tier: "nightly", env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-text-sdf.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-sdf.textures.json", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.42,\"rgb\":[255,255,255],\"tol\":30},{\"x\":0.9,\"y\":0.9,\"rgb\":[0,0,0],\"tol\":20}]" } },
+    // Two identical labels in one-line boxes, Visible beside Clip. The differential
+    // is the point: a truncation that does nothing leaves BOTH second lines drawn,
+    // which one label alone could not say. Probes measured, not guessed.
+  { id: "text-overflow", tier: "nightly", env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-text-overflow.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-sdf.textures.json", ESTELLA_VERIFY_W: "800", ESTELLA_VERIFY_H: "600", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.051,\"y\":0.167,\"rgb\":[255,255,255],\"tol\":30},{\"x\":0.051,\"y\":0.35,\"rgb\":[255,255,255],\"tol\":30},{\"x\":0.551,\"y\":0.167,\"rgb\":[255,255,255],\"tol\":30},{\"x\":0.551,\"y\":0.35,\"rgb\":[0,0,0],\"tol\":20}]" } },
   { id: "text-rect", tier: "nightly", rendersOnly: "measured: its glyphs are thinner than any neighbourhood a probe can safely sit in — zero flat interior points", env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-text-rect.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-sdf.textures.json" } },
       // One point inside each box the flex tree lays out, taken from the middle of
     // its flat interior — so a layout that moves a box fails rather than a frame

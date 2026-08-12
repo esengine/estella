@@ -2857,7 +2857,7 @@
           "key": "overflow",
           "type": "enum",
           "default": "Visible",
-          "doc": "Not honoured yet: nothing reads this field, so every value renders as Visible. Shown so the data a scene already carries stays editable.",
+          "doc": "What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width.",
           "values": [
             "Visible",
             "Clip",

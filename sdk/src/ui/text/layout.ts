@@ -176,6 +176,44 @@ export interface MultilineTextOptions extends TextLayoutOptions {
      * horizontal align work inside a fixed box even when word-wrap is off.
      */
     boxWidth?: number;
+    /** Height (display px) of the layout box, for {@link overflow}. 0/undefined =
+     *  no box, so nothing can overflow one. */
+    boxHeight?: number;
+    /**
+     * What a run too big for the box does: 0 visible (default), 1 clip, 2
+     * ellipsis. Needs `boxHeight` to drop lines and a width to trim one.
+     */
+    overflow?: number;
+}
+
+/** {@link MultilineTextOptions.overflow} — mirrors the TextOverflow const. */
+export const TEXT_OVERFLOW_VISIBLE = 0;
+export const TEXT_OVERFLOW_CLIP = 1;
+export const TEXT_OVERFLOW_ELLIPSIS = 2;
+
+/** The character appended to a line the ellipsis mode cut. */
+const ELLIPSIS = '\u2026';
+
+/**
+ * Cut `line` down to `limit` px, appending an ellipsis when asked. Trimmed one
+ * code point at a time from the end rather than by a ratio: a proportional guess
+ * lands mid-glyph on any font that is not monospace, and the ellipsis has to fit
+ * INSIDE the limit or the trim it paid for was for nothing.
+ */
+function truncateLine(
+    line: string, measure: (s: string) => number, limit: number, ellipsis: boolean,
+): string {
+    if (limit <= 0 || measure(line) <= limit) return line;
+    const tail = ellipsis ? ELLIPSIS : '';
+    const chars = [...line];
+    // Whole-glyph granularity, and the caller is told so: a partial glyph would
+    // need the renderer to scissor, which text does not go through.
+    while (chars.length > 0) {
+        chars.pop();
+        const candidate = chars.join('').trimEnd();
+        if (measure(candidate + tail) <= limit) return candidate + tail;
+    }
+    return tail;
 }
 
 /** Sum of glyph advances for a string at the given size (display px). Pure. */
@@ -264,17 +302,52 @@ export function layoutText(
     // Word-wrap before stacking; explicit \n still hard-breaks. Rich lines wrap
     // at the styled-run level so a token measures with its own size/style. Inline
     // images survive the no-wrap path; wrapping is text-only (images drop) for now.
-    const lineLayouts = opts.rich
-        ? rawLines
-              .map(l => parseRichText(l))
-              .flatMap(runs => (wrap
-                  ? wrapRichRuns(runs.filter((r): r is TextSegment => r.type === 'text'), atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
-                  : [runs]))
-              .map(runs => layoutRichRuns(runs, atlas, fontFamily, richOpts, style))
-        : (wrap
-              ? rawLines.flatMap(l => wrapLine(l, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0))
-              : rawLines
-          ).map(line => layoutLine(line, atlas, fontFamily, opts, style));
+    // How many lines the box has room for. Below Visible only, and never zero: a
+    // box too short for one line shows one clipped line rather than nothing, which
+    // is what every layout engine does and what a reader can act on.
+    const overflow = opts.overflow ?? TEXT_OVERFLOW_VISIBLE;
+    const boxHeight = opts.boxHeight ?? 0;
+    const maxLines = overflow !== TEXT_OVERFLOW_VISIBLE && boxHeight > 0
+        ? Math.max(1, Math.floor(boxHeight / lineHeight))
+        : Infinity;
+    const ellipsis = overflow === TEXT_OVERFLOW_ELLIPSIS;
+    // The width a line may not exceed. maxWidth already wrapped to it, so this is
+    // for the unwrapped case — a single line in a fixed box, which is the one
+    // ellipsis is usually asked for.
+    const widthLimit = overflow === TEXT_OVERFLOW_VISIBLE ? 0
+        : (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth
+        : (opts.boxWidth ?? 0);
+
+    let lineLayouts: TextLayout[];
+    if (opts.rich) {
+        // Rich text truncates by line only: trimming one means measuring per run,
+        // and a run's own size and style make that a different calculation.
+        const richLines = rawLines
+            .map(l => parseRichText(l))
+            .flatMap(runs => (wrap
+                ? wrapRichRuns(runs.filter((r): r is TextSegment => r.type === 'text'), atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
+                : [runs]));
+        const kept = richLines.slice(0, maxLines === Infinity ? undefined : maxLines);
+        if (ellipsis && kept.length < richLines.length && kept.length > 0) {
+            kept[kept.length - 1] = [...kept[kept.length - 1], { type: 'text', text: ELLIPSIS } as TextSegment];
+        }
+        lineLayouts = kept.map(runs => layoutRichRuns(runs, atlas, fontFamily, richOpts, style));
+    } else {
+        const plainLines = wrap
+            ? rawLines.flatMap(l => wrapLine(l, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0))
+            : rawLines;
+        const kept = plainLines.slice(0, maxLines === Infinity ? undefined : maxLines);
+        const dropped = kept.length < plainLines.length;
+        const measure = (t: string) => measureWidth(t, atlas, fontFamily, opts.fontSizePx, style, opts.letterSpacing ?? 0);
+        const cut = kept.map((line, i) => {
+            const last = i === kept.length - 1;
+            // The last kept line carries the ellipsis when lines were dropped, even
+            // if it fits: the mark says "there is more", not "this line was long".
+            if (dropped && last && ellipsis) return truncateLine(line + ELLIPSIS, measure, widthLimit || Infinity, true);
+            return widthLimit > 0 ? truncateLine(line, measure, widthLimit, ellipsis) : line;
+        });
+        lineLayouts = cut.map(line => layoutLine(line, atlas, fontFamily, opts, style));
+    }
     const lines = lineLayouts; // line count only below
 
     const contentWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);

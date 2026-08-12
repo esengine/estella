@@ -98,10 +98,24 @@ published separately; it ships inside the editor.
   for started/ended and no write door at all. Freezing either would freeze the
   gaps in it.
 
-- **`TextData.overflow` is labelled as not implemented.** The Inspector offered a
-  Clip / Ellipsis / Visible dropdown for a field that no layout or render path
-  reads, so every value drew as Visible with no warning. The field, its type and
-  the Inspector label now all say so; the truncation itself is still to come.
+- **`TextData.overflow` does something.** The Inspector offered a Clip / Ellipsis
+  / Visible dropdown for a field that no layout or render path read, so every value
+  drew as Visible with no warning. Both modes now drop the lines past the box
+  height and trim a line past its width, with Ellipsis marking the cut. Two
+  details are the contract rather than the implementation: a box too short for one
+  line still shows one, because nothing is not an answer a reader can act on; and
+  the mark goes on the last kept line whenever lines were dropped, even if that
+  line fits, because it says "there is more" and not "this line was long".
+  Trimming is whole-glyph — text does not go through a scissor.
+
+  Rich text truncates by line only. Trimming one means measuring per run, and a
+  run carries its own size and style.
+
+  Twelve assertions on the pure layout, and a pixel gate that is a differential:
+  two identical labels in identical one-line boxes, Visible beside Clip, so a
+  truncation that silently does nothing leaves both second lines drawn and the
+  pair says so. Making the truncation a no-op turns it red, which is what makes it
+  a gate rather than a screenshot.
 
 - **`examples/input-actions` demonstrates every binding kind it renders.** Its
   `formatBinding` switched on all eight while the project could construct four. It
