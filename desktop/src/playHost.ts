@@ -20,6 +20,10 @@ import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
+import {
+  inspectEntity, findEntities, readResources, readSystems,
+  type Realm, type EntityFilter,
+} from '@/engine/playQuery';
 
 type LiveEntity = SceneData['entities'][number];
 
@@ -65,6 +69,36 @@ function inspectableTypes(world: App['world'], entity: number): string[] {
     const def = getComponent(t);
     return !!def && !def.transient; // transient = per-frame state, never inspected
   });
+}
+
+/** {@link Realm} over the live app — the one place these reach the SDK. */
+function realm(): Realm {
+  const world = app!.world;
+  const structural = <T>(entity: number, type: string): T | null => {
+    const def = getComponent(type);
+    return def ? (world.tryGet(entity as never, def) as T | null) : null;
+  };
+  return {
+    entities: () => world.getAllEntities() as never as number[],
+    componentsOf: (e) => inspectableTypes(world, e),
+    read: (e, type) => {
+      const def = getComponent(type);
+      return def ? world.tryGet(e as never, def) ?? null : null;
+    },
+    nameOf: (e) => structural<{ value?: string }>(e, 'Name')?.value ?? null,
+    parentOf: (e) => structural<{ entity?: number }>(e, 'Parent')?.entity ?? null,
+    childrenOf: (e) => [...(structural<{ entities?: number[] }>(e, 'Children')?.entities ?? [])],
+    resources: () => {
+      const entries = [...(app as unknown as {
+        resources_: { resources_: Map<symbol, unknown> };
+      }).resources_.resources_];
+      const nameOf = (k: symbol): string =>
+        (/^Resource_\d+_(.+)$/.exec(k.description ?? '')?.[1] ?? k.description ?? '');
+      return entries.map(([k, v]) => [nameOf(k), v] as [string, unknown]);
+    },
+    timings: () => ({ systems: app!.getSystemTimings(), phases: app!.getPhaseTimings() }),
+    entityCount: () => app!.getEntityCount(),
+  };
 }
 
 function liveSnapshot(world: App['world'], selectedId: number | null, withTree: boolean): { tree: SceneData | null; selected: LiveEntity | null } {
@@ -418,6 +452,15 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     },
     /** What `find` can be asked about: the component names this realm knows. */
     componentNames: () => componentNamesOf(app!),
+
+    // — The NAMED reads (the `play_query` op). The shaping is in
+    //   engine/playQuery, over an interface `realm()` binds to `app`, so it is
+    //   testable without a running game. —
+    inspect: (entity: number) => inspectEntity(realm(), entity),
+    entities: (filter: EntityFilter = {}) => findEntities(realm(), filter),
+    resources: () => readResources(realm()),
+    systems: () => readSystems(realm()),
+
     /**
      * A resource's live value by name — the other half of "what does the game
      * think is going on", for state that belongs to no entity (a score, a life

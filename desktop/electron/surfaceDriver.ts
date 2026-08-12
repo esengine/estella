@@ -209,6 +209,12 @@ function colorGrid(image: Electron.NativeImage, rect: GameRect | null, cols: num
  * prefix instead of the game. Destructuring here makes the obvious reading the true
  * one; `window.__estellaPlay` keeps working for code that spells it out.
  */
+/**
+ * The realm's own read surface, by name — a closed set, because `play_query`
+ * builds a call out of it. Anything not here is not reachable through it.
+ */
+const PLAY_QUERIES = new Set(['inspect', 'entities', 'resources', 'systems']);
+
 const PROBE_SCOPE =
   'const p = window.__estellaPlay;'
   + " if (!p) throw new Error('this realm publishes no probe surface — enter play first');"
@@ -243,6 +249,18 @@ export function createSurfaceDriver(
     const root = getRoot();
     if (!root) throw new Error('no project open');
     return root;
+  };
+  /** The play realm's frame. It is an estella:// OOPIF, so a main-process eval
+   *  is the only thing that reaches it; `frame` picks one in a multiplayer
+   *  preview (0 = the host). */
+  const playFrame = (input: Record<string, unknown>) => {
+    const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
+    const at = Number(input.frame ?? 0);
+    const frame = frames[at];
+    if (!frame) {
+      throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
+    }
+    return frame;
   };
 
   const exec = async (code: string): Promise<unknown> => {
@@ -280,27 +298,28 @@ export function createSurfaceDriver(
         return colorGrid(image, rect, Number(input.cols ?? 64), Number(input.rows ?? 32));
       }
       case 'play_probe': {
-        // The play realm is an estella:// OOPIF — only a main-process frame eval
-        // reaches it (window.__estellaPlay is the probe the realm publishes).
-        const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
-        const at = Number(input.frame ?? 0);
-        const frame = frames[at];
-        if (!frame) {
-          throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
+        return unwrap(await playFrame(input).executeJavaScript(
+          carryError(String(input.code ?? 'true'), PROBE_SCOPE),
+        ));
+      }
+      // The NAMED reads. Same realm, but the expression is OURS — no arbitrary
+      // code, nothing to confirm. `kind` is a closed set, so a caller reaches
+      // only what the realm published.
+      case 'play_query': {
+        const kind = String(input.kind ?? '');
+        if (!PLAY_QUERIES.has(kind)) {
+          throw new Error(`no play query "${kind}" (it answers: ${[...PLAY_QUERIES].join(', ')})`);
         }
-        return unwrap(await frame.executeJavaScript(carryError(String(input.code ?? 'true'), PROBE_SCOPE)));
+        const arg = JSON.stringify(input.arg ?? null);
+        return unwrap(await playFrame(input).executeJavaScript(
+          carryError(`window.__estellaPlay.${kind}(...(${arg} === null ? [] : [${arg}]))`, PROBE_SCOPE),
+        ));
       }
       case 'play_input': {
-        // Same frame lookup as play_probe — the realm is the only thing that has
-        // an InputState — but the code is OURS, so a caller cannot mistype the
-        // facade and get silence. Everything routes through the realm's
-        // `__estellaPlay.input`, which is the platform binding's own callbacks.
-        const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
-        const at = Number(input.frame ?? 0);
-        const frame = frames[at];
-        if (!frame) {
-          throw new Error(`no play realm at index ${at} (${frames.length} running — enter play first)`);
-        }
+        // Same realm as play_probe, and like play_query the code is OURS — a
+        // caller cannot mistype the facade and get silence. Everything routes
+        // through `__estellaPlay.input`, the platform binding's own callbacks.
+        const frame = playFrame(input);
         const { kind } = input as { kind?: string };
         const x = Number(input.x ?? 0), y = Number(input.y ?? 0);
         const button = Number(input.button ?? 0);

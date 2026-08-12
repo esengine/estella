@@ -597,6 +597,45 @@ const ATOMS = [
       const from = Math.max(0, t.length - tail);
       return { total: t.length, from, events: t.slice(from) };
     })` },
+  // — The RUNNING game, read by name. `play_probe` below is the escape hatch,
+  //   `irreversible` because it runs the model's code; these run OURS, so they
+  //   are `read` and looking at the game costs no confirmation. —
+  { name: 'find_entities', effect: 'read',
+    description: 'Which entities the RUNNING game has, and what each carries. `component` keeps only the ones with that component, `name` is a case-insensitive substring of the entity name; both optional, so with neither you get the world. '
+      + 'Answers `{ total, entities: [{ entity, name, components }] }` — `total` counts every match and `entities` is what fitted under `limit` (default 100), so a capped list can never read as the whole of what is there. '
+      + 'Start here: the ids it returns are what inspect_entity takes.',
+    schema: obj({
+      component: { type: 'string' }, name: { type: 'string' }, limit: { type: 'number' },
+      frame: { type: 'number', description: 'which realm in a multiplayer preview (0 = host)' },
+    }),
+    op: 'play_query',
+    opInput: (i) => ({
+      kind: 'entities',
+      arg: { component: i.component, name: i.name, limit: i.limit },
+      frame: i.frame,
+    }) },
+  { name: 'inspect_entity', effect: 'read',
+    description: 'ONE entity of the RUNNING game, whole: `{ entity, name, parent, children, components: { Transform: {...}, Health: {...}, ... } }` — every component on it with its live data, not a list of names you then fetch one at a time. '
+      + 'This is the "what IS this thing" call. Physics, AI, animation and UI state are all components, so they are all in here: a RigidBody, a StateMachineAgent\'s current state, a SpriteAnimation\'s frame, a UINode\'s computed box. '
+      + 'A single value too large to send whole (a tilemap\'s tiles) comes back as { truncated, bytes, keys } in ITS place, so nothing else in the reply is lost to it.',
+    schema: obj({
+      entity: { type: 'number' },
+      frame: { type: 'number', description: 'which realm in a multiplayer preview (0 = host)' },
+    }, ['entity']),
+    op: 'play_query',
+    opInput: (i) => ({ kind: 'inspect', arg: Number(i.entity), frame: i.frame }) },
+  { name: 'list_resources', effect: 'read',
+    description: 'Every RESOURCE the running game holds, by name, with its value — the state that belongs to no entity (a score, a phase, a life count, the loaded-asset table). '
+      + 'All of them at once, so there is no name to guess first.',
+    schema: obj({ frame: { type: 'number' } }),
+    op: 'play_query',
+    opInput: (i) => ({ kind: 'resources', frame: i.frame }) },
+  { name: 'get_systems', effect: 'read',
+    description: 'What the running game does each frame: the systems and phases that ran, with their cost in ms, worst first, plus the entity count. '
+      + 'Timings are recorded only while stats are on; when they are not, the lists are `null` and a note says so — "nothing ran" and "nobody was counting" are opposite answers and must not share a shape.',
+    schema: obj({ frame: { type: 'number' } }),
+    op: 'play_query',
+    opInput: (i) => ({ kind: 'systems', frame: i.frame }) },
   { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. "
       + 'These are ALREADY IN SCOPE (no prefix, though `window.__estellaPlay` holds them too): '
@@ -764,7 +803,10 @@ async function invokeTool(tool, driver, rawInput, allowWrites) {
     return { input, data: await tool.run(input, call) };
   }
 
-  if (tool.op) return { input, data: await driver.op(tool.op, input) };
+  // `opInput` is the op-side twin of a method tool's `args`: the tool shapes
+  // what the host op receives, rather than every op having to speak the tool's
+  // own argument names. Absent = the input verbatim, which is what most want.
+  if (tool.op) return { input, data: await driver.op(tool.op, tool.opInput ? tool.opInput(input) : input) };
   // A js template may DECLINE (return null) for inputs it has nothing special
   // to do with, leaving the tool's typed `method` door to handle them — which
   // is how a tool grows one alternate path without every call losing the door.

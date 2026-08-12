@@ -483,3 +483,62 @@ describe('re-running an authoring step is not a new asset', () => {
     expect(driver.js.mock.calls[0][0]).toContain('refreshAssets()');
   });
 });
+
+/**
+ * Reading the RUNNING game by name. `play_probe` is the escape hatch and is
+ * confirmed because it runs code the model wrote; these run code of ours, and
+ * the whole point of that is that looking costs nothing.
+ */
+describe('the named reads over the running game', () => {
+  const NAMED = ['find_entities', 'inspect_entity', 'list_resources', 'get_systems'];
+
+  it('are read-tier, so observing the game is never confirmed', () => {
+    for (const name of NAMED) {
+      expect([name, toolNamed(name).effect]).toEqual([name, 'read']);
+      expect([name, mutates(toolNamed(name))]).toEqual([name, false]);
+    }
+  });
+
+  it('shape the op call themselves, so the host takes one closed vocabulary', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({ entity: 7, components: {} }));
+
+    await runTool(toolNamed('inspect_entity'), driver, { entity: 7 });
+    expect(driver.op).toHaveBeenCalledWith('play_query', { kind: 'inspect', arg: 7, frame: undefined });
+
+    await runTool(toolNamed('find_entities'), driver, { component: 'Health', limit: 5 });
+    expect(driver.op).toHaveBeenLastCalledWith('play_query', {
+      kind: 'entities',
+      arg: { component: 'Health', name: undefined, limit: 5 },
+      frame: undefined,
+    });
+
+    await runTool(toolNamed('list_resources'), driver, {});
+    expect(driver.op).toHaveBeenLastCalledWith('play_query', { kind: 'resources', frame: undefined });
+  });
+
+  // An op tool without one keeps taking the input verbatim, which is what every
+  // op that existed before this did.
+  it('leaves an op tool that shapes nothing alone', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({}));
+    await runTool(toolNamed('check_scripts'), driver, { path: 'src/a.ts' });
+    expect(driver.op).toHaveBeenCalledWith('check_scripts', { path: 'src/a.ts' });
+  });
+
+  it('answers structured data, not prose', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => ({
+      entity: 7,
+      name: 'Skeleton',
+      parent: null,
+      children: [],
+      components: { Transform: { x: 27, y: 81 }, Health: { current: 40 } },
+    }));
+    const res = await runTool(toolNamed('inspect_entity'), driver, { entity: 7 });
+    expect(JSON.parse(res.content[0].text)).toMatchObject({
+      name: 'Skeleton',
+      components: { Transform: { x: 27, y: 81 }, Health: { current: 40 } },
+    });
+  });
+});
