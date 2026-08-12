@@ -103,6 +103,20 @@ export const logsMessages = defineMessages({
     'prof.unattributed': { en: '{ms}ms unattributed', zh: '{ms}ms 未归因' },
     'prof.browserPaintGc': { en: 'browser paint / GC', zh: '浏览器绘制 / GC' },
 
+    // — Profiler: imported capture —
+    'prof.open': { en: 'Open…', zh: '打开…' },
+    'prof.openTitle': { en: 'Open a recorded .esprof capture', zh: '打开一份录制的 .esprof 捕获' },
+    'prof.importedCapture': { en: 'Imported capture', zh: '导入的捕获' },
+    'prof.closeCapture': { en: '← Live', zh: '← 实时' },
+    'prof.wholeCapture': { en: 'Whole capture', zh: '整份捕获' },
+    'prof.captureMean': { en: 'per frame', zh: '每帧平均' },
+    'prof.frameN': { en: 'frame #{id}', zh: '帧 #{id}' },
+    'prof.unknownOrigin': { en: 'origin not recorded', zh: '未记录来源' },
+    'prof.captureOrigin': {
+        en: '{frames} frames · {when} · {origin}',
+        zh: '{frames} 帧 · {when} · {origin}',
+    },
+
     // — Profiler: cost tree —
     'prof.lastFrame': { en: 'last frame', zh: '最近一帧' },
     'prof.queryScanned': { en: 'query walked {n} entities in {calls}', zh: '查询遍历 {n} 个实体，{calls} 次' },

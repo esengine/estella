@@ -6,7 +6,8 @@
 import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { PerfMonitor, profileOf } from '@/engine/PerfMonitor';
-import type { ProfileNode } from 'esengine';
+import { parseProfileCapture, summarizeCapture, frameProfileOf } from 'esengine';
+import type { ProfileNode, ProfileCapture, CaptureSummary, CapturedFrame } from 'esengine';
 import { t } from '@/i18n';
 
 const BUDGET_MS = 1000 / 60; // 60 Hz frame budget (16.6ms)
@@ -30,9 +31,31 @@ function downloadSession(): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `profile-${cap.generatedAt.replace(/[:.]/g, '-')}.json`;
+  a.download = `profile-${cap.generatedAt.replace(/[:.]/g, '-')}.esprof`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** A capture read off disk, and what it came to. Null while looking at the live realm. */
+interface LoadedCapture {
+  name: string;
+  capture: ProfileCapture;
+  summary: CaptureSummary;
+}
+
+async function pickCapture(): Promise<LoadedCapture | string> {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.esprof,.json';
+  const file = await new Promise<File | null>((resolve) => {
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.click();
+  });
+  if (!file) return '';
+  const parsed = parseProfileCapture(await file.text());
+  if ('error' in parsed) return `${file.name}: ${parsed.error}`;
+  if (parsed.capture.frames.length === 0) return `${file.name}: the capture has no frames`;
+  return { name: file.name, capture: parsed.capture, summary: summarizeCapture(parsed.capture) };
 }
 
 const GROUPS = [
@@ -102,8 +125,15 @@ function MemGraph({ hist }: { hist: Array<{ wasm: number; js: number; vram: numb
 
 /** Frame-time history: each recent frame as a bar with 60/30 Hz budget lines,
  *  hitches amber→red, the pinned frame marked. Click a bar to pin it. */
-function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number | null }) {
+function FrameGraph({ frames, pinnedIdx, budgetMs, onPick }: {
+  frames: number[];
+  /** Index into `frames`, or -1 for none. */
+  pinnedIdx: number;
+  budgetMs: number;
+  onPick: (index: number) => void;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const budget30 = budgetMs * 2;
 
   useEffect(() => {
     const cv = ref.current;
@@ -127,29 +157,24 @@ function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number |
 
     let maxObserved = 0;
     for (const f of frames) if (f > maxObserved) maxObserved = f;
-    const maxMs = Math.max(BUDGET_30 * 1.2, maxObserved * 1.1);
+    const maxMs = Math.max(budget30 * 1.2, maxObserved * 1.1);
     const yOf = (ms: number) => h - (Math.min(ms, maxMs) / maxMs) * h;
 
     ctx.strokeStyle = grid;
     ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.moveTo(0, yOf(BUDGET_MS)); ctx.lineTo(w, yOf(BUDGET_MS)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yOf(budgetMs)); ctx.lineTo(w, yOf(budgetMs)); ctx.stroke();
     ctx.setLineDash([3, 3]);
-    ctx.beginPath(); ctx.moveTo(0, yOf(BUDGET_30)); ctx.lineTo(w, yOf(BUDGET_30)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yOf(budget30)); ctx.lineTo(w, yOf(budget30)); ctx.stroke();
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
 
     const n = frames.length;
     if (!n) return;
     const bw = w / n;
-    // Index of the pinned frame within the (lockstep) capture ring, for the marker.
-    const samples = PerfMonitor.getSamples();
-    let pinnedIdx = -1;
-    if (pinnedId != null) for (let i = 0; i < samples.length; i++) if (samples[i].id === pinnedId) { pinnedIdx = i; break; }
-
     for (let i = 0; i < n; i++) {
       const ms = frames[i];
       const y = yOf(ms);
-      ctx.fillStyle = ms >= BUDGET_30 ? err : ms >= BUDGET_MS * 1.05 ? warn : accent;
+      ctx.fillStyle = ms >= budget30 ? err : ms >= budgetMs * 1.05 ? warn : accent;
       ctx.fillRect(i * bw, y, Math.max(1, bw - 0.4), h - y);
     }
     if (pinnedIdx >= 0) {
@@ -159,18 +184,15 @@ function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number |
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       ctx.globalAlpha = 1;
     }
-  }, [frames, pinnedId]);
+  }, [frames, pinnedIdx, budgetMs, budget30]);
 
   const onClick = useCallback((e: ReactMouseEvent<HTMLCanvasElement>) => {
     const cv = ref.current;
-    if (!cv) return;
+    if (!cv || frames.length === 0) return;
     const rect = cv.getBoundingClientRect();
-    const samples = PerfMonitor.getSamples();
-    const n = samples.length;
-    if (!n) return;
-    const i = Math.min(n - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * n)));
-    PerfMonitor.pin(samples[i].id);
-  }, []);
+    const n = frames.length;
+    onPick(Math.min(n - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * n))));
+  }, [frames, onPick]);
 
   return <canvas ref={ref} className="prof-graph" title={t('prof.clickToInspect')} onClick={onClick} />;
 }
@@ -225,6 +247,104 @@ function TreeRow({ node, frameMs, depth }: { node: ProfileNode; frameMs: number;
   );
 }
 
+/**
+ * A capture off disk, rendered by the same rows the live realm uses. Where it
+ * came from is stated rather than implied: a file recorded on someone's phone
+ * and the editor's own last second look identical once they are both a tree.
+ */
+function CaptureView({ loaded, frame, onPick, onClose }: {
+  loaded: LoadedCapture;
+  frame: CapturedFrame | null;
+  onPick: (i: number | null) => void;
+  onClose: () => void;
+}) {
+  const { capture, summary } = loaded;
+  const profile = frame ? frameProfileOf(frame) : summary.mean;
+  const src = capture.source;
+  const origin = [src.label, src.platform, src.realm, src.gpu].filter(Boolean).join(' · ');
+  return (
+    <>
+      <div className="prof-controls">
+        <button type="button" className="prof-btn" onClick={onClose}>{t('prof.closeCapture')}</button>
+        {frame ? (
+          <button type="button" className="prof-btn" onClick={() => onPick(null)}>{t('prof.wholeCapture')}</button>
+        ) : null}
+        <span className="prof-spacer" />
+        <span className="prof-pinned">{loaded.name}</span>
+      </div>
+
+      <section className="prof-sec">
+        <h4>{t('prof.importedCapture')}</h4>
+        <div className="prof-budget">
+          {t('prof.captureOrigin', {
+            frames: summary.frames,
+            when: capture.generatedAt ? capture.generatedAt.slice(0, 19).replace('T', ' ') : '—',
+            origin: origin || t('prof.unknownOrigin'),
+          })}
+        </div>
+        <FrameGraph
+          frames={capture.frames.map((f) => f.dtMs)}
+          pinnedIdx={frame ? capture.frames.indexOf(frame) : -1}
+          budgetMs={capture.budgetMs}
+          onPick={onPick}
+        />
+        <div className="prof-stat-grid">
+          <div><span>fps</span><b>{summary.fps}</b></div>
+          <div><span>p50</span><b>{summary.p50.toFixed(1)}<i>ms</i></b></div>
+          <div><span>p95</span><b>{summary.p95.toFixed(1)}<i>ms</i></b></div>
+          <div><span>p99</span><b>{summary.p99.toFixed(1)}<i>ms</i></b></div>
+        </div>
+        <div className="prof-budget">
+          {t('prof.budget', { ms: capture.budgetMs.toFixed(1) })}
+          {' · '}{t('prof.longFrames', { count: summary.longFrames })}
+          {' · '}{t('prof.worst', { ms: summary.worstFrameMs.toFixed(1) })}
+        </div>
+      </section>
+
+      <section className="prof-sec">
+        <h4>
+          {t('prof.groupTree')}
+          <span className="prof-realm"> · {frame ? t('prof.frameN', { id: frame.id }) : t('prof.captureMean')}</span>
+        </h4>
+        <div className="prof-tree">
+          {profile.domains.map((d) => (
+            <TreeRow key={d.id} node={d} frameMs={profile.frameMs} depth={0} />
+          ))}
+        </div>
+        <div className="prof-budget">
+          {t('prof.treeTotals', {
+            frame: profile.frameMs.toFixed(1),
+            cpu: profile.cpuMs.toFixed(1),
+            wait: profile.waitMs.toFixed(1),
+            idle: profile.idleMs.toFixed(1),
+          })}
+        </div>
+      </section>
+
+      <section className="prof-sec">
+        <h4>{t('prof.groupRender')}</h4>
+        <div className="prof-stat-grid">
+          <div><span>{t('prof.drawCalls')}</span><b>{Math.round(frame?.drawCalls ?? summary.drawCalls)}</b></div>
+          <div><span>{t('prof.triangles')}</span><b>{kfmt(Math.round(frame?.triangles ?? summary.triangles))}</b></div>
+          <div><span>{t('prof.entities')}</span><b>{Math.round(frame?.entities ?? summary.entities)}</b></div>
+        </div>
+      </section>
+
+      <section className="prof-sec">
+        <h4>{t('prof.groupCounters')}</h4>
+        {Object.entries<number>(frame?.counters ?? summary.counters)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([name, val]) => (
+            <div className="prof-brk" key={name}>
+              <span className="prof-brk-name" title={name}>{name}</span>
+              <span className="prof-brk-val">{kfmt(Math.round(val))}</span>
+            </div>
+          ))}
+      </section>
+    </>
+  );
+}
+
 /** One "Frame = a + b + …" bar segment, width ∝ its share of the frame. */
 function Seg({ label, ms, frame, color, title }: { label: string; ms: number; frame: number; color: string; title?: string }) {
   const pct = frame > 0 ? Math.min(100, (ms / frame) * 100) : 0;
@@ -241,9 +361,36 @@ export function ProfilerPanel() {
   const s = useSyncExternalStore(PerfMonitor.subscribe, PerfMonitor.getSnapshot);
   // Only while this panel is mounted does the loop pay for the engine-frame read.
   useEffect(() => PerfMonitor.addEngineConsumer(), []);
+  const [loaded, setLoaded] = useState<LoadedCapture | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [loadedFrameIdx, setLoadedFrameIdx] = useState<number | null>(null);
   const pinned = s.pinnedId != null ? PerfMonitor.getSample(s.pinnedId) : null;
   const [hidden, toggleGroup] = useHiddenGroups();
   const show = (id: string) => !hidden.has(id);
+
+  const openCapture = useCallback(async () => {
+    const r = await pickCapture();
+    if (typeof r === 'string') { if (r) setLoadError(r); return; }
+    setLoadError('');
+    setLoadedFrameIdx(null);
+    setLoaded(r);
+  }, []);
+
+  // A loaded capture answers every section, so the panel is a viewer of one
+  // whether it came off disk or off the running realm.
+  const loadedFrame = loaded && loadedFrameIdx != null ? loaded.capture.frames[loadedFrameIdx] ?? null : null;
+  if (loaded) {
+    return (
+      <div className="prof">
+        <CaptureView
+          loaded={loaded}
+          frame={loadedFrame}
+          onPick={setLoadedFrameIdx}
+          onClose={() => { setLoaded(null); setLoadedFrameIdx(null); }}
+        />
+      </div>
+    );
+  }
 
   // Sections read the pinned frame when one is inspected, else the live window.
   const profile = pinned ? profileOf(pinned) : s.profile;
@@ -319,6 +466,9 @@ export function ProfilerPanel() {
         <button type="button" className="prof-btn" onClick={downloadSession} title={t('prof.exportTitle')}>
           {t('prof.export')}
         </button>
+        <button type="button" className="prof-btn" onClick={() => void openCapture()} title={t('prof.openTitle')}>
+          {t('prof.open')}
+        </button>
         <span className="prof-spacer" />
         {pinned ? (
           <span className="prof-pinned">{t('prof.pinnedFrame', { id: pinned.id, ms: pinned.dt })}</span>
@@ -326,6 +476,8 @@ export function ProfilerPanel() {
           <span className="prof-live">{t('prof.liveBadge')}</span>
         )}
       </div>
+
+      {loadError ? <div className="prof-budget prof-warn">{loadError}</div> : null}
 
       <div className="prof-groups">
         {GROUPS.map((g) => (
@@ -344,7 +496,15 @@ export function ProfilerPanel() {
       {show('frame') && (
       <section className="prof-sec">
         <h4>{t('prof.groupFrame')}</h4>
-        <FrameGraph frames={s.frames} pinnedId={s.pinnedId} />
+        <FrameGraph
+          frames={s.frames}
+          pinnedIdx={s.pinnedId != null ? PerfMonitor.getSamples().findIndex((x) => x.id === s.pinnedId) : -1}
+          budgetMs={BUDGET_MS}
+          onPick={(i) => {
+            const sample = PerfMonitor.getSamples()[i];
+            if (sample) PerfMonitor.pin(sample.id);
+          }}
+        />
         {pinned ? (
           <div className="prof-budget">
             {t('prof.inspectingFrame', { id: pinned.id, ms: pinned.dt })}

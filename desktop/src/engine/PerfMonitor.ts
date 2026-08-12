@@ -4,15 +4,21 @@
  * @file  PerfMonitor.ts — the editor's per-frame instrumentation hub.
  */
 import { createStore } from 'zustand/vanilla';
-import { buildFrameProfile, meanFrameProfile, type FrameCosts, type FrameProfile, type ScopeCost } from 'esengine';
+import {
+  buildFrameProfile,
+  frameProfileOf,
+  percentile,
+  summarizeFrames,
+  PROFILE_CAPTURE_VERSION,
+  type CapturedFrame,
+  type CaptureSummary,
+  type FrameCosts,
+  type FrameProfile,
+  type ProfileCapture,
+  type ScopeCost,
+} from 'esengine';
 
-/** p-th percentile (0..100) of an unsorted sample; 0 for an empty set. */
-export function percentile(values: readonly number[], p: number): number {
-  if (values.length === 0) return 0;
-  const s = [...values].sort((a, b) => a - b);
-  const i = Math.min(s.length - 1, Math.max(0, Math.round((p / 100) * (s.length - 1))));
-  return s[i];
-}
+export { percentile };
 
 /** The phase with the most accumulated time in a frame, or null. */
 export function dominantPhase(phases: Record<string, number>): { phase: string; ms: number } | null {
@@ -166,48 +172,31 @@ export interface PerfSnapshot {
 }
 
 /** What a sampling window saw — the answer to "why is it slow right now". */
-export interface ProfileWindow {
+export interface ProfileWindow extends CaptureSummary {
   realm: 'edit' | 'play';
   windowMs: number;
-  frames: number;
   /** No frame ran in the window: nothing is animating, or the window is hidden. */
   stalled: boolean;
-  budgetMs: number;
-  fps: number;
-  p50: number;
-  p95: number;
-  p99: number;
-  longFrames: number;
-  worstFrameMs: number;
   worstFrameProfile: FrameProfile | null;
-  /** The window's cost, per frame. */
-  mean: FrameProfile;
-  drawCalls: number;
-  triangles: number;
-  entities: number;
-  /** Engine + editor named counters, averaged per frame. */
-  counters: Record<string, number>;
 }
 
-function meanCounters(frames: readonly FrameSample[]): Record<string, number> {
-  const total: Record<string, number> = {};
-  for (const f of frames) {
-    for (const k in f.counters) total[k] = (total[k] ?? 0) + f.counters[k];
-  }
-  for (const k in total) total[k] /= frames.length;
-  return total;
-}
-
-/** A recorded profiling session, serialized to JSON for offline analysis. */
-export interface SessionCapture {
-  version: number;
-  generatedAt: string;
-  realm: 'edit' | 'play';
-  budgetMs: number;
-  frameCount: number;
-  frames: FrameSample[];
-  /** Recent main-thread long tasks — correlate `start` with frame t0/t1. */
-  longTasks?: Array<{ start: number; ms: number; name: string }>;
+/** One captured frame in the portable vocabulary — what a `.esprof` holds. */
+export function capturedFrameOf(s: FrameSample): CapturedFrame {
+  return {
+    id: s.id,
+    dtMs: s.dt,
+    systems: s.costs?.systems ?? [],
+    scopes: s.costs?.scopes ?? [],
+    nativeScopes: nativeScopesOf(s.cppScopes),
+    gpuMs: s.gpuMs,
+    counters: s.counters,
+    drawCalls: s.drawCalls,
+    triangles: s.triangles,
+    entities: s.entities,
+    // Absent from anything a shipped game records; kept here because profiling
+    // the editor is a real thing the editor's own profiler is asked to do.
+    editor: { ms: s.editorMs, phases: s.editorPhases },
+  };
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
@@ -354,16 +343,15 @@ class PerfMonitorImpl {
   }
 
   /** The recorded session (or the live ring if nothing was recorded), for export. */
-  exportSession(): SessionCapture {
-    const frames = this.recordBuffer.length ? this.recordBuffer.slice() : this.samples.slice();
+  exportSession(): ProfileCapture {
+    const frames = this.recordBuffer.length ? this.recordBuffer : this.samples;
     return {
-      version: 1,
+      version: PROFILE_CAPTURE_VERSION,
       generatedAt: new Date().toISOString(),
-      realm: this.realm,
+      source: { realm: this.realm },
       budgetMs: 1000 / 60,
-      frameCount: frames.length,
-      frames,
-      longTasks: this.longTasks.slice(),
+      frames: frames.map(capturedFrameOf),
+      longTasks: this.longTasks.map((t) => ({ startMs: t.start, ms: t.ms, name: t.name })),
     };
   }
 
@@ -387,30 +375,17 @@ class PerfMonitorImpl {
       release();
       if (wasFrozen) this.freezeLatest();
     }
-    const frames = this.samples.filter((s) => s.id >= firstId);
-    const profiles = frames.map(profileOf);
-    const dts = frames.map((s) => s.dt);
-    const worst = frames.reduce<FrameSample | null>((w, s) => (!w || s.dt > w.dt ? s : w), null);
+    const frames = this.samples.filter((s) => s.id >= firstId).map(capturedFrameOf);
+    const worstId = summarizeFrames(frames).worstFrameId;
+    const worst = frames.find((f) => f.id === worstId) ?? null;
     return {
+      ...summarizeFrames(frames),
       realm: this.realm,
       windowMs: ms,
-      frames: frames.length,
       // A window with no frames means the loop never ran (nothing is animating,
       // or the editor is in the background). Said, not implied by zeroes.
       stalled: frames.length === 0,
-      budgetMs: r1(1000 / 60),
-      fps: frames.length ? Math.round(1000 / (percentile(dts, 50) || 1)) : 0,
-      p50: r1(percentile(dts, 50)),
-      p95: r1(percentile(dts, 95)),
-      p99: r1(percentile(dts, 99)),
-      longFrames: dts.filter((d) => d >= LONG_FRAME_MS).length,
-      worstFrameMs: worst ? worst.dt : 0,
-      worstFrameProfile: worst ? profileOf(worst) : null,
-      mean: meanFrameProfile(profiles),
-      drawCalls: frames.length ? frames.reduce((a, s) => a + s.drawCalls, 0) / frames.length : 0,
-      triangles: frames.length ? frames.reduce((a, s) => a + s.triangles, 0) / frames.length : 0,
-      entities: frames.length ? frames.reduce((a, s) => a + s.entities, 0) / frames.length : 0,
-      counters: frames.length ? meanCounters(frames) : {},
+      worstFrameProfile: worst ? frameProfileOf(worst) : null,
     };
   }
 

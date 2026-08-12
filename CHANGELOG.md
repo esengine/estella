@@ -110,6 +110,25 @@ published separately; it ships inside the editor.
   rule, because every member is a branch of the rule. `FlushReason` is gone; the
   names that replace it are the ones the merge actually uses.
 
+- **A profile is a document, and the panel is its viewer.** The profiler only
+  existed where the editor was attached, which is the wrong place: what drops to
+  40fps drops on someone's phone. Recorded frames are now a portable `.esprof`
+  the panel opens — the same rows, the same tree, the same sums, with where it
+  came from stated on the page rather than assumed.
+
+  The format lives beside the cost model rather than in the editor, because it is
+  the same vocabulary: a capture is a list of frames in exactly the terms a live
+  frame is measured in, so reading one needs no translation and no second
+  implementation to drift. `summarizeFrames` is what the live window an agent
+  asks for, an imported file and (next) a report from a shipped build all go
+  through, so none of them can compute a different fps from the same frames. The
+  editor's per-frame cost rides along in a field a shipped game simply omits.
+
+  A file picked by hand is the one input guaranteed to sometimes be the wrong
+  file, so the reader returns a refusal with the reason — not JSON, no version,
+  frames that are not frames, a version newer than this editor reads — instead of
+  throwing where a panel cannot say why.
+
 - **One derivation, three readers.** `buildFrameProfile` is a pure function over
   plain per-frame data, so the live view, a pinned frame and a recorded session
   cannot each round their own way to a different answer. The editor's own

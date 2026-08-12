@@ -29,7 +29,8 @@ import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
-import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
+import { PerfMonitor, type PerfSnapshot, type FrameSample } from './PerfMonitor';
+import type { ProfileCapture } from 'esengine';
 import type { ProfileReport } from './profileReport';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl, EntityInfo } from './SceneQuery';
@@ -1024,7 +1025,7 @@ export class EditorControlSurfaceImpl {
   stopProfileRecording(): void {
     PerfMonitor.stopRecording();
   }
-  exportProfileSession(): SessionCapture {
+  exportProfileSession(): ProfileCapture {
     return PerfMonitor.exportSession();
   }
 

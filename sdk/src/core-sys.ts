@@ -202,6 +202,19 @@ export {
 export { StatsOverlay, type StatsPosition } from './stats-overlay';
 
 export {
+    PROFILE_CAPTURE_VERSION,
+    parseProfileCapture,
+    summarizeCapture,
+    summarizeFrames,
+    frameProfileOf,
+    percentile,
+    type CaptureSource,
+    type CaptureSummary,
+    type CapturedFrame,
+    type ProfileCapture,
+} from './app/profileCapture';
+
+export {
     buildFrameProfile,
     meanFrameProfile,
     scopeDomain,
