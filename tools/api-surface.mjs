@@ -124,6 +124,23 @@ const entryPaths = fromDts
 
 const { program, checker } = createSdkProgram(entryPaths, { strictLibCheck: fromDts });
 
+/**
+ * Every symbol any entry exports, by identity rather than by name. Identity is
+ * load-bearing: the asset class is called `Assets` and so is the resource const
+ * that holds one, so a name check reads the class as exported when only the const
+ * is. The union across entries, since a shape exported from `physics` is nameable.
+ */
+const exportedSymbols = new Set();
+for (const entryPath of Object.values(entryPaths)) {
+    const sourceFile = program.getSourceFile(join(SDK, entryPath));
+    const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
+    if (!moduleSymbol) continue;
+    for (const s of checker.getExportsOfModule(moduleSymbol)) {
+        exportedSymbols.add(s);
+        if (s.flags & ts.SymbolFlags.Alias) exportedSymbols.add(checker.getAliasedSymbol(s));
+    }
+}
+
 const FMT = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
 
 // ---------------------------------------------------------------------------
@@ -252,6 +269,22 @@ function memberLines(type, location, owner) {
     return lines.sort();
 }
 
+/**
+ * The class or interface an alias points at when that target's OWN name is not
+ * exported — `export type AssetsData = AssetsClass`, an alias for a class no entry
+ * re-exports. Null for anything a reader can look up, or with no members to record.
+ */
+function hiddenTargetOf(aliasDecl) {
+    if (!ts.isTypeReferenceNode(aliasDecl.type)) return null;
+    const target = checker.getTypeAtLocation(aliasDecl.type).getSymbol();
+    if (!target || !(target.flags & (ts.SymbolFlags.Class | ts.SymbolFlags.Interface))) return null;
+    if (exportedSymbols.has(target)) return null;
+    // Only our own source: an alias to a lib or @types shape is not ours to record.
+    const from = target.declarations?.[0]?.getSourceFile().fileName.replace(/\\/g, '/');
+    if (!from || !from.startsWith(SDK.replace(/\\/g, '/')) || from.includes('/node_modules/')) return null;
+    return target;
+}
+
 function describeSymbol(name, symbol) {
     const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
     const decl = resolved.declarations?.[0];
@@ -277,7 +310,19 @@ function describeSymbol(name, symbol) {
     } else if (flags & ts.SymbolFlags.TypeAlias) {
         kind = 'type';
         const aliasDecl = resolved.declarations.find(ts.isTypeAliasDeclaration);
-        body.push(normalizeType(aliasDecl ? aliasDecl.type.getText() : 'unknown'));
+        const hidden = aliasDecl && hiddenTargetOf(aliasDecl);
+        if (hidden) {
+            // Recording the target's unexported NAME records nothing — no member
+            // would reach the snapshot, the diff or the baseline rule. The type AT
+            // the reference, so a `GraphEdge<FsmTransition>` keeps its instantiation.
+            body.push(...memberLines(checker.getTypeAtLocation(aliasDecl.type), aliasDecl, owner));
+            if (hidden.flags & ts.SymbolFlags.Class) {
+                const statics = checker.getTypeOfSymbolAtLocation(hidden, hidden.declarations[0]);
+                body.push(...memberLines(statics, aliasDecl, owner).map((l) => `static ${l}`));
+            }
+        } else {
+            body.push(normalizeType(aliasDecl ? aliasDecl.type.getText() : 'unknown'));
+        }
     } else if (flags & ts.SymbolFlags.Enum) {
         kind = 'enum';
         for (const m of resolved.exports?.values() ?? []) {

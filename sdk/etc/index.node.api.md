@@ -415,7 +415,11 @@ enabled: boolean
 
 ## AnimatorEdge — type @experimental
 ```
-GraphEdge<AnimatorTransition>
+from: string
+id: string
+index: number
+to: string
+transition: AnimatorTransition
 ```
 
 ## AnimatorEvalResult — interface @experimental
@@ -681,7 +685,78 @@ ResourceDef<AssetsClass>
 
 ## AssetsData — type @experimental
 ```
-AssetsClass
+@internal releaseTyped: (type: string, ref: string) => void
+@internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registryEntries: number; trackedRefRows: number; }
+applyUpdate: (onProgress?: (loaded: number, total: number) => void) => Promise<ApplyUpdateResult>
+backend: Backend
+baseUrl: string | undefined
+catalog: Catalog
+checkForUpdate: (options: CheckForUpdateOptions) => Promise<UpdatePlan>
+fetchBinary: (ref: string) => Promise<ArrayBuffer>
+fetchJson: <T = unknown>(ref: string) => Promise<T>
+fetchText: (ref: string) => Promise<string>
+getAssetRefResolver: () => AssetRefResolver | null
+getAssetRegistry: () => AssetRegistry | null
+getAtlasFrame: (ref: string) => AtlasFrameInfo | null
+getLoader: <T>(type: string) => AssetLoader<T> | undefined
+getManifest: () => ManifestModel | null
+getRefCounter: () => AssetRefCounter | null
+getSpineLoader: () => SpineAssetLoader
+getTexture: (ref: string) => TextureResult | undefined
+getTextureLoader: () => TextureLoader
+invalidate: (ref: string) => boolean
+load: <T>(type: string, ref: string) => Promise<T>
+loadAnimClip: (ref: string) => Promise<AnimClipResult>
+loadAnimatorController: (ref: string) => Promise<AnimatorControllerResult>
+loadAudio: (ref: string) => Promise<AudioResult>
+loadBehaviorTree: (ref: string) => Promise<BtResult>
+loadByLabel: (label: string, onProgress?: (loaded: number, total: number) => void) => Promise<AssetBundle>
+loadFont: (ref: string) => Promise<FontResult>
+loadGroup: (groupName: string, onProgress?: (loaded: number, total: number) => void) => Promise<AssetBundle>
+loadJson: <T = unknown>(ref: string) => Promise<JsonResult<T>>
+loadLocaleTable: (ref: string) => Promise<LocaleResult>
+loadMaterial: (ref: string) => Promise<MaterialResult>
+loadPrefab: (ref: string) => Promise<PrefabResult>
+loadSpine: (skeletonRef: string, atlasRef?: string) => Promise<SpineResult>
+loadStateMachine: (ref: string) => Promise<FsmResult>
+loadTexture: (ref: string) => Promise<TextureResult>
+loadTextureRaw: (ref: string) => Promise<TextureResult>
+loadTilemap: (ref: string) => Promise<TilemapResult>
+loadTileset: (ref: string) => Promise<TilesetResult>
+loadTimeline: (ref: string) => Promise<TimelineResult>
+onInvalidate: (listener: InvalidateListener) => () => void
+pathForHandle: (kind: string, handle: number) => string | null
+preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
+preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; }) => Promise<SceneAssetResult>
+recoverFromDeviceLoss: () => Promise<boolean>
+register: <T>(loader: AssetLoader<T>) => void
+releaseAll: () => void
+releaseAnimClip: (ref: string) => void
+releaseAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void
+releaseAudio: (ref: string) => void
+releaseFont: (ref: string) => void
+releaseGroup: (groupName: string) => void
+releaseMaterial: (handle: number) => void
+releasePrefab: (ref: string) => void
+releaseTexture: (ref: string) => void
+releaseTilemap: (ref: string) => void
+releaseTimeline: (ref: string) => void
+remoteRoot: string | undefined
+resolveLoadPath: (ref: string) => string
+resolveRef: (ref: string) => string | null
+resolveSceneAssetPaths: (sceneData: SceneData, result: SceneAssetResult) => void
+restorePersistedUpdate: (key: string) => boolean
+reuploadTexturesAfterDeviceLoss: () => Promise<number>
+setAssetRefResolver: (resolver: AssetRefResolver) => void
+setAssetRegistry: (registry: AssetRegistry) => void
+setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
+setRefCounter: (counter: AssetRefCounter) => void
+setRemoteRoot: (url: string | undefined) => void
+setSpineController: (controller: SpineModuleController) => void
+setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
+static create: (options: AssetsOptions) => AssetsClass
+static new (options: AssetsOptions): AssetsClass
+static prototype: AssetsClass
 ```
 
 ## AsyncCache — class @experimental
@@ -2874,7 +2949,11 @@ states: FsmState[]
 
 ## FsmEdge — type @experimental
 ```
-GraphEdge<FsmTransition>
+from: string
+id: string
+index: number
+to: string
+transition: FsmTransition
 ```
 
 ## FsmPlugin — class @experimental
@@ -4505,7 +4584,10 @@ code: number | undefined
 
 ## PaymentRequest — type @experimental
 ```
-PlatformPaymentRequest
+offerId: string
+quantity: number
+sandbox: boolean | undefined
+zoneId: string | undefined
 ```
 
 ## Perceiver — const @experimental
@@ -6256,7 +6338,9 @@ static prototype: ShareAPI
 
 ## ShareCard — type @experimental
 ```
-PlatformShareOptions
+imageUrl: string | undefined
+query: string | undefined
+title: string | undefined
 ```
 
 ## SideModuleDescriptor — interface @experimental
