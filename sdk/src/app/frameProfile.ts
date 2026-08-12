@@ -41,7 +41,7 @@ export interface FrameProfileInput {
     readonly gpuMs?: number;
 }
 
-export type ProfileNodeKind = 'domain' | 'system' | 'scope' | 'wait' | 'rest';
+export type ProfileNodeKind = 'domain' | 'system' | 'scope' | 'rest';
 
 export interface ProfileNode {
     readonly id: string;
@@ -68,6 +68,78 @@ export interface FrameProfile {
 
 /** Below this a row is noise, and a `rest` row for it would be rounding dust. */
 const EPS_MS = 0.05;
+
+/**
+ * Average a window of frames into one profile, per frame. A node is divided by
+ * the whole window, not by the frames it appeared in: dividing by its own
+ * appearances would report an every-fourth-frame system four times too dear.
+ * Obeys the same sums a single frame does.
+ */
+export function meanFrameProfile(profiles: readonly FrameProfile[]): FrameProfile {
+    if (profiles.length === 0) {
+        return { frameMs: 0, cpuMs: 0, waitMs: 0, idleMs: 0, gpuMs: -1, domains: [] };
+    }
+    const n = profiles.length;
+    const withGpu = profiles.filter((p) => p.gpuMs >= 0);
+    return {
+        frameMs: profiles.reduce((a, p) => a + p.frameMs, 0) / n,
+        cpuMs: profiles.reduce((a, p) => a + p.cpuMs, 0) / n,
+        waitMs: profiles.reduce((a, p) => a + p.waitMs, 0) / n,
+        idleMs: profiles.reduce((a, p) => a + p.idleMs, 0) / n,
+        gpuMs: withGpu.length > 0 ? withGpu.reduce((a, p) => a + p.gpuMs, 0) / withGpu.length : -1,
+        domains: meanNodes(profiles.map((p) => p.domains), n),
+    };
+}
+
+function meanNodes(perFrame: ReadonlyArray<readonly ProfileNode[]>, frames: number): ProfileNode[] {
+    const acc = new Map<string, { node: ProfileNode; ms: number; kids: ProfileNode[][]; query: QueryCost | null }>();
+    for (const nodes of perFrame) {
+        for (const node of nodes) {
+            const prev = acc.get(node.id);
+            if (prev) {
+                prev.ms += node.ms;
+                prev.kids.push([...node.children]);
+                if (node.query) {
+                    prev.query = prev.query
+                        ? {
+                            calls: prev.query.calls + node.query.calls,
+                            scanned: prev.query.scanned + node.query.scanned,
+                            filtered: prev.query.filtered + node.query.filtered,
+                        }
+                        : { ...node.query };
+                }
+            } else {
+                acc.set(node.id, {
+                    node,
+                    ms: node.ms,
+                    kids: [[...node.children]],
+                    query: node.query ? { ...node.query } : null,
+                });
+            }
+        }
+    }
+    const out: ProfileNode[] = [];
+    for (const e of acc.values()) {
+        out.push({
+            id: e.node.id,
+            label: e.node.label,
+            ms: e.ms / frames,
+            kind: e.node.kind,
+            children: meanNodes(e.kids, frames),
+            ...(e.query
+                ? {
+                    query: {
+                        calls: e.query.calls / frames,
+                        scanned: e.query.scanned / frames,
+                        filtered: e.query.filtered / frames,
+                    },
+                }
+                : {}),
+        });
+    }
+    out.sort(byMsDesc);
+    return out;
+}
 
 /** The part of a dotted scope name that names its domain. */
 export function scopeDomain(name: string): string {
@@ -123,30 +195,34 @@ export function buildFrameProfile(input: FrameProfileInput): FrameProfile {
                 kind: 'scope',
                 children: [],
             }));
-            const rest = Math.max(0, scope.ms - sumMs(grandChildren));
-            if (rest >= EPS_MS) {
+            const unclaimed = Math.max(0, scope.ms - sumMs(grandChildren));
+            // A wait leaves the tree entirely rather than becoming a row in it:
+            // the tree is work, and time blocked on a swapchain is not work. It
+            // survives as the profile's waitMs, which the frame identity carries.
+            if (scope.remainder === 'wait') {
+                systemWait += unclaimed;
+            } else if (unclaimed >= EPS_MS && grandChildren.length > 0) {
                 grandChildren.push({
                     id: `${sys.name}/${scope.name}/~`,
-                    label: scope.remainder === 'wait' ? 'wait' : 'rest',
-                    ms: rest,
-                    kind: scope.remainder === 'wait' ? 'wait' : 'rest',
+                    label: 'rest',
+                    ms: unclaimed,
+                    kind: 'rest',
                     children: [],
                 });
-                if (scope.remainder === 'wait') systemWait += rest;
             }
             grandChildren.sort(byMsDesc);
+            const scopeWork = scope.remainder === 'wait' ? scope.ms - unclaimed : scope.ms;
             children.push({
                 id: `${sys.name}/${scope.name}`,
                 label: scope.name,
-                ms: scope.ms,
+                ms: scopeWork,
                 kind: 'scope',
                 children: grandChildren,
             });
         }
 
         const work = Math.max(0, sys.ms - systemWait);
-        const measured = sumMs(children) - systemWait;
-        const rest = Math.max(0, work - measured);
+        const rest = Math.max(0, work - sumMs(children));
         if (children.length > 0 && rest >= EPS_MS) {
             children.push({ id: `${sys.name}/~`, label: 'rest', ms: rest, kind: 'rest', children: [] });
         }

@@ -69,6 +69,31 @@ published separately; it ships inside the editor.
   what makes the frame tree's claim to add up true on any frame the accumulator
   had a backlog for.
 
+- **An agent can read the profiler.** `profile_frames` samples the running frame
+  for a window and answers where the time went: fps and percentiles, the frame as
+  `cpu + wait + idle` with GPU alongside, what each cost domain came to, and the
+  costliest systems — each with its scopes and what its queries walked. So "why
+  does the boss fight drop to 40fps" is answerable with the system, the number,
+  and the reason, rather than with a screenshot.
+
+  It is ranked and truncated, and says how much it left out: the tree behind it
+  is hundreds of rows and the caller has a context window, and a silently short
+  list reads as the whole list. It registers an engine consumer for the duration
+  of its window, because the profiler skips the cross-boundary engine read
+  entirely while nothing is mounted to display it — a caller that just read the
+  ring with the panel closed would get frames with no engine costs in them and
+  no sign that was why. A window in which no frame ran reports `stalled` rather
+  than a set of zeroes that reads like a fast frame.
+
+- **A wait is not a row in the tree.** Blocked time was being subtracted from the
+  system that absorbed it while the scope beneath kept its full wall-clock, so a
+  `render.submit` of 0.36ms sat under a `RenderSystem` of 0.22ms — a child larger
+  than its parent, in the tree whose whole claim is that it adds up. The tree is
+  work: the wait leaves it and survives as the profile's `waitMs`, which the
+  frame identity already carries. The assertion that missed it — children summing
+  was only ever checked below the scope, never across a system holding one — now
+  runs over every node of a frame that has a wait in it.
+
 - **One derivation, three readers.** `buildFrameProfile` is a pure function over
   plain per-frame data, so the live view, a pinned frame and a recorded session
   cannot each round their own way to a different answer. The editor's own

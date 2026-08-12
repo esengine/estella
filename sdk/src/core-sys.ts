@@ -203,6 +203,7 @@ export { StatsOverlay, type StatsPosition } from './stats-overlay';
 
 export {
     buildFrameProfile,
+    meanFrameProfile,
     scopeDomain,
     DOMAIN_SCRIPTS,
     DOMAIN_UNATTRIBUTED,
@@ -210,6 +211,7 @@ export {
     type FrameProfileInput,
     type ProfileNode,
     type ProfileNodeKind,
+    type QueryCost,
     type ScopeCost,
     type ScopeRemainder,
     type SystemCost,

@@ -4,7 +4,7 @@
  * @file  PerfMonitor.ts — the editor's per-frame instrumentation hub.
  */
 import { createStore } from 'zustand/vanilla';
-import { buildFrameProfile, type FrameCosts, type FrameProfile, type ScopeCost } from 'esengine';
+import { buildFrameProfile, meanFrameProfile, type FrameCosts, type FrameProfile, type ScopeCost } from 'esengine';
 
 /** p-th percentile (0..100) of an unsorted sample; 0 for an empty set. */
 export function percentile(values: readonly number[], p: number): number {
@@ -163,6 +163,25 @@ export interface PerfSnapshot {
   recording: boolean;
   /** Frames accumulated in the recording buffer. */
   recordedFrames: number;
+}
+
+/** What a sampling window saw — the answer to "why is it slow right now". */
+export interface ProfileWindow {
+  realm: 'edit' | 'play';
+  windowMs: number;
+  frames: number;
+  /** No frame ran in the window: nothing is animating, or the window is hidden. */
+  stalled: boolean;
+  budgetMs: number;
+  fps: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  longFrames: number;
+  worstFrameMs: number;
+  worstFrameProfile: FrameProfile | null;
+  /** The window's cost, per frame. */
+  mean: FrameProfile;
 }
 
 /** A recorded profiling session, serialized to JSON for offline analysis. */
@@ -336,6 +355,46 @@ class PerfMonitorImpl {
 
   /** The capture ring (oldest→newest). Aligned 1:1 with the snapshot's `frames`. */
   getSamples(): readonly FrameSample[] { return this.samples; }
+
+  /**
+   * Watch for `ms`, then answer with the window's frames folded into one profile.
+   * Registers an engine consumer for the duration: the loop skips the engine read
+   * entirely while nothing is mounted to display it, so reading the ring with the
+   * panel closed yields frames with no engine costs and no sign of why.
+   */
+  async captureWindow(ms: number): Promise<ProfileWindow> {
+    const release = this.addEngineConsumer();
+    const wasFrozen = this.frozen;
+    if (wasFrozen) this.resumeLive();
+    const firstId = this.sampleSeq;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, ms));
+    } finally {
+      release();
+      if (wasFrozen) this.freezeLatest();
+    }
+    const frames = this.samples.filter((s) => s.id >= firstId);
+    const profiles = frames.map(profileOf);
+    const dts = frames.map((s) => s.dt);
+    const worst = frames.reduce<FrameSample | null>((w, s) => (!w || s.dt > w.dt ? s : w), null);
+    return {
+      realm: this.realm,
+      windowMs: ms,
+      frames: frames.length,
+      // A window with no frames means the loop never ran (nothing is animating,
+      // or the editor is in the background). Said, not implied by zeroes.
+      stalled: frames.length === 0,
+      budgetMs: r1(1000 / 60),
+      fps: frames.length ? Math.round(1000 / (percentile(dts, 50) || 1)) : 0,
+      p50: r1(percentile(dts, 50)),
+      p95: r1(percentile(dts, 95)),
+      p99: r1(percentile(dts, 99)),
+      longFrames: dts.filter((d) => d >= LONG_FRAME_MS).length,
+      worstFrameMs: worst ? worst.dt : 0,
+      worstFrameProfile: worst ? profileOf(worst) : null,
+      mean: meanFrameProfile(profiles),
+    };
+  }
 
   /** The pinned/queried frame's full breakdown, or null if it scrolled out. */
   getSample(id: number): FrameSample | null {

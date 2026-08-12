@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     buildFrameProfile,
+    meanFrameProfile,
     scopeDomain,
     DOMAIN_SCRIPTS,
     type FrameProfileInput,
@@ -163,8 +164,21 @@ describe('buildFrameProfile', () => {
             const profile = buildFrameProfile(emptyScene);
             const scope = findNode(profile.domains, 'RenderSystem/render.submit');
 
-            expect(scope?.children.map((c) => c.label)).toEqual(['wait', 'render.collect', 'render.finalize']);
-            assertChildrenSum(scope!);
+            expect(scope?.children.map((c) => c.label)).toEqual(['render.collect', 'render.finalize']);
+            expect(scope?.ms).toBeCloseTo(0.03, 4);
+        });
+
+        // The wait leaves the tree rather than becoming a row in it, so a scope
+        // can never come out larger than the system that contains it.
+        it('keeps every node the sum of its children, wait and all', () => {
+            const profile = buildFrameProfile(emptyScene);
+            for (const domain of profile.domains) assertChildrenSum(domain);
+        });
+
+        it('does not let a blocked scope outgrow its system', () => {
+            const profile = buildFrameProfile(emptyScene);
+            const sys = findNode(profile.domains, 'RenderSystem')!;
+            for (const child of sys.children) expect(child.ms).toBeLessThanOrEqual(sys.ms + 1e-9);
         });
 
         it('does not hand the same native scope to a work scope', () => {
@@ -174,8 +188,55 @@ describe('buildFrameProfile', () => {
             });
 
             expect(profile.waitMs).toBe(0);
-            expect(findNode(profile.domains, 'RenderSystem/render.submit')?.children.map((c) => c.label))
-                .toEqual(['rest']);
+            expect(findNode(profile.domains, 'RenderSystem/render.submit')?.children).toEqual([]);
         });
+    });
+});
+
+describe('meanFrameProfile', () => {
+    const frameOf = (renderMs: number, scanned = 0): FrameProfileInput => ({
+        frameMs: 16.7,
+        systems: [{
+            name: 'RenderSystem',
+            ms: renderMs,
+            domain: 'render',
+            ...(scanned ? { query: { calls: 1, scanned, filtered: 0 } } : {}),
+        }],
+        scopes: [],
+    });
+
+    it('is an empty profile for an empty window', () => {
+        const p = meanFrameProfile([]);
+        expect(p.domains).toEqual([]);
+        expect(p.frameMs).toBe(0);
+        expect(p.gpuMs).toBe(-1);
+    });
+
+    it('averages a node over the window', () => {
+        const p = meanFrameProfile([frameOf(2), frameOf(4)].map(buildFrameProfile));
+        expect(findNode(p.domains, 'RenderSystem')?.ms).toBeCloseTo(3, 4);
+    });
+
+    it('divides a sometimes-absent system by the whole window, not its appearances', () => {
+        const idle = buildFrameProfile({ frameMs: 16.7, systems: [], scopes: [] });
+        const p = meanFrameProfile([buildFrameProfile(frameOf(4)), idle, idle, idle]);
+        expect(findNode(p.domains, 'RenderSystem')?.ms).toBeCloseTo(1, 4);
+    });
+
+    it('keeps the frame identity every single frame has', () => {
+        const p = meanFrameProfile([frameOf(2), frameOf(4)].map(buildFrameProfile));
+        expect(p.cpuMs + p.waitMs + p.idleMs).toBeCloseTo(p.frameMs, 4);
+    });
+
+    it('averages query cost per frame, so it reads as what a frame walks', () => {
+        const p = meanFrameProfile([frameOf(2, 100), frameOf(2, 300)].map(buildFrameProfile));
+        expect(findNode(p.domains, 'RenderSystem')?.query?.scanned).toBeCloseTo(200, 4);
+    });
+
+    it('reports gpu unavailable only when no frame had a timer', () => {
+        const noTimer = buildFrameProfile({ frameMs: 16.7, systems: [], scopes: [] });
+        const timed = buildFrameProfile({ frameMs: 16.7, systems: [], scopes: [], gpuMs: 4 });
+        expect(meanFrameProfile([noTimer, noTimer]).gpuMs).toBe(-1);
+        expect(meanFrameProfile([noTimer, timed]).gpuMs).toBeCloseTo(4, 4);
     });
 });

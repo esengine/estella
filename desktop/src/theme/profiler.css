@@ -137,9 +137,6 @@
 .prof-tree-system .prof-fill { background: var(--run); }
 .prof-tree-scope .prof-tree-name { color: var(--text-dim); }
 .prof-tree-scope .prof-fill { background: var(--text-mute); }
-.prof-tree-wait .prof-tree-name,
-.prof-tree-wait .prof-tree-ms { color: var(--warn); }
-.prof-tree-wait .prof-fill { background: var(--warn); }
 .prof-tree-rest .prof-tree-name,
 .prof-tree-rest .prof-tree-ms { color: var(--text-faint); }
 .prof-tree-rest .prof-fill { background: var(--text-faint); }

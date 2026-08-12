@@ -212,6 +212,19 @@ export const TOOLS = [
       + 'Take one before a Play/Stop (or a hot reload, or a scene load) and one after: every counter tagged `conserved` must come back to the same number. '
       + 'This is the door for "the editor got slower after an hour" — the question no screenshot answers.',
     schema: obj({}), method: 'census', args: () => [], root: 'editor' },
+  { name: 'profile_frames',
+    description: 'Watch the running frame for a while, then answer WHERE THE TIME WENT — the door for "why is this scene 40fps". '
+      + 'Samples for `ms` (default 1000, clamped 100..5000) and returns, per frame: fps/p50/p95/p99 and long-frame count; '
+      + 'the frame split into `cpuMs + waitMs + idleMs` (plus `gpuMs` as a parallel track — the three CPU figures are what add up to the frame); '
+      + 'per cost domain (scripts / render / physics / ui / …) how much it cost; and the costliest systems, each with its domain, '
+      + 'the scopes measured inside it, and — the point — what its QUERIES walked: `scanned` entities over `calls`, of which `filtered` '
+      + 'were discarded by an Added/Changed filter. A system whose `filtered` is nearly its `scanned` is walking the whole world every '
+      + 'frame to throw it away, which is the fix, not the symptom. `waitMs` is CPU blocked on the display or an await — NOT a hotspot, '
+      + 'do not report it as one. `stalled: true` means no frame ran at all (nothing animating, or the window is in the background) — '
+      + 'say so rather than reading the zeroes as a fast frame. `omittedSystems` counts what ranked below the cut. '
+      + 'Works in both realms: it profiles the running game while playing, the editor scene otherwise (see `realm`).',
+    schema: obj({ ms: { type: 'number' }, topSystems: { type: 'number' } }),
+    method: 'profileFrames', args: (i) => [i.ms ?? 1000, i.topSystems ?? 12] },
   { name: 'get_subsystems',
     description: 'Lifecycle + liveness of every engine subsystem (physics, audio, …): phase and activity.',
     schema: obj({}), method: 'getSubsystems', args: () => [] },

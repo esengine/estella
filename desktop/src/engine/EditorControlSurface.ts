@@ -30,12 +30,15 @@ import { EngineHost } from './EngineHost';
 import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
+import type { ProfileReport } from './profileReport';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl, EntityInfo } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
 import type { EditorHistoryImpl, HistoryMark } from './EditorHistory';
 import type { ReconcilerImpl } from './Reconciler';
 import type { SelectionStore } from '@/store/selectionStore';
+
+const r2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
 export interface ViewportCapture {
@@ -923,6 +926,61 @@ export class EditorControlSurfaceImpl {
     return {
       entities: EngineHost.world?.entityCount() ?? 0,
       drawCalls: EngineHost.module?.renderer_getDrawCalls?.() ?? 0,
+    };
+  }
+
+  /**
+   * Sample the running frame for `ms` and answer with where the time went.
+   *
+   * Ranked and truncated rather than complete: the tree behind this is hundreds
+   * of rows and the caller has a context window. What was left out is counted in
+   * the reply, because a silently short list reads as "that is all of it".
+   */
+  async profileFrames(ms = 1000, topSystems = 12): Promise<ProfileReport> {
+    const w = await PerfMonitor.captureWindow(Math.min(5000, Math.max(100, ms)));
+    const systems = w.mean.domains
+      .flatMap((d) => d.children.map((s) => ({ domain: d.id, node: s })))
+      .sort((a, b) => b.node.ms - a.node.ms);
+    const shown = systems.slice(0, topSystems);
+    return {
+      realm: w.realm,
+      windowMs: w.windowMs,
+      frames: w.frames,
+      stalled: w.stalled,
+      budgetMs: w.budgetMs,
+      fps: w.fps,
+      p50: w.p50, p95: w.p95, p99: w.p99,
+      longFrames: w.longFrames,
+      worstFrameMs: w.worstFrameMs,
+      frame: {
+        totalMs: r2(w.mean.frameMs),
+        cpuMs: r2(w.mean.cpuMs),
+        waitMs: r2(w.mean.waitMs),
+        idleMs: r2(w.mean.idleMs),
+        gpuMs: w.mean.gpuMs >= 0 ? r2(w.mean.gpuMs) : -1,
+      },
+      // A plugin that is installed and costs nothing is not an answer to "where
+      // did the time go", and there are two dozen of them. Counted, not hidden.
+      domains: w.mean.domains.filter((d) => r2(d.ms) > 0).map((d) => ({ domain: d.id, ms: r2(d.ms) })),
+      freeDomains: w.mean.domains.filter((d) => r2(d.ms) === 0).length,
+      systems: shown.map(({ domain, node }) => ({
+        name: node.label,
+        domain,
+        ms: r2(node.ms),
+        ...(node.query
+          ? {
+              query: {
+                calls: r2(node.query.calls),
+                scanned: Math.round(node.query.scanned),
+                filtered: Math.round(node.query.filtered),
+              },
+            }
+          : {}),
+        scopes: node.children
+          .filter((c) => c.ms >= 0.05)
+          .map((c) => ({ name: c.label, ms: r2(c.ms), kind: c.kind })),
+      })),
+      omittedSystems: systems.length - shown.length,
     };
   }
 
