@@ -154,6 +154,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
   let endpoint = '';
   /** Memory handed to the next session this creates — see {@link AgentHost.resume}. */
   let resuming: unknown;
+  /** Identical failing calls, counted across the conversation rather than the
+   *  turn — see KernelDeps.failing. Emptied with the conversation. */
+  let failing = new Map<string, number>();
 
   /** Sortable and filename-safe. Time first so a directory listing reads
    *  chronologically even before anything parses it. */
@@ -347,7 +350,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         await runTurn(
           {
             driver: deps.driver, session: session!, model: model ?? '',
-            acceptsImages, confirm, emit,
+            acceptsImages, confirm, emit, failing,
             standing: deps.standing, journal: deps.journal,
           },
           text,
@@ -415,6 +418,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       // its last turn — it was saved then, and nothing here takes that back.
       conversationId = null;
       resuming = undefined;
+      failing = new Map();
       phase = 'idle';
       error = null;
       log.length = 0;
@@ -444,6 +448,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       startedAt = conversation.startedAt;
       endpoint = conversation.endpoint;
       resuming = conversation.memory;
+      // The count belongs to the run, not to the transcript: a conversation put
+      // back is one nobody has watched fail anything yet.
+      failing = new Map();
       phase = 'idle';
       error = null;
       log.length = 0;

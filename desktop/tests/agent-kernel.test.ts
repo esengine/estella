@@ -898,6 +898,20 @@ describe('a call that keeps failing the same way', () => {
     expect(s.context.filter((c) => c.includes('3 times'))).toHaveLength(1);
   });
 
+  // A fresh count per turn hands a stuck model three more attempts every time
+  // the person presses Carry on, which is the loop this is meant to end.
+  it('counts across the conversation when the host holds the count', async () => {
+    const failing = new Map<string, number>();
+    const first = fakeSession([same(), same(), ends()]);
+    await runTurn({ ...deps(first), failing }, 'move it', null, new AbortController().signal);
+    expect(first.context.some((c) => c.includes('3 times'))).toBe(false);
+
+    // The turn after — a Carry on — is where the third attempt lands.
+    const second = fakeSession([same(), ends()]);
+    await runTurn({ ...deps(second), failing }, 'carry on', null, new AbortController().signal);
+    expect(second.context.some((c) => c.includes('set_field') && c.includes('3 times'))).toBe(true);
+  });
+
   // Different arguments are a model TRYING something, which is the behaviour
   // the nudge exists to provoke — counting them together would punish it.
   it('counts each set of arguments on its own', async () => {

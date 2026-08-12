@@ -33,7 +33,7 @@ import { useEditorStore } from '@/store/editorStore';
 import {
   useAgent, agentEffort, sendAgentMessage, stopAgentTurn, confirmAgentCall, startNewConversation,
   peekEntities, entitiesInInput, effectiveSelection, selectAgentModel, retryAgentTurn, setAgentDraft,
-  RESUMABLE, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
+  RESUMABLE, canCarryOn, openAgentHistory, closeAgentHistory, resumeConversation, forgetConversation,
   addAgentAttachments, removeAgentAttachment, latestContext, agentAcceptsImages, resolveProvider,
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
@@ -730,10 +730,12 @@ function Elapsed({ from, to, className }: { from: number; to: number | null; cla
  * finished run in the conversation re-rendered — and re-read the undo stack —
  * on every token of the newest one.
  */
-const Turn = memo(function Turn({ turn, isLast, running }: {
+const Turn = memo(function Turn({ turn, isLast, running, carryOn }: {
   turn: AgentTurn;
   isLast: boolean;
   running: boolean;
+  /** Whether continuing is still worth offering — see AgentStore's canCarryOn. */
+  carryOn: boolean;
 }) {
   // A finished run folds to its header: the stat line already IS the summary, so
   // the body becomes detail you ask for rather than detail you scroll past.
@@ -838,13 +840,19 @@ const Turn = memo(function Turn({ turn, isLast, running }: {
               stopped: picking a stopped run up from three turns ago would carry
               on from a scene that has since moved. */}
           {isLast && !running && turn.reason && RESUMABLE.has(turn.reason) && (
-            <button
-              type="button"
-              className="ag-continue"
-              onClick={() => void sendAgentMessage(t('agent.continue.message'))}
-            >
-              <ArrowRight size={13} strokeWidth={2} />{t('agent.continue')}
-            </button>
+            carryOn
+              ? (
+                <button
+                  type="button"
+                  className="ag-continue"
+                  onClick={() => void sendAgentMessage(t('agent.continue.message'))}
+                >
+                  <ArrowRight size={13} strokeWidth={2} />{t('agent.continue')}
+                </button>
+              )
+              // Withdrawn rather than left there to be pressed again: two runs
+              // that went nowhere are a loop, and the button is what feeds it.
+              : <div className="ag-sys">{t('agent.continue.fruitless')}</div>
           )}
           {turn.reason !== null && <Verdict turn={turn} />}
           {turn.reason !== null && <ChangeSet turn={turn} />}
@@ -1377,6 +1385,7 @@ function Compose({ autoFocus }: { autoFocus?: boolean }) {
 export function AgentPanel({ docked }: { docked?: boolean }) {
   const setOpen = useEditorStore((s) => s.setAgentDrawer);
   const turns = useAgent((s) => s.turns);
+  const carryOn = canCarryOn(turns);
   const status = useAgent((s) => s.status);
   const queued = useAgent((s) => s.queued);
   const historyOpen = useAgent((s) => s.historyOpen);
@@ -1469,6 +1478,7 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
               turn={turn}
               isLast={i === turns.length - 1}
               running={status.phase !== 'idle'}
+              carryOn={carryOn}
             />
           ))}
         {/* Held until the run ends. Shown rather than merely promised: a message

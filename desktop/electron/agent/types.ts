@@ -318,6 +318,12 @@ export interface KernelDeps {
    * takes effect without reopening the project.
    */
   standing?(): readonly Criterion[];
+  /**
+   * How often each identical failing call has been re-issued, ACROSS the
+   * conversation. Held by the host so a `Carry on` does not hand a stuck model
+   * three fresh attempts at the call it has already failed ten times.
+   */
+  failing?: Map<string, number>;
   journal?: {
     /** Open one around this turn; null when it could not be opened. */
     begin(): string | null;

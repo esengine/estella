@@ -255,9 +255,9 @@ export async function runTurn(
     let builtSomething = false;
     let sawPixels = false;
     let askedToLook = false;
-    // How often each identical failing call has been re-issued, and the ones
-    // that just crossed the line — see REPEAT_LIMIT.
-    const failing = new Map<string, number>();
+    // Counted across the CONVERSATION when the host holds the map: a fresh one
+    // per turn hands a stuck model three more attempts every `Carry on`.
+    const failing = deps.failing ?? new Map<string, number>();
     const stuck: string[] = [];
     const turn: TurnState = { criteria: [], wroteAnything: false };
     let toldFailures = false;

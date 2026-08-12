@@ -8,7 +8,7 @@
  * steps-only checkpoint had nothing to say about.
  */
 import { describe, it, expect } from 'vitest';
-import { revertScope, type AgentTurn } from '@/store/AgentStore';
+import { revertScope, canCarryOn, type AgentTurn } from '@/store/AgentStore';
 import type { FileChange } from '../electron/agent/types';
 
 const turn = (over: Partial<AgentTurn>): AgentTurn => ({
@@ -63,5 +63,59 @@ describe('what a turn offers to take back', () => {
     }), 0);
     expect(scope?.files).toHaveLength(2);
     expect(scope?.stranded.map((f) => f.path)).toEqual(['Video/intro.mp4']);
+  });
+});
+
+/**
+ * When carrying on is still worth offering.
+ *
+ * The offer exists to continue WORK. A run that ended where it could go on but
+ * changed nothing produced none, and offering it again is how a long task turns
+ * into the same round trip repeated — each press starting a fresh budget.
+ */
+describe('whether to offer carrying on', () => {
+  const ran = (over: Partial<AgentTurn>): AgentTurn => turn({ steps: 3, ...over });
+  const nothing = (reason: AgentTurn['reason']): AgentTurn =>
+    turn({ reason, steps: 0, files: [] });
+
+  it('offers it after a run that stopped part-way having done something', () => {
+    expect(canCarryOn([ran({ reason: 'max_rounds' })])).toBe(true);
+    expect(canCarryOn([ran({ reason: 'aborted' })])).toBe(true);
+    expect(canCarryOn([ran({ reason: 'error' })])).toBe(true);
+  });
+
+  it('does not offer it for a run that finished', () => {
+    expect(canCarryOn([ran({ reason: 'end_turn' })])).toBe(false);
+    expect(canCarryOn([ran({ reason: 'refusal' })])).toBe(false);
+  });
+
+  // One fruitless run is a dropped socket; the offer is exactly what it is for.
+  it('still offers it after ONE fruitless run', () => {
+    expect(canCarryOn([nothing('error')])).toBe(true);
+    expect(canCarryOn([ran({ reason: 'end_turn' }), nothing('error')])).toBe(true);
+  });
+
+  // Two is a loop, and the button is what feeds it.
+  it('withdraws it after two fruitless runs in a row', () => {
+    expect(canCarryOn([nothing('error'), nothing('error')])).toBe(false);
+    expect(canCarryOn([nothing('max_rounds'), nothing('aborted')])).toBe(false);
+  });
+
+  it('offers it again once a run got somewhere', () => {
+    expect(canCarryOn([nothing('error'), ran({ reason: 'max_rounds' })])).toBe(true);
+  });
+
+  // Files count as having got somewhere: a turn that only wrote scripts records
+  // no undo steps, and reading steps alone would call it fruitless.
+  it('counts a run that only wrote files as having got somewhere', () => {
+    const wrote = turn({
+      reason: 'max_rounds', steps: 0,
+      files: [{ path: 'src/HP.ts', kind: 'add', unjournaled: false }],
+    });
+    expect(canCarryOn([nothing('error'), wrote])).toBe(true);
+  });
+
+  it('offers nothing when there are no runs at all', () => {
+    expect(canCarryOn([])).toBe(false);
   });
 });

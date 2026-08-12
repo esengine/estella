@@ -140,6 +140,12 @@ export const agentMessages = defineMessages({
         zh: '它在干完之前用光了单轮的工具调用次数。已经做完的部分都留着。',
     },
     'agent.continue': { en: 'Carry on', zh: '接着干' },
+    // The offer is withdrawn rather than left to be pressed again — it is what
+    // feeds the loop, and each press starts a fresh budget.
+    'agent.continue.fruitless': {
+        en: 'Two runs in a row ended without changing anything. Carrying on would start the same one again — say what to do differently.',
+        zh: '连着两轮都没有改动任何东西。接着干只会再来一遍同样的 —— 换个说法告诉它该怎么做。',
+    },
     'agent.continue.message': {
         en: 'Carry on from where you stopped.',
         zh: '从你停下的地方接着干。',

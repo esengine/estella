@@ -117,6 +117,28 @@ export type TurnReason = 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rou
  */
 export const RESUMABLE: ReadonlySet<TurnReason> = new Set<TurnReason>(['aborted', 'max_rounds', 'error']);
 
+/** Ended somewhere it could go on from, having changed nothing at all. */
+const fruitless = (turn: AgentTurn): boolean =>
+  turn.reason !== null && RESUMABLE.has(turn.reason)
+  && turn.steps === 0 && turn.files.length === 0;
+
+/** How many fruitless runs in a row before the offer is withdrawn. Two, because
+ *  one is a dropped socket and two is a loop. */
+const FRUITLESS_LIMIT = 2;
+
+/**
+ * Whether to offer carrying on from the newest run. The offer exists to
+ * continue WORK, and a run that ended where it could go on while changing
+ * nothing produced none — offering it again is how a long task becomes the same
+ * round trip repeated, each press starting a fresh budget.
+ */
+export function canCarryOn(turns: readonly AgentTurn[]): boolean {
+  const last = turns[turns.length - 1];
+  if (!last?.reason || !RESUMABLE.has(last.reason)) return false;
+  const recent = turns.slice(-FRUITLESS_LIMIT);
+  return recent.length < FRUITLESS_LIMIT || !recent.every(fruitless);
+}
+
 export interface AgentTurn {
   /** Position in the conversation; stable, so React keys are too. */
   id: number;
