@@ -94,6 +94,22 @@ published separately; it ships inside the editor.
   was only ever checked below the scope, never across a system holding one — now
   runs over every node of a frame that has a wait in it.
 
+- **A draw-call count now says what it is made of.** `FlushReason` had a member
+  for every way a batch can break and a decoder to read it, and the producer
+  wrote the constant `FrameEnd` for every draw call ever recorded — the
+  vocabulary existed and nothing populated it. The reasons were never anywhere
+  else either: they are the conditions `canMergeWith` tests, and it answered with
+  a bare boolean.
+
+  The predicate now answers with the reason. Each frame publishes `batch.draws`,
+  `batch.merged` and a `batch.break.*` counter per reason that actually
+  occurred — shader, blend, layout, material, depth, cull, state, scissor,
+  stencil, indexGap, textureSlots, instanced — so "6 draw calls" reads as
+  "1 run start and 5 index gaps, with 41 commands merged away", and the capture
+  records the true reason instead of the constant. The list cannot drift from the
+  rule, because every member is a branch of the rule. `FlushReason` is gone; the
+  names that replace it are the ones the merge actually uses.
+
 - **One derivation, three readers.** `buildFrameProfile` is a pure function over
   plain per-frame data, so the live view, a pinned frame and a recorded session
   cannot each round their own way to a different answer. The editor's own

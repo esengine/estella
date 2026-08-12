@@ -40,6 +40,7 @@ const SCROLL_DRAG_THRESHOLD_PX = 5;
  */
 export class UIBehaviorPlugin implements Plugin {
     name = 'uiBehavior';
+    readonly profileDomain = 'ui';
     dependencies = [PluginName.UIInteraction];
 
     private events_: UIEventQueue | null = null;

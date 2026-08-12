@@ -71,6 +71,7 @@ class DiagnosticsLogHandler implements LogHandler {
 
 export class DiagnosticsPlugin implements Plugin {
     name = 'Diagnostics';
+    readonly profileDomain = 'diagnostics';
 
     private unsubscribes_: (() => void)[] = [];
     private handler_: DiagnosticsLogHandler | null = null;

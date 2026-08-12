@@ -231,6 +231,7 @@ const timerSystem = defineSystem(
 
 export const timerPlugin: Plugin = {
     name: 'Timer',
+    profileDomain: 'timer',
     build(app) {
         app.insertResource(TimerRes, new TimerManager());
         // Timers advance game time — frozen in editor edit mode.

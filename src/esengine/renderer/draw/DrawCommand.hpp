@@ -21,6 +21,52 @@ static constexpr u16 CMD_STATE_STENCIL_WRITE = 0x02;
 static constexpr u16 CMD_STATE_STENCIL_TEST  = 0x04;
 static constexpr u16 CMD_STATE_CUSTOM_DRAW   = 0x08;
 
+/**
+ * Why a draw call had to start rather than join the one before it. Every member
+ * is a condition the merge itself tests, so the list cannot drift from the rule.
+ */
+enum class BatchBreak : u8 {
+    None = 0,
+    RunStart,
+    Instanced,
+    Shader,
+    Blend,
+    Layout,
+    Material,
+    Depth,
+    Cull,
+    State,
+    Scissor,
+    Stencil,
+    IndexGap,
+    TextureSlots,
+    Count,
+};
+
+/**
+ * The profiler counter each reason publishes under. String LITERALS: FrameProfiler
+ * keys entries by the pointer's contents and never copies, so a built-up buffer
+ * would dangle the moment the frame ended.
+ */
+inline const char* batchBreakCounter(BatchBreak r) {
+    switch (r) {
+        case BatchBreak::RunStart:     return "batch.break.runStart";
+        case BatchBreak::Instanced:    return "batch.break.instanced";
+        case BatchBreak::Shader:       return "batch.break.shader";
+        case BatchBreak::Blend:        return "batch.break.blend";
+        case BatchBreak::Layout:       return "batch.break.layout";
+        case BatchBreak::Material:     return "batch.break.material";
+        case BatchBreak::Depth:        return "batch.break.depth";
+        case BatchBreak::Cull:         return "batch.break.cull";
+        case BatchBreak::State:        return "batch.break.state";
+        case BatchBreak::Scissor:      return "batch.break.scissor";
+        case BatchBreak::Stencil:      return "batch.break.stencil";
+        case BatchBreak::IndexGap:     return "batch.break.indexGap";
+        case BatchBreak::TextureSlots: return "batch.break.textureSlots";
+        default:                       return "batch.break.none";
+    }
+}
+
 struct DrawCommand {
     u64 sort_key = 0;
 
@@ -40,6 +86,7 @@ struct DrawCommand {
     bool depth_test = false;
     bool depth_write = true;
     u8 cull = 0;  ///< CullMode: 0 = none, 1 = back, 2 = front.
+    BatchBreak break_reason = BatchBreak::RunStart;  ///< Why this draw call started.
 
     u8 texture_count = 0;
     u32 texture_ids[MAX_CMD_TEXTURE_SLOTS] = {};
@@ -164,15 +211,22 @@ struct DrawCommand {
         return static_cast<i32>(texture_count++);
     }
 
-    bool canMergeWith(const DrawCommand& next) const {
+    /**
+     * Why `next` cannot join this draw, or None if it can.
+     *
+     * The predicate answers with the reason rather than a bare no: a frame is
+     * some number of draw calls, and the only actionable thing about that number
+     * is what kept them apart. canMergeWith is this, read as a bool.
+     */
+    BatchBreak mergeBlocker(const DrawCommand& next) const {
         // Instanced draws are one command per emitter — never coalesce them.
-        if (instance_count != 0 || next.instance_count != 0) return false;
-        if (shader_id != next.shader_id) return false;
-        if (blend_mode != next.blend_mode) return false;
-        if (layout_id != next.layout_id) return false;
+        if (instance_count != 0 || next.instance_count != 0) return BatchBreak::Instanced;
+        if (shader_id != next.shader_id) return BatchBreak::Shader;
+        if (blend_mode != next.blend_mode) return BatchBreak::Blend;
+        if (layout_id != next.layout_id) return BatchBreak::Layout;
         // Same material handle => same uniforms/textures; different ones must not
         // coalesce. material_id 0 (no material) shares the path's defaults, so they still merge.
-        if (material_id != next.material_id) return false;
+        if (material_id != next.material_id) return BatchBreak::Material;
         // Depth state is checked on its own rather than trusted to follow from the
         // material. It used to: every draw resolved its depth from a material, so equal
         // material_id implied equal state, and material_id 0 meant one shared set of
@@ -182,20 +236,24 @@ struct DrawCommand {
         // The symptom would be a blended sprite occasionally clipping what is behind it,
         // depending on whether the two happened to land adjacent. Compared here as render
         // state, not as stage: the stage is the reason, these three are the effect.
-        if (depth_test != next.depth_test) return false;
-        if (depth_write != next.depth_write) return false;
-        if (cull != next.cull) return false;
-        if (state_flags != next.state_flags) return false;
+        if (depth_test != next.depth_test) return BatchBreak::Depth;
+        if (depth_write != next.depth_write) return BatchBreak::Depth;
+        if (cull != next.cull) return BatchBreak::Cull;
+        if (state_flags != next.state_flags) return BatchBreak::State;
         if (state_flags & CMD_STATE_SCISSOR) {
-            if (scissor != next.scissor) return false;
+            if (scissor != next.scissor) return BatchBreak::Scissor;
         }
         if (state_flags & (CMD_STATE_STENCIL_WRITE | CMD_STATE_STENCIL_TEST)) {
-            if (stencil_ref != next.stencil_ref) return false;
+            if (stencil_ref != next.stencil_ref) return BatchBreak::Stencil;
         }
         // Texture compatibility is decided by the merge (the combined set must fit in 8
         // slots), not here, so different-texture draws can coalesce.
-        if (index_offset + index_count != next.index_offset) return false;
-        return true;
+        if (index_offset + index_count != next.index_offset) return BatchBreak::IndexGap;
+        return BatchBreak::None;
+    }
+
+    bool canMergeWith(const DrawCommand& next) const {
+        return mergeBlocker(next) == BatchBreak::None;
     }
 };
 

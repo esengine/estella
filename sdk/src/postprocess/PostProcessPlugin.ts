@@ -8,6 +8,7 @@ import { postProcessVolumeSystem, cleanupVolumeSystem, setVolumeTextureResolver,
 
 export class PostProcessPlugin implements Plugin {
     name = 'postProcess';
+    readonly profileDomain = 'render';
 
     build(app: App): void {
         // Per-App post-process API, injected into the render pipeline as an

@@ -38,6 +38,7 @@ const WHITE = { r: 1, g: 1, b: 1, a: 1 };
 
 export class InlineImagePlugin implements Plugin {
     name = 'ui-inline-image';
+    readonly profileDomain = 'ui';
 
     private cleanup_: (() => void) | null = null;
 

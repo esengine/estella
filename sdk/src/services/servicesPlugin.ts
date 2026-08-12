@@ -29,6 +29,7 @@ import { getPlatform } from '../platform';
 
 export class ServicesPlugin implements Plugin {
     name = 'Services';
+    readonly profileDomain = 'services';
 
     build(app: App): void {
         // ONE ceremony for everything that covers the game. An ad and a store

@@ -182,6 +182,20 @@ export interface ProfileWindow {
   worstFrameProfile: FrameProfile | null;
   /** The window's cost, per frame. */
   mean: FrameProfile;
+  drawCalls: number;
+  triangles: number;
+  entities: number;
+  /** Engine + editor named counters, averaged per frame. */
+  counters: Record<string, number>;
+}
+
+function meanCounters(frames: readonly FrameSample[]): Record<string, number> {
+  const total: Record<string, number> = {};
+  for (const f of frames) {
+    for (const k in f.counters) total[k] = (total[k] ?? 0) + f.counters[k];
+  }
+  for (const k in total) total[k] /= frames.length;
+  return total;
 }
 
 /** A recorded profiling session, serialized to JSON for offline analysis. */
@@ -393,6 +407,10 @@ class PerfMonitorImpl {
       worstFrameMs: worst ? worst.dt : 0,
       worstFrameProfile: worst ? profileOf(worst) : null,
       mean: meanFrameProfile(profiles),
+      drawCalls: frames.length ? frames.reduce((a, s) => a + s.drawCalls, 0) / frames.length : 0,
+      triangles: frames.length ? frames.reduce((a, s) => a + s.triangles, 0) / frames.length : 0,
+      entities: frames.length ? frames.reduce((a, s) => a + s.entities, 0) / frames.length : 0,
+      counters: frames.length ? meanCounters(frames) : {},
     };
   }
 

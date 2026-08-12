@@ -188,7 +188,7 @@ export {
 } from './render/layerOrder';
 
 export {
-    FlushReason,
+    BatchBreak,
     RenderType,
     type DrawCallInfo,
     type FrameCaptureData,

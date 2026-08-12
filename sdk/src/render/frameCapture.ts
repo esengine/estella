@@ -26,16 +26,25 @@ import { awaitReadback, READBACK_READY } from './readback';
  * corruption.
  */
 
-export enum FlushReason {
-    BatchFull = 0,
-    TextureSlotsFull = 1,
-    ScissorChange = 2,
-    StencilChange = 3,
-    MaterialChange = 4,
-    BlendModeChange = 5,
-    StageEnd = 6,
-    TypeChange = 7,
-    FrameEnd = 8,
+/**
+ * Why a draw call started rather than joining the one before it. Mirrors the
+ * engine's BatchBreak; each member is a condition the merge itself tests.
+ */
+export enum BatchBreak {
+    None = 0,
+    RunStart = 1,
+    Instanced = 2,
+    Shader = 3,
+    Blend = 4,
+    Layout = 5,
+    Material = 6,
+    Depth = 7,
+    Cull = 8,
+    State = 9,
+    Scissor = 10,
+    Stencil = 11,
+    IndexGap = 12,
+    TextureSlots = 13,
 }
 
 export enum RenderType {
@@ -63,7 +72,7 @@ export interface DrawCallInfo {
     entityCount: number;
     entityOffset: number;
     layer: number;
-    flushReason: FlushReason;
+    breakReason: BatchBreak;
     scissorX: number;
     scissorY: number;
     scissorW: number;
@@ -115,7 +124,7 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
         const dcEntityCount = view.getUint32(off + 32, true);
         const entityOffset = view.getUint32(off + 36, true);
         const layer = view.getInt32(off + 40, true);
-        const flushReason = view.getUint8(off + 44) as FlushReason;
+        const breakReason = view.getUint8(off + 44) as BatchBreak;
         const scissorX = view.getInt32(off + 48, true);
         const scissorY = view.getInt32(off + 52, true);
         const scissorW = view.getInt32(off + 56, true);
@@ -136,7 +145,7 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
             textureId, materialId, shaderId,
             vertexCount, triangleCount,
             entityCount: dcEntityCount, entityOffset, layer,
-            flushReason,
+            breakReason,
             scissorX, scissorY, scissorW, scissorH, scissorEnabled,
             stencilWrite, stencilTest, stencilRef,
             textureSlotUsage, entities,

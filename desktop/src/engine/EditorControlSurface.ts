@@ -40,6 +40,17 @@ import type { SelectionStore } from '@/store/selectionStore';
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 
+const BREAK_PREFIX = 'batch.break.';
+
+/** The `batch.break.*` counters as reason → draws, by their bare reason name. */
+function batchBreaks(counters: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const key in counters) {
+    if (key.startsWith(BREAK_PREFIX)) out[key.slice(BREAK_PREFIX.length)] = r2(counters[key]);
+  }
+  return out;
+}
+
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
 export interface ViewportCapture {
   rgba: Uint8Array;
@@ -963,6 +974,13 @@ export class EditorControlSurfaceImpl {
       // did the time go", and there are two dozen of them. Counted, not hidden.
       domains: w.mean.domains.filter((d) => r2(d.ms) > 0).map((d) => ({ domain: d.id, ms: r2(d.ms) })),
       freeDomains: w.mean.domains.filter((d) => r2(d.ms) === 0).length,
+      render: {
+        drawCalls: r2(w.drawCalls),
+        mergedAway: r2(w.counters['batch.merged'] ?? 0),
+        triangles: Math.round(w.triangles),
+        entities: Math.round(w.entities),
+        breaks: batchBreaks(w.counters),
+      },
       systems: shown.map(({ domain, node }) => ({
         name: node.label,
         domain,

@@ -32,7 +32,7 @@ void FrameCapture::endCapture() {
 void FrameCapture::recordDrawCall(RenderStage stage, RenderType type, BlendMode blend_mode,
                                    u32 texture_id, u32 material_id, u32 shader_id,
                                    u32 vertex_count, u32 triangle_count, i32 layer,
-                                   FlushReason reason, const ScissorRect& scissor,
+                                   BatchBreak reason, const ScissorRect& scissor,
                                    bool scissor_enabled, bool stencil_write, bool stencil_test,
                                    i32 stencil_ref, u8 texture_slot_usage) {
     if (replay_mode_) {
@@ -56,7 +56,7 @@ void FrameCapture::recordDrawCall(RenderStage stage, RenderType type, BlendMode 
     record.vertex_count = vertex_count;
     record.triangle_count = triangle_count;
     record.layer = layer;
-    record.flush_reason = reason;
+    record.break_reason = reason;
     record.scissor = scissor;
     record.scissor_enabled = scissor_enabled;
     record.stencil_write = stencil_write;

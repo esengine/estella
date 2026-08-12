@@ -42,6 +42,7 @@ const sceneStreamingSystem = defineSystem(
 
 export const sceneManagerPlugin: Plugin = {
     name: 'sceneManager',
+    profileDomain: 'scene',
     build(app: App): void {
         const state = new SceneManagerState(app);
         app.insertResource(SceneManager, state);

@@ -18,6 +18,7 @@ import { ensureControllerAiRegistrations } from './ai-builtins';
 
 export class UIControllerPlugin implements Plugin {
     name = 'uiController';
+    readonly profileDomain = 'ui';
 
     build(app: App): void {
         // Register the `.esfsm`/`.esbt` → controller glue (idempotent) so a

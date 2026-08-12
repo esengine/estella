@@ -6,22 +6,11 @@
 #include "../draw/RenderItem.hpp"
 #include "./RenderStage.hpp"
 #include "../draw/BlendMode.hpp"
+#include "../draw/DrawCommand.hpp"
 
 #include <vector>
 
 namespace esengine {
-
-enum class FlushReason : u8 {
-    BatchFull = 0,
-    TextureSlotsFull = 1,
-    ScissorChange = 2,
-    StencilChange = 3,
-    MaterialChange = 4,
-    BlendModeChange = 5,
-    StageEnd = 6,
-    TypeChange = 7,
-    FrameEnd = 8,
-};
 
 struct DrawCallRecord {
     u32 index = 0;
@@ -37,7 +26,7 @@ struct DrawCallRecord {
     u32 entity_count = 0;
     u32 entity_offset = 0;
     i32 layer = 0;
-    FlushReason flush_reason = FlushReason::FrameEnd;
+    BatchBreak break_reason = BatchBreak::RunStart;
     ScissorRect scissor;
     bool scissor_enabled = false;
     bool stencil_write = false;
@@ -64,7 +53,7 @@ public:
     void recordDrawCall(RenderStage stage, RenderType type, BlendMode blend_mode,
                         u32 texture_id, u32 material_id, u32 shader_id,
                         u32 vertex_count, u32 triangle_count, i32 layer,
-                        FlushReason reason, const ScissorRect& scissor,
+                        BatchBreak reason, const ScissorRect& scissor,
                         bool scissor_enabled, bool stencil_write, bool stencil_test,
                         i32 stencil_ref, u8 texture_slot_usage);
 

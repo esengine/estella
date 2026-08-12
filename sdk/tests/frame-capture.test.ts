@@ -7,7 +7,7 @@
  *          mutation or reuse of the WASM-backed source buffer.
  */
 import { describe, expect, it } from 'vitest';
-import { decodeFrameCapture, getSnapshotImageData, RenderType, FlushReason } from '../src/render/frameCapture';
+import { decodeFrameCapture, getSnapshotImageData, RenderType, BatchBreak } from '../src/render/frameCapture';
 import type { ESEngineModule } from '../src/wasm';
 
 // Minimal ImageData shim for headless test runs. Mirrors the parts of the
@@ -165,6 +165,7 @@ describe('decodeFrameCapture', () => {
 
     it('surfaces enum values with the typed names (smoke)', () => {
         expect(RenderType.Sprite).toBe(0);
-        expect(FlushReason.BatchFull).toBe(0);
+        expect(BatchBreak.None).toBe(0);
+        expect(BatchBreak.TextureSlots).toBe(13);
     });
 });

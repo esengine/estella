@@ -38,6 +38,19 @@ export interface ProfileReport {
   domains: Array<{ domain: string; ms: number }>;
   /** Domains that cost nothing this window — installed and idle. */
   freeDomains: number;
+  /**
+   * Per frame. `breaks` is reason → draw calls that reason started, so `drawCalls`
+   * reads as what it is made of; `mergedAway` is what the batcher did fold in.
+   * Reasons are the merge predicate's own: shader, blend, layout, material,
+   * depth, cull, state, scissor, stencil, indexGap, textureSlots, instanced.
+   */
+  render: {
+    drawCalls: number;
+    mergedAway: number;
+    triangles: number;
+    entities: number;
+    breaks: Record<string, number>;
+  };
   /** Costliest systems over the window, per frame. */
   systems: ProfileReportSystem[];
   /** Systems ranked below the cut. Zero means the list above is all of them. */

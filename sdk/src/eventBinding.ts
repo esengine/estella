@@ -245,6 +245,7 @@ export function createEventBindingRuntime(host: EventBindingHost): EventBindingR
 
 export class EventBindingPlugin implements Plugin {
     name = 'eventBinding';
+    readonly profileDomain = 'events';
 
     private runtime_: EventBindingRuntime | null = null;
 

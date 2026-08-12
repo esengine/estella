@@ -27,6 +27,7 @@ import { initUIHelpers } from '../util/helpers';
 
 export class UILayoutPlugin implements Plugin {
     name = 'uiLayout';
+    readonly profileDomain = 'ui';
 
     build(app: App): void {
         registerComponent('UINode', UINode);

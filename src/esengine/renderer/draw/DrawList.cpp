@@ -3,6 +3,7 @@
 #include "./DrawList.hpp"
 #include "./BatchVertex.hpp"
 #include "../store/MaterialStore.hpp"
+#include "../../core/FrameProfiler.hpp"
 
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -60,12 +61,15 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
     merged_draw_calls_ = 0;
     u32 writeIdx = 0;
+    u32 breaks[static_cast<u32>(BatchBreak::Count)] = {};
 
     for (u32 i = 0; i < count; ++i) {
         bool didMerge = false;
+        BatchBreak blocker = BatchBreak::RunStart;
         if (writeIdx > 0) {
             DrawCommand& head = commands_[writeIdx - 1];
-            if (head.canMergeWith(commands_[i])) {
+            blocker = head.mergeBlocker(commands_[i]);
+            if (blocker == BatchBreak::None) {
                 if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
                     // Multi-texture: give this command's texture a slot in the head's set
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
@@ -78,6 +82,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
                         head.index_count += commands_[i].index_count;
                         head.entity_count += commands_[i].entity_count;
                         didMerge = true;
+                    } else {
+                        blocker = BatchBreak::TextureSlots;
                     }
                 } else {
                     head.index_count += commands_[i].index_count;
@@ -90,6 +96,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
             if (writeIdx != i) {
                 commands_[writeIdx] = commands_[i];
             }
+            commands_[writeIdx].break_reason = blocker;
+            ++breaks[static_cast<u32>(blocker)];
             // The run head owns slot 0; staging verts already default to texIndex 0,
             // so it needs no rewrite (this is the common single-texture case).
             ++writeIdx;
@@ -97,6 +105,18 @@ void DrawList::finalize(TransientBufferPool& pool) {
     }
     commands_.resize(writeIdx);
     merged_draw_calls_ = writeIdx;
+
+    // What the frame's draw-call count is made of. Emitted per reason and only
+    // where it happened, so a clean frame publishes nothing rather than a wall
+    // of zeroes for a caller to read past.
+    if (FrameProfiler::get().enabled()) {
+        ES_PROFILE_COUNTER("batch.draws", merged_draw_calls_);
+        ES_PROFILE_COUNTER("batch.merged", count - merged_draw_calls_);
+        for (u32 r = 1; r < static_cast<u32>(BatchBreak::Count); ++r) {
+            if (breaks[r] == 0) continue;
+            FrameProfiler::get().counter(batchBreakCounter(static_cast<BatchBreak>(r)), breaks[r]);
+        }
+    }
 }
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
@@ -193,7 +213,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                 0, cmd.shader_id,
                 0, cmd.index_count / 3,
                 cmd.layer,
-                FlushReason::FrameEnd,
+                cmd.break_reason,
                 cmd.scissor,
                 (cmd.state_flags & CMD_STATE_SCISSOR) != 0,
                 (cmd.state_flags & CMD_STATE_STENCIL_WRITE) != 0,

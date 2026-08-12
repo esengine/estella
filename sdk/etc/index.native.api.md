@@ -1067,6 +1067,24 @@ resolveUrl: (path: string) => string
 setBaseUrl: ((url: string) => void) | undefined
 ```
 
+## BatchBreak — enum @experimental
+```
+Blend = 4
+Cull = 8
+Depth = 7
+IndexGap = 12
+Instanced = 2
+Layout = 5
+Material = 6
+None = 0
+RunStart = 1
+Scissor = 10
+Shader = 3
+State = 9
+Stencil = 11
+TextureSlots = 13
+```
+
 ## BehaviorContext — interface @experimental
 ```
 commands: CommandsInstance
@@ -2238,6 +2256,7 @@ maxDistinct: number | undefined
 build: (app: App) => void
 cleanup: (app: App) => void
 name: string
+profileDomain: "diagnostics"
 static new (options_?: DiagnosticsPluginOptions): DiagnosticsPlugin
 static prototype: DiagnosticsPlugin
 ```
@@ -2415,11 +2434,11 @@ textureRotated: (position: Vec2, size: Vec2, rotation: number, textureHandle: nu
 ## DrawCallInfo — interface @experimental
 ```
 blendMode: number
+breakReason: BatchBreak
 cameraIndex: number
 entities: number[]
 entityCount: number
 entityOffset: number
-flushReason: FlushReason
 index: number
 layer: number
 materialId: number
@@ -2672,6 +2691,7 @@ rows: EventBindingRow[]
 build: (app: App) => void
 cleanup: () => void
 name: string
+profileDomain: "events"
 static new (): EventBindingPlugin
 static prototype: EventBindingPlugin
 ```
@@ -2864,19 +2884,6 @@ wrap: FlexWrap
 ## FlexWrap — type @experimental
 ```
 (typeof FlexWrap)[keyof typeof FlexWrap]
-```
-
-## FlushReason — enum @experimental
-```
-BatchFull = 0
-BlendModeChange = 5
-FrameEnd = 8
-MaterialChange = 4
-ScissorChange = 2
-StageEnd = 6
-StencilChange = 3
-TextureSlotsFull = 1
-TypeChange = 7
 ```
 
 ## FocusManager — const @experimental
@@ -4169,6 +4176,7 @@ uvs: number[] | undefined
 build: (app: App) => void
 cleanup: () => void
 name: string
+profileDomain: "render"
 static new (): Mesh2DPlugin
 static prototype: Mesh2DPlugin
 ```
@@ -5375,6 +5383,7 @@ static prototype: PostProcessAPI
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string
+profileDomain: "render"
 static new (): PostProcessPlugin
 static prototype: PostProcessPlugin
 ```
@@ -6545,6 +6554,7 @@ visitorEntity: number
 ```
 build: (app: App) => void
 name: string
+profileDomain: "services"
 static new (): ServicesPlugin
 static prototype: ServicesPlugin
 ```
@@ -8266,6 +8276,7 @@ generation: number
 ```
 build: (app: App) => void
 name: string
+profileDomain: "ui"
 static new (): UILayoutPlugin
 static prototype: UILayoutPlugin
 ```

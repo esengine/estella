@@ -98,6 +98,7 @@ export const Meshes2D = defineResource<Mesh2DAPI>(null!, 'Meshes2D');
 
 export class Mesh2DPlugin implements Plugin {
     name = 'mesh2d';
+    readonly profileDomain = 'render';
     private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {

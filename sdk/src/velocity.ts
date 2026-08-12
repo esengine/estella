@@ -65,6 +65,7 @@ export const velocitySystem = defineSystem(
 
 export const velocityPlugin: Plugin = {
     name: 'Velocity',
+    profileDomain: 'velocity',
     build(app) {
         app.addSystemToSchedule(Schedule.Update, velocitySystem, { runIf: playModeOnly });
     },
