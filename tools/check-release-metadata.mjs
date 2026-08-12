@@ -70,10 +70,13 @@ for (const v of headings) {
 for (const v of refs) {
     if (!headings.includes(v)) problems.push(`CHANGELOG.md links [${v}]: with no "## [${v}]" section to link`);
 }
+// Against the NEWEST section rather than package.json: [Unreleased] means "since
+// the last section in this file", and tying it to the version would fail for the
+// one commit between renaming a section and bumping the version.
 const unreleased = /^\[Unreleased\]:.*compare\/v(\d+\.\d+\.\d+)\.\.\.HEAD/m.exec(changelog);
 if (!unreleased) problems.push('CHANGELOG.md has no [Unreleased] compare link');
-else if (unreleased[1] !== version) {
-    problems.push(`CHANGELOG.md compares [Unreleased] from v${unreleased[1]}, but ${version} is shipping`);
+else if (headings.length && unreleased[1] !== headings[0]) {
+    problems.push(`CHANGELOG.md compares [Unreleased] from v${unreleased[1]}, but its newest section is ${headings[0]}`);
 }
 
 if (problems.length > 0) {
