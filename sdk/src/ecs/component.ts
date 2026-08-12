@@ -8,6 +8,7 @@
 import { Entity, Vec2, Vec3, Color, Quat } from '../types';
 import { deepClone } from '../util/deepClone';
 import { COMPONENT_META, type AssetFieldMeta, type SkeletalFieldMeta } from './component.generated';
+export type { AssetFieldMeta, SkeletalFieldMeta };
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
 // `esengine` import site is unchanged; Camera/ParticleEmitter add TS-only fields by
@@ -35,6 +36,12 @@ import type {
 // Self-Describing Component Types
 // =============================================================================
 
+/**
+ * An asset a component's data points at, as scene preload discovery reports one.
+ * `type` is the loader's kind and `path` the project-relative reference.
+ *
+ * @public
+ */
 export interface AssetRef {
     type: string;
     path: string;

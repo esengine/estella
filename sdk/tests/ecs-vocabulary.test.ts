@@ -17,12 +17,13 @@ import {
 } from '../src/core';
 import type {
     AnyComponentDef, BuiltinComponentDef, ComponentDef, ComponentMetadata, FieldMeta,
+    AssetRef, AssetFieldMeta, AssetFieldType, SkeletalFieldMeta,
     QueryBuilder, QueryDescriptor, MutWrapper, AddedWrapper, ChangedWrapper,
     FilterExpr, RemovedQueryDescriptor,
     ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
     EventDef, EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
     SystemDef, SystemOptions, SystemParam, InferParam, InferParams, ComponentData,
-    Entity, QueryResult, ChildrenData, ParentData, NameData, TransformData,
+    Entity, QueryResult, ComponentsData, UnwrapQueryArg, ChildrenData, ParentData, NameData, TransformData,
     Vec2, Vec3, Vec4, Quat, Color,
 } from '../src/core';
 
@@ -87,6 +88,24 @@ describe('component vocabulary', () => {
         // the registry, so its shape is read from the defaults instead.
         const shape = getComponentDefaults('Transform') as unknown as TransformData;
         expect(Object.keys(shape)).toEqual(expect.arrayContaining(['position', 'rotation', 'scale']));
+    });
+
+    it('a component declares its asset fields, and that is what discovery reads', () => {
+        // The three shapes ComponentMetadata is built from, each named here because
+        // a project writing one has to name it too.
+        const assetFields: AssetFieldMeta[] = [{ field: 'icon', type: 'texture' satisfies AssetFieldType }];
+        const skeletalFields: SkeletalFieldMeta = {
+            skeletonField: 'skeleton', atlasField: 'atlas', runtime: 'spine',
+        };
+        const discovered: AssetRef[] = [{ type: 'texture', path: 'art/icon.png' }];
+        const def = defineComponent('VocabAssetFields', { icon: '', skeleton: '', atlas: '' }, {
+            assetFields, skeletalFields, discoverAssets: () => discovered,
+        });
+        expect(def.assetFields).toEqual(assetFields);
+        expect(def.skeletalFields).toEqual(skeletalFields);
+        // discoverAssets is authoritative when present — assetFields are then NOT
+        // walked for discovery, which is the whole reason a component may declare it.
+        expect(def.discoverAssets?.({})).toEqual(discovered);
     });
 
     it('FieldMeta is the per-field policy a definition carries', () => {
@@ -175,6 +194,18 @@ describe('query vocabulary', () => {
         const wrapped: MutWrapper<typeof Position> = Mut(Position);
         expect(wrapped._component).toBe(Position);
         expect(Query(Health, wrapped)._mutIndices).toEqual([1]);
+    });
+
+    it('a wrapper changes the access, not which component the row carries', () => {
+        // What QueryResult is spelled with: UnwrapQueryArg takes the wrapper off, so
+        // Mut(Position) and Position yield the same data type. The annotations are
+        // the assertions — a wrapper leaking into the row would not compile.
+        const unwrapped: UnwrapQueryArg<MutWrapper<typeof Position>> = Position;
+        expect(unwrapped).toBe(Position);
+        const row: ComponentsData<[typeof Position, MutWrapper<typeof Health>]> =
+            [{ x: 1, y: 2 }, { hp: 3 }];
+        const full: QueryResult<[typeof Position, MutWrapper<typeof Health>]> = [1 as Entity, ...row];
+        expect(full).toEqual([1, { x: 1, y: 2 }, { hp: 3 }]);
     });
 });
 

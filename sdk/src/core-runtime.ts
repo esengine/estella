@@ -80,6 +80,12 @@ export {
     type ComponentData,
     type ComponentMetadata,
     type FieldMeta,
+    // The three shapes ComponentMetadata is BUILT from. Exported because a project
+    // that declares one has to name them, and a frozen signature may only name
+    // types a creator can spell.
+    type AssetRef,
+    type AssetFieldMeta,
+    type SkeletalFieldMeta,
     Transform,
     LocalTransform,
     WorldTransform,
@@ -271,6 +277,10 @@ export {
     type QueryBuilder,
     type QueryDescriptor,
     type QueryResult,
+    // What QueryResult is spelled with — computed, never supplied, but a frozen
+    // signature may only name types a reader can look up.
+    type ComponentsData,
+    type UnwrapQueryArg,
     type MutWrapper,
     type AddedWrapper,
     type ChangedWrapper,

@@ -248,6 +248,54 @@ function isPrivateMember(member) {
     return false;
 }
 
+const IS_MEMBER = (n) => ts.isPropertySignature(n) || ts.isMethodSignature(n) || ts.isPropertyDeclaration(n)
+    || ts.isMethodDeclaration(n) || ts.isGetAccessor(n) || ts.isSetAccessor(n) || ts.isConstructorDeclaration(n);
+
+/**
+ * Whether the promised body carries this node. A private or `@internal` member is
+ * in the `.d.ts` and promises nothing, so what its types name does not constrain
+ * the promise; a constructor is the same — no snapshot line records it.
+ */
+function inUnpromisedMember(node) {
+    for (let n = node; n; n = n.parent) {
+        if (!IS_MEMBER(n)) continue;
+        if (ts.isConstructorDeclaration(n)) return true;
+        if (n.name && ts.isPrivateIdentifier(n.name)) return true;
+        const mods = ts.canHaveModifiers(n) ? ts.getModifiers(n) : undefined;
+        if (mods?.some((m) => m.kind === ts.SyntaxKind.PrivateKeyword || m.kind === ts.SyntaxKind.ProtectedKeyword)) return true;
+        if (/@internal\b/.test(leadingDoc(n))) return true;
+    }
+    return false;
+}
+
+/**
+ * R6 — types a frozen declaration names that no entry exports.
+ *
+ * check-tier-leaks compares tiers between snapshot entries, so a type absent from
+ * the surface is invisible to it, and a @public signature can promise a shape whose
+ * name a creator cannot write. Read from the AST: the checker prints an
+ * out-of-scope type as a bare name, indistinguishable from an exported one.
+ */
+function unnameableTypes(decl) {
+    const out = new Set();
+    const walk = (node) => {
+        if (ts.isTypeReferenceNode(node) && !inUnpromisedMember(node)) {
+            const at = checker.getSymbolAtLocation(node.typeName);
+            const target = at && (at.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(at) : at);
+            if (target && !(target.flags & ts.SymbolFlags.TypeParameter) && !exportedSymbols.has(target)) {
+                const from = target.declarations?.[0]?.getSourceFile().fileName.replace(/\\/g, '/');
+                // Ours only: a lib or @types shape is not ours to export.
+                if (from && from.startsWith(SDK.replace(/\\/g, '/')) && !from.includes('/node_modules/')) {
+                    out.add(target.name);
+                }
+            }
+        }
+        ts.forEachChild(node, walk);
+    };
+    walk(decl);
+    return [...out].sort();
+}
+
 function memberLines(type, location, owner) {
     const lines = [];
     for (const sig of type.getCallSignatures()) {
@@ -293,6 +341,11 @@ function describeSymbol(name, symbol) {
         return null;
     }
     const { tier, deprecated } = releaseTag(resolved);
+    if (tier === 'public') {
+        for (const t of unnameableTypes(decl)) {
+            errors.push(`R6: '${name}' is @public but names '${t}', which no entry exports — a creator cannot spell it`);
+        }
+    }
     const owner = { name, tier };
     const flags = resolved.flags;
     const body = [];

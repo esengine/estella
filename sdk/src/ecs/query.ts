@@ -334,12 +334,27 @@ export function Query<C extends QueryArg[]>(...components: C): QueryBuilder<C> {
 // Query Result Type
 // =============================================================================
 
-type UnwrapQueryArg<T> =
+/**
+ * The component a {@link QueryArg} asks for, with any wrapper taken off — `Mut(X)`,
+ * `Added(X)` and `Changed(X)` all read as `X`, because a wrapper says how the
+ * component is accessed and not which one it is.
+ *
+ * @public
+ */
+export type UnwrapQueryArg<T> =
     T extends MutWrapper<infer C> ? C :
     T extends AddedWrapper<infer C> ? C :
     T extends ChangedWrapper<infer C> ? C :
     T;
-type ComponentsData<C extends readonly QueryArg[]> = {
+
+/**
+ * The data tuple a query's arguments resolve to, in the order they were asked
+ * for. Computed, never supplied — but {@link QueryResult} is spelled with it, so
+ * it carries a name a reader can look up.
+ *
+ * @public
+ */
+export type ComponentsData<C extends readonly QueryArg[]> = {
     [K in keyof C]: ComponentData<UnwrapQueryArg<C[K]>>;
 };
 

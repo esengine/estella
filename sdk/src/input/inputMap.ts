@@ -16,6 +16,7 @@ import { Schedule, defineSystem, addSystemToSchedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Input, InputState, GamepadAxis, GamepadButton } from './input';
 import { Storage } from '../util/storage';
+import type { Vec2 } from '../types';
 
 // =============================================================================
 // Binding model (plain, serializable — also the rebind / persistence format)
@@ -126,7 +127,6 @@ export const Axis2D = (...bindings: Binding[]): ActionDef => ({ type: 'axis2d', 
 /** An action reads as "down" once its magnitude reaches this (digital + analog). */
 const DOWN_THRESHOLD = 0.5;
 
-interface Vec2 { x: number; y: number; }
 
 interface ActionState {
     value: number;   // button: [0,1]; axis: [-1,1]; axis2d: magnitude [0,1]

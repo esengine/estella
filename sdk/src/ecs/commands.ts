@@ -204,6 +204,8 @@ export class CommandsInstance {
         this.pending_.push({ type: 'remove', entity, component });
     }
 
+    /** @internal How EntityCommands applies a deferred spawn — `entityRef` is the
+     *  handle it already gave the caller, filled in once the entity exists. */
     spawnImmediate(components: SpawnComponentEntry[], entityRef: { entity: Entity }, name?: string): void {
         const entity = this.world_.spawn(name);
         entityRef.entity = entity;

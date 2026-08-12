@@ -112,6 +112,12 @@ export class MissingAssetsError extends Error {
 // Asset Field Types
 // =============================================================================
 
+/**
+ * The asset kinds a component field may hold — a closed set, because each one
+ * names a registered loader. Adding one means adding the loader too.
+ *
+ * @public
+ */
 export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller';
 
 // =============================================================================

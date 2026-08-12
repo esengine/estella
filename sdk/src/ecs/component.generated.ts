@@ -17,11 +17,24 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  */
 export const ABI_LAYOUT_HASH = '7b8797b9ae911eeb';
 
+/**
+ * One asset-valued field of a component: which field, and what kind of
+ * asset it holds. Declaring it is what gives the field dependency
+ * tracking, cook inclusion, `@uuid:` refs and hot-update.
+ *
+ * @public
+ */
 export interface AssetFieldMeta {
     field: string;
     type: AssetFieldType;
 }
 
+/**
+ * A skeleton/atlas field PAIR, which has to be declared together: the two
+ * files are one asset, and loading either alone yields nothing to draw.
+ *
+ * @public
+ */
 export interface SkeletalFieldMeta {
     skeletonField: string;
     atlasField: string;
