@@ -12,8 +12,10 @@ const toolNamed = (name: string) => TOOLS.find((t: { name: string }) => t.name =
 describe('editor MCP tool registry', () => {
   it('every tool has a unique name and a surface method, renderer code, or host op', () => {
     const names = new Set<string>();
-    for (const t of TOOLS as Array<{ name: string; method?: string; args?: unknown; js?: unknown; op?: unknown }>) {
-      if (t.js) expect(typeof t.js).toBe('function');
+    for (const t of TOOLS as Array<{ name: string; method?: string; args?: unknown; js?: unknown; op?: unknown; run?: unknown }>) {
+      // A capability carries `run` instead: a program over the atoms below it.
+      if (t.run) expect(typeof t.run).toBe('function');
+      else if (t.js) expect(typeof t.js).toBe('function');
       else if (t.op) expect(typeof t.op).toBe('string');
       else {
         expect(typeof t.method).toBe('string');

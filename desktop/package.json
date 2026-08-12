@@ -23,6 +23,7 @@
     "editor:mcp:build": "vite build && node scripts/editor-mcp.mjs",
     "editor:mcp:e2e": "vite build && node scripts/editor-mcp-e2e.mjs",
     "editor:mcp:editor-e2e": "vite build && node scripts/editor-mcp-editor-e2e.mjs",
+    "editor:capabilities-e2e": "vite build && node scripts/editor-capabilities-e2e.mjs",
     "editor:shot": "vite build && electron .",
     "verify:render:spine": "node ../tools/verify-render.mjs --only spine",
     "verify:render:particles": "node ../tools/verify-render.mjs --only particles",

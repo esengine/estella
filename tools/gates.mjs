@@ -54,6 +54,7 @@ export const GATES = [
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs' },
+  { id: 'capabilities', run: 'node tools/check-capabilities.mjs' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs' },
   { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },

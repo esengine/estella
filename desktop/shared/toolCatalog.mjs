@@ -46,6 +46,8 @@
  * silently rewrite a scene or a project.
  */
 
+import { CAPABILITIES } from './capabilityCatalog.mjs';
+
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
 
 /** Whether `tool` mutates anything — the remote gate's question. Absent `effect`
@@ -75,7 +77,7 @@ const CAPTURE_PNG_JS = `(() => {
 })()`;
 
 /** name → { description, schema (JSON Schema), method (surface), args(input)→[] }. */
-export const TOOLS = [
+const ATOMS = [
   { name: 'load_scene',
     description: 'FIXTURES ONLY: fetch a scene by URL into the headless World; returns the spawned entity count. '
       + 'With a project open this is the wrong door — a project path is not a URL and the fetch 404s: use open_scene, '
@@ -620,6 +622,16 @@ export const TOOLS = [
     })})` },
 ];
 
+/**
+ * What every front serves: the atoms, then the capabilities above them. One list
+ * rather than two registries — a second would be a second place for a front to
+ * forget. A capability carries `run` instead of `method` / `js` / `op`.
+ */
+export const TOOLS = [...ATOMS, ...CAPABILITIES];
+
+/** Just the atoms — for anything reasoning about the primitive surface itself. */
+export { ATOMS };
+
 /** MCP resources — read-only surface views an MCP client can subscribe to. */
 export const RESOURCES = [
   { uri: 'editor://scene/tree', name: 'Scene tree', mimeType: 'application/json', method: 'getSceneTree' },
@@ -695,31 +707,47 @@ function validate(schema, raw) {
  * `driver.op(op)`. A gated write without permission, a validation failure, or a
  * driver throw becomes an `isError` result rather than a crash.
  */
+async function invokeTool(tool, driver, rawInput, allowWrites) {
+  if (mutates(tool) && !allowWrites) {
+    throw new Error(`tool ${tool.name} mutates the scene — start the server with ESTELLA_MCP_ALLOW_WRITES=1`);
+  }
+  const input = validate(tool.schema, rawInput);
+
+  // A CAPABILITY is a program over declared tools: handed `call` and nothing
+  // else, so every step goes back through this function — same validation, same
+  // write gate. It is not a way past a gate the client was refused.
+  if (tool.run) {
+    const call = async (name, stepInput) => {
+      const step = TOOLS.find((t) => t.name === name);
+      if (!step) throw new Error(`no such tool "${name}"`);
+      try {
+        return (await invokeTool(step, driver, stepInput, allowWrites)).data;
+      } catch (err) {
+        // Name the step. A capability is several calls deep and "component X is
+        // not on entity 12" otherwise says nothing about which part failed.
+        throw new Error(`step ${name}: ${err?.message ?? String(err)}`);
+      }
+    };
+    return { input, data: await tool.run(input, call) };
+  }
+
+  if (tool.op) return { input, data: await driver.op(tool.op, input) };
+  // A js template may DECLINE (return null) for inputs it has nothing special
+  // to do with, leaving the tool's typed `method` door to handle them — which
+  // is how a tool grows one alternate path without every call losing the door.
+  const js = tool.js ? tool.js(input) : null;
+  if (js) return { input, data: await driver.js(js) };
+  return { input, data: await driver(tool.method, tool.args(input), tool.root) };
+}
+
 export async function runTool(tool, driver, rawInput, allowWrites = true) {
   try {
-    if (mutates(tool) && !allowWrites) {
-      throw new Error(`tool ${tool.name} mutates the scene — start the server with ESTELLA_MCP_ALLOW_WRITES=1`);
-    }
-    const input = validate(tool.schema, rawInput);
+    const { input, data } = await invokeTool(tool, driver, rawInput, allowWrites);
     // `image` may be a PREDICATE: one tool answers with a picture or with text
     // depending on what the caller asked for (screenshot's `format: 'grid'`).
     const wantsImage = typeof tool.image === 'function' ? tool.image(input) : tool.image;
-    if (tool.op) {
-      const data = await driver.op(tool.op, input);
-      if (wantsImage) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
-      return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
-    }
-    // A js template may DECLINE (return null) for inputs it has nothing special
-    // to do with, leaving the tool's typed `method` door to handle them — which
-    // is how a tool grows one alternate path without every call losing the door.
-    const js = tool.js ? tool.js(input) : null;
-    if (js) {
-      const data = await driver.js(js);
-      if (wantsImage) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
-      return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
-    }
-    const result = await driver(tool.method, tool.args(input), tool.root);
-    return { content: [{ type: 'text', text: result === undefined ? 'ok' : JSON.stringify(result) }] };
+    if (wantsImage) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
+    return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
   } catch (err) {
     return { content: [{ type: 'text', text: `error: ${err?.message ?? String(err)}` }], isError: true };
   }
