@@ -23,6 +23,7 @@ import {
   resolveInRoot,
   META_EXT,
 } from './projectFs';
+import { PROJECT_MANIFEST_FILE, type AcceptanceCriterion } from '../src/project/format';
 import { isInsideRoot } from './pathSandbox';
 import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
@@ -771,6 +772,10 @@ const agentHost = createAgentHost({
     void saveConversation(projectRoot, conversation)
       .catch((e) => console.error('[agent] could not save the conversation:', e));
   },
+  // The PROJECT's standing claims, read fresh each evaluation so editing them
+  // takes effect without reopening. Never a throw: a manifest that will not
+  // parse is a project problem, not a reason to fail every turn's verdict.
+  standing: () => standingCriteria,
   // The disk half of the turn's checkpoint. Null without a project: there is no
   // root to scope the capture to, and the kernel then asks about each write
   // rather than pretending one is held.
@@ -888,12 +893,27 @@ const platformRuntimeDirs = (): PlatformRuntimeDirs => ({
 // .esengine/sdk so the project's tsconfig resolves `esengine` in the IDE.
 // Staging failure does NOT block the open — but it is returned so the renderer
 // can say it loudly (Output Log + toast), never swallowed into a console.warn.
+/**
+ * The open project's standing acceptance claims. Cached because the evaluator
+ * asks per turn and the manifest is on disk; refreshed whenever the file
+ * changes, so a hand edit or a promotion from the transcript is live.
+ */
+let standingCriteria: readonly AcceptanceCriterion[] = [];
+
+async function refreshStanding(): Promise<void> {
+  if (!projectRoot) { standingCriteria = []; return; }
+  standingCriteria = await readManifest(projectRoot)
+    .then((m) => m.acceptance ?? [])
+    .catch(() => standingCriteria);
+}
+
 async function adoptRoot(root: string): Promise<string | undefined> {
   // Held copies name paths under the OLD root; nothing about them is restorable
   // into this one, and offering a revert that would write into a project the
   // user has left is worse than losing the offer.
   if (projectRoot !== root) await journal.discardAll();
   projectRoot = root;
+  await refreshStanding();
   if (win) startProjectWatch(root, win.webContents);
   // The compiler follows the project. Built lazily on the first question, so an
   // open pays nothing for a service it may never be asked one.
@@ -1000,9 +1020,12 @@ ipcMain.handle('project:thumbnail', async (_e, rect: { x: number; y: number; wid
 ipcMain.handle('fs:read', (_e, relPath: string, offset?: number, limit?: number) =>
   readSliceInRoot(requireRoot(), relPath, offset, limit));
 ipcMain.handle('fs:readOptional', (_e, relPath: string) => readOptionalInRoot(requireRoot(), relPath));
-ipcMain.handle('fs:write', (_e, relPath: string, contents: string) =>
-  writeInRoot(requireRoot(), relPath, contents),
-);
+ipcMain.handle('fs:write', async (_e, relPath: string, contents: string) => {
+  await writeInRoot(requireRoot(), relPath, contents);
+  // Rewriting the manifest is how a standing claim is added or removed, and the
+  // evaluator reads them from here — so this is where the two stay in step.
+  if (relPath === PROJECT_MANIFEST_FILE) await refreshStanding();
+});
 ipcMain.handle('fs:readdir', (_e, relPath: string) => readDirInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:listFiles', (_e, relDir: string) => listFilesInRoot(requireRoot(), relDir));
 ipcMain.handle('fs:rename', (_e, fromRel: string, toRel: string) =>

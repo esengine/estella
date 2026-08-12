@@ -14,7 +14,7 @@
  * about a vendor reaches the kernel, and no editor policy reaches a provider.
  */
 import type { HistoryMark } from '../../src/engine/EditorHistory';
-import type { Acceptance } from './acceptance';
+import type { Acceptance, Criterion } from './acceptance';
 
 /** A tool as the catalog declares it (the .mjs registry is untyped). */
 export interface CatalogTool {
@@ -312,6 +312,12 @@ export interface KernelDeps {
    * no project to scope one to. Passed in, not imported, so the kernel needs no
    * filesystem and "is one open" is the transaction owner's to answer.
    */
+  /**
+   * The PROJECT's standing claims (its manifest's `acceptance`), which a turn
+   * cannot add to, weaken or retract. Read per evaluation so an edit to them
+   * takes effect without reopening the project.
+   */
+  standing?(): readonly Criterion[];
   journal?: {
     /** Open one around this turn; null when it could not be opened. */
     begin(): string | null;

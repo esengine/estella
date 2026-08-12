@@ -16,27 +16,44 @@
  * criterion with neither is refused rather than recorded as passing.
  */
 import type { KernelDeps } from './types';
+import type { AcceptanceCriterion } from '../../src/project/format';
 
-/** One claim about the finished work, and the thing that settles it. */
-export interface Criterion {
-  /** What is claimed, in the words the user would use. */
-  says: string;
-  /** A JS expression evaluated in the RUNNING game; truthy means it held. */
-  probe?: string;
-  /** Only a person can settle this one. Says why a machine cannot. */
-  manual?: string;
-}
+/**
+ * One claim, and the thing that settles it. The project's standing claims are
+ * the same shape (see {@link AcceptanceCriterion}) — one vocabulary, two owners.
+ */
+export type Criterion = AcceptanceCriterion;
 
-/** What became of one criterion. `unsettled` is neither pass nor fail: nothing
- *  was in a position to answer it. */
-export interface CriterionResult {
-  says: string;
+/**
+ * Who the claim belongs to, which is what decides whether it can PASS a turn.
+ *
+ * Only `turn` can: the editor's checks and the project's standing claims say
+ * the game is not broken, and a game that is not broken is not a turn that did
+ * something. Both of the others can still fail one.
+ */
+export type CriterionOwner = 'editor' | 'project' | 'turn';
+
+/**
+ * A criterion and what became of it. It carries the claim WHOLE — the probe
+ * included — because a reader wants to know what was actually checked, and
+ * because keeping one means writing it into the project as it stands.
+ * `unsettled` is neither pass nor fail: nothing was in a position to answer it.
+ */
+export interface CriterionResult extends Criterion {
   state: 'held' | 'broke' | 'unsettled';
   /** What it answered, or why nothing could answer it. */
   detail?: string;
-  /** The editor's own checks, which no turn declares — see {@link FLOOR}. */
-  floor?: boolean;
+  owner: CriterionOwner;
+  /**
+   * Which of the editor's own checks this is. A CODE, not a sentence, for the
+   * reason ConfirmReason is: the editor renders the words, because it is the
+   * side that knows the reader's language. `says` stays the English the MODEL
+   * reads. Absent on anything a person or a turn wrote.
+   */
+  check?: EditorCheck;
 }
+
+export type EditorCheck = 'diagnostics' | 'scripts';
 
 /**
  * `failed` — something the turn claimed, or the editor itself, did not hold.
@@ -84,22 +101,20 @@ export function criteriaProblem(criteria: unknown): string | null {
 }
 
 /**
- * What the editor checks whatever the turn claims. It can only ever FAIL a
- * turn: a project with nothing wrong is not a project where the work happened,
- * so a passing floor never counts towards a verdict.
+ * Run every claim over the work and say what became of it: the editor's own
+ * checks, the project's standing claims, and the ones this turn declared.
  */
-const FLOOR = 'floor';
-
-/** Run every criterion and say what became of the work. */
 export async function evaluate(
   deps: KernelDeps,
   criteria: readonly Criterion[],
 ): Promise<Acceptance> {
+  const standing = deps.standing?.() ?? [];
   const results: CriterionResult[] = [
     ...await editorChecks(deps),
-    ...await declaredChecks(deps, criteria),
+    ...await declaredChecks(deps, standing, 'project'),
+    ...await declaredChecks(deps, criteria, 'turn'),
   ];
-  const claims = results.filter((r) => !r.floor);
+  const claims = results.filter((r) => r.owner === 'turn');
   const verdict: Verdict = results.some((r) => r.state === 'broke') ? 'failed'
     : claims.some((r) => r.state === 'held') ? 'passed'
       : 'unverified';
@@ -115,11 +130,12 @@ async function editorChecks(deps: KernelDeps): Promise<CriterionResult[]> {
     }>;
     const errors = issues.filter((i) => i.problem !== 'notice');
     out.push(errors.length === 0
-      ? { says: 'the editor flags nothing in the scene', state: 'held', floor: true }
+      ? { says: 'the editor flags nothing in the scene', state: 'held', owner: 'editor', check: 'diagnostics' }
       : {
         says: 'the editor flags nothing in the scene',
         state: 'broke',
-        floor: true,
+        owner: 'editor',
+        check: 'diagnostics',
         detail: errors.slice(0, 6).map((i) => `${i.entityName}: ${i.detail}`).join('; '),
       });
   } catch {
@@ -132,11 +148,12 @@ async function editorChecks(deps: KernelDeps): Promise<CriterionResult[]> {
     };
     const errors = (res?.diagnostics ?? []).filter((d) => d.category !== 'warning');
     out.push(errors.length === 0
-      ? { says: "the project's scripts compile", state: 'held', floor: true }
+      ? { says: "the project's scripts compile", state: 'held', owner: 'editor', check: 'scripts' }
       : {
         says: "the project's scripts compile",
         state: 'broke',
-        floor: true,
+        owner: 'editor',
+        check: 'scripts',
         detail: errors.slice(0, 6).map((d) => `${d.file}:${d.line} ${d.message}`).join('; '),
       });
   } catch {
@@ -148,6 +165,7 @@ async function editorChecks(deps: KernelDeps): Promise<CriterionResult[]> {
 async function declaredChecks(
   deps: KernelDeps,
   criteria: readonly Criterion[],
+  owner: CriterionOwner,
 ): Promise<CriterionResult[]> {
   if (criteria.length === 0) return [];
   const probes = criteria.filter((c) => c.probe);
@@ -159,14 +177,14 @@ async function declaredChecks(
   const out: CriterionResult[] = [];
   for (const c of criteria) {
     if (c.manual) {
-      out.push({ says: c.says, state: 'unsettled', detail: `only a person can settle this: ${c.manual}` });
+      out.push({ ...c, state: 'unsettled', owner, detail: `only a person can settle this: ${c.manual}` });
       continue;
     }
     if (!playing) {
-      out.push({ says: c.says, state: 'unsettled', detail: 'the game was not running, so nothing could answer this' });
+      out.push({ ...c, state: 'unsettled', owner, detail: 'the game was not running, so nothing could answer this' });
       continue;
     }
-    out.push(await runProbe(deps, c));
+    out.push(await runProbe(deps, c, owner));
   }
   return out;
 }
@@ -185,15 +203,19 @@ async function isPlaying(deps: KernelDeps): Promise<boolean> {
  * holding. The value is reported either way — "it broke" that cannot say what it
  * got is a verdict nobody can act on.
  */
-async function runProbe(deps: KernelDeps, c: Criterion): Promise<CriterionResult> {
+async function runProbe(
+  deps: KernelDeps,
+  c: Criterion,
+  owner: CriterionOwner,
+): Promise<CriterionResult> {
   try {
     const value = await deps.driver.op('play_probe', { code: c.probe });
     const answered = unwrap(value);
     return answered
-      ? { says: c.says, state: 'held' }
-      : { says: c.says, state: 'broke', detail: `the probe answered ${brief(answered ?? value)}` };
+      ? { ...c, state: 'held', owner }
+      : { ...c, state: 'broke', owner, detail: `the probe answered ${brief(answered ?? value)}` };
   } catch (e) {
-    return { says: c.says, state: 'broke', detail: (e as Error)?.message ?? String(e) };
+    return { ...c, state: 'broke', owner, detail: (e as Error)?.message ?? String(e) };
   }
 }
 

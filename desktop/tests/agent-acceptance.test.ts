@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   criteriaProblem, evaluate, failureReport, MAX_CRITERIA,
 } from '../electron/agent/acceptance';
-import type { KernelDeps } from '../electron/agent/types';
+import type { Criterion, KernelDeps } from '../electron/agent/types';
 
 /** A driver whose editor is clean and whose game answers `probe` with `answer`. */
 function fakeDriver(over: {
@@ -19,6 +19,7 @@ function fakeDriver(over: {
   scripts?: unknown;
   playing?: boolean;
   probe?: (code: string) => unknown;
+  standing?: Criterion[];
 } = {}) {
   const driver = vi.fn(async (method: string) => {
     if (method === 'getDiagnostics') return over.diagnostics ?? [];
@@ -35,7 +36,7 @@ function fakeDriver(over: {
     return null;
   });
   (driver as { js: unknown }).js = vi.fn(async () => null);
-  return { driver } as unknown as KernelDeps;
+  return { driver, standing: () => over.standing ?? [] } as unknown as KernelDeps;
 }
 
 describe('a claim has to name what settles it', () => {
@@ -104,7 +105,7 @@ describe('the verdict', () => {
   // wrong is not a project where the work happened.
   it('does not pass a turn on the editor checks alone', async () => {
     const out = await evaluate(fakeDriver(), []);
-    expect(out.results.every((r) => r.floor)).toBe(true);
+    expect(out.results.every((r) => r.owner !== 'turn')).toBe(true);
     expect(out.results.some((r) => r.state === 'held')).toBe(true);
     expect(out.verdict).toBe('unverified');
   });
@@ -143,8 +144,8 @@ describe('what nothing was in a position to answer', () => {
     const deps = fakeDriver({ playing: false, probe: () => true });
     const out = await evaluate(deps, [{ says: 'the bar empties', probe: 'true' }]);
     expect(out.verdict).toBe('unverified');
-    expect(out.results.find((r) => !r.floor)).toMatchObject({ state: 'unsettled' });
-    expect(out.results.find((r) => !r.floor)?.detail).toContain('not running');
+    expect(out.results.find((r) => r.owner === 'turn')).toMatchObject({ state: 'unsettled' });
+    expect(out.results.find((r) => r.owner === 'turn')?.detail).toContain('not running');
   });
 
   // Owned by a person, and reported as owned — never quietly counted as passed,
@@ -153,7 +154,7 @@ describe('what nothing was in a position to answer', () => {
     const deps = fakeDriver();
     const out = await evaluate(deps, [{ says: 'it reads at 1080p', manual: 'a judgement about legibility' }]);
     expect(out.verdict).toBe('unverified');
-    expect(out.results.find((r) => !r.floor)?.detail).toContain('only a person');
+    expect(out.results.find((r) => r.owner === 'turn')?.detail).toContain('only a person');
   });
 
   it('still passes on the claims a machine could settle', async () => {
@@ -180,5 +181,52 @@ describe('what the model is told to fix', () => {
     const report = failureReport(out)!;
     expect(report).toContain('the bad one');
     expect(report).not.toContain('the good one');
+  });
+});
+
+
+/**
+ * The project's own claims — the ones a turn did not write, cannot weaken and
+ * cannot retract. This is what makes the verdict worth reading over a long run:
+ * the bar stops being whatever the model thought to set that turn.
+ */
+describe("the project's standing claims", () => {
+  const standing = [{ says: 'the player can always reach the exit', probe: 'reachable' }];
+
+  it('fails a turn that broke one, however well its own claims did', async () => {
+    const deps = fakeDriver({ standing, probe: (code) => code !== 'reachable' });
+    const out = await evaluate(deps, [{ says: 'the new door opens', probe: 'door' }]);
+    expect(out.verdict).toBe('failed');
+    expect(out.results.find((r) => r.owner === 'project')).toMatchObject({ state: 'broke' });
+  });
+
+  // Not broken is not done. A run measured only against standing claims would
+  // pass by changing nothing at all.
+  it('does not pass a turn on standing claims alone', async () => {
+    const deps = fakeDriver({ standing, probe: () => true });
+    expect((await evaluate(deps, [])).verdict).toBe('unverified');
+  });
+
+  it("names them as the project's, so a reader knows who set the bar", async () => {
+    const deps = fakeDriver({ standing, probe: () => true });
+    const out = await evaluate(deps, [{ says: 'the new door opens', probe: 'door' }]);
+    expect(out.results.map((r) => r.owner)).toEqual(['editor', 'editor', 'project', 'turn']);
+    expect(out.verdict).toBe('passed');
+  });
+
+  it('tells the model about a standing claim it broke', async () => {
+    const deps = fakeDriver({ standing, probe: () => false });
+    const report = failureReport(await evaluate(deps, []))!;
+    expect(report).toContain('the player can always reach the exit');
+  });
+
+  // Kept whole, because keeping one means writing it into the project exactly
+  // as it was run — a claim that lost its probe on the way is not keepable.
+  it('carries the probe through, so a proven claim can be kept', async () => {
+    const deps = fakeDriver({ probe: () => true });
+    const out = await evaluate(deps, [{ says: 'the bar starts full', probe: 'hp === 100' }]);
+    expect(out.results.find((r) => r.owner === 'turn')).toMatchObject({
+      says: 'the bar starts full', probe: 'hp === 100', state: 'held',
+    });
   });
 });

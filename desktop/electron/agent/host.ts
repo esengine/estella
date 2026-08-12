@@ -85,6 +85,9 @@ export interface AgentHostDeps {
    * construction would be the empty one, since plugins load after main does.
    */
   contributedTools?(): readonly ContributedTool[];
+  /** The PROJECT's standing acceptance claims, which every turn is measured
+   *  against on top of whatever it declared for itself. */
+  standing?: KernelDeps['standing'];
   /** The disk half of a turn's checkpoint. Absent in a host with no project —
    *  the kernel then confirms the writes it would otherwise have covered. */
   journal?: KernelDeps['journal'];
@@ -344,7 +347,8 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         await runTurn(
           {
             driver: deps.driver, session: session!, model: model ?? '',
-            acceptsImages, confirm, emit, journal: deps.journal,
+            acceptsImages, confirm, emit,
+            standing: deps.standing, journal: deps.journal,
           },
           text,
           context,

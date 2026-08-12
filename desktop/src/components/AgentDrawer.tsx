@@ -38,7 +38,7 @@ import {
   type AgentTurn, type AgentEntry, type AgentToolEntry, type AgentProseEntry,
 } from '@/store/AgentStore';
 import { COMPACT_AT, shouldCompact } from '@/settings/agentIds';
-import type { ConfirmAnswer } from '../../electron/agent/types';
+import type { ConfirmAnswer, CriterionResult } from '../../electron/agent/types';
 import {
   agentProviders, agentKeyId, subscribeProviders, providersRevision,
 } from '@/agent/providers';
@@ -56,6 +56,8 @@ import { EditorControlSurface } from '@/engine/EditorSession';
 import { previewSceneOps, withoutDeclined, type PreviewScene } from '@/engine/sceneOpsPreview';
 import type { SceneOp } from '@/engine/sceneOps';
 import { AssetRegistry } from '@/project/AssetRegistry';
+import { ProjectStore } from '@/project/ProjectStore';
+import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
 /**
@@ -524,7 +526,7 @@ function Skeleton() {
 function Verdict({ turn }: { turn: AgentTurn }) {
   const [open, setOpen] = useState(false);
   const { verdict, results } = turn.acceptance;
-  const claims = results.filter((r) => !r.floor);
+  const claims = results.filter((r) => r.owner === 'turn');
   if (verdict === 'unverified' && claims.length === 0 && results.length === 0) return null;
   const broke = results.filter((r) => r.state === 'broke').length;
   return (
@@ -540,19 +542,60 @@ function Verdict({ turn }: { turn: AgentTurn }) {
       </button>
       <Fold open={open}>
         <div className="ag-verdict-l">
-          {results.map((r, i) => (
-            <div className={`ag-claim s-${r.state}`} key={i}>
-              <span className="ag-claim-s">
-                {r.state === 'held' ? '✓' : r.state === 'broke' ? '✗' : '·'}
-              </span>
-              <span className="ag-claim-t">
-                {r.says}
-                {r.detail && <span className="ag-claim-d">{r.detail}</span>}
-              </span>
-            </div>
-          ))}
+          {results.map((r, i) => <Claim key={i} result={r} />)}
         </div>
       </Fold>
+    </div>
+  );
+}
+
+/**
+ * One claim, and who it belongs to.
+ *
+ * A claim the TURN proved can be kept: from then on the project makes it, every
+ * later run is measured against it, and no run can weaken or remove it. That is
+ * how a project accumulates the checks nobody sat down to write.
+ */
+const OWNER: Record<'editor' | 'project', string> = {
+  editor: t('hist.owner.editor'),
+  project: t('hist.owner.project'),
+};
+
+/** The editor's own checks send a code; the sentence is written here, where the
+ *  reader's language is known. Everything else is the words its author chose. */
+const CHECK: Record<string, string> = {
+  diagnostics: t('hist.check.diagnostics'),
+  scripts: t('hist.check.scripts'),
+};
+
+function Claim({ result }: { result: CriterionResult }) {
+  const [kept, setKept] = useState(false);
+  const canKeep = result.owner === 'turn' && result.state === 'held' && !kept;
+  return (
+    <div className={`ag-claim s-${result.state} o-${result.owner}`}>
+      <span className="ag-claim-s">
+        {result.state === 'held' ? '✓' : result.state === 'broke' ? '✗' : '·'}
+      </span>
+      <span className="ag-claim-t">
+        {result.owner !== 'turn' && <span className="ag-claim-o">{OWNER[result.owner]}</span>}
+        {(result.check && CHECK[result.check]) ?? result.says}
+        {result.detail && <span className="ag-claim-d">{result.detail}</span>}
+      </span>
+      {canKeep && (
+        <button
+          type="button"
+          className="ag-claim-keep"
+          title={t('hist.keep.why')}
+          onClick={() => {
+            setKept(true);
+            const { says, probe, manual } = result;
+            void ProjectStore.keepCriterion({ says, ...(probe ? { probe } : {}), ...(manual ? { manual } : {}) })
+              .then((ok: boolean) => { if (ok) Toasts.push(t('hist.keep.kept'), 'success'); });
+          }}
+        >
+          {t('hist.keep')}
+        </button>
+      )}
     </div>
   );
 }

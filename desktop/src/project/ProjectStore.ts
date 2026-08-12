@@ -44,7 +44,7 @@ import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type SteamPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type SteamPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform, type AcceptanceCriterion } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
@@ -1823,6 +1823,30 @@ class ProjectStoreImpl {
    *
    * Patches queue on one chain, so each sees what the previous one wrote.
    */
+  /**
+   * Keep a claim a turn proved, as one the PROJECT now makes — every later turn
+   * is measured against it, and none can weaken or retract it. A person deciding
+   * it stands is the whole of what makes it theirs: the model wrote the words,
+   * and could have written weak ones; this list is the part it cannot reach.
+   */
+  async keepCriterion(criterion: AcceptanceCriterion): Promise<boolean> {
+    return this.patchManifest((raw) => {
+      const kept = Array.isArray(raw.acceptance) ? raw.acceptance as AcceptanceCriterion[] : [];
+      // By its words: the same claim proved twice is one claim, and a list that
+      // grew a duplicate every time it was re-proved is one nobody reads.
+      if (kept.some((c) => c.says === criterion.says)) return;
+      raw.acceptance = [...kept, criterion];
+    }, t('hist.keep.failed'));
+  }
+
+  /** Drop one, by what it says — the only handle the UI has on it. */
+  async dropCriterion(says: string): Promise<boolean> {
+    return this.patchManifest((raw) => {
+      const kept = Array.isArray(raw.acceptance) ? raw.acceptance as AcceptanceCriterion[] : [];
+      raw.acceptance = kept.filter((c) => c.says !== says);
+    }, t('hist.keep.failed'));
+  }
+
   private manifestWrites: Promise<void> = Promise.resolve();
 
   private patchManifest(apply: (raw: Record<string, unknown>) => void, failMessage: string): Promise<boolean> {

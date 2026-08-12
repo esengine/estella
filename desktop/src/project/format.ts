@@ -354,6 +354,23 @@ export interface ProjectManifest {
   features?: ProjectFeatures;
   /** Persisted Package Project settings; see {@link ProjectPackaging}. */
   packaging?: ProjectPackaging;
+  /** What must go on holding about this game; see {@link AcceptanceCriterion}. */
+  acceptance?: AcceptanceCriterion[];
+}
+
+/**
+ * One claim about the game that should keep holding, in the same shape a turn
+ * declares its own (electron/agent/acceptance.ts) — one vocabulary, two owners.
+ * A person put these here, so no turn can add, weaken or retract one, and they
+ * can only ever FAIL a turn: leaving them holding is not having succeeded.
+ */
+export interface AcceptanceCriterion {
+  /** What is claimed, in the words the user would use. */
+  says: string;
+  /** A JS expression evaluated in the RUNNING game; truthy means it held. */
+  probe?: string;
+  /** Only a person can settle this one. Says why a machine cannot. */
+  manual?: string;
 }
 
 /** A New-project template (a project directory used as a starting point). */
@@ -459,6 +476,19 @@ export function parseManifest(raw: unknown): ProjectManifest {
   }
   if (o.layout && typeof o.layout === 'object') {
     manifest.layout = o.layout as Partial<ProjectLayout>;
+  }
+  if (Array.isArray(o.acceptance)) {
+    // Dropped rather than failing the load, like the presets above: a
+    // hand-edited claim must not cost anyone their project. A claim that
+    // settles nothing must never survive as one that silently holds.
+    const criteria = (o.acceptance as unknown[]).flatMap((raw): AcceptanceCriterion[] => {
+      const c = raw as Partial<AcceptanceCriterion> | null;
+      if (!c || typeof c.says !== 'string' || c.says.trim() === '') return [];
+      if (typeof c.probe === 'string' && c.probe.trim() !== '') return [{ says: c.says, probe: c.probe }];
+      if (typeof c.manual === 'string' && c.manual.trim() !== '') return [{ says: c.says, manual: c.manual }];
+      return [];
+    });
+    if (criteria.length > 0) manifest.acceptance = criteria;
   }
   if (o.scripts && typeof o.scripts === 'object') {
     const s = o.scripts as Record<string, unknown>;
