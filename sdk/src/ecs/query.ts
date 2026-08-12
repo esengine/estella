@@ -443,7 +443,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * so none of them can disagree about the cache key or the dep set.
      */
     private candidates_(): readonly Entity[] {
-        return this.world_.getEntitiesWithComponents(
+        return this.world_.queryEntities(
             this.allRequired_,
             this.descriptor_._with,
             this.descriptor_._without,

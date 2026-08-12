@@ -56,6 +56,13 @@ export interface GetWorldDescriptor {
     readonly _type: 'get_world';
 }
 
+/**
+ * Ask a system for the {@link World} itself. The escape hatch: it declares no
+ * access, so the scheduler cannot see what the system touches and the query cache
+ * cannot serve it. Reach for `Query`/`Res`/`Commands` first.
+ *
+ * @public
+ */
 export function GetWorld(): GetWorldDescriptor {
     return { _type: 'get_world' };
 }

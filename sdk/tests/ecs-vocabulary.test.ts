@@ -21,7 +21,7 @@ import type {
     FilterExpr, RemovedQueryDescriptor,
     ResourceDef, ResDescriptor, ResMutDescriptor, CommandsDescriptor, QueryArg,
     EventDef, EventReaderDescriptor, EventWriterDescriptor, GetWorldDescriptor,
-    SystemDef, SystemOptions, SystemParam, InferParam, InferParams,
+    SystemDef, SystemOptions, SystemParam, InferParam, InferParams, ComponentData,
     Entity, QueryResult, ChildrenData, ParentData, NameData, TransformData,
     Vec2, Vec3, Vec4, Quat, Color,
 } from '../src/core';
@@ -191,6 +191,134 @@ describe('resource vocabulary', () => {
         const a = defineResource(0, 'VocabDuplicate');
         const b = defineResource(0, 'VocabDuplicate');
         expect(a._id).not.toBe(b._id);
+    });
+});
+
+describe('world vocabulary', () => {
+    it('spawn, valid and despawn are the entity lifecycle', () => {
+        const world = new World();
+        const e = world.spawn('vocab-entity');
+        expect(world.valid(e)).toBe(true);
+        expect(world.entityCount()).toBe(1);
+        world.despawn(e);
+        expect(world.valid(e)).toBe(false);
+        expect(world.entityCount()).toBe(0);
+    });
+
+    it('isStale answers about the slot, not the entity', () => {
+        // Both are invalid; isStale is the one that says WHY. It reports on the
+        // index, and a pure-JS world never reuses one — the recycled case needs an
+        // engine core, so what is pinned here is that neither false is a throw.
+        const world = new World();
+        const e = world.spawn();
+        world.despawn(e);
+        expect(world.valid(e)).toBe(false);
+        expect(world.isStale(e)).toBe(false);
+        expect(world.isStale(9999 as typeof e)).toBe(false);
+    });
+
+    it('insert merges over the component defaults, and get answers the stored value', () => {
+        const world = new World();
+        const e = world.spawn();
+        const data: ComponentData<typeof Position> = world.insert(e, Position, { x: 5 });
+        expect(data).toEqual({ x: 5, y: 0 });
+        expect(world.get(e, Position)).toEqual({ x: 5, y: 0 });
+        expect(world.has(e, Position)).toBe(true);
+    });
+
+    it('tryGet answers null where get is a programming error', () => {
+        const world = new World();
+        const e = world.spawn();
+        expect(world.tryGet(e, Position)).toBeNull();
+        world.insert(e, Position);
+        expect(world.tryGet(e, Position)).toEqual({ x: 0, y: 0 });
+    });
+
+    it('set is insert-or-replace and remove takes it off again', () => {
+        const world = new World();
+        const e = world.spawn();
+        world.set(e, Position, { x: 1, y: 2 });
+        expect(world.has(e, Position)).toBe(true);
+        expect(world.get(e, Position)).toEqual({ x: 1, y: 2 });
+        world.remove(e, Position);
+        expect(world.has(e, Position)).toBe(false);
+    });
+
+    it('set on a component the entity lacked reaches a query that already ran', () => {
+        // "Insert-or-replace" is the whole claim: an add through set owes the same
+        // structural bookkeeping insert does, or a warmed cache answers the old set
+        // forever. It did not, until freezing the method made the claim explicit.
+        const world = new World();
+        const e = world.spawn();
+        expect(world.getEntitiesWithComponents([Position])).toEqual([]);
+        world.set(e, Position, { x: 1, y: 2 });
+        expect(world.getEntitiesWithComponents([Position])).toEqual([e]);
+    });
+
+    it('getComponentTypes lists a component however it was added', () => {
+        // Defined here rather than at module scope: the name lookup reads the
+        // context's registry, which the suite's setup resets.
+        const Local = defineComponent('VocabLocal', { v: 0 });
+        const world = new World();
+        const viaSet = world.spawn();
+        const viaInsert = world.spawn();
+        world.set(viaSet, Local, { v: 1 });
+        world.insert(viaInsert, Local, { v: 2 });
+        expect(world.getComponentTypes(viaSet)).toContain('VocabLocal');
+        expect(world.getComponentTypes(viaInsert)).toContain('VocabLocal');
+    });
+
+    it('getEntitiesWithComponents narrows by with and without', () => {
+        const world = new World();
+        const both = world.spawn();
+        world.insert(both, Position);
+        world.insert(both, Health);
+        const positionOnly = world.spawn();
+        world.insert(positionOnly, Position);
+
+        expect([...world.getEntitiesWithComponents([Position])].sort()).toEqual([both, positionOnly].sort());
+        expect(world.getEntitiesWithComponents([Position], [Health])).toEqual([both]);
+        expect(world.getEntitiesWithComponents([Position], [], [Health])).toEqual([positionOnly]);
+    });
+
+    it('findEntityByName reads the name spawn was given', () => {
+        const world = new World();
+        const e = world.spawn('vocab-findable');
+        expect(world.findEntityByName('vocab-findable')).toBe(e);
+        expect(world.findEntityByName('nobody')).toBeNull();
+    });
+
+    it('onSpawn and onDespawn fire until their unsubscribe is called', () => {
+        const world = new World();
+        const spawned: number[] = [];
+        const despawned: number[] = [];
+        const offSpawn = world.onSpawn((e) => spawned.push(e));
+        const offDespawn = world.onDespawn((e) => despawned.push(e));
+
+        const first = world.spawn();
+        world.despawn(first);
+        offSpawn();
+        offDespawn();
+        world.despawn(world.spawn());
+
+        expect(spawned).toEqual([first]);
+        expect(despawned).toEqual([first]);
+    });
+
+    it('mutating an entity while a query iterates is refused, not tolerated', () => {
+        // The contract Commands exists to satisfy — asserted because a throw is
+        // the promise, and silently corrupting the walk would also "work".
+        const world = new World();
+        const e = world.spawn();
+        world.insert(e, Position);
+        world.beginIteration();
+        try {
+            expect(() => world.spawn()).toThrow(/Commands/);
+            expect(() => world.despawn(e)).toThrow(/Commands/);
+            expect(() => world.remove(e, Position)).toThrow(/Commands/);
+        } finally {
+            world.endIteration();
+        }
     });
 });
 

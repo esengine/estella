@@ -45,13 +45,22 @@ export class ScriptStorage {
         const storage = this.getStorage(component);
         const isNew = !storage.has(entity);
         storage.set(entity, value);
+        this.note_(entity, component);
+        return { value, isNew };
+    }
+
+    /**
+     * Record that `entity` carries `component`. The index and the per-component
+     * maps are one membership fact, so every write that adds a component has to
+     * come through here or `getEntityComponentIds` starts answering a subset.
+     */
+    private note_(entity: Entity, component: ComponentDef<any>): void {
         let ids = this.entityComponents_.get(entity);
         if (!ids) {
             ids = new Set();
             this.entityComponents_.set(entity, ids);
         }
         ids.add(component._id);
-        return { value, isNew };
     }
 
     get<T>(entity: Entity, component: ComponentDef<T>): T {
@@ -76,7 +85,13 @@ export class ScriptStorage {
         }
     }
 
-    set(entity: Entity, component: ComponentDef<any>, data: unknown): void {
+    /**
+     * Store a whole value, answering whether the entity lacked the component —
+     * the caller owns the structural bookkeeping an addition needs. Invalid data
+     * warns rather than throwing as `insert` does: a scene load and the reconciler
+     * write through here, where one bad field must not take a frame down.
+     */
+    set(entity: Entity, component: ComponentDef<any>, data: unknown): { isNew: boolean } {
         if (data !== null && data !== undefined && typeof data === 'object') {
             const errors = validateComponentData(
                 component._name,
@@ -88,7 +103,11 @@ export class ScriptStorage {
                 log.warn('ecs', formatValidationErrors(component._name, errors));
             }
         }
-        this.getStorage(component).set(entity, data);
+        const storage = this.getStorage(component);
+        const isNew = !storage.has(entity);
+        storage.set(entity, data);
+        this.note_(entity, component);
+        return { isNew };
     }
 
     getStorage(component: ComponentDef<any>): Map<Entity, unknown> {

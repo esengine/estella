@@ -52,6 +52,8 @@ function createMockWorld() {
         set: vi.fn(),
         valid: vi.fn((e: Entity) => entities.has(e)),
         getEntitiesWithComponents: vi.fn(() => [] as Entity[]),
+        // What QueryInstance actually calls: the precomputed-key path.
+        queryEntities: vi.fn(() => [] as Entity[]),
         beginIteration: vi.fn(),
         endIteration: vi.fn(),
         resetIterationDepth: vi.fn(),

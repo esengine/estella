@@ -9,10 +9,11 @@
  * 1.0 and the type it hands you does not. So a frozen symbol may only name
  * frozen types.
  *
- * Wave 1 froze six symbols whose signatures are spelled in a vocabulary nobody
- * has frozen yet, so this starts as a ratchet rather than a wall: the leaks that
- * exist are named in {@link ACCEPTED} and a new one fails. Each line deleted
- * from that list is a promise that got real.
+ * It began as a ratchet — the leaks that existed were named in {@link ACCEPTED}
+ * and a new one failed — because Wave 1 froze six symbols spelled in a vocabulary
+ * nobody had frozen yet. That list is now empty, so this is a wall: every frozen
+ * signature names only frozen types, and any new leak has to be answered rather
+ * than recorded.
  *
  *   node tools/check-tier-leaks.mjs            exit 1 on an undeclared leak
  *   node tools/check-tier-leaks.mjs --report   print what freezing would cost
@@ -23,20 +24,11 @@ import { ETC, ENTRIES } from './lib/sdkProgram.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
 
 /**
- * Frozen symbols known to name unfrozen types, and what is still missing. Every
- * one is the ECS vocabulary the six Wave 1 symbols are written in — descriptors,
- * defs and the parameter union — none of which has been through the freeze bar.
+ * Frozen symbols known to name unfrozen types, and what is still missing. Empty
+ * is the goal state, not an oversight: the ECS vocabulary the frozen calls are
+ * spelled in has all been through the freeze bar, World included.
  */
-// World carries the host's binding seam (connectCpp, getCppRegistry), so
-// freezing it would freeze that too, and 0.50 deliberately does not.
-const WORLD = 'names World, which is not frozen while it carries the host binding seam';
-
-export const ACCEPTED = {
-    CommandsInstance: WORLD,
-    InferParam: WORLD,
-    QueryInstance: WORLD,
-    RemovedQueryInstance: WORLD,
-};
+export const ACCEPTED = {};
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */
 function surface() {
@@ -58,12 +50,21 @@ function surface() {
 const api = surface();
 
 /**
+ * A member's own name, which is not a type reference. World declares
+ * `findEntityByName` and so does scene.ts, and without this the class read as
+ * leaking a reference to the free function that merely shares its name.
+ */
+const MEMBER_NAME = /^(?:static\s+|readonly\s+)*[A-Za-z_$][\w$]*\??\s*:/;
+
+/**
  * Exported symbols a body names. A type not in the surface is a built-in or
  * private; an `@internal` member carries no promise, so what it names does not
  * constrain the promise its type makes.
  */
 function referenced(name) {
-    const lines = (api.get(name)?.body ?? '').split('\n').filter((l) => !l.startsWith('@internal '));
+    const lines = (api.get(name)?.body ?? '').split('\n')
+        .filter((l) => !l.startsWith('@internal '))
+        .map((l) => l.replace(MEMBER_NAME, ''));
     const out = new Set();
     for (const id of lines.join('\n').match(/[A-Za-z_$][\w$]*/g) ?? []) {
         if (id !== name && api.has(id)) out.add(id);

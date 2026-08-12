@@ -1124,6 +1124,13 @@ export type {
 // Type Helpers
 // =============================================================================
 
+/**
+ * The value shape a component definition holds — `ComponentData<typeof Transform>`
+ * is `TransformData`. This is what `world.get` answers and `world.set` takes, so a
+ * helper generic over a component writes its own signature with it.
+ *
+ * @public
+ */
 export type ComponentData<C> =
     C extends BuiltinComponentDef<infer T> ? T :
     C extends ComponentDef<infer T> ? T :

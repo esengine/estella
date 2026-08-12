@@ -114,11 +114,22 @@ export interface QueryFilter {
 // World
 // =============================================================================
 
+/**
+ * The entity store, as `GetWorld()` hands it to a system — the escape hatch for
+ * work the declared parameters cannot express. Prefer `Query`/`Res`/`Commands`:
+ * those declare their access, so the scheduler can see it and the cache can serve
+ * them. The frozen surface here is what a game does with entities; what the frame
+ * runner, the query cache and the editor's projection need is `@internal`.
+ *
+ * @public
+ */
 export class World {
     private readonly builtin_ = new BuiltinBridge();
     private readonly scripts_ = new ScriptStorage();
     private readonly names_ = new NameIndex();
+    /** @internal */
     readonly changes_ = new ChangeTracker();
+    /** @internal */
     readonly queries_ = new QueryCache();
     private entities_ = new Map<Entity, number>();
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
@@ -153,7 +164,7 @@ export class World {
         this.builtin_.disconnect();
     }
 
-    /** Whether an engine core is bound — false in a pure-JS world. */
+    /** @internal Whether an engine core is bound — false in a pure-JS world. */
     get hasCpp(): boolean {
         return this.builtin_.hasCpp;
     }
@@ -172,6 +183,10 @@ export class World {
     // Entity Management
     // =========================================================================
 
+    /**
+     * Create an entity with no components. Throws during query iteration —
+     * mutating the set a query is walking is what `Commands` exists to defer.
+     */
     spawn(name?: string): Entity {
         if (this.isIterating()) {
             throw new Error(
@@ -225,6 +240,11 @@ export class World {
         return entity;
     }
 
+    /**
+     * Destroy `entity` and its whole subtree — children before parents, so none
+     * is left orphaned and still drawing. Already-gone entities are ignored, and
+     * as with {@link spawn} this throws during query iteration.
+     */
     despawn(entity: Entity): void {
         if (this.isIterating()) {
             throw new Error(
@@ -300,6 +320,11 @@ export class World {
         }
     }
 
+    /**
+     * Run `callback` whenever an entity is created; the returned function
+     * unsubscribes. A throw is logged and swallowed, so one bad listener cannot
+     * stop the others or the spawn itself.
+     */
     onSpawn(callback: (entity: Entity) => void): () => void {
         this.spawnCallbacks_.push(callback);
         return () => {
@@ -308,6 +333,11 @@ export class World {
         };
     }
 
+    /**
+     * Run `callback` whenever an entity is destroyed, once per entity in a
+     * subtree teardown; the returned function unsubscribes. This is the hook a
+     * per-entity side table is cleaned up from.
+     */
     onDespawn(callback: (entity: Entity) => void): () => void {
         this.despawnCallbacks_.push(callback);
         return () => {
@@ -316,6 +346,8 @@ export class World {
         };
     }
 
+    /** Whether `entity` currently exists. False for one never spawned and for a
+     *  despawned one alike — {@link isStale} tells the two apart. */
     valid(entity: Entity): boolean {
         return this.entities_.has(entity);
     }
@@ -333,6 +365,7 @@ export class World {
         return currentGen !== undefined && currentGen !== entityGeneration(entity);
     }
 
+    /** How many entities exist. */
     entityCount(): number {
         return this.entities_.size;
     }
@@ -366,24 +399,27 @@ export class World {
         };
     }
 
+    /** @internal Structural version the query cache invalidates against. */
     getWorldVersion(): number {
         return this.queries_.structuralVersion;
     }
 
-    /** Cumulative query-cache counters (hits, misses, invalidation causes). */
+    /** @internal Cumulative query-cache counters (hits, misses, invalidation causes). */
     getQueryCacheStats(): QueryCacheStats {
         return this.queries_.getStats();
     }
 
-    /** Reset the query-cache counters. Entries themselves are kept. */
+    /** @internal Reset the query-cache counters. Entries themselves are kept. */
     resetQueryCacheStats(): void {
         this.queries_.resetStats();
     }
 
+    /** @internal Iteration depth is what makes spawn/despawn refuse mid-query. */
     beginIteration(): void {
         this.iterationDepth_++;
     }
 
+    /** @internal */
     endIteration(): void {
         this.iterationDepth_--;
         if (this.iterationDepth_ < 0) {
@@ -392,14 +428,18 @@ export class World {
         }
     }
 
+    /** @internal Depth is reset rather than unwound when a frame aborts. */
     resetIterationDepth(): void {
         this.iterationDepth_ = 0;
     }
 
+    /** @internal */
     isIterating(): boolean {
         return this.iterationDepth_ > 0;
     }
 
+    /** Every entity, in storage order — which is the order queries walk and,
+     *  within a sorting layer, the order the renderer draws. A fresh array. */
     getAllEntities(): Entity[] {
         return Array.from(this.entities_.keys());
     }
@@ -421,6 +461,7 @@ export class World {
      *
      * @param entities the desired iteration order (first iterates first, draws first)
      */
+    /** @internal */
     applyEntityOrder(entities: readonly Entity[]): void {
         if (entities.length === 0) return;
         if (this.isIterating()) {
@@ -461,6 +502,11 @@ export class World {
         }
     }
 
+    /**
+     * Make `child` a child of `parent`. This is the side to write — the engine
+     * keeps {@link Parent} and {@link Children} in step from here, and a transform
+     * composes against whatever this names.
+     */
     setParent(child: Entity, parent: Entity): void {
         const cppRegistry = this.builtin_.getCppRegistry();
         if (cppRegistry) {
@@ -476,6 +522,7 @@ export class World {
         notifyBridge('onParentChanged', child, parent);
     }
 
+    /** Detach `entity` from its parent, leaving its own children attached to it. */
     removeParent(entity: Entity): void {
         const cppRegistry = this.builtin_.getCppRegistry();
         if (cppRegistry) {
@@ -495,6 +542,11 @@ export class World {
     // Component Management
     // =========================================================================
 
+    /**
+     * Add `component` to `entity`, with `data` merged over the component's
+     * defaults, and answer the stored value. Adding one that is already there
+     * replaces it.
+     */
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C> {
         if (isBuiltinComponent(component)) {
             return this.insertBuiltin_(entity, component, data) as ComponentData<C>;
@@ -502,6 +554,10 @@ export class World {
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
 
+    /**
+     * Store a whole component value and stamp the change tick a `Changed` filter
+     * reads. Insert-or-replace: an entity that lacks the component gets it.
+     */
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
         if (isBuiltinComponent(component)) {
             // `set` is insert-or-replace: adding a builtin the entity LACKS must run
@@ -535,7 +591,16 @@ export class World {
             notifyBridge('onComponentChanged', entity, component._name);
             return;
         }
-        this.scripts_.set(entity, component as ComponentDef<any>, data);
+        // Insert-or-replace means the ADD case owes the same bookkeeping insert
+        // does, or a warmed query never learns the entity matched. The builtin
+        // branch above says so; this one did not.
+        const { isNew } = this.scripts_.set(entity, component as ComponentDef<any>, data);
+        if (isNew) {
+            this.queries_.markComponentDirty(component._id);
+            this.queries_.markStructuralChange();
+            this.changes_.recordAdded(component, entity);
+            notifyBridge('onComponentAdded', entity, component._name);
+        }
         this.changes_.recordChanged(component, entity);
         if ((component as ComponentDef<any>)._id === Name._id) {
             this.names_.update(entity, (data as { value: string }).value);
@@ -543,6 +608,12 @@ export class World {
         notifyBridge('onComponentChanged', entity, component._name);
     }
 
+    /**
+     * The component's value. Asking for one the entity does not have is a
+     * programming error, not a case to handle — use {@link tryGet} where absence
+     * is expected. Engine-backed components answer a fresh object each call;
+     * writing to it does not store anything, {@link set} does.
+     */
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
         if (isBuiltinComponent(component)) {
             return this.builtin_.get(entity, component) as ComponentData<C>;
@@ -550,6 +621,7 @@ export class World {
         return this.scripts_.get(entity, component as ComponentDef<any>) as ComponentData<C>;
     }
 
+    /** Whether `entity` carries `component`. */
     has(entity: Entity, component: AnyComponentDef): boolean {
         if (component._builtin) {
             if (!this.builtin_.hasCpp) return false;
@@ -561,6 +633,7 @@ export class World {
         return this.scripts_.has(entity, component as ComponentDef<any>);
     }
 
+    /** {@link get}, answering null instead of throwing when the component is absent. */
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
@@ -584,6 +657,8 @@ export class World {
         return val !== undefined ? val as ComponentData<C> : null;
     }
 
+    /** Take `component` off `entity`. Throws during query iteration, as
+     *  {@link spawn} does. */
     remove(entity: Entity, component: AnyComponentDef): void {
         if (this.isIterating()) {
             throw new Error(
@@ -655,6 +730,8 @@ export class World {
     // Name Index
     // =========================================================================
 
+    /** The entity with this {@link Name}, or null. Names are not identities —
+     *  with two matches, which one comes back is not defined. */
     findEntityByName(name: string): Entity | null {
         return this.names_.findByName(name);
     }
@@ -719,10 +796,13 @@ export class World {
     // Query Support
     // =========================================================================
 
+    /** @internal Per-frame reuse of the query instance pool. */
     resetQueryPool(): void {
         // No-op: query pool removed, results stored directly in cache
     }
 
+    /** The names of every component on `entity` — for inspectors and diagnostics;
+     *  a system asks {@link has} about the definitions it knows. */
     getComponentTypes(entity: Entity): string[] {
         const types = new Set<string>();
         for (const [name, methods] of this.builtin_.getMethodCache()) {
@@ -783,7 +863,29 @@ export class World {
         return ids;
     }
 
+    /**
+     * Entities carrying every component in `components`, narrowed by `with` and
+     * `without`. Answered from the query cache, so calling it every frame is the
+     * intended use; the array is the cache's own and must not be mutated.
+     *
+     * @public
+     */
     getEntitiesWithComponents(
+        components: AnyComponentDef[],
+        withFilters: AnyComponentDef[] = [],
+        withoutFilters: AnyComponentDef[] = [],
+    ): readonly Entity[] {
+        return this.queryEntities(components, withFilters, withoutFilters);
+    }
+
+    /**
+     * @internal The same walk, with the cache key, dependency ids and predicate
+     * filter supplied by the caller. `QueryInstance` computes those once per
+     * query so a cache hit allocates nothing — which is why they are not
+     * parameters of the frozen door above: they are the cache's shape, and
+     * freezing them would freeze it.
+     */
+    queryEntities(
         components: AnyComponentDef[],
         withFilters: AnyComponentDef[] = [],
         withoutFilters: AnyComponentDef[] = [],
@@ -907,35 +1009,43 @@ export class World {
     // Change Detection (delegates to ChangeTracker)
     // =========================================================================
 
+    /** @internal The frame runner's clock for change detection. */
     advanceTick(): void {
         this.changes_.advanceTick();
     }
 
+    /** @internal */
     getWorldTick(): number {
         return this.changes_.getWorldTick();
     }
 
+    /** @internal Opted into by a query that declares an Added/Changed filter;
+     *  tracking every component would cost every write. */
     enableChangeTracking(component: AnyComponentDef): void {
         this.changes_.enableChangeTracking(component);
     }
 
+    /** @internal What `Added`/`Changed` filters are implemented in terms of. */
     isAddedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean {
         return this.changes_.isAddedSince(entity, component, sinceTick);
     }
 
+    /** @internal */
     isChangedSince(entity: Entity, component: AnyComponentDef, sinceTick: number): boolean {
         return this.changes_.isChangedSince(entity, component, sinceTick);
     }
 
-    /** True if ANY entity changed `component` after `sinceTick` (O(1) gate). */
+    /** @internal True if ANY entity changed `component` after `sinceTick` (O(1) gate). */
     anyChangedSince(component: AnyComponentDef, sinceTick: number): boolean {
         return this.changes_.anyChangedSince(component, sinceTick);
     }
 
+    /** @internal What a `Removed` query reads. */
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
         return this.changes_.getRemovedEntitiesSince(component, sinceTick);
     }
 
+    /** @internal */
     cleanRemovedBuffer(beforeTick: number): void {
         this.changes_.cleanRemovedBuffer(beforeTick);
     }
