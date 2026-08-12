@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
-import { gpuNeverCameUp } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu } from './lib/deadGpu.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -98,12 +98,23 @@ function runScene(scene) {
 const failed = [];
 let retried = 0;
 for (const scene of scenes) {
-  let run = runScene(scene);
-  // A scene that TAKES the GPU away on purpose owns its own device-loss result.
-  if (!run.ok && !scene.env.ESTELLA_VERIFY_DEVICE_LOSS && gpuNeverCameUp(run.out)) {
-    retried++;
-    console.log(`↻ ${scene.id.padEnd(28)} the GPU process died before it drew; measuring again`);
+  // A scene that TAKES the GPU away on purpose owns its own device-loss result;
+  // everything else shares one retry policy with the golden runner, or the same
+  // dead runner is a retry in one and a broken engine in the other.
+  let run;
+  if (scene.env.ESTELLA_VERIFY_DEVICE_LOSS) {
     run = runScene(scene);
+  } else {
+    const attempt = retryOnDeadGpu(
+      () => { const r = runScene(scene); return { ...r, output: r.out }; },
+      (died) => {
+        retried++;
+        console.log(`↻ ${scene.id.padEnd(28)} ${died
+          ? 'the GPU process died before it drew'
+          : 'a blank frame on the run after a GPU death'}; measuring again`);
+      },
+    );
+    run = attempt;
   }
   if (!run.ok) failed.push(scene.id);
   console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${run.verdict}`);

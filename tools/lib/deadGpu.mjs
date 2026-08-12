@@ -21,16 +21,28 @@ export function gpuNeverCameUp(output) {
         || /WebGL2 is not available/.test(output);
 }
 
+/** Attempts one measurement is allowed, counting the first. */
+const MAX_ATTEMPTS = 3;
+
 /**
- * Run `attempt` and, if the GPU never came up, run it once more.
+ * Run `attempt` (→ `{ ok, output }`) until it succeeds or fails with the GPU up.
  *
- * `attempt` returns `{ ok, output }`. The retry is announced through `note` —
- * a measurement taken twice has to say so, or a flaky runner reads as a stable
- * one.
+ * A failure ANYWHERE after a death in this chain is inconclusive: a restarted GPU
+ * process leaves the next launch context-lost, painting a blank frame and printing
+ * nothing about why. A game that truly draws nothing still fails on the first
+ * attempt, since no attempt reports a death. `note(died)` announces each retry.
  */
 export function retryOnDeadGpu(attempt, note) {
-    const first = attempt();
-    if (first.ok || !gpuNeverCameUp(first.output)) return { ...first, retried: false };
-    note();
-    return { ...attempt(), retried: true };
+    let sawDeath = false;
+    let last;
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        last = attempt();
+        if (last.ok) return { ...last, retried: i > 0 };
+        const died = gpuNeverCameUp(last.output);
+        sawDeath = sawDeath || died;
+        // Nothing in this chain blamed the GPU, so the failure is the game's.
+        if (!sawDeath) return { ...last, retried: i > 0 };
+        if (i < MAX_ATTEMPTS - 1) note(died);
+    }
+    return { ...last, retried: true, gpuDied: true };
 }

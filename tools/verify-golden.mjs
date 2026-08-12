@@ -132,7 +132,9 @@ function launchPackage(id, target, args) {
         { encoding: 'utf8', cwd: DESKTOP });
       return { ok: r.status === 0, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, r };
     },
-    () => console.log(`↻ ${id} ${target} — the GPU process died before it drew; launching again`),
+    (died) => console.log(`↻ ${id} ${target} — ${died
+      ? 'the GPU process died before it drew'
+      : 'a blank frame on the launch after a GPU death'}; launching again`),
   );
   return run.r;
 }
