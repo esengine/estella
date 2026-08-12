@@ -1127,6 +1127,12 @@ export interface SpineAnimationData {
     enabled: boolean;
 }
 
+/**
+ * The fields of the engine's `Sprite` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @public
+ */
 export interface SpriteData {
     texture: number;
     color: Color;

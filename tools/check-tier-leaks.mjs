@@ -25,10 +25,12 @@ import { parseSnapshot } from './lib/apiSnapshot.mjs';
 
 /**
  * Frozen symbols known to name unfrozen types, and what is still missing. Empty
- * is the goal state, not an oversight: the ECS vocabulary the frozen calls are
- * spelled in has all been through the freeze bar, World included.
+ * is the goal state: the whole ECS vocabulary went through the bar, World
+ * included. A line here is a promise with a declared hole in it.
  */
-export const ACCEPTED = {};
+export const ACCEPTED = {
+    TextData: 'names TextOverflow, unfrozen because no layout or render path reads the field it types',
+};
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */
 function surface() {

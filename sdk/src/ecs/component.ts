@@ -759,6 +759,11 @@ export type WorldTransformData = TransformData;
 // Camera = the generated C++ field shape + one editor-only field. `showFrustum`
 // drives gizmo rendering and has no C++ Camera member, so it is added here rather
 // than in the generated interface (the only hand-written Camera field).
+/**
+ * {@link Camera}'s fields, and one the editor adds.
+ *
+ * @beta
+ */
 export interface CameraData extends CameraDataCpp {
     showFrustum: boolean;
 }
@@ -823,6 +828,14 @@ export const WorldTransform = Transform;
 
 // size's authoring default (100×100 vs the {1,1} ctor value) is authored at the
 // C++ ES_PROPERTY site (editor_default=) and merged in by metaDefaults.
+/**
+ * A textured quad. `size` is in world units and is the drawn extent — the texture
+ * is stretched into it rather than deciding it — and `pivot` says where in that
+ * rectangle the entity's position sits. `layer` is the painter order between
+ * sprites; within a layer, storage order decides.
+ *
+ * @public
+ */
 export const Sprite = defineBuiltin<SpriteData>('Sprite',
     metaDefaults<SpriteData>('Sprite')
 );
@@ -845,6 +858,16 @@ export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D'
 // at orthoSize 540 vs a Perspective/inactive runtime default) are authored at
 // the C++ ES_PROPERTY sites (editor_default=) and merged in by metaDefaults.
 // Only the TS-only field's default stays here.
+/**
+ * What a viewport draws and from where. One camera per render target;
+ * `priority` breaks the tie and `isActive` takes one out.
+ *
+ * `@beta`: `clearFlags` is a bitmask whose C++ enum has no TypeScript spelling,
+ * and `cullingMask` names layers no exported constant identifies — so two of
+ * these fields are typed `number` for want of the vocabulary, not by design.
+ *
+ * @beta
+ */
 export const Camera = defineBuiltin<CameraData>('Camera',
     metaDefaults<CameraData>('Camera', {
         showFrustum: false,

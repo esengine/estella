@@ -109,6 +109,21 @@ export function tapAlpha(target: number, n: number): number {
 }
 
 /**
+ * How far a laid-out block sits from `originX`. `layoutText` already aligned each
+ * line — within the box width when there is one, within the widest line when there
+ * is not — so this only has the boxless job: anchoring the whole block against the
+ * origin, left edge / centre / right edge.
+ *
+ * @param boxWidth the layout box's width; 0 ⇒ boxless, the origin IS the box
+ */
+export function textBlockOffsetX(
+    align: number | undefined, boxWidth: number, blockWidth: number,
+): number {
+    if (boxWidth > 0 || !align) return 0;
+    return -(align === 1 ? blockWidth / 2 : blockWidth); // 1 center, 2 right
+}
+
+/**
  * How far a laid-out block sits from `originY`, once vertical alignment and
  * half-leading are applied.
  *
@@ -184,13 +199,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         arr.push(g);
     }
 
-    // Horizontal: layoutText aligned each LINE within the box width (boxed) or the
-    // widest line (boxless). For a boxless label, anchor the whole block to the origin
-    // per align — left = left edge at origin, center = centered, right = right edge.
-    let baseX = p.originX ?? 0;
-    if (boxWidth <= 0 && p.align) {
-        baseX -= p.align === 1 ? layout.width / 2 : layout.width; // 1 center, 2 right
-    }
+    const baseX = (p.originX ?? 0) + textBlockOffsetX(p.align, boxWidth, layout.width);
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
     // glyphs in the same atlas/layer, so they batch and draw in submit order —
     // shadow + outline first (behind), fill last (on top).

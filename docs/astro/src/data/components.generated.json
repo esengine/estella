@@ -2858,6 +2858,7 @@
           "key": "overflow",
           "type": "enum",
           "default": "Visible",
+          "doc": "Not honoured yet: nothing reads this field, so every value renders as Visible. Shown so the data a scene already carries stays editable.",
           "values": [
             "Visible",
             "Clip",

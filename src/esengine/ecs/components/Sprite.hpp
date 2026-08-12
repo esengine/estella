@@ -43,7 +43,7 @@ namespace esengine::ecs {
  * sprite.layer = 10; // Render on top
  * @endcode
  */
-ES_COMPONENT(renderable=enabled)
+ES_COMPONENT(renderable=enabled, stability=public)
 struct Sprite {
     /** @brief Texture resource handle (type-safe) */
     ES_PROPERTY(asset = texture)

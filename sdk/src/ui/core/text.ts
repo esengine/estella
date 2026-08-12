@@ -3,20 +3,40 @@
 import { defineComponent, enumOptions } from '../../ecs/component';
 import type { Color } from '../../types';
 
+/**
+ * Horizontal alignment. With a layout box it aligns inside the box; without one it
+ * anchors the run relative to the entity's own position.
+ *
+ * @public
+ */
 export const TextAlign = {
     Left: 0,
     Center: 1,
     Right: 2,
 } as const;
+/** @public */
 export type TextAlign = (typeof TextAlign)[keyof typeof TextAlign];
 
+/**
+ * Vertical alignment, on the same rule as {@link TextAlign}: inside the box when
+ * there is one, otherwise relative to the origin.
+ *
+ * @public
+ */
 export const TextVerticalAlign = {
     Top: 0,
     Middle: 1,
     Bottom: 2,
 } as const;
+/** @public */
 export type TextVerticalAlign = (typeof TextVerticalAlign)[keyof typeof TextVerticalAlign];
 
+/**
+ * What a run too big for its box does — NOT HONOURED YET. No layout or render
+ * path reads {@link TextData.overflow}, so every value behaves as `Visible`.
+ * Unfrozen for that reason: freezing it would promise a behaviour that does not
+ * exist.
+ */
 export const TextOverflow = {
     Visible: 0,
     Clip: 1,
@@ -24,7 +44,8 @@ export const TextOverflow = {
 } as const;
 export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
 
-/** Glyph pipeline for a Text. */
+/** Glyph pipeline for a Text.
+ *  @public */
 export const TextRenderMode = {
     /** Hinted bitmap while the entity is unscaled, SDF once it scales. */
     Auto: 0,
@@ -33,8 +54,15 @@ export const TextRenderMode = {
     /** Signed-distance field — a stable ~1px edge at any scale/zoom. */
     Sdf: 2,
 } as const;
+/** @public */
 export type TextRenderMode = (typeof TextRenderMode)[keyof typeof TextRenderMode];
 
+/**
+ * {@link Text}'s fields. Alignment and `overflow` read differently with and
+ * without a layout box — see {@link TextAlign} and {@link TextOverflow}.
+ *
+ * @public
+ */
 export interface TextData {
     content: string;
     /**
@@ -60,6 +88,7 @@ export interface TextData {
     align: TextAlign;
     verticalAlign: TextVerticalAlign;
     wordWrap: boolean;
+    /** Not honoured yet — see {@link TextOverflow}. Stored and ignored. */
     overflow: TextOverflow;
     lineHeight: number;
     bold: boolean;
@@ -91,6 +120,13 @@ export interface TextData {
     enabled: boolean;
 }
 
+/**
+ * A run of text. Under a `UINode` it lays out in that box; standing alone it draws
+ * in the world at the entity's transform, anchored by its alignment. `content` is
+ * derived rather than authored once `i18nKey` is set.
+ *
+ * @public
+ */
 export const Text = defineComponent<TextData>('Text', {
     content: '',
     i18nKey: '',
@@ -130,7 +166,11 @@ export const Text = defineComponent<TextData>('Text', {
         i18nKey: { label: 'I18n Key', enumSource: 'localeKeys', tooltip: 'Localization key — when set, content is resolved from the Localization catalogs (and re-resolved on locale switch). Leave empty for plain text.' },
         align: { enum: enumOptions(TextAlign), tooltip: 'Horizontal alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (left/center/right edge).' },
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
-        overflow: { enum: enumOptions(TextOverflow) },
+        overflow: {
+            enum: enumOptions(TextOverflow),
+            label: 'Overflow (not implemented)',
+            tooltip: 'Not honoured yet: nothing reads this field, so every value renders as Visible. Shown so the data a scene already carries stays editable.',
+        },
         renderMode: { enum: enumOptions(TextRenderMode) },
         layer: { tooltip: 'Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides.' },
     },

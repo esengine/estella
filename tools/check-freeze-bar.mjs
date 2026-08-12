@@ -81,6 +81,10 @@ export const BLOCKED = {
     Not: { needs: 'called by no golden project', why: 'as And' },
     addSystem: { needs: 'called by no golden project', why: 'the schedule-less spelling; every project writes addSystemToSchedule instead' },
     loadInputMapAsset: { needs: 'called by no golden project', why: 'nothing we certify loads an input map from an asset' },
+    // Not a corpus gap: nothing reads TextData.overflow, so Clip and Ellipsis
+    // render as Visible. Freezing it would promise a behaviour that is missing,
+    // and the Inspector still offers the dropdown — now labelled as such.
+    TextOverflow: { needs: 'named by no SDK test', why: 'no layout or render path honours it, so there is no behaviour to pin' },
 };
 
 /** Snapshot kinds that a game calls at runtime; the rest are shapes. */
