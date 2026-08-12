@@ -12,6 +12,135 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **Every exported symbol carries a stability tier, and there is no
+  stable-by-default.** A creator had no way to tell which parts of a pre-1.0
+  engine were settled, and the surface guard read an untagged symbol as stable —
+  so 1487 of `index`'s symbols were promised by accident. An untagged symbol is
+  now `@experimental`: freezing is something a maintainer does, never something
+  they forget to prevent.
+
+  Four tiers, each a JSDoc tag on the declaration, so it reaches the `.d.ts` a
+  project compiles against and shows on hover. `@public` (Stable Candidate),
+  `@beta`, `@experimental`, `@internal`. `sdk/etc/*.api.md` is the inventory and
+  the reference publishes it in both locales.
+
+- **`@public` has to be earned.** `check-freeze-bar` refuses the tag unless the
+  symbol is documented, named by an SDK test, and imported by one of the games
+  the release is certified against. A symbol that should be frozen and cannot be
+  goes in `BLOCKED` with what it is short of — and the entry is re-checked every
+  run, so the day the evidence arrives the gate says so instead of the note going
+  stale. `--blocked` prints that frontier.
+
+- **A frozen signature may only name types that are frozen and nameable.**
+  `check-tier-leaks` refuses a `@public` symbol that names a weaker tier; the new
+  R6 in `api-surface` refuses one that names a type no entry exports, which the
+  tier check cannot see. The two compose: R6 forces a type to be exported, and
+  the leak check then forces it to be frozen.
+
+- **111 Stable Candidate symbols, 57 Beta.** The whole ECS vocabulary is frozen
+  with no leaks left — `defineComponent`, `defineSystem`, `Query`, `Mut`, `Res`,
+  `Commands`, `World`, the descriptors and instances they are spelled in, the
+  schedule and clock every project registers through, the parameter factories,
+  `Transform`/`Parent`/`Children`/`Name`, `Sprite`, `Text`, the input action and
+  binding vocabulary, and the layout units.
+
+- **A verdict per subsystem, at the size a creator builds in.** Nobody asks
+  whether `AudioSource` is frozen; they ask whether they can build their game's
+  audio on this, and 1462 experimental symbols answer that the same way whether a
+  subsystem was weighed or nobody looked. The reference now carries 22 subsystems
+  with a tier and the reason for it — required for anything not frozen, because
+  "not frozen" is a decision and has to read like one. `entry` names the symbols
+  that carry each verdict and a gate holds the table against their tags, so it
+  cannot quietly disagree with the code.
+
+- **Certifying a capability now means exercising it.** The golden corpus is the
+  argument that a release ships working games, and `certifies` was the claim
+  carrying it with nothing reading the claim: `space-shooter` certified `audio`
+  and contains no sound at all. Each capability now declares what exercising it
+  looks like, matched against a project's sources *and* its scene and prefab data.
+
+### Changed
+
+- **The Editor Plugin API is experimental, and outside the 1.x compatibility
+  contract.** VERSIONING.md defined four surfaces and said nothing about the
+  plugin API, which is the dangerous state: authors read it as settled,
+  maintainers treat it as internal, and neither finds out until something breaks.
+  It will keep changing after 1.0, for three stated reasons — the contribution
+  registries are still converging on one mechanism, a plugin runs as trusted code
+  in the renderer and the isolation an ecosystem needs would make the API
+  asynchronous, and no shipped plugin holds any of these shapes up.
+
+  Three things you can rely on instead: `engines.editor` is honoured, so a plugin
+  outside its range is refused with a reason rather than half-loaded; breaking
+  changes appear in this file under **Editor plugin API**; a contribution point is
+  deprecated for one minor release before removal. Stated in the typings the
+  editor writes into your project, in VERSIONING.md, and in the guide in both
+  languages — with a gate holding the four in agreement.
+
+- **`world.getEntitiesWithComponents` takes three arguments.** Its last three —
+  a precomputed cache key, a compiled predicate and a dependency-id set — are the
+  query cache's shape rather than a question a game asks, and exactly one of
+  fifty-nine call sites passed them. *Migration:* nothing documented used them; if you
+  did, they moved to `world.queryEntities`, which is `@internal` and may change.
+
+- **`InputMap.evaluate` and `CommandsInstance.spawnImmediate` are `@internal`.**
+  Both are the engine's own call — the per-frame evaluation and the deferred-spawn
+  mechanism — and neither was ever a promise.
+
+- **`Camera` and `InputState` are Beta rather than frozen, and say why.**
+  `clearFlags` is a bitmask whose C++ enum has no TypeScript spelling and
+  `cullingMask` names layers no exported constant identifies; `InputState`'s
+  per-frame touch state is reachable only as raw collections, with no accessor
+  for started/ended and no write door at all. Freezing either would freeze the
+  gaps in it.
+
+- **`TextData.overflow` is labelled as not implemented.** The Inspector offered a
+  Clip / Ellipsis / Visible dropdown for a field that no layout or render path
+  reads, so every value drew as Visible with no warning. The field, its type and
+  the Inspector label now all say so; the truncation itself is still to come.
+
+- **`examples/input-actions` demonstrates every binding kind it renders.** Its
+  `formatBinding` switched on all eight while the project could construct four. It
+  gains a `Zoom` action — a 1D axis over two keys and an inverted gamepad axis, the
+  keyboard and pad twin of the pinch gesture already there — and its rebind now
+  offers mouse buttons.
+
+- **Audio, animation and materials are declared corpus gaps.** Each was claimed by
+  a project that did not exercise it. No example in the repository uses audio at
+  all; `sprite-animation` and `cutscene` animate and neither is certified;
+  `effects-gallery` is the only example with a material. The suite now reads 28 of
+  33 capabilities covered against 5 declared gaps, where it read 31 of 33 against
+  2 — nothing regressed, the difference is what the false claims were covering.
+
+### Fixed
+
+- **`world.set` on a component the entity lacked did not reach a query that had
+  already run.** `set` is documented insert-or-replace, and the engine-component
+  branch has always routed a new component through `insert` because queries and
+  `has()` never see it otherwise. The script-component branch never got that
+  guard: the query cache went unmarked, so a warmed query answered the old set
+  forever, no `Added` tick was recorded, and `getComponentTypes` — and anything
+  walking it — could not see the component at all.
+
+- **The asset API was absent from the governed surface.** `AssetsData` recorded
+  its whole body as the name of a local import alias no entry exports, so sixty-odd
+  methods a game calls to load anything were outside the snapshot: no review diff
+  ever showed them and the baseline guard could not have caught a break in one. A
+  type alias whose target is a shape no entry exports now records the target's
+  members. Five aliases were hiding one that way.
+
+- **`InputMap.axis2d` named a duplicate `Vec2`.** `inputMap.ts` declared its own
+  structurally identical interface, so the recorded surface said `Vec2` and meant a
+  different type — which is why it compiled and why nothing noticed.
+
+- **Four CHANGELOG headings rendered as plain text**, and `[Unreleased]` compared
+  from two releases back. Both are now checked with the version, so this file's own
+  bookkeeping cannot drift again.
+
 ## [0.49.0] - 2026-08-10
 
 ### Added
@@ -4735,7 +4864,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.49.0...HEAD
+[0.49.0]: https://github.com/esengine/estella/compare/v0.47.0...v0.49.0
 [0.47.0]: https://github.com/esengine/estella/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/esengine/estella/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/esengine/estella/compare/v0.44.0...v0.45.0
@@ -4758,6 +4888,9 @@ commit on 2026-01-25.
 [0.29.0]: https://github.com/esengine/estella/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/esengine/estella/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/esengine/estella/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/esengine/estella/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/esengine/estella/compare/v0.24.0...v0.25.0
+[0.24.0]: https://github.com/esengine/estella/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/esengine/estella/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/esengine/estella/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/esengine/estella/compare/v0.20.0...v0.21.0

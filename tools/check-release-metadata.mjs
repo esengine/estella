@@ -59,6 +59,23 @@ if (!changelog.includes(`## [${version}]`)) {
     );
 }
 
+// Every version heading needs its compare link, and [Unreleased] has to compare
+// from the shipping one. Four headings had none and [Unreleased] pointed two
+// releases back — drift nobody reads until a heading turns out not to be a link.
+const headings = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]);
+const refs = new Set([...changelog.matchAll(/^\[(\d+\.\d+\.\d+)\]:/gm)].map((m) => m[1]));
+for (const v of headings) {
+    if (!refs.has(v)) problems.push(`CHANGELOG.md has a "## [${v}]" section and no [${v}]: link — the heading renders as plain text`);
+}
+for (const v of refs) {
+    if (!headings.includes(v)) problems.push(`CHANGELOG.md links [${v}]: with no "## [${v}]" section to link`);
+}
+const unreleased = /^\[Unreleased\]:.*compare\/v(\d+\.\d+\.\d+)\.\.\.HEAD/m.exec(changelog);
+if (!unreleased) problems.push('CHANGELOG.md has no [Unreleased] compare link');
+else if (unreleased[1] !== version) {
+    problems.push(`CHANGELOG.md compares [Unreleased] from v${unreleased[1]}, but ${version} is shipping`);
+}
+
 if (problems.length > 0) {
     console.error(`\ncheck-release-metadata: ${problems.length} problem(s) against version ${version}\n`);
     for (const p of problems) console.error(`  - ${p}`);
