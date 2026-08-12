@@ -18,10 +18,12 @@
  * already half-built something.
  *
  * A capability's declared `effect` must be no gentler than its steps'. The tiers
- * are drawn where undo stops working, and the built-in agent confirms exactly
- * the irreversible ones. A capability that runs `create_script` while calling
- * itself `undoable` walks a model straight past that prompt, and the file it
- * wrote is not coming back.
+ * are drawn where going back stops working, and each one buys a different
+ * safety net: `undoable` is covered by the history checkpoint, `journaled` by
+ * the file journal, `irreversible` by nothing but the confirmation prompt. A
+ * capability that runs `create_script` while calling itself `undoable` claims a
+ * net that does not hold it — the turn's Revert would take the scene back and
+ * leave the file.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -34,7 +36,7 @@ const { CAPABILITIES, capabilityStepNames } = await import(
   pathToFileURL(path.join(SHARED, 'capabilityCatalog.mjs')).href
 );
 
-const SEVERITY = { read: 0, undoable: 1, irreversible: 2 };
+const SEVERITY = { read: 0, undoable: 1, journaled: 2, irreversible: 3 };
 const atomByName = new Map(ATOMS.map((t) => [t.name, t]));
 const problems = [];
 

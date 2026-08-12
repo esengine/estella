@@ -38,13 +38,10 @@ import { resolveInside } from './pathSandbox';
 const HOLDING_DIR = path.join(tmpdir(), 'estella-agent-journal');
 
 /**
- * How much of a project one transaction may hold onto.
- *
- * Sized for the thing this exists to make reversible — authoring: scripts,
- * scenes, prefabs, materials, a sprite or two. An `import_assets` that drags in
- * a video does not fit, and that is the case the partial report is for. Holding
- * gigabytes to make one import undoable would trade a rare convenience for a
- * disk nobody agreed to spend.
+ * How much of a project one transaction may hold onto. Sized for authoring —
+ * scripts, scenes, prefabs, a sprite or two. An import that drags in a video
+ * does not fit, which is the case the partial report exists for: holding
+ * gigabytes for one import spends a disk nobody agreed to.
  */
 let budgetBytes = 256 * 1024 * 1024;
 
@@ -105,11 +102,9 @@ let active: Transaction | null = null;
 /**
  * Open a transaction and make it the one every write door captures into.
  *
- * One at a time by design: the doors capture AMBIENTLY rather than being handed
- * a transaction id, which is what lets a write the agent caused indirectly — a
- * document the editor saved because a tool asked it to — land in the same
- * transaction as the tool call. Nested or concurrent transactions would make
- * "which one owns this write" unanswerable at the door.
+ * One at a time by design. Doors capture AMBIENTLY rather than being handed an
+ * id, which is what catches a write the agent caused indirectly; concurrent
+ * transactions would make "which owns this write" unanswerable at the door.
  */
 export function beginTransaction(root: string): string {
   if (active) endTransaction();
@@ -145,16 +140,11 @@ export function activeTransaction(): string | null {
 export type Intent = 'write' | 'remove';
 
 /**
- * Hold what `relPath` is right now, before the caller changes it.
+ * Hold what `relPath` is right now, before the caller changes it. A no-op with
+ * no transaction open, which is why every door can call it unconditionally.
  *
- * A no-op when no transaction is open — which is the ordinary case (a person
- * editing by hand), and the reason every write door can call this
- * unconditionally instead of asking first.
- *
- * The door says what it INTENDS; whether that lands as an add or a modify is
- * the journal's to answer, because it is the side that has just looked at the
- * path. A door deciding for itself is a door that can be wrong about it, and
- * "created" vs "changed" is the whole of what the history entry claims.
+ * The door says what it INTENDS; add-vs-modify is answered here, by the side
+ * that has just looked at the path.
  */
 export async function capture(relPath: string, intent: Intent): Promise<void> {
   const tx = active;
@@ -237,15 +227,9 @@ export function isRestorable(id: string): boolean {
 
 /**
  * Put every captured path back, newest capture first, and say what happened.
- *
- * LIFO because captures within a transaction can depend on each other: creating
- * `Scripts/` then writing `Scripts/HP.ts` must come apart as delete-the-file
- * then delete-the-directory, and the reverse order leaves a directory that
- * refuses to go.
- *
- * A failure on one path does not stop the rest. The alternative — abandoning the
- * revert half way — leaves a project in a state neither the turn nor the user
- * asked for, and the report is the thing that lets someone finish by hand.
+ * LIFO because captures depend on each other: `Scripts/` then `Scripts/HP.ts`
+ * comes apart file-first. One failure does not stop the rest — a half-abandoned
+ * revert leaves a project nobody asked for, and this is what finishes it.
  */
 export async function revert(id: string): Promise<RevertResult> {
   const tx = transactions.get(id);

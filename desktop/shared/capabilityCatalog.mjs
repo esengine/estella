@@ -36,8 +36,8 @@ const obj = (properties, required = []) => ({ type: 'object', properties, requir
  * Every capability, in the order a model should meet them.
  *
  * `effect` follows the same tiers as tools and must be the WORST of the steps it
- * runs: a capability that writes a file is irreversible however undoable its
- * other steps are, because that is the one an undo cannot rescue.
+ * runs: a capability that writes a file is `journaled` however undoable its
+ * other steps are, because that is the one the undo stack does not reach.
  */
 /** Where on the screen a HUD element sits, as insets from the edges it hugs. */
 const HUD_ANCHORS = {
@@ -175,7 +175,7 @@ export const CAPABILITIES = [
 
   {
     name: 'create_prefab',
-    effect: 'irreversible',
+    effect: 'journaled',
     description:
       'Build an entity subtree and extract it as a reusable `.esprefab` in one step — the whole point being that '
       + 'what you build once becomes an INSTANCE everywhere else (the scene stores a delta, not a copy). '
@@ -286,7 +286,7 @@ export const CAPABILITIES = [
 
   {
     name: 'create_behavior',
-    effect: 'irreversible',
+    effect: 'journaled',
     description:
       'Author a gameplay behaviour and attach it. A behaviour is a component plus its update loop, and getting one into '
       + 'a project is three steps that each look complete on their own: create_script makes the file AND wires it into '

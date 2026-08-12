@@ -17,7 +17,7 @@ import type {
 } from './types';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
-import { TOOLS, runTool, mutates, irreversible } from '../../shared/toolCatalog.mjs';
+import { TOOLS, runTool, mutates, irreversible, journaled } from '../../shared/toolCatalog.mjs';
 
 // `driverOnly` tools are doors for an EXTERNAL driver (a harness running the
 // editor's agent as a subject). The agent itself must not see them: a tool that
@@ -75,13 +75,16 @@ export interface ContributedTool {
   name: string;
   description: string;
   schema: unknown;
-  effect: 'read' | 'undoable' | 'irreversible';
+  effect: 'read' | 'undoable' | 'journaled' | 'irreversible';
 }
 
 /** Why `tool` needs saying out loud. A code — the editor renders the sentence,
  *  because it is the side that knows the reader's language. */
 function confirmReason(tool: CatalogTool): ConfirmReason {
   if (tool.name === BULK_EDIT_TOOL) return 'bulk_edit';
+  // A journaled tool only reaches the gate when nothing is holding its bytes,
+  // and that — not the tool — is what the person is being asked about.
+  if (journaled(tool)) return 'unjournaled';
   return tool.name === 'run_editor_command' || tool.name === 'play_probe'
     ? 'arbitrary_code'
     : 'irreversible';
@@ -154,13 +157,12 @@ function toOutcome(id: string, result: {
 /**
  * Run one turn to completion.
  *
- * The turn is bracketed by an undo checkpoint rather than a transaction: a
- * transaction held across model latency would lock the editor for seconds and
- * leave a dangling one on a crash, while a checkpoint lets each tool call stay
- * its own ordinary undo step AND the whole turn revert in one gesture
- * (EditorHistory.mark).
+ * Bracketed by a CHECKPOINT over both halves it can change: an EditorHistory
+ * mark for the document, a fileJournal transaction for the disk. Neither is a
+ * lock — one held across model latency would freeze the editor. Each call stays
+ * its own undo step; the pair is what brings the whole turn back at once.
  *
- * @returns the checkpoint, so the caller can offer that revert.
+ * @returns both, so the caller can offer that revert.
  */
 export async function runTurn(
   deps: KernelDeps,
@@ -168,9 +170,13 @@ export async function runTurn(
   context: string | null,
   signal: AbortSignal,
   images?: readonly UserImage[],
-): Promise<{ mark: unknown; steps: number }> {
+): Promise<{ mark: unknown; steps: number; tx: string | null }> {
   const { driver, session, emit, model, acceptsImages } = deps;
   const mark = await driver('mark', []);
+  // Opened before the first call and closed once, in the finally below: a
+  // transaction that leaked past the turn would keep capturing the user's own
+  // edits into a checkpoint labelled with the model's prompt.
+  const tx = deps.journal?.begin() ?? null;
   // Read before pushUser opens it: this is the index that turn will occupy.
   emit({ type: 'turn_start', prompt: text, model, index: session.turnIndex });
 
@@ -306,8 +312,8 @@ export async function runTurn(
         let end = i;
         while (end < calls.length && isRead(calls[end])) end++;
         const batch = end - i > 1
-          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal)))
-          : [await execute(deps, calls[i], allowed, signal)];
+          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal, tx !== null)))
+          : [await execute(deps, calls[i], allowed, signal, tx !== null)];
         for (const done of batch) {
           outcomes.push(done.outcome);
           wrote ||= done.mutated;
@@ -344,9 +350,13 @@ export async function runTurn(
   }
   if (signal.aborted) reason = 'aborted';
 
+  // Closed before the tally is read, so nothing the editor does while rendering
+  // the result lands in the turn's own transaction.
+  deps.journal?.end();
   const steps = await undoSteps(deps, mark);
-  emit({ type: 'turn_end', steps, mark, reason });
-  return { mark, steps };
+  const files = tx ? deps.journal?.changes(tx) ?? [] : [];
+  emit({ type: 'turn_end', steps, mark, tx, files, reason });
+  return { mark, steps, tx };
 }
 
 /**
@@ -436,6 +446,7 @@ async function execute(
   call: ToolCall,
   allowed: Set<string>,
   signal: AbortSignal,
+  journalling: boolean,
 ): Promise<{ outcome: ToolOutcome; mutated: boolean }> {
   const { emit, driver, confirm } = deps;
   const tool = byName.get(call.name);
@@ -449,12 +460,12 @@ async function execute(
   const effect = tool.effect ?? 'read';
   emit({ type: 'tool_start', call, effect });
 
-  // The one gate. `read` and `undoable` run unasked — the turn's checkpoint is
-  // the approval, and a prompt per setField would make the agent unusable.
-  // `irreversible` is where undo stops being an answer, so it is where the
-  // person has to be.
-  // Already waved through for the rest of this run — see ConfirmAnswer.
-  const gated = irreversible(tool) || call.name === BULK_EDIT_TOOL;
+  // The one gate. Everything the turn's checkpoint covers runs unasked. The flag
+  // is why the tier is not enough: journaled with NO transaction open is
+  // irreversible wearing a gentler tier.
+  const gated = irreversible(tool)
+    || call.name === BULK_EDIT_TOOL
+    || (journaled(tool) && !journalling);
   let input = call.input;
   if (gated && !allowed.has(call.name)) {
     const request = { callId: call.id, tool: call.name, reason: confirmReason(tool), input: call.input };

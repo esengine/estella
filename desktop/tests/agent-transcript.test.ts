@@ -20,7 +20,7 @@ const fold = (...events: AgentEvent[]): AgentTurn[] =>
 const started = (prompt = 'add a pause menu', index = 0, model = 'opus-5'): AgentEvent =>
   ({ type: 'turn_start', prompt, model, index });
 const ended = (over: Partial<{ steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' }> = {}): AgentEvent =>
-  ({ type: 'turn_end', steps: 0, mark: null, reason: 'end_turn', ...over });
+  ({ type: 'turn_end', steps: 0, mark: null, tx: null, files: [], reason: 'end_turn', ...over });
 const call = (name: string): ToolCall => ({ id: `c-${name}`, name, input: { a: 1 } });
 const tools = (t: AgentTurn): AgentToolEntry[] => t.entries.filter((e): e is AgentToolEntry => e.kind === 'tool');
 
@@ -300,7 +300,7 @@ describe('which entities a turn touched', () => {
   });
   const turn = (entries: AgentToolEntry[], id = 0): AgentTurn => ({
     id, prompt: 'p', model: 'opus-5', entries, inputTokens: 0, outputTokens: 0, context: null,
-    steps: 1, mark: { seq: 1 }, reason: 'end_turn', startedAt: 0, endedAt: 1,
+    steps: 1, mark: { seq: 1 }, tx: null, files: [], reason: 'end_turn', startedAt: 0, endedAt: 1,
   });
 
   it('reads the ids out of the argument names the catalog uses', () => {

@@ -28,17 +28,27 @@
  * Editor-host tools fail with a pointer when called on the headless fixtures
  * host.
  *
- * Every tool declares an `effect`, and the tiers are drawn where UNDO STOPS
- * WORKING — which is what makes them actionable rather than decorative:
+ * Every tool declares an `effect`, and the tiers are drawn where GOING BACK
+ * STOPS WORKING — which is what makes them actionable rather than decorative:
  *
  *   read          observes only. Never gated, never confirmed.
  *   undoable      mutates the document through EditorHistory. A built-in agent
  *                 runs these freely: the turn is bracketed by a history
  *                 checkpoint, so one Undo is the whole approval mechanism.
- *   irreversible  escapes the undo stack — writes a file, rewrites a project,
- *                 builds an export, or dispatches an arbitrary command. A
- *                 built-in agent must get explicit confirmation; undo cannot
- *                 rescue the user afterwards.
+ *   journaled     writes the project on disk, which the undo stack does not
+ *                 reach — but electron/fileJournal keeps the before-image, so
+ *                 the turn's Revert takes the file back with the scene. Runs
+ *                 unasked for the same reason `undoable` does.
+ *   irreversible  past both: it leaves the open project (a new project tree
+ *                 elsewhere), or it runs code whose effects nobody enumerated
+ *                 (an editor command, a probe evaluated in the running game).
+ *                 A built-in agent must get explicit confirmation.
+ *
+ * The line between the last two moved once already, and it is worth saying why.
+ * A file write was called irreversible for as long as nobody kept the bytes it
+ * overwrote — a property of the editor, not of writing files. Keeping them
+ * turned a dozen prompts per turn into none, which is most of what decides
+ * whether a person lets an agent build anything at all.
  *
  * A remote MCP client has no one to confirm with, so it keeps the coarser door
  * it always had: anything past `read` is hidden AND refused unless the host sets
@@ -55,9 +65,13 @@ const obj = (properties, required = []) => ({ type: 'object', properties, requir
  *  when it genuinely is; every mutating entry below states its tier. */
 export const mutates = (tool) => (tool.effect ?? 'read') !== 'read';
 
-/** Whether `tool` is past what an undo can revert — the in-editor agent's
- *  confirmation gate. */
+/** Whether `tool` is past what a turn's Revert can take back — the in-editor
+ *  agent's confirmation gate. `journaled` is NOT: its file writes come back. */
 export const irreversible = (tool) => tool.effect === 'irreversible';
+
+/** Whether `tool` writes the project on disk, so a transaction has to be open
+ *  around it for the turn's Revert to mean anything. */
+export const journaled = (tool) => tool.effect === 'journaled';
 
 // Render the viewport to a base64 PNG. Runs in the renderer (needs document):
 // captureViewport returns bottom-up GL rows, so flip Y into a 2D canvas first.
@@ -266,7 +280,7 @@ const ATOMS = [
       + 'REFUSES while the open scene has unsaved changes (opening reloads from disk, so anything just authored would be gone): save_scene first, or pass discardChanges to throw the edits away on purpose.',
     schema: obj({ path: { type: 'string' }, discardChanges: { type: 'boolean' } }, ['path']),
     method: 'openScene', args: (i) => [i.path, i.discardChanges === true], root: 'editor' },
-  { name: 'save_scene', effect: 'irreversible',
+  { name: 'save_scene', effect: 'journaled',
     description: 'Save the open DOCUMENT to disk (the toolbar Save) — the scene, or, in Prefab Mode, the prefab being edited (see get_document).',
     schema: obj({}), method: 'save', args: () => [], root: 'editor' },
   { name: 'open_asset',
@@ -287,7 +301,7 @@ const ATOMS = [
     description: 'Open the prefab an INSTANCE came from, in Prefab Mode (the Outliner\'s "Edit Prefab") — no ref→path lookup needed. Same refusals as open_asset.',
     schema: obj({ entity: { type: 'number' }, discardChanges: { type: 'boolean' } }, ['entity']),
     js: (i) => `window.__estellaEditor.editPrefab(${Number(i.entity)}, ${i.discardChanges === true})` },
-  { name: 'apply_prefab', effect: 'irreversible',
+  { name: 'apply_prefab', effect: 'journaled',
     description: 'Push an instance\'s overrides back into its prefab asset (the Outliner\'s "Apply to Prefab") — the base for EVERY instance is rewritten, and this instance\'s overrides clear. '
       + 'Property, name, visibility and component overrides plus structural add/remove. `confirm` must be true: a person is shown an itemized diff first, so a driver says it out loud instead (get_inspector marks the overridden fields).',
     schema: obj({ entity: { type: 'number' }, confirm: { type: 'boolean' } }, ['entity', 'confirm']),
@@ -300,12 +314,12 @@ const ATOMS = [
     description: 'Detach an instance (the Outliner\'s "Unpack Prefab"): its entities become ordinary scene entities and lose every prefab link, so later prefab edits no longer reach them. Undoable.',
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     js: (i) => `window.__estellaEditor.unpackPrefab(${Number(i.entity)})` },
-  { name: 'create_prefab_variant', effect: 'irreversible',
+  { name: 'create_prefab_variant', effect: 'journaled',
     description: 'Save a new `.esprefab` that INHERITS the instance\'s prefab and bakes in its current overrides (the Outliner\'s "Create Variant" — a prefab of a prefab), then re-link the instance to the variant. '
       + 'Written beside the base as "<base> Variant.esprefab"; returns the re-linked root\'s id. Deletions are not representable in a variant and are skipped.',
     schema: obj({ entity: { type: 'number' } }, ['entity']),
     js: (i) => `window.__estellaEditor.createPrefabVariant(${Number(i.entity)})` },
-  { name: 'create_scene_file', effect: 'irreversible',
+  { name: 'create_scene_file', effect: 'journaled',
     description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path, immediately referenceable (the registry refresh happens before this resolves). '
       + '`name` names it (the `.esscene` extension is added if absent); without one it is `scene.esscene`, which collides the moment you make a second.',
     schema: obj({
@@ -314,7 +328,7 @@ const ATOMS = [
     }, ['destDir']),
     js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.name ?? null)}, ${JSON.stringify({ overwrite: i.overwrite === true })})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
-  { name: 'create_prefab_from_entity', effect: 'irreversible',
+  { name: 'create_prefab_from_entity', effect: 'journaled',
     description: 'Extract an entity and its subtree into a `.esprefab` asset under assets/prefabs/ (the Outliner\'s Create Prefab), named after the entity; returns its `@uuid:` ref. '
       + 'This is what makes a subtree REUSABLE: afterwards `list_entity_templates` offers it as `prefab:<path>`, and creating with that template makes a real INSTANCE — the scene stores a delta, not a copy, so editing the prefab updates every instance. '
       + 'Without it a driver can build the same panel chrome into twenty scenes but never share it. Refs pointing OUT of the subtree cannot live in a standalone prefab and are cleared.',
@@ -324,7 +338,7 @@ const ATOMS = [
     }, ['entity']),
     js: (i) => `window.__estellaEditor.createPrefabFromEntity(${Number(i.entity)}, ${JSON.stringify({ replace: i.replace === true })})
       .then((ref) => { if (!ref) throw new Error('could not create a prefab from entity ${Number(i.entity)} — it may not exist'); return ref; })` },
-  { name: 'create_script', effect: 'irreversible',
+  { name: 'create_script', effect: 'journaled',
     description: "Create a project script the editor will actually LOAD. `kind`: 'component' — a declaration the editor "
       + "reads without running the game, which is what makes a component ADDABLE (add_component / apply_scene_ops) — or "
       + "'system', behaviour the play realm bundles and runs. It writes the module AND wires it into the project's "
@@ -335,7 +349,7 @@ const ATOMS = [
       kind: { type: 'string' }, name: { type: 'string' }, dir: { type: 'string' },
     }, ['kind', 'name']),
     js: (i) => `window.estella.project.createScript(${JSON.stringify(i.kind)}, ${JSON.stringify(i.name)}, ${JSON.stringify(i.dir ?? undefined)})` },
-  { name: 'create_asset', effect: 'irreversible',
+  { name: 'create_asset', effect: 'journaled',
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader (.esshader), material (.esmaterial), materialgraph (.esmatgraph), animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves). '
       + 'A material graph is the ONE type whose file is not the whole asset: it compiles to a sibling `.esshader`, which is written by save_asset_document — so create it, open_asset it, and save it, rather than leaving a graph with no shader beside it.',
     schema: obj({
@@ -344,13 +358,13 @@ const ATOMS = [
     }, ['destDir', 'baseName', 'content', 'type']),
     js: (i) => `window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, ${JSON.stringify(i.content)}, ${JSON.stringify(i.type)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
-  { name: 'delete_asset', effect: 'irreversible',
+  { name: 'delete_asset', effect: 'journaled',
     description: 'Delete a project file (or folder) to the OS trash — its `.meta` goes with it and the registry is re-scanned, so nothing is left half-removed. '
       + 'This is how you take back an asset you created by mistake: the editor command behind the Content Browser\'s Delete acts on whatever is SELECTED there, which a driver cannot see. '
       + 'Returns { path, type, restoreToken, usages } — `usages` is what still REFERENCES the asset (scenes, prefabs, materials); a non-empty list means you just left those refs dangling, and get_diagnostics will now report them. Recoverable from the OS trash.',
     schema: obj({ path: { type: 'string' } }, ['path']),
     js: (i) => `window.__estellaEditor.deleteAsset(${JSON.stringify(i.path)})`, root: 'editor' },
-  { name: 'import_assets', effect: 'irreversible',
+  { name: 'import_assets', effect: 'journaled',
     description: 'Import files into the asset registry (textures, audio, fonts, spine, tilemaps...). External absolute paths are copied into project-relative destDir; paths already INSIDE the project are registered in place (no copy, no rename). Returns { imported, skipped }; imported paths are immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({ destDir: { type: 'string' }, sources: { type: 'object', description: 'array of absolute file paths' } },
       ['destDir', 'sources']),
@@ -404,7 +418,7 @@ const ATOMS = [
     }, ['changes']),
     js: (i) => `window.__estellaEditor.editAssetDocument(${JSON.stringify(i.changes)}, ${JSON.stringify(i.docId ?? null)} ?? undefined, ${JSON.stringify(i.label ?? null)} ?? undefined)`,
     root: 'editor' },
-  { name: 'save_asset_document', effect: 'irreversible',
+  { name: 'save_asset_document', effect: 'journaled',
     description: 'Write an open asset editor\'s document to its file — the save its own panel performs, which for a MATERIAL GRAPH also recompiles the sibling `.esshader` every material on it reads. '
       + 'This is the save for these files: `save_scene` writes the scene, and writing the bytes yourself with write_project_file skips the serializer (and, for a graph, leaves the shader stale — the edit appears to save and still renders the old thing). '
       + 'Omit `docId` when only one is open. Returns { saved } — false means it was already clean, not that it failed.',
@@ -450,7 +464,7 @@ const ATOMS = [
     description: "An asset's .meta import settings, layered over its type's defaults — the Import Settings panel's data. Returns { type, settings }.",
     schema: obj({ path: { type: 'string' } }, ['path']),
     method: 'getImportSettings', args: (i) => [i.path], root: 'editor' },
-  { name: 'set_import_settings', effect: 'irreversible',
+  { name: 'set_import_settings', effect: 'journaled',
     description: 'Patch an asset\'s .meta import settings and persist. Keys are DOTTED paths into the importer block, matching the inspector field keys — a texture\'s 9-slice border is '
       + '{"sliceBorder.left":12,"sliceBorder.right":12,"sliceBorder.top":12,"sliceBorder.bottom":12}; filter/wrap are {"filterMode":"nearest","wrapMode":"clamp"}. '
       + 'These live in IMPORT, not on a component: a UIVisual set to NineSlice takes its border from texture metadata, so this is what makes frames and buttons stretch correctly. '
@@ -463,7 +477,7 @@ const ATOMS = [
       + 'An offset past the end is refused, naming the line count — so an empty reply always means those lines are empty, never that you have run off the end.',
     schema: obj({ path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } }, ['path']),
     js: (i) => `window.estella.fs.read(${JSON.stringify(i.path)}, ${i.offset ?? 'undefined'}, ${i.limit ?? 'undefined'})` },
-  { name: 'write_project_file', effect: 'irreversible',
+  { name: 'write_project_file', effect: 'journaled',
     description: 'Write a text file by project-relative path, CREATING or OVERWRITING it. This is how game scripts (src/*.ts) are authored — create_asset only makes .meta-carrying asset types and refuses to overwrite (it uniquifies to "name 2"). '
       + 'Writing project sources does not itself rebuild them; the editor picks the change up through its file watcher. '
       + 'Writing a .ts file returns the TypeScript errors in it — `{ ok, path, errors, diagnostics }` — so a script that does not compile says so HERE, not three steps later when the game plays black.',
@@ -491,7 +505,7 @@ const ATOMS = [
     description: 'Project-relative paths of every file under a project-relative directory (recursive). Use for source trees (src/) where list_assets — which only knows registered assets — sees nothing.',
     schema: obj({ dir: { type: 'string' } }, ['dir']),
     js: (i) => `window.estella.fs.listFiles(${JSON.stringify(i.dir)})` },
-  { name: 'set_project_physics', effect: 'irreversible',
+  { name: 'set_project_physics', effect: 'journaled',
     description: 'Patch the project physics feature (Project Settings → Physics), e.g. { "enabled": true }. Persists to the manifest; Play and exports boot it.',
     schema: obj({ patch: { type: 'object' } }, ['patch']),
     method: 'setPhysics', args: (i) => [i.patch], root: 'editor' },

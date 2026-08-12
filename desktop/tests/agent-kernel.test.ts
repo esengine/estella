@@ -8,7 +8,9 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { runTurn } from '../electron/agent/kernel';
-import type { AgentEvent, AgentSession, StepEvent, ToolCall, ToolOutcome } from '../electron/agent/types';
+import type {
+  AgentEvent, AgentSession, FileChange, StepEvent, ToolCall, ToolOutcome,
+} from '../electron/agent/types';
 
 /** A provider that replays scripted steps and records what it was told. */
 function fakeSession(steps: StepEvent[][]): AgentSession & {
@@ -39,6 +41,16 @@ const call = (name: string, input: Record<string, unknown> = {}): ToolCall =>
 const asks = (...calls: ToolCall[]): StepEvent[] =>
   [...calls.map((c) => ({ type: 'tool_call' as const, call: c })), { type: 'stop' as const, reason: 'tool_use' as const }];
 const ends = (): StepEvent[] => [{ type: 'stop', reason: 'end_turn' }];
+
+/** The disk half of the checkpoint, without a disk. `changes` answers whatever
+ *  it was built with, since what the journal captured is main's business. */
+function fakeJournal(files: FileChange[] = []) {
+  return {
+    begin: vi.fn((): string | null => 'tx-1'),
+    end: vi.fn(),
+    changes: vi.fn((): readonly FileChange[] => files),
+  };
+}
 
 describe('the agent turn', () => {
   let events: AgentEvent[];
@@ -78,7 +90,9 @@ describe('the agent turn', () => {
     // Both carry what the editor's read model needs and cannot infer across IPC:
     // what was asked, and the point an Undo would go back to.
     expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi', model: 'fake-model', index: 0 });
-    expect(events.at(-1)).toEqual({ type: 'turn_end', steps: 3, mark: { seq: 7 }, reason: 'end_turn' });
+    expect(events.at(-1)).toEqual({
+      type: 'turn_end', steps: 3, mark: { seq: 7 }, tx: null, files: [], reason: 'end_turn',
+    });
   });
 
   // The provider announces a call while the model writes its arguments, and
@@ -104,12 +118,81 @@ describe('the agent turn', () => {
     expect(kinds()).toContain('tool_end');
   });
 
-  it('asks before anything Undo cannot take back', async () => {
-    const s = fakeSession([asks(call('save_scene')), ends()]);
-    await runTurn(deps(s), 'save it', null, new AbortController().signal);
+  it('asks before anything the turn cannot take back', async () => {
+    const s = fakeSession([asks(call('run_editor_command', { id: 'x' })), ends()]);
+    await runTurn(deps(s), 'do it', null, new AbortController().signal);
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(confirm.mock.calls[0][0]).toMatchObject({ tool: 'save_scene' });
+    expect(confirm.mock.calls[0][0]).toMatchObject({ tool: 'run_editor_command', reason: 'arbitrary_code' });
     expect(kinds()).toContain('awaiting_confirm');
+  });
+
+  // The tier makes a file write ordinary, and only earns that while something
+  // holds the bytes. Both halves are asserted: a gate reading the tier alone
+  // waves the write through in exactly the case the tier does not cover.
+  describe('a write that reaches the disk', () => {
+    it('runs unasked while a transaction is open to catch it', async () => {
+      const journal = fakeJournal();
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      await runTurn({ ...deps(s), journal }, 'save it', null, new AbortController().signal);
+      expect(confirm).not.toHaveBeenCalled();
+      // The DISPATCH, not the `tool_start` — that is emitted before the gate, so
+      // it would be there for a call the person had declined.
+      expect(driver).toHaveBeenCalledWith('save', [], 'editor');
+    });
+
+    it('is confirmed when there is no transaction — nothing would hold it', async () => {
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      await runTurn(deps(s), 'save it', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm.mock.calls[0][0]).toMatchObject({ tool: 'save_scene', reason: 'unjournaled' });
+    });
+
+    it('is confirmed when the journal could not open one', async () => {
+      const journal = fakeJournal();
+      journal.begin.mockReturnValue(null);
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      await runTurn({ ...deps(s), journal }, 'save it', null, new AbortController().signal);
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm.mock.calls[0][0]).toMatchObject({ reason: 'unjournaled' });
+    });
+
+    // Closed exactly once, and before the turn is reported: a transaction left
+    // open would keep capturing the user's own edits into a checkpoint labelled
+    // with the model's prompt.
+    it('closes the transaction when the turn ends', async () => {
+      const journal = fakeJournal();
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      await runTurn({ ...deps(s), journal }, 'save it', null, new AbortController().signal);
+      expect(journal.begin).toHaveBeenCalledTimes(1);
+      expect(journal.end).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes it even when the turn errored', async () => {
+      const journal = fakeJournal();
+      const s = fakeSession([]);
+      s.step = async function* () { throw new Error('gateway closed'); };
+      await runTurn({ ...deps(s), journal }, 'save it', null, new AbortController().signal);
+      expect(journal.end).toHaveBeenCalledTimes(1);
+      expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'error' });
+    });
+
+    // A turn that only wrote files ends with 0 undo steps. Reported with the
+    // files it wrote, so the checkpoint can still offer a revert instead of
+    // reading the turn as having changed nothing.
+    it('reports the files it wrote alongside the undo steps', async () => {
+      const journal = fakeJournal([{ path: 'src/HP.ts', kind: 'add', unjournaled: false }]);
+      stepsSince = 0;
+      const s = fakeSession([asks(call('save_scene')), ends()]);
+      const out = await runTurn({ ...deps(s), journal }, 'save it', null, new AbortController().signal);
+
+      expect(out.tx).toBe('tx-1');
+      expect(events.at(-1)).toMatchObject({
+        type: 'turn_end',
+        steps: 0,
+        tx: 'tx-1',
+        files: [{ path: 'src/HP.ts', kind: 'add', unjournaled: false }],
+      });
+    });
   });
 
   it('a decline is told to the model, not raised as a failure', async () => {

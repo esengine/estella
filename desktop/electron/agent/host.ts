@@ -24,7 +24,8 @@
 import { runTurn, agentTools, type ContributedTool } from './kernel';
 import { SYSTEM_PROMPT, editorContext } from './prompt';
 import type {
-  AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmDecision, ConfirmRequest, UserImage,
+  AgentEvent, AgentProvider, AgentSession, ConfirmAnswer, ConfirmDecision, ConfirmRequest,
+  KernelDeps, UserImage,
 } from './types';
 import type { SurfaceDriver } from '../surfaceDriver';
 
@@ -84,6 +85,9 @@ export interface AgentHostDeps {
    * construction would be the empty one, since plugins load after main does.
    */
   contributedTools?(): readonly ContributedTool[];
+  /** The disk half of a turn's checkpoint. Absent in a host with no project —
+   *  the kernel then confirms the writes it would otherwise have covered. */
+  journal?: KernelDeps['journal'];
 }
 
 /** A conversation as the host hands it over to be kept. See agent/store.ts. */
@@ -338,7 +342,10 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         // would be a second definition of "what the agent knows".
         const context = await editorContext(deps.driver).catch(() => null);
         await runTurn(
-          { driver: deps.driver, session: session!, model: model ?? '', acceptsImages, confirm, emit },
+          {
+            driver: deps.driver, session: session!, model: model ?? '',
+            acceptsImages, confirm, emit, journal: deps.journal,
+          },
           text,
           context,
           controller.signal,
@@ -350,7 +357,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         // path is reached BEFORE the turn starts (runTurn takes its checkpoint
         // outside its own try), so there is no turn for it to be part of.
         error = (e as Error)?.message ?? String(e);
-        emit({ type: 'turn_end', steps: 0, mark: null, reason: 'error' });
+        emit({ type: 'turn_end', steps: 0, mark: null, tx: null, files: [], reason: 'error' });
       } finally {
         settlePending();
         // The run is over either way — errors included, since a conversation

@@ -163,8 +163,12 @@ export const agentMessages = defineMessages({
     // — The decision it needs from you —
     'agent.confirm.title': { en: 'Run {tool}?', zh: '要执行 {tool} 吗?' },
     'agent.confirm.why.irreversible': {
-        en: 'It writes outside the scene, and Undo cannot take it back.',
-        zh: '它会写到场景之外,撤销收不回来。',
+        en: 'It goes outside this project, and the run\'s Revert cannot take it back.',
+        zh: '它会动到本项目之外,这一轮的「撤销 Agent 改动」收不回来。',
+    },
+    'agent.confirm.why.unjournaled': {
+        en: 'It writes a project file, and with no project open nothing is holding what it overwrites.',
+        zh: '它会写项目文件,而当前没有打开项目,没人替你留着被覆盖的内容。',
     },
     'agent.confirm.why.arbitrary_code': {
         en: 'It runs code the agent wrote, so its effect is whatever that code does.',

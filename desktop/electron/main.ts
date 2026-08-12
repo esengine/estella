@@ -771,6 +771,14 @@ const agentHost = createAgentHost({
     void saveConversation(projectRoot, conversation)
       .catch((e) => console.error('[agent] could not save the conversation:', e));
   },
+  // The disk half of the turn's checkpoint. Null without a project: there is no
+  // root to scope the capture to, and the kernel then asks about each write
+  // rather than pretending one is held.
+  journal: {
+    begin: () => (projectRoot ? journal.beginTransaction(projectRoot) : null),
+    end: () => { journal.endTransaction(); },
+    changes: (id) => journal.changes(id),
+  },
 });
 ipcMain.handle('agent:status', () => agentHost.status());
 ipcMain.handle('agent:transcript', () => agentHost.transcript());

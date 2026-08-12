@@ -63,7 +63,7 @@ describe('the capability catalog', () => {
   });
 
   it('declares an effect no gentler than the steps it runs', () => {
-    const severity: Record<string, number> = { read: 0, undoable: 1, irreversible: 2 };
+    const severity: Record<string, number> = { read: 0, undoable: 1, journaled: 2, irreversible: 3 };
     const byName = new Map((ATOMS as Tool[]).map((t) => [t.name, t]));
     for (const { name, effect, steps } of capabilityStepNames() as Array<{ name: string; effect: string; steps: string[] }>) {
       for (const step of steps) {

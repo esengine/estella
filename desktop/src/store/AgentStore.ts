@@ -18,7 +18,9 @@
  */
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
-import type { AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest } from '../../electron/agent/types';
+import type {
+  AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest, FileChange,
+} from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf,
   modelsSettingId, DEFAULT_CONTEXT_WINDOW, type AgentProviderDef,
@@ -32,7 +34,7 @@ import { t } from '@/i18n';
 
 export type { AgentStatus, AgentEvent };
 
-export type AgentEffect = 'read' | 'undoable' | 'irreversible';
+export type AgentEffect = 'read' | 'undoable' | 'journaled' | 'irreversible';
 
 /**
  * Where a call is. `queued` is the model having asked for it while an earlier
@@ -138,6 +140,14 @@ export interface AgentTurn {
   steps: number;
   /** Where that Undo would go back to (EditorHistory.undoToMark). */
   mark: unknown | null;
+  /**
+   * The turn's file-journal transaction and the project paths it captured — the
+   * other half of what a revert takes back. A turn that only wrote files ends
+   * with `steps: 0` and a non-empty `files`, and a checkpoint reading steps
+   * alone would offer nothing for it.
+   */
+  tx: string | null;
+  files: readonly FileChange[];
   /** null while the turn is still running. */
   reason: TurnReason | null;
   /** Wall clock, stamped here rather than in main: it is what the person waited,
@@ -453,6 +463,8 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       context: null,
       steps: 0,
       mark: null,
+      tx: null,
+      files: [],
       reason: null,
       startedAt: Date.now(),
       endedAt: null,
@@ -545,6 +557,8 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         reason: event.reason,
         steps: event.steps,
         mark: event.mark,
+        tx: event.tx,
+        files: event.files,
         endedAt: Date.now(),
         // Nothing will report on these now. Neither failed nor succeeded.
         entries: closeProse(open.entries).map((e) =>

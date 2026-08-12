@@ -20,7 +20,7 @@ export interface CatalogTool {
   name: string;
   description: string;
   schema: Record<string, unknown>;
-  effect?: 'read' | 'undoable' | 'irreversible';
+  effect?: 'read' | 'undoable' | 'journaled' | 'irreversible';
 }
 
 /** One call the model wants made. */
@@ -187,8 +187,16 @@ export interface AgentProvider {
  * their language.
  */
 export type ConfirmReason =
-  /** Escapes the undo stack — a file, a project setting, an export. */
+  /** Leaves the open project, or builds something outside it — an export, a new
+   *  project tree. Nothing holds a copy of what it changed. */
   | 'irreversible'
+  /**
+   * Writes the project on disk with NO transaction open to catch it — no
+   * project, or a journal that could not start. Ordinarily this tier runs
+   * unasked because the turn's Revert takes the file back; when it cannot, the
+   * person is the only thing standing between the model and a file that stays.
+   */
+  | 'unjournaled'
   /** Runs code the agent wrote, so its effect is whatever that code does. */
   | 'arbitrary_code'
   /**
@@ -256,11 +264,21 @@ export type AgentEvent =
   | { type: 'tool_start'; call: ToolCall; effect: NonNullable<CatalogTool['effect']> }
   | { type: 'tool_end'; id: string; ok: boolean; summary: string; image?: string }
   | { type: 'awaiting_confirm'; request: ConfirmRequest }
-  /** The turn is over. `steps` is what a single Undo would take back — 0 is the
-   *  signal not to offer one — and `mark` is where it would take it back to. */
-  /** `max_rounds` is its own ending because the work is UNFINISHED: reported as
-   *  an ordinary end_turn it would look like the agent had said its piece. */
-  | { type: 'turn_end'; steps: number; mark: unknown; reason: 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds' }
+  /**
+   * The turn is over, with both halves a revert has to undo: `mark`/`steps` is
+   * the document, `tx`/`files` the project on disk. So a turn that only wrote
+   * files reports 0 steps and a non-empty `files` rather than reading as having
+   * changed nothing. `max_rounds` is its own ending — the work is UNFINISHED.
+   */
+  | {
+    type: 'turn_end';
+    steps: number;
+    mark: unknown;
+    /** The file journal's transaction id, or null when none was open. */
+    tx: string | null;
+    files: readonly FileChange[];
+    reason: 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
+  }
   | { type: 'error'; message: string };
 
 /** Everything the kernel needs from outside, so it runs under a test with none
@@ -281,6 +299,31 @@ export interface KernelDeps {
   /** Ask the person. `no` is declined, which the model is told about. */
   confirm(request: ConfirmRequest): Promise<ConfirmDecision>;
   emit(event: AgentEvent): void;
+  /**
+   * The disk half of the turn's checkpoint (electron/fileJournal), absent with
+   * no project to scope one to. Passed in, not imported, so the kernel needs no
+   * filesystem and "is one open" is the transaction owner's to answer.
+   */
+  journal?: {
+    /** Open one around this turn; null when it could not be opened. */
+    begin(): string | null;
+    /** Close the open one. Its copies stay restorable until retention or a
+     *  revert consumes them. */
+    end(): void;
+    /** What it captured, for the transcript and the revert offer. */
+    changes(id: string): readonly FileChange[];
+  };
+}
+
+/** One project path a turn wrote, as the transcript and the History panel show
+ *  it. Mirrors electron/fileJournal's JournalChange — the kernel does not import
+ *  that module, so the shape is restated rather than shared. */
+export interface FileChange {
+  path: string;
+  kind: 'add' | 'modify' | 'remove';
+  /** True when the revert cannot put this path back (it was past the journal's
+   *  budget). Rendered, not hidden — see fileJournal. */
+  unjournaled: boolean;
 }
 
 export type { HistoryMark };
