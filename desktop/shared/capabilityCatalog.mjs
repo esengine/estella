@@ -152,7 +152,7 @@ export const CAPABILITIES = [
     async run(input, call) {
       const before = await call('get_play_state', {});
       const wasPlaying = before?.playing === true;
-      if (!wasPlaying) await call('toggle_play', {});
+      if (!wasPlaying) await call('set_play', { state: 'playing' });
 
       for (const one of input.input ?? []) await call('play_input', one);
 

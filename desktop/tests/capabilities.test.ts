@@ -63,7 +63,7 @@ describe('the capability catalog', () => {
   });
 
   it('declares an effect no gentler than the steps it runs', () => {
-    const severity: Record<string, number> = { read: 0, undoable: 1, journaled: 2, irreversible: 3 };
+    const severity: Record<string, number> = { read: 0, ephemeral: 1, undoable: 2, journaled: 3, irreversible: 4 };
     const byName = new Map((ATOMS as Tool[]).map((t) => [t.name, t]));
     for (const { name, effect, steps } of capabilityStepNames() as Array<{ name: string; effect: string; steps: string[] }>) {
       for (const step of steps) {
@@ -292,7 +292,7 @@ describe('playtest', () => {
     });
 
     expect(calls.map((c) => c.method)).toEqual([
-      'playState', 'play', 'play_input', 'step', 'play_probe', 'screenshot',
+      'playState', 'setPlay', 'play_input', 'step', 'play_probe', 'screenshot',
     ]);
     expect(JSON.parse(text(res))).toMatchObject({ enteredPlay: true, probe: '42', picture: 'AAAA\nBBBB' });
   });

@@ -32,6 +32,11 @@
  * STOPS WORKING — which is what makes them actionable rather than decorative:
  *
  *   read          observes only. Never gated, never confirmed.
+ *   ephemeral     drives the PLAY REALM — enters it, steps it, feeds it input.
+ *                 That realm is thrown away on Stop and the edit World is never
+ *                 touched, so going back is what Stop already does. Runs
+ *                 unasked; it is not `read` because it does move something, and
+ *                 a remote client without writes should not be running games.
  *   undoable      mutates the document through EditorHistory. A built-in agent
  *                 runs these freely: the turn is bracketed by a history
  *                 checkpoint, so one Undo is the whole approval mechanism.
@@ -43,6 +48,12 @@
  *                 elsewhere), or it runs code whose effects nobody enumerated
  *                 (an editor command, a probe evaluated in the running game).
  *                 A built-in agent must get explicit confirmation.
+ *
+ * `ephemeral` was carved out of the same mistake as `journaled`: three tools
+ * that drive a simulation declared themselves `read`, which is the one thing
+ * they are not, and a fourth sat in `irreversible` for doing something a Stop
+ * undoes. Both readings came from tiering by "does it act" instead of "can it
+ * be taken back".
  *
  * The line between the last two moved once already, and it is worth saying why.
  * A file write was called irreversible for as long as nobody kept the bytes it
@@ -191,16 +202,17 @@ const ATOMS = [
     description: 'Viewport pick: the entity a click at (clientX, clientY) would select, or null.',
     schema: obj({ clientX: { type: 'number' }, clientY: { type: 'number' } }, ['clientX', 'clientY']),
     method: 'pick', args: (i) => [i.clientX, i.clientY] },
-  { name: 'set_run_mode',
+  { name: 'set_run_mode', effect: 'ephemeral',
     description: 'Run gameplay against the EDIT World (Stop rebuilds it from the model). This is the headless host\'s play; '
-      + "in the editor app the project's scripts live in the play realm and not in this World, so there it refuses and names toggle_play — "
+      + "in the editor app the project's scripts live in the play realm and not in this World, so there it refuses and names set_play — "
       + 'which is the one to reach for when the question is "does the game work".',
     schema: obj({ playing: { type: 'boolean' }, paused: { type: 'boolean' } }, ['playing']),
     method: 'setRunMode', args: (i) => [i.playing, i.paused] },
-  { name: 'step',
+  { name: 'step', effect: 'ephemeral',
     description: 'Advance by N frames of fixed dt, deterministically — the RUNNING GAME when one is playing, otherwise the edit World. Answers { world: "play" | "edit", frames, dt }, so you can tell which one moved. '
       + 'This is how you watch a game do something: the realm\'s own loop is wall-clock and the editor window is not focused while you drive it, which throttles it to roughly one frame a second — two probes a second apart read identical and a healthy game looks frozen. '
-      + 'Step, then read (play_probe) or look (screenshot). A pressed edge from play_input lasts exactly one frame, so step 1 right after it.',
+      + 'Step, then read (inspect_entity) or look (screenshot). A pressed edge from play_input lasts exactly one frame, so step 1 right after it. '
+      + 'Three seconds of game time is `step 180`, never a wait. Verify it moved by reading a value the GAME changes, not `frameCount` — that counts loop frames and keeps counting while a paused realm sits still.',
     schema: obj({ frames: { type: 'number' }, dt: { type: 'number' } }),
     method: 'step', args: (i) => [i.frames, i.dt] },
   { name: 'resize_viewport',
@@ -539,12 +551,20 @@ const ATOMS = [
     }, ['template']),
     method: 'createEntity',
     args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y, name: i.name }], root: 'editor' },
-  { name: 'toggle_play',
-    description: 'Enter or leave play mode, AWAITED — it resolves once the game realm is ready (or gone) and answers with its state, so there is nothing to poll afterwards. '
-      + 'Play runs the game in an isolated realm and never dirties the edit scene. Once in: `step` advances it, `play_input` drives it, `play_probe` reads it, `screenshot` shows it.',
-    schema: obj({}), method: 'play', args: () => [], root: 'editor' },
+  { name: 'set_play', effect: 'ephemeral',
+    description: "Put the game in a NAMED state and get the one it reached: 'playing', 'paused', or 'stopped'. AWAITED — it resolves once the realm is up (or gone), so there is nothing to poll. "
+      + "A named state rather than a toggle because a toggle needs you to know where it started, and called twice it is a no-op that reads as a failure. 'paused' from stopped boots the realm and freezes it, which is the state to set up in before stepping. "
+      + 'Play runs the game in an isolated realm and never dirties the edit scene. Once in: `step` advances it by exact frames, `play_input` drives it, `find_entities` / `inspect_entity` read it, `screenshot` shows it.',
+    schema: obj({ state: { type: 'string', description: "'playing' | 'paused' | 'stopped'" } }, ['state']),
+    method: 'setPlay', args: (i) => [i.state], root: 'editor' },
+  { name: 'set_time_scale', effect: 'ephemeral',
+    description: 'How fast the running game\'s clock advances: 1 is normal, 0.25 quarter speed, 0 frozen. Clamped to [0, 16]. '
+      + 'Reach for this to WATCH something too fast to see; to CHECK something, pause and `step` instead — exact frames are deterministic and waiting is not.',
+    schema: obj({ scale: { type: 'number' } }, ['scale']),
+    method: 'setTimeScale', args: (i) => [i.scale], root: 'editor' },
   { name: 'get_play_state',
-    description: 'The play realm state: { playing, ready, error, fps, frameCount }. '
+    description: 'The play realm state: { playing, ready, paused, error, fps, frameCount }. '
+      + 'frameCount counts LOOP frames, not simulated ones — a paused realm keeps counting while nothing in the game moves, so it cannot tell you a step happened. To check that, read a value the game changes (inspect_entity / list_resources) before and after. '
       + 'CHECK `fps` BEFORE CONCLUDING ANYTHING FROM A PROBE: the realm runs in an out-of-process iframe whose rAF Chromium throttles to ~1/s while the editor window is unfocused, '
       + 'so a game that looks frozen (an animation that never advances, a tween stuck at its start) is usually a background window, not a bug. `fps` is null until the first heartbeat (~0.5s after Play).',
     schema: obj({}), method: 'playState', args: () => [], root: 'editor' },
@@ -650,7 +670,7 @@ const ATOMS = [
       + 'Use play_input, not synthetic DOM events, to drive input. frame picks the realm in multiplayer previews (0 = host).',
     schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
     op: 'play_probe' },
-  { name: 'play_input', effect: 'irreversible',
+  { name: 'play_input', effect: 'ephemeral',
     description: 'Deliver a pointer or key event to the RUNNING game — the only way to exercise the input a game actually ships with. '
       + "`kind`: 'click' (down+up at x,y), 'move', 'down', 'up', 'wheel', 'key_down', 'key_up', 'tap' (touch down+up). "
       + 'x/y are SCREEN pixels, canvas-relative, y DOWN — the same numbers a real pointer event carries and what `Input.mouseX/mouseY` then read; '

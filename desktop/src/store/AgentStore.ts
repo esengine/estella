@@ -34,7 +34,7 @@ import { t } from '@/i18n';
 
 export type { AgentStatus, AgentEvent };
 
-export type AgentEffect = 'read' | 'undoable' | 'journaled' | 'irreversible';
+export type AgentEffect = 'read' | 'ephemeral' | 'undoable' | 'journaled' | 'irreversible';
 
 /**
  * Where a call is. `queued` is the model having asked for it while an earlier

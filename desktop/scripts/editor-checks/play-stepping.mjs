@@ -35,7 +35,7 @@ export async function run(ed) {
   const check = checker();
 
   await ed.open(root, 'assets/scenes/main.esscene');
-  await ed.call('toggle_play', {}, 120000);
+  await ed.call('set_play', { state: 'playing' }, 120000);
 
   // Ready before stepping: a realm still booting has no app to advance.
   let ready = false;

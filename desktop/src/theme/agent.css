@@ -288,6 +288,7 @@
    that reached the disk, and the one that cannot be taken back. Success is not
    a colour — it is the result in `out`, and tinting every finished row green
    makes the rows that matter harder to find. */
+.ag-call-e--ephemeral .ag-call-g { color: var(--run); }
 .ag-call-e--undoable .ag-call-g { color: var(--text-dim); }
 .ag-call-e--journaled .ag-call-g { color: var(--text); }
 .ag-call-e--irreversible .ag-call-g { color: var(--warn); }

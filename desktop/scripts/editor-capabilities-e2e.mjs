@@ -151,7 +151,7 @@ const failures = await withEditor(async (ed) => {
   check(typeof played?.picture === 'string' && played.picture.length > 20,
     `playtest brought back no text picture: ${JSON.stringify(played?.picture)?.slice(0, 120)}`);
   console.log(`playtest OK — entered play, probed, ${String(played.picture).length} chars of picture`);
-  await ed.call('toggle_play', {}, 60000);
+  await ed.call('set_play', { state: 'playing' }, 60000);
 
   // A capability's failure names the step, not just the message.
   const bad = await ed.call('configure_physics_body', { entity: 999999, body: 'dynamic' }, 30000).catch((e) => ({ text: String(e) }));

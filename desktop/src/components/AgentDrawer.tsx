@@ -25,7 +25,7 @@
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert,
+  X, Plus, PanelRight, ArrowUp, Square, ChevronRight, ChevronDown, Check, TriangleAlert, Play,
   Loader, Copy, Pencil, Eye, FileText, KeyRound, Boxes, Stethoscope, Image as ImageIcon, ImageOff, RotateCcw,
   File as FileIcon, ArrowRight, History as HistoryIcon, Trash2, FoldVertical,
 } from 'lucide-react';
@@ -101,6 +101,7 @@ const ASKING = 'ag-asking';
 // which is why it is not the amber warning.
 const TOOL_ICON: Record<string, typeof Eye> = {
   read: Eye,
+  ephemeral: Play,
   undoable: Pencil,
   journaled: FileText,
   irreversible: TriangleAlert,

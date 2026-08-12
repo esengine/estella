@@ -368,12 +368,12 @@ export class EditorControlSurfaceImpl {
     // flips, so "playing" here starts a world with no gameplay in it — and the
     // honest `false` it returned (it means "no Stop rebuild happened", not
     // "failed") reads as a refusal, so a caller retries, then reaches for
-    // toggle_play, and by then both notions of play are half-on. Say which door
+    // set_play, and by then both notions of play are half-on. Say which door
     // it is. The headless host has no realm and keeps this one.
     if (typeof window !== 'undefined' && '__estellaEditor' in window) {
       throw new Error(
         'set_run_mode drives the edit World, which does not have the project\'s game scripts — '
-        + "in the editor they are bundled into the play realm. Use toggle_play to run the game "
+        + "in the editor they are bundled into the play realm. Use set_play to run the game "
         + '(get_play_state reports it, screenshot sees it), and step() to advance the edit World '
         + 'a frame without playing.',
       );

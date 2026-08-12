@@ -790,6 +790,11 @@ window.addEventListener('message', (e: MessageEvent) => {
     case 'estella:play:setPaused':
       app?.setPaused(!!data.paused);
       break;
+    case 'estella:play:setTimeScale':
+      // Clamped: a negative clock runs the game backwards through systems that
+      // assume dt > 0, and a huge one spends the frame budget in one step.
+      app?.setPlaySpeed(Math.max(0, Math.min(16, Number(data.scale ?? 1))));
+      break;
     case 'estella:play:reload':
       void reload();
       break;

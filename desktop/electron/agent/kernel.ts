@@ -121,7 +121,7 @@ export interface ContributedTool {
   name: string;
   description: string;
   schema: unknown;
-  effect: 'read' | 'undoable' | 'journaled' | 'irreversible';
+  effect: 'read' | 'ephemeral' | 'undoable' | 'journaled' | 'irreversible';
 }
 
 /** Why `tool` needs saying out loud. A code — the editor renders the sentence,
@@ -339,9 +339,9 @@ export async function runTurn(
               ? 'You changed the scene this turn and have not looked at it once. Diagnostics only '
                 + 'cover what the editor can name — whether the content is ON CAMERA, whether it '
                 + 'reads, whether it is where you meant, are all things only the picture answers. '
-                + 'capture_viewport now; if it is something that has to be PLAYED, toggle_play, '
+                + 'capture_viewport now; if it is something that has to be PLAYED, set_play, '
                 + 'drive it with play_input and screenshot that. Then fix what you see, or report.'
-              : 'You changed the scene this turn and never ran it. RUN it: toggle_play, then '
+              : 'You changed the scene this turn and never ran it. RUN it: set_play, then '
                 + 'play_probe to read the state back (`find(NAME)` gives every entity carrying a '
                 + 'component, with its data), play_input to drive the controls a player would use, '
                 + 'step to advance the frames, and play_probe again to prove they did something. '
@@ -645,7 +645,7 @@ async function execute(
  * No diagnostic answers "does it actually do the thing".
  */
 const LOOKING_TOOLS = new Set([
-  'capture_viewport', 'screenshot', 'toggle_play', 'play_probe', 'play_input',
+  'capture_viewport', 'screenshot', 'set_play', 'play_probe', 'play_input',
 ]);
 
 /** The scene's outstanding validation issues as one line of context, or null

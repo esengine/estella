@@ -21,7 +21,7 @@ export interface CatalogTool {
   name: string;
   description: string;
   schema: Record<string, unknown>;
-  effect?: 'read' | 'undoable' | 'journaled' | 'irreversible';
+  effect?: 'read' | 'ephemeral' | 'undoable' | 'journaled' | 'irreversible';
 }
 
 /** One call the model wants made. */

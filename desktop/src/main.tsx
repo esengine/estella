@@ -297,6 +297,43 @@ function buildEditorAutomation(): unknown {
         await new Promise((r) => setTimeout(r, 100));
       }
     },
+    /**
+     * Put the game in a NAMED state and answer with the one it reached. A
+     * toggle needs the caller to know where it started, and called twice reads
+     * as a failure. `paused` from stopped boots the realm and freezes it, so
+     * "set up, then step" is one call rather than a race.
+     */
+    setPlay: async (state: 'playing' | 'paused' | 'stopped') => {
+      const now = () => PlayRealm.getSnapshot();
+      const settle = async (done: () => boolean) => {
+        const deadline = Date.now() + 60_000;
+        while (!done() && !now().error && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      };
+      // Awaited like the other direction. Reading the state straight after the
+      // toggle answered `playing: true` to someone who had just asked for it to
+      // stop, which is a lie they then act on.
+      if (state === 'stopped') {
+        if (now().playing) useEditorStore.getState().togglePlay();
+        await settle(() => !now().playing);
+        return now();
+      }
+      if (!now().playing) {
+        useEditorStore.getState().togglePlay();
+        await settle(() => now().playing && now().ready);
+      }
+      // Paused LAST, so it applies to a realm that is up rather than to one
+      // still booting, which would come up running.
+      PlayRealm.setPaused(state === 'paused');
+      return now();
+    },
+    /**
+     * How fast the running game's clock advances: 1 is normal, 0.25 quarter
+     * speed. It does NOT stop the loop — `paused` does that, and `step` moves a
+     * paused realm by exact frames, which is what a deterministic check wants.
+     */
+    setTimeScale: (scale: number) => PlayRealm.setTimeScale(scale),
     playState: () => PlayRealm.getSnapshot(),
     /**
      * Where the picture worth taking is, in CSS pixels, with the window's own size so

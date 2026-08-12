@@ -159,6 +159,9 @@ export type PlayOutbound =
   // is a warm scene load, not a cold engine bring-up. Replied with `warmed`.
   | { type: 'estella:play:warm' }
   | { type: 'estella:play:setPaused'; paused: boolean }
+  // How fast the realm's clock advances; 1 is normal. Distinct from paused:
+  // a scale of 0 still runs the loop, and `step` still moves it by frames.
+  | { type: 'estella:play:setTimeScale'; scale: number }
   | { type: 'estella:play:reload' }
   // `withTree: false` = detail-only snapshot (skip the O(entities) tree walk).
   | {

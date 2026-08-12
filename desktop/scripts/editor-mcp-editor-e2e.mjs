@@ -282,7 +282,7 @@ try {
     await fail('unpack_prefab left the prefab link in place');
   console.log('revert_prefab + unpack_prefab OK — re-synced, then detached');
 
-  await call('toggle_play', {}, 60_000);
+  await call('set_play', { state: 'playing' }, 60_000);
   let play = null;
   for (let i = 0; i < 60; i++) {
     play = JSON.parse((await call('get_play_state')).text);
@@ -343,7 +343,7 @@ try {
   }
   console.log(`schema change OK — fingerprint gate forced a clean restart (${s2.v} -> ${s3.v})`);
 
-  await call('toggle_play', {}, 60_000);
+  await call('set_play', { state: 'playing' }, 60_000);
   console.log('play OK — realm ready, screenshot + probe captured, hot reload exercised, stopped');
 
   if (process.env.ESTELLA_E2E_EXPORT === '1') {

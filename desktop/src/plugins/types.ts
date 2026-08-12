@@ -387,7 +387,7 @@ export interface AgentToolContribution {
      * Declare it honestly — nothing verifies it. A tool calling itself
      * `journaled` while writing outside `ctx.fs` claims a net not holding it.
      */
-    effect?: 'read' | 'undoable' | 'journaled' | 'irreversible';
+    effect?: 'read' | 'ephemeral' | 'undoable' | 'journaled' | 'irreversible';
     /** Do the work. Whatever it returns is JSON-encoded for the model; throwing
      *  reports the message as a failed call, which the model can act on. */
     run(input: unknown): unknown | Promise<unknown>;

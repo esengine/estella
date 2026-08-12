@@ -47,6 +47,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 export interface PlayRealmSnapshot {
   playing: boolean;
   ready: boolean;
+  /** Frozen where it stands — the realm is up, its loop is not advancing. A
+   *  paused realm still answers every query and still takes `step`. */
+  paused: boolean;
   error: string | null;
   /** Frames per second the realm is ACTUALLY running, from its own heartbeat. An
    *  unfocused window has the realm's rAF throttled to about 1 — which looks exactly
@@ -73,7 +76,7 @@ export class PlayRealmInstance {
   private warm = false;
   private warmedResolve: (() => void) | null = null;
   private readonly store = createStore<PlayRealmSnapshot>(() => ({
-    playing: false, ready: false, error: null, fps: null, frameCount: 0,
+    playing: false, ready: false, paused: false, error: null, fps: null, frameCount: 0,
   }));
 
   constructor(readonly id: number) {}
@@ -142,7 +145,7 @@ export class PlayRealmInstance {
   async start(payload: PlayPayload, netPorts?: MessagePort[]): Promise<void> {
     this.payload = payload;
     this.netPorts = netPorts ?? null;
-    this.set({ playing: true, ready: false, error: null });
+    this.set({ playing: true, ready: false, paused: false, error: null });
     // Time Play-click → first frame. Only the primary realm profiles (a
     // multiplayer session's client realms would clobber the shared singleton).
     if (this.id === 0) bootProfiler.begin('play (click → first frame)');
@@ -210,7 +213,7 @@ export class PlayRealmInstance {
     if (this.warm && this.id === 0) {
       if (this.iframe) this.iframe.style.visibility = 'hidden';
       this.setPaused(true); // freeze the world so a hidden realm doesn't keep simulating
-      this.set({ playing: false, ready: false, error: null, fps: null, frameCount: 0 });
+      this.set({ playing: false, ready: false, paused: false, error: null, fps: null, frameCount: 0 });
       return;
     }
     if (this.iframe) {
@@ -218,7 +221,7 @@ export class PlayRealmInstance {
       this.iframe.src = 'about:blank';
     }
     this.warm = false;
-    this.set({ playing: false, ready: false, error: null, fps: null, frameCount: 0 });
+    this.set({ playing: false, ready: false, paused: false, error: null, fps: null, frameCount: 0 });
   }
 
   /** Drop the staged realm but keep the iframe + listener (reusable): cold
@@ -243,7 +246,14 @@ export class PlayRealmInstance {
     this.iframe = null;
   }
 
+  /** How fast this realm's clock runs; 1 is normal. Not a pause — a scale of 0
+   *  still runs the loop, and `step` still moves it by exact frames. */
+  setTimeScale(scale: number): void {
+    this.post({ type: 'estella:play:setTimeScale', scale });
+  }
+
   setPaused(paused: boolean): void {
+    this.set({ paused });
     this.post({ type: 'estella:play:setPaused', paused });
   }
 
@@ -340,7 +350,14 @@ export class PlayRealmInstance {
     if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
     const reqId = ++this.reqSeq;
     return new Promise((resolve) => {
-      this.pending.set(reqId, (data) => resolve((data as PlayStepReply) ?? null));
+      this.pending.set(reqId, (data) => {
+        const reply = (data as PlayStepReply) ?? null;
+        // The counter otherwise comes only from the loop's heartbeat, which a
+        // PAUSED realm stops sending — so a hand-stepped realm reported the
+        // count it froze at, and a step measured through it measured nothing.
+        if (reply?.frameCount !== undefined) this.set({ frameCount: reply.frameCount });
+        resolve(reply);
+      });
       this.post({ type: 'estella:play:query', kind: 'step', reqId, frames, dt });
       setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 30000);
     });
@@ -524,6 +541,11 @@ class PlayRealmsManager {
     for (const c of this.clients_) c.destroy();
     this.clients_ = [];
     this.bumpSession();
+  }
+
+  setTimeScale(scale: number): void {
+    this.primary.setTimeScale(scale);
+    for (const c of this.clients_) c.setTimeScale(scale);
   }
 
   setPaused(paused: boolean): void {

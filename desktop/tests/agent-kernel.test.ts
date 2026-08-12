@@ -967,7 +967,7 @@ describe('what verification means for a model that cannot see', () => {
     }, 'build a game', null, new AbortController().signal);
     const nudge = s.context.find((c) => c.includes('never ran it'));
     expect(nudge).toBeTruthy();
-    expect(nudge).toContain('toggle_play');
+    expect(nudge).toContain('set_play');
     expect(nudge).toContain('play_probe');
     expect(nudge).not.toContain('capture_viewport now');
   });
@@ -975,7 +975,7 @@ describe('what verification means for a model that cannot see', () => {
   it('counts running the game as having checked, for either kind of model', async () => {
     for (const acceptsImages of [true, false]) {
       const s = fakeSession([
-        asks(call('add_entity')), asks(call('toggle_play')), asks(call('play_probe')), ends(),
+        asks(call('add_entity')), asks(call('set_play', { state: 'playing' })), asks(call('play_probe')), ends(),
       ]);
       await runTurn({
         driver: mkDriver() as never, session: s, model: 'm', acceptsImages,

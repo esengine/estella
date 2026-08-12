@@ -36,7 +36,7 @@ const { CAPABILITIES, capabilityStepNames } = await import(
   pathToFileURL(path.join(SHARED, 'capabilityCatalog.mjs')).href
 );
 
-const SEVERITY = { read: 0, undoable: 1, journaled: 2, irreversible: 3 };
+const SEVERITY = { read: 0, ephemeral: 1, undoable: 2, journaled: 3, irreversible: 4 };
 const atomByName = new Map(ATOMS.map((t) => [t.name, t]));
 const problems = [];
 

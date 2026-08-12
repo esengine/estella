@@ -59,7 +59,7 @@ export async function run(ed) {
 
   const samples = [];
   for (let cycle = 0; cycle < CYCLES; cycle++) {
-    await ed.call('toggle_play', {}, 120000);
+    await ed.call('set_play', { state: 'playing' }, 120000);
     let ready = false;
     for (let i = 0; i < 40 && !ready; i++) {
       ready = (await ed.json('get_play_state', {}))?.ready === true;
@@ -68,7 +68,7 @@ export async function run(ed) {
     if (!check(ready, `cycle ${cycle}: the play realm never reported ready`)) return check.failures;
     await ed.call('step', { frames: 10, dt: 1 / 60 }, 60000);
 
-    await ed.call('toggle_play', {}, 120000);
+    await ed.call('set_play', { state: 'playing' }, 120000);
     let stopped = false;
     for (let i = 0; i < 40 && !stopped; i++) {
       stopped = (await ed.json('get_play_state', {}))?.playing === false;

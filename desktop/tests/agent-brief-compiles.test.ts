@@ -91,7 +91,7 @@ describe("the agent's brief", () => {
     // A Breakout dogfood spent 75 of its 158 calls probing component data and none
     // looking, and delivered a game that is GAME OVER within half a second — every
     // value it read was exactly what it should have been.
-    for (const taught of ['toggle_play', 'step', 'play_input', 'play_probe', 'screenshot']) {
+    for (const taught of ['set_play', 'step', 'play_input', 'inspect_entity', 'screenshot']) {
       expect([taught, SYSTEM_PROMPT.includes(taught)]).toEqual([taught, true]);
     }
     expect(SYSTEM_PROMPT).toMatch(/not tested until you have PLAYED it/);

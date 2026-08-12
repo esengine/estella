@@ -147,7 +147,7 @@ describe('editor MCP tool registry', () => {
   // tool that reaches the FILESYSTEM is on the side undo cannot rescue.
   it('every tool declares a tier the gates understand', () => {
     for (const t of TOOLS as Array<{ name: string; effect?: string }>) {
-      expect(['read', 'undoable', 'journaled', 'irreversible', undefined]).toContain(t.effect);
+      expect(['read', 'ephemeral', 'undoable', 'journaled', 'irreversible', undefined]).toContain(t.effect);
     }
   });
 
@@ -161,6 +161,19 @@ describe('editor MCP tool registry', () => {
       'delete_asset', 'save_asset_document'];
     for (const name of onDisk) {
       expect([name, toolNamed(name).effect]).toEqual([name, 'journaled']);
+      expect([name, irreversible(toolNamed(name))]).toEqual([name, false]);
+    }
+  });
+
+  // Not a read and not irreversible: the realm is thrown away on Stop, so
+  // going back is what Stop already does. Three of these declared `read` while
+  // moving something; one charged a prompt for what a Stop undoes.
+  it('tiers driving the play realm as ephemeral', () => {
+    for (const name of ['set_play', 'step', 'play_input', 'set_time_scale', 'set_run_mode']) {
+      expect([name, toolNamed(name).effect]).toEqual([name, 'ephemeral']);
+      // Still a mutation for the remote gate — a read-only client is not one
+      // that gets to boot somebody's game.
+      expect([name, mutates(toolNamed(name))]).toEqual([name, true]);
       expect([name, irreversible(toolNamed(name))]).toEqual([name, false]);
     }
   });
