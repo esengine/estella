@@ -155,6 +155,13 @@ export interface InspectorField {
   slider?: boolean;
   /** Unit shown after the resting value (e.g. '°', 'px'). */
   unit?: string;
+  /**
+   * This vector is a fraction of the sibling field `key`, whose current per-axis
+   * value is `denom` — so the row can offer a pixel view (`value[i] * denom[i]`)
+   * of a number the data keeps normalized. Resolved only when every axis of the
+   * denominator is finite and non-zero; absent means there is no pixel view.
+   */
+  normalizedOf?: { key: string; denom: number[] };
   /** A rarely-edited field — tucked behind the component's "Advanced" fold. */
   advanced?: boolean;
   /** Groups the field under a collapsible category header (UE's property categories). */

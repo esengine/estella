@@ -92,6 +92,12 @@ export interface FieldMeta {
     slider?: boolean;
     /** Unit shown after the resting value (e.g. '°', 'px', '%'). */
     unit?: string;
+    /**
+     * This field is a fraction of the named sibling, axis-wise (`Sprite.pivot` of
+     * `Sprite.size`), so the editor can offer a pixel view of it. The stored value
+     * stays the fraction. Authored `normalized_of=` at the C++ ES_PROPERTY site.
+     */
+    normalizedOf?: string;
     /** Human label / tooltip overriding the key-derived ones. */
     label?: string;
     tooltip?: string;

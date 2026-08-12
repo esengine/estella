@@ -2766,6 +2766,7 @@ label: string | undefined
 map: boolean | undefined
 max: number | undefined
 min: number | undefined
+normalizedOf: string | undefined
 slider: boolean | undefined
 step: number | undefined
 tooltip: string | undefined

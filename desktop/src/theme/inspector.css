@@ -158,6 +158,12 @@
 
 /* property rows (label col + value col, reset on right) */
 .prop { display: grid; grid-template-columns: 38% 1fr 18px; align-items: center; gap: 4px; min-height: var(--h-prop); padding: 1px 0; position: relative; }
+/* A field decorator's block (FieldDecorator), on the same track grid as its row so it
+   lines up under the value wells rather than under the label. */
+.prop-aside { display: grid; grid-template-columns: 38% 1fr 18px; gap: 4px; padding: 2px 0 4px; }
+.prop-aside > * { grid-column: 2; }
+.pivot-pick { display: flex; align-items: center; gap: 9px; }
+.pivot-pick .pivot-cur { font-style: normal; font-size: var(--fs-sm); font-weight: 600; color: var(--acc-hi); }
 .prop-label { font-size: var(--fs-sm); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
 .prop-label.scrub { cursor: ew-resize; user-select: none; }
 .prop-label.scrub:hover { color: var(--text); }
@@ -189,6 +195,9 @@
    track count resolves from min-content there — so plain flex wrap it is). */
 .vec { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
 .vec .vfield { flex: 1 1 56px; }
+/* A fraction-of-a-sibling vector (Sprite.pivot) carries a frac/px unit picker, capped
+   like DimControl's so its width:100% trigger can't crush the axis wells. */
+.vec .field.vec-unit { flex: 0 0 54px; }
 .vfield { height: 22px; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .vfield:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .ax { width: 16px; height: 100%; display: grid; place-items: center; font-size: var(--fs-3xs); font-weight: 700; font-family: var(--mono); color: var(--on-accent); cursor: ew-resize; flex-shrink: 0; font-style: normal; }

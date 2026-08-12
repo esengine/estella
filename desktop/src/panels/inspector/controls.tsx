@@ -25,6 +25,7 @@ import { prettyLabel, hexToRgba, coerceEnumInput } from '@/engine/schema';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { revealAsset } from '@/project/assetReveal';
 import { Toasts } from '@/store/Toasts';
+import type { FieldUnit } from '@/store/fieldUnits';
 import { t } from '@/i18n';
 import { DimensionUnit, INVALID_ENTITY } from 'esengine';
 import type {
@@ -100,18 +101,33 @@ function VecField({
   );
 }
 
+/** The pixel view of a normalized vector (`field.normalizedOf` resolved): the sibling's
+ *  per-axis value as the denominator, plus the unit the row is currently in and how to
+ *  change it. The caller owns that choice — a control writes values, not preferences. */
+export interface PixelView {
+  denom: number[];
+  unit: FieldUnit;
+  onUnit: (u: FieldUnit) => void;
+}
+
 export function VecControl({
   value,
   mixed,
   mixedAxes,
+  pixels,
   onBegin,
   onEnd,
   onCancel,
   onChange,
-}: ControlGesture & { value: number[]; mixed?: boolean; mixedAxes?: boolean[]; onChange: (v: number[]) => void }) {
+}: ControlGesture & { value: number[]; mixed?: boolean; mixedAxes?: boolean[]; pixels?: PixelView; onChange: (v: number[]) => void }) {
+  // In px the wells show — and SCRUB IN — the multiplied-out value, so a drag moves
+  // by pixels; only the commit divides back. The fraction is what reaches the model
+  // either way: the unit never changes what is stored.
+  const px = pixels?.unit === 'px';
+  const shown = px ? value.map((n, i) => n * pixels!.denom[i]) : value;
   return (
-    <div className="vec">
-      {value.map((n, i) => (
+    <div className={`vec${pixels ? ' vec-normalized' : ''}`}>
+      {shown.map((n, i) => (
         <VecField
           key={i}
           axis={AXES[i]}
@@ -127,11 +143,25 @@ export function VecControl({
             // to keep each (possibly multi-selected) entity's own value there,
             // instead of stamping the primary's whole vector onto the selection.
             const next = value.map(() => NaN);
-            next[i] = v;
+            next[i] = px ? v / pixels!.denom[i] : v;
             onChange(next);
           }}
         />
       ))}
+      {pixels && (
+        <span className="field dropdown vec-unit">
+          <Select
+            variant="field"
+            value={pixels.unit}
+            ariaLabel={t('det.unitAria')}
+            options={[
+              { value: 'norm', label: t('det.unitFraction') },
+              { value: 'px', label: 'px' },
+            ]}
+            onChange={(v) => pixels.onUnit(v as FieldUnit)}
+          />
+        </span>
+      )}
     </div>
   );
 }

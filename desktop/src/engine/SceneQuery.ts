@@ -159,6 +159,12 @@ export function buildMultiInspector(
           return !datas.every((d) => deepEqual(axisOf(d[f.key], i), p));
         });
         if (axes.some(Boolean)) { f.mixed = true; f.mixedAxes = axes; }
+        // A pixel view needs the selection to agree on the denominator: 32px is a
+        // different fraction per differently-sized sprite, and one write carries one
+        // fraction — so drop it rather than fan out the primary's arithmetic.
+        if (f.normalizedOf && !datas.every((d) => deepEqual(d[f.normalizedOf!.key], datas[0][f.normalizedOf!.key]))) {
+          delete f.normalizedOf;
+        }
       } else if (!datas.every((d) => deepEqual(d[f.key], datas[0][f.key]))) {
         f.mixed = true;
       }

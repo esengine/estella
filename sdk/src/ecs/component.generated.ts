@@ -635,7 +635,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'size.x', 'size.y'],
         fields: {
             color: { tooltip: "Tint multiplied into the texture (white = unchanged)." },
-            pivot: { tooltip: "Anchor point (0–1) the sprite rotates and scales about.", advanced: true },
+            pivot: { tooltip: "Anchor point the sprite rotates and scales about, as a fraction of its size (0.5,0.5 = centre). Values outside 0–1 sit off the sprite.", normalizedOf: "size" },
             uvOffset: { advanced: true },
             uvScale: { advanced: true },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },

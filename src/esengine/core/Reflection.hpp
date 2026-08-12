@@ -73,6 +73,8 @@
  *          - category=<s>       : inspector group header
  *          - advanced           : tuck behind an "advanced" fold
  *          - enum_source=<name> / bitmask_source=<name> : editor-resolved option/label source
+ *          - normalized_of=<field> : this value is a fraction of that sibling (same
+ *                                    type), so the editor can offer a pixel view of it
  *
  *          Serialization / runtime policy:
  *          - invalidates=<field> : after an editor set, flip <field> so the owning
@@ -81,7 +83,8 @@
  *          - replicated          : eligible for network replication (RC11; reserved)
  *
  *          Malformed *known* metadata (a non-numeric min=, slider without a range,
- *          invalidates= naming no field) is a hard EHT error, not a silent drop.
+ *          invalidates=/normalized_of= naming no field) is a hard EHT error, not a
+ *          silent drop.
  *
  *          Examples:
  *            ES_PROPERTY(asset=texture)

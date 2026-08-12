@@ -113,6 +113,8 @@ class MetadataGenerator:
                 entries.append(('enumSource', json.dumps(a['enum_source'], ensure_ascii=False)))
             if 'bitmask_source' in a:
                 entries.append(('bitmask', '{ source: ' + json.dumps(a['bitmask_source'], ensure_ascii=False) + ' }'))
+            if 'normalized_of' in a:
+                entries.append(('normalizedOf', json.dumps(a['normalized_of'], ensure_ascii=False)))
             if entries:
                 out.append((prop.name, entries))
         return out

@@ -63,6 +63,11 @@ class CppParser:
         # Same value grammar as a C++ member initializer: number, true/false,
         # Enum::Member, or a braced vector `{100, 100}`.
         'editor_default',
+        # `normalized_of=<sibling>` marks this field a FRACTION of that sibling's
+        # value (Sprite.pivot is a fraction of Sprite.size), so the editor can
+        # offer a pixel view of it. The stored value stays the fraction — the
+        # sibling is the denominator, never a second source of truth.
+        'normalized_of',
     })
     NUMERIC_ANNOTATIONS = frozenset({'min', 'max', 'step'})
 
@@ -241,16 +246,28 @@ class CppParser:
                 )
 
     def _validate_component_refs(self, component: Component, filepath: Path) -> None:
-        """Component-level checks that need the full field set — currently
-        `invalidates=<field>` must name a sibling property (else the generated
-        setter side-effect would reference a non-existent member)."""
-        field_names = {p.name for p in component.properties}
+        """Component-level checks that need the full field set: `invalidates=<field>`
+        must name a sibling property (else the generated setter side-effect would
+        reference a non-existent member), and `normalized_of=<field>` must name a
+        sibling of the SAME type (the denominator is applied axis-wise, so a
+        mismatched arity would divide an axis by nothing and read as 0)."""
+        by_name = {p.name: p for p in component.properties}
         for prop in component.properties:
+            loc = f"{filepath}:{component.name}.{prop.name}"
             target = prop.annotations.get('invalidates')
-            if target is not None and target not in field_names:
+            if target is not None and target not in by_name:
+                self.errors.append(f"{loc}: invalidates='{target}' names no field on this component")
+            denom = prop.annotations.get('normalized_of')
+            if denom is None:
+                continue
+            if denom == prop.name:
+                self.errors.append(f"{loc}: normalized_of='{denom}' is the field itself")
+            elif denom not in by_name:
+                self.errors.append(f"{loc}: normalized_of='{denom}' names no field on this component")
+            elif by_name[denom].cpp_type != prop.cpp_type:
                 self.errors.append(
-                    f"{filepath}:{component.name}.{prop.name}: "
-                    f"invalidates='{target}' names no field on this component"
+                    f"{loc}: normalized_of='{denom}' is {by_name[denom].cpp_type}, "
+                    f"not {prop.cpp_type}"
                 )
 
     @staticmethod

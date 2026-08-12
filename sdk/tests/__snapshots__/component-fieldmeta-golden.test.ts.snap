@@ -688,8 +688,8 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
     },
     "pivot": {
-      "advanced": true,
-      "tooltip": "Anchor point (0–1) the sprite rotates and scales about.",
+      "normalizedOf": "size",
+      "tooltip": "Anchor point the sprite rotates and scales about, as a fraction of its size (0.5,0.5 = centre). Values outside 0–1 sit off the sprite.",
     },
     "tileSize": {
       "advanced": true,

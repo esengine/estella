@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSkeletalFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
 import type { App, SceneData } from 'esengine';
-import type { NodeKind, EntityId, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
+import type { NodeKind, EntityId, InspectorField, InspectorFieldValue, EnumOption, GradientValue, CurveValue } from '@/types';
 import { t } from '@/i18n';
 
 type SceneEntityLike = SceneData['entities'][number];
@@ -283,6 +283,9 @@ export interface UserFieldMeta {
   step?: number;
   slider?: boolean;
   unit?: string;
+  /** This field is a fraction of the named sibling, axis-wise (Sprite.pivot of Sprite.size)
+   *  — the editor can then offer a pixel view; the stored value stays the fraction. */
+  normalizedOf?: string;
   advanced?: boolean;
   category?: string;
   /** Hover help (UE ToolTip). */
@@ -412,6 +415,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       step: fromDef.step,
       slider: fromDef.slider,
       unit: fromDef.unit,
+      normalizedOf: fromDef.normalizedOf,
       advanced: fromDef.advanced,
       category: fromDef.category,
       tooltip: fromDef.tooltip,
@@ -629,6 +633,26 @@ function bitmaskOptions(meta: { bits?: number; source?: string }): EnumOption[] 
 }
 
 /**
+ * The per-axis denominator behind a `normalizedOf` field, read from the sibling it
+ * names — `Sprite.pivot` × `Sprite.size` is the pivot in pixels. Only a denominator
+ * finite and non-zero on EVERY axis qualifies; anything else has no pixel view, and
+ * a unit whose numbers are all NaN is worse than no unit.
+ */
+function normalizedDenominator(
+  meta: UserFieldMeta | null,
+  value: InspectorFieldValue,
+  data: Readonly<Record<string, unknown>>,
+): { key: string; denom: number[] } | undefined {
+  const key = meta?.normalizedOf;
+  if (!key || !Array.isArray(value)) return undefined;
+  const sibling = data[key];
+  if (!sibling || typeof sibling !== 'object') return undefined;
+  const axes = ['x', 'y', 'z', 'w'] as const;
+  const denom = value.map((_, i) => Number((sibling as Record<string, unknown>)[axes[i]]));
+  return denom.every((n) => Number.isFinite(n) && n !== 0) ? { key, denom } : undefined;
+}
+
+/**
  * Build one inspector field: an **asset control** for asset-ref fields (carrying
  * the `@uuid:` ref or 0 for none), else a value-shape-inferred control.
  */
@@ -693,6 +717,10 @@ function fieldFor(
   }
   // Presentation policy that applies to any field type (folds, category, help text,
   // and a DisplayName override of the key-derived label).
+  if (field) {
+    const norm = normalizedDenominator(meta, field.value, data);
+    if (norm) field.normalizedOf = norm;
+  }
   if (field && (meta?.advanced || isAdvancedField(compType, key))) field.advanced = true;
   if (field && meta?.category) field.category = meta.category;
   if (field && meta?.tooltip) field.tooltip = meta.tooltip;

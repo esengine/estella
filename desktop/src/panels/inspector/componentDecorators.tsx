@@ -35,7 +35,7 @@ import {
   DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection,
   FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES,
 } from 'esengine';
-import type { InspectorComponent, EntityId } from '@/types';
+import type { InspectorComponent, InspectorField, EntityId } from '@/types';
 
 async function addTextLayoutBox(sourceId: EntityId): Promise<void> {
   let canvas = SceneCommands.findCanvas();
@@ -436,6 +436,41 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
   );
 }
 
+// The nine pivot presets, as the fraction each grid cell writes. Columns are
+// left/centre/right; rows read top→bottom while pivot Y runs bottom-up (0 = bottom),
+// so row 0 is Y 1. Values a click can produce — every other pivot is "Custom".
+const PIVOT_X = [0, 0.5, 1];
+const PIVOT_Y = [1, 0.5, 0];
+
+/** The pivot picker under Sprite.pivot: one click for the nine presets a sprite is
+ *  almost always pivoted at, so the common case needs no arithmetic in either unit.
+ *  The numeric row stays — pivot is continuous, and a preset is only a shortcut into
+ *  it (as with UINode anchors, the fields remain the single source of truth). */
+function PivotPicker({ entities, field }: { entities: EntityId[]; field: InspectorField }) {
+  const [x, y] = (field.value as number[]) ?? [0.5, 0.5];
+  const c = PIVOT_X.indexOf(x);
+  const r = PIVOT_Y.indexOf(y);
+  const preset = c >= 0 && r >= 0 && field.mixed !== true;
+  const pick = (col: number, row: number) => {
+    SceneCommands.beginGesture('Pivot');
+    for (const id of entities) SceneCommands.setField(id, 'Sprite', 'pivot', 'vec2', [PIVOT_X[col], PIVOT_Y[row]]);
+    SceneCommands.endGesture();
+  };
+  return (
+    <div className="pivot-pick">
+      <AlignGrid
+        active={preset ? { c, r } : null}
+        ariaLabel={t('det.pivotPresets')}
+        cellTitle={(col, row) => `${ANCHOR_V_LABEL[row]} · ${ANCHOR_H_LABEL[col]}`}
+        onPick={pick}
+      />
+      <em className="pivot-cur">
+        {preset ? `${ANCHOR_V_LABEL[r]} · ${ANCHOR_H_LABEL[c]}` : t('det.anchorCustom')}
+      </em>
+    </div>
+  );
+}
+
 // The inline Controllers strip — the panel's per-node authoring brought into the
 // inspector so choosing a state page and gearing a field happen in ONE place (no
 // cross-panel dance). Reuses the exact model readers + SceneCommands the Controllers
@@ -598,6 +633,21 @@ export interface ComponentDecorator {
 }
 
 /**
+ * Extra UI for ONE FIELD, rendered directly under that field's row — the rung
+ * between a component decorator (whole section) and an entity one (whole entity).
+ * A preset picker belongs beside the numbers it writes, and a component decorator
+ * cannot put it there: its block renders once, above every row in the section.
+ */
+export interface FieldDecorator {
+  id: string;
+  component: string;
+  /** The field key this attaches under. */
+  field: string;
+  surfaces?: readonly InspectorSurface[];
+  render(ctx: DecoratorContext & { field: InspectorField }): ReactNode;
+}
+
+/**
  * Extra UI for the ENTITY rather than one component, rendered above the sections.
  * A separate kind because its trigger is a predicate over the whole component set,
  * and it must appear once for an entity matching it twice.
@@ -611,6 +661,7 @@ export interface EntityDecorator {
 }
 
 const componentContrib = new ContributionRegistry<ComponentDecorator>('inspector component decorator');
+const fieldContrib = new ContributionRegistry<FieldDecorator>('inspector field decorator');
 const entityContrib = new ContributionRegistry<EntityDecorator>('inspector entity decorator');
 
 const serves = (d: { surfaces?: readonly InspectorSurface[] }, surface: InspectorSurface): boolean =>
@@ -649,6 +700,15 @@ const BUILTIN_COMPONENT_DECORATORS: ComponentDecorator[] = [
   })),
 ];
 
+const BUILTIN_FIELD_DECORATORS: FieldDecorator[] = [
+  {
+    id: 'core.sprite.pivot',
+    component: 'Sprite',
+    field: 'pivot',
+    render: ({ entities, field }) => <PivotPicker entities={entities} field={field} />,
+  },
+];
+
 const BUILTIN_ENTITY_DECORATORS: EntityDecorator[] = [
   {
     id: 'core.ui.controllers',
@@ -658,21 +718,26 @@ const BUILTIN_ENTITY_DECORATORS: EntityDecorator[] = [
 ];
 
 componentContrib.registerAll('core', BUILTIN_COMPONENT_DECORATORS);
+fieldContrib.registerAll('core', BUILTIN_FIELD_DECORATORS);
 entityContrib.registerAll('core', BUILTIN_ENTITY_DECORATORS);
 
 export const decoratorRegistry = {
   registerComponent: (owner: Owner, d: ComponentDecorator): Disposable => componentContrib.register(owner, d),
+  registerField: (owner: Owner, d: FieldDecorator): Disposable => fieldContrib.register(owner, d),
   registerEntity: (owner: Owner, d: EntityDecorator): Disposable => entityContrib.register(owner, d),
   disposeOwner: (owner: Owner): void => {
     componentContrib.disposeOwner(owner);
+    fieldContrib.disposeOwner(owner);
     entityContrib.disposeOwner(owner);
   },
   subscribe: (fn: () => void): (() => void) => {
     const a = componentContrib.subscribe(fn);
-    const b = entityContrib.subscribe(fn);
-    return () => { a(); b(); };
+    const b = fieldContrib.subscribe(fn);
+    const c = entityContrib.subscribe(fn);
+    return () => { a(); b(); c(); };
   },
-  getRevision: (): number => componentContrib.getRevision() + entityContrib.getRevision(),
+  getRevision: (): number =>
+    componentContrib.getRevision() + fieldContrib.getRevision() + entityContrib.getRevision(),
 };
 
 /** Decorators attached to one component type on this surface. */
@@ -695,6 +760,15 @@ export function decoratorExtra(ctx: DecoratorContext): ReactNode | undefined {
   const parts = componentDecorators(ctx.comp.name, ctx.surface).filter((d) => d.render);
   if (!parts.length) return undefined;
   return <>{parts.map((d) => <Fragment key={d.id}>{d.render!(ctx)}</Fragment>)}</>;
+}
+
+/** The rendered block that sits under one field's row, or undefined when none applies. */
+export function decoratorFieldExtra(ctx: DecoratorContext & { field: InspectorField }): ReactNode | undefined {
+  const parts = fieldContrib.all().filter(
+    (d) => d.component === ctx.comp.name && d.field === ctx.field.key && serves(d, ctx.surface),
+  );
+  if (!parts.length) return undefined;
+  return <>{parts.map((d) => <Fragment key={d.id}>{d.render(ctx)}</Fragment>)}</>;
 }
 
 /** Every field key claimed by this component's decorators, or undefined when none is. */

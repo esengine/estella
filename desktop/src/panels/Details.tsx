@@ -52,6 +52,7 @@ import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
+import { useFieldUnits, fieldUnitKey, fieldUnitOf } from '@/store/fieldUnits';
 import { controllerCurrentPage, drivenField, readComponentData, readModelField, readGearBindings } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
@@ -162,8 +163,9 @@ const KIND_LABEL: Record<NodeKind, string> = {
 
 import {
   VecControl, SidesControl, EnumControl, EntityControl, FlagsControl, SliderControl, BoolControl, DimControl, StringControl, MapControl, GradientControl, CurveControl, AssetControl,
+  type PixelView,
 } from './inspector/controls';
-import { decoratorAction, decoratorExtra, decoratorOwnedFields, entityDecorators } from './inspector/componentDecorators';
+import { decoratorAction, decoratorExtra, decoratorFieldExtra, decoratorOwnedFields, entityDecorators } from './inspector/componentDecorators';
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
@@ -382,7 +384,7 @@ function drivenFieldValue(
   return patched ? { ...field, value: patched.value } : field;
 }
 
-function FieldRow({ entities, comp, field: rawField, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+function FieldRow({ entities, comp, field: rawField, write, extra }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite; extra?: ReactNode }) {
   const field = drivenFieldValue(entities, comp, rawField, write);
   const mixed = field.mixed === true;
   const { apply, begin, end, cancel } = fieldWriter(entities, comp, field, write);
@@ -398,6 +400,16 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
     min: field.min,
     max: field.max,
   });
+
+  // The pixel view of a fraction-of-a-sibling field (Sprite.pivot of Sprite.size).
+  // The row owns the unit CHOICE — a persisted editor preference, never scene data —
+  // and hands the control only the numbers it needs to show and undo the maths.
+  const unitKey = fieldUnitKey(comp, field.key);
+  const units = useFieldUnits((s) => s.units);
+  const setUnit = useFieldUnits((s) => s.set);
+  const pixels: PixelView | undefined = field.normalizedOf
+    ? { denom: field.normalizedOf.denom, unit: fieldUnitOf(units, unitKey), onUnit: (u) => setUnit(unitKey, u) }
+    : undefined;
 
   // A fixed set of string choices declared on the field itself (an importer's
   // compression format). Choices that depend on the scene — a spine animation, a
@@ -452,7 +464,7 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
     case 'vec2':
     case 'vec3':
     case 'vec4':
-      control = <VecControl value={field.value as number[]} mixed={mixed} mixedAxes={field.mixedAxes} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
+      control = <VecControl value={field.value as number[]} mixed={mixed} mixedAxes={field.mixedAxes} pixels={pixels} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
       break;
     case 'dimension':
       control = <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
@@ -545,6 +557,7 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
   const invalid = !!field.required && isRequiredEmpty(field.value);
 
   return (
+    <>
     <div
       className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}${invalid ? ' invalid' : ''}`}
       onContextMenu={
@@ -605,6 +618,8 @@ function FieldRow({ entities, comp, field: rawField, write }: { entities: Entity
         />
       )}
     </div>
+    {extra && <div className="prop-aside"><div>{extra}</div></div>}
+    </>
   );
 }
 
@@ -799,6 +814,7 @@ function ComponentSection({
   write,
   action,
   extra,
+  fieldExtra,
   hideFields,
 }: {
   entities: EntityId[];
@@ -809,6 +825,8 @@ function ComponentSection({
   write?: FieldWrite;
   action?: { label: string; title: string; run: () => void };
   extra?: React.ReactNode;
+  /** Per-field extra UI, rendered under that field's own row (Sprite.pivot's presets). */
+  fieldExtra?: (field: InspectorField) => React.ReactNode;
   /** Field keys the `extra` block owns (e.g. UINode's Layout section), skipped by
    *  the generic field flow so they aren't edited in two places. */
   hideFields?: ReadonlySet<string>;
@@ -844,7 +862,7 @@ function ComponentSection({
     else if (f.advanced) advancedFields.push(f);
     else ungrouped.push(f);
   }
-  const row = (f: InspectorField) => <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />;
+  const row = (f: InspectorField) => <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} extra={fieldExtra?.(f)} />;
   const enable = comp.enable;
   // The promoted enable field is hidden from the body, so it gets its gear dot
   // here — page-driven show/hide is the most common boolean gear.
@@ -1003,6 +1021,7 @@ function GameDetails() {
                   onToggle={() => toggle(comp.name)}
                   action={decoratorAction(ctx)}
                   extra={decoratorExtra(ctx)}
+                  fieldExtra={(f) => decoratorFieldExtra({ ...ctx, field: f })}
                   hideFields={decoratorOwnedFields(ctx)}
                   write={(key, type, value) =>
                     PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
@@ -2406,6 +2425,7 @@ function EditorDetails() {
               onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
               action={decoratorAction(ctx)}
               extra={decoratorExtra(ctx)}
+              fieldExtra={(f) => decoratorFieldExtra({ ...ctx, field: f })}
               hideFields={decoratorOwnedFields(ctx)}
             />
           );

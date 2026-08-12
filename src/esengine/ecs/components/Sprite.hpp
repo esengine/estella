@@ -58,7 +58,7 @@ struct Sprite {
     glm::vec2 size{1.0f, 1.0f};
 
     /** @brief Pivot point (0,0 = bottom-left, 0.5,0.5 = center, 1,1 = top-right) */
-    ES_PROPERTY(advanced, tooltip="Anchor point (0–1) the sprite rotates and scales about.")
+    ES_PROPERTY(normalized_of=size, tooltip="Anchor point the sprite rotates and scales about, as a fraction of its size (0.5,0.5 = centre). Values outside 0–1 sit off the sprite.")
     glm::vec2 pivot{0.5f, 0.5f};
 
     /** @brief UV coordinate offset for sprite sheets */
