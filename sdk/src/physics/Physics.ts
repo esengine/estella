@@ -541,4 +541,14 @@ export class PhysicsAPI {
  * Game code reads it as `Res(Physics)` / `app.getResource(Physics)` to call forces,
  * impulses, joint helpers, raycasts, etc.
  */
+/**
+ * The physics world, as `Res(Physics)` hands it over — queries, impulses and the
+ * step's own knobs. Bodies and colliders are components; this is for what has no
+ * component to be.
+ *
+ * `@beta`: the corpus reaches three of thirty-seven physics symbols, so the
+ * vocabulary is settled well ahead of the evidence for it.
+ *
+ * @beta
+ */
 export const Physics = defineResource<PhysicsAPI>(null!, 'Physics');

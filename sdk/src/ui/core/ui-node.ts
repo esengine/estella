@@ -61,6 +61,16 @@ export interface UINodeData {
     insetBottom: Dimension;
 }
 
+/**
+ * A layout box. Under a Canvas its size and position come from the flex layout
+ * rather than from Transform, which the layout writes.
+ *
+ * `@beta`: anchors, insets and the theme tokens beside them are the newest part
+ * of the UI, and the corpus reaches thirty-three of a hundred and fifteen UI
+ * symbols.
+ *
+ * @beta
+ */
 export const UINode = defineBuiltin<UINodeData>('UINode', {
     position: 0,
     display: 0,

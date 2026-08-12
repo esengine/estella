@@ -930,6 +930,12 @@ export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
     metaDefaults<BitmapTextData>('BitmapText')
 );
 
+/**
+ * A Spine skeleton on an entity — which skeleton and atlas, and what it is
+ * playing. Driving it is {@link Spine}'s job; this is the data it drives.
+ *
+ * @beta
+ */
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
     metaDefaults<SpineAnimationData>('SpineAnimation')
 );

@@ -38,6 +38,12 @@ export const SpineEvents = defineResource<SpineEventsData>({ events: [] }, 'Spin
  * (a realm with the spine side-module). Read it with `Res(Spine)` to control
  * playback — `setAnimation` / `setSkin` / `setMixDuration` / `getAnimations` / etc.
  */
+/**
+ * Spine playback, as `Res(Spine)` hands it over. Reached through the
+ * `esengine/spine` entry, since the runtime is a side module a project opts into.
+ *
+ * @beta
+ */
 export const Spine = defineResource<SpineManager>(null!, 'Spine');
 
 const SPINE_TYPE_MAP: Record<number, SpineEventType | null> = {

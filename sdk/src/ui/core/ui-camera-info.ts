@@ -2,6 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineResource } from '../../ecs/resource';
 
+/**
+ * The surface UI lays out against: its pixel size and the scale mapping design
+ * pixels onto it. Written by the camera plugin before layout runs.
+ *
+ * @beta
+ */
 export interface UICameraData {
     viewProjection: Float32Array;
     vpX: number;
@@ -19,6 +25,9 @@ export interface UICameraData {
     valid: boolean;
 }
 
+/** The UI surface, as a resource — what a system reads to place something in
+ *  screen terms rather than design terms.
+ *  @beta */
 export const UICameraInfo = defineResource<UICameraData>({
     viewProjection: new Float32Array(16),
     vpX: 0, vpY: 0, vpW: 0, vpH: 0,

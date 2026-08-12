@@ -56,6 +56,12 @@ export interface UIVisualData {
     enabled: boolean;
 }
 
+/**
+ * What a {@link UINode} draws — a colour, a texture, a nine-slice, a tiled fill
+ * or a partial one. The node decides the box; this decides what fills it.
+ *
+ * @beta
+ */
 export const UIVisual = defineBuiltin<UIVisualData>('UIVisual', {
     visualType: UIVisualType.None,
     texture: 0,

@@ -179,10 +179,11 @@ export interface UIEntityInit {
 }
 
 /**
- * Spawn a UI entity with Transform + UINode, optionally UIVisual and
- * Text, optionally parented. Returns the entity.
+ * Spawn a UI entity — Transform and UINode always, UIVisual and Text when the
+ * init asks for them, parented when it names a parent. Every built-in widget is
+ * composed from this, so a hand-built node and a widget are the same thing.
  *
- * Widgets compose with this to avoid repeating the same insert dance.
+ * @beta
  */
 export function spawnUIEntity(init: UIEntityInit): Entity {
     const { world } = init;

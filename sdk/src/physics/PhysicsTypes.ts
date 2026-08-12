@@ -76,6 +76,13 @@ export interface PhysicsEventsData {
     sensorExits: SensorEvent[];
 }
 
+/**
+ * This step's collision and trigger events, as a resource. Drained per fixed
+ * step, so a system reading it must run inside one — a read from `Update` sees
+ * whatever the last step left.
+ *
+ * @beta
+ */
 export const PhysicsEvents = defineResource<PhysicsEventsData>({
     collisionEnters: [],
     collisionExits: [],

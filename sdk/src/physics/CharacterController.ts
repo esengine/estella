@@ -71,6 +71,12 @@ export interface CharacterControllerData {
     realVelocity: Vec2;
 }
 
+/**
+ * A kinematic mover for a player or an NPC: it sweeps rather than being pushed,
+ * so it never tunnels and never inherits a rigid body's momentum.
+ *
+ * @beta
+ */
 export const CharacterController = defineComponent<CharacterControllerData>('CharacterController', {
     velocity: { x: 0, y: 0 },
     up: { x: 0, y: 1 },

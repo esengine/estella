@@ -13,7 +13,12 @@
  */
 import type { Color } from '../../types';
 
-/** Semantic color roles consumed by widgets. */
+/**
+ * Semantic colour roles widgets read, so a project restyles by naming roles
+ * rather than by reaching into each widget.
+ *
+ * @beta
+ */
 export interface ThemeColors {
     /** Dialog / panel background. */
     surface: Color;
@@ -171,7 +176,9 @@ export function setTheme(tokens: ThemeTokens): void {
     activeTheme = tokens;
 }
 
-/** Convenience: the active color palette. */
+/** The active colour palette — what a widget reads at build time, so a theme
+ *  swap after that needs a rebuild rather than a repaint.
+ *  @beta */
 export function themeColors(): ThemeColors {
     return activeTheme.colors;
 }

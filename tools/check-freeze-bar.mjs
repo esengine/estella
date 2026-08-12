@@ -148,9 +148,11 @@ function testedIdentifiers() {
     return seen;
 }
 
-const ESENGINE_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]esengine['"]/g;
+// Every entry, not just the root one: the SDK ships nine, and a symbol reached
+// through `esengine/spine` is as exercised as one reached through `esengine`.
+const ESENGINE_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]esengine(?:\/[^'"]+)?['"]/g;
 
-/** Symbols each golden project imports from 'esengine', as `name -> [projectId]`. */
+/** Symbols each golden project imports from an `esengine` entry, as `name -> [projectId]`. */
 function exercisedByGolden() {
     const out = new Map();
     for (const g of GOLDEN) {
