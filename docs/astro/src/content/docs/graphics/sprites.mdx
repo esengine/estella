@@ -38,7 +38,7 @@ Content Browser onto an entity, or set the Sprite's texture field in Details.
 | `texture` | `0` | Texture handle from a loader (`0` = untextured, draws a white quad). |
 | `color` | `{1,1,1,1}` | Tint multiplied into the texture (white = unchanged). |
 | `size` | `{100,100}` | Rendered size in world units. |
-| `pivot` | `{0.5,0.5}` | Anchor point (0–1) the sprite rotates and scales about. |
+| `pivot` | `{0.5,0.5}` | Anchor point the sprite rotates and scales about, as a fraction of its `size`. Values outside 0–1 sit off the sprite. |
 | `layer` | `0` | Sorting layer — controls draw order (see below). |
 | `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
 | `material` | `0` | A custom [material](/docs/graphics/materials/) handle (`0` = the default sprite shader). |
@@ -71,6 +71,14 @@ bottom-left corner, `{0.5, 0}` pins the bottom-center (handy for characters stan
 the ground).
 
 ![The same sprite rotated about three different pivots — the pivot dot stays fixed while the quad swings around it: center spins in place, a corner swings out, bottom-center pins the feet](@/assets/guides/sprite-pivot.svg)
+
+A pivot outside `0–1` is legal and useful: `{0.5, -1}` puts the turning point a full
+sprite-height below the art, which is how you hang a swinging arm or a door off a
+hinge it doesn't contain.
+
+Storing a fraction is what lets a pivot survive a resize, but it isn't how anyone
+thinks about one — see [In the editor](#in-the-editor) for entering it in pixels,
+picking it from the nine common positions, or dragging it on the sprite itself.
 
 ## Units & coordinates
 
@@ -432,6 +440,16 @@ without a depth buffer.
   Browser into the viewport to spawn one already textured.
 - Every field above is editable in **Details**; sprites, cameras, and lights show as
   gizmos in the viewport. See [The Editor](/docs/editor/overview/).
+- **`pivot` is authored three ways**, all writing the same stored fraction:
+  - The **3×3 grid** under the field picks the nine common positions in one click.
+  - The **`frac` / `px`** switch on the row enters it in pixels instead — `px` shows
+    `pivot × size`, and typing `32` stores `32 / size`. The unit is a view; the scene
+    always holds the fraction.
+  - With the **pointer tool**, a single selected sprite gets a **pivot dot** in the
+    viewport. Dragging it moves the pivot through the artwork *without moving the
+    artwork* — the transform takes up the slack — so you can put the turning point on
+    a foot or a hinge by eye. It hides under Move/Rotate/Scale, whose centre grab sits
+    in the same place.
 
 ## See also
 
