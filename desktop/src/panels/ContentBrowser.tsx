@@ -265,8 +265,15 @@ function FolderNode({
   onCancelRename?: () => void;
 }) {
   const [open, setOpen] = useState(depth === 0);
-  const children = useDir(open ? path : null).entries;
+  const { entries: children, loading } = useDir(open ? path : null);
   const subdirs = children.filter((e) => e.isDir);
+  // Only an OPEN listing can prove a folder childless: counting a closed node's
+  // subdirs answers 0 for every one of them, retiring a twisty nothing can click
+  // again. Assume expandable until a listing says otherwise, and keep that answer.
+  const [childless, setChildless] = useState(false);
+  useEffect(() => {
+    if (open && !loading) setChildless(subdirs.length === 0);
+  }, [open, loading, subdirs.length]);
 
   // Tree keyboard: Enter/Space enters the folder, ←/→ collapse/expand, ↑/↓ walk
   // the visible rows. Arrows are consumed so they never reach the global nudge.
@@ -288,7 +295,7 @@ function FolderNode({
       case 'ArrowRight':
         e.preventDefault();
         e.stopPropagation();
-        if (subdirs.length && !open) setOpen(true);
+        if (!childless && !open) setOpen(true);
         break;
       case 'ArrowLeft':
         e.preventDefault();
@@ -316,7 +323,7 @@ function FolderNode({
         style={{ paddingLeft: depth * 12 + 6 }}
         title={name}
         role="treeitem"
-        aria-expanded={subdirs.length ? open : undefined}
+        aria-expanded={childless ? undefined : open}
         aria-selected={cwd === path}
         tabIndex={0}
         onKeyDown={onRowKey}
@@ -325,7 +332,7 @@ function FolderNode({
         {...(folderDrop ? folderDrop(path) : null)}
       >
         <span
-          className={`tw${subdirs.length ? '' : ' leaf'}`}
+          className={`tw${childless ? ' leaf' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             setOpen((o) => !o);
