@@ -96,6 +96,12 @@ function layoutOwnedWarning(entity: EntityId, component: string, key: string): s
     + 'where Transform.position is exactly how it is placed.';
 }
 
+/** The component types a template puts on the entity it creates. */
+function rootComponentTypes(prefab: PrefabData): string[] {
+  const root = prefab.entities.find((e) => e.prefabEntityId === prefab.rootEntityId) ?? prefab.entities[0];
+  return (root?.components ?? []).map((c) => c.type);
+}
+
 /**
  * Split a `"Component.key"` field path. Component names never contain a dot, but
  * keys do (`Transform.position.x`), so only the FIRST dot separates them.
@@ -197,15 +203,28 @@ export async function applySceneOps(
               // not on entity 3" — true, and no help at all when the same op
               // supports `x`/`y`, which quietly supply the Transform this one
               // just dropped. Say which side of that the caller landed on.
-              const declared = new Set(specs.map((c) => (typeof c === 'string' ? c : c.type)));
+              //
+              // A TEMPLATE brings its own components, so it is asked what they
+              // are: `specs` is not about it, and its default would refuse
+              // `{template: 'ui-text', fields: {'Text.content': …}}`.
+              const declared = new Set(
+                op.template
+                  ? rootComponentTypes(prefab)
+                  : specs.map((c) => (typeof c === 'string' ? c : c.type)),
+              );
               const missing = [...new Set(Object.keys(op.fields).map((k) => k.split('.')[0]))]
                 .filter((c) => !declared.has(c));
               if (missing.length > 0) {
                 throw new Error(
-                  `fields write to ${missing.map((c) => `"${c}"`).join(', ')}, which this create does `
-                  + `not declare (it declares ${[...declared].map((c) => `"${c}"`).join(', ')}). Naming any `
-                  + '`components` replaces the default ["Transform"] — list every component your fields '
-                  + `write to${missing.includes('Transform') ? ', or give x/y instead of Transform.position' : ''}.`,
+                  op.template
+                    ? `fields write to ${missing.map((c) => `"${c}"`).join(', ')}, which the template `
+                      + `"${op.template}" does not put on its root (it has `
+                      + `${[...declared].map((c) => `"${c}"`).join(', ')}). Add the component in a later op, `
+                      + 'or build the entity from `components` instead of a template.'
+                    : `fields write to ${missing.map((c) => `"${c}"`).join(', ')}, which this create does `
+                      + `not declare (it declares ${[...declared].map((c) => `"${c}"`).join(', ')}). Naming any `
+                      + '`components` replaces the default ["Transform"] — list every component your fields '
+                      + `write to${missing.includes('Transform') ? ', or give x/y instead of Transform.position' : ''}.`,
                 );
               }
               setFields(id, op.fields);

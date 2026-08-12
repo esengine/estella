@@ -39,7 +39,140 @@ const obj = (properties, required = []) => ({ type: 'object', properties, requir
  * runs: a capability that writes a file is irreversible however undoable its
  * other steps are, because that is the one an undo cannot rescue.
  */
+/** Where on the screen a HUD element sits, as insets from the edges it hugs. */
+const HUD_ANCHORS = {
+  'top-left': { insetTop: 1, insetLeft: 1, align: 'Left', verticalAlign: 'Top' },
+  top: { insetTop: 1, insetLeft: 0, insetRight: 0, align: 'Center', verticalAlign: 'Top' },
+  'top-right': { insetTop: 1, insetRight: 1, align: 'Right', verticalAlign: 'Top' },
+  left: { insetLeft: 1, insetTop: 0, insetBottom: 0, align: 'Left', verticalAlign: 'Middle' },
+  center: { insetLeft: 0, insetRight: 0, insetTop: 0, insetBottom: 0, align: 'Center', verticalAlign: 'Middle' },
+  right: { insetRight: 1, insetTop: 0, insetBottom: 0, align: 'Right', verticalAlign: 'Middle' },
+  'bottom-left': { insetBottom: 1, insetLeft: 1, align: 'Left', verticalAlign: 'Bottom' },
+  bottom: { insetBottom: 1, insetLeft: 0, insetRight: 0, align: 'Center', verticalAlign: 'Bottom' },
+  'bottom-right': { insetBottom: 1, insetRight: 1, align: 'Right', verticalAlign: 'Bottom' },
+};
+
 export const CAPABILITIES = [
+  {
+    name: 'create_hud_text',
+    effect: 'undoable',
+    description:
+      'Put a label on the SCREEN — score, lives, a wave counter — anchored to a corner or edge and staying there at '
+      + 'any window size. This is not the same job as a label in the world, and doing it with world coordinates is the '
+      + 'single most repeated way a HUD ends up invisible: the world origin is the middle of the view, so screen-style '
+      + 'coordinates put a HUD hundreds of units above the top edge, and `Transform.position` on a UI node is OWNED BY '
+      + 'THE LAYOUT — it is accepted, overwritten at the next relayout, and nothing reports it. '
+      + '`at` is one of top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right. '
+      + 'Reuses the scene\'s Canvas or makes one. For a label that belongs IN the world (a nameplate over a unit), use '
+      + 'a Sprite-side Text instead — there Transform.position is exactly how it is placed.',
+    schema: obj({
+      text: { type: 'string' },
+      at: { type: 'string', description: 'corner or edge (default top-left)' },
+      margin: { type: 'number', description: 'px from the edges it hugs (default 24)' },
+      fontSize: { type: 'number' },
+      color: { type: 'string', description: '"#rrggbbaa"' },
+      name: { type: 'string', description: 'entity name (defaults to the text)' },
+      canvas: { type: 'number', description: 'an existing Canvas entity to put it under' },
+    }, ['text']),
+    async run(input, call) {
+      const at = input.at ?? 'top-left';
+      const anchor = HUD_ANCHORS[at];
+      if (!anchor) {
+        throw new Error(`create_hud_text: \`at\` must be one of ${Object.keys(HUD_ANCHORS).join(', ')}`);
+      }
+      const margin = input.margin ?? 24;
+
+      let canvas = input.canvas;
+      if (canvas == null) {
+        // A Canvas is a root in every scene that has one, and `kind` cannot tell
+        // one from any other UI node — so the roots get asked, and only the roots.
+        const tree = await call('get_scene_tree', {});
+        const roots = Array.isArray(tree) ? tree : tree?.nodes ?? tree?.children ?? [];
+        for (const node of roots) {
+          const entity = await call('get_entity', { id: node.id });
+          if ((entity?.components ?? []).some((c) => (c.type ?? c) === 'Canvas')) { canvas = node.id; break; }
+        }
+      }
+
+      const fields = {
+        'UINode.position': 'Absolute',
+        'Text.content': input.text,
+        'Text.align': anchor.align,
+        'Text.verticalAlign': anchor.verticalAlign,
+      };
+      // Writing a dimension's `value` gives it a px unit; a dimension left Auto
+      // IGNORES the number, which is how three labels end up stacked at one point.
+      for (const side of ['insetTop', 'insetRight', 'insetBottom', 'insetLeft']) {
+        if (anchor[side] === undefined) continue;
+        fields[`UINode.${side}.value`] = anchor[side] * margin;
+      }
+      if (input.fontSize !== undefined) fields['Text.fontSize'] = input.fontSize;
+      if (input.color !== undefined) fields['Text.color'] = input.color;
+
+      const ops = [];
+      if (canvas == null) ops.push({ op: 'create', ref: 'canvas', template: 'canvas', name: 'Canvas' });
+      ops.push({
+        op: 'create',
+        ref: 'label',
+        template: 'ui-text',
+        name: input.name ?? input.text,
+        parent: canvas == null ? '$canvas' : canvas,
+        fields,
+      });
+
+      const built = await call('apply_scene_ops', { ops, label: 'Create HUD text' });
+      return {
+        entity: built.refs.label,
+        canvas: canvas ?? built.refs.canvas,
+        at,
+        createdCanvas: canvas == null,
+        ...(built.warnings ? { warnings: built.warnings } : {}),
+      };
+    },
+  },
+
+  {
+    name: 'playtest',
+    effect: 'irreversible',
+    description:
+      'Run the game and LOOK at it: enters Play if it is not already running, sends the input you name, steps a fixed '
+      + 'number of frames, then reads the world and returns a text picture of the screen. '
+      + 'This is the loop that tells you whether what you built works, and skipping the looking half is how a run ends '
+      + 'with every call reporting success against an empty screen. The picture comes back as TEXT (a coarse colour '
+      + 'grid), so it is readable whether or not you can see images. '
+      + '`probe` is an expression evaluated in the running game — `find`, `get`, `set`, `resource` are in scope. '
+      + '`input` is a list of { kind, x, y, button, code } as play_input takes them.',
+    schema: obj({
+      frames: { type: 'number', description: 'frames to step after the input (default 30)' },
+      input: { type: 'array', description: 'play_input specs, sent in order before stepping' },
+      probe: { type: 'string', description: 'an expression to evaluate in the running game afterwards' },
+      cols: { type: 'number', description: 'text-picture width in cells (default 48)' },
+      rows: { type: 'number', description: 'text-picture height in cells' },
+    }),
+    async run(input, call) {
+      const before = await call('get_play_state', {});
+      const wasPlaying = before?.playing === true;
+      if (!wasPlaying) await call('toggle_play', {});
+
+      for (const one of input.input ?? []) await call('play_input', one);
+
+      const stepped = await call('step', { frames: input.frames ?? 30 });
+      const probe = input.probe === undefined ? undefined : await call('play_probe', { code: input.probe });
+      const picture = await call('screenshot', {
+        format: 'grid',
+        ...(input.cols !== undefined ? { cols: input.cols } : {}),
+        ...(input.rows !== undefined ? { rows: input.rows } : {}),
+      });
+
+      return {
+        enteredPlay: !wasPlaying,
+        stepped,
+        ...(probe !== undefined ? { probe } : {}),
+        picture,
+      };
+    },
+  },
+
   {
     name: 'create_prefab',
     effect: 'irreversible',

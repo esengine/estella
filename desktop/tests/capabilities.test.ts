@@ -31,7 +31,9 @@ function fakeDriver(answers: Record<string, unknown> = {}) {
   };
   driver.js = vi.fn(async (code: string) => {
     calls.push({ method: 'js', args: [code] });
-    return answers.js;
+    // Several tools ride `js`; a test that needs to tell them apart answers with
+    // a function of the code rather than one value for all of them.
+    return typeof answers.js === 'function' ? (answers.js as (c: string) => unknown)(code) : answers.js;
   });
   driver.op = vi.fn(async (op: string, input: unknown) => {
     calls.push({ method: op, args: [input] });
@@ -215,5 +217,99 @@ describe('create_behavior', () => {
     expect(res.isError).toBe(true);
     expect(text(res)).toMatch(/name already taken/);
     expect(calls.map((c) => c.method)).toEqual(['js']);
+  });
+});
+
+describe('create_hud_text', () => {
+  it('reuses the scene canvas rather than stacking another', async () => {
+    const { driver, calls } = fakeDriver({
+      getSceneTree: [{ id: 1, name: 'World' }, { id: 2, name: 'Canvas' }],
+      getEntity: undefined,
+      applyOps: { refs: { label: 9 }, created: [9], applied: 1 },
+    });
+    // Only entity 2 answers as a Canvas.
+    let asked = 0;
+    const orig = driver as unknown as (m: string, a: unknown[]) => Promise<unknown>;
+    const spy = (async (m: string, a: unknown[]) => {
+      if (m === 'getEntity') { asked++; return { components: asked === 2 ? [{ type: 'Canvas' }] : [{ type: 'Sprite' }] }; }
+      return orig(m, a);
+    }) as never;
+    (spy as unknown as { js: unknown }).js = (driver as unknown as { js: unknown }).js;
+    (spy as unknown as { op: unknown }).op = (driver as unknown as { op: unknown }).op;
+
+    const res = await runTool(capability('create_hud_text'), spy, { text: 'SCORE 0' });
+    expect(res.isError).toBeFalsy();
+    expect(JSON.parse(text(res))).toMatchObject({ canvas: 2, createdCanvas: false });
+    const ops = (calls.find((c) => c.method === 'applyOps')!.args[0] as Array<{ op: string; template?: string }>);
+    expect(ops.some((o) => o.template === 'canvas')).toBe(false);
+  });
+
+  it('makes a canvas when the scene has none', async () => {
+    const { driver, calls } = fakeDriver({
+      getSceneTree: [{ id: 1, name: 'World' }],
+      getEntity: { components: [{ type: 'Sprite' }] },
+      applyOps: { refs: { canvas: 4, label: 5 }, created: [4, 5], applied: 2 },
+    });
+    const res = await runTool(capability('create_hud_text'), driver, { text: 'SCORE 0' });
+    expect(JSON.parse(text(res))).toMatchObject({ canvas: 4, entity: 5, createdCanvas: true });
+    const ops = (calls.find((c) => c.method === 'applyOps')!.args[0] as Array<{ template?: string }>);
+    expect(ops[0].template).toBe('canvas');
+  });
+
+  it('anchors by insets in px, never by a layout-owned Transform', async () => {
+    const { driver, calls } = fakeDriver({
+      getSceneTree: [], applyOps: { refs: { canvas: 1, label: 2 }, created: [1, 2], applied: 2 },
+    });
+    await runTool(capability('create_hud_text'), driver, { text: 'LIVES', at: 'bottom-right', margin: 12 });
+
+    const ops = calls.find((c) => c.method === 'applyOps')!.args[0] as Array<{ fields?: Record<string, unknown> }>;
+    const fields = ops[1].fields!;
+    expect(fields['UINode.position']).toBe('Absolute');
+    expect(fields['UINode.insetBottom.value']).toBe(12);
+    expect(fields['UINode.insetRight.value']).toBe(12);
+    expect(fields['UINode.insetTop.value']).toBeUndefined();
+    expect(Object.keys(fields).some((k) => k.startsWith('Transform.'))).toBe(false);
+  });
+
+  it('refuses a corner nobody has, naming the ones that exist', async () => {
+    const { driver } = fakeDriver();
+    const res = await runTool(capability('create_hud_text'), driver, { text: 'x', at: 'middle-ish' });
+    expect(res.isError).toBe(true);
+    expect(text(res)).toMatch(/must be one of top-left/);
+  });
+});
+
+describe('playtest', () => {
+  it('enters play, sends input, steps, probes and brings back a picture', async () => {
+    const { driver, calls } = fakeDriver({
+      playState: { playing: false },
+      step: { world: 'play', frames: 10 },
+      play_probe: '42',
+      screenshot: 'AAAA\nBBBB',
+    });
+    const res = await runTool(capability('playtest'), driver, {
+      frames: 10, probe: 'score', input: [{ kind: 'keyDown', code: 'Space' }],
+    });
+
+    expect(calls.map((c) => c.method)).toEqual([
+      'playState', 'play', 'play_input', 'step', 'play_probe', 'screenshot',
+    ]);
+    expect(JSON.parse(text(res))).toMatchObject({ enteredPlay: true, probe: '42', picture: 'AAAA\nBBBB' });
+  });
+
+  it('does not toggle play on a game already running', async () => {
+    const { driver, calls } = fakeDriver({ playState: { playing: true }, screenshot: 'x' });
+    const res = await runTool(capability('playtest'), driver, {});
+
+    expect(calls.map((c) => c.method)).not.toContain('play');
+    expect(JSON.parse(text(res)).enteredPlay).toBe(false);
+  });
+
+  it('always asks for the picture as TEXT, so a model that cannot see still sees', async () => {
+    const { driver, calls } = fakeDriver({ playState: { playing: true }, screenshot: 'x' });
+    await runTool(capability('playtest'), driver, {});
+
+    const shot = calls.find((c) => c.method === 'screenshot')!;
+    expect((shot.args[0] as { format: string }).format).toBe('grid');
   });
 });

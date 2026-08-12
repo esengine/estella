@@ -55,7 +55,19 @@ vi.mock('@/engine/EditorSession', () => ({
 vi.mock('@/engine/entitySources', () => ({
   prefabFromSpecs: (name: string, specs: { type: string }[]) => ({ name, specs }),
   sourceById: (id: string) => {
-    if (id === 'ui-image') return { build: async () => ({ name: 'Image', specs: [] }) };
+    if (id === 'ui-image') {
+      return {
+        build: async () => ({
+          name: 'Image',
+          specs: [],
+          rootEntityId: 'root',
+          entities: [{
+            prefabEntityId: 'root',
+            components: [{ type: 'Transform' }, { type: 'UINode' }, { type: 'UIVisual' }],
+          }],
+        }),
+      };
+    }
     // A project prefab source: it carries the ref that makes the result an
     // instance instead of a copy.
     if (id === 'prefab:assets/prefabs/Bar.esprefab') {
@@ -137,6 +149,24 @@ describe('applySceneOps', () => {
       fields: { 'Transform.position.y': -224 },
     }]);
     expect(calls).toContainEqual(['create', 'Line', null]);
+  });
+
+  it('reads a TEMPLATE own components, rather than the default it never used', async () => {
+    // A template create supplies no `components`, so the declaration check has
+    // to ask the template — not the default it never used.
+    calls.length = 0;
+    await applySceneOps([{
+      op: 'create', ref: 'img', template: 'ui-image', name: 'Icon',
+      fields: { 'UINode.insetTop.value': 16 },
+    }]);
+    expect(calls.some((c) => c[0] === 'create')).toBe(true);
+    expect(calls.some((c) => c[0] === 'setField' && c[2] === 'UINode' && c[3] === 'insetTop.value' && c[4] === 16)).toBe(true);
+  });
+
+  it('names the template when a field writes to something it does not carry', async () => {
+    await expect(applySceneOps([{
+      op: 'create', template: 'ui-image', fields: { 'RigidBody.gravityScale': 0 },
+    }])).rejects.toThrow(/template "ui-image" does not put on its root/);
   });
 
   it('resolves an entity template before mutating, and rejects an unknown one', async () => {

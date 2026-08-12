@@ -42,7 +42,8 @@ const failures = await withEditor(async (ed) => {
 
   const tools = (await ed.rpc('tools/list', {}, 30000)).result?.tools ?? [];
   const names = tools.map((t) => t.name);
-  for (const cap of ['create_prefab', 'configure_physics_body', 'wire_ui_event', 'create_behavior']) {
+  for (const cap of ['create_hud_text', 'playtest', 'create_prefab', 'configure_physics_body',
+    'wire_ui_event', 'create_behavior']) {
     check(names.includes(cap), `tools/list is missing the capability ${cap}`);
   }
   console.log(`tools/list OK — ${names.length} entries, capabilities among them`);
@@ -111,6 +112,46 @@ const failures = await withEditor(async (ed) => {
   const rows = json(await ed.call('get_event_bindings', { entity }, 30000));
   check(Array.isArray(rows) && rows.length === 2, `bindings read back: ${JSON.stringify(rows)}`);
   console.log('wire_ui_event OK — two wires, neither dropped');
+
+  // — create_hud_text: on the SCREEN, anchored, and not in the world —
+  const hud = json(await ed.call('create_hud_text', {
+    text: 'SCORE 0', at: 'top-left', margin: 16, fontSize: 28, color: '#ffcc00ff',
+  }, 60000));
+  check(typeof hud?.entity === 'number', `create_hud_text gave no entity: ${JSON.stringify(hud)}`);
+  check(typeof hud?.canvas === 'number', `create_hud_text found/made no canvas: ${JSON.stringify(hud)}`);
+
+  const label = json(await ed.call('get_inspector', { entity: hud.entity }, 30000));
+  const lc = new Map((label?.components ?? []).map((c) => [c.type, c]));
+  check(lc.has('UINode') && lc.has('Text'), `the label is not a UI text: ${[...lc.keys()]}`);
+  const lf = (type, key) => (lc.get(type)?.fields ?? []).find((f) => f.key === key)?.value;
+  check(String(lf('Text', 'content')) === 'SCORE 0', `content: ${JSON.stringify(lf('Text', 'content'))}`);
+  // Absolute, or the insets below are decoration.
+  check(String(lf('UINode', 'position')).toLowerCase().includes('absolute') || lf('UINode', 'position') === 1,
+    `position did not become Absolute: ${JSON.stringify(lf('UINode', 'position'))}`);
+  // The trap this exists for: a dimension left Auto IGNORES its number.
+  const inset = lf('UINode', 'insetTop');
+  const insetValue = typeof inset === 'object' && inset ? inset.value : inset;
+  const insetUnit = typeof inset === 'object' && inset ? inset.unit : undefined;
+  check(insetValue === 16, `insetTop.value: ${JSON.stringify(inset)}`);
+  check(insetUnit !== 2, `insetTop stayed Auto, so its 16 does nothing: ${JSON.stringify(inset)}`);
+  // And no warning, because nothing wrote a layout-owned field.
+  check(!hud.warnings, `create_hud_text tripped a layout warning: ${JSON.stringify(hud.warnings)}`);
+  console.log('create_hud_text OK — anchored UI text, insets in px, no layout-owned write');
+
+  // A second one reuses the canvas the first made rather than stacking another.
+  const hud2 = json(await ed.call('create_hud_text', { text: 'LIVES 3', at: 'top-right' }, 60000));
+  check(hud2?.canvas === hud.canvas, `the second label made its own canvas: ${hud2?.canvas} vs ${hud.canvas}`);
+  check(hud2?.createdCanvas === false, 'the second label reports creating a canvas');
+  console.log('create_hud_text OK — one canvas, both labels under it');
+
+  // — playtest: run it and come back with a picture —
+  const played = json(await ed.call('playtest', { frames: 10, cols: 24, probe: '1 + 1' }, 120000));
+  check(played?.enteredPlay === true, `playtest did not enter play: ${JSON.stringify(played?.enteredPlay)}`);
+  check(String(played?.probe ?? '').includes('2'), `probe did not evaluate: ${JSON.stringify(played?.probe)}`);
+  check(typeof played?.picture === 'string' && played.picture.length > 20,
+    `playtest brought back no text picture: ${JSON.stringify(played?.picture)?.slice(0, 120)}`);
+  console.log(`playtest OK — entered play, probed, ${String(played.picture).length} chars of picture`);
+  await ed.call('toggle_play', {}, 60000);
 
   // A capability's failure names the step, not just the message.
   const bad = await ed.call('configure_physics_body', { entity: 999999, body: 'dynamic' }, 30000).catch((e) => ({ text: String(e) }));
