@@ -41,7 +41,7 @@ published separately; it ships inside the editor.
   tier check cannot see. The two compose: R6 forces a type to be exported, and
   the leak check then forces it to be frozen.
 
-- **111 Stable Candidate symbols, 57 Beta.** The whole ECS vocabulary is frozen
+- **112 Stable Candidate symbols, 60 Beta.** The whole ECS vocabulary is frozen
   with no leaks left — `defineComponent`, `defineSystem`, `Query`, `Mut`, `Res`,
   `Commands`, `World`, the descriptors and instances they are spelled in, the
   schedule and clock every project registers through, the parameter factories,
@@ -50,7 +50,7 @@ published separately; it ships inside the editor.
 
 - **A verdict per subsystem, at the size a creator builds in.** Nobody asks
   whether `AudioSource` is frozen; they ask whether they can build their game's
-  audio on this, and some 1460 experimental symbols answer that the same way whether a
+  audio on this, and some 1458 experimental symbols answer that the same way whether a
   subsystem was weighed or nobody looked. The reference now carries 22 subsystems
   with a tier and the reason for it — required for anything not frozen, because
   "not frozen" is a decision and has to read like one. `entry` names the symbols
@@ -62,6 +62,33 @@ published separately; it ships inside the editor.
   carrying it with nothing reading the claim: `space-shooter` certified `audio`
   and contains no sound at all. Each capability now declares what exercising it
   looks like, matched against a project's sources *and* its scene and prefab data.
+
+- **A sprite's pivot is authored in the unit you think in, and on the artwork.**
+  `Sprite.pivot` is stored 0..1 so it survives a resize, and nobody authors in
+  fractions — the report was having to do the arithmetic every time. The data does
+  not move; the authoring surface does. `ES_PROPERTY(normalized_of=size)` declares
+  that pivot is a fraction of its sibling, so the Inspector row offers a frac/px
+  unit picker that shows 100px where the scene keeps 0.5 and divides back on
+  commit. The unit is a persisted editor preference, never scene data; the
+  denominator tracks the size rather than being baked, stands down on a zero size,
+  and drops out of a multi-selection whose sizes disagree, because 32px is a
+  different fraction per sprite.
+
+  Above the numbers, the nine pivots a sprite almost always sits at get the same
+  3×3 grid the UINode anchors use — and pivot leaves the Advanced fold, because
+  changing where a sprite turns is everyday authoring and a picker nobody can find
+  is no picker.
+
+  The pivot you cannot name — a character's foot, a door's hinge, a cannon's mount
+  — is dragged on the canvas. A sprite is drawn at `position - R*(size*pivot)`, so
+  moving the pivot alone would slide the artwork out from under the cursor; instead
+  the transform follows the cursor and the pivot absorbs the same offset, which
+  leaves that expression unchanged at any rotation and scale. Both writes are
+  absolute in one grab-time frame, so a long drag cannot compound, and they share
+  the transaction every other on-canvas handle uses — one undo step. The handle sits
+  at the entity origin and yields to the transform gizmos by appearing only under
+  the pointer tool. A pivot outside 0–1 stays legal: nothing clamps it, because a
+  swinging arm hangs off a hinge its own artwork does not contain.
 
 ### Changed
 
@@ -86,6 +113,36 @@ published separately; it ships inside the editor.
   query cache's shape rather than a question a game asks, and exactly one of
   fifty-nine call sites passed them. *Migration:* nothing documented used them; if you
   did, they moved to `world.queryEntities`, which is `@internal` and may change.
+
+- **The embedding contract left the surface a game is written against.** Two
+  audiences were sharing one entry: a game is written against the engine, while a
+  host — the editor, the packaged shell, the native runtime — binds an engine core
+  to an `App`, and only the second needs to name the wasm module or the C++
+  registry. That is also what made the frozen-signature closure look like 132
+  symbols: `defineSystem` names `InferParams`, which reaches `World`, which exposed
+  `getCppRegistry`, whose type names every builtin component. Splitting the two
+  collapses it to 38 — the descriptor, def and instance vocabulary the ECS promise
+  is actually spelled in. `World`'s and `App`'s bridge accessors are `@internal`
+  for the same reason. *Migration:* `esengine` no longer re-exports
+  `ESEngineModule`, `CppRegistry`, `CppResourceManager` or `BuiltinBridge` — import
+  them from `esengine/wasm`, which already held exactly these types. All fifteen
+  consumers in this repo were hosts, which is the argument.
+
+- **`uiPickWorld` and `uiPickAllWorld` take the world.** They took
+  `(engine, registry)`, so a game-facing guide had to tell game authors to reach
+  `app.wasmModule` and `world.getCppRegistry()` — and its example did not compile,
+  because neither name was ever bound. They take the world now and resolve the core
+  themselves through `engineApi`. The parameter is `PickableWorld`, the two
+  accessors picking actually uses, so a narrowed read-only view can pick without the
+  helpers claiming to need a whole world. *Migration:* pass the world as the single
+  first argument.
+
+- **Animation and Audio are Beta, because something certifies them now.** Both were
+  experimental for one stated reason — no golden project exercised them — and the
+  reason moved when `examples/sprite-animation` and `examples/audio-demo` joined the
+  corpus. `Animator` and `SpriteAnimator` are documented for the first time. What
+  keeps animation off frozen is breadth: two of eighty animation symbols, with the
+  whole timeline half untouched.
 
 - **`InputMap.evaluate` and `CommandsInstance.spawnImmediate` are `@internal`.**
   Both are the engine's own call — the per-frame evaluation and the deferred-spawn
@@ -147,6 +204,60 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A parent link has two halves, and three of the four writers wrote one.**
+  `Parent` and `Children` are one relationship stored twice. `TransformSystem`
+  starts at entities that have a `Transform` and no `Parent` and then walks down
+  `Children`, so a subtree linked one way was never reached at all: `worldPosition`
+  stayed (0,0,0) and every sprite in it drew at the world origin — and adding a
+  `Transform` to the ancestors did not help, because the missing half was
+  `Children`. The embind `addParent`/`addChildren` emplaced the component
+  field-wise, so the web/wasm backend built one-way links while the native host
+  routed its own through `es_setParent`; the editor's `addComponent("Parent")`
+  emplaced a `Parent` naming `INVALID_ENTITY`, and `setField("Parent","entity")`
+  wrote the field behind `setParent`'s back; `World.setParent` kept the C++ side
+  correct but never updated the JS entity sets that `has()` and the query cache
+  read. `HIERARCHY_COMPONENTS` declares the pair once in the EHT data model, and
+  `World` routes `insert`/`set`/`remove` for those two components into
+  `setParent`/`removeParent`, which now also maintain the JS mirrors, the
+  `Added`/`Changed` records and query invalidation. `EntityCommands.childOf(parent)`
+  gives the chained API a way to say this at all — before, `insert(Parent, {entity})`
+  was the only spelling available, and it was the broken one.
+
+- **A sprite handed a texture kept the 100×100 placeholder size.** Creating a
+  sprite and assigning it a 64×48 image left the quad at the placeholder with the
+  art stretched, and nothing on screen said why; dragging an image into the viewport
+  was the only path that got it right, because that path alone decoded the file on
+  its way to spawning an entity. The size now follows the texture at the one place a
+  texture is assigned, and only while the size is still one nobody chose — the
+  untouched default, or the fit to the texture being replaced, which is what makes a
+  swap follow the new image. A size you typed is never overwritten. The fit
+  necessarily lands after the write it reacts to, so it cannot join that undo step;
+  rather than hide that, it is named "Fit Sprite To Texture" and can be undone on
+  its own.
+
+- **A collapsed folder in the Content Browser could not be reopened.** The twisty
+  vanished with the folder, and `visibility: hidden` takes no clicks, so collapsing
+  the tree was a one-way door. The same cause was hiding in plainer sight — no
+  subfolder ever showed a twisty at all, so the tree was only ever one level deep.
+  Whether a row could expand was counted off its own directory listing, and the
+  listing is only fetched while the row is open, so every closed row reported zero
+  subfolders and retired its twisty. Only an open listing can prove a folder
+  childless: a row is assumed expandable until one says otherwise, and keeps that
+  answer when it closes.
+
+- **`pnpm run verify` could not run on a Windows checkout.** Three separate things
+  stopped the pre-push gate before it could say anything true. `run-gates` never
+  read `spawnSync`'s `error`, so a shell that would not start was reported as the
+  first gate failing — sending the reader after a gate that had not run and was
+  clean. `check-cpp-tests` read `CPP_TESTS` out of `build.yml` with a pattern
+  containing `\n`, which CRLF never matches, so it threw "build.yml no longer
+  declares CPP_TESTS" while reading as a local gate that works. And the C++
+  harnesses did not compile: MSVC reads UTF-8 sources in the host ANSI codepage
+  unless told `/utf-8`, so a test's emoji literal became a syntax error on one
+  machine's locale and not the next's. A test behind a configure option this tree
+  does not set is now told apart from a broken one by MSB1009 as well as by
+  MSBuild's English phrasing, because an error code is the same in every language.
+
 - **`world.set` on a component the entity lacked did not reach a query that had
   already run.** `set` is documented insert-or-replace, and the engine-component
   branch has always routed a new component through `insert` because queries and
@@ -169,6 +280,33 @@ published separately; it ships inside the editor.
 - **Four CHANGELOG headings rendered as plain text**, and `[Unreleased]` compared
   from two releases back. Both are now checked with the version, so this file's own
   bookkeeping cannot drift again.
+
+### Documentation
+
+- **The editor an agent can drive is a headline feature, not an extension point.**
+  The built-in agent and the MCP server were documented well and filed badly — both
+  under "Extending the Editor" beside editor plugins, a shelf whose label says
+  "advanced topic for people modifying the editor", when the subject is one of the
+  few things here no other 2D engine ships. Neither the README nor the landing page
+  mentioned them at all, so a reader comparing engines had no way to learn any of it
+  existed. `agents/` is a top-level group now, placed after Editor rather than under
+  Extending, with the old URLs redirecting; the landing page gets an Agent-native
+  card, and the README says the thing worth saying — sixty-five tools, the same
+  pipelines the UI calls, one catalog behind both front doors.
+
+- **Textures get their own page.** What formats are accepted, what the import
+  settings do, and how to find out how big a texture is were spread across the
+  Sprites guide, the Assets overview and the importer's own tooltips. Both answers
+  to the size question are there, because they are for different situations:
+  `loadTexture` returns `{ handle, width, height }` for an image your code asked
+  for, and `getTextureDimensions(handle)` measures one a scene placed, where your
+  code never saw a result object. It also states which end owns a sprite's size —
+  the editor fills it in from the image and stops once the number is yours, while
+  in code nothing fills it in.
+
+- **The Sprites guide says how a pivot is authored**, not just what it stores: the
+  preset grid, the px unit on the field and the viewport dot, with the one
+  surprising thing about each, and that a pivot outside 0–1 is legal.
 
 ## [0.49.0] - 2026-08-10
 
