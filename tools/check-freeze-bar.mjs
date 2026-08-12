@@ -21,8 +21,15 @@
  * {@link EXEMPT} with a reason, the same bargain goldenProjects strikes: the
  * hole stays visible instead of passing for coverage.
  *
+ * A symbol that SHOULD be frozen and cannot be yet goes in {@link BLOCKED}. That
+ * is the other half of "stability is a decision": without it, a freeze we wanted
+ * and the corpus refused is indistinguishable from one nobody considered, and the
+ * reason lives in a commit message nobody rereads. Each entry is checked to still
+ * be blocked, so the day the evidence arrives the gate says so.
+ *
  *   node tools/check-freeze-bar.mjs
  *   node tools/check-freeze-bar.mjs --why A,B,C   what freezing these would cost
+ *   node tools/check-freeze-bar.mjs --blocked     the frontier, and what each needs
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -55,6 +62,25 @@ export const EXEMPT = {
     QueryInstance: RECEIVED,
     RemovedQueryInstance: RECEIVED,
     ResMutInstance: RECEIVED,
+};
+
+/**
+ * Freezes that were decided on and refused. Unlike {@link EXEMPT} these are NOT
+ * frozen: the entry records that the gap is in the corpus rather than the API.
+ * `needs` is the bar's own wording, so the check can confirm the symbol still
+ * falls short for that reason and not some other.
+ */
+export const BLOCKED = {
+    Added: { needs: 'called by no golden project', why: 'no certified game uses change detection at all — the filters are a hole in the corpus, not in the API' },
+    Changed: { needs: 'called by no golden project', why: 'as Added' },
+    Removed: { needs: 'called by no golden project', why: 'as Added' },
+    With: { needs: 'called by no golden project', why: 'no certified game narrows a query by a component it does not read' },
+    Without: { needs: 'called by no golden project', why: 'as With' },
+    And: { needs: 'called by no golden project', why: 'no certified game combines filters — the expression tree is exercised only by tests' },
+    Or: { needs: 'called by no golden project', why: 'as And' },
+    Not: { needs: 'called by no golden project', why: 'as And' },
+    addSystem: { needs: 'called by no golden project', why: 'the schedule-less spelling; every project writes addSystemToSchedule instead' },
+    loadInputMapAsset: { needs: 'called by no golden project', why: 'nothing we certify loads an input map from an asset' },
 };
 
 /** Snapshot kinds that a game calls at runtime; the rest are shapes. */
@@ -148,26 +174,38 @@ const asked = askFlag
         .split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
+/** Every exported symbol's kind, whatever tier it carries. */
+function allSymbols() {
+    const out = new Map();
+    for (const entryName of Object.keys(ENTRIES)) {
+        const file = join(ETC, `${entryName}.api.md`);
+        if (!existsSync(file)) continue;
+        for (const [name, s] of parseSnapshot(readFileSync(file, 'utf8'))) if (!out.has(name)) out.set(name, s.kind);
+    }
+    return out;
+}
+
+const showBlocked = process.argv.includes('--blocked');
 const frozen = asked.length ? new Map() : frozenSymbols();
 if (asked.length) {
     // Planning a wave asks the bar about symbols that are not tagged yet, so the
     // kind comes from the snapshot the same way it does for a frozen one.
-    const all = new Map();
-    for (const entryName of Object.keys(ENTRIES)) {
-        const file = join(ETC, `${entryName}.api.md`);
-        if (!existsSync(file)) continue;
-        for (const [name, s] of parseSnapshot(readFileSync(file, 'utf8'))) if (!all.has(name)) all.set(name, s.kind);
-    }
+    const all = allSymbols();
     for (const name of asked) {
         if (all.has(name)) frozen.set(name, all.get(name));
         else console.error(`  ${name} — not an exported symbol`);
     }
 }
 
-if (frozen.size === 0) {
+if (frozen.size === 0 && !showBlocked) {
     console.log('check-freeze-bar: nothing is @public yet — no promise to hold up.');
     process.exit(0);
 }
+
+const kinds = allSymbols();
+// BLOCKED names are not frozen, so their declarations have to be collected too or
+// the bar cannot be re-asked about them.
+const wanted = new Set([...frozen.keys(), ...(asked.length ? [] : Object.keys(BLOCKED))]);
 
 const { program, checker } = createSdkProgram();
 const declarations = new Map();
@@ -176,7 +214,7 @@ for (const entryPath of Object.values(ENTRIES)) {
     const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
     if (!moduleSymbol) continue;
     for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
-        if (declarations.has(symbol.name) || !frozen.has(symbol.name)) continue;
+        if (declarations.has(symbol.name) || !wanted.has(symbol.name)) continue;
         const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
         const decl = resolved.declarations?.[0];
         if (decl) declarations.set(symbol.name, decl);
@@ -186,24 +224,31 @@ for (const entryPath of Object.values(ENTRIES)) {
 const tested = testedIdentifiers();
 const exercised = exercisedByGolden();
 
-const failures = [];
-for (const [name, kind] of [...frozen].sort()) {
-    const excuse = EXEMPT[name];
-    const missing = [];
+/** What the bar still wants from `name`, in its own wording. */
+function shortfall(name, kind) {
     const decl = declarations.get(name);
-    if (!decl) {
-        failures.push({ name, say: 'is @public in a snapshot but resolves to no declaration' });
-        continue;
-    }
+    if (!decl) return null;
+    const missing = [];
     if (!hasDocProse(decl)) missing.push('undocumented');
     if (!tested.has(name)) missing.push('named by no SDK test');
     if (VALUE_KINDS.has(kind) && !exercised.has(name)) missing.push('called by no golden project');
+    return missing;
+}
+
+const failures = [];
+for (const [name, kind] of [...frozen].sort()) {
+    const excuse = EXEMPT[name];
+    const missing = shortfall(name, kind);
+    if (missing === null) {
+        failures.push({ name, say: 'is @public in a snapshot but resolves to no declaration' });
+        continue;
+    }
     if (!missing.length) {
         if (excuse) failures.push({ name, say: `meets the bar but is still listed in EXEMPT — drop the excuse` });
         continue;
     }
     if (excuse) continue;
-    const where = relative(ROOT, decl.getSourceFile().fileName).replace(/\\/g, '/');
+    const where = relative(ROOT, declarations.get(name).getSourceFile().fileName).replace(/\\/g, '/');
     failures.push({ name, say: `${missing.join(', ')}`, where });
 }
 
@@ -213,6 +258,38 @@ if (!asked.length) {
     for (const [name, why] of Object.entries(EXEMPT)) {
         if (!frozen.has(name)) failures.push({ name, say: `is exempt from the freeze bar but is not @public — ${why}` });
     }
+}
+
+/** A BLOCKED entry is stale once the symbol is frozen, gone, or no longer short. */
+const blocked = [];
+if (!asked.length) {
+    for (const [name, entry] of Object.entries(BLOCKED)) {
+        if (frozen.has(name)) {
+            failures.push({ name, say: 'is @public but still listed in BLOCKED — delete the line' });
+            continue;
+        }
+        if (!kinds.has(name)) {
+            failures.push({ name, say: 'is listed in BLOCKED but is not an exported symbol' });
+            continue;
+        }
+        const missing = shortfall(name, kinds.get(name)) ?? [];
+        if (!missing.includes(entry.needs)) {
+            failures.push({
+                name,
+                say: missing.length
+                    ? `is BLOCKED on "${entry.needs}" but now falls short on ${missing.join(', ')} — update the line`
+                    : `now meets the bar — freeze it, or drop it from BLOCKED`,
+            });
+            continue;
+        }
+        blocked.push({ name, ...entry });
+    }
+}
+
+if (showBlocked) {
+    for (const b of blocked) console.log(`  ${b.name.padEnd(22)} ${b.needs}\n      ${b.why}`);
+    console.log(`\n${blocked.length} freeze(s) decided and refused; ${failures.length} finding(s) besides.`);
+    process.exit(failures.length ? 1 : 0);
 }
 
 if (asked.length) {
@@ -231,12 +308,15 @@ if (failures.length === 0) {
     console.log(`check-freeze-bar: ${frozen.size} @public symbol(s) (${values} called at runtime) — documented, tested, exercised.`);
     for (const [name, why] of Object.entries(EXEMPT)) console.log(`  exempt: ${name} — ${why}`);
     if (exempt) console.log(`  ${exempt} exemption(s) — each is a symbol the corpus does not hold up.`);
+    if (blocked.length) {
+        console.log(`  ${blocked.length} freeze(s) decided and still refused — node tools/check-freeze-bar.mjs --blocked`);
+    }
     process.exit(0);
 }
 
 for (const f of failures.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     console.error(`  ${f.name} — ${f.say}${f.where ? `  (${f.where})` : ''}`);
 }
-console.error(`\ncheck-freeze-bar: ${failures.length} symbol(s) carry @public without earning it.`);
-console.error('Document it, pin it with a test, use it in a golden project — or drop the tag.');
+console.error(`\ncheck-freeze-bar: ${failures.length} finding(s) — the tags and the evidence disagree.`);
+console.error('Earn the tag (document, test, use in a golden project), drop it, or update the list that claims otherwise.');
 process.exit(1);
