@@ -201,6 +201,20 @@ export {
 
 export { StatsOverlay, type StatsPosition } from './stats-overlay';
 
+export {
+    buildFrameProfile,
+    scopeDomain,
+    DOMAIN_SCRIPTS,
+    DOMAIN_UNATTRIBUTED,
+    type FrameProfile,
+    type FrameProfileInput,
+    type ProfileNode,
+    type ProfileNodeKind,
+    type ScopeCost,
+    type ScopeRemainder,
+    type SystemCost,
+} from './app/frameProfile';
+
 // =============================================================================
 // Timer
 // =============================================================================

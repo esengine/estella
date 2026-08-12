@@ -11,7 +11,7 @@
  *          import of an editor module here would break the realm bundle. Type-only
  *          imports are erased before resolution and are safe.
  */
-import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides, AddressableManifest } from 'esengine';
+import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides, AddressableManifest, FrameCosts } from 'esengine';
 
 /**
  * Editor↔realm message-contract version. The realm reports it in `hello`; the editor
@@ -136,7 +136,9 @@ export interface PlayStepReply {
  *  Feeds the editor profiler's engine segment while playing (PerfMonitor). */
 export interface PlayStatsReply {
   phases: Record<string, number>;
-  systems: Record<string, number>;
+  /** Per-system and per-scope cost with the domain/system attribution the
+   *  profile tree is folded from. Null while the realm has stats off. */
+  costs: FrameCosts | null;
   drawCalls: number;
   triangles: number;
   sprites: number;
@@ -145,7 +147,6 @@ export interface PlayStatsReply {
   cppScopes: Record<string, number>;
   cppCounters: Record<string, number>;
   gpuScopes: Record<string, number>;
-  jsScopes: Record<string, number>;
   wasmBytes: number;
   vramBytes: number;
 }

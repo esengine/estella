@@ -374,6 +374,16 @@ export type QueryResult<C extends readonly QueryArg[]> = [
 // Query Instance (Runtime)
 // =============================================================================
 
+/** What a system's queries walked in a frame, and what they then discarded. */
+export interface QueryCost {
+    /** Times the system asked a query for its entities. */
+    calls: number;
+    /** Entities those calls walked, summed. */
+    scanned: number;
+    /** Of those, entities an Added/Changed filter rejected. */
+    filtered: number;
+}
+
 /**
  * A live query, as a system body receives it. Iterate it — each step yields the
  * entity followed by its components — or use `forEach`, `single`, `toArray`,
@@ -394,6 +404,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     // precomputed like cacheKey_ so per-call query iteration allocates no array.
     private readonly depIds_: symbol[];
     private lastRunTick_: number;
+    private calls_ = 0;
+    private scanned_ = 0;
+    private filtered_ = 0;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
     private readonly mutIsBuiltin_: boolean[];
@@ -458,7 +471,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * so none of them can disagree about the cache key or the dep set.
      */
     private candidates_(): readonly Entity[] {
-        return this.world_.queryEntities(
+        const entities = this.world_.queryEntities(
             this.allRequired_,
             this.descriptor_._with,
             this.descriptor_._without,
@@ -466,6 +479,24 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.compiledFilter_ ?? undefined,
             this.depIds_,
         );
+        if (this.world_.queryCostEnabled) {
+            this.calls_++;
+            this.scanned_ += entities.length;
+        }
+        return entities;
+    }
+
+    /**
+     * @internal What this query cost since the last read: how many times it was
+     * asked, how many entities that walked, and how many of those a change filter
+     * then threw away. Reset by the read, so a frame's figure is that frame's.
+     */
+    takeCost(): QueryCost {
+        const cost = { calls: this.calls_, scanned: this.scanned_, filtered: this.filtered_ };
+        this.calls_ = 0;
+        this.scanned_ = 0;
+        this.filtered_ = 0;
+        return cost;
     }
 
     private hasChangeFilters_(): boolean {
@@ -477,12 +508,17 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         if (_addedFilters.length === 0 && _changedFilters.length === 0) return true;
         const tick = this.lastRunTick_;
         for (const f of _addedFilters) {
-            if (!this.world_.isAddedSince(entity, f.component, tick)) return false;
+            if (!this.world_.isAddedSince(entity, f.component, tick)) return this.rejected_();
         }
         for (const f of _changedFilters) {
-            if (!this.world_.isChangedSince(entity, f.component, tick)) return false;
+            if (!this.world_.isChangedSince(entity, f.component, tick)) return this.rejected_();
         }
         return true;
+    }
+
+    private rejected_(): false {
+        if (this.world_.queryCostEnabled) this.filtered_++;
+        return false;
     }
 
     /**

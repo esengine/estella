@@ -101,6 +101,52 @@
 .prof-bar { height: 6px; border-radius: var(--r-sm); background: var(--srf-1); overflow: hidden; }
 .prof-fill { display: block; height: 100%; border-radius: var(--r-sm); transition: width var(--t-slow) var(--e-out); }
 
+/* Cost tree: domain ▸ system ▸ scope. One grid for every depth so the ms column
+   and the share bar stay aligned however deep a row sits. */
+.prof-tree { margin-top: 2px; }
+.prof-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5em 5em;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 0;
+}
+.prof-tree-name {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.prof-tree-name:disabled { cursor: default; }
+.prof-tree-caret { display: inline-block; width: 8px; color: var(--text-faint); flex: none; }
+.prof-tree-ms { color: var(--text-hi); text-align: right; font-variant-numeric: tabular-nums; }
+.prof-tree-ms i { color: var(--text-faint); font-style: normal; font-size: 10px; margin-left: 1px; }
+
+.prof-tree-domain .prof-tree-name { color: var(--text-hi); font-weight: 600; }
+.prof-tree-domain .prof-fill { background: var(--star); }
+.prof-tree-system .prof-fill { background: var(--run); }
+.prof-tree-scope .prof-tree-name { color: var(--text-dim); }
+.prof-tree-scope .prof-fill { background: var(--text-mute); }
+.prof-tree-wait .prof-tree-name,
+.prof-tree-wait .prof-tree-ms { color: var(--warn); }
+.prof-tree-wait .prof-fill { background: var(--warn); }
+.prof-tree-rest .prof-tree-name,
+.prof-tree-rest .prof-tree-ms { color: var(--text-faint); }
+.prof-tree-rest .prof-fill { background: var(--text-faint); }
+
+.prof-tree-query .prof-tree-name { color: var(--text-faint); font-size: 10px; cursor: default; }
+.prof-tree-query.waste .prof-tree-name { color: var(--warn); }
+
 /* Pinned-frame breakdown rows — name (ellipsis) + right-aligned value, so the two
    never collide however long the zone/system name is. */
 .prof-brk {

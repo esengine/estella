@@ -4,6 +4,7 @@
  * @file  PerfMonitor.ts — the editor's per-frame instrumentation hub.
  */
 import { createStore } from 'zustand/vanilla';
+import { buildFrameProfile, type FrameCosts, type FrameProfile, type ScopeCost } from 'esengine';
 
 /** p-th percentile (0..100) of an unsorted sample; 0 for an empty set. */
 export function percentile(values: readonly number[], p: number): number {
@@ -40,7 +41,9 @@ export function topSystems(rec: Record<string, number>, n: number): Array<{ name
  *  stays decoupled from the engine host. */
 export interface EngineFrame {
   phaseMs: Record<string, number>;
-  systemMs: Record<string, number>;
+  /** Per-system and per-scope CPU cost, each carrying the domain/system it
+   *  belongs to. The profile tree is folded from this. */
+  costs: FrameCosts | null;
   drawCalls: number;
   triangles: number;
   sprites: number;
@@ -53,13 +56,30 @@ export interface EngineFrame {
   cppCounters: Record<string, number>;
   /** Per-frame per-pass GPU times (submit, postprocess), name → ms. */
   gpuScopes: Record<string, number>;
-  /** Per-frame JS-side sub-system CPU scopes (render.resolveCameras etc.) — the
-   *  `js.*` rows; the JS sibling of cppScopes. */
-  jsScopes: Record<string, number>;
   /** Total wasm linear memory (bytes) — the engine's heap. */
   wasmBytes: number;
   /** Resident texture VRAM (bytes, estimate). */
   vramBytes: number;
+}
+
+/** The engine's C++ scopes as the profile model's native scopes. */
+function nativeScopesOf(cppScopes: Record<string, number>): ScopeCost[] {
+  return Object.entries(cppScopes).map(([name, ms]) => ({ name, ms, system: '', remainder: 'work' as const }));
+}
+
+/**
+ * Fold a captured frame into the tree the panel and the agent both read. Kept
+ * here rather than in the panel so a pinned frame, a recorded session and a
+ * tool call cannot each derive a different number from the same sample.
+ */
+export function profileOf(sample: FrameSample): FrameProfile {
+  return buildFrameProfile({
+    frameMs: sample.dt,
+    systems: sample.costs?.systems ?? [],
+    scopes: sample.costs?.scopes ?? [],
+    nativeScopes: nativeScopesOf(sample.cppScopes),
+    gpuMs: sample.gpuMs,
+  });
 }
 
 /** One frame's full per-frame breakdown, kept in a ring so any past frame can be
@@ -80,9 +100,9 @@ export interface FrameSample {
   enginePhases: Record<string, number>;
   cppScopes: Record<string, number>;
   gpuScopes: Record<string, number>;
-  jsScopes: Record<string, number>;
+  /** This frame's attributed engine costs — what `profileOf` folds into a tree. */
+  costs: FrameCosts | null;
   counters: Record<string, number>;
-  systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
   triangles: number;
   entities: number;
@@ -116,6 +136,9 @@ export interface PerfSnapshot {
   entities: number;
   /** Costliest engine systems over the window (name + windowed-max ms). */
   systemsTop: Array<{ name: string; ms: number }>;
+  /** The latest captured frame folded into its cost tree. One real frame, so
+   *  its rows add up — unlike the windowed maxima above. */
+  profile: FrameProfile | null;
   /** Which realm the engine numbers come from. */
   realm: 'edit' | 'play';
   /** GPU time (ms), or -1 when the timer isn't available. */
@@ -154,23 +177,6 @@ export interface SessionCapture {
   longTasks?: Array<{ start: number; ms: number; name: string }>;
 }
 
-// The render system's JS scope that wraps the GPU submit + implicit present. Its
-// wall-clock minus the C++ render CPU inside it is the swapchain/vsync wait the
-// last GPU-submitting system absorbs — reclassified out of engine CPU (see loop).
-const RENDER_SUBMIT_SCOPE = 'render.submit';
-
-/**
- * Present/vsync wait absorbed by the render system: the render submit scope's
- * JS wall-clock minus the C++ render CPU dispatched inside it (`cppScopes`).
- * What's left is the CPU blocked on the swapchain — not work. Returns 0 when the
- * submit scope is absent (an SDK without the render.submit instrumentation), so
- * the profiler degrades to the old lumped view rather than inventing a number.
- */
-export function presentWait(jsScopes: Record<string, number>, cppScopes: Record<string, number>): number {
-  const submitWall = jsScopes[RENDER_SUBMIT_SCOPE] ?? 0;
-  return submitWall > 0 ? Math.max(0, submitWall - sumMs(cppScopes)) : 0;
-}
-
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
 const HITCH_MS = 50; // auto-freeze threshold — a real hitch (below 20fps)
 const WINDOW_MS = 500;
@@ -181,7 +187,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 class PerfMonitorImpl {
   private readonly store = createStore<PerfSnapshot>(() => ({
     fps: 0, p50: 0, p95: 0, p99: 0, longFrames: 0, worstMs: 0, worstPhase: null, longTaskMs: 0, visible: false, enabled: true,
-    engineMs: 0, editorMs: 0, presentWaitMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
+    engineMs: 0, editorMs: 0, presentWaitMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], profile: null, realm: 'edit', gpuMs: -1, frames: [],
     frozen: false, pinnedId: null, autoHitch: false, longTaskRev: 0,
     wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [], counters: {},
     recording: false, recordedFrames: 0,
@@ -429,26 +435,16 @@ class PerfMonitorImpl {
       let enginePhases: Record<string, number> = {};
       let cppScopes: Record<string, number> = {};
       let gpuScopes: Record<string, number> = {};
-      let jsScopes: Record<string, number> = {};
+      let costs: FrameCosts | null = null;
       let engineCounters: Record<string, number> = {};
-      let systemsFrame: Array<{ name: string; ms: number }> = [];
-      let presentWaitMs = 0;
       if (ef) {
         enginePhases = ef.phaseMs;
         cppScopes = ef.cppScopes;
         gpuScopes = ef.gpuScopes;
-        jsScopes = ef.jsScopes;
+        costs = ef.costs;
         engineCounters = ef.cppCounters;
         engineFrameMs = sumMs(enginePhases);
         this.engineSum += engineFrameMs;
-        // Split the swapchain/vsync block out of engine CPU (see presentWait): the
-        // render system reads as ~0, not a phantom multi-ms hotspot.
-        presentWaitMs = presentWait(jsScopes, cppScopes);
-        this.presentWaitSum += presentWaitMs;
-        for (const k in ef.systemMs) {
-          if (ef.systemMs[k] > (this.systemMax[k] ?? 0)) this.systemMax[k] = ef.systemMs[k];
-        }
-        systemsFrame = topSystems(ef.systemMs, 8).map((s) => ({ name: s.name, ms: r1(s.ms) }));
         this.counters = { drawCalls: ef.drawCalls, triangles: ef.triangles, entities: ef.entities, gpuMs: ef.gpuMs };
         this.mem = { wasmBytes: ef.wasmBytes, vramBytes: ef.vramBytes };
       }
@@ -462,19 +458,28 @@ class PerfMonitorImpl {
         t1: now,
         engineMs: r1(engineFrameMs),
         editorMs: r1(editorFrameMs),
-        presentWaitMs: r1(presentWaitMs),
+        presentWaitMs: 0,
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         editorPhases: { ...editorPhases },
         enginePhases: { ...enginePhases },
         cppScopes: { ...cppScopes },
         gpuScopes: { ...gpuScopes },
-        jsScopes: { ...jsScopes },
+        costs,
         counters: { ...engineCounters, ...editorCounters },
-        systems: systemsFrame,
         drawCalls: this.counters.drawCalls,
         triangles: this.counters.triangles,
         entities: this.counters.entities,
       };
+      // The wait is the tree's, so the windowed unit bar and the pinned tree can
+      // never disagree about how much of this frame was work.
+      const profile = profileOf(sample);
+      sample.presentWaitMs = r1(profile.waitMs);
+      this.presentWaitSum += profile.waitMs;
+      for (const domain of profile.domains) {
+        for (const sys of domain.children) {
+          if (sys.ms > (this.systemMax[sys.label] ?? 0)) this.systemMax[sys.label] = sys.ms;
+        }
+      }
       this.lastCounters = sample.counters;
       this.samples.push(sample);
       if (this.samples.length > CAP) this.samples.shift();
@@ -509,6 +514,7 @@ class PerfMonitorImpl {
         engineMs: r1(this.engineSum / wf), editorMs: r1(this.editorSum / wf), presentWaitMs: r1(this.presentWaitSum / wf),
         drawCalls: this.counters.drawCalls, triangles: this.counters.triangles, entities: this.counters.entities,
         systemsTop: topSystems(this.systemMax, 5).map((s) => ({ name: s.name, ms: r1(s.ms) })),
+        profile: this.samples.length ? profileOf(this.samples[this.samples.length - 1]) : null,
         realm: this.realm,
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         frames: this.samples.map((s) => s.dt),

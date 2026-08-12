@@ -12,6 +12,69 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **The profiler answers "where did this frame go", and its rows add up.** The
+  numbers were all being measured already — per-system CPU, sub-frame scopes, the
+  engine's C++ scopes — and the panel listed them side by side as one flat ranking,
+  which is how a scope nested inside a system got counted twice and how "Systems"
+  came to mean the windowed maximum of each while "Frame" meant one frame. There
+  was no way to ask which subsystem a cost belonged to at all: `EnemyAISystem` and
+  `TilemapSyncSystem` were two names in a list.
+
+  A frame now folds into a tree of cost domains, each domain the sum of its
+  systems, each system the sum of the scopes measured inside it with the
+  unaccounted remainder named as such. `frame = cpu + wait + idle` holds, and so
+  does every node against its children — asserted, because a tree whose rows do
+  not sum is a worse answer than a list that never claimed to.
+
+- **A system's domain comes from where it was registered, not from a table.** The
+  scheduler already knew — a system added during `plugin.build()` carries that
+  plugin, and the project bundle's drain is what tells user code from engine code.
+  That fact only ever reached the liveness watchdog. It now reaches the profiler,
+  so a project's own systems appear under `scripts` and every plugin's under its
+  own name with nothing to declare and nothing to keep in sync. A plugin whose
+  cost is not its name says so once at its declaration — `camera` produces
+  `render` — rather than the profiler keeping a list of who really means what.
+
+- **Blocking is not work, and a scope says which it is.** `measureFrameScope` takes
+  `remainder: 'wait'`: whatever is left under that scope once the native scopes
+  inside it are subtracted is CPU blocked, not a hotspot. The swapchain block the
+  render submit absorbs — the 2.1ms that used to read as an empty scene's most
+  expensive system — is now the only thing that reclassification is spelled as,
+  instead of a subtraction the editor did to one hard-coded scope name. It keeps
+  the same numbers on the same capture, and an `await` can now be declared the
+  same way.
+
+- **A system's time now comes with the reason for it.** "ProjectileSystem: 7.3ms"
+  is where every profiler stops and where the actual question starts. Each system
+  now reports what its queries walked that frame — how many times they were asked,
+  how many entities that came to, and how many of those an `Added`/`Changed`
+  filter then discarded — so 7.3ms reads as 7.3ms over 18,400 entities of which
+  none had changed, which names the fix instead of the symptom.
+
+  It is measured at `candidates_()`, the one seam every way of asking a query
+  goes through, so `count()`, `toArray()`, `isEmpty()`, `single()`, `forEach` and
+  iteration are all covered by construction rather than by six call sites
+  remembering to. The switch is per-`World`, not a module flag: the editor realm
+  and the play realm are separate Apps in one process and a shared one would have
+  each turn the other's accounting on.
+
+- **A system that runs four fixed steps is charged for four.** `flushSystem_`
+  assigned each system's time rather than adding to it, so a system on a fixed
+  schedule reported its last catch-up step and nothing else — a physics-bound
+  frame read as a quarter of its real cost. It accumulates now, which is also
+  what makes the frame tree's claim to add up true on any frame the accumulator
+  had a backlog for.
+
+- **One derivation, three readers.** `buildFrameProfile` is a pure function over
+  plain per-frame data, so the live view, a pinned frame and a recorded session
+  cannot each round their own way to a different answer. The editor's own
+  `presentWait` subtraction is gone; the panel, the unit bar and the systems table
+  now all read the tree.
+
 ## [0.50.0] - 2026-08-11
 
 ### Added

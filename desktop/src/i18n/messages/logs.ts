@@ -61,6 +61,7 @@ export const logsMessages = defineMessages({
     'prof.groupCounters': { en: 'Counters', zh: '计数器' },
     'prof.groupMemory': { en: 'Memory', zh: '内存' },
     'prof.groupSystems': { en: 'Systems', zh: '系统' },
+    'prof.groupTree': { en: 'Where the frame went', zh: '这一帧花在哪' },
 
     // — Profiler: Frame section —
     'prof.clickToInspect': { en: 'Click a frame to inspect it', zh: '点击某一帧以查看详情' },
@@ -102,8 +103,18 @@ export const logsMessages = defineMessages({
     'prof.unattributed': { en: '{ms}ms unattributed', zh: '{ms}ms 未归因' },
     'prof.browserPaintGc': { en: 'browser paint / GC', zh: '浏览器绘制 / GC' },
 
+    // — Profiler: cost tree —
+    'prof.lastFrame': { en: 'last frame', zh: '最近一帧' },
+    'prof.queryScanned': { en: 'query walked {n} entities in {calls}', zh: '查询遍历 {n} 个实体，{calls} 次' },
+    'prof.queryFiltered': { en: '{n} discarded unchanged', zh: '其中 {n} 个没变被丢弃' },
+    'prof.treeTotals': {
+        en: 'frame {frame}ms = cpu {cpu} + wait {wait} + idle {idle}',
+        zh: '帧 {frame}ms = CPU {cpu} + 等待 {wait} + 空闲 {idle}',
+    },
+
     // — Profiler: Systems section —
     'prof.thisFrame': { en: 'this frame', zh: '当前帧' },
+    'prof.windowMax': { en: 'window max', zh: '窗口最大值' },
     'prof.noSystemTimings': { en: 'No system timings yet.', zh: '暂无系统耗时数据。' },
 
     // — Diagnostic bundle (Help ▸ Export Diagnostics) —

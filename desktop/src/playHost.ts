@@ -759,15 +759,13 @@ window.addEventListener('message', (e: MessageEvent) => {
         // Per-phase + per-system timing + render counters — the running game's
         // engine segment for the editor profiler (PerfMonitor, realm 'play').
         const phases = app ? Object.fromEntries(app.getPhaseTimings() ?? []) : {};
-        const systems = app ? Object.fromEntries(app.getSystemTimings() ?? []) : {};
-        const jsScopes = app ? Object.fromEntries(app.getFrameScopes() ?? []) : {};
         const m = engineModule;
         post({
           type: 'estella:play:reply',
           reqId: data.reqId,
           data: {
             phases,
-            systems,
+            costs: app?.getFrameCosts() ?? null,
             drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
             triangles: m?.renderer_getTriangles?.() ?? 0,
             sprites: m?.renderer_getSprites?.() ?? 0,
@@ -776,7 +774,6 @@ window.addEventListener('message', (e: MessageEvent) => {
             cppScopes: jsonMap(m?.engine_getCpuScopes?.()),
             cppCounters: jsonMap(m?.engine_getCounters?.()),
             gpuScopes: jsonMap(m?.engine_getGpuScopes?.()),
-            jsScopes,
             wasmBytes: m?.HEAPU8?.byteLength ?? 0,
             vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
           },

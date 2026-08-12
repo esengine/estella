@@ -497,6 +497,7 @@ export function cameraPlugin(
 ): Plugin {
     return {
         name: 'camera',
+        profileDomain: 'render',
         build(app: App) {
             // Null on the native core: the two engine queries this plugin makes are
             // answered by the registry there (see canvasEntityOf / cameraEntitiesOf),
@@ -616,7 +617,7 @@ export function cameraPlugin(
                             pipeline.endScreenCapture();
                             Renderer.setViewport(0, 0, width, height);
                         }
-                    });
+                    }, { remainder: 'wait' });
                 },
             };
 

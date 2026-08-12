@@ -7,7 +7,7 @@
 
 import { AnyComponentDef } from './component';
 import { getDefaultContext } from './context';
-import { QueryDescriptor, QueryInstance, QueryArg, RemovedQueryDescriptor, RemovedQueryInstance } from './query';
+import { QueryDescriptor, QueryInstance, QueryArg, RemovedQueryDescriptor, RemovedQueryInstance, type QueryCost } from './query';
 import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
 import { CommandsDescriptor, CommandsInstance } from './commands';
 import {
@@ -353,6 +353,7 @@ export class SystemRunner {
     private readonly removedCache_ = new Map<symbol, RemovedQueryInstance<any>[]>();
     private currentLastRunTick_ = -1;
     private timings_: Map<string, number> | null = null;
+    private queryCosts_: Map<string, QueryCost> | null = null;
 
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry) {
         this.world_ = world;
@@ -362,15 +363,27 @@ export class SystemRunner {
 
     setTimingEnabled(enabled: boolean): void {
         this.timings_ = enabled ? new Map() : null;
+        this.queryCosts_ = enabled ? new Map() : null;
+        this.world_.setQueryCostEnabled(enabled);
     }
 
     getTimings(): ReadonlyMap<string, number> | null {
         return this.timings_;
     }
 
+    /**
+     * Per-system query cost for the frame: what each system's queries walked, and
+     * how much of that a change filter then discarded. This is what turns "7ms"
+     * into "7ms over 18,400 entities, none of which had changed".
+     */
+    getQueryCosts(): ReadonlyMap<string, QueryCost> | null {
+        return this.queryCosts_;
+    }
+
     /** @brief Clear timing data for the current frame */
     clearTimings(): void {
         this.timings_?.clear();
+        this.queryCosts_?.clear();
     }
 
     /** @brief Remove cached state for a single system */
@@ -475,11 +488,32 @@ export class SystemRunner {
                 (args[i] as CommandsInstance).flush();
             }
         }
+        if (this.queryCosts_) {
+            this.harvestQueryCost_(system);
+        }
         if (this.timings_) {
-            this.timings_.set(system._name, performance.now() - t0);
+            // Accumulated, not assigned: a fixed schedule runs as many times in one
+            // frame as the accumulator has steps for, and the frame cost of such a
+            // system is all of them. Assigning reported the last step alone.
+            const name = system._name;
+            this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
         this.world_.resetIterationDepth();
         this.systemTicks_.set(system._id, this.world_.getWorldTick());
+    }
+
+    private harvestQueryCost_(system: SystemDef): void {
+        const queries = this.queryCache_.get(system._id);
+        if (!queries || queries.length === 0) return;
+        const name = system._name;
+        const total = this.queryCosts_!.get(name) ?? { calls: 0, scanned: 0, filtered: 0 };
+        for (const q of queries) {
+            const cost = q.takeCost();
+            total.calls += cost.calls;
+            total.scanned += cost.scanned;
+            total.filtered += cost.filtered;
+        }
+        if (total.calls > 0) this.queryCosts_!.set(name, total);
     }
 
     private resolveParam(param: SystemParam): unknown {

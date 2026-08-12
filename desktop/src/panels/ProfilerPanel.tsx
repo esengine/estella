@@ -5,7 +5,8 @@
  */
 import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { PerfMonitor } from '@/engine/PerfMonitor';
+import { PerfMonitor, profileOf } from '@/engine/PerfMonitor';
+import type { ProfileNode } from 'esengine';
 import { t } from '@/i18n';
 
 const BUDGET_MS = 1000 / 60; // 60 Hz frame budget (16.6ms)
@@ -37,6 +38,7 @@ function downloadSession(): void {
 const GROUPS = [
   { id: 'frame', label: t('prof.groupFrame') },
   { id: 'unit', label: t('prof.groupUnit') },
+  { id: 'tree', label: t('prof.groupTree') },
   { id: 'render', label: t('prof.groupRender') },
   { id: 'counters', label: t('prof.groupCounters') },
   { id: 'memory', label: t('prof.groupMemory') },
@@ -173,6 +175,56 @@ function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number |
   return <canvas ref={ref} className="prof-graph" title={t('prof.clickToInspect')} onClick={onClick} />;
 }
 
+// A query that walks the world every frame and then discards nearly all of it is
+// the shape behind most "why is this system 7ms" — so the ratio is called out,
+// not left for the reader to divide.
+const MOSTLY_DISCARDED = 0.9;
+
+/** What a system's queries walked, under the system whose time it explains. */
+function QueryNote({ query, depth }: { query: NonNullable<ProfileNode['query']>; depth: number }) {
+  const wasteful = query.scanned > 0 && query.filtered / query.scanned >= MOSTLY_DISCARDED;
+  return (
+    <div className={`prof-tree-row prof-tree-query${wasteful ? ' waste' : ''}`}>
+      <span className="prof-tree-name" style={{ paddingLeft: `${(depth + 1) * 12 + 11}px` }}>
+        {t('prof.queryScanned', { n: kfmt(query.scanned), calls: query.calls })}
+        {query.filtered > 0 ? ` · ${t('prof.queryFiltered', { n: kfmt(query.filtered) })}` : ''}
+      </span>
+      <span />
+      <span />
+    </div>
+  );
+}
+
+/** A domain / system / scope row, indented by depth and expandable while it has
+ *  children. Share is of the whole frame, so depths stay comparable. */
+function TreeRow({ node, frameMs, depth }: { node: ProfileNode; frameMs: number; depth: number }) {
+  const [open, setOpen] = useState(depth === 0);
+  const pct = frameMs > 0 ? Math.min(100, (node.ms / frameMs) * 100) : 0;
+  const hasKids = node.children.length > 0;
+  return (
+    <>
+      <div className={`prof-tree-row prof-tree-${node.kind}`}>
+        <button
+          type="button"
+          className="prof-tree-name"
+          style={{ paddingLeft: `${depth * 12}px` }}
+          onClick={() => hasKids && setOpen(!open)}
+          disabled={!hasKids}
+        >
+          <span className="prof-tree-caret">{hasKids ? (open ? '▾' : '▸') : ''}</span>
+          {node.label}
+        </button>
+        <span className="prof-tree-ms">{node.ms.toFixed(1)}<i>ms</i></span>
+        <span className="prof-bar"><span className="prof-fill" style={{ width: `${pct}%` }} /></span>
+      </div>
+      {node.query ? <QueryNote query={node.query} depth={depth} /> : null}
+      {open && node.children.map((c) => (
+        <TreeRow key={c.id} node={c} frameMs={frameMs} depth={depth + 1} />
+      ))}
+    </>
+  );
+}
+
 /** One "Frame = a + b + …" bar segment, width ∝ its share of the frame. */
 function Seg({ label, ms, frame, color, title }: { label: string; ms: number; frame: number; color: string; title?: string }) {
   const pct = frame > 0 ? Math.min(100, (ms / frame) * 100) : 0;
@@ -194,10 +246,13 @@ export function ProfilerPanel() {
   const show = (id: string) => !hidden.has(id);
 
   // Sections read the pinned frame when one is inspected, else the live window.
+  const profile = pinned ? profileOf(pinned) : s.profile;
   const v = pinned
     ? {
         frameMs: pinned.dt, engineMs: pinned.engineMs, editorMs: pinned.editorMs, presentWaitMs: pinned.presentWaitMs, gpuMs: pinned.gpuMs,
-        drawCalls: pinned.drawCalls, triangles: pinned.triangles, entities: pinned.entities, systems: pinned.systems, counters: pinned.counters,
+        drawCalls: pinned.drawCalls, triangles: pinned.triangles, entities: pinned.entities, counters: pinned.counters,
+        systems: profile ? profile.domains.flatMap((d) => d.children).sort((a, b) => b.ms - a.ms).slice(0, 8)
+          .map((n) => ({ name: n.label, ms: n.ms })) : [],
       }
     : {
         frameMs: s.p50, engineMs: s.engineMs, editorMs: s.editorMs, presentWaitMs: s.presentWaitMs, gpuMs: s.gpuMs,
@@ -226,12 +281,11 @@ export function ProfilerPanel() {
   const longTasks = pinned ? PerfMonitor.getFrameLongTasks(pinned.id) : [];
   const measuredMs = pinned ? pinned.engineMs + pinned.editorMs : 0;
   const unattributedMs = pinned ? Math.max(0, pinned.dt - measuredMs) : 0;
+  // Editor phases and GPU passes only: the engine's own CPU is the tree's, and
+  // listing its systems and scopes flat beside it double-counts every scope.
   const breakdown: Array<[string, number]> = pinned
     ? [
         ...Object.entries(pinned.editorPhases),
-        ...Object.entries(pinned.enginePhases).map(([n, m]) => [`engine.${n}`, m] as [string, number]),
-        ...Object.entries(pinned.jsScopes).map(([n, m]) => [`js.${n}`, m] as [string, number]),
-        ...Object.entries(pinned.cppScopes).map(([n, m]) => [`cpp.${n}`, m] as [string, number]),
         ...Object.entries(pinned.gpuScopes).map(([n, m]) => [`gpu.${n}`, m] as [string, number]),
       ]
         .filter(([, ms]) => ms >= 0.1)
@@ -337,6 +391,35 @@ export function ProfilerPanel() {
       </section>
       )}
 
+      {/* Where the frame went, by cost domain. One frame, so the rows add up. */}
+      {show('tree') && (
+      <section className="prof-sec">
+        <h4>
+          {t('prof.groupTree')}
+          <span className="prof-realm"> · {pinned ? t('prof.thisFrame') : t('prof.lastFrame')}</span>
+        </h4>
+        {profile && profile.domains.length > 0 ? (
+          <>
+            <div className="prof-tree">
+              {profile.domains.map((d) => (
+                <TreeRow key={d.id} node={d} frameMs={profile.frameMs} depth={0} />
+              ))}
+            </div>
+            <div className="prof-budget">
+              {t('prof.treeTotals', {
+                frame: profile.frameMs.toFixed(1),
+                cpu: profile.cpuMs.toFixed(1),
+                wait: profile.waitMs.toFixed(1),
+                idle: profile.idleMs.toFixed(1),
+              })}
+            </div>
+          </>
+        ) : (
+          <p className="prof-empty">{t('prof.noSystemTimings')}</p>
+        )}
+      </section>
+      )}
+
       {show('render') && (
       <section className="prof-sec">
         <h4>{t('prof.groupRender')}</h4>
@@ -408,7 +491,7 @@ export function ProfilerPanel() {
       {/* Costliest engine systems — windowed max (live) or this frame's cost (pinned). */}
       {show('systems') && (
       <section className="prof-sec">
-        <h4>{t('prof.groupSystems')}{pinned ? ` · ${t('prof.thisFrame')}` : ''}</h4>
+        <h4>{t('prof.groupSystems')} <span className="prof-realm">· {pinned ? t('prof.thisFrame') : t('prof.windowMax')}</span></h4>
         {sysRows.length ? (
           <table className="prof-sys">
             <tbody>

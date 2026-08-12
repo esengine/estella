@@ -29,6 +29,7 @@ import { cameraPlugin } from '../camera/CameraPlugin';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
 import { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
+import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
 import type { SideModuleHost } from '../sideModules/host';
 import { watchWebGPUDeviceLoss } from '../render/renderer';
 import { log } from '../util/logger';
@@ -44,6 +45,9 @@ export interface Plugin {
     dependencies?: PluginDependency[];
     before?: string[];
     after?: string[];
+    /** Cost domain the profiler files this plugin's systems under. Defaults to
+     *  `name`; declare it where the two differ, as `camera` producing `render`. */
+    profileDomain?: string;
     build(app: App): void;
     finish?(app: App): void;
     cleanup?(app?: App): void;
@@ -54,6 +58,12 @@ export interface Plugin {
 // =============================================================================
 
 export type { RunCondition };
+
+/** One frame's costs, attributed. The input `buildFrameProfile` folds. */
+export interface FrameCosts {
+    systems: SystemCost[];
+    scopes: ScopeCost[];
+}
 
 interface SystemEntry {
     system: SystemDef;
@@ -69,6 +79,8 @@ interface SystemEntry {
      *  hot-update rebind) carry no subsystem either, and mistaking them for
      *  user systems vetoed every hot swap in any project that had physics. */
     fromBundle?: boolean;
+    /** Cost domain, from the building plugin or the door it came through. */
+    domain: string;
 }
 
 /**
@@ -124,6 +136,8 @@ export class App {
     /** The plugin currently in build(), so systems it adds inherit its name for
      *  liveness reporting. Null outside a build. */
     private buildingPlugin_: string | null = null;
+    /** The cost domain of that plugin, which is its name unless it declared one. */
+    private buildingDomain_: string | null = null;
     private addingBundleSystems_ = false;
     // The realm's acquirer for optional native modules (physics, spine). Set once
     // at app creation; physics/spine self-gate off it. Null in headless/test apps.
@@ -139,7 +153,9 @@ export class App {
     // resolveCameras / submit split) — the JS-side sibling of the engine's C++
     // ES_PROFILE_SCOPE. Null unless stats are on; same per-frame lifecycle as
     // phaseTimings_ (cleared at tick start, read after the tick).
-    private frameScopes_: Map<string, number> | null = null;
+    private frameScopes_: Map<string, ScopeCost> | null = null;
+    /** The system being run, so a scope opened inside one is filed under it. */
+    private currentSystem_ = '';
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -225,7 +241,9 @@ export class App {
             });
         }
         const prevBuilding = this.buildingPlugin_;
+        const prevDomain = this.buildingDomain_;
         this.buildingPlugin_ = plugin.name ?? null;
+        this.buildingDomain_ = plugin.profileDomain ?? plugin.name ?? null;
         try {
             plugin.build(this);
             // Sync plugin: live once build() returns → promote. An async plugin
@@ -244,6 +262,7 @@ export class App {
             throw e;
         } finally {
             this.buildingPlugin_ = prevBuilding;
+            this.buildingDomain_ = prevDomain;
         }
         return this;
     }
@@ -272,6 +291,11 @@ export class App {
      * read properties of undefined (reading 'push')" thrown from inside a
      * minified bundle, naming neither the system nor the value.
      */
+    private registeringDomain_(): string {
+        if (this.buildingDomain_) return this.buildingDomain_;
+        return this.addingBundleSystems_ ? DOMAIN_SCRIPTS : DOMAIN_UNATTRIBUTED;
+    }
+
     private scheduleBucket_(schedule: Schedule, systemName: string): SystemEntry[] {
         const bucket = this.systems_.get(schedule);
         if (bucket) return bucket;
@@ -314,6 +338,7 @@ export class App {
             runIf: options?.runIf,
             subsystem: this.buildingPlugin_ ?? undefined,
             fromBundle: this.addingBundleSystems_ || undefined,
+            domain: this.registeringDomain_(),
         });
         this.sortedSystemsCache_.delete(schedule);
         return this;
@@ -463,6 +488,7 @@ export class App {
                 runAfter: mergedRunAfter,
                 runIf,
                 subsystem: this.buildingPlugin_ ?? undefined,
+                domain: this.registeringDomain_(),
             });
         }
         this.sortedSystemsCache_.delete(schedule);
@@ -657,22 +683,63 @@ export class App {
      * {@link getPhaseTimings}; surfaces as the profiler's `js.*` rows.
      */
     getFrameScopes(): ReadonlyMap<string, number> | null {
-        return this.frameScopes_;
+        if (!this.frameScopes_) return null;
+        const flat = new Map<string, number>();
+        for (const [name, scope] of this.frameScopes_) flat.set(name, scope.ms);
+        return flat;
+    }
+
+    /**
+     * This frame's costs with the attribution a profile tree needs: which domain
+     * owns each system, which system each scope ran inside. Null when stats are
+     * off. Feed to `buildFrameProfile`, which is where the tree is derived.
+     */
+    getFrameCosts(): FrameCosts | null {
+        if (!this.frameScopes_) return null;
+        const timings = this.runner_?.getTimings();
+        const domains = new Map<string, string>();
+        for (const entries of this.systems_.values()) {
+            for (const entry of entries) domains.set(entry.system._name, entry.domain);
+        }
+        const queryCosts = this.runner_?.getQueryCosts();
+        const systems: SystemCost[] = [];
+        for (const [name, ms] of timings ?? []) {
+            const query = queryCosts?.get(name);
+            systems.push({
+                name,
+                ms,
+                domain: domains.get(name) ?? DOMAIN_UNATTRIBUTED,
+                ...(query ? { query } : {}),
+            });
+        }
+        return { systems, scopes: [...this.frameScopes_.values()] };
     }
 
     /**
      * Time `fn` as a named sub-frame scope (accumulated if the name repeats in a
      * frame). A no-op passthrough when stats are off, so shipped games pay only a
      * single branch. Use it to split a heavy system into attributable pieces.
+     *
+     * `remainder: 'wait'` declares that whatever time is left under this scope
+     * once its native scopes are subtracted is CPU blocked, not work — the
+     * swapchain block a GPU submit absorbs, or an await. The profiler keeps such
+     * time out of every cost total instead of reporting it as a hotspot.
      */
-    measureFrameScope<T>(name: string, fn: () => T): T {
+    measureFrameScope<T>(name: string, fn: () => T, options?: { remainder?: ScopeRemainder }): T {
         const scopes = this.frameScopes_;
         if (!scopes) return fn();
         const t0 = performance.now();
         try {
             return fn();
         } finally {
-            scopes.set(name, (scopes.get(name) ?? 0) + (performance.now() - t0));
+            const elapsed = performance.now() - t0;
+            const prev = scopes.get(name);
+            scopes.set(name, {
+                name,
+                ms: (prev?.ms ?? 0) + elapsed,
+                system: prev?.system ?? this.currentSystem_,
+                remainder: options?.remainder ?? 'work',
+            });
         }
     }
 
@@ -1144,6 +1211,7 @@ export class App {
         for (const entry of systems) {
             if (entry.runIf && !entry.runIf()) continue;
             try {
+                this.currentSystem_ = entry.system._name;
                 const result = this.runner_.run(entry.system);
                 if (result instanceof Promise) {
                     await result;
@@ -1164,6 +1232,8 @@ export class App {
                         return;
                     }
                 }
+            } finally {
+                this.currentSystem_ = '';
             }
         }
 

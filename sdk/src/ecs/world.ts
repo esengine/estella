@@ -134,6 +134,7 @@ export class World {
     private entities_ = new Map<Entity, number>();
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
     private iterationDepth_ = 0;
+    private queryCostEnabled_ = false;
     private nextEntityIndex_ = 0;  // pure-JS fallback: monotonic index counter
     private nextGeneration_ = 0;
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
@@ -403,6 +404,20 @@ export class World {
     /** @internal Reset the query-cache counters. Entries themselves are kept. */
     resetQueryCacheStats(): void {
         this.queries_.resetStats();
+    }
+
+    /**
+     * @internal Whether queries count what they scan. Per-World rather than a
+     * module flag: the editor realm and the play realm are separate Apps in one
+     * process, and a shared switch would have each turn the other's accounting on.
+     */
+    setQueryCostEnabled(enabled: boolean): void {
+        this.queryCostEnabled_ = enabled;
+    }
+
+    /** @internal */
+    get queryCostEnabled(): boolean {
+        return this.queryCostEnabled_;
     }
 
     /** @internal Iteration depth is what makes spawn/despawn refuse mid-query. */

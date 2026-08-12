@@ -15,7 +15,7 @@ import {
   setEditorMode,
   setPlayMode,
 } from 'esengine';
-import type { App, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource } from 'esengine';
+import type { App, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource, FrameCosts } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { SpinePlugin } from 'esengine/spine';
 import type { SpineManager } from 'esengine/spine';
@@ -140,7 +140,7 @@ class EngineHostImpl {
   /** The engine's last-frame telemetry for the profiler; null until booted. */
   readEngineFrame(): {
     phaseMs: Record<string, number>;
-    systemMs: Record<string, number>;
+    costs: FrameCosts | null;
     drawCalls: number;
     triangles: number;
     sprites: number;
@@ -149,7 +149,6 @@ class EngineHostImpl {
     cppScopes: Record<string, number>;
     cppCounters: Record<string, number>;
     gpuScopes: Record<string, number>;
-    jsScopes: Record<string, number>;
     wasmBytes: number;
     vramBytes: number;
   } | null {
@@ -157,8 +156,6 @@ class EngineHostImpl {
     if (!app) return null;
     const m = this.module_;
     const phases = app.getPhaseTimings();
-    const systems = app.getSystemTimings();
-    const jsScopes = app.getFrameScopes();
     let cppScopes: Record<string, number> = {};
     const scopesJson = m?.engine_getCpuScopes?.();
     if (scopesJson) {
@@ -176,7 +173,7 @@ class EngineHostImpl {
     }
     return {
       phaseMs: phases ? Object.fromEntries(phases) : {},
-      systemMs: systems ? Object.fromEntries(systems) : {},
+      costs: app.getFrameCosts(),
       drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
       triangles: m?.renderer_getTriangles?.() ?? 0,
       sprites: m?.renderer_getSprites?.() ?? 0,
@@ -185,7 +182,6 @@ class EngineHostImpl {
       cppScopes,
       cppCounters,
       gpuScopes,
-      jsScopes: jsScopes ? Object.fromEntries(jsScopes) : {},
       wasmBytes: m?.HEAPU8?.byteLength ?? 0,
       vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };
