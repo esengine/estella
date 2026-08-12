@@ -17,9 +17,20 @@ import {
 /**
  * An override as written at a SPAWN: the entity id may be left out, and then it
  * is the prefab's root — which is the entity a one-sprite prefab has.
+ *
+ * @beta
  */
 export type SpawnOverride = Omit<PrefabOverride, 'prefabEntityId'> & { prefabEntityId?: string };
 
+/**
+ * Prefab instantiation, as `Res(Prefabs)` hands it over.
+ *
+ * `@beta`: `instantiate` is the whole surface and it has not moved, but its result
+ * and override shapes are spelled in the prefab document model, which is also the
+ * on-disk format — so their names are settled ahead of the shapes.
+ *
+ * @beta
+ */
 export class PrefabServer {
     private readonly world_: World;
     private readonly getAssets_: () => AssetsClass;
@@ -116,6 +127,12 @@ function resolveSpawnOverrides(
     });
 }
 
+/**
+ * Prefab instantiation, as a resource. Spawning from a prefab is asynchronous
+ * because its assets may not be loaded yet.
+ *
+ * @beta
+ */
 export const Prefabs = defineResource<PrefabServer>(null!, 'Prefabs');
 
 export class PrefabsPlugin implements Plugin {

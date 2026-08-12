@@ -76,6 +76,8 @@ export interface LoadedSceneAssets {
     spineKeys: Set<string>;
 }
 
+/** Progress during a scene load, in assets: how many are done of how many.
+ *  @beta */
 export type SceneLoadProgressCallback = (loaded: number, total: number) => void;
 
 export type MissingAssetCallback = (missing: import('../asset/Assets').MissingAsset[]) => void;

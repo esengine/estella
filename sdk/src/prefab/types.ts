@@ -96,6 +96,12 @@ export interface NestedPrefabRef {
  * - `metadata_removed`  — delete one metadata key if present. Requires:
  *                         metadataKey.
  */
+/**
+ * One field of one entity of a prefab, overridden at the instance. Also the
+ * on-disk shape a scene stores an instance's edits as.
+ *
+ * @beta
+ */
 export interface PrefabOverride {
     prefabEntityId: PrefabEntityId;
     type:

@@ -42,6 +42,12 @@ export interface InstantiatePrefabOptions {
     overrides?: PrefabOverride[];
 }
 
+/**
+ * What instantiating a prefab answers: the root, and every entity the prefab
+ * brought with it.
+ *
+ * @beta
+ */
 export interface InstantiatePrefabResult {
     root: Entity;
     entities: Map<number, Entity>;

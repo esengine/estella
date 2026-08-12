@@ -11,8 +11,25 @@ import { SpriteAnimation, type SpriteAnimationAPI } from '../animation/SpriteAni
 import { Localization, type LocalizationAPI } from '../i18n/Localization';
 import { log } from '../util/logger';
 
+/**
+ * The asset loader a system receives from `Res(Assets)`.
+ *
+ * `@beta`, and the evidence says so: of its members the certified corpus calls
+ * four, and a third of the rest is the host wiring a runtime in — resolvers,
+ * registries, the manifest, device-loss recovery — which is the embedding contract
+ * rather than anything a game writes.
+ *
+ * @beta
+ */
 export type AssetsData = AssetsClass;
 
+/**
+ * The asset loader, as a resource. Rarely the door a game uses: scenes preload
+ * what they reference and components resolve their own assets, so this is for the
+ * cases that outlive a scene — hot updates, groups loaded on demand.
+ *
+ * @beta
+ */
 export const Assets = defineResource<AssetsData>(
     null!,
     'Assets'

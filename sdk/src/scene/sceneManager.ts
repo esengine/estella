@@ -27,8 +27,18 @@ import { log } from '../util/logger';
 // Types
 // =============================================================================
 
+/** Where a loaded scene is in its lifecycle. `paused` still draws; `sleeping`
+ *  does not — see {@link SceneManagerState.pause} and `sleep`.
+ *  @beta */
 export type SceneStatus = 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading';
 
+/**
+ * A scene as registered: where its data comes from, the systems that run while it
+ * is loaded, and hooks either side of its lifetime. `path` and `data` are
+ * alternatives — a scene either loads from disk or is handed its content.
+ *
+ * @beta
+ */
 export interface SceneConfig {
     name: string;
     path?: string;
@@ -38,6 +48,13 @@ export interface SceneConfig {
     cleanup?: (ctx: SceneContext) => void;
 }
 
+/**
+ * A live scene, as `setup` receives it and `load` answers with. Everything it
+ * spawns or adopts is scene-owned and goes away when the scene unloads, which is
+ * why an entity or an asset reference nothing records is one nothing releases.
+ *
+ * @beta
+ */
 export interface SceneContext {
     readonly name: string;
     readonly entities: ReadonlySet<Entity>;
@@ -58,6 +75,12 @@ export interface SceneContext {
     setPersistent(entity: Entity, persistent: boolean): void;
 }
 
+/**
+ * How a switch, unload or reload behaves. `keepPersistent` decides whether
+ * entities marked persistent survive it.
+ *
+ * @beta
+ */
 export interface TransitionOptions {
     keepPersistent?: boolean;
     transition?: 'none' | 'fade';
@@ -187,6 +210,16 @@ export class SceneLoadCancelled extends Error {
     }
 }
 
+/**
+ * Scene loading and transitions, as `Res(SceneManager)` hands it over. A scene is
+ * a unit of ownership as much as of content: what it spawned is despawned and what
+ * it acquired is released when it unloads.
+ *
+ * `@beta`: the vocabulary is settled, but one certified project drives it against
+ * twenty-six signatures — thin evidence for that breadth of promise.
+ *
+ * @beta
+ */
 export class SceneManagerState {
     private readonly app_: App;
     private readonly configs_ = new Map<string, SceneConfig>();
@@ -751,6 +784,12 @@ export class SceneManagerState {
 // Scene Manager Resource
 // =============================================================================
 
+/**
+ * Scene loading, as a resource. Registered by the scene plugin, so a bare `App`
+ * without it has no scenes to manage.
+ *
+ * @beta
+ */
 export const SceneManager = defineResource<SceneManagerState>(
     null!,
     'SceneManager'

@@ -9,6 +9,8 @@ import type { App } from '../app/app';
 import type { Color } from '../types';
 import { SceneManager, SceneManagerState } from './sceneManager';
 
+/** A cross-scene fade: how long, and what colour it passes through.
+ *  @beta */
 export interface TransitionConfig {
     duration: number;
     type: 'fade';
@@ -18,6 +20,8 @@ export interface TransitionConfig {
 /**
  * Pass the App from host code, or the `Res(SceneManager)` state from inside a
  * system.
+ *
+ * @beta
  */
 export async function transitionTo(
     host: App | SceneManagerState,

@@ -86,6 +86,10 @@ export const BLOCKED = {
     // and the Inspector still offers the dropdown — now labelled as such.
     TextOverflow: { needs: 'named by no SDK test', why: 'no layout or render path honours it, so there is no behaviour to pin' },
 };
+// Scene, Prefab and Assets are NOT here, and the gate is why: each PASSES the bar,
+// so what holds them at @beta is a judgement it cannot make — thin evidence for the
+// BREADTH of the promise is not a missing criterion. The @beta tag records that,
+// at the declaration, with its reason.
 
 /** Snapshot kinds that a game calls at runtime; the rest are shapes. */
 const VALUE_KINDS = new Set(['class', 'enum', 'function', 'const', 'value', 'namespace']);
