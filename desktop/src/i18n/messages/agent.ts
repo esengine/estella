@@ -78,8 +78,8 @@ export const agentMessages = defineMessages({
     // — Empty states —
     'agent.empty.title': { en: 'Ask the agent to do something', zh: '让 Agent 帮你做点什么' },
     'agent.empty.body': {
-        en: 'It can read the scene, change entities, and look at what it rendered. Its edits are bracketed by a checkpoint, so one Undo takes the whole turn back.',
-        zh: '它能读场景、改实体、看渲染结果。改动会记一个检查点,一次撤销全退。',
+        en: 'It can read the scene, change entities, write scripts and assets, and look at what it rendered. A checkpoint brackets the whole turn — the scene edits and the files — so one gesture takes all of it back.',
+        zh: '它能读场景、改实体、写脚本和资产,还能看渲染结果。整轮会记一个检查点 —— 场景改动和文件都在内 —— 一个动作全部退回。',
     },
     'agent.empty.sug1': { en: 'Add a pause menu for the player', zh: '给玩家加一个暂停菜单' },
     'agent.empty.sug1.h': { en: 'creates UI entities', zh: '会新建 UI 实体' },

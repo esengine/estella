@@ -379,15 +379,15 @@ export interface AgentToolContribution {
      */
     schema?: unknown;
     /**
-     * What calling it costs, which is what decides whether the person is asked
-     * first: `read` and `undoable` run unasked (the turn's checkpoint is the
-     * approval), `irreversible` stops and asks. Defaults to `read`.
+     * What calling it costs, which decides whether the person is asked first.
+     * The turn's checkpoint covers `read`, `undoable` and `journaled`, so all
+     * three run unasked; `journaled` is for writes through `ctx.fs.writeProject`,
+     * which are captured before they land. `irreversible` stops to ask.
      *
-     * Declare it honestly. Nothing verifies it — a plugin already runs with the
-     * whole editor surface in reach — but an `irreversible` tool declared
-     * `read` is one that will run without anyone being asked.
+     * Declare it honestly — nothing verifies it. A tool calling itself
+     * `journaled` while writing outside `ctx.fs` claims a net not holding it.
      */
-    effect?: 'read' | 'undoable' | 'irreversible';
+    effect?: 'read' | 'undoable' | 'journaled' | 'irreversible';
     /** Do the work. Whatever it returns is JSON-encoded for the model; throwing
      *  reports the message as a failed call, which the model can act on. */
     run(input: unknown): unknown | Promise<unknown>;

@@ -286,12 +286,20 @@ ctx.agentTools.register({
 deciding whether this is the right tool. Say what it does and when to reach for
 it.
 
-`effect` decides whether the person is asked first: `read` and `undoable` run
-unasked (the turn's checkpoint is the approval), `irreversible` stops and asks.
-Nothing verifies it, and that is not a gap — your plugin already runs with the
-whole editor surface in reach, so it could do the same work through a command.
-The boundary is the trust prompt at install. What the field buys is the confirm
-gate behaving correctly for an honest plugin, so declare it honestly.
+`effect` decides whether the person is asked first, and the tiers are drawn
+where going back stops working. `read` and `undoable` run unasked — the turn's
+checkpoint is the approval. So does `journaled`, which is what to declare when
+your tool writes project files through `ctx.fs.writeProject`: those are captured
+before they land, so the turn's Revert takes them back with the scene. Reserve
+`irreversible` for what no checkpoint reaches — work outside the open project,
+or code whose effects nobody enumerated; it stops and asks.
+
+Nothing verifies the field, and that is not a gap — your plugin already runs
+with the whole editor surface in reach, so it could do the same work through a
+command. The boundary is the trust prompt at install. What the field buys is
+the confirm gate behaving correctly for an honest plugin, so declare it
+honestly: a tool that calls itself `journaled` while writing outside `ctx.fs`
+claims a safety net that is not holding it.
 
 The name must be namespaced with your plugin id. An un-namespaced tool could
 shadow a built-in, and a model calling `delete_entity` believes it knows what
