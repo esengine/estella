@@ -265,6 +265,37 @@ export const ViewportController = {
     };
   },
 
+  /**
+   * The frame a Sprite's pivot handle drags in (see `pivotDrag`), or null for an entity
+   * with no draggable pivot: a zero world size leaves no fraction to solve for, a UINode
+   * no pivot at all. `client` is the entity origin — the pivot the sprite is drawn
+   * around; `w`/`h` carry the world scale, so the fraction divides by the drawn rect.
+   */
+  spritePivotFrame(id: EntityId): {
+    client: { x: number; y: number };
+    origin: { x: number; y: number };
+    rot: number; w: number; h: number; pivot: { x: number; y: number };
+  } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Sprite) || !world.has(id, Transform)) return null;
+    if (world.has(id, UINode)) return null;
+    const t = world.get(id, Transform);
+    const sp = world.get(id, Sprite);
+    const w = sp.size.x * t.worldScale.x;
+    const h = sp.size.y * t.worldScale.y;
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w === 0 || h === 0) return null;
+    const client = this.projectorFor(id)(t.worldPosition.x, t.worldPosition.y);
+    if (!client) return null;
+    return {
+      client,
+      origin: { x: t.worldPosition.x, y: t.worldPosition.y },
+      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
+      w,
+      h,
+      pivot: { x: sp.pivot?.x ?? 0.5, y: sp.pivot?.y ?? 0.5 },
+    };
+  },
+
   /** UI entities under the pointer, most specific first; unpickable ones dropped. */
   pickUIEntities(clientX: number, clientY: number): EntityId[] {
     const world = EngineHost.world;

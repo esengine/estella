@@ -117,6 +117,37 @@ export function constrainLocalDelta(axis: GizmoAxis, dx: number, dy: number, ang
   return [k * ax, k * ay];
 }
 
+/** What a pivot drag is measured against, snapshotted when the handle is grabbed.
+ *  `w`/`h` are the sprite's world size with scale already folded in, so the fraction
+ *  divides by the rect that is actually drawn. */
+export interface PivotFrame {
+  origin: Pt;
+  rot: number;
+  w: number;
+  h: number;
+  pivot: Pt;
+}
+
+/**
+ * Where a pivot drag lands: the fraction to store, and the world position that keeps
+ * the artwork still. A sprite is drawn at `position − R·(size·pivot)`, so moving the
+ * pivot alone slides the body off the cursor — instead the transform follows the
+ * cursor and the pivot absorbs the same offset, leaving that expression unchanged.
+ */
+export function pivotDrag(f: PivotFrame, cursor: Pt): { pivot: Pt; pos: Pt } {
+  const cos = Math.cos(f.rot);
+  const sin = Math.sin(f.rot);
+  const dx = cursor.x - f.origin.x;
+  const dy = cursor.y - f.origin.y;
+  return {
+    pivot: {
+      x: f.pivot.x + (dx * cos + dy * sin) / f.w,
+      y: f.pivot.y + (-dx * sin + dy * cos) / f.h,
+    },
+    pos: { x: cursor.x, y: cursor.y },
+  };
+}
+
 /** Centroid of a set of world points — the group transform pivot for multi-select. */
 export function groupPivot(points: readonly Pt[]): Pt {
   if (points.length === 0) return { x: 0, y: 0 };

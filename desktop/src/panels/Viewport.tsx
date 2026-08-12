@@ -48,7 +48,7 @@ import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
-import { GIZMO, colliderHandleClass, type GizmoAxis } from '@/tools/gizmo';
+import { GIZMO, colliderHandleClass, pivotDrag, type GizmoAxis } from '@/tools/gizmo';
 import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { TilePaintPreview } from '@/tools/tilePreview';
@@ -136,6 +136,24 @@ function startSizeHandleDrag(
     const ly = -dx * sin + dy * cos;
     const k = (fullSize ? 2 : 1) / (ppu || 1);
     SceneCommands.setField(src, component, field, 'vec2', [Math.abs(lx) * k, Math.abs(ly) * k]);
+  });
+}
+
+// Drag a sprite's pivot handle → Sprite.pivot with the artwork held still (the maths,
+// and why the transform moves too, are in `pivotDrag`). Both writes are absolute in ONE
+// grab-time frame, so a long drag cannot compound; one transaction, one undo step.
+function startPivotHandleDrag(rt: number, e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const f = ViewportController.spritePivotFrame(rt);
+  if (src == null || !f) return;
+  e.stopPropagation();
+  runHandleDrag(eventWindow(e), 'Sprite pivot', (ev) => {
+    const p = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!p) return;
+    const next = pivotDrag(f, p);
+    SceneCommands.setField(src, 'Sprite', 'pivot', 'vec2', [next.pivot.x, next.pivot.y]);
+    SceneCommands.setEntityXY(src, next.pos.x, next.pos.y);
   });
 }
 
@@ -782,6 +800,7 @@ export function Viewport() {
   const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
   const uiGizmoRef = useRef<HTMLDivElement>(null);
+  const pivotHandleRef = useRef<HTMLDivElement>(null);
   const designSvgRef = useRef<SVGSVGElement>(null);
   const designLabelRef = useRef<HTMLDivElement>(null);
   // One outline div per selected entity, keyed by source id and positioned by the rAF.
@@ -1143,6 +1162,29 @@ export function Viewport() {
           uig.style.opacity = '1';
         } else {
           uig.style.opacity = '0';
+        }
+      }
+
+      // Sprite pivot handle: the dot a single selected sprite turns about. It sits at
+      // the entity origin, where Move and Scale keep their centre grab — so, like the
+      // collider offset handle, it yields, appearing only under the pointer tool.
+      const pvh = pivotHandleRef.current;
+      if (pvh) {
+        const pid = useSelection.getState().selectedId;
+        const prt = ready && showG && pid != null && SceneModel.isEditable(pid) && selIds.length === 1
+          && useEditorStore.getState().tool === 'select'
+          ? SceneModel.runtimeFor(pid)
+          : undefined;
+        const f = prt != null ? ViewportController.spritePivotFrame(prt) : null;
+        if (f) {
+          pvh.style.transform = `translate(${f.client.x}px, ${f.client.y}px)`;
+          pvh.style.opacity = '1';
+          pvh.style.pointerEvents = 'auto';
+          pvh.dataset.rt = String(prt);
+        } else {
+          pvh.style.opacity = '0';
+          pvh.style.pointerEvents = 'none';
+          delete pvh.dataset.rt;
         }
       }
 
@@ -2524,6 +2566,19 @@ export function Viewport() {
       ))}
       {/* The merged selection box (shown only above the threshold; rAF-positioned). */}
       <div ref={mergedSelRef} className="viewport__selection" style={{ opacity: 0 }} aria-hidden="true" />
+      {/* The selected sprite's pivot dot. One element for the whole viewport (only a
+          single selection ever gets it); the rAF parks it and stamps the runtime id the
+          drag reads, so no per-entity element is minted for a handle that shows once. */}
+      <div
+        ref={pivotHandleRef}
+        className="viewport__pivot-handle"
+        style={{ opacity: 0, pointerEvents: 'none' }}
+        title={t('vp.pivotHandle')}
+        onPointerDown={(e) => {
+          const rt = e.currentTarget.dataset.rt;
+          if (rt != null) startPivotHandleDrag(Number(rt), e);
+        }}
+      />
       <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />

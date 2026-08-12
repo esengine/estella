@@ -69,6 +69,10 @@ export const viewportMessages = defineMessages({
     'vp.flag.grid': { en: 'Grid', zh: '网格' },
     'vp.flag.gizmos': { en: 'Gizmos', zh: 'Gizmo' },
     'vp.flag.colliders': { en: 'Physics', zh: '物理' },
+    'vp.pivotHandle': {
+        en: 'Drag to move the pivot within the sprite (the sprite stays put)',
+        zh: '拖动以在精灵内部移动轴心（精灵本身不动）',
+    },
     'vp.flag.tileCollision': { en: 'Tile Collision', zh: '瓦片碰撞' },
     'vp.flag.previewFx': { en: 'Preview FX', zh: '预览特效' },
     'vp.flag.perf': { en: 'Perf', zh: '性能' },

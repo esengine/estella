@@ -265,6 +265,27 @@
 .viewport__selection.primary {
   border-width: 1.5px;
 }
+/* The selected sprite's pivot dot: a ring with a centre point, drawn ON the entity
+   origin. `translate` puts its centre there (hence the -50% pair), and it sits above
+   the selection outline it is dragged across. */
+.viewport__pivot-handle {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--sel);
+  background: radial-gradient(circle, var(--sel) 0 2px, transparent 2px);
+  box-shadow: 0 0 0 1px rgba(14, 15, 18, 0.7);
+  cursor: move;
+  will-change: transform, opacity;
+}
+.viewport__pivot-handle:hover {
+  background: radial-gradient(circle, var(--sel) 0 3px, rgba(255, 255, 255, 0.25) 3px);
+}
+
 /* Nest-target hint while dragging a widget from the palette — the container the
    drop would parent into. Accent (UI chrome blue), distinct from the orange
    selection outline. */
