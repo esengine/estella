@@ -69,8 +69,10 @@ const MOVED = {
   'guides/services': 'publishing/ads-sharing',
   'guides/profiling': 'performance/profiling',
   'guides/editor-plugins': 'extending/editor-plugins',
-  'guides/agent': 'extending/built-in-agent',
-  'guides/mcp': 'extending/mcp',
+  'guides/agent': 'agents/built-in',
+  'guides/mcp': 'agents/mcp',
+  'extending/built-in-agent': 'agents/built-in',
+  'extending/mcp': 'agents/mcp',
 };
 
 // The site is deployed under estellaengine.com/docs (docs.yml merges this build
@@ -168,6 +170,18 @@ export default defineConfig({
             { label: 'Asset Editors', translations: { 'zh-CN': '专用编辑器' }, slug: 'editor/asset-editors' },
             { label: 'Project Settings', translations: { 'zh-CN': '项目设置' }, slug: 'editor/settings' },
             { label: 'Keyboard Shortcuts', translations: { 'zh-CN': '键盘快捷键' }, slug: 'editor/shortcuts' },
+          ],
+        },
+        {
+          // Driving the editor, not extending it — which is why this sits beside
+          // the editor rather than under "Extending", where it read as a plugin
+          // topic. Both pages describe one tool catalog with two front doors.
+          label: 'AI Agents',
+          translations: { 'zh-CN': 'AI 智能体' },
+          collapsed: true,
+          items: [
+            { label: 'The Built-in Agent', translations: { 'zh-CN': '内置智能体' }, slug: 'agents/built-in' },
+            { label: 'External Agents (MCP)', translations: { 'zh-CN': '外部智能体 (MCP)' }, slug: 'agents/mcp' },
           ],
         },
         {
@@ -312,8 +326,6 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'Editor Plugins', translations: { 'zh-CN': '编辑器插件' }, slug: 'extending/editor-plugins' },
-            { label: 'The Built-in Agent', translations: { 'zh-CN': '内置 Agent' }, slug: 'extending/built-in-agent' },
-            { label: 'AI Agents (MCP)', translations: { 'zh-CN': 'AI 代理 (MCP)' }, slug: 'extending/mcp' },
           ],
         },
         {

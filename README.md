@@ -37,6 +37,7 @@ Estella is a **2D game engine** with a TypeScript SDK driven by a high-performan
 - **Visual editor** — Scene hierarchy, inspector, asset browser — no JSON editing
 - **Cross-platform** — One codebase, deploy to web, desktop, WeChat MiniGames, playable ads, and native mobile
 - **Spine & Physics** — Built-in Spine animation and physics support
+- **Agent-native** — The editor is an MCP server and ships an agent of its own; both drive the same tools its UI does
 
 ## Features
 
@@ -48,6 +49,7 @@ Estella is a **2D game engine** with a TypeScript SDK driven by a high-performan
 | **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
 | **Cross-Platform** | One project → web, desktop, WeChat MiniGames, playable ads, and native Android / iOS |
 | **Native mobile** | A real arm64 app rendering through an embedded Dawn (Metal / Vulkan) — not a WebView |
+| **AI agents** | The editor is an MCP server with 65 tools, and ships a built-in agent that drives the same ones |
 
 ## Getting Started
 
@@ -88,6 +90,23 @@ addSystem(defineSystem(
 
 Press **F5** in the editor to preview.
 
+## Let an agent build it
+
+The editor speaks the **Model Context Protocol**. Point Claude Code, Cursor, or any
+MCP-capable tool at it and the agent drives the real editor — opens projects, spawns
+entities from the same Create menu you use, edits component fields, enters play mode,
+takes a screenshot to *see* what it built, and exports the finished game. Sixty-five
+tools, all of them the pipelines the UI itself calls.
+
+It also ships an agent of its own, so you don't need an external tool to start: type a
+sentence in the editor and watch every tool call it makes. Both front doors drive one
+catalog — what the built-in agent can do and what your MCP client can do are the same
+list, and both go through the editor's command surface, so creates are undoable and you
+can take the mouse back mid-turn.
+
+- [The Built-in Agent](https://estellaengine.com/docs/agents/built-in/) — set up a provider and start asking
+- [External Agents (MCP)](https://estellaengine.com/docs/agents/mcp/) — connect Claude Code, Cursor, or your own
+
 ## Documentation
 
 Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
@@ -100,6 +119,7 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 - [Systems](https://estellaengine.com/docs/core-concepts/systems/)
 - [Building & Exporting](https://estellaengine.com/docs/publishing/overview/)
 - [Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
+- [AI Agents](https://estellaengine.com/docs/agents/built-in/)
 
 ## Contributing
 

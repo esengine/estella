@@ -3,7 +3,7 @@ title: Estella
 description: A fast 2D game engine powered by WebAssembly and ECS, with a visual editor.
 template: splash
 hero:
-  tagline: A fast 2D game engine with a TypeScript SDK, a C++/WebAssembly core, and a visual editor. Ship one project to the web, desktop, WeChat MiniGames, playable ads, and native Android / iOS apps.
+  tagline: A fast 2D game engine with a TypeScript SDK, a C++/WebAssembly core, and a visual editor an AI agent can drive as well as you can. Ship one project to the web, desktop, WeChat MiniGames, playable ads, and native Android / iOS apps.
   actions:
     - text: Get Started
       link: /docs/getting-started/introduction/
@@ -43,6 +43,11 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
     One project, exported to the web, desktop, WeChat MiniGames, single-file
     playable ads, and native Android / iOS apps.
   </Card>
+  <Card title="Agent-native" icon="comment">
+    The editor is an MCP server, and it ships an agent of its own. Both drive the
+    same sixty-five tools the UI does — so an agent can build a scene, press play,
+    and look at a screenshot of what it made.
+  </Card>
 </CardGrid>
 
 ## Dive in
@@ -53,5 +58,6 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   <LinkCard title="Sprites & Rendering" href="/docs/graphics/sprites/" description="Draw images — tint, size, sort, and layer them." />
   <LinkCard title="Physics" href="/docs/gameplay/physics/" description="Rigid bodies, colliders, joints, and spatial queries." />
   <LinkCard title="Gameplay AI" href="/docs/gameplay/ai/overview/" description="Navigation, perception, state machines, behavior trees." />
+  <LinkCard title="AI Agents" href="/docs/agents/built-in/" description="Ask the editor to build it — from the built-in agent or your own MCP client." />
   <LinkCard title="Building & Exporting" href="/docs/publishing/overview/" description="Ship to web, desktop, WeChat, playable ads, Android and iOS." />
 </CardGrid>

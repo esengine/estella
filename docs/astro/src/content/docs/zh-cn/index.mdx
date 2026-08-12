@@ -3,7 +3,7 @@ title: Estella
 description: 由 WebAssembly 与 ECS 驱动的高性能 2D 游戏引擎，带可视化编辑器。
 template: splash
 hero:
-  tagline: 一个高性能 2D 游戏引擎——TypeScript SDK、C++/WebAssembly 内核、可视化编辑器。一个项目发布到 Web、桌面、微信小游戏、Playable 广告，以及原生 Android / iOS 应用。
+  tagline: 一个高性能 2D 游戏引擎——TypeScript SDK、C++/WebAssembly 内核，以及一个 AI 智能体能像你一样操作的可视化编辑器。一个项目发布到 Web、桌面、微信小游戏、Playable 广告，以及原生 Android / iOS 应用。
   actions:
     - text: 快速开始
       link: /docs/zh-cn/getting-started/introduction/
@@ -39,6 +39,10 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   <Card title="跨平台" icon="laptop">
     一个项目，导出到 Web、桌面、微信小游戏、单文件 Playable 广告，以及原生 Android / iOS 应用。
   </Card>
+  <Card title="为智能体而生" icon="comment">
+    编辑器本身就是一个 MCP 服务器，还自带一个智能体。两者驱动的都是 UI 用的那 65 个工具——
+    所以智能体能搭好场景、按下运行，再看一眼自己做出来的截图。
+  </Card>
 </CardGrid>
 
 ## 上手
@@ -49,5 +53,6 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   <LinkCard title="精灵与渲染" href="/docs/zh-cn/graphics/sprites/" description="绘制图像——着色、尺寸、排序与分层。" />
   <LinkCard title="物理" href="/docs/zh-cn/gameplay/physics/" description="刚体、碰撞体、关节与空间查询。" />
   <LinkCard title="游戏 AI" href="/docs/zh-cn/gameplay/ai/overview/" description="导航、感知、状态机、行为树。" />
+  <LinkCard title="AI 智能体" href="/docs/zh-cn/agents/built-in/" description="让编辑器替你搭——用内置智能体，或你自己的 MCP 客户端。" />
   <LinkCard title="构建与导出" href="/docs/zh-cn/publishing/overview/" description="发布到 Web、桌面、微信、Playable 广告、Android 与 iOS。" />
 </CardGrid>
