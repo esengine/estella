@@ -274,6 +274,32 @@ async function restore(root: string, entry: Entry): Promise<void> {
   else await rm(meta, { force: true });
 }
 
+/**
+ * Revert several transactions as one gesture — a whole session, not one turn.
+ * NEWEST FIRST, in this module's order rather than the caller's: each holds
+ * what the project was when IT opened, so any other order restores an older
+ * image and then writes a newer one back over it.
+ */
+export async function revertMany(ids: readonly string[]): Promise<RevertResult> {
+  const wanted = new Set(ids);
+  const ordered = [...finished, ...(active ? [active.id] : [])].filter((id) => wanted.has(id));
+  // An id the ring has already dropped cannot be ordered, and reverting it out
+  // of order is worse than not reverting it — reported, not guessed at.
+  const unknown = ids.filter((id) => !transactions.has(id));
+  const out: RevertResult = {
+    restored: [],
+    unjournaled: [],
+    failed: unknown.map((id) => ({ path: id, error: 'this run is too old to still be held' })),
+  };
+  for (const id of ordered.reverse()) {
+    const one = await revert(id);
+    out.restored.push(...one.restored);
+    out.unjournaled.push(...one.unjournaled);
+    out.failed.push(...one.failed);
+  }
+  return out;
+}
+
 /** Forget a transaction and delete its copies — the user kept the work. */
 export async function discard(id: string): Promise<void> {
   const tx = transactions.get(id);

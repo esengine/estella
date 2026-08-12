@@ -22,7 +22,8 @@ import { historyRows, tally, turnChanges, type HistoryRow, type TurnRow } from '
 import { useAgent, dismissCheckpoint } from '@/store/AgentStore';
 import { useSelection } from '@/store/selectionStore';
 import { EmptyState } from '@/components/EmptyState';
-import { Toasts } from '@/store/Toasts';
+import { planRewind, rewind, reportRewind } from '@/engine/rewind';
+import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
 
 export function HistoryPanel() {
@@ -49,6 +50,30 @@ export function HistoryPanel() {
 const rowKey = (row: HistoryRow): string =>
   (row.kind === 'turn' ? `t${row.id}` : `s${row.step.id}`);
 
+/**
+ * Put the project back to a point — the ONE operation, whichever row asked.
+ * Walking the undo stack is reversible and asks nothing; taking agent runs with
+ * it is not, so that case stops first and states how many runs, how many files,
+ * and what it would leave behind. Answers whether it happened.
+ */
+async function goBackTo(point: number): Promise<boolean> {
+  const plan = planRewind(point, useAgent.getState().turns);
+  if (plan.runs.length > 0) {
+    const ok = await confirm({
+      title: t('hist.rewind.title', { runs: plan.runs.length }),
+      body: plan.stranded.length > 0
+        ? `${t('hist.rewind.body', { files: plan.files.length })}\n\n`
+          + t('hist.rewind.stranded', { paths: plan.stranded.map((f) => f.path).join(', ') })
+        : t('hist.rewind.body', { files: plan.files.length }),
+      confirmLabel: t('hist.rewind.go'),
+      danger: true,
+    });
+    if (!ok) return false;
+  }
+  reportRewind(await rewind(plan));
+  return true;
+}
+
 function Row({ row }: { row: HistoryRow }) {
   if (row.kind === 'turn') return <TurnGroup row={row} />;
   const { step } = row;
@@ -56,7 +81,7 @@ function Row({ row }: { row: HistoryRow }) {
     <button
       type="button"
       className={`hist-row${step.undone ? ' undone' : ''}`}
-      onClick={() => EditorHistory.goTo(step.id)}
+      onClick={() => void goBackTo(step.id)}
     >
       <span className="hist-lbl">{step.label}</span>
       <Tally counts={tally(step.changes)} />
@@ -73,17 +98,12 @@ function TurnGroup({ row }: { row: TurnRow }) {
   const revert = async (): Promise<void> => {
     setReverting(true);
     try {
-      const steps = row.mark ? EditorHistory.undoToMark(row.mark as HistoryMark) : 0;
-      const result = row.tx ? await window.estella?.agent?.revertFiles?.(row.tx) : null;
-      // The floating checkpoint bar is about this same turn; leaving it up after
-      // its offer has been taken would invite taking it twice.
-      dismissCheckpoint(row.id);
-      Toasts.push(
-        t('agent.checkpoint.undone', { count: steps, files: result?.restored.length ?? 0 }),
-        'info',
-      );
-      for (const f of result?.failed ?? []) {
-        Toasts.push(t('agent.checkpoint.failed', { path: f.path, error: f.error }), 'error');
+      // Its mark is the point just before it — the same operation a bare row
+      // runs, aimed at where this run began.
+      if (await goBackTo((row.mark as HistoryMark | null)?.seq ?? 0)) {
+        // The floating checkpoint bar is about this same turn; leaving it up
+        // after its offer has been taken would invite taking it twice.
+        dismissCheckpoint(row.id);
       }
     } finally {
       setReverting(false);

@@ -22,6 +22,21 @@ export const historyMessages = defineMessages({
         zh: '{count} 步,但都没有声明改了什么',
     },
     'hist.revert': { en: 'Revert', zh: '撤回' },
+    // Going back past an agent run hands its held copies back, and they cannot
+    // be re-applied — so this one stops and says how far it reaches.
+    'hist.rewind.title': {
+        en: 'Go back past {runs} agent run(s)?',
+        zh: '要退到 {runs} 轮 Agent 工作之前吗?',
+    },
+    'hist.rewind.body': {
+        en: 'The scene goes back, and {files} project file(s) go back with it. This one cannot be redone — the copies held for those runs are handed back.',
+        zh: '场景会回退,{files} 个项目文件也一起回退。这一步无法重做 —— 为那几轮留的备份会被交还。',
+    },
+    'hist.rewind.stranded': {
+        en: 'These were too large to hold and will stay as they are: {paths}',
+        zh: '这些太大没留备份,会保持现状:{paths}',
+    },
+    'hist.rewind.go': { en: 'Go back', zh: '退回' },
     'hist.revert.why': {
         en: 'Take the whole run back — the scene edits and the files it wrote.',
         zh: '整轮撤回 —— 场景改动和它写的文件一起。',

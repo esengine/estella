@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   beginTransaction, endTransaction, activeTransaction, capture, changes,
-  revert, discard, discardAll, touchedPaths, isRestorable, __testing,
+  revert, revertMany, discard, discardAll, touchedPaths, isRestorable, __testing,
 } from '../electron/fileJournal';
 
 let root = '';
@@ -251,5 +251,66 @@ describe('a transaction lifetime', () => {
     await revert(id);
     expect(activeTransaction()).toBeNull();
     expect(await read('a.txt')).toBe('before');
+  });
+});
+
+describe('a whole session, not one turn', () => {
+  // Each transaction holds what the project was when IT opened, so unwinding
+  // them newest-first lands on the state before the earliest. Any other order
+  // restores an older image and then writes a newer one back over it.
+  it('unwinds several runs to what was there before the first', async () => {
+    await write('HUD.esscene', 'v0');
+    const ids: string[] = [];
+    for (const v of ['v1', 'v2', 'v3']) {
+      beginTransaction(root);
+      await capture('HUD.esscene', 'write');
+      await write('HUD.esscene', v);
+      ids.push(endTransaction()!);
+    }
+    expect(await read('HUD.esscene')).toBe('v3');
+
+    await revertMany(ids);
+    expect(await read('HUD.esscene')).toBe('v0');
+  });
+
+  it('lands the same way whatever order it is handed them in', async () => {
+    await write('HUD.esscene', 'v0');
+    const ids: string[] = [];
+    for (const v of ['v1', 'v2', 'v3']) {
+      beginTransaction(root);
+      await capture('HUD.esscene', 'write');
+      await write('HUD.esscene', v);
+      ids.push(endTransaction()!);
+    }
+    await revertMany([ids[1], ids[2], ids[0]]);
+    expect(await read('HUD.esscene')).toBe('v0');
+  });
+
+  it('takes back every path the runs touched, not just the shared ones', async () => {
+    beginTransaction(root);
+    await capture('a.txt', 'write');
+    await write('a.txt', 'A');
+    const first = endTransaction()!;
+    beginTransaction(root);
+    await capture('b.txt', 'write');
+    await write('b.txt', 'B');
+    const second = endTransaction()!;
+
+    const result = await revertMany([first, second]);
+    expect(result.restored.sort()).toEqual(['a.txt', 'b.txt']);
+    expect(existsSync(abs('a.txt'))).toBe(false);
+    expect(existsSync(abs('b.txt'))).toBe(false);
+  });
+
+  // Retention drops the oldest. A run it can no longer reach is reported rather
+  // than skipped, because "the session came back" would then be a lie.
+  it('reports a run it no longer holds', async () => {
+    beginTransaction(root);
+    await capture('a.txt', 'write');
+    const id = endTransaction()!;
+    await discard(id);
+
+    const result = await revertMany([id]);
+    expect(result.failed).toEqual([{ path: id, error: 'this run is too old to still be held' }]);
   });
 });

@@ -23,7 +23,7 @@ import { Undo2, Check, Loader } from 'lucide-react';
 import { useAgent, dismissCheckpoint, revertScope } from '@/store/AgentStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import type { HistoryMark } from '@/engine/EditorHistory';
-import { Toasts } from '@/store/Toasts';
+import { planRewind, rewind, reportRewind } from '@/engine/rewind';
 import { t } from '@/i18n';
 
 export function AgentCheckpoint() {
@@ -45,20 +45,11 @@ export function AgentCheckpoint() {
   const revert = async (): Promise<void> => {
     setReverting(true);
     try {
-      const steps = mark ? EditorHistory.undoToMark(mark) : 0;
-      const result = last.tx ? await window.estella?.agent?.revertFiles?.(last.tx) : null;
+      // The same one-way operation a History row runs, over this turn's own
+      // point — there is one way to put the project back, not two.
+      const result = await rewind(planRewind(mark?.seq ?? 0, [last]));
       dismissCheckpoint(last.id);
-      const restored = result?.restored.length ?? 0;
-      Toasts.push(t('agent.checkpoint.undone', { count: steps, files: restored }), 'info');
-      // Every failure is named. A revert that could not put a file back leaves
-      // the project in a state neither the turn nor the user asked for, and a
-      // toast saying it worked is how that goes unnoticed until it breaks.
-      for (const f of result?.failed ?? []) {
-        Toasts.push(t('agent.checkpoint.failed', { path: f.path, error: f.error }), 'error');
-      }
-      if (result?.unjournaled.length) {
-        Toasts.push(t('agent.checkpoint.stranded', { paths: result.unjournaled.join(', ') }), 'warn');
-      }
+      reportRewind(result);
     } finally {
       setReverting(false);
     }

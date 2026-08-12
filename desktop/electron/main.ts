@@ -789,13 +789,13 @@ ipcMain.handle(
   (_e, callId: string, answer: ConfirmAnswer, declined?: number[]) => agentHost.confirm(callId, answer, declined),
 );
 /**
- * Put the project files a turn wrote back, and tell the window which paths
- * moved so its ordinary external-change path picks them up. Reverting the
- * DOCUMENT is the window's own half (EditorHistory.undoToMark) — this side owns
- * only the disk.
+ * Put back the project files one or more runs wrote, and tell the window which
+ * paths moved so its ordinary external-change path picks them up. A LIST
+ * because going back past several runs is one gesture, and the order they come
+ * apart in is the journal's to know. The DOCUMENT half is the window's.
  */
-ipcMain.handle('agent:revertFiles', async (_e, txId: string) => {
-  const result = await journal.revert(txId);
+ipcMain.handle('agent:revertFiles', async (_e, txIds: readonly string[]) => {
+  const result = await journal.revertMany(txIds);
   const touched = [...result.restored, ...result.failed.map((f) => f.path)];
   if (touched.length) notifyFsChanged(touched);
   return result;

@@ -111,11 +111,12 @@ describe('folding the timeline into rows', () => {
 });
 
 describe('which turn may offer a Revert', () => {
-  // The stack is linear: undoing to an older turn's mark takes back every turn
-  // after it too. Only the newest can honestly claim to revert itself.
-  it('offers it on the newest turn only', () => {
+  // The stack is linear, so going back to an older run takes every later run
+  // with it — which the confirmation states before anything moves. Offering it
+  // only on the newest is what left a session with no way back at all.
+  it('offers it on every run that still has work in it', () => {
     const rows = historyRows([step(1), step(2)], [turn(0, 0, 1), turn(1, 1, 2)]);
-    expect(turns(rows).map((r) => r.revertable)).toEqual([false, true]);
+    expect(turns(rows).map((r) => r.revertable)).toEqual([true, true]);
   });
 
   it('withdraws it once the turn has been undone by hand', () => {
@@ -125,15 +126,19 @@ describe('which turn may offer a Revert', () => {
 
   it('keeps offering it while only part of the turn is undone', () => {
     const rows = historyRows([step(1), step(2, 'b', true)], [turn(0, 0, 2)]);
-    expect(turns(rows)[0]).toMatchObject({ revertable: false, undone: false });
+    expect(turns(rows)[0]).toMatchObject({ revertable: true, undone: false });
   });
 
-  // A linear stack has no out-of-order undo: reverting to the run's mark would
-  // take the person's later edit with it, so the offer goes rather than
-  // reaching past what the row it sits on claims.
-  it('withdraws it once the person has edited past the run', () => {
+  // Its steps are all undone, but the files it wrote are still on disk, and the
+  // transaction is the only thing that takes them back.
+  it('offers it on a files-only run whose steps are gone', () => {
+    const rows = historyRows([], [turn(0, 0, 0, { tx: 'tx-1', files: [file('src/HP.ts')] })]);
+    expect(turns(rows)[0].revertable).toBe(true);
+  });
+
+  it('still offers it when the person has edited past the run', () => {
     const rows = historyRows([step(1), step(2)], [turn(0, 0, 1)]);
-    expect(turns(rows)[0].revertable).toBe(false);
+    expect(turns(rows)[0].revertable).toBe(true);
   });
 });
 

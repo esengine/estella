@@ -75,7 +75,6 @@ export function historyRows(
   const owner = (id: number) => windows.find((w) => id > w.from && id <= w.until);
   const claimed = new Map<number, TurnRow>();
   const rows: HistoryRow[] = [];
-  let newestEnd = -Infinity;
 
   for (const step of steps) {
     const w = owner(step.id);
@@ -104,17 +103,12 @@ export function historyRows(
     }
   }
 
-  const newest = lastTurnRow(rows);
-  if (newest) newestEnd = newest.endSeq;
-  // Anything on the stack past the newest run is the person's own work, and
-  // undoing to a mark takes it back too — so the offer is withdrawn rather than
-  // reaching further than the row it sits on claims to.
-  const past = steps.some((s) => !s.undone && s.id > newestEnd);
-
   for (const row of rows) {
     if (row.kind !== 'turn') continue;
-    row.revertable = row === newest && !past && row.steps.every((s) => !s.undone);
     row.undone = row.steps.length > 0 && row.steps.every((s) => s.undone);
+    // A files-only run has no steps to undo, and its transaction is the whole
+    // of what there is to take back.
+    row.revertable = !row.undone && (row.steps.length > 0 || row.files.length > 0);
   }
   return rows;
 }
@@ -134,14 +128,6 @@ function turnRow(turn: AgentTurn, endSeq: number): TurnRow {
     revertable: false,
     undone: false,
   };
-}
-
-function lastTurnRow(rows: readonly HistoryRow[]): TurnRow | null {
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const row = rows[i];
-    if (row.kind === 'turn') return row;
-  }
-  return null;
 }
 
 /** `+`/`~`/`−` counts for a row's header, over both kinds of change. */

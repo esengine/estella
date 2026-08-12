@@ -130,10 +130,11 @@ const api = {
     /** Answer the pending confirmation for an irreversible tool. */
     confirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]): Promise<void> =>
       ipcRenderer.invoke('agent:confirm', callId, answer, declined),
-    /** Put back the project files a turn wrote (its file-journal transaction) and
-     *  say what came back. The DOCUMENT half is this window's own undo. */
-    revertFiles: (txId: string): Promise<RevertResult> =>
-      ipcRenderer.invoke('agent:revertFiles', txId),
+    /** Put back the project files these runs wrote (their file-journal
+     *  transactions) and say what came back. The DOCUMENT half is this window's
+     *  own undo — see src/engine/rewind.ts. */
+    revertFiles: (txIds: readonly string[]): Promise<RevertResult> =>
+      ipcRenderer.invoke('agent:revertFiles', txIds),
     /** The turn was kept — drop the copies held for its revert. */
     keepFiles: (txId: string): Promise<void> => ipcRenderer.invoke('agent:keepFiles', txId),
     /** Drop the conversation and start a new one. */
