@@ -41,6 +41,7 @@ import { animatorMessages } from './animator';
 import { agentMessages } from './agent';
 import { eventMessages } from './events';
 import { pluginMessages } from './plugins';
+import { historyMessages } from './history';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -67,6 +68,7 @@ export const messageModules = {
     events: eventMessages,
     plugins: pluginMessages,
     agent: agentMessages,
+    history: historyMessages,
 } as const;
 
 export const editorMessages = {
@@ -93,4 +95,5 @@ export const editorMessages = {
     ...eventMessages,
     ...pluginMessages,
     ...agentMessages,
+    ...historyMessages,
 } as const;

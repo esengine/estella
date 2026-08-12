@@ -99,6 +99,10 @@ const BOTTOM: PanelDef[] = [
   // Opened on demand rather than ensured: most sessions have no plugins, and a
   // permanent tab for an empty list is noise.
   { id: 'plugins', title: () => t('plug.panelTitle'), placement: 'bottom', refs: ['log', 'content'] },
+  // Not ensured either: it answers a question you go looking for, and a
+  // permanent tab beside the log would compete with the one you read while
+  // working. Reached from Edit and from the agent's checkpoint bar.
+  { id: 'history', title: () => t('hist.panelTitle'), placement: 'side-right', width: 320 },
   // The agent docks like everything else — draggable, tabbable beside Details,
   // poppable to a second screen. The drawer over the workspace is the SAME
   // panel summoned, exactly as the Content Browser has both. Not ensured: a

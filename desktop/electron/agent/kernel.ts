@@ -170,7 +170,7 @@ export async function runTurn(
   context: string | null,
   signal: AbortSignal,
   images?: readonly UserImage[],
-): Promise<{ mark: unknown; steps: number; tx: string | null }> {
+): Promise<{ mark: unknown; endMark: unknown; steps: number; tx: string | null }> {
   const { driver, session, emit, model, acceptsImages } = deps;
   const mark = await driver('mark', []);
   // Opened before the first call and closed once, in the finally below: a
@@ -354,9 +354,12 @@ export async function runTurn(
   // the result lands in the turn's own transaction.
   deps.journal?.end();
   const steps = await undoSteps(deps, mark);
+  // Where the turn's OWN work ends. Without it a run is bounded only by the next
+  // one, so the newest run claims every edit the person makes after it.
+  const endMark = await driver('mark', []).catch(() => null);
   const files = tx ? deps.journal?.changes(tx) ?? [] : [];
-  emit({ type: 'turn_end', steps, mark, tx, files, reason });
-  return { mark, steps, tx };
+  emit({ type: 'turn_end', steps, mark, endMark, tx, files, reason });
+  return { mark, endMark, steps, tx };
 }
 
 /**

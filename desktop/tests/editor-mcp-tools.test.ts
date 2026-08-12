@@ -130,19 +130,31 @@ describe('editor MCP tool registry', () => {
   // tool that reaches the FILESYSTEM is on the side undo cannot rescue.
   it('every tool declares a tier the gates understand', () => {
     for (const t of TOOLS as Array<{ name: string; effect?: string }>) {
-      expect(['read', 'undoable', 'irreversible', undefined]).toContain(t.effect);
+      expect(['read', 'undoable', 'journaled', 'irreversible', undefined]).toContain(t.effect);
     }
   });
 
-  it('anything that touches disk or an external target is irreversible', () => {
+  // The line is drawn where GOING BACK stops working, not where the undo stack
+  // does: a write inside the project is held by the file journal and comes back
+  // with the turn, so it must not be sitting in the tier that stops to ask.
+  it('a write inside the project is journaled', () => {
     const onDisk = ['save_scene', 'write_project_file', 'create_asset', 'create_scene_file',
-      'import_assets', 'set_import_settings', 'set_project_physics', 'create_project',
-      'create_prefab_from_entity', 'export_game'];
-    for (const name of onDisk) expect(irreversible(toolNamed(name))).toBe(true);
-    // The arbitrary-code doors belong here too: their effect is whatever the
-    // caller wrote, which no undo step can be assumed to cover.
-    expect(irreversible(toolNamed('run_editor_command'))).toBe(true);
-    expect(irreversible(toolNamed('play_probe'))).toBe(true);
+      'import_assets', 'set_import_settings', 'set_project_physics',
+      'create_prefab_from_entity', 'apply_prefab', 'create_prefab_variant',
+      'delete_asset', 'save_asset_document'];
+    for (const name of onDisk) {
+      expect([name, toolNamed(name).effect]).toEqual([name, 'journaled']);
+      expect([name, irreversible(toolNamed(name))]).toEqual([name, false]);
+    }
+  });
+
+  it('what leaves the project, or runs code nobody enumerated, stays irreversible', () => {
+    // A new project tree elsewhere and a build output are outside the root the
+    // journal is scoped to; the arbitrary-code doors do whatever the caller
+    // wrote, which no capture can be assumed to cover.
+    for (const name of ['create_project', 'export_game', 'run_editor_command', 'play_probe']) {
+      expect([name, irreversible(toolNamed(name))]).toEqual([name, true]);
+    }
   });
 
   it('listTools without write permission omits mutating tools but keeps reads', () => {
@@ -265,7 +277,7 @@ describe('editor MCP tool registry', () => {
     const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
     driver.js = vi.fn(async () => ({ docId: 'materialgraph', path: 'fx/fire.esmatgraph', saved: true }));
     const save = toolNamed('save_asset_document');
-    expect([!!save, irreversible(save)]).toEqual([true, true]); // it writes a file: stop and ask
+    expect([!!save, save.effect]).toEqual([true, 'journaled']); // it writes a file: hold the bytes
 
     const res = await runTool(save, driver, { docId: 'materialgraph' });
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('saveAssetDocument("materialgraph"'));
@@ -279,7 +291,7 @@ describe('editor MCP tool registry', () => {
     const driver = vi.fn() as unknown as { js: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
     driver.js = vi.fn(async () => ({ path: 'assets/fx/old.esshader', type: 'shader', restoreToken: 't', usages: [] }));
     const del = toolNamed('delete_asset');
-    expect([!!del, irreversible(del)]).toEqual([true, true]);
+    expect([!!del, del.effect]).toEqual([true, 'journaled']);
     await runTool(del, driver, { path: 'assets/fx/old.esshader' });
     expect(driver.js).toHaveBeenCalledWith(expect.stringContaining('deleteAsset("assets/fx/old.esshader")'));
   });
@@ -404,9 +416,11 @@ describe('the prefab-mode doors', () => {
   // The tier is what an in-editor agent gates on, so it has to survive the split
   // that matters: rewriting the PREFAB ASSET reaches every instance and outlives
   // undo, while re-syncing or detaching THIS instance is an ordinary scene edit.
-  it('separates the prefab doors that outlive undo from the ones that do not', () => {
-    expect(toolNamed('apply_prefab').effect).toBe('irreversible');
-    expect(toolNamed('create_prefab_variant').effect).toBe('irreversible');
+  it('separates the prefab doors that write an asset from the ones that do not', () => {
+    // Rewriting the shared prefab, or writing a variant, touches the file — held
+    // by the journal. Re-syncing or detaching THIS instance is an ordinary edit.
+    expect(toolNamed('apply_prefab').effect).toBe('journaled');
+    expect(toolNamed('create_prefab_variant').effect).toBe('journaled');
     expect(toolNamed('revert_prefab').effect).toBe('undoable');
     expect(toolNamed('unpack_prefab').effect).toBe('undoable');
   });

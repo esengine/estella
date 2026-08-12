@@ -274,6 +274,9 @@ export type AgentEvent =
     type: 'turn_end';
     steps: number;
     mark: unknown;
+    /** Where the turn's own work ENDS — what bounds it against the edits the
+     *  person makes next, which a start mark alone cannot. */
+    endMark: unknown;
     /** The file journal's transaction id, or null when none was open. */
     tx: string | null;
     files: readonly FileChange[];

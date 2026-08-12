@@ -91,7 +91,7 @@ describe('the agent turn', () => {
     // what was asked, and the point an Undo would go back to.
     expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi', model: 'fake-model', index: 0 });
     expect(events.at(-1)).toEqual({
-      type: 'turn_end', steps: 3, mark: { seq: 7 }, tx: null, files: [], reason: 'end_turn',
+      type: 'turn_end', steps: 3, mark: { seq: 7 }, endMark: { seq: 7 }, tx: null, files: [], reason: 'end_turn',
     });
   });
 

@@ -94,6 +94,20 @@ export interface HistoryMark {
   readonly seq: number;
 }
 
+/** One step as the History panel reads it. */
+export interface HistoryStep {
+  id: number;
+  label: string;
+  /** Owning document: null = the scene, else an AssetDocument docId. */
+  doc: string | null;
+  changes: readonly HistoryChange[];
+  /** Taken back — still on the timeline, and still somewhere to go forward to. */
+  undone: boolean;
+}
+
+const step = (e: HistoryEntry, undone: boolean): HistoryStep =>
+  ({ id: e.id, label: e.label, doc: e.doc, changes: e.changes, undone });
+
 export class EditorHistoryImpl {
   private readonly undoStack: HistoryEntry[] = [];
   private readonly redoStack: HistoryEntry[] = [];
@@ -254,6 +268,27 @@ export class EditorHistoryImpl {
   /** Take a checkpoint here — see {@link HistoryMark}. Records nothing. */
   mark(): HistoryMark {
     return { seq: this.seq };
+  }
+
+  /**
+   * The whole timeline oldest first, undone steps included and flagged — what
+   * the History panel draws. `id` addresses a row across a re-render, and
+   * against a mark's `seq` it sorts a run's steps from the rest. Undone steps
+   * stay: forward is a place you can go, and dropping them makes this a list.
+   */
+  list(): readonly HistoryStep[] {
+    const done = this.undoStack.map((e) => step(e, false));
+    // The redo stack is LIFO, so its reverse is chronological — the next step
+    // to redo sits on top and is the OLDEST of the undone ones.
+    const undone = [...this.redoStack].reverse().map((e) => step(e, true));
+    return [...done, ...undone];
+  }
+
+  /** Undo/redo until the stack's head is `id` — clicking a row in the panel.
+   *  A row that is neither on the stack nor in the redo pile is a no-op. */
+  goTo(id: number): void {
+    while (this.undoStack.length && this.undoStack[this.undoStack.length - 1].id > id) this.undo();
+    while (this.redoStack.length && this.redoStack[this.redoStack.length - 1].id <= id) this.redo();
   }
 
   /**

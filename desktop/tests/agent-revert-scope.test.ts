@@ -14,7 +14,7 @@ import type { FileChange } from '../electron/agent/types';
 const turn = (over: Partial<AgentTurn>): AgentTurn => ({
   id: 0, prompt: 'add a health bar', model: 'opus-5', entries: [],
   inputTokens: 0, outputTokens: 0, context: null,
-  steps: 0, mark: { seq: 1 }, tx: null, files: [],
+  steps: 0, mark: { seq: 1 }, endMark: null, tx: null, files: [],
   reason: 'end_turn', startedAt: 0, endedAt: 1,
   ...over,
 });
@@ -39,7 +39,7 @@ describe('what a turn offers to take back', () => {
   // prefab records no undo steps at all, so the bar never appeared for the work
   // undo was least able to reach.
   it('offers a turn that only wrote files', () => {
-    const scope = revertScope(turn({ steps: 0, tx: 'tx-1', files: [file('src/HealthBar.ts')] }), 0);
+    const scope = revertScope(turn({ steps: 0, endMark: null, tx: 'tx-1', files: [file('src/HealthBar.ts')] }), 0);
     expect(scope).toMatchObject({ steps: 0, files: [{ path: 'src/HealthBar.ts' }] });
   });
 

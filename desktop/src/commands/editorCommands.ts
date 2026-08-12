@@ -150,6 +150,14 @@ commands.register({
   isEnabled: () => EditorHistory.canRedo(),
   run: () => EditorHistory.redo(),
 });
+commands.register({
+  id: 'edit.history',
+  label: t('hist.panelTitle'),
+  category: t('cat.edit'),
+  // Under Edit rather than View: it is the thing Ctrl+Z walks through, and where
+  // an agent run is taken back as one. Not ensured in the layout — see panels.ts.
+  run: () => dockApi.openPanel('history'),
+});
 
 // — Entity —
 commands.register({

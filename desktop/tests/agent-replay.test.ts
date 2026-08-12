@@ -21,10 +21,10 @@ const status: AgentStatus =
 const conversation = (from = 0): AgentEvent[] => [
   { type: 'turn_start', prompt: 'add a pause menu', model: 'opus-5', index: from },
   { type: 'text', delta: 'Building it.' },
-  { type: 'turn_end', steps: 7, mark: { seq: 1 }, tx: null, files: [], reason: 'end_turn' },
+  { type: 'turn_end', steps: 7, mark: { seq: 1 }, endMark: null, tx: null, files: [], reason: 'end_turn' },
   { type: 'turn_start', prompt: 'bigger buttons', model: 'opus-5', index: from + 1 },
   { type: 'text', delta: 'Done.' },
-  { type: 'turn_end', steps: 3, mark: { seq: 2 }, tx: null, files: [], reason: 'end_turn' },
+  { type: 'turn_end', steps: 3, mark: { seq: 2 }, endMark: null, tx: null, files: [], reason: 'end_turn' },
 ];
 
 let transcript: AgentEvent[];

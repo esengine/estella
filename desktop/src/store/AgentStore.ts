@@ -140,6 +140,10 @@ export interface AgentTurn {
   steps: number;
   /** Where that Undo would go back to (EditorHistory.undoToMark). */
   mark: unknown | null;
+  /** Where the turn's own work ended. What separates it from the edits the
+   *  person makes next — a start mark alone cannot, so the newest run would
+   *  claim every one of them. */
+  endMark: unknown | null;
   /**
    * The turn's file-journal transaction and the project paths it captured — the
    * other half of what a revert takes back. A turn that only wrote files ends
@@ -491,6 +495,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       context: null,
       steps: 0,
       mark: null,
+      endMark: null,
       tx: null,
       files: [],
       reason: null,
@@ -585,6 +590,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         reason: event.reason,
         steps: event.steps,
         mark: event.mark,
+        endMark: event.endMark,
         tx: event.tx,
         files: event.files,
         endedAt: Date.now(),

@@ -21,7 +21,7 @@ afterEach(async () => { await rm(root, { recursive: true, force: true }); });
 const turn = (index: number, prompt: string): AgentEvent[] => [
     { type: 'turn_start', prompt, model: 'fake-model', index },
     { type: 'text', delta: 'sure' },
-    { type: 'turn_end', steps: 1, mark: { seq: index }, tx: null, files: [], reason: 'end_turn' },
+    { type: 'turn_end', steps: 1, mark: { seq: index }, endMark: null, tx: null, files: [], reason: 'end_turn' },
 ];
 
 const conversation = (over: Partial<Parameters<typeof saveConversation>[1]> = {}) => ({
@@ -63,7 +63,7 @@ describe('keeping a conversation', () => {
         const withShot: AgentEvent[] = [
             { type: 'turn_start', prompt: 'look', model: 'm', index: 0 },
             { type: 'tool_end', id: 'c1', ok: true, summary: 'screenshot attached', image: 'data:image/png;base64,AAAA' },
-            { type: 'turn_end', steps: 0, mark: null, tx: null, files: [], reason: 'end_turn' },
+            { type: 'turn_end', steps: 0, mark: null, endMark: null, tx: null, files: [], reason: 'end_turn' },
         ];
         await saveConversation(root, conversation({ events: withShot }));
         const back = await loadConversation(root, 'abc-123');

@@ -523,11 +523,11 @@ function Skeleton() {
  * those say what was ASKED for, these what the project differs by. A step that
  * declared nothing contributes nothing, so this is a floor.
  */
-function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null }) {
+function ChangeSet({ turn }: { turn: AgentTurn }) {
   const [open, setOpen] = useState(true);
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const mark = turn.mark as HistoryMark | null;
-  const changes = mark ? EditorHistory.changesSince(mark, until) : [];
+  const changes = mark ? EditorHistory.changesSince(mark, turn.endMark as HistoryMark | null) : [];
   // Counted from the lists already read rather than by walking the stack a
   // second time for the same window.
   const counts = countKinds([...changes, ...turn.files]);
@@ -597,9 +597,9 @@ function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null
  * edits the person made in between — so its header would keep growing while it
  * sat there finished.
  */
-function changeCounts(turn: AgentTurn, until: HistoryMark | null): ChangeCounts | null {
+function changeCounts(turn: AgentTurn): ChangeCounts | null {
   const mark = turn.mark as HistoryMark | null;
-  const entities = mark ? EditorHistory.changesSince(mark, until) : [];
+  const entities = mark ? EditorHistory.changesSince(mark, turn.endMark as HistoryMark | null) : [];
   return countKinds([...entities, ...turn.files]);
 }
 
@@ -643,12 +643,10 @@ function Elapsed({ from, to, className }: { from: number; to: number | null; cla
  * finished run in the conversation re-rendered — and re-read the undo stack —
  * on every token of the newest one.
  */
-const Turn = memo(function Turn({ turn, isLast, running, until }: {
+const Turn = memo(function Turn({ turn, isLast, running }: {
   turn: AgentTurn;
   isLast: boolean;
   running: boolean;
-  /** Where the NEXT run started, so this one counts only its own steps. */
-  until: HistoryMark | null;
 }) {
   // A finished run folds to its header: the stat line already IS the summary, so
   // the body becomes detail you ask for rather than detail you scroll past.
@@ -661,7 +659,7 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
 
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const tokens = turn.inputTokens + turn.outputTokens;
-  const counts = changeCounts(turn, until);
+  const counts = changeCounts(turn);
   const empty = turn.entries.length === 0;
   return (
     <div className={`ag-turn${folded ? ' folded' : ''}${isLast ? ' current' : ''}`}>
@@ -761,7 +759,7 @@ const Turn = memo(function Turn({ turn, isLast, running, until }: {
               <ArrowRight size={13} strokeWidth={2} />{t('agent.continue')}
             </button>
           )}
-          {turn.reason !== null && <ChangeSet turn={turn} until={until} />}
+          {turn.reason !== null && <ChangeSet turn={turn} />}
         </div>
       </Fold>
     </div>
@@ -1383,7 +1381,6 @@ export function AgentPanel({ docked }: { docked?: boolean }) {
               turn={turn}
               isLast={i === turns.length - 1}
               running={status.phase !== 'idle'}
-              until={(turns[i + 1]?.mark as HistoryMark | undefined) ?? null}
             />
           ))}
         {/* Held until the run ends. Shown rather than merely promised: a message

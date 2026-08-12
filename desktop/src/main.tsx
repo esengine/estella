@@ -39,6 +39,7 @@ import './theme/settings.css';
 import './theme/agent.css';
 import './theme/launcher.css';
 import './theme/plugins.css';
+import './theme/history.css';
 import { App } from './App';
 import { ProjectStore } from './project/ProjectStore';
 import { AssetRegistry } from './project/AssetRegistry';

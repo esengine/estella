@@ -32,6 +32,7 @@ import { AnimatorEditor } from '@/panels/AnimatorEditor';
 import { BtTreeEditor } from '@/panels/BtTreeEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { PluginsPanel } from '@/panels/PluginsPanel';
+import { HistoryPanel } from '@/panels/HistoryPanel';
 import { AgentPanel } from '@/components/AgentDrawer';
 
 /** What a panel renderer is handed: its live panel id and dockview params. */
@@ -83,6 +84,7 @@ export const PANEL_RENDERERS: Record<string, PanelRenderer> = {
   behaviortree: () => <BtTreeEditor />,
   profiler: () => <ProfilerPanel />,
   plugins: () => <PluginsPanel />,
+  history: () => <HistoryPanel />,
   agent: () => <AgentPanel docked />,
   game: () => <GamePanel />,
   gameClient: ({ params }) => <GameClientPanel realmId={Number(params?.realmId ?? 0)} />,
