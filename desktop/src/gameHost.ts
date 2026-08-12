@@ -15,7 +15,7 @@ import {
   createWebApp, setEditorMode, setPlayMode, Assets,
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
-  packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav,
+  packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
 } from 'esengine';
 import type { SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -103,9 +103,9 @@ async function boot(): Promise<void> {
       probe(names: string[] = []): {
         scene: string | null;
         transitioning: boolean;
-        at: Record<string, { x: number; y: number }>;
+        at: Record<string, { x: number; y: number; w?: number; h?: number }>;
       } {
-        const at: Record<string, { x: number; y: number }> = {};
+        const at: Record<string, { x: number; y: number; w?: number; h?: number }> = {};
         for (const name of names) {
           const entity = app.world.findEntityByName(name);
           if (entity === null || !app.world.has(entity, Transform)) continue;
@@ -114,6 +114,14 @@ async function boot(): Promise<void> {
           const t = app.world.get(entity, Transform);
           const p = t.worldPosition ?? t.position;
           at[name] = { x: p.x, y: p.y };
+          // A node's own size, for a claim about a value the game COMPUTED rather
+          // than about where it ended up — a spectrum bar barely moves while its
+          // height carries the whole answer.
+          if (app.world.has(entity, UINode)) {
+            const node = app.world.get(entity, UINode);
+            at[name].w = node.width?.value;
+            at[name].h = node.height?.value;
+          }
         }
         const scenes = app.hasResource(SceneManager) ? app.getResource(SceneManager) : null;
         // A scene arrives entity by entity, and a driver polling from outside

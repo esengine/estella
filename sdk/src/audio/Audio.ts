@@ -708,9 +708,10 @@ export class AudioAPI {
 /**
  * Playback, buses and mixing, as `Res(Audio)` hands it over.
  *
- * Deliberately NOT `@beta`, which would claim the shape is supported: no example
- * in the repository uses audio at all, so nothing would notice a break in it. It
- * stays experimental until something certifies it — see the `audio` entry in
- * KNOWN_GAPS.
+ * `@beta`: a certified run now drives a loop and reads the master bus's analyser,
+ * so a break here is noticed — but the corpus reaches a handful of twenty-three
+ * audio symbols, which is thin evidence for freezing the shape.
+ *
+ * @beta
  */
 export const Audio = defineResource<AudioAPI>(null!, 'Audio');

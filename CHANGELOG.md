@@ -50,7 +50,7 @@ published separately; it ships inside the editor.
 
 - **A verdict per subsystem, at the size a creator builds in.** Nobody asks
   whether `AudioSource` is frozen; they ask whether they can build their game's
-  audio on this, and 1462 experimental symbols answer that the same way whether a
+  audio on this, and some 1460 experimental symbols answer that the same way whether a
   subsystem was weighed or nobody looked. The reference now carries 22 subsystems
   with a tier and the reason for it — required for anything not frozen, because
   "not frozen" is a decision and has to read like one. `entry` names the symbols
@@ -109,12 +109,23 @@ published separately; it ships inside the editor.
   keyboard and pad twin of the pinch gesture already there — and its rebind now
   offers mouse buttons.
 
-- **Audio, animation and materials are declared corpus gaps.** Each was claimed by
-  a project that did not exercise it. No example in the repository uses audio at
-  all; `sprite-animation` and `cutscene` animate and neither is certified;
-  `effects-gallery` is the only example with a material. The suite now reads 28 of
-  33 capabilities covered against 5 declared gaps, where it read 31 of 33 against
-  2 — nothing regressed, the difference is what the false claims were covering.
+- **Animation and materials are declared corpus gaps.** Each was claimed by a
+  project that did not exercise it: `sprite-animation` and `cutscene` animate and
+  neither is certified, and `effects-gallery` is the only example with a material.
+  The suite reads 29 of 33 capabilities covered against 4 declared gaps, where it
+  read 31 of 33 against 2 — nothing regressed, the difference is what the false
+  claims were covering.
+
+- **`examples/audio-demo` joins the certification corpus, and a run proves sound
+  came out.** It was the one example that uses audio and it was outside the suite,
+  so the pillar shipped uncertified while `space-shooter` claimed it. Certifying it
+  needed a claim pixels cannot settle: the control that starts a sound redraws
+  itself whether anything played or not, and a one-shot drum hit is over before the
+  capture. So the project declares an `audio` block — a toggle to click for a
+  sustained source, and a spectrum bar the game writes from an analyser bin of the
+  master bus. The run reads that bar's height: 36.6 against a silent floor of 6.
+  Aim the toggle at empty background and it reads 6, which is what makes the check
+  a check.
 
 ### Fixed
 

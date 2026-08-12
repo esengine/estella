@@ -50,6 +50,7 @@ function projectText(id) {
 /** Capabilities a packaged frame cannot show, and the declaration whose run reads them. */
 const NEEDS_RUN = {
   'texture-atlas': 'atlas',
+  audio: 'audio',
   'safe-area': 'safeArea',
   'pause-resume': 'suspend',
   'hot-update': 'runBy',
@@ -168,6 +169,18 @@ for (const g of GOLDEN) {
       }
     }
   }
+  const au = g.audio;
+  if (au) {
+    const t = au.toggle;
+    if (!t || !(t.x >= 0 && t.x <= 1 && t.y >= 0 && t.y <= 1)) {
+      fail(`"${g.id}" declares audio without a toggle inside the surface — x/y are fractions`);
+    }
+    if (!au.bar) fail(`"${g.id}" declares audio without a bar to read — then nothing says signal arrived`);
+    // A floor of 0 would pass on a bar the layout never sized, which is the same
+    // reading as silence.
+    if (!(au.floor > 0)) fail(`"${g.id}" declares audio with floor ${au.floor} — the silent height has to be a real one`);
+  }
+
   const sa = g.safeArea;
   if (sa) {
     if (!sa.entity || !sa.reference) fail(`"${g.id}" declares safeArea without both an entity and a reference`);

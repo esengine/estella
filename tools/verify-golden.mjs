@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, suspendFor, safeAreaFor, atlasFor, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu } from './lib/deadGpu.mjs';
 
@@ -179,6 +179,29 @@ for (const { id, target } of pairs) {
     });
     console.log(`${ok ? '✓' : '✗'} ${id} ${target} — atlas: ${packed} texture(s) packed into a page`);
   }
+  // Did anything reach the audio output? A frame cannot answer it: the control
+  // that starts the sound redraws itself either way. So drive the toggle and read
+  // the height the game wrote from an analyser bin — silence leaves it on its floor.
+  const audio = audioFor(golden);
+  if (audio && target === 'web') {
+    const probed = launchPackage(id, target, [
+      '--dir', out,
+      '--input', JSON.stringify({ pointer: { x: audio.toggle.x, y: audio.toggle.y }, frames: audio.frames ?? 60 }),
+      '--probe', audio.bar,
+    ]);
+    const found = /probe: (\{.*\})/.exec(probed.stdout || '');
+    let height = null;
+    try { height = found ? JSON.parse(found[1]).at?.[audio.bar]?.h ?? null : null; } catch { height = null; }
+    const ok = typeof height === 'number' && height > audio.floor;
+    results.push({
+      id, target, stage: 'audio', ok,
+      why: ok ? '' : height === null
+        ? `${audio.bar} did not report a height — the probe saw no such UI node`
+        : `${audio.bar} stayed at ${height} (floor ${audio.floor}); nothing reached the output`,
+    });
+    console.log(`${ok ? '✓' : '✗'} ${id} ${target} — audio: ${audio.bar} at ${height ?? 'nothing'} (silent floor ${audio.floor})`);
+  }
+
   const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;
   const editorPng = path.join(WORK, `${id}-editor.png`);
   const editor = tolerance != null ? captureEditorFrame(id, editorPng) : null;

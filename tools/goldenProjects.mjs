@@ -78,7 +78,9 @@ export const EVIDENCE = {
   animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
   ecs: /\b(defineComponent|defineSystem)\b/,
   particles: /\bParticleEmitter\b/,
-  audio: /\b(AudioSource|AudioListener|AudioBus|playSound|audioPlugin|Mixer)\b/,
+  // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
+  // component, and a pattern that only knew the components read it as unused.
+  audio: /\b(AudioSource|AudioListener|AudioAPI|audioPlugin)\b|Res\(Audio\)/,
   'ui-layout': /\b(UINode|Canvas|spawnUIEntity|FlexContainer)\b/,
   text: /\bText\b/,
   localization: /\b(Localization|i18nKey|setLocale)\b/,
@@ -122,9 +124,8 @@ export const KNOWN_GAPS = {
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
-  // The three EVIDENCE found being claimed by a project that did not exercise
-  // them. Each is now a hole somebody has to read rather than a word in a list.
-  audio: 'NO example in the repository uses audio at all — not a golden one, not a sample. The pillar ships (buses, ducking, the cooked MP3 path, the Mixer panel) with nothing certifying any of it',
+  // What EVIDENCE found being claimed by a project that did not exercise it.
+  // Each is now a hole somebody has to read rather than a word in a list.
   animation: 'sprite-animation and cutscene exercise it, and neither is in the corpus; platformer claimed it and contains no animation',
   material: 'effects-gallery is the only example with a material, and it is not in the corpus; spine-demo claimed it and has none',
 };
@@ -274,6 +275,17 @@ export const GOLDEN = [
     tier: 'release',
     interact: { keys: ['KeyD'], frames: 40 },
   },
+  {
+    id: 'audio-demo',
+    certifies: ['audio'],
+    targets: ['web', 'desktop'],
+    tier: 'release',
+    interactGap: 'a pad plays a sound and draws nothing of its own — the audio block below is the run that reads the result',
+    // What certifies audio, since pixels cannot — the toggle redraws itself either
+    // way. Click for a SUSTAINED source (a one-shot ends before the capture), then
+    // read the bar the visualizer writes from an analyser bin.
+    audio: { toggle: { x: 0.5, y: 0.41 }, bar: 'Bar0', floor: 6, frames: 60 },
+  },
 ];
 
 /**
@@ -335,6 +347,11 @@ export function parityFor(g) {
 }
 
 /** The input a project's package must answer, or null when it opted out. */
+/** The audio claim, or null. See the `audio` block on audio-demo. */
+export function audioFor(g) {
+  return g.audio ?? null;
+}
+
 export function interactFor(g) {
   if (g.interactGap || !g.interact) return null;
   return {
