@@ -2,10 +2,14 @@
 // of physical keys, so keyboard, gamepad and rebound inputs all flow through
 // one place. defineInputMap registers the per-frame evaluation system itself.
 import {
-    defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton, GamepadButton,
+    defineInputMap, Axis1D, Axis2D, Button, Keys1D, Keys2D, Stick, Key,
+    GpAxis, GpButton, GamepadAxis, GamepadButton,
 } from 'esengine';
 import type { Binding } from 'esengine';
 
+// No mouse button here on purpose: the HUD's own buttons are clicks, and Fire
+// reads the raw button rather than asking whether the pointer is over UI. A mouse
+// binding is reachable through the rebind below, which is where it belongs.
 export const DEFAULT_FIRE: Binding[] = [Key('Space'), GpButton(GamepadButton.South)];
 
 export const Actions = defineInputMap({
@@ -15,6 +19,12 @@ export const Actions = defineInputMap({
         Stick('left'),
     ),
     Fire: Button(...DEFAULT_FIRE),
+    // The keyboard and gamepad equivalent of the pinch gesture. GpAxis inverts
+    // the raw stick Y, which points down, so pushing up grows the ship.
+    Zoom: Axis1D(
+        Keys1D('BracketLeft', 'BracketRight'),
+        GpAxis(GamepadAxis.RightY, 0, -1),
+    ),
 });
 
 /** Storage key for user rebinds (Actions.save / Actions.load). */

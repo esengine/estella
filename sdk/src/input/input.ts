@@ -8,6 +8,11 @@ import type { GamepadSnapshot, InputEventCallbacks } from '../platform/types';
 import { inputRouter } from './inputRouter';
 import type { Vec2 } from '../types';
 
+/**
+ * One active touch, in screen pixels with y growing downward.
+ *
+ * @beta
+ */
 export interface TouchPoint {
     id: number;
     x: number;
@@ -18,6 +23,8 @@ export interface TouchPoint {
  * Standard-mapping gamepad buttons (W3C "standard gamepad"). Positional names
  * (SDL / Steam Input convention) avoid device assumptions; Xbox / PlayStation
  * face labels are noted for reference.
+ *
+ * @public
  */
 export enum GamepadButton {
     South = 0,        // A (Xbox) · Cross (PS)
@@ -39,7 +46,8 @@ export enum GamepadButton {
     Guide = 16,       // Xbox · PS · Home
 }
 
-/** Standard-mapping gamepad axes (signed, [-1,1]). */
+/** Standard-mapping gamepad axes (signed, [-1,1]).
+ *  @public */
 export enum GamepadAxis {
     LeftX = 0,
     LeftY = 1,
@@ -57,6 +65,15 @@ interface PadState {
 
 const ZERO_VIRTUAL: Vec2 = { x: 0, y: 0 };
 
+/**
+ * This frame's raw input — the layer under {@link defineInputMap}'s named actions.
+ *
+ * `@beta`: per-frame touch state is reachable only as the raw `touches` /
+ * `touchesStarted` / `touchesEnded` maps, so freezing it freezes two gaps in that
+ * representation — no accessor for started/ended, and no write door at all.
+ *
+ * @beta
+ */
 export class InputState {
     keysDown = new Set<string>();
     keysPressed = new Set<string>();
@@ -308,6 +325,12 @@ export class InputState {
     }
 }
 
+/**
+ * This frame's raw input, as a resource. The input plugin writes it before any
+ * game system runs, and clears the per-frame edges after the last one.
+ *
+ * @beta
+ */
 export const Input = defineResource<InputState>(new InputState(), 'Input');
 
 /**

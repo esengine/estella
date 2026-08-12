@@ -31,8 +31,11 @@ function startRebind(): void {
         Actions.cancelListen();
         return;
     }
-    status = 'Press any key or gamepad button... (click again to cancel)';
-    void Actions.rebind('Fire', { keyboard: true, gamepad: true }).then((binding) => {
+    status = 'Press any key, mouse button or gamepad button... (click again to cancel)';
+    // Mouse is safe to include here: this runs in Update, and the scan runs next
+    // frame's PreUpdate — after Last cleared this frame's press edges, so the click
+    // that opened the rebind is not the one captured.
+    void Actions.rebind('Fire', { keyboard: true, mouse: true, gamepad: true }).then((binding) => {
         if (binding) {
             Actions.save(BINDINGS_KEY);
             status = `Fire is now ${formatBinding(binding)} (saved)`;

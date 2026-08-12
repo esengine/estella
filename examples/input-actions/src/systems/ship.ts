@@ -27,6 +27,13 @@ export const shipSystem = defineSystem(
 
             transform.position.x = clamp(x, -HALF_W, HALF_W);
             transform.position.y = clamp(y, -HALF_H, HALF_H);
+
+            // Zoom is the keyboard/gamepad twin of the pinch gesture, so both write
+            // the same scale rather than each keeping its own.
+            const zoom = Actions.value('Zoom');
+            if (zoom !== 0) {
+                gestureState.scale = clamp(gestureState.scale + zoom * time.delta, 0.5, 2.5);
+            }
             transform.scale = { x: gestureState.scale, y: gestureState.scale, z: 1 };
 
             if (Actions.pressed('Fire')) {

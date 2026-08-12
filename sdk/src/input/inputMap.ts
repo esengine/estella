@@ -21,6 +21,13 @@ import { Storage } from '../util/storage';
 // Binding model (plain, serializable — also the rebind / persistence format)
 // =============================================================================
 
+/**
+ * One physical source for an action. Plain serializable data on purpose: this is
+ * also the rebind and persistence format, so what a player remaps is the same
+ * shape a `.inputmap` asset ships.
+ *
+ * @public
+ */
 export type Binding =
     | { kind: 'key'; code: string }
     | { kind: 'mouse'; button: number }
@@ -31,15 +38,33 @@ export type Binding =
     | { kind: 'stick'; stick: 'left' | 'right'; pad?: number }
     | { kind: 'virtual'; id: string };
 
+/**
+ * How an action's bindings combine: a digital `button`, a signed 1D `axis`, or a
+ * 2D `axis2d`. It decides which query answers — `pressed`/`down` for a button,
+ * `value` for an axis, `axis2d` for the last.
+ *
+ * @public
+ */
 export type ActionType = 'button' | 'axis' | 'axis2d';
 
+/**
+ * A named action: what kind of value it produces and every source that feeds it.
+ * Bindings are alternatives, not a chord — whichever is strongest this frame wins.
+ *
+ * @public
+ */
 export interface ActionDef {
     type: ActionType;
     bindings: Binding[];
 }
 
-/** The serialized form of a whole map — the content of an `.inputmap` asset.
- *  Data-driven input: author/ship this JSON, then {@link loadInputMapAsset}. */
+/**
+ * The serialized form of a whole map — the content of an `.inputmap` asset.
+ * Data-driven input: author/ship this JSON, then {@link loadInputMapAsset}.
+ * `version` is the asset format's, so an older file stays readable.
+ *
+ * @public
+ */
 export interface InputMapAsset {
     version: number;
     actions: Record<string, ActionDef>;
@@ -48,27 +73,50 @@ export interface InputMapAsset {
 const INPUT_MAP_ASSET_VERSION = 1;
 
 // — Binding constructors (Capitalized, matching the engine DSL: Query/Mut/With) —
+/** A keyboard key, by `KeyboardEvent.code` — physical position, not the character
+ *  it types, so WASD stays WASD on AZERTY.
+ *  @public */
 export const Key = (code: string): Binding => ({ kind: 'key', code });
+/** A mouse button, by the DOM numbering (0 = left, 1 = middle, 2 = right).
+ *  @public */
 export const MouseButton = (button: number): Binding => ({ kind: 'mouse', button });
+/** A gamepad button — see {@link GamepadButton}. `pad` defaults to the first one.
+ *  @public */
 export const GpButton = (button: number, pad?: number): Binding => ({ kind: 'gpButton', button, pad });
+/** A gamepad axis — see {@link GamepadAxis}. `scale` multiplies the reading, so
+ *  `-1` inverts a stick axis that points the other way.
+ *  @public */
 export const GpAxis = (axis: number, pad?: number, scale?: number): Binding => ({ kind: 'gpAxis', axis, pad, scale });
-/** Two keys → a signed 1D axis (neg = -1, pos = +1). */
+/** Two keys → a signed 1D axis (neg = -1, pos = +1).
+ *  @public */
 export const Keys1D = (neg: string, pos: string): Binding => ({ kind: 'keys1d', neg, pos });
-/** Four keys → a 2D axis (up = +y, right = +x). */
+/** Four keys → a 2D axis (up = +y, right = +x).
+ *  @public */
 export const Keys2D = (up: string, down: string, left: string, right: string): Binding =>
     ({ kind: 'keys2d', up, down, left, right });
-/** A gamepad stick → a 2D axis (up = +y; the raw Y axis is inverted to match Keys2D). */
+/** A gamepad stick → a 2D axis (up = +y; the raw Y axis is inverted to match Keys2D).
+ *  @public */
 export const Stick = (stick: 'left' | 'right', pad?: number): Binding => ({ kind: 'stick', stick, pad });
 /**
  * A named value the game writes itself (`Input.setVirtual`) — an on-screen
  * stick or button, which is the only input a touch device has. Works as a
  * scalar or a 2D source, so one kind covers both.
+ *
+ * @public
  */
 export const Virtual = (id: string): Binding => ({ kind: 'virtual', id });
 
 // — Action constructors —
+/** A digital action, read with `pressed`/`down`/`released`. An analog source
+ *  counts as down past half its range.
+ *  @public */
 export const Button = (...bindings: Binding[]): ActionDef => ({ type: 'button', bindings });
+/** A signed 1D action in [-1, 1], read with `value`.
+ *  @public */
 export const Axis1D = (...bindings: Binding[]): ActionDef => ({ type: 'axis', bindings });
+/** A 2D action, read with `axis2d`. Diagonals are not normalised — the vector is
+ *  what the sources produced.
+ *  @public */
 export const Axis2D = (...bindings: Binding[]): ActionDef => ({ type: 'axis2d', bindings });
 
 // =============================================================================
@@ -127,8 +175,12 @@ const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > 
 // InputMap
 // =============================================================================
 
-/** Which device families an interactive rebind listens to. Mouse is OFF by
- *  default (so the click that started the rebind isn't captured). */
+/**
+ * Which device families an interactive rebind listens to. Mouse is OFF by default
+ * (so the click that started the rebind isn't captured).
+ *
+ * @public
+ */
 export interface ListenOptions {
     keyboard?: boolean;
     mouse?: boolean;
@@ -140,6 +192,13 @@ interface PendingListen {
     opts: ListenOptions;
 }
 
+/**
+ * A live set of named actions, as {@link defineInputMap} answers it. Query it by
+ * name from a system; the map recomputes itself once per frame, so every read
+ * within a frame sees the same values.
+ *
+ * @public
+ */
 export class InputMap {
     private readonly defs_ = new Map<string, ActionDef>();
     private readonly state_ = new Map<string, ActionState>();
@@ -152,8 +211,8 @@ export class InputMap {
         }
     }
 
-    /** Recompute every action from the current raw input. Called once per frame by
-     *  the registered evaluation system; edges (pressed/released) diff vs last frame. */
+    /** @internal Recompute every action from the current raw input. Called once per
+     *  frame by the registered evaluation system; edges diff against last frame. */
     evaluate(input: InputState): void {
         if (this.pendingListen_) this.scanForRebind_(input);
         for (const [name, def] of this.defs_) {
@@ -299,6 +358,8 @@ export class InputMap {
  *   Jump: Button(Key('Space'), GpButton(GamepadButton.South)),
  * });
  * // in a system:  if (Game.pressed('Jump')) ...;  const dir = Game.axis2d('Move');
+ *
+ * @public
  */
 export function defineInputMap(actions: Record<string, ActionDef>): InputMap {
     const map = new InputMap(actions);
@@ -313,7 +374,8 @@ export function defineInputMap(actions: Record<string, ActionDef>): InputMap {
 /**
  * Build a live InputMap from a loaded `.inputmap` asset (data-driven input —
  * fetch / import the JSON, then call this). Registers the evaluation system, same
- * as {@link defineInputMap}.
+ * as {@link defineInputMap}. Not frozen: no project we certify releases against
+ * loads a map from an asset, so nothing holds this signature up.
  */
 export function loadInputMapAsset(asset: InputMapAsset): InputMap {
     return defineInputMap(asset.actions);

@@ -37,7 +37,13 @@ import { GOLDEN, projectDir } from './goldenProjects.mjs';
  * every frame. The criterion is blind to them, not unmet by them.
  */
 const RECEIVED = 'received from a declared parameter, never imported — golden projects run it, no import list names it';
+const HANDED_BACK = 'answered by a frozen factory, never imported — a game names the factory, not this';
 export const EXEMPT = {
+    InputMap: HANDED_BACK,
+    // Same blindness, from the other direction: the map's rebind scan builds one
+    // when a player binds a mouse button, so a certified game runs it without any
+    // import list ever naming it.
+    MouseButton: 'built by InputMap\'s rebind scan on the game\'s behalf — run by a golden project, named by none',
     // Same shape of blindness: the engine maintains this one from Parent, so a
     // game reads it and every golden project's layout walks it every frame, but
     // nothing imports the name.
