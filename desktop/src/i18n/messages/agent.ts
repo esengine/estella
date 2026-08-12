@@ -151,6 +151,7 @@ export const agentMessages = defineMessages({
     'agent.turn.queuedMessage': { en: 'Queued: {text}', zh: '已排队:{text}' },
     'agent.copy': { en: 'Copy', zh: '复制' },
     'agent.changes': { en: 'What changed', zh: '改动集' },
+    'agent.changes.tooBig': { en: 'too large to restore', zh: '太大,收不回来' },
     'agent.reask.label': { en: 'Ask this again', zh: '重新提问' },
     'agent.reask.go': { en: 'Ask again', zh: '重新提问' },
     'agent.reask.cancel': { en: 'Cancel', zh: '取消' },
@@ -213,10 +214,26 @@ export const agentMessages = defineMessages({
     'agent.checkpoint.undo': { en: 'Undo', zh: '撤销' },
     'agent.checkpoint.keep': { en: 'Keep', zh: '保留' },
     'agent.checkpoint.steps': { en: '{count} steps', zh: '{count} 步' },
-    'agent.checkpoint.undone': { en: 'Took back this turn · {count} steps', zh: '已撤销这一轮 · {count} 步' },
+    'agent.checkpoint.files': { en: '{count} files', zh: '{count} 个文件' },
+    'agent.checkpoint.undone': {
+        en: 'Took back this turn · {count} steps, {files} files',
+        zh: '已撤销这一轮 · {count} 步、{files} 个文件',
+    },
     'agent.checkpoint.stale': {
         en: 'You have edited since — Undo would take those back too.',
         zh: '之后你自己编辑过 —— 撤销会连那些一起退回。',
+    },
+    'agent.checkpoint.tooBig': {
+        en: '{count} too large to restore',
+        zh: '{count} 个太大,收不回来',
+    },
+    'agent.checkpoint.stranded': {
+        en: 'Left as the turn wrote them (too large to hold): {paths}',
+        zh: '这些保持了本轮写入的状态(太大,没留备份):{paths}',
+    },
+    'agent.checkpoint.failed': {
+        en: 'Could not restore {path} — {error}',
+        zh: '无法还原 {path} —— {error}',
     },
 
     // — The status-bar segment —

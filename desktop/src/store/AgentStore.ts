@@ -394,6 +394,34 @@ export async function selectAgentModel(providerId: string, model: string): Promi
 }
 export const dismissCheckpoint = (turnId: number): void => useAgent.setState({ checkpointDone: turnId });
 
+/** What a finished turn's Revert would cover. See {@link revertScope}. */
+export interface RevertScope {
+  steps: number;
+  files: readonly FileChange[];
+  /** Undo steps beyond the turn's own — the user has edited since, and a linear
+   *  stack takes those back too. Said out loud rather than done quietly. */
+  stale: boolean;
+  /** Files the revert cannot put back (past the journal's budget). */
+  stranded: readonly FileChange[];
+}
+
+/**
+ * Whether `turn` is worth offering a revert for and what one covers — null for
+ * a turn that left nothing behind. BOTH halves count: a files-only turn has
+ * zero undo steps, and reading steps alone offers nothing for exactly the work
+ * undo cannot reach. `stepsNow` is the stack past the mark, the caller's to read.
+ */
+export function revertScope(turn: AgentTurn, stepsNow: number): RevertScope | null {
+  if (turn.reason === null) return null;
+  if (turn.steps === 0 && turn.files.length === 0) return null;
+  return {
+    steps: turn.steps,
+    files: turn.files,
+    stale: stepsNow > turn.steps,
+    stranded: turn.files.filter((f) => f.unjournaled),
+  };
+}
+
 /** The run still taking events, if any. Only the last one can be open. */
 const openTurn = (turns: readonly AgentTurn[]): AgentTurn | null => {
   const last = turns[turns.length - 1];

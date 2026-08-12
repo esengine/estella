@@ -8,6 +8,7 @@ import type { ScaffoldScriptResult, ScriptKind } from './scriptScaffold';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
+import type { RevertResult } from './fileJournal';
 import type {
   PlatformStatus, CreatePlatformResult, PlayableNetworkOption, ProjectPlatformKind,
 } from './platformCatalog';
@@ -129,6 +130,12 @@ const api = {
     /** Answer the pending confirmation for an irreversible tool. */
     confirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]): Promise<void> =>
       ipcRenderer.invoke('agent:confirm', callId, answer, declined),
+    /** Put back the project files a turn wrote (its file-journal transaction) and
+     *  say what came back. The DOCUMENT half is this window's own undo. */
+    revertFiles: (txId: string): Promise<RevertResult> =>
+      ipcRenderer.invoke('agent:revertFiles', txId),
+    /** The turn was kept — drop the copies held for its revert. */
+    keepFiles: (txId: string): Promise<void> => ipcRenderer.invoke('agent:keepFiles', txId),
     /** Drop the conversation and start a new one. */
     reset: (): Promise<AgentStatus> => ipcRenderer.invoke('agent:reset'),
     /** Ask the n-th turn again, discarding it and everything after it. */

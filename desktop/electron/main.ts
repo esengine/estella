@@ -788,6 +788,20 @@ ipcMain.handle(
   'agent:confirm',
   (_e, callId: string, answer: ConfirmAnswer, declined?: number[]) => agentHost.confirm(callId, answer, declined),
 );
+/**
+ * Put the project files a turn wrote back, and tell the window which paths
+ * moved so its ordinary external-change path picks them up. Reverting the
+ * DOCUMENT is the window's own half (EditorHistory.undoToMark) — this side owns
+ * only the disk.
+ */
+ipcMain.handle('agent:revertFiles', async (_e, txId: string) => {
+  const result = await journal.revert(txId);
+  const touched = [...result.restored, ...result.failed.map((f) => f.path)];
+  if (touched.length) notifyFsChanged(touched);
+  return result;
+});
+/** The user kept the work — drop the held copies. */
+ipcMain.handle('agent:keepFiles', (_e, txId: string) => journal.discard(txId));
 ipcMain.handle('agent:reset', () => agentHost.reset());
 ipcMain.handle('agent:retry', (_e, n: number, text: string) => agentHost.retry(n, text));
 // — Saved conversations (agent/store.ts). Project-local, so an unopened project

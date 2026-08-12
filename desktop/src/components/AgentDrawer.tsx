@@ -518,19 +518,19 @@ function Skeleton() {
  * What the turn actually changed — the work product of a run, so it gets
  * first-class presentation rather than a popover hung off the undo bar.
  *
- * Read from EditorHistory rather than from the tool calls: the calls say what
- * was ASKED for, and the history says what the scene now differs by. Steps that
- * declared nothing contribute nothing, so this is a floor — which is why an
- * empty one renders nothing at all rather than "no changes".
+ * Both halves it could have touched, in one list: entities from EditorHistory,
+ * files from the turn's journal transaction. Neither re-reads the tool calls —
+ * those say what was ASKED for, these what the project differs by. A step that
+ * declared nothing contributes nothing, so this is a floor.
  */
 function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null }) {
   const [open, setOpen] = useState(true);
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const mark = turn.mark as HistoryMark | null;
   const changes = mark ? EditorHistory.changesSince(mark, until) : [];
-  // Counted from the list already read rather than by walking the stack a
+  // Counted from the lists already read rather than by walking the stack a
   // second time for the same window.
-  const counts = countKinds(changes);
+  const counts = countKinds([...changes, ...turn.files]);
   if (!counts) return null;
   return (
     <div className={`ag-changes${open ? ' open' : ''}`}>
@@ -544,6 +544,22 @@ function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null
       </button>
       <Fold open={open}>
         <div className="ag-changes-l">
+          {turn.files.map((f) => (
+            <div
+              className={`ag-chg ag-chg--${f.kind} file`}
+              key={`f:${f.path}`}
+              onClick={() => useSelection.getState().selectAsset(f.path)}
+            >
+              <span className="ag-chg-s">{f.kind === 'add' ? '+' : f.kind === 'remove' ? '−' : '~'}</span>
+              <span className="ag-chg-p" title={f.path}>
+                <FileIcon size={10} strokeWidth={1.8} className="ag-chg-i" />
+                {f.path}
+              </span>
+              {/* Named on the row that claims to be revertible, because that row
+                  is the whole basis for pressing Undo. */}
+              {f.unjournaled && <span className="ag-chg-v ag-mod">{t('agent.changes.tooBig')}</span>}
+            </div>
+          ))}
           {changes.map((c, i) => (
             <div
               className={`ag-chg ag-chg--${c.kind}`}
@@ -583,7 +599,8 @@ function ChangeSet({ turn, until }: { turn: AgentTurn; until: HistoryMark | null
  */
 function changeCounts(turn: AgentTurn, until: HistoryMark | null): ChangeCounts | null {
   const mark = turn.mark as HistoryMark | null;
-  return mark ? countKinds(EditorHistory.changesSince(mark, until)) : null;
+  const entities = mark ? EditorHistory.changesSince(mark, until) : [];
+  return countKinds([...entities, ...turn.files]);
 }
 
 interface ChangeCounts { add: number; modify: number; remove: number }

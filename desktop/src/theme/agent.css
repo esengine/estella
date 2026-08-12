@@ -979,6 +979,7 @@
 .ag-chg--modify .ag-chg-s { color: var(--warn); }
 .ag-chg--remove .ag-chg-s { color: var(--error); }
 .ag-chg-p { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chg-i { color: var(--text-faint); vertical-align: -1px; margin-right: 5px; }
 .ag-chg-d { color: var(--text-faint); }
 .ag-chg-v { display: flex; align-items: center; gap: 6px; font-size: var(--fs-2xs); white-space: nowrap; }
 .ag-chg-arrow { color: var(--text-faint); }
