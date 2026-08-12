@@ -24,6 +24,7 @@ import {
   META_EXT,
 } from './projectFs';
 import { isInsideRoot } from './pathSandbox';
+import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
@@ -866,6 +867,10 @@ const platformRuntimeDirs = (): PlatformRuntimeDirs => ({
 // Staging failure does NOT block the open — but it is returned so the renderer
 // can say it loudly (Output Log + toast), never swallowed into a console.warn.
 async function adoptRoot(root: string): Promise<string | undefined> {
+  // Held copies name paths under the OLD root; nothing about them is restorable
+  // into this one, and offering a revert that would write into a project the
+  // user has left is worse than losing the offer.
+  if (projectRoot !== root) await journal.discardAll();
   projectRoot = root;
   if (win) startProjectWatch(root, win.webContents);
   // The compiler follows the project. Built lazily on the first question, so an
@@ -987,8 +992,11 @@ ipcMain.handle('fs:stat', (_e, relPath: string) => statInRoot(requireRoot(), rel
 // Delete to the OS trash (recoverable, not an unrecoverable rm) — the asset's
 // `.meta` sidecar goes with it so no orphan stays in the registry. A pre-trash
 // snapshot backs the renderer's Undo toast; the returned token restores it.
+// The one project mutation that is not an fs write: the OS takes the file, so
+// the journal's copy is what a revert puts back (the trash has no restore API).
 ipcMain.handle('fs:trash', async (_e, relPath: string) => {
   const root = requireRoot();
+  await journal.capture(relPath, 'remove');
   const token = await snapshotForTrash(root, relPath);
   const abs = resolveInRoot(root, relPath);
   await shell.trashItem(abs);

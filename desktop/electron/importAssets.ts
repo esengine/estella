@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { isInsideRoot } from './pathSandbox';
 import { resolveInRoot, META_EXT } from './projectFs';
+import { capture } from './fileJournal';
 import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
 import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
 
@@ -83,9 +84,11 @@ export async function createAsset(
   }
   const name = uniqueName(absDir, named);
   const abs = path.join(absDir, name);
+  const rel = destDir ? `${destDir}/${name}` : name;
+  await capture(rel, 'write');
   await writeFile(abs, content, 'utf8');
   await writeFile(abs + META_EXT, JSON.stringify(mintMeta(type), null, 2) + '\n', 'utf8');
-  return destDir ? `${destDir}/${name}` : name;
+  return rel;
 }
 
 export interface ImportResult {
@@ -117,15 +120,21 @@ export async function importAssets(root: string, destDir: string, sources: strin
     }
     const inside = relInRoot(root, src);
     if (inside) {
+      // Registering in place only mints a sidecar; the file itself is untouched.
+      // Captured anyway, so a revert takes the `.meta` — and with it the
+      // registry entry — back off a file the user had not adopted.
+      await capture(inside, 'write');
       await adoptOrphan(path.resolve(root, inside)); // 'has-meta' = already registered, keep its uuid
       imported.push(inside);
       continue;
     }
     const name = uniqueName(absDir, path.basename(src));
     const absDest = path.join(absDir, name);
+    const rel = destDir ? `${destDir}/${name}` : name;
+    await capture(rel, 'write');
     await copyFile(src, absDest);
     await writeMeta(absDest, type);
-    imported.push(destDir ? `${destDir}/${name}` : name);
+    imported.push(rel);
   }
   return { imported, skipped };
 }

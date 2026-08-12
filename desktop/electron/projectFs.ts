@@ -25,6 +25,7 @@ import {
 } from '../src/project/format';
 import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
 import { resolveInside } from './pathSandbox';
+import { capture } from './fileJournal';
 
 export { META_EXT };
 
@@ -137,6 +138,7 @@ export async function readOptionalInRoot(root: string, relPath: string): Promise
 
 export async function writeInRoot(root: string, relPath: string, contents: string): Promise<void> {
   const abs = resolveInRoot(root, relPath);
+  await capture(relPath, 'write');
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, contents, 'utf8');
 }
@@ -308,6 +310,10 @@ export async function renameInRoot(root: string, fromRel: string, toRelPath: str
   const to = resolveInRoot(root, toRelPath);
   if (from === to) return;
   if (existsSync(to)) throw new Error(`"${toRelPath}" already exists`);
+  // Both ends, because a rename changes both: putting back only the source
+  // would leave the file in two places, only the destination in neither.
+  await capture(fromRel, 'remove');
+  await capture(toRelPath, 'write');
   await mkdir(path.dirname(to), { recursive: true });
   await rename(from, to);
   const fromMeta = from + META_EXT;
@@ -318,6 +324,7 @@ export async function renameInRoot(root: string, fromRel: string, toRelPath: str
 export async function mkdirInRoot(root: string, relPath: string): Promise<void> {
   const abs = resolveInRoot(root, relPath);
   if (existsSync(abs)) throw new Error(`"${relPath}" already exists`);
+  await capture(relPath, 'write');
   await mkdir(abs, { recursive: true });
 }
 
@@ -351,6 +358,7 @@ export async function duplicateInRoot(root: string, relPath: string): Promise<st
     to = path.join(dir, `${stem}${i === 1 ? ' copy' : ` copy ${i}`}${ext}`);
     if (!existsSync(to)) break;
   }
+  await capture(toRel(root, to), 'write');
 
   await cp(from, to, { recursive: true });
   if (isDir) {

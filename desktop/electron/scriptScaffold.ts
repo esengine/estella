@@ -27,6 +27,7 @@ import {
   scriptNameProblem, scriptTargetDir, scriptModulePath, scriptWiring,
   type ScriptEntries, type ScriptKind,
 } from '../src/project/scripts';
+import { capture } from './fileJournal';
 
 export type { ScriptEntries, ScriptKind };
 
@@ -189,6 +190,7 @@ async function appendWiring(root: string, entryRel: string, line: string): Promi
   const existing = existsSync(abs) ? await readFile(abs, 'utf8') : '';
   if (existing.split('\n').some((l) => l.trim() === line)) return;
   const gap = existing === '' || existing.endsWith('\n') ? '' : '\n';
+  await capture(entryRel, 'write');
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, `${existing}${gap}${line}\n`, 'utf8');
 }
@@ -216,6 +218,7 @@ export async function scaffoldScript(
     : systemTemplate(name, opts.entries);
 
   try {
+    await capture(moduleRel, 'write');
     await mkdir(path.dirname(abs), { recursive: true });
     await writeFile(abs, source, 'utf8');
     await appendWiring(root, entry, line);
