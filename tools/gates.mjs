@@ -74,6 +74,9 @@ export const GATES = [
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
   { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },
+  // The per-symbol tiers say what is frozen; this says what a creator can build
+  // on, and refuses a published verdict the tags do not carry.
+  { id: 'subsystem-tiers', run: 'node tools/check-subsystem-tiers.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'prefabs', run: 'node build-tools/cli.js validate-prefabs' },
 ];

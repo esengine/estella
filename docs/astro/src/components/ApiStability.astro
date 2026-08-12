@@ -10,12 +10,31 @@ interface Symbol {
   entries: string[];
 }
 
+interface Subsystem {
+  id: string;
+  title: string;
+  titleZh: string;
+  tier: string;
+  why?: string;
+  whyZh?: string;
+  entry: string[];
+}
+
 const zh = Astro.url.pathname.includes('/zh-cn/');
 const t = (en: string, cn: string) => (zh ? cn : en);
 
 const counts = snapshot.counts as Record<string, number>;
 const pub = snapshot.public as Symbol[];
 const beta = snapshot.beta as Symbol[];
+const subsystems = snapshot.subsystems as Subsystem[];
+
+const TIER_LABEL: Record<string, [string, string]> = {
+  public: ['Stable Candidate', '稳定候选'],
+  beta: ['Beta', 'Beta'],
+  experimental: ['Experimental', '实验性'],
+};
+const ORDER = ['public', 'beta', 'experimental'];
+const ranked = [...subsystems].sort((a, b) => ORDER.indexOf(a.tier) - ORDER.indexOf(b.tier));
 ---
 
 <div class="st-counts">
@@ -40,6 +59,35 @@ const beta = snapshot.beta as Symbol[];
     `共 ${snapshot.total} 个导出符号。实验性是默认值——一个符号只有在有人明确决定时才会升级，所以这份清单是一步步长出来的。`,
   )}
 </p>
+
+<h2 id="by-subsystem">{t('By subsystem', '按子系统')}</h2>
+<p>
+  {t(
+    'The same answer at the size you build in. Every verdict here is held against the tags its entry symbols carry, so this table cannot quietly disagree with them.',
+    '同一个答案，但按你真正在用的粒度给出。表里每条裁定都被它的入口符号的标签钉住，所以它不会悄悄和标签说不一样的话。',
+  )}
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>{t('Subsystem', '子系统')}</th>
+      <th>{t('Tier', '分级')}</th>
+      <th>{t('Why', '理由')}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {ranked.map((s) => (
+      <tr>
+        <td>{t(s.title, s.titleZh)}</td>
+        <td><span class={`st-pill st-pill-${s.tier}`}>{t(...TIER_LABEL[s.tier])}</span></td>
+        <td class="st-why">
+          {t(s.why ?? 'Frozen — the bar it had to clear is below.',
+             s.whyZh ?? '已冻结——它必须跨过的门槛见下。')}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
 
 <h2 id="stable-candidate">{t('Stable Candidate', '稳定候选')}</h2>
 <p>
@@ -118,6 +166,21 @@ const beta = snapshot.beta as Symbol[];
   .st-beta { border-top-color: var(--sl-color-blue); }
   .st-exp { border-top-color: var(--sl-color-gray-4); }
   .st-note {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .st-pill {
+    display: inline-block;
+    padding: 0.05rem 0.45rem;
+    border-radius: 0.25rem;
+    font-size: var(--sl-text-xs);
+    white-space: nowrap;
+    border: 1px solid var(--sl-color-hairline);
+  }
+  .st-pill-public { border-color: var(--sl-color-green); }
+  .st-pill-beta { border-color: var(--sl-color-blue); }
+  .st-pill-experimental { border-color: var(--sl-color-gray-4); }
+  .st-why {
     font-size: var(--sl-text-sm);
     color: var(--sl-color-gray-3);
   }

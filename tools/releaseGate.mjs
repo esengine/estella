@@ -188,6 +188,15 @@ export const CRITERIA = [
     needs: ['tools/check-plugin-api-contract.mjs', 'desktop/src/plugins/types.ts'],
   },
   {
+    id: 'every-subsystem-has-a-verdict',
+    says: 'every part of the engine publishes a tier at the size a creator builds in, and the tags carry it',
+    // The per-symbol tiers are enforced above. This is the same answer at the
+    // size somebody actually asks it: 1462 experimental symbols read the same
+    // whether a subsystem was weighed or nobody looked.
+    answeredBy: 'node tools/check-subsystem-tiers.mjs',
+    needs: ['tools/apiSubsystems.mjs', 'tools/check-subsystem-tiers.mjs'],
+  },
+  {
     id: 'creator-can-say-what-is-safe',
     says: 'the docs name the four tiers and which APIs are in each, in both languages',
     // What a tier MEANS is a promise to people, and the sentence making it is
