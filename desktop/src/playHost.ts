@@ -14,8 +14,8 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
-import type { App, SceneData } from 'esengine';
+import { uiPickWorld, uiWorldToScreen, createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
+import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
@@ -69,6 +69,89 @@ function inspectableTypes(world: App['world'], entity: number): string[] {
     const def = getComponent(t);
     return !!def && !def.transient; // transient = per-frame state, never inspected
   });
+}
+
+/** The realm's live InputState, or null before the input plugin is up. */
+function inputState(): InputState | null {
+  return app ? app.getResource(Input) : null;
+}
+
+/**
+ * Click the UI element called `name`, CONFIRMING the target first: the engine's
+ * own pick is asked what is at the point, and a click is sent only when the
+ * answer is that element or a descendant of it (a label on a button is one, and
+ * the interaction system bubbles from it anyway).
+ */
+async function clickUiByName(app_: App, name: string): Promise<unknown> {
+  const world = app_.world;
+  const nameDef = getComponent('Name');
+  const transformDef = getComponent('Transform');
+  if (!nameDef || !transformDef) throw new Error('this realm has no Name/Transform components');
+
+  const matches = world.getAllEntities().filter((e) => {
+    const n = world.tryGet(e, nameDef) as { value?: string } | null;
+    return n?.value === name;
+  });
+  if (matches.length === 0) {
+    throw new Error(`no entity named "${name}" — find_entities lists what there is`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `${matches.length} entities are named "${name}" — clicking one of them at random is not a `
+      + 'test. Rename them, or click by the id find_entities gave you.',
+    );
+  }
+
+  const target = matches[0];
+  const t = world.tryGet(target, transformDef) as { worldPosition?: { x: number; y: number } } | null;
+  const at = t?.worldPosition;
+  if (!at) throw new Error(`"${name}" has no Transform, so it has no place to be clicked`);
+
+  const hit = uiPickWorld(world, at.x, at.y);
+  if (hit === null) {
+    throw new Error(
+      `nothing in the UI is at "${name}"'s own position — it is laid out with zero size, hidden, `
+      + 'or not a UI element at all. Nothing was clicked.',
+    );
+  }
+  if (!isSelfOrDescendant(world, hit as never as number, target as never as number)) {
+    const other = world.tryGet(hit, nameDef) as { value?: string } | null;
+    throw new Error(
+      `"${name}" is covered: the UI at that point is "${other?.value ?? hit}". Nothing was clicked — `
+      + 'move what is on top, or click that instead.',
+    );
+  }
+
+  const camera = app_.getResourceByName('UICameraInfo') as UICameraData | undefined;
+  if (!camera) throw new Error('this realm has no UI camera, so a UI point has no screen position');
+  // The exact inverse of what interaction.ts does to a real cursor: it answers
+  // in GL pixels, the callbacks take canvas CSS ones. A flip here lands the
+  // click a screen-height away, and the WORLD-space pick would still say yes.
+  const gl = uiWorldToScreen(camera, at.x, at.y);
+  // This realm is a web page, so this is the same source the web platform
+  // reads for the ratio the interaction system divides by.
+  const dpr = window.devicePixelRatio || 1;
+  const screen = { x: gl.x / dpr, y: (camera.screenH - gl.y) / dpr };
+  const cb = inputEventCallbacks(app_.getResource(Input));
+  cb.onPointerMove?.(screen.x, screen.y);
+  cb.onPointerDown?.(0, screen.x, screen.y);
+  cb.onPointerUp?.(0);
+  return { entity: target as never as number, name, at: screen, hit: hit as never as number };
+}
+
+/** Whether `hit` is `target` or under it — a label on a button is a child, and
+ *  the interaction system bubbles to the parent anyway. */
+function isSelfOrDescendant(world: App['world'], hit: number, target: number): boolean {
+  const parentDef = getComponent('Parent');
+  let at: number | null = hit;
+  for (let guard = 0; at !== null && guard < 64; guard++) {
+    if (at === target) return true;
+    const link: { entity?: number } | null = parentDef
+      ? (world.tryGet(at as never, parentDef) as { entity?: number } | null)
+      : null;
+    at = link?.entity ?? null;
+  }
+  return false;
 }
 
 /** {@link Realm} over the live app — the one place these reach the SDK. */
@@ -504,7 +587,19 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       touchStart: (id: number, x: number, y: number) => injected.onTouchStart?.(id, x, y),
       touchMove: (id: number, x: number, y: number) => injected.onTouchMove?.(id, x, y),
       touchEnd: (id: number) => injected.onTouchEnd?.(id),
+      /** Hand the game a controller it does not have. Held until released and
+       *  outranking the poll at that index, which runs every frame — a pad
+       *  merely written in is gone before a system reads it. */
+      gamepad: (pad: number, buttons: number[], axes: number[]) => {
+        inputState()?.injectGamepad({
+          index: pad, connected: true, buttons, axes, mapping: 'standard',
+        });
+      },
+      releaseGamepad: (pad?: number) => inputState()?.releaseGamepad(pad),
     },
+    /** Click a UI element BY NAME, refusing rather than clicking the wrong
+     *  thing — see {@link clickUiByName}. */
+    clickUi: (name: string) => clickUiByName(app!, name),
     /**
      * How many of everything is alive right now, as a plain object.
      *

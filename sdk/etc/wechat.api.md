@@ -3494,6 +3494,7 @@ getTouch: (id: number) => TouchPoint | null
 getTouchCount: () => number
 getTouches: () => TouchPoint[]
 getVirtual: (id: string) => Vec2
+injectGamepad: (snapshot: GamepadSnapshot) => void
 isGamepadButtonDown: (button: number, pad?: number) => boolean
 isGamepadButtonPressed: (button: number, pad?: number) => boolean
 isGamepadButtonReleased: (button: number, pad?: number) => boolean
@@ -3523,6 +3524,7 @@ noteKeyUp: (code: string) => void
 noteMouseDown: (button: number) => void
 noteMouseUp: (button: number) => void
 pointerOverUI: boolean
+releaseGamepad: (index?: number) => void
 scrollDeltaX: number
 scrollDeltaY: number
 setVirtual: (id: string, x: number, y?: number) => void

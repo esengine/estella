@@ -280,9 +280,36 @@ export class InputState {
 
     /** Ingest this frame's snapshots: shift current→prev (edge detection) then
      *  store new values. Pads absent from `snapshots` are marked disconnected. */
+    /**
+     * Pads supplied by the HOST rather than by the hardware — a test harness, a
+     * driver, the editor's agent. They outrank the poll at the same index: the
+     * poll runs every frame, so anything merely written into {@link gamepads}
+     * is gone before a system reads it.
+     *
+     * @beta
+     */
+    injectGamepad(snapshot: GamepadSnapshot): void {
+        this.injected_.set(snapshot.index, snapshot);
+    }
+
+    /** Give an index (or all of them) back to the hardware. @beta */
+    releaseGamepad(index?: number): void {
+        if (index === undefined) this.injected_.clear();
+        else this.injected_.delete(index);
+    }
+
+    private injected_ = new Map<number, GamepadSnapshot>();
+
     updateGamepads(snapshots: GamepadSnapshot[]): void {
+        // An injected pad REPLACES the polled one at its index; a polled pad at
+        // an index nobody injected is untouched, so handing the game a
+        // controller does not blind it to one somebody plugged in.
+        const merged = this.injected_.size === 0 ? snapshots : [
+            ...snapshots.filter((s) => !this.injected_.has(s.index)),
+            ...this.injected_.values(),
+        ];
         for (const p of this.gamepads.values()) p.connected = false;
-        for (const snap of snapshots) {
+        for (const snap of merged) {
             let p = this.gamepads.get(snap.index);
             if (!p) {
                 p = { connected: true, buttons: [], prevButtons: [], axes: [] };

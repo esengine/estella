@@ -555,3 +555,46 @@ describe('the named reads over the running game', () => {
     });
   });
 });
+
+/**
+ * Naming what to drive instead of computing where it is. Both go through the
+ * one input op — clicking a button IS input — so the tools only shape the call.
+ */
+describe('driving by name', () => {
+  const driverWith = (answer: unknown) => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => answer);
+    return driver;
+  };
+
+  it('clicks a UI element by name through the input op', async () => {
+    const driver = driverWith({ entity: 7, name: 'Card1', at: { x: 296, y: 171 }, hit: 8 });
+    const res = await runTool(toolNamed('click_ui'), driver, { target: 'Card1' });
+    expect(driver.op).toHaveBeenCalledWith('play_input', {
+      kind: 'ui', target: 'Card1', frame: undefined,
+    });
+    expect(JSON.parse(res.content[0].text)).toMatchObject({ name: 'Card1', hit: 8 });
+  });
+
+  // A pad is HELD, so the pressed state and the released state are two calls —
+  // a game reads it every frame, and a one-shot press is gone before the frame
+  // that reads it.
+  it('holds a gamepad, and releases it as its own call', async () => {
+    const driver = driverWith('ok');
+    await runTool(toolNamed('send_gamepad'), driver, { buttons: [1, 0], axes: [0.5, 0] });
+    expect(driver.op).toHaveBeenCalledWith('play_input', {
+      kind: 'gamepad', pad: 0, buttons: [1, 0], axes: [0.5, 0], frame: undefined,
+    });
+
+    await runTool(toolNamed('send_gamepad'), driver, { pad: 1, release: true });
+    expect(driver.op).toHaveBeenLastCalledWith('play_input', {
+      kind: 'gamepad_release', pad: 1, frame: undefined,
+    });
+  });
+
+  it('tiers both as ephemeral — they drive a realm Stop throws away', () => {
+    for (const name of ['click_ui', 'send_gamepad']) {
+      expect([name, toolNamed(name).effect]).toEqual([name, 'ephemeral']);
+    }
+  });
+});

@@ -334,10 +334,23 @@ export function createSurfaceDriver(
           key_down: `i.keyDown(${code});`,
           key_up: `i.keyUp(${code});`,
           tap: `i.touchStart(${id},${x},${y}); i.touchEnd(${id});`,
+          // A pad is HELD until released — a game reads it every frame, so a
+          // one-shot press would be gone before the frame that reads it.
+          gamepad: `i.gamepad(${Number(input.pad ?? 0)},${JSON.stringify(input.buttons ?? [])},`
+            + `${JSON.stringify(input.axes ?? [])});`,
+          gamepad_release: `i.releaseGamepad(${input.pad === undefined ? '' : Number(input.pad)});`,
         }[kind ?? ''];
+        // Clicking a NAMED element answers with where it went, so it is not one
+        // of the fire-and-forget spellings above.
+        if (kind === 'ui') {
+          return unwrap(await frame.executeJavaScript(carryError(
+            `window.__estellaPlay.clickUi(${JSON.stringify(String(input.target ?? ''))})`,
+          )));
+        }
         if (!call) {
           throw new Error(
-            `unknown play_input kind "${kind}" — one of click, move, down, up, wheel, key_down, key_up, tap`,
+            `unknown play_input kind "${kind}" — one of click, move, down, up, wheel, `
+            + 'key_down, key_up, tap, gamepad, gamepad_release, ui',
           );
         }
         return unwrap(await frame.executeJavaScript(carryError(

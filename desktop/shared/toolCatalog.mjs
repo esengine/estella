@@ -656,6 +656,29 @@ const ATOMS = [
     schema: obj({ frame: { type: 'number' } }),
     op: 'play_query',
     opInput: (i) => ({ kind: 'systems', frame: i.frame }) },
+  { name: 'click_ui', effect: 'ephemeral',
+    description: 'Click a UI element BY NAME in the running game, or refuse. '
+      + 'Computing where a button is and clicking there is the arithmetic that lands beside it and reports success — so the point is put to the ENGINE\'S OWN hit test first, and unless it answers with that element (or a child of it, which is what a label on a button is) nothing is sent and the reply says what is there instead. '
+      + 'Answers { entity, name, at, hit }. Two entities of the same name is refused rather than picked between. Use play_input with x/y for anything that is not a UI element.',
+    schema: obj({
+      target: { type: 'string', description: 'the entity name of the UI element' },
+      frame: { type: 'number' },
+    }, ['target']),
+    op: 'play_input',
+    opInput: (i) => ({ kind: 'ui', target: i.target, frame: i.frame }) },
+  { name: 'send_gamepad', effect: 'ephemeral',
+    description: 'Hand the running game a controller it does not have: `buttons` are analog values 0..1 in W3C standard-gamepad order (0 = A/cross, 1 = B/circle, 12..15 = dpad up/down/left/right), `axes` are signed -1..1 (0,1 = left stick x,y; 2,3 = right). '
+      + 'The pad is HELD until you change or release it — a game reads it every frame, so a one-shot press would be gone before the frame that reads it. Send the pressed state, `step`, then send the released state. '
+      + '`release: true` gives the index back to real hardware. This is the only way to test a gamepad-only game on a machine with no controller.',
+    schema: obj({
+      pad: { type: 'number', description: 'controller index (default 0)' },
+      buttons: { type: 'array' }, axes: { type: 'array' },
+      release: { type: 'boolean' }, frame: { type: 'number' },
+    }),
+    op: 'play_input',
+    opInput: (i) => (i.release
+      ? { kind: 'gamepad_release', pad: i.pad, frame: i.frame }
+      : { kind: 'gamepad', pad: i.pad ?? 0, buttons: i.buttons ?? [], axes: i.axes ?? [], frame: i.frame }) },
   { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. "
       + 'These are ALREADY IN SCOPE (no prefix, though `window.__estellaPlay` holds them too): '
