@@ -8,7 +8,7 @@ Generates EditorAPI.generated.cpp with:
 
 import hashlib
 from typing import List, Set
-from ..data import Component, Enum
+from ..data import Component, Enum, HIERARCHY_COMPONENTS
 from ..type_system import TypeSystem
 from ..field_utils import get_sub_components, get_editor_type, is_color_field
 
@@ -85,6 +85,7 @@ class EditorAPIGenerator:
         lines.extend(sorted(headers))
 
         lines.extend([
+            '#include "../ecs/TransformSystem.hpp"',
             '#include <glm/gtc/quaternion.hpp>',
             '',
             'using namespace esengine;',
@@ -214,8 +215,13 @@ class EditorAPIGenerator:
             cond = 'if' if first else '} else if'
             first = False
             lines.append(f'    {cond} (name == "{comp.name}") {{')
-            lines.append(f'        if (!reg.has<{full}>(entity)) reg.emplace<{full}>(entity);')
-            lines.append(f'        return true;')
+            if comp.name in HIERARCHY_COMPONENTS:
+                # A bare Parent names no one, and TransformSystem skips anything that
+                # has one — the link is made by naming a parent, not by adding this.
+                lines.append(f'        return false;')
+            else:
+                lines.append(f'        if (!reg.has<{full}>(entity)) reg.emplace<{full}>(entity);')
+                lines.append(f'        return true;')
 
         if not first:
             lines.append('    }')
@@ -236,7 +242,16 @@ class EditorAPIGenerator:
             cond = 'if' if first else '} else if'
             first = False
             lines.append(f'    {cond} (name == "{comp.name}") {{')
-            lines.append(f'        if (reg.has<{full}>(entity)) {{ reg.remove<{full}>(entity); return true; }}')
+            if comp.name == 'Parent':
+                lines.append(f'        if (reg.has<{full}>(entity)) {{ esengine::ecs::setParent(reg, entity, INVALID_ENTITY); return true; }}')
+            elif comp.name == 'Children':
+                lines.append(f'        if (reg.has<{full}>(entity)) {{')
+                lines.append(f'            const auto kids = reg.get<{full}>(entity).entities;')
+                lines.append(f'            for (auto child : kids) esengine::ecs::setParent(reg, child, INVALID_ENTITY);')
+                lines.append(f'            return true;')
+                lines.append(f'        }}')
+            else:
+                lines.append(f'        if (reg.has<{full}>(entity)) {{ reg.remove<{full}>(entity); return true; }}')
 
         if not first:
             lines.append('    }')
@@ -456,6 +471,13 @@ class EditorAPIGenerator:
             cond = 'if' if first_comp else '} else if'
             first_comp = False
             lines.append(f'    {cond} (comp == "{comp.name}") {{')
+
+            if comp.name == 'Parent':
+                lines.append('        if (field != "entity") return false;')
+                lines.append('        esengine::ecs::setParent(reg, entity, static_cast<Entity>(value));')
+                lines.append('        return true;')
+                continue
+
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
             lines.append(f'        auto& c = reg.get<{full}>(entity);')
 

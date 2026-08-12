@@ -393,17 +393,6 @@ struct ChildrenJS {
     std::vector<u32> entities;
 };
 
-void childrenApplyJS(esengine::ecs::Children& c, const ChildrenJS& js) {
-    c.entities.reserve(js.entities.size());
-    for (auto v : js.entities) c.entities.push_back(Entity(v));
-}
-
-esengine::ecs::Children childrenFromJS(const ChildrenJS& js) {
-    esengine::ecs::Children c;
-    childrenApplyJS(c, js);
-    return c;
-}
-
 ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
     ChildrenJS js;
     js.entities.reserve(c.entities.size());
@@ -490,16 +479,6 @@ Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
 struct ParentJS {
     u32 entity;
 };
-
-void parentApplyJS(esengine::ecs::Parent& c, const ParentJS& js) {
-    c.entity = Entity(js.entity);
-}
-
-esengine::ecs::Parent parentFromJS(const ParentJS& js) {
-    esengine::ecs::Parent c;
-    parentApplyJS(c, js);
-    return c;
-}
 
 ParentJS parentToJS(const esengine::ecs::Parent& c) {
     ParentJS js;
@@ -1626,16 +1605,17 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addChildren", optional_override([](Registry& r, u32 e, const ChildrenJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::Children>(entity)) {
-                childrenApplyJS(*existing, js);
-                return;
+            for (auto v : js.entities) {
+                esengine::ecs::setParent(r, static_cast<Entity>(v), entity);
             }
-            r.emplaceOrReplace<esengine::ecs::Children>(entity, childrenFromJS(js));
         }))
         .function("removeChildren", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Children>(entity)) return;
-            r.remove<esengine::ecs::Children>(entity);
+            const auto kids = r.get<esengine::ecs::Children>(entity).entities;
+            for (auto child : kids) {
+                esengine::ecs::setParent(r, child, INVALID_ENTITY);
+            }
         }))
 
         // CircleCollider
@@ -1782,16 +1762,12 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("addParent", optional_override([](Registry& r, u32 e, const ParentJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::Parent>(entity)) {
-                parentApplyJS(*existing, js);
-                return;
-            }
-            r.emplaceOrReplace<esengine::ecs::Parent>(entity, parentFromJS(js));
+            esengine::ecs::setParent(r, entity, static_cast<Entity>(js.entity));
         }))
         .function("removeParent", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Parent>(entity)) return;
-            r.remove<esengine::ecs::Parent>(entity);
+            esengine::ecs::setParent(r, entity, INVALID_ENTITY);
         }))
 
         // ParticleEmitter

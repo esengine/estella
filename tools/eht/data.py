@@ -1,7 +1,7 @@
 """Core data structures shared by parser and generators."""
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 
 @dataclass
@@ -32,6 +32,12 @@ class Component:
 # binding surfaces expose the read: embind returns the struct, the native buffer
 # binding hands JS its memory, and the two must not drift.
 READ_HOOKS: Dict[str, str] = {'Transform': 'ensureDecomposed'}
+
+
+# Parent and Children are two halves of one relationship: writing either as a plain
+# component leaves the other stale, and a tree walk cannot reach past the gap.
+# Every binding surface routes their writes through ecs::setParent instead.
+HIERARCHY_COMPONENTS: Set[str] = {'Parent', 'Children'}
 
 
 @dataclass

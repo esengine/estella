@@ -67,6 +67,12 @@ interface RemoveCommand {
     component: AnyComponentDef;
 }
 
+interface SetParentCommand {
+    type: 'set_parent';
+    entity: Entity;
+    parent: Entity;
+}
+
 interface InsertResourceCommand {
     type: 'insert_resource';
     resource: ResourceDef<unknown>;
@@ -77,6 +83,7 @@ type Command =
     | DespawnCommand
     | InsertCommand
     | RemoveCommand
+    | SetParentCommand
     | InsertResourceCommand;
 
 // =============================================================================
@@ -96,6 +103,7 @@ export class EntityCommands {
     private readonly components_: SpawnComponentEntry[] = [];
     private readonly spawnName_?: string;
     private isNew_: boolean;
+    private parent_: Entity | null = null;
 
     constructor(commands: CommandsInstance, entity: Entity | null, name?: string) {
         this.commands_ = commands;
@@ -135,6 +143,20 @@ export class EntityCommands {
         return this;
     }
 
+    /**
+     * Attach this entity under `parent`. The engine keeps {@link Parent} and
+     * {@link Children} in step from here — inserting `Parent` yourself writes
+     * only one half of the link.
+     */
+    childOf(parent: Entity): this {
+        if (this.isNew_) {
+            this.parent_ = parent;
+        } else {
+            this.commands_.queueSetParent(this.entityRef_.entity, parent);
+        }
+        return this;
+    }
+
     id(): Entity {
         if (this.isNew_ && this.entityRef_.entity === 0) {
             this.finalize();
@@ -144,8 +166,9 @@ export class EntityCommands {
 
     finalize(): void {
         if (this.isNew_) {
-            this.commands_.spawnImmediate(this.components_, this.entityRef_, this.spawnName_);
+            this.commands_.spawnImmediate(this.components_, this.entityRef_, this.spawnName_, this.parent_);
             this.isNew_ = false;
+            this.parent_ = null;
         }
     }
 }
@@ -204,14 +227,27 @@ export class CommandsInstance {
         this.pending_.push({ type: 'remove', entity, component });
     }
 
+    queueSetParent(entity: Entity, parent: Entity): void {
+        this.pending_.push({ type: 'set_parent', entity, parent });
+    }
+
     /** @internal How EntityCommands applies a deferred spawn — `entityRef` is the
      *  handle it already gave the caller, filled in once the entity exists. */
-    spawnImmediate(components: SpawnComponentEntry[], entityRef: { entity: Entity }, name?: string): void {
+    spawnImmediate(
+        components: SpawnComponentEntry[],
+        entityRef: { entity: Entity },
+        name?: string,
+        parent?: Entity | null,
+    ): void {
         const entity = this.world_.spawn(name);
         entityRef.entity = entity;
 
         for (const entry of components) {
             this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
+        }
+
+        if (parent !== null && parent !== undefined) {
+            this.world_.setParent(entity, parent);
         }
     }
 
@@ -255,6 +291,14 @@ export class CommandsInstance {
                     break;
                 }
                 this.world_.remove(cmd.entity, cmd.component);
+                break;
+
+            case 'set_parent':
+                if (!this.world_.valid(cmd.entity) || !this.world_.valid(cmd.parent)) {
+                    log.warn('commands', `childOf skipped: entity ${cmd.entity} or parent ${cmd.parent} is invalid`);
+                    break;
+                }
+                this.world_.setParent(cmd.entity, cmd.parent);
                 break;
 
             case 'insert_resource':

@@ -9,6 +9,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform, Sprite, Parent, Children } from '../src/ecs/component';
+import { CommandsInstance } from '../src/ecs/commands';
+import { ResourceStorage } from '../src/ecs/resource';
+import type { Entity } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -33,6 +36,165 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
         world.disconnectCpp();
         (registry as any).delete();
     }
+
+    // Parent and Children are two halves of one link. Every way of writing it has
+    // to leave both halves — and their JS mirrors, which has()/queries read —
+    // agreeing, or a subtree becomes unreachable to every tree walk there is.
+    describe('every way of parenting writes both halves', () => {
+        const expectLinked = (world: World, registry: CppRegistry, child: Entity, parent: Entity): void => {
+            expect(registry.hasParent(child)).toBe(true);
+            expect(registry.getParent(child).entity).toBe(parent);
+            expect(registry.hasChildren(parent)).toBe(true);
+            expect(module.getChildEntities(registry, parent)).toContain(child);
+
+            expect(world.has(child, Parent)).toBe(true);
+            expect(world.has(parent, Children)).toBe(true);
+        };
+
+        it('world.setParent', () => {
+            const { world, registry } = createWorld();
+            const parent = world.spawn();
+            const child = world.spawn();
+
+            world.setParent(child, parent);
+
+            expectLinked(world, registry, child, parent);
+            disposeWorld(world, registry);
+        });
+
+        it('world.insert(Parent)', () => {
+            const { world, registry } = createWorld();
+            const parent = world.spawn();
+            const child = world.spawn();
+
+            world.insert(child, Parent, { entity: parent });
+
+            expectLinked(world, registry, child, parent);
+            disposeWorld(world, registry);
+        });
+
+        it('world.insert(Children)', () => {
+            const { world, registry } = createWorld();
+            const parent = world.spawn();
+            const a = world.spawn();
+            const b = world.spawn();
+
+            world.insert(parent, Children, { entities: [a, b] });
+
+            expectLinked(world, registry, a, parent);
+            expectLinked(world, registry, b, parent);
+            disposeWorld(world, registry);
+        });
+
+        it('commands.spawn().childOf()', () => {
+            const { world, registry } = createWorld();
+            const commands = new CommandsInstance(world, new ResourceStorage());
+            const parent = world.spawn();
+
+            const child = commands.spawn('child').childOf(parent).id();
+            commands.flush();
+
+            expectLinked(world, registry, child, parent);
+            disposeWorld(world, registry);
+        });
+
+        it('commands.entity().childOf() defers to the flush', () => {
+            const { world, registry } = createWorld();
+            const commands = new CommandsInstance(world, new ResourceStorage());
+            const parent = world.spawn();
+            const child = world.spawn();
+
+            commands.entity(child).childOf(parent);
+            expect(registry.hasParent(child)).toBe(false);
+
+            commands.flush();
+
+            expectLinked(world, registry, child, parent);
+            disposeWorld(world, registry);
+        });
+
+        it('remove(Parent) clears both halves', () => {
+            const { world, registry } = createWorld();
+            const parent = world.spawn();
+            const child = world.spawn();
+            world.insert(child, Parent, { entity: parent });
+
+            world.remove(child, Parent);
+
+            expect(registry.hasParent(child)).toBe(false);
+            expect(world.has(child, Parent)).toBe(false);
+            expect(module.getChildEntities(registry, parent)).not.toContain(child);
+            disposeWorld(world, registry);
+        });
+
+        it('remove(Children) detaches every child', () => {
+            const { world, registry } = createWorld();
+            const parent = world.spawn();
+            const a = world.spawn();
+            const b = world.spawn();
+            world.insert(parent, Children, { entities: [a, b] });
+
+            world.remove(parent, Children);
+
+            expect(registry.hasParent(a)).toBe(false);
+            expect(registry.hasParent(b)).toBe(false);
+            expect(world.has(a, Parent)).toBe(false);
+            expect(module.getChildEntities(registry, parent)).toHaveLength(0);
+            disposeWorld(world, registry);
+        });
+
+        // The end-to-end shape this all exists for: a sprite parented under plain
+        // grouping nodes draws where its Transform says, not at the world origin.
+        it.each([
+            ['childOf', (w: World, child: Entity, parent: Entity) => {
+                const commands = new CommandsInstance(w, new ResourceStorage());
+                commands.entity(child).childOf(parent);
+                commands.flush();
+            }],
+            ['insert(Parent)', (w: World, child: Entity, parent: Entity) => {
+                w.insert(child, Parent, { entity: parent });
+            }],
+            ['setParent', (w: World, child: Entity, parent: Entity) => {
+                w.setParent(child, parent);
+            }],
+        ])('a grandchild composes its world transform (%s)', (_label, link) => {
+            const { world, registry } = createWorld();
+
+            const group = world.spawn('group');
+            const layer = world.spawn('layer');
+            const tile = world.spawn('tile');
+            world.insert(group, Transform, {});
+            world.insert(layer, Transform, {});
+            world.insert(tile, Transform, { position: { x: 300, y: 200, z: 0 } });
+
+            link(world, layer, group);
+            link(world, tile, layer);
+
+            // transforms_updated is memoised per frame on the shared context.
+            module.renderer_beginFrame(0);
+            module.renderer_updateTransforms(registry);
+
+            const t = world.get(tile, Transform);
+            expect(t.worldPosition.x).toBeCloseTo(300);
+            expect(t.worldPosition.y).toBeCloseTo(200);
+
+            disposeWorld(world, registry);
+        });
+
+        it('reparenting moves the child to the new parent on both sides', () => {
+            const { world, registry } = createWorld();
+            const first = world.spawn();
+            const second = world.spawn();
+            const child = world.spawn();
+
+            world.insert(child, Parent, { entity: first });
+            world.insert(child, Parent, { entity: second });
+
+            expectLinked(world, registry, child, second);
+            expect(module.getChildEntities(registry, first)).not.toContain(child);
+            disposeWorld(world, registry);
+        });
+    });
 
     describe('setParent / getChildEntities', () => {
         it('should establish parent-child relationship', () => {

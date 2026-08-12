@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ESEngineModule, CppRegistry, CppResourceManager } from '../../src/wasm';
+import { INVALID_ENTITY } from '../../src/types';
 import type { Entity } from '../../src/types';
 
 /**
@@ -36,10 +37,34 @@ export function createMockModule(): MockModule {
 
         entityCount: () => entities.size,
 
-        setParent: (_child: Entity, _parent: Entity) => {},
+        // Mirrors ecs::setParent: both halves of the link, or neither.
+        setParent: (child: Entity, parent: Entity) => {
+            const detach = (): void => {
+                const current = components.get(child)?.get('Parent') as { entity: Entity } | undefined;
+                if (!current) return;
+                const siblings = components.get(current.entity)?.get('Children') as { entities: Entity[] } | undefined;
+                if (siblings) {
+                    siblings.entities = siblings.entities.filter((e) => e !== child);
+                }
+                components.get(child)?.delete('Parent');
+            };
+
+            detach();
+            if (parent === INVALID_ENTITY || !entities.has(parent)) return;
+
+            components.get(child)?.set('Parent', { entity: parent });
+            const kids = components.get(parent)?.get('Children') as { entities: Entity[] } | undefined;
+            if (kids) {
+                if (!kids.entities.includes(child)) kids.entities.push(child);
+            } else {
+                components.get(parent)?.set('Children', { entities: [child] });
+            }
+        },
 
         delete: () => {},
-        removeParent: (_entity: Entity) => {},
+        removeParent: (entity: Entity) => {
+            baseRegistry.setParent(entity, INVALID_ENTITY);
+        },
 
         // Legacy names used by some internal code paths
         createEntity: () => {

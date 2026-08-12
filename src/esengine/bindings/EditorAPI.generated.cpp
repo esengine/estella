@@ -37,6 +37,7 @@
 #include "../ecs/components/UIScroll.hpp"
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Velocity.hpp"
+#include "../ecs/TransformSystem.hpp"
 #include <glm/gtc/quaternion.hpp>
 
 using namespace esengine;
@@ -611,8 +612,7 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
         if (!reg.has<esengine::ecs::CapsuleCollider>(entity)) reg.emplace<esengine::ecs::CapsuleCollider>(entity);
         return true;
     } else if (name == "Children") {
-        if (!reg.has<esengine::ecs::Children>(entity)) reg.emplace<esengine::ecs::Children>(entity);
-        return true;
+        return false;
     } else if (name == "CircleCollider") {
         if (!reg.has<esengine::ecs::CircleCollider>(entity)) reg.emplace<esengine::ecs::CircleCollider>(entity);
         return true;
@@ -632,8 +632,7 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
         if (!reg.has<esengine::ecs::Mesh2D>(entity)) reg.emplace<esengine::ecs::Mesh2D>(entity);
         return true;
     } else if (name == "Parent") {
-        if (!reg.has<esengine::ecs::Parent>(entity)) reg.emplace<esengine::ecs::Parent>(entity);
-        return true;
+        return false;
     } else if (name == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) reg.emplace<esengine::ecs::ParticleEmitter>(entity);
         return true;
@@ -703,7 +702,11 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "CapsuleCollider") {
         if (reg.has<esengine::ecs::CapsuleCollider>(entity)) { reg.remove<esengine::ecs::CapsuleCollider>(entity); return true; }
     } else if (name == "Children") {
-        if (reg.has<esengine::ecs::Children>(entity)) { reg.remove<esengine::ecs::Children>(entity); return true; }
+        if (reg.has<esengine::ecs::Children>(entity)) {
+            const auto kids = reg.get<esengine::ecs::Children>(entity).entities;
+            for (auto child : kids) esengine::ecs::setParent(reg, child, INVALID_ENTITY);
+            return true;
+        }
     } else if (name == "CircleCollider") {
         if (reg.has<esengine::ecs::CircleCollider>(entity)) { reg.remove<esengine::ecs::CircleCollider>(entity); return true; }
     } else if (name == "DragonBonesAnimation") {
@@ -717,7 +720,7 @@ bool editor_removeComponent(Registry& reg, u32 e, const std::string& name) {
     } else if (name == "Mesh2D") {
         if (reg.has<esengine::ecs::Mesh2D>(entity)) { reg.remove<esengine::ecs::Mesh2D>(entity); return true; }
     } else if (name == "Parent") {
-        if (reg.has<esengine::ecs::Parent>(entity)) { reg.remove<esengine::ecs::Parent>(entity); return true; }
+        if (reg.has<esengine::ecs::Parent>(entity)) { esengine::ecs::setParent(reg, entity, INVALID_ENTITY); return true; }
     } else if (name == "ParticleEmitter") {
         if (reg.has<esengine::ecs::ParticleEmitter>(entity)) { reg.remove<esengine::ecs::ParticleEmitter>(entity); return true; }
     } else if (name == "ParticleForceField") {
@@ -1665,10 +1668,8 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         else { return false; }
         return true;
     } else if (comp == "Parent") {
-        if (!reg.has<esengine::ecs::Parent>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Parent>(entity);
-        if (field == "entity") { c.entity = static_cast<Entity>(value); }
-        else { return false; }
+        if (field != "entity") return false;
+        esengine::ecs::setParent(reg, entity, static_cast<Entity>(value));
         return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;

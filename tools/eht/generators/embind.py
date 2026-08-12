@@ -1,7 +1,7 @@
 """Emscripten embind C++ bindings generator."""
 
 from typing import List, Set
-from ..data import Component, Enum, READ_HOOKS
+from ..data import Component, Enum, HIERARCHY_COMPONENTS, READ_HOOKS
 from ..type_system import TypeSystem
 
 
@@ -185,6 +185,12 @@ class EmbindGenerator:
             lines.append('};')
             lines.append('')
 
+            # A hierarchy component is never written field-wise — setParent owns
+            # both halves — so only the read direction is generated for it.
+            if comp.name in HIERARCHY_COMPONENTS:
+                lines.extend(self._gen_to_js(comp, full, js))
+                continue
+
             # Assign onto an existing component rather than build a new one: a
             # component may carry engine-computed state that no ES_PROPERTY
             # declares (UIVisual.uiOrder, UINode.computed_size_), and replacing
@@ -220,29 +226,7 @@ class EmbindGenerator:
             lines.append('}')
             lines.append('')
 
-            lines.append(f'{js} {comp.name.lower()}ToJS(const {full}& c) {{')
-            lines.append(f'    {js} js;')
-            for prop in comp.properties:
-                if self.types.is_skip(prop.cpp_type):
-                    continue
-                t = self.types.clean_type(prop.cpp_type)
-                if self.types.is_handle(prop.cpp_type):
-                    lines.append(f'    js.{prop.name} = c.{prop.name}.id();')
-                elif self.types.is_entity(prop.cpp_type):
-                    lines.append(f'    js.{prop.name} = static_cast<u32>(c.{prop.name});')
-                elif self.types.is_enum(prop.cpp_type):
-                    lines.append(f'    js.{prop.name} = static_cast<i32>(c.{prop.name});')
-                elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
-                    lines.append(f'    js.{prop.name}.reserve(c.{prop.name}.size());')
-                    lines.append(f'    for (auto e : c.{prop.name}) js.{prop.name}.push_back(static_cast<u32>(e));')
-                elif self.types.is_struct_vector(t):
-                    lines.append(f'    js.{prop.name} = emscripten::val::array();')
-                    lines.append(f'    for (size_t i = 0; i < c.{prop.name}.size(); ++i) js.{prop.name}.set(i, emscripten::val(c.{prop.name}[i]));')
-                else:
-                    lines.append(f'    js.{prop.name} = c.{prop.name};')
-            lines.append('    return js;')
-            lines.append('}')
-            lines.append('')
+            lines.extend(self._gen_to_js(comp, full, js))
 
         lines.append('EMSCRIPTEN_BINDINGS(esengine_components) {')
 
@@ -302,6 +286,64 @@ class EmbindGenerator:
         ])
         return lines
 
+    def _gen_to_js(self, comp: Component, full: str, js: str) -> List[str]:
+        lines = [
+            f'{js} {comp.name.lower()}ToJS(const {full}& c) {{',
+            f'    {js} js;',
+        ]
+        for prop in comp.properties:
+            if self.types.is_skip(prop.cpp_type):
+                continue
+            t = self.types.clean_type(prop.cpp_type)
+            if self.types.is_handle(prop.cpp_type):
+                lines.append(f'    js.{prop.name} = c.{prop.name}.id();')
+            elif self.types.is_entity(prop.cpp_type):
+                lines.append(f'    js.{prop.name} = static_cast<u32>(c.{prop.name});')
+            elif self.types.is_enum(prop.cpp_type):
+                lines.append(f'    js.{prop.name} = static_cast<i32>(c.{prop.name});')
+            elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
+                lines.append(f'    js.{prop.name}.reserve(c.{prop.name}.size());')
+                lines.append(f'    for (auto e : c.{prop.name}) js.{prop.name}.push_back(static_cast<u32>(e));')
+            elif self.types.is_struct_vector(t):
+                lines.append(f'    js.{prop.name} = emscripten::val::array();')
+                lines.append(f'    for (size_t i = 0; i < c.{prop.name}.size(); ++i) js.{prop.name}.set(i, emscripten::val(c.{prop.name}[i]));')
+            else:
+                lines.append(f'    js.{prop.name} = c.{prop.name};')
+        lines.extend(['    return js;', '}', ''])
+        return lines
+
+    def _gen_hierarchy_writers(self, name: str, full: str, js: str) -> List[str]:
+        if name == 'Parent':
+            return [
+                f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{',
+                '            auto entity = static_cast<Entity>(e);',
+                '            if (!r.valid(entity)) return;',
+                '            esengine::ecs::setParent(r, entity, static_cast<Entity>(js.entity));',
+                '        }))',
+                f'        .function("remove{name}", optional_override([](Registry& r, u32 e) {{',
+                '            auto entity = static_cast<Entity>(e);',
+                f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return;',
+                '            esengine::ecs::setParent(r, entity, INVALID_ENTITY);',
+                '        }))',
+            ]
+        return [
+            f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{',
+            '            auto entity = static_cast<Entity>(e);',
+            '            if (!r.valid(entity)) return;',
+            '            for (auto v : js.entities) {',
+            '                esengine::ecs::setParent(r, static_cast<Entity>(v), entity);',
+            '            }',
+            '        }))',
+            f'        .function("remove{name}", optional_override([](Registry& r, u32 e) {{',
+            '            auto entity = static_cast<Entity>(e);',
+            f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return;',
+            f'            const auto kids = r.get<{full}>(entity).entities;',
+            '            for (auto child : kids) {',
+            '                esengine::ecs::setParent(r, child, INVALID_ENTITY);',
+            '            }',
+            '        }))',
+        ]
+
     def _gen_registry(self) -> List[str]:
         lines = [
             '// =============================================================================',
@@ -338,6 +380,16 @@ class EmbindGenerator:
             lines.append('        }))')
 
             read_hook = READ_HOOKS.get(name)
+
+            if name in HIERARCHY_COMPONENTS:
+                lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) {{')
+                lines.append(f'            auto entity = static_cast<Entity>(e);')
+                lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return {js}{{}};')
+                lines.append(f'            return {to_js}(r.get<{full}>(entity));')
+                lines.append('        }))')
+                lines.extend(self._gen_hierarchy_writers(name, full, js))
+                lines.append('')
+                continue
 
             if needs_wrap:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) {{')

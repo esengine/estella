@@ -6,7 +6,7 @@
  */
 
 import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Name, Parent, Children } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './bridge/BuiltinBridge';
@@ -266,17 +266,8 @@ export class World {
 
     /** Depth-first teardown of `entity` and its descendants (children before parent). */
     private despawnSubtree_(entity: Entity, cppRegistry: CppRegistry | null): void {
-        if (cppRegistry && cppRegistry.hasChildren(entity)) {
-            const children: Entity[] = [];
-            try {
-                // Snapshot then free the wasm VectorEntity (it leaks if left alive).
-                const vec = cppRegistry.getChildren(entity).entities;
-                for (let i = 0; i < vec.size(); i++) children.push(vec.get(i) as Entity);
-                vec.delete();
-            } catch (e) { handleWasmError(e, `despawn(children of ${entity})`); }
-            for (const child of children) {
-                if (this.valid(child)) this.despawnSubtree_(child, cppRegistry);
-            }
+        for (const child of this.childEntitiesOf_(entity)) {
+            if (this.valid(child)) this.despawnSubtree_(child, cppRegistry);
         }
 
         notifyBridge('onEntityDespawned', entity);
@@ -516,9 +507,7 @@ export class World {
                 handleWasmError(e, `setParent(child=${child}, parent=${parent})`);
             }
         }
-        this.queries_.markStructuralChange();
-        this.queries_.markComponentDirty(Parent._id);
-        this.queries_.markComponentDirty(Children._id);
+        this.trackHierarchyWrite_(child, parent);
         notifyBridge('onParentChanged', child, parent);
     }
 
@@ -532,10 +521,70 @@ export class World {
                 handleWasmError(e, `removeParent(entity=${entity})`);
             }
         }
+        this.trackHierarchyWrite_(entity, null);
+        notifyBridge('onParentChanged', entity, null);
+    }
+
+    /** `entity`'s children, snapshotted out of the wasm vector that holds them. */
+    private childEntitiesOf_(entity: Entity): Entity[] {
+        const cppRegistry = this.builtin_.getCppRegistry();
+        if (!cppRegistry || !cppRegistry.hasChildren(entity)) return [];
+        const children: Entity[] = [];
+        try {
+            // Snapshot then free the wasm VectorEntity (it leaks if left alive).
+            const vec = cppRegistry.getChildren(entity).entities;
+            for (let i = 0; i < vec.size(); i++) children.push(vec.get(i) as Entity);
+            vec.delete();
+        } catch (e) { handleWasmError(e, `getChildren(entity=${entity})`); }
+        return children;
+    }
+
+    // Parent/Children are one relationship with two halves, and setParent is the
+    // only writer that keeps both. Writing either as a component lands here.
+    private insertHierarchy_(entity: Entity, component: AnyComponentDef, data?: unknown): unknown {
+        if (component._id === Parent._id) {
+            const parent = (data as Partial<ParentData> | undefined)?.entity;
+            if (parent === undefined || parent === INVALID_ENTITY) {
+                this.removeParent(entity);
+                return { entity: INVALID_ENTITY };
+            }
+            this.setParent(entity, parent);
+            return { entity: parent };
+        }
+        const listed = (data as Partial<ChildrenData> | undefined)?.entities ?? [];
+        for (const child of listed) this.setParent(child as Entity, entity);
+        return { entities: [...listed] };
+    }
+
+    private isHierarchyComponent_(component: AnyComponentDef): boolean {
+        return component._id === Parent._id || component._id === Children._id;
+    }
+
+    // The C++ side owns both halves of the link; these are the JS mirrors that
+    // has() and the query cache read, so they move with it or the two disagree.
+    private trackHierarchyWrite_(child: Entity, parent: Entity | null): void {
+        const parents = this.builtin_.getOrCreateEntitySet(Parent._cppName);
+        const children = this.builtin_.getOrCreateEntitySet(Children._cppName);
+
+        if (parent === null) {
+            if (parents.delete(child)) this.changes_.recordRemoved(Parent, child);
+        } else {
+            if (!parents.has(child)) {
+                parents.add(child);
+                this.changes_.recordAdded(Parent, child);
+            }
+            this.changes_.recordChanged(Parent, child);
+
+            if (!children.has(parent)) {
+                children.add(parent);
+                this.changes_.recordAdded(Children, parent);
+            }
+            this.changes_.recordChanged(Children, parent);
+        }
+
         this.queries_.markStructuralChange();
         this.queries_.markComponentDirty(Parent._id);
         this.queries_.markComponentDirty(Children._id);
-        notifyBridge('onParentChanged', entity, null);
     }
 
     // =========================================================================
@@ -548,6 +597,9 @@ export class World {
      * replaces it.
      */
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C> {
+        if (this.isHierarchyComponent_(component)) {
+            return this.insertHierarchy_(entity, component, data) as ComponentData<C>;
+        }
         if (isBuiltinComponent(component)) {
             return this.insertBuiltin_(entity, component, data) as ComponentData<C>;
         }
@@ -559,6 +611,10 @@ export class World {
      * reads. Insert-or-replace: an entity that lacks the component gets it.
      */
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
+        if (this.isHierarchyComponent_(component)) {
+            this.insertHierarchy_(entity, component, data);
+            return;
+        }
         if (isBuiltinComponent(component)) {
             // `set` is insert-or-replace: adding a builtin the entity LACKS must run
             // the full structural bookkeeping (entity set + query dirty + recordAdded),
@@ -665,6 +721,15 @@ export class World {
                 'Cannot remove component during query iteration. ' +
                 'Use Commands to defer component removal until after iteration completes.'
             );
+        }
+
+        if (component._id === Parent._id) {
+            this.removeParent(entity);
+            return;
+        }
+        if (component._id === Children._id) {
+            for (const child of this.childEntitiesOf_(entity)) this.removeParent(child);
+            return;
         }
 
         if (isBuiltinComponent(component)) {

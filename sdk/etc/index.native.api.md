@@ -1847,13 +1847,14 @@ keyof ThemeColors
 
 ## CommandsInstance — class @public
 ```
-@internal spawnImmediate: (components: SpawnComponentEntry[], entityRef: { entity: Entity; }, name?: string) => void
+@internal spawnImmediate: (components: SpawnComponentEntry[], entityRef: { entity: Entity; }, name?: string, parent?: Entity | null) => void
 despawn: (entity: Entity) => CommandsInstance
 entity: (entity: Entity) => EntityCommands
 flush: () => void
 insertResource: <T>(resource: ResourceDef<T>, value: T) => CommandsInstance
 queueInsert: (entity: Entity, component: AnyComponentDef, data: unknown) => void
 queueRemove: (entity: Entity, component: AnyComponentDef) => void
+queueSetParent: (entity: Entity, parent: Entity) => void
 spawn: (name?: string) => EntityCommands
 static new (world: World, resources: ResourceStorage): CommandsInstance
 static prototype: CommandsInstance
@@ -2600,6 +2601,7 @@ number
 
 ## EntityCommands — class @public
 ```
+childOf: (parent: Entity) => EntityCommands
 finalize: () => void
 id: () => Entity
 insert: <T extends object>(component: AnyComponentDef, data?: Partial<T> | undefined) => EntityCommands
