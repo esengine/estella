@@ -4,6 +4,7 @@ import { createStore } from 'zustand/vanilla';
 import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { importerDefaults, applyImporterEdit } from './assetImporter';
 import { AssetRegistry, UUID_PREFIX, refUuid, type AssetEntryLite } from './AssetRegistry';
+import { imageSize } from './imageSize';
 import { PrefabCache } from './PrefabCache';
 import {
   runtimeConfigOf, packagedRuntimeFields, normalizeCollisionLayers, normalizeCollisionLayerMasks,
@@ -1321,22 +1322,11 @@ class ProjectStoreImpl {
   async instantiateSpriteFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
     const ref = await AssetRegistry.assetRefForPath(path, 'texture');
     if (!ref) return null;
-    const size = await this.imageNaturalSize(path);
+    const size = await imageSize(path);
     const name = (path.split('/').pop() ?? 'Sprite').replace(/\.[^.]+$/, '') || 'Sprite';
     const id = SceneCommands.create(spritePrefab(name, ref, size), { parent: null, position });
     if (id != null) useSelection.getState().select(id);
     return id;
-  }
-
-  /** Natural pixel size of a project image via the `estella://` transport; a sane
-   *  fallback if it can't decode (so a dropped sprite is never zero-sized). */
-  private imageNaturalSize(path: string): Promise<{ x: number; y: number }> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({ x: img.naturalWidth || 100, y: img.naturalHeight || 100 });
-      img.onerror = () => resolve({ x: 100, y: 100 });
-      img.src = `estella://project/${path}`;
-    });
   }
 
   /**

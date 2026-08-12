@@ -53,6 +53,7 @@ import { EngineHost } from './engine/EngineHost';
 import { Particle, getComponent, takeCensus } from 'esengine';
 import { actionNames, actionParams, conditionNames } from '@/ai/actionCatalog';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
+import { initSpriteAutoFit } from './project/spriteAutoFit';
 import { commands } from './commands/registry';
 import { captureBuildStamp, captureAppVersion, collectBundle } from './diagnostics';
 import { allEntitySources, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
@@ -111,6 +112,7 @@ initPlugins();
 // wire the Details-edit → emitter-restart glue.
 applyFxPreview(useEditorStore.getState().previewFx);
 initFxPreviewEditRestart();
+initSpriteAutoFit();
 
 /** The open document: a scene, or the prefab being edited in Prefab Mode. `dirty` is
  *  the aggregate registry (scene + every open asset editor), the same truth the
