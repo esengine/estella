@@ -665,6 +665,101 @@ describe('looking before reporting', () => {
     await runTurn(deps(s), 'build', null, new AbortController().signal);
     expect(s.context.filter((c) => c.includes('capture_viewport')).length).toBe(1);
   });
+
+  // The prompt tells it to look BEFORE it edits, so a reflex asking "did you
+  // look at any point" is switched off by the behaviour it asks for: one glance
+  // at the scene in the first round covered forty rounds of building after it.
+  it('does not count a look taken before the edit', async () => {
+    const s = fakeSession([
+      asks(call('capture_viewport')),
+      asks(call('add_entity')),
+      ends(), ends(),
+    ]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(true);
+  });
+
+  it('counts a look taken after the edit', async () => {
+    const s = fakeSession([
+      asks(call('capture_viewport')),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(false);
+  });
+
+  // Looking and then editing again is back to unverified: the picture is of the
+  // scene before the last change.
+  it('stops counting an earlier look once something else is written', async () => {
+    const s = fakeSession([
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      asks(call('add_entity')),
+      ends(), ends(),
+    ]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(true);
+  });
+});
+
+// The round cap is a spend limit, not a signal: a model re-issuing a call that
+// keeps failing reaches 128 rounds without anyone telling it why.
+describe('a call that keeps failing the same way', () => {
+  let events: AgentEvent[];
+  let driver: ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+
+  const deps = (session: AgentSession) => ({
+    driver: driver as never, session, model: 'fake-model', acceptsImages: true,
+    confirm: (async () => ({ answer: 'once' })) as never,
+    emit: (e: AgentEvent) => { events.push(e); },
+  });
+
+  beforeEach(() => {
+    events = [];
+    driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 0 };
+      if (method === 'stepsSince') return 0;
+      if (method === 'getDiagnostics') return [];
+      throw new Error('the entity does not exist');
+    }) as never;
+    (driver as { js: unknown }).js = vi.fn(async () => { throw new Error('the entity does not exist'); });
+    (driver as { op: unknown }).op = vi.fn(async () => null);
+  });
+
+  const same = () => asks(call('set_field', { id: 3, component: 'Transform', field: 'x', value: 1 }));
+
+  it('is named once it has failed three times with the same arguments', async () => {
+    const s = fakeSession([same(), same(), same(), ends()]);
+    await runTurn(deps(s), 'move it', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('set_field') && c.includes('3 times'))).toBe(true);
+  });
+
+  it('says nothing about two — that is a retry, not a loop', async () => {
+    const s = fakeSession([same(), same(), ends()]);
+    await runTurn(deps(s), 'move it', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('3 times'))).toBe(false);
+  });
+
+  it('says it once, however many more times it is repeated', async () => {
+    const s = fakeSession([same(), same(), same(), same(), same(), ends()]);
+    await runTurn(deps(s), 'move it', null, new AbortController().signal);
+    expect(s.context.filter((c) => c.includes('3 times'))).toHaveLength(1);
+  });
+
+  // Different arguments are a model TRYING something, which is the behaviour
+  // the nudge exists to provoke — counting them together would punish it.
+  it('counts each set of arguments on its own', async () => {
+    const s = fakeSession([
+      asks(call('set_field', { id: 3, field: 'x' })),
+      asks(call('set_field', { id: 4, field: 'x' })),
+      asks(call('set_field', { id: 5, field: 'x' })),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'move them', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('3 times'))).toBe(false);
+  });
 });
 
 describe('running out of rounds', () => {

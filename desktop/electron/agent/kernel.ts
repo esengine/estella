@@ -206,6 +206,10 @@ export async function runTurn(
     let builtSomething = false;
     let sawPixels = false;
     let askedToLook = false;
+    // How often each identical failing call has been re-issued, and the ones
+    // that just crossed the line — see REPEAT_LIMIT.
+    const failing = new Map<string, number>();
+    const stuck: string[] = [];
     let round = 0;
     for (; round < MAX_ROUNDS; round++) {
       // The editor is not frozen while a turn runs: the person can drag an
@@ -314,17 +318,35 @@ export async function runTurn(
         const batch = end - i > 1
           ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal, tx !== null)))
           : [await execute(deps, calls[i], allowed, signal, tx !== null)];
+        const slice = calls.slice(i, i + batch.length);
         for (const done of batch) {
           outcomes.push(done.outcome);
           wrote ||= done.mutated;
         }
-        for (const c of calls.slice(i, i + batch.length)) {
-          if (LOOKING_TOOLS.has(c.name)) sawPixels = true;
+        // A look counts only AFTER the write it checks. "Did you look at some
+        // point" is satisfied by the prompt's own "look before you edit", which
+        // switched the reflex off for every round that followed.
+        if (batch.some((d) => d.mutated)) sawPixels = false;
+        for (let k = 0; k < slice.length; k++) {
+          if (LOOKING_TOOLS.has(slice[k].name)) sawPixels = true;
+          if (batch[k].outcome.isError) stuckOn(failing, slice[k], stuck);
         }
         builtSomething ||= wrote;
         i += batch.length;
       }
       if (signal.aborted) break;
+
+      // Told once per signature, and only after it has failed enough times to
+      // be a pattern: the round cap is a spend limit, and a model re-issuing a
+      // call that keeps failing reaches it without ever being told why.
+      if (stuck.length) {
+        session.pushContext(
+          `${stuck.join(' and ')} has now failed ${REPEAT_LIMIT} times with the same arguments. `
+          + 'Repeating it will keep failing. Read the error, then do something different — a '
+          + 'different tool, different arguments, or tell the user what you need and why.',
+        );
+        stuck.length = 0;
+      }
 
       // The verification reflex. get_diagnostics is what the editor itself
       // flags in the Details panel, and its own description calls an empty list
@@ -385,6 +407,24 @@ const STEP_RETRIES = 2;
  * unfinished turn nobody explained.
  */
 const ROUNDS_WARNING = 8;
+
+/**
+ * Failures of the SAME call with the SAME arguments before it is called a loop.
+ *
+ * Three, because two is a retry — a tool that failed on a race, a scene that had
+ * not finished loading — and telling a model off for retrying once is noise it
+ * learns to skip past.
+ */
+const REPEAT_LIMIT = 3;
+
+/** Count one failure, and name the tool on the attempt that makes it a pattern.
+ *  Only that attempt: a fourth telling is an argument, not information. */
+function stuckOn(failing: Map<string, number>, call: ToolCall, stuck: string[]): void {
+  const signature = `${call.name}:${JSON.stringify(call.input)}`;
+  const n = (failing.get(signature) ?? 0) + 1;
+  failing.set(signature, n);
+  if (n === REPEAT_LIMIT) stuck.push(call.name);
+}
 
 /** Undo steps recorded since `mark`, or 0 when the editor cannot say. */
 async function undoSteps(deps: KernelDeps, mark: unknown): Promise<number> {
