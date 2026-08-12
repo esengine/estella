@@ -67,6 +67,50 @@ export const CAPABILITIES = [
 ];
 
 /**
+ * What EXERCISING a capability looks like, as a pattern a project's sources or
+ * scene data must match. Without one, `certifies` is a word nothing reads:
+ * space-shooter certified `audio` with no sound in it and coverage passed.
+ * `null` = the claim is about the PACKAGE, so no source could show it.
+ */
+export const EVIDENCE = {
+  physics: /\b(RigidBody|BoxCollider|CircleCollider|CapsuleCollider|physicsPlugin|CharacterController)\b/,
+  input: /\b(Input|defineInputMap|isKeyDown|InputState)\b/,
+  animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
+  ecs: /\b(defineComponent|defineSystem)\b/,
+  particles: /\bParticleEmitter\b/,
+  audio: /\b(AudioSource|AudioListener|AudioBus|playSound|audioPlugin|Mixer)\b/,
+  'ui-layout': /\b(UINode|Canvas|spawnUIEntity|FlexContainer)\b/,
+  text: /\bText\b/,
+  localization: /\b(Localization|i18nKey|setLocale)\b/,
+  spine: /\bSpine(Animation)?\b/,
+  material: /\b(Material|material)\b/,
+  'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
+  tilemap: /\bTilemap(Layer)?\b/,
+  'tile-collision': /\b(collision|Collider|tileCollision)\b/,
+  touch: /\b(touches|touchesStarted|touchAvailable|GestureDetector)\b/,
+  'safe-area': /\bSafeArea\b/,
+  'pause-resume': /\b(setPaused|Time|scale|onSuspend)\b/,
+  // The atlas directory is the evidence, and the `atlas` run block above already
+  // reads it — a text pattern would only find the word.
+  'texture-atlas': null,
+  'single-file': null,
+  'startup-size': null,
+  'hot-update': /\b(checkForUpdate|applyUpdate)\b/,
+  rollback: /\b(applyUpdate|rollback)\b/,
+  networking: /\b(Net|Replicated|NetId)\b/,
+  persistence: /\b(SaveManager|Storage|SaveEnvelope)\b/,
+  'save-versioning': /\b(SaveMigration|migrations)\b/,
+  navigation: /\b(Nav|NavAgent|NavGrid|setNavDestination)\b/,
+  'behavior-tree': /\b(BehaviorTreeAgent|behaviortree)\b|\.esbt\b/,
+  'scene-transition': /\b(transitionTo|switchTo|SceneManager)\b/,
+  'y-sort': /\bySortLayers\b/,
+  settings: /\b(Storage|settings)\b/,
+  controller: /\b(GamepadButton|GpButton|Stick|isGamepadConnected)\b/,
+  achievements: /\bAchievements\b/,
+  'ui-inventory': /\b(ListView|createListView|ArrayDataSource)\b/,
+};
+
+/**
  * Capabilities the corpus does NOT cover yet, each with the reason. Declared so
  * the hole is visible in the gate's output instead of being mistaken for
  * coverage — the same bargain check-project-settings strikes.
@@ -78,6 +122,11 @@ export const KNOWN_GAPS = {
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
+  // The three EVIDENCE found being claimed by a project that did not exercise
+  // them. Each is now a hole somebody has to read rather than a word in a list.
+  audio: 'NO example in the repository uses audio at all — not a golden one, not a sample. The pillar ships (buses, ducking, the cooked MP3 path, the Mixer panel) with nothing certifying any of it',
+  animation: 'sprite-animation and cutscene exercise it, and neither is in the corpus; platformer claimed it and contains no animation',
+  material: 'effects-gallery is the only example with a material, and it is not in the corpus; spine-demo claimed it and has none',
 };
 
 /**
@@ -94,7 +143,7 @@ export const KNOWN_GAPS = {
 export const GOLDEN = [
   {
     id: 'platformer',
-    certifies: ['physics', 'input', 'animation'],
+    certifies: ['physics', 'input'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowRight'], frames: 40 },
@@ -115,7 +164,7 @@ export const GOLDEN = [
   },
   {
     id: 'space-shooter',
-    certifies: ['ecs', 'particles', 'audio', 'texture-atlas'],
+    certifies: ['ecs', 'texture-atlas'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
@@ -144,7 +193,7 @@ export const GOLDEN = [
   },
   {
     id: 'spine-demo',
-    certifies: ['spine', 'material', 'asset-lifecycle'],
+    certifies: ['spine'],
     targets: ['web', 'desktop', 'android', 'ios'],
     tier: 'nightly',
     interactGap: 'a showcase that cycles its own animations; nothing to press',
@@ -158,7 +207,7 @@ export const GOLDEN = [
   },
   {
     id: 'hot-update-demo',
-    certifies: ['hot-update', 'rollback'],
+    certifies: ['hot-update', 'rollback', 'asset-lifecycle'],
     targets: ['web', 'android'],
     tier: 'nightly',
     interactGap: 'swaps an asset on a timer; no input path',
@@ -191,7 +240,7 @@ export const GOLDEN = [
       'tilemap', 'tile-collision', 'navigation', 'behavior-tree',
       'scene-transition', 'y-sort', 'localization', 'ui-layout', 'text',
       'persistence', 'ui-inventory', 'achievements', 'touch', 'controller',
-      'pause-resume', 'safe-area',
+      'pause-resume', 'safe-area', 'particles',
     ],
     targets: ['web', 'desktop'],
     // Nightly, not pr: a project earns the release gate by having run, and this

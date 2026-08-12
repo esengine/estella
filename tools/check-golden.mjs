@@ -15,13 +15,37 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import {
-  GOLDEN, CAPABILITIES, KNOWN_GAPS, TIERS, TARGETS,
+  GOLDEN, CAPABILITIES, KNOWN_GAPS, EVIDENCE, TIERS, TARGETS,
   atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
 } from './goldenProjects.mjs';
 import { CRITERIA } from './releaseGate.mjs';
 
 const problems = [];
 const fail = (msg) => problems.push(msg);
+
+/** What a project is, as text: its sources plus the scene and prefab data it
+ *  opens, since a capability can be exercised declaratively. */
+const projectTextCache = new Map();
+function projectText(id) {
+  if (projectTextCache.has(id)) return projectTextCache.get(id);
+  const parts = [];
+  const walk = (dir) => {
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name === '.esengine' || e.name === 'node_modules' || e.name === 'dist') continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|esscene|esprefab|esproject|json)$/.test(e.name)) {
+        try { parts.push(readFileSync(p, 'utf8')); } catch { /* unreadable */ }
+      }
+    }
+  };
+  walk(projectDir(id));
+  const text = parts.join('\n');
+  projectTextCache.set(id, text);
+  return text;
+}
 
 /** Capabilities a packaged frame cannot show, and the declaration whose run reads them. */
 const NEEDS_RUN = {
@@ -98,6 +122,14 @@ for (const g of GOLDEN) {
     const block = NEEDS_RUN[c];
     if (block && !g[block]) {
       fail(`"${g.id}" certifies "${c}" but declares no ${block} — a claim only a run can settle needs that run`);
+    }
+    // The claim has to be findable in the project. Without this, certifying a
+    // capability is a word in a registry: space-shooter certified `audio` and had
+    // no sound in it, and the coverage check below was satisfied by that.
+    if (!(c in EVIDENCE)) {
+      fail(`"${c}" has no EVIDENCE pattern — say what exercising it looks like, or null if nothing can`);
+    } else if (EVIDENCE[c] && !EVIDENCE[c].test(projectText(g.id))) {
+      fail(`"${g.id}" certifies "${c}" but nothing in the project matches ${EVIDENCE[c]} — the claim is not backed`);
     }
   }
   // A command nobody schedules is the hole this whole file exists to refuse: the
