@@ -1,0 +1,165 @@
+---
+title: 纹理
+description: 纹理完全指南 —— 支持的格式、加载与取宽高、导入设置（过滤/环绕/最大尺寸/压缩/sRGB/九宫格）、精灵如何按图片尺寸自动匹配、内存与驻留。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+纹理就是显存里的一张图。你用项目路径引用它，加载成一个**句柄**（handle），再把句柄放到组件上
+——`Sprite.texture`、材质采样器、位图字体页。本页讲图片本身：它可以是什么、你能在它上面设什么、
+以及怎么知道它有多大。
+
+画纹理的那个组件见[精灵](/docs/zh-cn/graphics/sprites/)；资源系统整体（引用、分组、清单）见
+[资源](/docs/zh-cn/assets/overview/)。
+
+## 支持的格式
+
+| 扩展名 | 说明 |
+|---|---|
+| `.png` | 带透明通道的美术资源首选。 |
+| `.jpg` / `.jpeg` | 没有 alpha 通道；照片类美术体积更小。 |
+| `.webp` | 带 alpha 且压缩率好，由浏览器/运行时解码。 |
+| `.gif` | **只取第一帧**——这是一张静态图，不是动画。 |
+| `.bmp` | 未压缩;能用，但基本不该发出去。 |
+| `.ktx2` | Basis Universal，已经是 GPU 压缩格式。这是构建的 cook 步骤**产出**的东西——你也可以直接提供。 |
+
+日常创作用 `.png`、`.jpg`、`.webp`。开了压缩时，构建的 cook 步骤会把它们转成 `.ktx2`
+（见[导入设置](#导入设置)）。
+
+## 加载纹理
+
+`assets.loadTexture(ref)` 解析引用、上传图片，并**连同图片的像素尺寸一起**返回句柄——
+「怎么取宽高」的答案就在这里：
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+
+const measure = defineSystem([Res(Assets)], async (assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');
+  tex.handle;   // TextureHandle —— 组件字段要的就是它
+  tex.width;    // 图片的像素宽
+  tex.height;   // 图片的像素高
+});
+```
+
+宽高是**源图片**的像素数,不是任何东西的绘制尺寸。画这张纹理的 `Sprite` 有它自己的世界单位
+`size`,是另一个可以随便设的数(初始会跟图片对齐——见[精灵按纹理定尺寸](#精灵按纹理定尺寸)）。
+
+按图片自身像素尺寸放到精灵上：
+
+```typescript
+import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
+
+const showArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');
+  for (const [entity, sprite] of q) {
+    sprite.texture = tex.handle;
+    sprite.size = { x: tex.width, y: tex.height };   // 1 图片像素 = 1 世界单位
+  }
+});
+```
+
+<Aside type="note">
+  `loadTexture` 按解析后的路径做缓存和引用计数：同一张图加载两次返回同一个句柄，不会上传两遍。
+  自己取了引用就用 `assets.releaseTexture(ref)` 释放——它收的是**你加载时用的那个 ref**，
+  不是句柄。场景引用到的资源随场景一起释放。见
+  [生命周期与引用计数](/docs/zh-cn/assets/overview/#生命周期与引用计数)。
+</Aside>
+
+### 从一个不是你加载的句柄取尺寸
+
+编辑器里摆好的精灵早就有纹理了：场景文件写了它，加载器解析了它，你的代码从来没见过
+`TextureResult`。要量这种纹理，直接按句柄问资源管理器：
+
+```typescript
+import { defineSystem, Query, Sprite, getTextureDimensions } from 'esengine';
+
+const measurePlaced = defineSystem([Query(Sprite)], (q) => {
+  for (const [entity, sprite] of q) {
+    const dims = getTextureDimensions(sprite.texture);   // { width, height } | null
+    if (dims) { /* … */ }
+  }
+});
+```
+
+纹理真正上传之前它返回 `null` —— 场景的纹理是异步加载的，所以第一帧就跑的系统看不到东西
+是完全正常的。
+
+<Aside type="caution">
+  `getTextureDimensions` 是 **`@experimental`**：不作任何兼容性承诺，任何版本都可能改动或消失
+  （见 [API 稳定性](/docs/zh-cn/reference/api-stability/)）。想知道图片尺寸，
+  `loadTexture` 返回的 `{ width, height }` 才是稳定那条路。
+</Aside>
+
+### 一张图，两种加载
+
+`loadTextureRaw(ref)` 上传图片时**不做** `loadTexture` 那次垂直翻转。翻转与不翻转是真正不同的
+GPU 对象，所以分开缓存。除非你在喂一条本来就要求自下而上行序的管线，否则用 `loadTexture`。
+
+## 导入设置
+
+导入设置属于**图片**，不属于任何用它的实体。它们存在图片旁边的 `.meta` 文件里，在内容浏览器里
+选中图片即可编辑——用这张纹理的每个精灵都继承这套设置。
+
+| 设置 | 默认 | 作用 |
+|---|---|---|
+| **Max Size** | `2048` | cook 时的降采样上限（2 的幂）。最长边超过它的源图会被 box 滤波缩下来；更小的源图原样保留。 |
+| **Compress** | `true` | cook 时压成 KTX2(Basis Universal)。它在显存里保持压缩、按设备转码。想要锐利 UI 和平滑渐变就**关掉**。 |
+| **Compress Format** | `uastc` | `uastc` —— 质量高、体积大。`etc1s` —— 小得多、质量低(适合照片类/低频美术)。仅在 Compress 开启时使用。 |
+| **Filter** | `linear` | 采样过滤。`nearest` 保持像素锐利；`linear` 平滑。 |
+| **Wrap** | `repeat` | `[0,1]` 之外的 UV 如何寻址：`repeat`、`clamp`、`mirror`。 |
+| **Premultiply Alpha** | `false` | 导入时把 RGB 乘上 alpha。 |
+| **sRGB Color** | `true` | 图片存的是 sRGB 编码的颜色(albedo、UI)。法线图、遮罩这类本来就是线性的数据要关掉。仅在项目按线性色渲染时有意义。 |
+| **9-Slice Border** | `0,0,0,0` | 左/右/上/下边框，单位是**纹理像素**：图片的角在哪里结束。在这里授权一次，每个设成 Sliced 的 `UIVisual` 都继承。 |
+
+<Aside type="tip">
+  **像素画**：Filter 设 `nearest`，Compress **关掉**。线性过滤会把你画的像素糊掉，
+  而块压缩的瑕疵恰恰出现在硬色边上。
+</Aside>
+
+### 按平台覆盖
+
+Max Size、Compress、Compress Format 可以**按平台覆盖**——就是导入设置里 Default 旁边那排页签。
+这就是「编码一次、按 GPU 转码」的管线：同一个源文件，桌面端发 2048 的 UASTC，微信发 1024 的
+ETC1S。见[烘焙与压缩](/docs/zh-cn/assets/overview/#烘焙压缩与内容寻址)。
+
+## 精灵按纹理定尺寸
+
+`Sprite.size` 的单位是**世界单位**，并且刻意与图片无关——正因如此你才能不改文件就缩放美术。
+但没人愿意手敲图片尺寸，所以编辑器替你填：
+
+- 从内容浏览器**把图拖**进视口，生成的精灵已经按图片像素定好尺寸。
+- **给已有精灵指定纹理**同样会按那张纹理定尺寸，之后换图也会跟着走。
+
+一旦这个数是你自己定的，它就停手：你手动设过 `size` 之后，换纹理不会再动它。
+（撤销历史里这次自动匹配是独立的一步 **Fit Sprite To Texture**，所以你可以保留尺寸、只撤掉匹配。）
+
+代码里没有这个便利：只给 `Sprite` 一个纹理，`size` 保持默认值，所以要像上面那样自己传
+`tex.width` / `tex.height`。
+
+## 子矩形与图集
+
+精灵可以用 `uvOffset` / `uvScale` 只画纹理的一部分，两者都是相对整张图的归一化比例：
+
+```typescript
+// 256×256 图集里第 2 列第 1 行的 32×32 帧。
+sprite.uvOffset = { x: 64 / 256, y: 32 / 256 };
+sprite.uvScale  = { x: 32 / 256, y: 32 / 256 };
+```
+
+做序列帧动画不要手算这些，去授权一个 flipbook——见[动画](/docs/zh-cn/animation/overview/)。
+瓦片美术见[瓦片地图](/docs/zh-cn/world/tilemaps/)。
+
+## 内存与驻留
+
+纹理通常是 2D 游戏里最大的一块，它们是引用计数 + 可驱逐的，不会永远常驻。预算、LRU、以及怎么读
+真实占用，见[纹理内存与预算](/docs/zh-cn/assets/overview/#纹理内存与预算)。
+
+一句话版本：没人引用的纹理会在内存压力下被驱逐，下次按同一路径加载时透明地复活。
+
+## 参见
+
+- [精灵](/docs/zh-cn/graphics/sprites/) —— 画纹理的那个组件。
+- [资源](/docs/zh-cn/assets/overview/) —— 引用、分组、清单、生命周期。
+- [材质](/docs/zh-cn/graphics/materials/) —— 把纹理绑到自己的 shader 上。
+- [UI](/docs/zh-cn/ui/overview/) —— 九宫格图片与 UI 精灵。

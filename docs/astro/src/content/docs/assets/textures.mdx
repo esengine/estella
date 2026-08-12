@@ -1,0 +1,185 @@
+---
+title: Textures
+description: The complete guide to textures — supported formats, loading and the width/height a load returns, import settings (filter, wrap, max size, compression, sRGB, 9-slice), how a sprite takes its size from an image, memory and residency.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A texture is an image on the GPU. You reference one by project path, load it into a
+**handle**, and put that handle on a component — `Sprite.texture`, a material sampler,
+a bitmap font page. This page is about the image itself: what it can be, what you can
+set on it, and how to find out how big it is.
+
+For sprites — the component that draws a texture — see [Sprites](/docs/graphics/sprites/).
+For the general asset system (refs, groups, the manifest), see [Assets](/docs/assets/overview/).
+
+## Supported formats
+
+| Extension | Notes |
+|---|---|
+| `.png` | The default for art with transparency. |
+| `.jpg` / `.jpeg` | No alpha channel; smaller for photographic art. |
+| `.webp` | Alpha + good compression. Decoded by the browser/runtime. |
+| `.gif` | First frame only — this is a still image, not an animation. |
+| `.bmp` | Uncompressed; works, but rarely what you want to ship. |
+| `.ktx2` | Basis Universal, already GPU-compressed. What the cook step **produces** — you can also author one directly. |
+
+`.png`, `.jpg` and `.webp` are the ones to author in. A build's cook step turns them
+into `.ktx2` when compression is on (see [Import settings](#import-settings)).
+
+## Loading a texture
+
+`assets.loadTexture(ref)` resolves the ref, uploads the image, and returns the handle
+**with the image's pixel dimensions** — this is the answer to "how do I get the width
+and height":
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+
+const measure = defineSystem([Res(Assets)], async (assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');
+  tex.handle;   // TextureHandle — what a component field takes
+  tex.width;    // the image's pixel width
+  tex.height;   // the image's pixel height
+});
+```
+
+The width and height are the **source image's** pixels, not the size anything draws
+at. A `Sprite` drawing that texture has its own `size` in world units, which is a
+separate number you can set to anything (it starts out matching — see
+[Sizing a sprite to its texture](#sizing-a-sprite-to-its-texture)).
+
+Putting one on a sprite at its own pixel size:
+
+```typescript
+import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
+
+const showArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');
+  for (const [entity, sprite] of q) {
+    sprite.texture = tex.handle;
+    sprite.size = { x: tex.width, y: tex.height };   // 1 image pixel = 1 world unit
+  }
+});
+```
+
+<Aside type="note">
+  `loadTexture` is cached and reference-counted by resolved path: loading the same
+  image twice returns the same handle and does not upload it twice. Release with
+  `assets.releaseTexture(ref)` — it takes the same **ref you loaded**, not the
+  handle. Assets a scene references are released with the scene. See
+  [Lifetime & reference counting](/docs/assets/overview/#lifetime--reference-counting).
+</Aside>
+
+### From a handle you did not load
+
+A sprite placed in the editor already has its texture: the scene file named it, the
+loader resolved it, and your code never saw a `TextureResult`. To measure that one,
+ask the resource manager for the handle's dimensions:
+
+```typescript
+import { defineSystem, Query, Sprite, getTextureDimensions } from 'esengine';
+
+const measurePlaced = defineSystem([Query(Sprite)], (q) => {
+  for (const [entity, sprite] of q) {
+    const dims = getTextureDimensions(sprite.texture);   // { width, height } | null
+    if (dims) { /* … */ }
+  }
+});
+```
+
+It returns `null` until the texture is actually uploaded — a scene's textures load
+asynchronously, so a system running on the first frame can legitimately see nothing.
+
+<Aside type="caution">
+  `getTextureDimensions` is **`@experimental`**: no compatibility claim, and it may
+  change or disappear in any release (see [API stability](/docs/reference/api-stability/)).
+  `loadTexture`'s `{ width, height }` is the settled way to learn an image's size.
+</Aside>
+
+### Two loads, one image
+
+`loadTextureRaw(ref)` uploads the image **without the vertical flip** `loadTexture`
+applies. Flipped and unflipped are genuinely different GPU objects, so they are cached
+separately. You want `loadTexture` unless you are feeding a pipeline that already
+expects bottom-up rows.
+
+## Import settings
+
+Import settings belong to the **image**, not to any entity using it. They are stored
+in the `.meta` file next to it and edited by selecting the image in the Content
+Browser — every sprite that uses the texture inherits them.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Max Size** | `2048` | Downscale cap applied at cook (a power of two). A source larger than this on its longest side is box-filtered down; a smaller source is untouched. |
+| **Compress** | `true` | GPU-compress to KTX2 (Basis Universal) at cook. It stays compressed in VRAM and transcodes per device. Turn **off** for crisp UI and smooth gradients. |
+| **Compress Format** | `uastc` | `uastc` — high quality, larger. `etc1s` — much smaller, lower quality (good for photographic art). Only used when Compress is on. |
+| **Filter** | `linear` | Sampling filter. `nearest` keeps pixel art crisp; `linear` smooths. |
+| **Wrap** | `repeat` | How UVs outside `[0,1]` are addressed: `repeat`, `clamp`, `mirror`. |
+| **Premultiply Alpha** | `false` | Multiply RGB by alpha at import. |
+| **sRGB Color** | `true` | The image stores sRGB-encoded color (albedo, UI). Disable for authored-linear data — normal maps, masks. Only meaningful when the project renders in linear color. |
+| **9-Slice Border** | `0,0,0,0` | Left/right/top/bottom border in **texture pixels**: where the image's corners end. Authored once here, inherited by every `UIVisual` set to Sliced. |
+
+<Aside type="tip">
+  **Pixel art**: set Filter to `nearest` and turn Compress **off**. Linear filtering
+  blurs the pixels you drew, and block compression puts artefacts exactly where hard
+  colour edges are.
+</Aside>
+
+### Per-platform overrides
+
+Max Size, Compress and Compress Format can be overridden **per platform** — the tabs
+beside Default in Import Settings. This is the "encode once, transcode per GPU"
+pipeline: ship the desktop build a 2048 UASTC texture and the WeChat build a 1024
+ETC1S one from the same source file. See
+[Cooking & compression](/docs/assets/overview/#cooking-compression--content-addressing).
+
+## Sizing a sprite to its texture
+
+`Sprite.size` is in **world units** and deliberately independent of the image — that
+is what lets you scale art without touching the file. But nobody wants to type the
+image's dimensions, so the editor fills them in:
+
+- **Dragging an image** from the Content Browser into the viewport spawns a sprite
+  already sized to the image's pixels.
+- **Assigning a texture** to an existing sprite sizes it to that texture too, and a
+  later swap follows the new image.
+
+It stops as soon as the number is yours: once you set `size` by hand, changing the
+texture leaves it alone. (Undo history shows the fit as its own **Fit Sprite To
+Texture** step, so you can keep a size and drop only the fit.)
+
+In code there is no such helper: a `Sprite` given only a texture keeps its default
+`size`, so pass `tex.width`/`tex.height` yourself as shown above.
+
+## Sub-rectangles and atlases
+
+A sprite can draw part of a texture with `uvOffset` / `uvScale`, both normalized
+fractions of the whole image:
+
+```typescript
+// The 32×32 frame at column 2, row 1 of a 256×256 sheet.
+sprite.uvOffset = { x: 64 / 256, y: 32 / 256 };
+sprite.uvScale  = { x: 32 / 256, y: 32 / 256 };
+```
+
+For sheet animation, author a flipbook instead of computing these by hand — see
+[Animation](/docs/animation/overview/). For tile art, see
+[Tilemaps](/docs/world/tilemaps/).
+
+## Memory & residency
+
+Textures are the largest thing most 2D games hold, and they are reference-counted and
+evictable rather than resident forever. Budgets, the LRU, and reading actual usage are
+covered in [Texture memory & budgets](/docs/assets/overview/#texture-memory--budgets).
+
+The short version: a texture nothing references can be evicted under memory pressure
+and is revived transparently on the next load of the same path.
+
+## See also
+
+- [Sprites](/docs/graphics/sprites/) — the component that draws a texture.
+- [Assets](/docs/assets/overview/) — refs, groups, the manifest, lifetime.
+- [Materials](/docs/graphics/materials/) — binding textures to your own shaders.
+- [UI](/docs/ui/overview/) — 9-slice images and UI sprites.

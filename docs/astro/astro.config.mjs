@@ -279,6 +279,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'assets/overview' },
+            { label: 'Textures', translations: { 'zh-CN': '纹理' }, slug: 'assets/textures' },
             { label: 'Audio', translations: { 'zh-CN': '音频' }, slug: 'assets/audio' },
             { label: 'Localization', translations: { 'zh-CN': '本地化' }, slug: 'assets/localization' },
           ],
