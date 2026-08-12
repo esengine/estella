@@ -225,6 +225,14 @@ export const TOOLS = [
       + 'Works in both realms: it profiles the running game while playing, the editor scene otherwise (see `realm`).',
     schema: obj({ ms: { type: 'number' }, topSystems: { type: 'number' } }),
     method: 'profileFrames', args: (i) => [i.ms ?? 1000, i.topSystems ?? 12] },
+  { name: 'profile_capture',
+    description: 'Read a recorded `.esprof` capture by project-relative path and answer with the SAME breakdown profile_frames gives — '
+      + 'this is how a capture recorded on a device gets analysed rather than merely looked at. A game records one with `ProfileRecorder` and drops the file in the project. '
+      + '`origin` says which file and what it came from (device label, platform). `worstFrame` is the worst frame in the capture broken down on its own, which is what a '
+      + 'stutter actually is — the averages describe the frames that were fine. Throws, naming the reason, when the file is not a capture (not JSON, no version, frames that '
+      + 'are not frames, a version newer than this editor reads).',
+    schema: obj({ path: { type: 'string' }, topSystems: { type: 'number' } }, ['path']),
+    method: 'profileCaptureFile', args: (i) => [i.path, i.topSystems ?? 12] },
   { name: 'get_subsystems',
     description: 'Lifecycle + liveness of every engine subsystem (physics, audio, …): phase and activity.',
     schema: obj({}), method: 'getSubsystems', args: () => [] },

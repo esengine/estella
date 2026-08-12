@@ -30,8 +30,9 @@ import { EngineHost } from './EngineHost';
 import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample } from './PerfMonitor';
-import type { ProfileCapture } from 'esengine';
-import type { ProfileReport } from './profileReport';
+import { parseProfileCapture, summarizeCapture, frameProfileOf } from 'esengine';
+import type { ProfileCapture, CapturedFrame } from 'esengine';
+import { profileReportOf, type ProfileReport } from './profileReport';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl, EntityInfo } from './SceneQuery';
 import type { SceneModelImpl } from './SceneModel';
@@ -39,17 +40,24 @@ import type { EditorHistoryImpl, HistoryMark } from './EditorHistory';
 import type { ReconcilerImpl } from './Reconciler';
 import type { SelectionStore } from '@/store/selectionStore';
 
-const r2 = (n: number): number => Math.round(n * 100) / 100;
+/** Averaged over the frames that recorded each heap — absent is not zero. */
+function meanMemory(frames: readonly CapturedFrame[]): { wasmBytes?: number; jsHeapBytes?: number; vramBytes?: number } {
+  const mean = (pick: (f: CapturedFrame) => number | undefined): number | undefined => {
+    const seen = frames.map(pick).filter((v): v is number => typeof v === 'number' && v > 0);
+    return seen.length ? seen.reduce((a, b) => a + b, 0) / seen.length : undefined;
+  };
+  return {
+    wasmBytes: mean((f) => f.memory?.wasmBytes),
+    jsHeapBytes: mean((f) => f.memory?.jsHeapBytes),
+    vramBytes: mean((f) => f.memory?.vramBytes),
+  };
+}
 
-const BREAK_PREFIX = 'batch.break.';
-
-/** The `batch.break.*` counters as reason → draws, by their bare reason name. */
-function batchBreaks(counters: Record<string, number>): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const key in counters) {
-    if (key.startsWith(BREAK_PREFIX)) out[key.slice(BREAK_PREFIX.length)] = r2(counters[key]);
-  }
-  return out;
+/** A project-relative text read, through the door the path sandbox guards. */
+function readProjectText(path: string): Promise<string> {
+  const fs = (window as unknown as { estella?: { fs?: { read?(p: string): Promise<string> } } }).estella?.fs;
+  if (!fs?.read) throw new Error('no project file access in this host');
+  return fs.read(path);
 }
 
 /** A captured viewport frame: raw RGBA pixels (GL order: bottom-up rows). */
@@ -950,57 +958,38 @@ export class EditorControlSurfaceImpl {
    */
   async profileFrames(ms = 1000, topSystems = 12): Promise<ProfileReport> {
     const w = await PerfMonitor.captureWindow(Math.min(5000, Math.max(100, ms)));
-    const systems = w.mean.domains
-      .flatMap((d) => d.children.map((s) => ({ domain: d.id, node: s })))
-      .sort((a, b) => b.node.ms - a.node.ms);
-    const shown = systems.slice(0, topSystems);
-    return {
-      realm: w.realm,
+    return profileReportOf(w, {
+      origin: `live:${w.realm}`,
       windowMs: w.windowMs,
-      frames: w.frames,
       stalled: w.stalled,
-      budgetMs: w.budgetMs,
-      fps: w.fps,
-      p50: w.p50, p95: w.p95, p99: w.p99,
-      longFrames: w.longFrames,
-      worstFrameMs: w.worstFrameMs,
-      frame: {
-        totalMs: r2(w.mean.frameMs),
-        cpuMs: r2(w.mean.cpuMs),
-        waitMs: r2(w.mean.waitMs),
-        idleMs: r2(w.mean.idleMs),
-        gpuMs: w.mean.gpuMs >= 0 ? r2(w.mean.gpuMs) : -1,
-      },
-      // A plugin that is installed and costs nothing is not an answer to "where
-      // did the time go", and there are two dozen of them. Counted, not hidden.
-      domains: w.mean.domains.filter((d) => r2(d.ms) > 0).map((d) => ({ domain: d.id, ms: r2(d.ms) })),
-      freeDomains: w.mean.domains.filter((d) => r2(d.ms) === 0).length,
-      render: {
-        drawCalls: r2(w.drawCalls),
-        mergedAway: r2(w.counters['batch.merged'] ?? 0),
-        triangles: Math.round(w.triangles),
-        entities: Math.round(w.entities),
-        breaks: batchBreaks(w.counters),
-      },
-      systems: shown.map(({ domain, node }) => ({
-        name: node.label,
-        domain,
-        ms: r2(node.ms),
-        ...(node.query
-          ? {
-              query: {
-                calls: r2(node.query.calls),
-                scanned: Math.round(node.query.scanned),
-                filtered: Math.round(node.query.filtered),
-              },
-            }
-          : {}),
-        scopes: node.children
-          .filter((c) => c.ms >= 0.05)
-          .map((c) => ({ name: c.label, ms: r2(c.ms), kind: c.kind })),
-      })),
-      omittedSystems: systems.length - shown.length,
-    };
+      worst: w.worstFrameProfile,
+      memory: w.memory,
+      topSystems,
+    });
+  }
+
+  /**
+   * The same answer, read off a recorded `.esprof` instead of the running frame —
+   * how a capture from a device gets analysed rather than merely looked at.
+   * Refuses with the reason when the file is not a capture.
+   */
+  async profileCaptureFile(path: string, topSystems = 12): Promise<ProfileReport> {
+    const text = await readProjectText(path);
+    const parsed = parseProfileCapture(text);
+    if ('error' in parsed) throw new Error(`${path}: ${parsed.error}`);
+    const capture = parsed.capture;
+    if (capture.frames.length === 0) throw new Error(`${path}: the capture has no frames`);
+    const summary = summarizeCapture(capture);
+    const worst = capture.frames.find((f) => f.id === summary.worstFrameId) ?? null;
+    const src = capture.source;
+    return profileReportOf(summary, {
+      origin: [path, src.label, src.platform, src.realm].filter(Boolean).join(' · '),
+      windowMs: capture.frames.reduce((a, f) => a + f.dtMs, 0),
+      stalled: false,
+      worst: worst ? frameProfileOf(worst) : null,
+      memory: meanMemory(capture.frames),
+      topSystems,
+    });
   }
 
   /** The current profiler snapshot: frame timing, stat-unit segments, per-system

@@ -68,6 +68,11 @@ export interface EngineFrame {
   vramBytes: number;
 }
 
+/** Chrome only; 0 where the engine cannot see the JS heap. */
+function jsHeapBytes(): number {
+  return (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0;
+}
+
 /** The engine's C++ scopes as the profile model's native scopes. */
 function nativeScopesOf(cppScopes: Record<string, number>): ScopeCost[] {
   return Object.entries(cppScopes).map(([name, ms]) => ({ name, ms, system: '', remainder: 'work' as const }));
@@ -112,6 +117,9 @@ export interface FrameSample {
   drawCalls: number;
   triangles: number;
   entities: number;
+  /** This frame's heaps. Per frame rather than per window, so a capture written
+   *  from a sample carries what the memory graph shows. */
+  memory: { wasmBytes: number; jsHeapBytes: number; vramBytes: number };
 }
 
 export interface FrameLongTask {
@@ -178,6 +186,8 @@ export interface ProfileWindow extends CaptureSummary {
   /** No frame ran in the window: nothing is animating, or the window is hidden. */
   stalled: boolean;
   worstFrameProfile: FrameProfile | null;
+  /** Averaged per frame over the window. */
+  memory: { wasmBytes: number; jsHeapBytes: number; vramBytes: number };
 }
 
 /** One captured frame in the portable vocabulary — what a `.esprof` holds. */
@@ -193,10 +203,18 @@ export function capturedFrameOf(s: FrameSample): CapturedFrame {
     drawCalls: s.drawCalls,
     triangles: s.triangles,
     entities: s.entities,
+    memory: s.memory,
     // Absent from anything a shipped game records; kept here because profiling
     // the editor is a real thing the editor's own profiler is asked to do.
     editor: { ms: s.editorMs, phases: s.editorPhases },
   };
+}
+
+function meanOver(frames: readonly CapturedFrame[], pick: (f: CapturedFrame) => number): number {
+  if (frames.length === 0) return 0;
+  let total = 0;
+  for (const f of frames) total += pick(f);
+  return total / frames.length;
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
@@ -386,6 +404,11 @@ class PerfMonitorImpl {
       // or the editor is in the background). Said, not implied by zeroes.
       stalled: frames.length === 0,
       worstFrameProfile: worst ? frameProfileOf(worst) : null,
+      memory: {
+        wasmBytes: meanOver(frames, (f) => f.memory?.wasmBytes ?? 0),
+        jsHeapBytes: meanOver(frames, (f) => f.memory?.jsHeapBytes ?? 0),
+        vramBytes: meanOver(frames, (f) => f.memory?.vramBytes ?? 0),
+      },
     };
   }
 
@@ -521,6 +544,11 @@ class PerfMonitorImpl {
         drawCalls: this.counters.drawCalls,
         triangles: this.counters.triangles,
         entities: this.counters.entities,
+        memory: {
+          wasmBytes: this.mem.wasmBytes,
+          jsHeapBytes: jsHeapBytes(),
+          vramBytes: this.mem.vramBytes,
+        },
       };
       // The wait is the tree's, so the windowed unit bar and the pinned tree can
       // never disagree about how much of this frame was work.

@@ -48,6 +48,7 @@ describe('profileOf', () => {
     engineMs: 0, editorMs: 0, presentWaitMs: 0, gpuMs: -1,
     editorPhases: {}, enginePhases: {}, cppScopes: {}, gpuScopes: {},
     costs: null, counters: {}, drawCalls: 0, triangles: 0, entities: 0,
+  memory: { wasmBytes: 16 * 1024 * 1024, jsHeapBytes: 8 * 1024 * 1024, vramBytes: 4 * 1024 * 1024 },
     ...over,
   });
 

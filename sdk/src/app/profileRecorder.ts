@@ -24,6 +24,12 @@ export interface ProfileRecorderOptions {
 
 const DEFAULT_MAX_FRAMES = 1800;
 
+/** Chrome only; 0 where the runtime does not expose its heap. */
+function jsHeapBytes(): number {
+    if (typeof performance === 'undefined') return 0;
+    return (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0;
+}
+
 function parseScopes(json: string | undefined): Record<string, number> {
     if (!json) return {};
     try {
@@ -125,7 +131,11 @@ export class ProfileRecorder {
             drawCalls: render.drawCalls,
             triangles: render.triangles,
             entities: this.app_.getEntityCount(),
-            memory: { wasmBytes: m?.HEAPU8?.byteLength ?? 0 },
+            memory: {
+                wasmBytes: m?.HEAPU8?.byteLength ?? 0,
+                jsHeapBytes: jsHeapBytes(),
+                vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
+            },
         };
         this.frames_.push(frame);
         const cap = this.options_.maxFrames ?? DEFAULT_MAX_FRAMES;

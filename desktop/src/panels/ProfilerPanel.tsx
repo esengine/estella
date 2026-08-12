@@ -247,6 +247,18 @@ function TreeRow({ node, frameMs, depth }: { node: ProfileNode; frameMs: number;
   );
 }
 
+const MB = 1 / (1024 * 1024);
+
+type MemKey = 'wasmBytes' | 'jsHeapBytes' | 'vramBytes';
+
+/** A frame's heap, or the capture's mean of it. `—` where nothing recorded it. */
+function mbOf(frame: CapturedFrame | null, capture: ProfileCapture, key: MemKey): string {
+  const bytes = frame
+    ? frame.memory?.[key] ?? 0
+    : capture.frames.reduce((a, f) => a + (f.memory?.[key] ?? 0), 0) / (capture.frames.length || 1);
+  return bytes > 0 ? (bytes * MB).toFixed(1) : '—';
+}
+
 /**
  * A capture off disk, rendered by the same rows the live realm uses. Where it
  * came from is stated rather than implied: a file recorded on someone's phone
@@ -327,6 +339,20 @@ function CaptureView({ loaded, frame, onPick, onClose }: {
           <div><span>{t('prof.drawCalls')}</span><b>{Math.round(frame?.drawCalls ?? summary.drawCalls)}</b></div>
           <div><span>{t('prof.triangles')}</span><b>{kfmt(Math.round(frame?.triangles ?? summary.triangles))}</b></div>
           <div><span>{t('prof.entities')}</span><b>{Math.round(frame?.entities ?? summary.entities)}</b></div>
+        </div>
+      </section>
+
+      <section className="prof-sec">
+        <h4>{t('prof.groupMemory')}</h4>
+        <MemGraph hist={capture.frames.map((f) => ({
+          wasm: (f.memory?.wasmBytes ?? 0) * MB,
+          js: (f.memory?.jsHeapBytes ?? 0) * MB,
+          vram: (f.memory?.vramBytes ?? 0) * MB,
+        }))} />
+        <div className="prof-stat-grid">
+          <div><span style={{ color: 'var(--warn)' }}>wasm</span><b>{mbOf(frame, capture, 'wasmBytes')}<i>MB</i></b></div>
+          <div><span style={{ color: 'var(--star)' }}>{t('prof.jsHeap')}</span><b>{mbOf(frame, capture, 'jsHeapBytes')}<i>MB</i></b></div>
+          <div><span style={{ color: GPU_COLOR }}>vram</span><b>{mbOf(frame, capture, 'vramBytes')}<i>MB</i></b></div>
         </div>
       </section>
 

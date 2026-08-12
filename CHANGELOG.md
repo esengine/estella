@@ -148,6 +148,26 @@ published separately; it ships inside the editor.
   observer fires after the frame, and is a broadcast rather than a slot, so a
   game's own budget alarm can watch beside the recorder instead of replacing it.
 
+- **An agent can read a capture off disk, not just the running frame.**
+  `profile_capture` reads a recorded `.esprof` and answers with exactly what
+  `profile_frames` answers, so a capture from a device gets *analysed* rather
+  than merely looked at — which is what a recorder is for. The projection behind
+  both is one pure function over a summary, so the live realm and a file cannot
+  describe the same frames differently.
+
+- **The worst frame, broken down on its own.** A report was averages and a
+  `worstFrameMs` with nothing behind it — but the averages describe the frames
+  that were fine, and a stutter is one frame. `worstFrame` now carries that
+  frame's own domains. On a synthetic capture the mean reads 0.04ms and the
+  worst reads 0.58ms; only one of those numbers is the reason anybody is looking.
+
+- **Memory was a field nothing filled.** `CapturedFrame.memory` shipped in the
+  capture format, the editor's writer never set it and the recorder set a third
+  of it, so the memory graph of an imported capture was empty and no reader
+  could tell "not recorded" from "no memory used". Frame samples carry their own
+  heaps now, the recorder records all three, and both the panel and the report
+  say `—` / `-1` where a source recorded nothing rather than showing a zero.
+
 - **One derivation, three readers.** `buildFrameProfile` is a pure function over
   plain per-frame data, so the live view, a pinned frame and a recorded session
   cannot each round their own way to a different answer. The editor's own

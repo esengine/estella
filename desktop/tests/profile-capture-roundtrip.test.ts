@@ -34,6 +34,7 @@ const sample = (over: Partial<FrameSample> = {}): FrameSample => ({
   drawCalls: 6,
   triangles: 120,
   entities: 50,
+  memory: { wasmBytes: 16 * 1024 * 1024, jsHeapBytes: 8 * 1024 * 1024, vramBytes: 4 * 1024 * 1024 },
   ...over,
 });
 
