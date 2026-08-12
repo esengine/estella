@@ -128,6 +128,71 @@ console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
 | `phaseTimings` | 逐阶段毫秒数(push 时拷贝)。 |
 | `systemTimings` | 逐系统毫秒数(push 时拷贝)。 |
 
+## 从发行版游戏录制捕获 —— `ProfileRecorder`
+
+编辑器的性能分析器只存在于编辑器连着的地方，而掉到 40&nbsp;fps 通常是掉在玩家的设备上。
+`ProfileRecorder` 把运行中游戏的帧录制成一份 **`.esprof` 捕获**，用编辑器的 Profiler
+面板打开——同一棵树、同样的行、同样的合计。
+
+```typescript
+import { ProfileRecorder } from 'esengine';
+
+const recorder = new ProfileRecorder(app, {
+  maxFrames: 1800,                       // 60Hz 下约 30 秒，超出后丢最旧的
+  source: { platform: 'wechat', label: 'Redmi Note 12 · boss 战' },
+});
+
+recorder.start();
+// …… 把卡顿的那一段玩一遍 ……
+recorder.stop();
+
+const capture = recorder.take();          // 一个普通对象
+```
+
+| `ProfileRecorderOptions` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `maxFrames` | number | `1800` | 保留多少帧，超出后丢弃最旧的。 |
+| `budgetMs` | number | `1000 / 60` | 读者据以判断这份捕获的帧预算。 |
+| `source` | `CaptureSource` | `{}` | 设备、构建、场景——任何日后能认出这份捕获的信息。 |
+
+`start()` 会打开它要读的插桩——JS 侧的统计和引擎 C++ 侧的性能分析都要开，因为缺了后者的捕获
+看起来会像"引擎不花时间"，而不是"这部分没被测量"——`stop()` 再把它们放下。
+在你启动它之前，不录制任何东西，也不测量任何东西。
+
+<Aside type="tip" title="引擎绝不选择目的地">
+`take()` 交还一个对象，到此为止。引擎不开 socket、没有内置端点、不写文件，
+所以捕获去哪儿完全由你的游戏决定——下载、你自己的上传、一行日志。
+这也是为什么没有任何平台相关的接线要做：录制器本身在引擎能跑的地方都能跑。
+</Aside>
+
+在 web 构建里保存它就是普通的 DOM 操作：
+
+```typescript
+const blob = new Blob([JSON.stringify(recorder.take())], { type: 'application/json' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'boss-fight.esprof';
+a.click();
+```
+
+然后在编辑器里用 **Profiler ▸ 打开…** 打开它。`parseProfileCapture` 遇到不是捕获的文件会
+**带理由拒绝**（不是 JSON、没有版本、帧不是帧、版本比编辑器能读的更新）而不是抛异常；
+`summarizeCapture` 就是实时视图用的那个函数——所以一份在手机上录的文件和编辑器自己的最近一秒，
+不可能从同一批帧算出不同的帧率。
+
+### 自己观察每一帧 —— `app.onFrameEnd`
+
+录制器只是 `app.onFrameEnd(fn)` 的一个普通消费者。这个回调在每帧的系统跑完、耗时已成定局之后
+触发一次。它是**广播**，所以你自己的帧预算告警可以和录制器一起看：
+
+```typescript
+const off = app.onFrameEnd((dtMs) => {
+  if (dtMs > 33) console.warn(`长帧：${dtMs.toFixed(1)}ms`);
+});
+```
+
+它返回一个解除函数。配合 `app.getFrameCosts()` 就能拿到刚结束那一帧的逐系统、逐 scope 开销。
+
 ## 日志
 
 SDK 自身的诊断信息走结构化日志器而不是裸 `console.*`,你的游戏代码可以用同一条

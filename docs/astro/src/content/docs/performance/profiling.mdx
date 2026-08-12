@@ -137,6 +137,78 @@ Two small utilities back the plugin and are exported for custom tooling:
 | `phaseTimings` | Per-phase ms (copied at push time). |
 | `systemTimings` | Per-system ms (copied at push time). |
 
+## Recording a capture from a shipped game — `ProfileRecorder`
+
+The editor's profiler only exists where the editor is attached, and what drops
+to 40&nbsp;fps usually drops on a player's device. `ProfileRecorder` records
+frames from a running game into a **`.esprof` capture** the editor's Profiler
+panel opens — the same tree, the same rows, the same totals.
+
+```typescript
+import { ProfileRecorder } from 'esengine';
+
+const recorder = new ProfileRecorder(app, {
+  maxFrames: 1800,                       // ~30s at 60Hz; oldest dropped after
+  source: { platform: 'wechat', label: 'Redmi Note 12 · boss fight' },
+});
+
+recorder.start();
+// … play the part that stutters …
+recorder.stop();
+
+const capture = recorder.take();          // a plain object
+```
+
+| `ProfileRecorderOptions` | Type | Default | Description |
+|---|---|---|---|
+| `maxFrames` | number | `1800` | Frames kept before the oldest is dropped. |
+| `budgetMs` | number | `1000 / 60` | The budget a reader judges the capture against. |
+| `source` | `CaptureSource` | `{}` | Device, build, scene — whatever identifies this capture later. |
+
+`start()` turns on the instrumentation it reads — both the JS-side stats and the
+engine's C++ profiling, since a capture missing the second looks like an engine
+that costs nothing rather than one that was not measured — and `stop()` puts them
+back down. Nothing is recorded, and nothing is measured, until you start it.
+
+<Aside type="tip" title="The engine never chooses a destination">
+`take()` hands back an object and stops there. The engine opens no socket, has
+no endpoint and writes no file, so a capture goes wherever your game sends it —
+a download, your own upload, a log line. That is also why there is nothing
+platform-specific to wire up: the recorder itself runs anywhere the engine does.
+</Aside>
+
+Saving it from a web build is ordinary DOM:
+
+```typescript
+const blob = new Blob([JSON.stringify(recorder.take())], { type: 'application/json' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'boss-fight.esprof';
+a.click();
+```
+
+Then open it with **Profiler ▸ Open…** in the editor. `parseProfileCapture`
+refuses a file that is not a capture with the reason (not JSON, no version,
+frames that are not frames, a version newer than the editor reads) rather than
+throwing, and `summarizeCapture` is the same function the live view uses — so a
+file recorded on a phone and the editor's own last second cannot report a
+different frame rate from the same frames.
+
+### Watching frames yourself — `app.onFrameEnd`
+
+The recorder is an ordinary consumer of `app.onFrameEnd(fn)`, which fires once
+per frame after its systems have run and its timings are final. It is a
+broadcast, so your own frame-budget alarm can watch alongside the recorder:
+
+```typescript
+const off = app.onFrameEnd((dtMs) => {
+  if (dtMs > 33) console.warn(`long frame: ${dtMs.toFixed(1)}ms`);
+});
+```
+
+It returns a disposer. Pair it with `app.getFrameCosts()` for the per-system and
+per-scope costs of the frame that just ended.
+
 ## Logging
 
 The SDK routes its own diagnostics through a structured logger instead of raw

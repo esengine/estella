@@ -129,6 +129,25 @@ published separately; it ships inside the editor.
   frames that are not frames, a version newer than this editor reads — instead of
   throwing where a panel cannot say why.
 
+- **A shipped game records its own frames.** `ProfileRecorder` writes the same
+  capture the panel opens, from a running build, so the answer to "why is the
+  boss fight 40fps on that phone" is measured on that phone. It measures nothing
+  of its own — every number comes from a channel the engine already publishes —
+  and `start()` turns on both halves of the instrumentation, because a capture
+  missing the engine's C++ scopes reads as an engine that costs nothing rather
+  than one that was not measured.
+
+  It chooses no destination. `take()` returns an object and the engine opens no
+  socket, has no endpoint and writes no file, which is also why there is nothing
+  per-platform to wire: a recorder that never saves anything runs wherever the
+  engine does.
+
+- **`app.onFrameEnd` — the frame, once its timings are final.** The recorder
+  needed a moment that did not exist: inside a system a frame is half-measured,
+  and the last schedule is only last until something else registers there. The
+  observer fires after the frame, and is a broadcast rather than a slot, so a
+  game's own budget alarm can watch beside the recorder instead of replacing it.
+
 - **One derivation, three readers.** `buildFrameProfile` is a pure function over
   plain per-frame data, so the live view, a pinned frame and a recorded session
   cannot each round their own way to a different answer. The editor's own

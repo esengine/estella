@@ -156,6 +156,7 @@ export class App {
     private frameScopes_: Map<string, ScopeCost> | null = null;
     /** The system being run, so a scope opened inside one is filed under it. */
     private currentSystem_ = '';
+    private readonly frameObservers_: Array<(dtMs: number) => void> = [];
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -743,6 +744,21 @@ export class App {
         }
     }
 
+    /**
+     * Observe the end of every frame, once its systems have run and its timings
+     * are final. Returns a disposer.
+     *
+     * A broadcast, not a slot: a recorder and a game's own budget alarm both
+     * watch without either taking the hook from the other.
+     */
+    onFrameEnd(fn: (dtMs: number) => void): () => void {
+        this.frameObservers_.push(fn);
+        return () => {
+            const i = this.frameObservers_.indexOf(fn);
+            if (i >= 0) this.frameObservers_.splice(i, 1);
+        };
+    }
+
     getEntityCount(): number {
         return this.world_.entityCount();
     }
@@ -1004,6 +1020,12 @@ export class App {
 
         const REMOVED_BUFFER_RETENTION = 2;
         this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
+
+        for (const observe of this.frameObservers_) {
+            try { observe(delta * 1000); } catch (e) {
+                log.error('app', 'Frame observer error', e);
+            }
+        }
     }
 
     private finishPlugins_(): void {

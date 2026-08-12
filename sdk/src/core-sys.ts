@@ -202,6 +202,12 @@ export {
 export { StatsOverlay, type StatsPosition } from './stats-overlay';
 
 export {
+    ProfileRecorder,
+    ProfileRecorderPlugin,
+    type ProfileRecorderOptions,
+} from './app/profileRecorder';
+
+export {
     PROFILE_CAPTURE_VERSION,
     parseProfileCapture,
     summarizeCapture,
