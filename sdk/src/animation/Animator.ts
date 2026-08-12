@@ -348,6 +348,13 @@ export interface AnimatorData {
     enabled: boolean;
 }
 
+/**
+ * A state machine over clips: the controller decides which clip plays from the
+ * parameters a game writes, so gameplay sets `speed` or fires a trigger rather
+ * than naming a clip.
+ *
+ * @beta
+ */
 export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', {
     controller: '',
     currentState: '',

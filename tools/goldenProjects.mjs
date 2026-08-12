@@ -124,10 +124,6 @@ export const KNOWN_GAPS = {
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
-  // What EVIDENCE found being claimed by a project that did not exercise it.
-  // Each is now a hole somebody has to read rather than a word in a list.
-  animation: 'sprite-animation and cutscene exercise it, and neither is in the corpus; platformer claimed it and contains no animation',
-  material: 'effects-gallery is the only example with a material, and it is not in the corpus; spine-demo claimed it and has none',
 };
 
 /**
@@ -274,6 +270,22 @@ export const GOLDEN = [
     targets: ['web', 'desktop', 'wechat'],
     tier: 'release',
     interact: { keys: ['KeyD'], frames: 40 },
+  },
+  {
+    id: 'sprite-animation',
+    certifies: ['animation'],
+    targets: ['web', 'desktop'],
+    tier: 'release',
+    // The player's clip switches Idle→Move on the same key that moves it, so a
+    // driven frame differs because the animation changed as much as the position.
+    interact: { keys: ['ArrowRight'], frames: 40 },
+  },
+  {
+    id: 'effects-gallery',
+    certifies: ['material'],
+    targets: ['web', 'desktop'],
+    tier: 'release',
+    interactGap: 'a gallery of material templates with nothing to press — the conveyor scrolls itself from the shader clock',
   },
   {
     id: 'audio-demo',

@@ -288,6 +288,13 @@ export interface SpriteAnimatorData {
     finished: boolean;
 }
 
+/**
+ * Frame playback on an entity: which clip, how fast, and where in it. The clip is
+ * named rather than referenced, so a project registers clips from code or ships
+ * them as `.esanim` and this stays the same either way.
+ *
+ * @beta
+ */
 export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent('SpriteAnimator', {
     clip: '',
     speed: 1.0,

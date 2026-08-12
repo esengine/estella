@@ -109,12 +109,16 @@ published separately; it ships inside the editor.
   keyboard and pad twin of the pinch gesture already there — and its rebind now
   offers mouse buttons.
 
-- **Animation and materials are declared corpus gaps.** Each was claimed by a
-  project that did not exercise it: `sprite-animation` and `cutscene` animate and
-  neither is certified, and `effects-gallery` is the only example with a material.
-  The suite reads 29 of 33 capabilities covered against 4 declared gaps, where it
-  read 31 of 33 against 2 — nothing regressed, the difference is what the false
-  claims were covering.
+- **The corpus grew by three projects, so its coverage is backed.** Every false
+  claim EVIDENCE found was a capability whose only real example sat outside the
+  suite, so the fix was to bring them in rather than to declare holes.
+  `examples/sprite-animation` certifies animation — the same key that walks the
+  player switches its clip from Idle to Move, and the package answers it 0.73
+  against a 0.15 floor. `examples/effects-gallery` certifies materials, a gallery
+  of the built-in templates whose conveyor scrolls itself from the shader clock.
+  With audio-demo that is 31 of 33 capabilities against 2 declared gaps — the same
+  arithmetic as before this release and, for the first time, each claim backed by
+  something in the project.
 
 - **`examples/audio-demo` joins the certification corpus, and a run proves sound
   came out.** It was the one example that uses audio and it was outside the suite,
