@@ -91,7 +91,7 @@ describe('the agent turn', () => {
     // what was asked, and the point an Undo would go back to.
     expect(events.at(0)).toEqual({ type: 'turn_start', prompt: 'hi', model: 'fake-model', index: 0 });
     expect(events.at(-1)).toEqual({
-      type: 'turn_end', steps: 3, mark: { seq: 7 }, endMark: { seq: 7 }, tx: null, files: [], reason: 'end_turn',
+      type: 'turn_end', steps: 3, mark: { seq: 7 }, endMark: { seq: 7 }, tx: null, files: [], acceptance: { verdict: 'unverified', results: [] }, reason: 'end_turn',
     });
   });
 
@@ -701,6 +701,156 @@ describe('looking before reporting', () => {
     ]);
     await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
     expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(true);
+  });
+});
+
+// The one thing about a turn the model does not get to report. `reason` says
+// how it stopped; the verdict says whether what it stopped on is any good, and
+// it is computed from the project rather than from the closing paragraph.
+describe('the verdict on the work', () => {
+  let events: AgentEvent[];
+  let driver: ReturnType<typeof vi.fn> & { js: unknown; op: unknown };
+  let probe: (code: string) => unknown;
+  let playing: boolean;
+
+  const deps = (session: AgentSession) => ({
+    driver: driver as never, session, model: 'fake-model', acceptsImages: true,
+    confirm: (async () => ({ answer: 'once' })) as never,
+    emit: (e: AgentEvent) => { events.push(e); },
+  });
+  const ended = () => events.at(-1) as Extract<AgentEvent, { type: 'turn_end' }>;
+  const declare = (...criteria: unknown[]) => call('done_when', { criteria });
+
+  beforeEach(() => {
+    events = [];
+    probe = () => true;
+    playing = true;
+    driver = vi.fn(async (method: string) => {
+      if (method === 'mark') return { seq: 0 };
+      if (method === 'stepsSince') return 1;
+      if (method === 'getDiagnostics') return [];
+      if (method === 'playState') return { playing, ready: true };
+      return null;
+    }) as never;
+    (driver as { js: unknown }).js = vi.fn(async () => null);
+    (driver as { op: unknown }).op = vi.fn(async (op: string, input?: Record<string, unknown>) => {
+      if (op === 'check_scripts') return { diagnostics: [] };
+      if (op === 'play_probe') return { content: [{ text: JSON.stringify(probe(String(input?.code))) }] };
+      return null;
+    });
+  });
+
+  it('passes a turn whose claims held', async () => {
+    const s = fakeSession([
+      asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    expect(ended().acceptance.verdict).toBe('passed');
+  });
+
+  // The whole point: the turn ends with a verdict the model never wrote, so a
+  // confident closing paragraph over broken work reads as `failed` anyway.
+  it('fails a turn whose claims did not, however it answers', async () => {
+    probe = () => false;
+    const s = fakeSession([
+      asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(), ends(),
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    expect(ended().acceptance.verdict).toBe('failed');
+  });
+
+  it('tells the model what broke, once, so it can fix it', async () => {
+    probe = () => false;
+    const s = fakeSession([
+      asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(), ends(), ends(),
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    expect(s.context.filter((c) => c.includes('are not holding'))).toHaveLength(1);
+  });
+
+  // Evaluated again after the model has had its one chance to fix things, and
+  // the LAST reading is the one reported — a verdict fixed at the first failure
+  // would call every repaired turn broken.
+  it('reports the state it ends on, not the one it was told about', async () => {
+    let asked = 0;
+    probe = () => ++asked > 1;
+    const s = fakeSession([
+      asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(), // broke — told once
+      ends(), // fixed; this evaluation is the one reported
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    expect(asked).toBe(2);
+    expect(ended().acceptance.verdict).toBe('passed');
+  });
+
+  it('is unverified when the turn claimed nothing', async () => {
+    const s = fakeSession([asks(call('add_entity')), asks(call('capture_viewport')), ends()]);
+    await runTurn(deps(s), 'add one', null, new AbortController().signal);
+    expect(ended().acceptance.verdict).toBe('unverified');
+  });
+
+  // A turn that only answered a question has no work to accept, and asking the
+  // editor about a project it did not touch buys a verdict about someone else.
+  it('checks nothing on a turn that changed nothing', async () => {
+    const s = fakeSession([asks(call('get_scene_tree')), ends()]);
+    await runTurn(deps(s), 'what is here?', null, new AbortController().signal);
+    expect(driver).not.toHaveBeenCalledWith('getDiagnostics', expect.anything());
+    expect(ended().acceptance.results).toEqual([]);
+  });
+
+  it('is unverified when the turn was stopped before it could be checked', async () => {
+    const controller = new AbortController();
+    const s = fakeSession([asks(call('add_entity')), ends()]);
+    controller.abort();
+    await runTurn(deps(s), 'health bar', null, controller.signal);
+    expect(ended()).toMatchObject({ reason: 'aborted', acceptance: { verdict: 'unverified' } });
+  });
+
+  describe('declaring what done means', () => {
+    // Criteria written once the work exists are shaped by whatever got built,
+    // which is the failure the whole mechanism is there to close.
+    it('is refused after the turn has already changed something', async () => {
+      const s = fakeSession([
+        asks(call('add_entity')),
+        asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+        asks(call('capture_viewport')),
+        ends(),
+      ]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+      const outcome = s.results.flat().find((o) => o.id === 'cdone_when');
+      expect(outcome).toMatchObject({ isError: true });
+      expect(outcome!.content).toContain('too late');
+      expect(ended().acceptance.verdict).toBe('unverified');
+    });
+
+    it('refuses a claim that names nothing to settle it, and says which rule', async () => {
+      const s = fakeSession([asks(declare({ says: 'it feels good' })), ends()]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+      const outcome = s.results.flat().find((o) => o.id === 'cdone_when');
+      expect(outcome).toMatchObject({ isError: true });
+      expect(outcome!.content).toContain('names nothing that settles it');
+    });
+
+    // It is loop state, not editor state: dispatching it would be asking the
+    // editor about something the editor has never heard of.
+    it('never reaches the editor', async () => {
+      const s = fakeSession([asks(declare({ says: 'x', probe: 'ok' })), ends()]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+      expect((driver as { js: ReturnType<typeof vi.fn> }).js).not.toHaveBeenCalled();
+      expect(driver).not.toHaveBeenCalledWith('done_when', expect.anything(), expect.anything());
+    });
   });
 });
 

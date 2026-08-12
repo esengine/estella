@@ -252,6 +252,23 @@ const ATOMS = [
   { name: 'get_subsystems',
     description: 'Lifecycle + liveness of every engine subsystem (physics, audio, …): phase and activity.',
     schema: obj({}), method: 'getSubsystems', args: () => [] },
+  // The one tool the KERNEL serves rather than the editor. `loopOnly` keeps it
+  // off the MCP fronts — a client with no turn loop has nothing to declare
+  // against — while one registry keeps `check-tool-calls` able to read it.
+  { name: 'done_when', loopOnly: true,
+    description: 'State what would prove this work done, BEFORE you change anything — the editor checks it at the end of the turn and reports whether it held. '
+      + 'Each criterion is { says, probe } or { says, manual }. `says` is the claim in the words the user would use ("the bar empties as the player takes damage"). '
+      + '`probe` is an expression evaluated in the RUNNING game, true when the claim holds — the same scope play_probe gives you (`find`, `get`, `resource`), e.g. '
+      + '`find("Health")[0].data.current < 100`. `manual` is for a claim only a person can settle ("it reads well at 1080p"), and says why; those are reported as owned by them, not as passed. '
+      + 'A claim with neither is refused: something nothing can check is not a claim. '
+      + 'This is the ONE thing in the turn you do not get to grade — the verdict is computed from these, not from what you say about the work. '
+      + 'It must be called before your first write, because criteria written afterwards are shaped by whatever you happened to build.',
+    schema: obj({
+      criteria: {
+        type: 'array',
+        description: 'array of { says, probe } or { says, manual }',
+      },
+    }, ['criteria']) },
   { name: 'undo', effect: 'undoable', description: 'Undo the last edit.', schema: obj({}), method: 'undo', args: () => [] },
   { name: 'redo', effect: 'undoable', description: 'Redo the last undone edit.', schema: obj({}), method: 'redo', args: () => [] },
 
@@ -655,7 +672,9 @@ export const RESOURCES = [
 /** The MCP `tools/list` payload — name, description, JSON-Schema inputSchema.
  *  Without `allowWrites`, mutating tools are omitted entirely (not just refused). */
 export function listTools(allowWrites = false) {
-  return TOOLS.filter((t) => !mutates(t) || allowWrites)
+  // `loopOnly` tools belong to the built-in kernel's turn loop, which a remote
+  // client does not have — offering one would be offering a door onto nothing.
+  return TOOLS.filter((t) => !t.loopOnly && (!mutates(t) || allowWrites))
     .map((t) => ({ name: t.name, description: t.description, inputSchema: t.schema }));
 }
 

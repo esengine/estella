@@ -515,6 +515,49 @@ function Skeleton() {
 }
 
 /**
+ * Whether the work HELD — the one line of a finished run the model did not
+ * write, which is why it sits above the change set rather than in it.
+ *
+ * A turn that claimed nothing says so: silence would read as a pass, and
+ * "nobody checked" is the thing most worth knowing about a long run.
+ */
+function Verdict({ turn }: { turn: AgentTurn }) {
+  const [open, setOpen] = useState(false);
+  const { verdict, results } = turn.acceptance;
+  const claims = results.filter((r) => !r.floor);
+  if (verdict === 'unverified' && claims.length === 0 && results.length === 0) return null;
+  const broke = results.filter((r) => r.state === 'broke').length;
+  return (
+    <div className={`ag-verdict v-${verdict}${open ? ' open' : ''}`}>
+      <button type="button" className="ag-verdict-h" onClick={() => setOpen((o) => !o)}>
+        <ChevronRight size={11} strokeWidth={2} className="ag-car" />
+        {verdict === 'passed' && <Check size={12} strokeWidth={2.2} />}
+        {verdict === 'failed' && <TriangleAlert size={12} strokeWidth={2} />}
+        {verdict === 'unverified' && <Eye size={12} strokeWidth={1.9} />}
+        <span className="ag-verdict-t">{t(`agent.verdict.${verdict}` as const)}</span>
+        <span className="ag-sp" />
+        {broke > 0 && <span className="ag-del">{broke}</span>}
+      </button>
+      <Fold open={open}>
+        <div className="ag-verdict-l">
+          {results.map((r, i) => (
+            <div className={`ag-claim s-${r.state}`} key={i}>
+              <span className="ag-claim-s">
+                {r.state === 'held' ? '✓' : r.state === 'broke' ? '✗' : '·'}
+              </span>
+              <span className="ag-claim-t">
+                {r.says}
+                {r.detail && <span className="ag-claim-d">{r.detail}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Fold>
+    </div>
+  );
+}
+
+/**
  * What the turn actually changed — the work product of a run, so it gets
  * first-class presentation rather than a popover hung off the undo bar.
  *
@@ -759,6 +802,7 @@ const Turn = memo(function Turn({ turn, isLast, running }: {
               <ArrowRight size={13} strokeWidth={2} />{t('agent.continue')}
             </button>
           )}
+          {turn.reason !== null && <Verdict turn={turn} />}
           {turn.reason !== null && <ChangeSet turn={turn} />}
         </div>
       </Fold>

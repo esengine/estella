@@ -12,11 +12,17 @@ const toolNamed = (name: string) => TOOLS.find((t: { name: string }) => t.name =
 describe('editor MCP tool registry', () => {
   it('every tool has a unique name and a surface method, renderer code, or host op', () => {
     const names = new Set<string>();
-    for (const t of TOOLS as Array<{ name: string; method?: string; args?: unknown; js?: unknown; op?: unknown; run?: unknown }>) {
+    for (const t of TOOLS as Array<{
+      name: string; method?: string; args?: unknown; js?: unknown; op?: unknown;
+      run?: unknown; loopOnly?: boolean;
+    }>) {
       // A capability carries `run` instead: a program over the atoms below it.
       if (t.run) expect(typeof t.run).toBe('function');
       else if (t.js) expect(typeof t.js).toBe('function');
       else if (t.op) expect(typeof t.op).toBe('string');
+      // A `loopOnly` tool is the kernel's own — it declares what a TURN has to
+      // hold and reaches no editor door, so it has nothing to dispatch to.
+      else if (t.loopOnly) expect(t.method).toBeUndefined();
       else {
         expect(typeof t.method).toBe('string');
         expect(typeof t.args).toBe('function');
@@ -25,6 +31,15 @@ describe('editor MCP tool registry', () => {
       names.add(t.name);
     }
     expect(TOOLS.length).toBeGreaterThan(10);
+  });
+
+  // The exception is worth one test of its own, because it is the exception to
+  // the file header's "each tool is a transport over the editor surface".
+  it('serves the kernel-only tools to nobody remote', () => {
+    const loop = (TOOLS as Array<{ name: string; loopOnly?: boolean }>).filter((t) => t.loopOnly);
+    expect(loop.map((t) => t.name)).toEqual(['done_when']);
+    const listed = listTools(true).map((t: { name: string }) => t.name);
+    for (const t of loop) expect(listed).not.toContain(t.name);
   });
 
   it('editor-root tools pass their root through to the driver', async () => {
@@ -118,7 +133,9 @@ describe('editor MCP tool registry', () => {
 
   it('listTools advertises every tool with a description + JSON-Schema inputSchema', () => {
     const listed = listTools(true);
-    expect(listed.map((t: { name: string }) => t.name)).toEqual((TOOLS as Array<{ name: string }>).map((t) => t.name));
+    const servable = (TOOLS as Array<{ name: string; loopOnly?: boolean }>)
+      .filter((t) => !t.loopOnly).map((t) => t.name);
+    expect(listed.map((t: { name: string }) => t.name)).toEqual(servable);
     for (const t of listed as Array<{ description: string; inputSchema: { type: string } }>) {
       expect(typeof t.description).toBe('string');
       expect(t.inputSchema.type).toBe('object');

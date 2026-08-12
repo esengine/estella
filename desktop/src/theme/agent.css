@@ -963,6 +963,49 @@
 .ag-changes .ag-car { color: var(--text-faint); transition: transform var(--t) var(--e-out); }
 .ag-changes.open .ag-car { transform: rotate(90deg); }
 .ag-changes-l { padding: 4px 0 2px; }
+
+/* The verdict. Colour carries it: green held, amber broke, plain for the one
+   that says nobody checked — which is neither good news nor bad, and painting
+   it either way is the misreading this line exists to prevent. */
+.ag-verdict { margin: 8px 0 2px; }
+.ag-verdict-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: var(--fs-xs) var(--font-ui);
+}
+.ag-verdict-h:hover { background: var(--hover); }
+.ag-verdict.v-passed .ag-verdict-h { color: var(--run); border-color: color-mix(in srgb, var(--run) 40%, transparent); }
+.ag-verdict.v-failed .ag-verdict-h { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.ag-verdict.v-unverified .ag-verdict-h { color: var(--text-dim); }
+.ag-verdict .ag-car { color: var(--text-faint); transition: transform var(--t) var(--e-out); }
+.ag-verdict.open .ag-car { transform: rotate(90deg); }
+.ag-verdict-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-verdict-l { padding: 5px 0 2px 8px; }
+.ag-claim {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 7px;
+  padding: 3px 4px;
+  font: var(--fs-2xs) var(--font-mono);
+  color: var(--text-dim);
+}
+.ag-claim-s { text-align: center; font-weight: 600; }
+.ag-claim.s-held .ag-claim-s { color: var(--run); }
+.ag-claim.s-broke .ag-claim-s { color: var(--warn); }
+.ag-claim.s-unsettled .ag-claim-s { color: var(--text-faint); }
+.ag-claim.s-broke .ag-claim-t { color: var(--text); }
+/* The reason on its own line: a probe's answer or a compiler message is where
+   the whole value is, and clipping it to a cell is where it used to go. */
+.ag-claim-d { display: block; color: var(--text-faint); margin-top: 2px; }
 .ag-chg {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;

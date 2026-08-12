@@ -393,7 +393,7 @@ describe('a conversation that outlives the session', () => {
       endpoint: 'fake',
       events: [
         { type: 'turn_start', prompt: 'yesterday', model: 'fake-model', index: 0 },
-        { type: 'turn_end', steps: 0, mark: null, endMark: null, tx: null, files: [], reason: 'end_turn' },
+        { type: 'turn_end', steps: 0, mark: null, endMark: null, tx: null, files: [], acceptance: { verdict: 'unverified', results: [] }, reason: 'end_turn' },
       ],
       memory: { asked: ['yesterday'] },
     };

@@ -114,7 +114,7 @@ describe('messages typed while a turn runs', () => {
 describe('asking a run again', () => {
   const turn = (id: number, prompt: string) => ({
     id, prompt, model: 'm', entries: [], inputTokens: 0, outputTokens: 0, context: null,
-    steps: 0, mark: null, endMark: null, tx: null, files: [], reason: 'end_turn' as const, startedAt: 0, endedAt: 1,
+    steps: 0, mark: null, endMark: null, tx: null, files: [], acceptance: { verdict: 'unverified' as const, results: [] },  reason: 'end_turn' as const, startedAt: 0, endedAt: 1,
   });
 
   beforeEach(() => {

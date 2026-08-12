@@ -22,7 +22,8 @@ const step = (id: number, label = `step ${id}`, undone = false): HistoryStep =>
 const turn = (id: number, from: number, to: number, over: Partial<AgentTurn> = {}): AgentTurn => ({
   id, prompt: `turn ${id}`, model: 'opus-5', entries: [],
   inputTokens: 0, outputTokens: 0, context: null,
-  steps: to - from, mark: { seq: from }, endMark: { seq: to }, tx: null, files: [],
+  steps: to - from, mark: { seq: from }, endMark: { seq: to }, tx: null, files: [], 
+  acceptance: { verdict: 'unverified', results: [] },
   reason: 'end_turn', startedAt: 0, endedAt: 1,
   ...over,
 });

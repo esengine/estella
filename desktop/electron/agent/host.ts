@@ -357,7 +357,7 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
         // path is reached BEFORE the turn starts (runTurn takes its checkpoint
         // outside its own try), so there is no turn for it to be part of.
         error = (e as Error)?.message ?? String(e);
-        emit({ type: 'turn_end', steps: 0, mark: null, endMark: null, tx: null, files: [], reason: 'error' });
+        emit({ type: 'turn_end', steps: 0, mark: null, endMark: null, tx: null, files: [], acceptance: { verdict: 'unverified', results: [] }, reason: 'error' });
       } finally {
         settlePending();
         // The run is over either way — errors included, since a conversation

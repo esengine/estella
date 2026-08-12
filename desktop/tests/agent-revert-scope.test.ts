@@ -14,7 +14,7 @@ import type { FileChange } from '../electron/agent/types';
 const turn = (over: Partial<AgentTurn>): AgentTurn => ({
   id: 0, prompt: 'add a health bar', model: 'opus-5', entries: [],
   inputTokens: 0, outputTokens: 0, context: null,
-  steps: 0, mark: { seq: 1 }, endMark: null, tx: null, files: [],
+  steps: 0, mark: { seq: 1 }, endMark: null, tx: null, files: [], acceptance: { verdict: 'unverified', results: [] }, 
   reason: 'end_turn', startedAt: 0, endedAt: 1,
   ...over,
 });

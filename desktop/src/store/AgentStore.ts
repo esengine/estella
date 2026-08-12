@@ -19,7 +19,7 @@
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
 import type {
-  AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest, FileChange,
+  Acceptance, AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest, FileChange,
 } from '../../electron/agent/types';
 import {
   agentProviders, agentProvider, agentKeyId, parseModelList, protocolOf,
@@ -152,6 +152,12 @@ export interface AgentTurn {
    */
   tx: string | null;
   files: readonly FileChange[];
+  /**
+   * Whether the WORK held — the one thing about a turn the model does not get
+   * to report. `reason` says how it stopped; this says whether what it stopped
+   * on is any good. See electron/agent/acceptance.ts.
+   */
+  acceptance: Acceptance;
   /** null while the turn is still running. */
   reason: TurnReason | null;
   /** Wall clock, stamped here rather than in main: it is what the person waited,
@@ -498,6 +504,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
       endMark: null,
       tx: null,
       files: [],
+      acceptance: { verdict: 'unverified', results: [] },
       reason: null,
       startedAt: Date.now(),
       endedAt: null,
@@ -593,6 +600,7 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
         endMark: event.endMark,
         tx: event.tx,
         files: event.files,
+        acceptance: event.acceptance,
         endedAt: Date.now(),
         // Nothing will report on these now. Neither failed nor succeeded.
         entries: closeProse(open.entries).map((e) =>

@@ -14,6 +14,7 @@
  * about a vendor reaches the kernel, and no editor policy reaches a provider.
  */
 import type { HistoryMark } from '../../src/engine/EditorHistory';
+import type { Acceptance } from './acceptance';
 
 /** A tool as the catalog declares it (the .mjs registry is untyped). */
 export interface CatalogTool {
@@ -281,6 +282,10 @@ export type AgentEvent =
     tx: string | null;
     files: readonly FileChange[];
     reason: 'end_turn' | 'aborted' | 'error' | 'refusal' | 'max_rounds';
+    /** Whether the WORK held, asked of the project rather than of the model —
+     *  see agent/acceptance.ts. `reason` says how the turn stopped; this says
+     *  whether what it stopped on is any good. */
+    acceptance: Acceptance;
   }
   | { type: 'error'; message: string };
 
@@ -330,3 +335,4 @@ export interface FileChange {
 }
 
 export type { HistoryMark };
+export type { Acceptance, Criterion, CriterionResult, Verdict } from './acceptance';

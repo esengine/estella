@@ -15,6 +15,9 @@
 import type {
   AgentEvent, CatalogTool, ConfirmReason, KernelDeps, ToolCall, ToolOutcome, UserImage,
 } from './types';
+import {
+  criteriaProblem, evaluate, failureReport, type Acceptance, type Criterion,
+} from './acceptance';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
 import { TOOLS, runTool, mutates, irreversible, journaled } from '../../shared/toolCatalog.mjs';
@@ -69,6 +72,49 @@ export function agentTools(contributed: readonly ContributedTool[] = []): readon
 
 /** One generic door on `window.__estellaEditor` for every contributed tool. */
 const PLUGIN_TOOL_METHOD = 'runPluginTool';
+
+/** The tool the kernel answers itself — it declares what the TURN has to hold,
+ *  which is loop state and reaches no editor door. See acceptance.ts. */
+const ACCEPTANCE_TOOL = 'done_when';
+
+/** What the turn has claimed and whether it has written yet. Held by runTurn
+ *  and threaded down, because both facts belong to the turn and not to a call. */
+interface TurnState {
+  criteria: Criterion[];
+  wroteAnything: boolean;
+}
+
+/**
+ * Answer {@link ACCEPTANCE_TOOL}: keep the claims, or refuse and say which rule.
+ *
+ * Refused after the first write on purpose. Criteria written once the work
+ * exists are shaped by whatever got built, which is the failure mode the whole
+ * mechanism is there to close.
+ */
+function declare(
+  call: ToolCall,
+  turn: TurnState,
+  emit: KernelDeps['emit'],
+): { outcome: ToolOutcome; mutated: boolean } {
+  const refuse = (content: string) => {
+    emit({ type: 'tool_end', id: call.id, ok: false, summary: content });
+    return { outcome: { id: call.id, content, isError: true }, mutated: false };
+  };
+  if (turn.wroteAnything) {
+    return refuse(
+      'too late — this turn has already changed something, and criteria written after the work '
+      + 'are shaped by the work. Say in your answer what you would have claimed, and declare it '
+      + 'first next time.',
+    );
+  }
+  const problem = criteriaProblem((call.input as { criteria?: unknown }).criteria);
+  if (problem) return refuse(problem);
+
+  turn.criteria = [...(call.input as { criteria: Criterion[] }).criteria];
+  const summary = `${turn.criteria.length} criteria — checked at the end of this turn`;
+  emit({ type: 'tool_end', id: call.id, ok: true, summary });
+  return { outcome: { id: call.id, content: summary, isError: false }, mutated: false };
+}
 
 /** What the window says a plugin contributed. The handler stays over there. */
 export interface ContributedTool {
@@ -170,7 +216,7 @@ export async function runTurn(
   context: string | null,
   signal: AbortSignal,
   images?: readonly UserImage[],
-): Promise<{ mark: unknown; endMark: unknown; steps: number; tx: string | null }> {
+): Promise<{ mark: unknown; endMark: unknown; steps: number; tx: string | null; acceptance: Acceptance }> {
   const { driver, session, emit, model, acceptsImages } = deps;
   const mark = await driver('mark', []);
   // Opened before the first call and closed once, in the finally below: a
@@ -187,6 +233,9 @@ export async function runTurn(
   const allowed = new Set<string>();
   // Undo steps this turn is responsible for, so a jump beyond it is the person.
   let ours = 0;
+  // The last evaluation, which is the one the verdict comes from. Out here
+  // because turn_end reports it however the turn ended.
+  let accepted: Acceptance | null = null;
   try {
     if (context) session.pushContext(context);
     if (!acceptsImages) {
@@ -210,6 +259,8 @@ export async function runTurn(
     // that just crossed the line — see REPEAT_LIMIT.
     const failing = new Map<string, number>();
     const stuck: string[] = [];
+    const turn: TurnState = { criteria: [], wroteAnything: false };
+    let toldFailures = false;
     let round = 0;
     for (; round < MAX_ROUNDS; round++) {
       // The editor is not frozen while a turn runs: the person can drag an
@@ -302,6 +353,21 @@ export async function runTurn(
           );
           continue;
         }
+        // A turn that changed nothing and claimed nothing has no work to
+        // accept, and asking the editor about a project it did not touch buys a
+        // verdict about someone else's state.
+        if (builtSomething || turn.criteria.length > 0) {
+          // Taken HERE rather than after the loop, so a turn that broke its own
+          // criteria gets one chance to fix them — the same shape as the
+          // diagnostics feed. Told once, and the reading it ends on is reported.
+          accepted = await evaluate(deps, turn.criteria);
+          const failures = failureReport(accepted);
+          if (failures && !toldFailures) {
+            toldFailures = true;
+            session.pushContext(failures);
+            continue;
+          }
+        }
         break;
       }
 
@@ -316,8 +382,8 @@ export async function runTurn(
         let end = i;
         while (end < calls.length && isRead(calls[end])) end++;
         const batch = end - i > 1
-          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal, tx !== null)))
-          : [await execute(deps, calls[i], allowed, signal, tx !== null)];
+          ? await Promise.all(calls.slice(i, end).map((c) => execute(deps, c, allowed, signal, tx !== null, turn)))
+          : [await execute(deps, calls[i], allowed, signal, tx !== null, turn)];
         const slice = calls.slice(i, i + batch.length);
         for (const done of batch) {
           outcomes.push(done.outcome);
@@ -332,6 +398,7 @@ export async function runTurn(
           if (batch[k].outcome.isError) stuckOn(failing, slice[k], stuck);
         }
         builtSomething ||= wrote;
+        turn.wroteAnything ||= wrote;
         i += batch.length;
       }
       if (signal.aborted) break;
@@ -380,8 +447,11 @@ export async function runTurn(
   // one, so the newest run claims every edit the person makes after it.
   const endMark = await driver('mark', []).catch(() => null);
   const files = tx ? deps.journal?.changes(tx) ?? [] : [];
-  emit({ type: 'turn_end', steps, mark, endMark, tx, files, reason });
-  return { mark, endMark, steps, tx };
+  // A turn that never reached the point of answering — stopped, or out of
+  // rounds — was never evaluated, and `unverified` is the honest word for it.
+  const acceptance: Acceptance = accepted ?? { verdict: 'unverified', results: [] };
+  emit({ type: 'turn_end', steps, mark, endMark, tx, files, reason, acceptance });
+  return { mark, endMark, steps, tx, acceptance };
 }
 
 /**
@@ -490,6 +560,7 @@ async function execute(
   allowed: Set<string>,
   signal: AbortSignal,
   journalling: boolean,
+  turn: TurnState,
 ): Promise<{ outcome: ToolOutcome; mutated: boolean }> {
   const { emit, driver, confirm } = deps;
   const tool = byName.get(call.name);
@@ -502,6 +573,7 @@ async function execute(
 
   const effect = tool.effect ?? 'read';
   emit({ type: 'tool_start', call, effect });
+  if (call.name === ACCEPTANCE_TOOL) return declare(call, turn, emit);
 
   // The one gate. Everything the turn's checkpoint covers runs unasked. The flag
   // is why the tier is not enough: journaled with NO transaction open is

@@ -210,6 +210,13 @@ export const agentMessages = defineMessages({
     },
     'agent.jump': { en: 'One waiting on you', zh: '有一条待确认' },
 
+    // — Whether the work held (electron/agent/acceptance.ts) —
+    'agent.verdict.passed': { en: 'Everything it claimed held', zh: '声明的都成立了' },
+    'agent.verdict.failed': { en: 'Something it claimed did not hold', zh: '有声明没有成立' },
+    // Not a failure — an absence, and the absence is the point. A long run that
+    // nobody checked is the thing most worth saying out loud.
+    'agent.verdict.unverified': { en: 'Nothing checked this work', zh: '没有任何东西检查过这份工作' },
+
     // — The checkpoint a finished turn leaves behind —
     'agent.checkpoint.undo': { en: 'Undo', zh: '撤销' },
     'agent.checkpoint.keep': { en: 'Keep', zh: '保留' },
