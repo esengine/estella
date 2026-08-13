@@ -49,8 +49,15 @@ export function stopProjectWatch(): void {
  * Watch `root` and push `project:fsChanged` to `wc` (debounced + coalesced) on
  * any change outside the ignored set. Replaces any existing watch. Failure to
  * watch is non-fatal — the editor's own mutations still refresh optimistically.
+ *
+ * `onChanged` gets the same coalesced set, for the main-process state that is
+ * read off project files and would otherwise go stale behind an outside edit.
  */
-export function startProjectWatch(root: string, wc: WebContents): void {
+export function startProjectWatch(
+  root: string,
+  wc: WebContents,
+  onChanged?: (paths: readonly string[]) => void,
+): void {
   stopProjectWatch();
   try {
     watcher = watch(root, { recursive: true }, (_event, filename) => {
@@ -68,6 +75,7 @@ export function startProjectWatch(root: string, wc: WebContents): void {
         const paths = [...pending];
         pending = new Set();
         timer = null;
+        onChanged?.(paths);
         if (!wc.isDestroyed()) wc.send('project:fsChanged', { paths });
       }, DEBOUNCE_MS);
     });

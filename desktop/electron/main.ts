@@ -907,6 +907,16 @@ async function refreshStanding(): Promise<void> {
     .catch(() => standingCriteria);
 }
 
+/**
+ * An edit that did not come through the editor's own door — an outside editor,
+ * a git checkout, a pull. A watch that cannot name what changed (`paths` empty)
+ * is taken as "maybe the manifest": claims that silently did not load look
+ * exactly like a project that never had any.
+ */
+function onProjectFilesChanged(paths: readonly string[]): void {
+  if (paths.length === 0 || paths.includes(PROJECT_MANIFEST_FILE)) void refreshStanding();
+}
+
 async function adoptRoot(root: string): Promise<string | undefined> {
   // Held copies name paths under the OLD root; nothing about them is restorable
   // into this one, and offering a revert that would write into a project the
@@ -914,7 +924,7 @@ async function adoptRoot(root: string): Promise<string | undefined> {
   if (projectRoot !== root) await journal.discardAll();
   projectRoot = root;
   await refreshStanding();
-  if (win) startProjectWatch(root, win.webContents);
+  if (win) startProjectWatch(root, win.webContents, onProjectFilesChanged);
   // The compiler follows the project. Built lazily on the first question, so an
   // open pays nothing for a service it may never be asked one.
   adoptProjectScripts(root);
