@@ -17,7 +17,7 @@
  */
 import { EditorHistory, type HistoryMark } from './EditorHistory';
 import { Toasts } from '@/store/Toasts';
-import type { AgentTurn } from '@/store/AgentStore';
+import { markReverted, type AgentTurn } from '@/store/AgentStore';
 import type { FileChange } from '../../electron/agent/types';
 import { t } from '@/i18n';
 
@@ -42,7 +42,7 @@ export interface RewindPlan {
  */
 export function planRewind(point: number, turns: readonly AgentTurn[]): RewindPlan {
   const runs: RewindPlan['runs'] = turns
-    .filter((t) => t.tx && ((t.mark as HistoryMark | null)?.seq ?? -1) >= point)
+    .filter((t) => t.tx && !t.reverted && ((t.mark as HistoryMark | null)?.seq ?? -1) >= point)
     .map((t) => ({ id: t.id, prompt: t.prompt, tx: t.tx! }));
   const files = turns
     .filter((t) => runs.some((r) => r.id === t.id))
@@ -70,6 +70,9 @@ export async function rewind(plan: RewindPlan): Promise<RewindResult> {
   if (plan.runs.length === 0) return { steps, restored: [], unjournaled: [], failed: [] };
 
   const result = await window.estella?.agent?.revertFiles?.(plan.runs.map((r) => r.tx));
+  // Their copies are spent whatever came of the write: a second attempt has
+  // nothing left to hand back, and offering one says otherwise.
+  markReverted(plan.runs.map((r) => r.id));
   return {
     steps,
     restored: result?.restored ?? [],

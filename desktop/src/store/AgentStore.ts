@@ -174,6 +174,9 @@ export interface AgentTurn {
    */
   tx: string | null;
   files: readonly FileChange[];
+  /** A rewind has already handed this transaction's copies back. It stays on
+   *  the timeline as what happened; what it no longer is, is revertable. */
+  reverted?: boolean;
   /**
    * Whether the WORK held — the one thing about a turn the model does not get
    * to report. `reason` says how it stopped; this says whether what it stopped
@@ -426,6 +429,14 @@ export async function selectAgentModel(providerId: string, model: string): Promi
 }
 export const dismissCheckpoint = (turnId: number): void => useAgent.setState({ checkpointDone: turnId });
 
+/** Record that a rewind took these runs, so nothing offers to take them again. */
+export function markReverted(ids: readonly number[]): void {
+  const taken = new Set(ids);
+  useAgent.setState((s) => ({
+    turns: s.turns.map((t) => (taken.has(t.id) ? { ...t, reverted: true } : t)),
+  }));
+}
+
 /** What a finished turn's Revert would cover. See {@link revertScope}. */
 export interface RevertScope {
   steps: number;
@@ -444,7 +455,7 @@ export interface RevertScope {
  * undo cannot reach. `stepsNow` is the stack past the mark, the caller's to read.
  */
 export function revertScope(turn: AgentTurn, stepsNow: number): RevertScope | null {
-  if (turn.reason === null) return null;
+  if (turn.reason === null || turn.reverted) return null;
   if (turn.steps === 0 && turn.files.length === 0) return null;
   return {
     steps: turn.steps,

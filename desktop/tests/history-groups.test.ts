@@ -100,6 +100,27 @@ describe('folding the timeline into rows', () => {
     expect(turns(rows)[0]).toMatchObject({ files: [{ path: 'src/HP.ts' }], tx: 'tx-1' });
   });
 
+  // Appended after the walk, a run that recorded no steps sat below every run
+  // that came later and read as the newest thing on the timeline.
+  it('puts a files-only run where it ran, not after the steps that followed it', () => {
+    const rows = historyRows(
+      [step(1), step(2)],
+      [turn(0, 0, 0, { tx: 'tx-a', files: [file('src/A.ts')] }), turn(1, 1, 2)],
+    );
+    expect(rows.map((r) => r.kind)).toEqual(['turn', 'step', 'turn']);
+    expect((rows[0] as TurnRow).id).toBe(0);
+    expect((rows[2] as TurnRow).id).toBe(1);
+  });
+
+  it('keeps two files-only runs in the order they ran', () => {
+    const rows = historyRows([step(1)], [
+      turn(0, 0, 0, { tx: 'tx-a', files: [file('src/A.ts')] }),
+      turn(1, 0, 0, { tx: 'tx-b', files: [file('src/B.ts')] }),
+    ]);
+    expect(turns(rows).map((r) => r.id)).toEqual([0, 1]);
+    expect(rows[2]).toMatchObject({ kind: 'step', step: { id: 1 } });
+  });
+
   it('shows nothing for a turn that did neither', () => {
     expect(historyRows([], [turn(0, 0, 0)])).toEqual([]);
   });
@@ -139,6 +160,16 @@ describe('which turn may offer a Revert', () => {
   it('still offers it when the person has edited past the run', () => {
     const rows = historyRows([step(1), step(2)], [turn(0, 0, 1)]);
     expect(turns(rows)[0].revertable).toBe(true);
+  });
+
+  // A reverted transaction hands its copies back and cannot re-apply them, so a
+  // second press has nothing to give — and a files-only run has no undone step
+  // to work that out from.
+  it('withdraws it from a run a rewind already took', () => {
+    const rows = historyRows([], [turn(0, 0, 0, {
+      tx: 'tx-1', files: [file('src/HP.ts')], reverted: true,
+    })]);
+    expect(turns(rows)[0]).toMatchObject({ revertable: false, undone: true });
   });
 });
 

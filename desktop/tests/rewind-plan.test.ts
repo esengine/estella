@@ -63,6 +63,14 @@ describe('what going back to a point takes with it', () => {
     expect(plan.runs).toEqual([]);
   });
 
+  // Its copies went back the first time. Counted again, the confirmation states
+  // a reach that includes files nothing can restore.
+  it('ignores a run an earlier rewind already took', () => {
+    const plan = planRewind(0, [turn(0, 0, 3, { reverted: true }), turn(1, 3, 6)]);
+    expect(plan.runs.map((r) => r.id)).toEqual([1]);
+    expect(plan.files.map((f) => f.path)).toEqual(['src/run1.ts']);
+  });
+
   // What it cannot put back is named in the plan, so the confirmation can say
   // it BEFORE the gesture rather than a toast saying it afterwards.
   it('names what it would leave behind', () => {

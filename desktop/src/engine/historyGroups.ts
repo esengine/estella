@@ -46,6 +46,8 @@ export interface TurnRow {
   revertable: boolean;
   /** Every step in it has been undone — the whole row reads as taken back. */
   undone: boolean;
+  /** A rewind already took this run back; its transaction no longer holds. */
+  reverted: boolean;
 }
 
 export type HistoryRow = StepRow | TurnRow;
@@ -76,7 +78,23 @@ export function historyRows(
   const claimed = new Map<number, TurnRow>();
   const rows: HistoryRow[] = [];
 
+  // A run that recorded no steps still has its files to show, and it belongs
+  // where it RAN: appended after the walk, it sat below runs that came later
+  // and read as the newest thing on the timeline.
+  const stepless = windows
+    .filter((w) => w.turn.files.length > 0 && !steps.some((s) => s.id > w.from && s.id <= w.until));
+  let next = 0;
+  const flushStepless = (before: number): void => {
+    while (next < stepless.length && stepless[next].from < before) {
+      const w = stepless[next++];
+      const row = turnRow(w.turn, w.until);
+      claimed.set(w.turn.id, row);
+      rows.push(row);
+    }
+  };
+
   for (const step of steps) {
+    flushStepless(step.id);
     const w = owner(step.id);
     if (!w) {
       rows.push({ kind: 'step', step });
@@ -92,20 +110,13 @@ export function historyRows(
     }
     row.steps.push(step);
   }
-
-  // A turn that recorded no steps still has its files to show — the case a
-  // steps-only reading of a turn missed entirely.
-  for (const w of windows) {
-    if (!claimed.has(w.turn.id) && w.turn.files.length > 0) {
-      const row = turnRow(w.turn, w.until);
-      claimed.set(w.turn.id, row);
-      rows.push(row);
-    }
-  }
+  flushStepless(Infinity);
 
   for (const row of rows) {
     if (row.kind !== 'turn') continue;
-    row.undone = row.steps.length > 0 && row.steps.every((s) => s.undone);
+    // A rewind hands a transaction's copies back and cannot re-apply them, so a
+    // run it took is spent whether or not it had steps to undo.
+    row.undone = row.reverted || (row.steps.length > 0 && row.steps.every((s) => s.undone));
     // A files-only run has no steps to undo, and its transaction is the whole
     // of what there is to take back.
     row.revertable = !row.undone && (row.steps.length > 0 || row.files.length > 0);
@@ -127,6 +138,7 @@ function turnRow(turn: AgentTurn, endSeq: number): TurnRow {
     endSeq,
     revertable: false,
     undone: false,
+    reverted: turn.reverted === true,
   };
 }
 
