@@ -114,6 +114,12 @@ export interface AgentHost {
   /** Answer a pending confirmation. Unknown ids are ignored — the turn it
    *  belonged to may have been aborted between the ask and the click. */
   confirm(callId: string, answer: ConfirmAnswer, declined?: readonly number[]): void;
+  /**
+   * Answer a claim of run `turn` that only a person could settle. Recorded on
+   * the stream, so the run's verdict says the same thing after a reload as it
+   * did when the answer was given.
+   */
+  settle(turn: number, index: number, held: boolean): void;
   /** Drop the conversation and start over; the next turn re-reads the key. */
   reset(): AgentStatus;
   /** Put a saved conversation back — transcript and memory both. */
@@ -394,6 +400,9 @@ export function createAgentHost(deps: AgentHostDeps): AgentHost {
       // The kernel may be parked on a confirmation, which an aborted signal does
       // not interrupt — it is waiting on us, not on the model.
       settlePending();
+    },
+    settle: (turn, index, held) => {
+      record({ type: 'claim_settled', turn, index, held });
     },
     confirm: (callId, answer, declined) => {
       const resolve = pending.get(callId);

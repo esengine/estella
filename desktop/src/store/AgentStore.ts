@@ -18,6 +18,9 @@
  */
 import { create } from 'zustand';
 import type { AgentStatus, AgentMessage } from '../../electron/agent/host';
+// The rule that turns results into a verdict, not a second reading of it: a
+// claim settled here has to come to the same answer the kernel would.
+import { verdictOf } from '../../electron/agent/acceptance';
 import type {
   Acceptance, AgentEvent, ConfirmAnswer, ConfirmReason, ConfirmRequest, FileChange,
 } from '../../electron/agent/types';
@@ -516,6 +519,18 @@ export function applyAgentEvent(turns: readonly AgentTurn[], event: AgentEvent):
   // A new session numbers its runs from zero again, so keeping the old ones
   // would make the next turn_start look like a repeat of one already held.
   if (event.type === 'conversation_reset') return [];
+
+  // Aimed at a FINISHED run by its own coordinate — the claim it answers is one
+  // the turn could not settle itself, so the answer necessarily arrives later.
+  if (event.type === 'claim_settled') {
+    return turns.map((t) => {
+      if (t.id !== event.turn) return t;
+      const results = t.acceptance.results.map((r, i) => (i === event.index
+        ? { ...r, state: event.held ? 'held' as const : 'broke' as const, settled: true, detail: undefined }
+        : r));
+      return { ...t, acceptance: { verdict: verdictOf(results), results } };
+    });
+  }
 
   if (event.type === 'turn_start') {
     // Idempotent, so replaying the stream over a transcript that already has

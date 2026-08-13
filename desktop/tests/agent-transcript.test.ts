@@ -370,3 +370,51 @@ describe('a result as one cell', () => {
     expect(briefResult('   ')).toBe('');
   });
 });
+/**
+ * A claim only a person could settle, answered by one.
+ *
+ * It arrives as an EVENT because the drawer's runs are a fold over the stream:
+ * an answer kept beside it would be one a window reload throws away, leaving a
+ * run whose verdict disagrees with the answer the user gave it.
+ */
+describe('settling a claim the run left to a person', () => {
+  const withClaim = (): AgentEvent => ({
+    type: 'turn_end',
+    steps: 0, mark: null, endMark: null, tx: null, files: [], reason: 'end_turn',
+    acceptance: {
+      verdict: 'unverified',
+      results: [
+        { says: 'the bar empties', probe: 'x', state: 'held', owner: 'turn' },
+        { says: 'it reads at 1080p', manual: 'legibility', state: 'unsettled', owner: 'turn' },
+      ],
+    },
+  });
+
+  it('passes the run once the person says it holds', () => {
+    const [turn] = fold(started(), withClaim(), { type: 'claim_settled', turn: 0, index: 1, held: true });
+    expect(turn.acceptance.results[1]).toMatchObject({ state: 'held', settled: true });
+    expect(turn.acceptance.verdict).toBe('passed');
+  });
+
+  it('fails the run when they say it does not', () => {
+    const [turn] = fold(started(), withClaim(), { type: 'claim_settled', turn: 0, index: 1, held: false });
+    expect(turn.acceptance.verdict).toBe('failed');
+  });
+
+  it('leaves the run unverified while nobody has answered', () => {
+    const [turn] = fold(started(), withClaim());
+    expect(turn.acceptance.verdict).toBe('unverified');
+  });
+
+  // Runs are addressed by the SESSION's coordinate, and an answer aimed at one
+  // run must not land on whichever happens to be open.
+  it('answers the run it names, not the open one', () => {
+    const turns = fold(
+      started('first', 0), withClaim(),
+      started('second', 1),
+      { type: 'claim_settled', turn: 0, index: 1, held: true },
+    );
+    expect(turns[0].acceptance.verdict).toBe('passed');
+    expect(turns[1].acceptance.verdict).toBe('unverified');
+  });
+});

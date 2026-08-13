@@ -793,6 +793,10 @@ ipcMain.handle(
   'agent:confirm',
   (_e, callId: string, answer: ConfirmAnswer, declined?: number[]) => agentHost.confirm(callId, answer, declined),
 );
+ipcMain.handle(
+  'agent:settleClaim',
+  (_e, turn: number, index: number, held: boolean) => agentHost.settle(turn, index, held),
+);
 /**
  * Put back the project files one or more runs wrote, and tell the window which
  * paths moved so its ordinary external-change path picks them up. A LIST

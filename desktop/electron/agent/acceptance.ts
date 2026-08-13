@@ -50,6 +50,9 @@ export type CriterionOwner = 'editor' | 'project' | 'turn';
  * `unsettled` is neither pass nor fail: nothing was in a position to answer it.
  */
 export interface CriterionResult extends DeclaredCriterion {
+  /** A person answered this one. Only ever true on a `manual` claim, which is
+   *  the only kind waiting for them. */
+  settled?: boolean;
   state: 'held' | 'broke' | 'unsettled';
   /** What it answered, or why nothing could answer it. */
   detail?: string;

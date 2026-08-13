@@ -1030,6 +1030,22 @@
    while reading, and a row of buttons down the list would read as the point. */
 .ag-claim:hover .ag-claim-keep { opacity: 1; }
 .ag-claim-keep:hover { color: var(--text-hi); border-color: var(--text-dim); }
+/* Always shown, unlike Keep: the run is asking, and an ask that appears on
+   hover is one nobody knows is there. */
+.ag-claim-ask { align-self: start; display: flex; gap: 4px; margin-top: -1px; }
+.ag-claim-ask > button {
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-dim);
+  font: var(--fs-2xs) var(--font-ui);
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+/* The same two colours the row's own sigil uses for held and broke. */
+.ag-claim-yes:hover { color: var(--run); border-color: var(--run); }
+.ag-claim-no:hover { color: var(--warn); border-color: var(--warn); }
 .ag-chg {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;

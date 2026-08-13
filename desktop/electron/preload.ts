@@ -130,6 +130,10 @@ const api = {
     /** Answer the pending confirmation for an irreversible tool. */
     confirm: (callId: string, answer: ConfirmAnswer, declined?: readonly number[]): Promise<void> =>
       ipcRenderer.invoke('agent:confirm', callId, answer, declined),
+    /** Answer a claim of that run only a person could settle, by its position
+     *  in the run's results. */
+    settleClaim: (turn: number, index: number, held: boolean): Promise<void> =>
+      ipcRenderer.invoke('agent:settleClaim', turn, index, held),
     /** Put back the project files these runs wrote (their file-journal
      *  transactions) and say what came back. The DOCUMENT half is this window's
      *  own undo — see src/engine/rewind.ts. */

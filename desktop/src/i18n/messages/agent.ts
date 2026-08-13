@@ -223,6 +223,16 @@ export const agentMessages = defineMessages({
     // nobody checked is the thing most worth saying out loud.
     'agent.verdict.unverified': { en: 'Nothing checked this work', zh: '没有任何东西检查过这份工作' },
 
+    // A claim the run said only a person could settle. Until one does, the run
+    // is not passed — which is what keeps `manual` from being the way past it.
+    'agent.claim.ask': {
+      en: 'The run says only you can settle this one',
+      zh: '这一条这轮说只有你能判',
+    },
+    'agent.claim.held': { en: 'It holds', zh: '成立' },
+    'agent.claim.broke': { en: 'It does not', zh: '不成立' },
+    'agent.claim.yours': { en: 'you', zh: '你判的' },
+
     // — The checkpoint a finished turn leaves behind —
     'agent.checkpoint.undo': { en: 'Undo', zh: '撤销' },
     'agent.checkpoint.keep': { en: 'Keep', zh: '保留' },

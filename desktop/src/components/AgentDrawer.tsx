@@ -543,7 +543,7 @@ function Verdict({ turn }: { turn: AgentTurn }) {
       </button>
       <Fold open={open}>
         <div className="ag-verdict-l">
-          {results.map((r, i) => <Claim key={i} result={r} />)}
+          {results.map((r, i) => <Claim key={i} result={r} turnId={turn.id} index={i} />)}
         </div>
       </Fold>
     </div>
@@ -569,9 +569,12 @@ const CHECK: Record<string, string> = {
   scripts: t('hist.check.scripts'),
 };
 
-function Claim({ result }: { result: CriterionResult }) {
+function Claim({ result, turnId, index }: { result: CriterionResult; turnId: number; index: number }) {
   const [kept, setKept] = useState(false);
   const canKeep = result.owner === 'turn' && result.state === 'held' && !kept;
+  // The only claims waiting on anybody. Until one is answered the run is not
+  // passed, which is what stops `manual` being the cheap way past the verdict.
+  const asking = result.owner === 'turn' && result.state === 'unsettled' && !!result.manual;
   return (
     <div className={`ag-claim s-${result.state} o-${result.owner}`}>
       <span className="ag-claim-s">
@@ -579,9 +582,30 @@ function Claim({ result }: { result: CriterionResult }) {
       </span>
       <span className="ag-claim-t">
         {result.owner !== 'turn' && <span className="ag-claim-o">{OWNER[result.owner]}</span>}
+        {result.settled && <span className="ag-claim-o">{t('agent.claim.yours')}</span>}
         {(result.check && CHECK[result.check]) ?? result.says}
         {result.detail && <span className="ag-claim-d">{result.detail}</span>}
       </span>
+      {asking && (
+        <span className="ag-claim-ask">
+          <button
+            type="button"
+            className="ag-claim-yes"
+            title={t('agent.claim.ask')}
+            onClick={() => void window.estella?.agent?.settleClaim?.(turnId, index, true)}
+          >
+            {t('agent.claim.held')}
+          </button>
+          <button
+            type="button"
+            className="ag-claim-no"
+            title={t('agent.claim.ask')}
+            onClick={() => void window.estella?.agent?.settleClaim?.(turnId, index, false)}
+          >
+            {t('agent.claim.broke')}
+          </button>
+        </span>
+      )}
       {canKeep && (
         <button
           type="button"

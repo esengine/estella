@@ -287,6 +287,14 @@ export type AgentEvent =
      *  whether what it stopped on is any good. */
     acceptance: Acceptance;
   }
+  /**
+   * A claim only a person could settle, answered by one. `turn` is the run's
+   * session index and `index` the claim's position in that run's results.
+   *
+   * An event rather than window state: the drawer's runs are a fold over this
+   * stream, so an answer kept anywhere else is one a reload throws away.
+   */
+  | { type: 'claim_settled'; turn: number; index: number; held: boolean }
   | { type: 'error'; message: string };
 
 /** Everything the kernel needs from outside, so it runs under a test with none
