@@ -382,7 +382,8 @@ const ATOMS = [
     js: (i) => `window.estella.project.createScript(${JSON.stringify(i.kind)}, ${JSON.stringify(i.name)}, ${JSON.stringify(i.dir ?? undefined)})` },
   { name: 'create_asset', effect: 'journaled',
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader (.esshader), material (.esmaterial), materialgraph (.esmatgraph), animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves). '
-      + 'A material graph is the ONE type whose file is not the whole asset: it compiles to a sibling `.esshader`, which is written by save_asset_document — so create it, open_asset it, and save it, rather than leaving a graph with no shader beside it.',
+      + 'A material graph is the ONE type whose file is not the whole asset: it compiles to a sibling `.esshader`, which is written by save_asset_document — so create it, open_asset it, and save it, rather than leaving a graph with no shader beside it. '
+      + "A material's `shader` field names one from list_shader_templates — `builtin:<id>` for a stock template, which needs no shader file of its own; check that list before writing a shader by hand.",
     schema: obj({
       destDir: { type: 'string' }, baseName: { type: 'string' },
       content: { type: 'string' }, type: { type: 'string' },
@@ -543,6 +544,12 @@ const ATOMS = [
   { name: 'list_entity_templates',
     description: "The Create-popover catalog: every ready-made entity the editor can spawn (id, label, category). Use an id with create_entity.",
     schema: obj({}), method: 'listEntityTemplates', args: () => [], root: 'editor' },
+  { name: 'list_shader_templates',
+    description: "The material picker's catalog: every shader a material can name, and what each one takes. "
+      + 'Answers `[{ ref, label, description, source, params: [{ name, type, default, range? }] }]` — `ref` is EXACTLY what goes in a material\'s `shader` field (`builtin:sprite-outline` for a stock one, the file path for a project `.esshader`), and `params` are the uniforms you then set in its `properties`. '
+      + 'ASK THIS RATHER THAN GUESSING: the stock templates exist only as runtime values and shader source, so their ids and their parameters are in NEITHER the staged types nor anything search_project_files can reach — a project has no text of them to find. '
+      + 'Outline, hit-flash, dissolve, pixelate and UV-scroll are among the ones already here; reaching for a hand-written shader before reading this list is writing one that exists.',
+    schema: obj({}), method: 'listShaderTemplates', args: () => [], root: 'editor' },
   { name: 'create_entity', effect: 'undoable',
     description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position, parent and NAME. '
       + '`name` matters most for a `prefab:<path>` template: without it every instance arrives called whatever the prefab is called, so ten enemies are ten entities you cannot tell apart. '

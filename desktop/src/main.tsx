@@ -43,6 +43,7 @@ import './theme/history.css';
 import { App } from './App';
 import { ProjectStore } from './project/ProjectStore';
 import { AssetRegistry } from './project/AssetRegistry';
+import { builtinShaderCatalog, projectShaderEntry } from './material/shaderCatalog';
 import { useEditorStore } from './store/editorStore';
 import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
@@ -422,6 +423,17 @@ function buildEditorAutomation(): unknown {
      *  including the open project's own components and prefabs, so automation sees
      *  the same list a person does. */
     listEntityTemplates: () => allEntitySources().map(({ id, label, category }) => ({ id, label, category })),
+    /** The material picker's catalog: every shader a material can name, and the
+     *  parameters each takes. The stock ones exist only as runtime values and
+     *  shader source, so nothing about them is in a project's staged types. */
+    listShaderTemplates: async () => {
+      const project = await Promise.all(
+        AssetRegistry.listAssets()
+          .filter((a) => a.path.endsWith('.esshader'))
+          .map(async (a) => projectShaderEntry(a.path, await window.estella.fs.read(a.path))),
+      );
+      return [...builtinShaderCatalog(), ...project];
+    },
     /** Create a TilemapLayer from an .estileset with an optional grid layout
      *  (orientation/stagger/hex) — drives the New-Tilemap flow headlessly. */
     // Throws where the UI toasts: a headless caller has no screen to read the
