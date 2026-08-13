@@ -256,6 +256,27 @@ export interface ConversationSummary {
   turns: number;
 }
 
+const SELECTION_KEY = 'estella.agent.selection';
+
+export interface AgentSelection {
+  providerId: string;
+  model: string;
+}
+
+/**
+ * The pick this window starts on. Declared ABOVE the store because the store's
+ * initializer calls it: a `const` read from below is in its dead zone there,
+ * and the throw lands in the catch that is here for a browser refusing storage.
+ */
+function loadSelection(): AgentSelection | null {
+  try {
+    const raw = localStorage.getItem(SELECTION_KEY);
+    return raw ? (JSON.parse(raw) as AgentSelection) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const useAgent = create<AgentState>(() => ({
   status: IDLE, turns: [], driving: false, peeked: [], queued: [], checkpointDone: null,
   draft: '', attachments: [], selection: loadSelection(), conversations: [], historyOpen: false,
@@ -306,22 +327,6 @@ export const removeAgentAttachment = (id: string): void =>
 // ── Which provider and model the next conversation runs on ──────────────────
 // Persisted here rather than as a registered setting: it is picked from the
 // composer, and a settings row for it would be a second control for one choice.
-
-const SELECTION_KEY = 'estella.agent.selection';
-
-export interface AgentSelection {
-  providerId: string;
-  model: string;
-}
-
-function loadSelection(): AgentSelection | null {
-  try {
-    const raw = localStorage.getItem(SELECTION_KEY);
-    return raw ? (JSON.parse(raw) as AgentSelection) : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * A provider, with the one part of it that cannot be shipped filled in: the
