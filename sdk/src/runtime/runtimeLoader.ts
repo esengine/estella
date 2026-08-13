@@ -7,6 +7,7 @@
 
 import { SceneOwner } from '../ecs/component';
 import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
+import { recordSceneOrigins } from '../scene/sceneOrigins';
 import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -406,6 +407,9 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     }
 
     const entityMap = loadSceneData(app.world, sceneData);
+    // Which document row each entity came from, when someone is keeping track
+    // (an editor inspecting its own running game). No-op otherwise.
+    recordSceneOrigins(app, entityMap);
 
     // Apply the project theme over the freshly instantiated scene: prefabs bake
     // the default dark palette, so a light base or any token override re-resolves

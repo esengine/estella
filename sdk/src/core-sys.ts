@@ -60,6 +60,8 @@ export {
 // =============================================================================
 
 export { setEntityVisible, isEntityVisible, hasVisibility, setEntityActive, isEntityActive } from './ecs/entityUtils';
+
+export { entityWorldBox, entityBoxCorners, type EntityBox, type EntityBoxOptions, type ReadableWorld } from './ecs/entityBox';
 export { CacheBitmap, type BitmapCache } from './render/cacheBitmap';
 export {
     CacheAsBitmap,

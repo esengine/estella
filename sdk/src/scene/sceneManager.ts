@@ -14,6 +14,7 @@ import { Material } from '../render/material';
 import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';
 import { loadSceneWithAssets } from './scene';
+import { recordSceneOrigins } from './sceneOrigins';
 import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { defineResource } from '../ecs/resource';
@@ -601,6 +602,7 @@ export class SceneManagerState {
                     persistent: false,
                 });
             }
+            recordSceneOrigins(this.app_, entityMap);
         }
 
         // Same token check for the data-less path (systems/setup only) and to fail

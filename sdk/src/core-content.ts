@@ -173,6 +173,14 @@ export {
 export { sceneManagerPlugin } from './scene/scenePlugin';
 
 export {
+    SceneOrigins,
+    enableSceneOrigins,
+    sceneOriginsEnabled,
+    recordSceneOrigins,
+    sceneOriginOf,
+} from './scene/sceneOrigins';
+
+export {
     transitionTo,
     type TransitionConfig,
 } from './scene/sceneTransition';
