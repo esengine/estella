@@ -9,6 +9,11 @@
  * about the frame — where a thing is, what is at a point, where a drag lands —
  * goes to the side holding the camera.
  *
+ * Move needs that camera and is sent as a point for the realm to convert. Turn
+ * and resize do not: an angle about the origin and a ratio of two distances mean
+ * the same thing under any pan, zoom or roll, so they are computed here and sent
+ * as deltas.
+ *
  * Pointer events belong to the game by default; a running game you cannot click
  * is not a running game. `interactive` is the editor taking them, for as long as
  * the user asks for it.
@@ -18,12 +23,15 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { EntityOps } from '@/engine/entityOps';
 import { useSelection } from '@/store/selectionStore';
+import { useEditorStore } from '@/store/editorStore';
 import type { CanvasPoint, PlayOverlayBox } from '@/engine/playProtocol';
 
 /** Half-size of the origin handle, in CSS px. */
 const HANDLE = 5;
 /** Pointer travel before a press becomes a drag rather than a click-to-select. */
 const DRAG_SLOP = 3;
+/** Axis arm length / ring radius, in CSS px. */
+const ARM = 44;
 
 interface Props {
   /** Whether the editor, rather than the game, receives pointer events here. */
@@ -53,15 +61,22 @@ function grabbed(box: PlayOverlayBox, p: CanvasPoint, size: { w: number; h: numb
 export function PlayOverlay({ interactive }: Props) {
   const overlay = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getOverlay);
   const selectedRef = useSelection((s) => s.selectedRef);
+  const tool = useEditorStore((s) => s.tool);
   const hostRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   // The grab offset in normalized canvas units, so the thing does not jump its
-  // origin to the cursor the moment it is picked up.
+  // origin to the cursor the moment it is picked up; turn and resize instead
+  // remember where the gesture started, because both are relative to that.
   const drag = useRef<{
     dx: number; dy: number; axis?: 'x' | 'y'; moved: boolean;
     /** The press did not land on the selection, so it can only end in a pick. */
     pickOnly: boolean;
     from: { x: number; y: number };
+    /** Pointer angle / distance about the origin when the gesture began (px). */
+    startAngle: number;
+    startDist: number;
+    lastAngle: number;
+    lastDist: number;
   } | null>(null);
 
   useEffect(() => {
@@ -79,40 +94,64 @@ export function PlayOverlay({ interactive }: Props) {
     if (!box || box.width === 0 || box.height === 0) return { x: 0, y: 0 };
     return { x: (e.clientX - box.left) / box.width, y: (e.clientY - box.top) / box.height };
   };
+  /** Pointer angle + distance about the selection's origin, in CSS px. */
+  const polarOf = (p: CanvasPoint): { angle: number; dist: number } => {
+    if (!overlay) return { angle: 0, dist: 0 };
+    const [ox, oy] = toPx(overlay.origin, size.w, size.h);
+    const [px, py] = toPx(p, size.w, size.h);
+    // Screen y grows downward and world y upward, so the angle is negated to
+    // turn the way the pointer does.
+    return { angle: -Math.atan2(py - oy, px - ox), dist: Math.hypot(px - ox, py - oy) };
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!interactive || e.button !== 0) return;
     e.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const p = pointOf(e);
-    const axis = (e.target as HTMLElement).dataset?.axis as 'x' | 'y' | undefined;
-    // A press only picks the selection UP if it landed on it — on a handle, or
-    // inside the outline. Anywhere else is a click that selects something new,
-    // not an invisible grip on whatever happened to be selected.
-    const onIt = axis != null || (overlay != null && grabbed(overlay, p, size));
-    if (!onIt) {
-      drag.current = { dx: 0, dy: 0, moved: false, pickOnly: true, from: { x: e.clientX, y: e.clientY } };
-      return;
-    }
+    const data = (e.target as HTMLElement).dataset;
+    const axis = data?.axis as 'x' | 'y' | undefined;
+    // A press grabs the selection only on a HANDLE or inside the outline; a
+    // handle says so itself, because a rotate ring sits well outside the thing
+    // it turns. Anywhere else selects whatever is under the pointer.
+    const onIt = data?.grab != null || axis != null || (overlay != null && grabbed(overlay, p, size));
+    const polar = polarOf(p);
     drag.current = {
       dx: overlay ? overlay.origin.x - p.x : 0,
       dy: overlay ? overlay.origin.y - p.y : 0,
       axis,
       moved: false,
-      pickOnly: false,
+      pickOnly: !onIt,
       from: { x: e.clientX, y: e.clientY },
+      startAngle: polar.angle,
+      startDist: polar.dist,
+      lastAngle: polar.angle,
+      lastDist: polar.dist,
     };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
-    if (!interactive || !d || d.pickOnly) return;
+    if (!interactive || !d || d.pickOnly || selectedRef == null) return;
     if (!d.moved) {
       if (Math.hypot(e.clientX - d.from.x, e.clientY - d.from.y) < DRAG_SLOP) return;
       d.moved = true;
     }
-    if (selectedRef == null) return;
     const p = pointOf(e);
+    if (tool === 'rotate' || tool === 'scale') {
+      // Sent as the step since the last event, so the realm composes rather than
+      // needing a gesture-start value it was never told.
+      const { angle, dist } = polarOf(p);
+      if (tool === 'rotate') {
+        EntityOps.turnBy(selectedRef, angle - d.lastAngle);
+      } else if (d.lastDist > 1) {
+        const k = Math.max(0.05, dist / d.lastDist);
+        EntityOps.resizeBy(selectedRef, { x: k, y: k });
+      }
+      d.lastAngle = angle;
+      d.lastDist = dist;
+      return;
+    }
     EntityOps.moveToPoint(selectedRef, { canvas: { x: p.x + d.dx, y: p.y + d.dy } }, d.axis);
   };
 
@@ -149,16 +188,28 @@ export function PlayOverlay({ interactive }: Props) {
       {origin && (
         <svg className="play-ov__svg" width={size.w} height={size.h} aria-hidden="true">
           {outline && <polygon className="play-ov__box" points={outline} />}
-          {interactive && (
+          {interactive && tool === 'move' && (
             <>
-              <line className="play-ov__axis x" x1={origin[0]} y1={origin[1]} x2={origin[0] + 44} y2={origin[1]} />
-              <line className="play-ov__axis y" x1={origin[0]} y1={origin[1]} x2={origin[0]} y2={origin[1] - 44} />
-              <rect className="play-ov__grab x" data-axis="x" x={origin[0] + 30} y={origin[1] - 6} width={16} height={12} />
-              <rect className="play-ov__grab y" data-axis="y" x={origin[0] - 6} y={origin[1] - 46} width={12} height={16} />
+              <line className="play-ov__axis x" x1={origin[0]} y1={origin[1]} x2={origin[0] + ARM} y2={origin[1]} />
+              <line className="play-ov__axis y" x1={origin[0]} y1={origin[1]} x2={origin[0]} y2={origin[1] - ARM} />
+              <rect className="play-ov__grab x" data-grab="move" data-axis="x" x={origin[0] + ARM - 14} y={origin[1] - 6} width={16} height={12} />
+              <rect className="play-ov__grab y" data-grab="move" data-axis="y" x={origin[0] - 6} y={origin[1] - ARM - 2} width={12} height={16} />
+            </>
+          )}
+          {interactive && tool === 'rotate' && (
+            <circle className="play-ov__ring" data-grab="rotate" cx={origin[0]} cy={origin[1]} r={ARM} />
+          )}
+          {interactive && tool === 'scale' && (
+            <>
+              <line className="play-ov__axis x" x1={origin[0]} y1={origin[1]} x2={origin[0] + ARM} y2={origin[1]} />
+              <line className="play-ov__axis y" x1={origin[0]} y1={origin[1]} x2={origin[0]} y2={origin[1] - ARM} />
+              <rect className="play-ov__box-end x" data-grab="scale" x={origin[0] + ARM - 5} y={origin[1] - 5} width={10} height={10} />
+              <rect className="play-ov__box-end y" data-grab="scale" x={origin[0] - 5} y={origin[1] - ARM - 5} width={10} height={10} />
             </>
           )}
           <rect
             className="play-ov__origin"
+            data-grab="move"
             x={origin[0] - HANDLE}
             y={origin[1] - HANDLE}
             width={HANDLE * 2}

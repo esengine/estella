@@ -304,6 +304,10 @@
 .play-ov__axis { stroke-width: 2.5; }
 .play-ov__axis.x { stroke: var(--error); }
 .play-ov__axis.y { stroke: var(--run); }
+.play-ov__ring { fill: none; stroke: var(--run); stroke-width: 2.5; cursor: grab; pointer-events: stroke; }
+.play-ov__box-end { stroke: rgba(0, 0, 0, 0.6); stroke-width: 1; cursor: nwse-resize; }
+.play-ov__box-end.x { fill: var(--error); }
+.play-ov__box-end.y { fill: var(--run); }
 .play-ov__grab { fill: transparent; cursor: move; }
 .play-ov.interactive .play-ov__grab.x { fill: var(--error); }
 .play-ov.interactive .play-ov__grab.y { fill: var(--run); }
@@ -366,6 +370,10 @@
 .viewport--play .ov-left {
   display: none;
 }
+/* …except the transform tools while the editor holds the pointer: picking a
+   tool is how you say which gizmo you want, and Inspect mode is where it acts.
+   Above the play layer, or it is only clickable by something that isn't looking. */
+.viewport--play.viewport--inspect .ov-left { display: block; z-index: 8; }
 
 /* "This viewport is live" reads as a soft accent ring around the frame — not a
    pill over the game. Non-interactive, above the play iframe (z 7, matching the old

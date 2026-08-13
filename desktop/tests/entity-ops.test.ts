@@ -13,13 +13,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('@/engine/SceneCommands', () => ({
   SceneCommands: {
     setField: vi.fn(),
+    setFieldValue: vi.fn(),
     setEntityVisible: vi.fn(),
     setEntityXY: vi.fn(),
   },
   toModelValue: (_cur: unknown, _type: unknown, _key: string, value: unknown) => value,
 }));
 vi.mock('@/engine/PlayRealm', () => ({
-  PlayRealm: { setField: vi.fn(), setVisible: vi.fn(), dragTo: vi.fn(), snapshot: vi.fn() },
+  PlayRealm: { setField: vi.fn(), setVisible: vi.fn(), dragTo: vi.fn(), transformBy: vi.fn(), snapshot: vi.fn() },
 }));
 
 import { EntityOps } from '@/engine/entityOps';
@@ -28,6 +29,7 @@ import { PlayRealm } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { useEditorStore } from '@/store/editorStore';
 import { authoredRef, spawnedRef } from '@/engine/entityRef';
+import { SceneQuery } from '@/engine/SceneQuery';
 
 /** Play, with the realm holding runtime 900 for document row 3 and nothing else. */
 function playingWith(pairs: Array<{ live: number; src?: number }>) {
@@ -103,5 +105,40 @@ describe('while playing', () => {
     expect(EntityOps.worldFor(authoredRef(4))).toBeNull();
     expect(EntityOps.worldFor(null)).toBeNull();
     expect(PlayRealm.setField).not.toHaveBeenCalled();
+  });
+});
+
+describe('turning and resizing', () => {
+  it('composes onto what the document already has', () => {
+    const q = Math.SQRT1_2; // a quarter turn
+    vi.spyOn(SceneQuery, 'getFieldValue').mockReturnValue({ z: q, w: q } as never);
+    expect(EntityOps.turnBy(authoredRef(3), Math.PI / 2)).toBe('document');
+    const [, , , value] = vi.mocked(SceneCommands.setFieldValue).mock.calls[0];
+    // Quarter + quarter = half: z 1, w 0.
+    expect((value as { z: number }).z).toBeCloseTo(1);
+    expect((value as { w: number }).w).toBeCloseTo(0);
+  });
+
+  it('multiplies a resize rather than replacing it', () => {
+    vi.spyOn(SceneQuery, 'getFieldValue').mockReturnValue({ x: 2, y: 3, z: 1 } as never);
+    EntityOps.resizeBy(authoredRef(3), { x: 2, y: 0.5 });
+    const [, , , value] = vi.mocked(SceneCommands.setFieldValue).mock.calls[0];
+    expect(value).toEqual({ x: 4, y: 1.5, z: 1 });
+  });
+
+  it('sends a relative delta to the realm, never a projected point', () => {
+    playingWith([{ live: 900, src: 3 }]);
+    EntityOps.turnBy(authoredRef(3), 0.25);
+    EntityOps.resizeBy(authoredRef(3), { x: 1.1, y: 1.1 });
+    // A delta needs no camera, which is why these two ops have no canvas point.
+    expect(PlayRealm.transformBy).toHaveBeenCalledWith(900, { rotateBy: 0.25 });
+    expect(PlayRealm.transformBy).toHaveBeenCalledWith(900, { scaleBy: { x: 1.1, y: 1.1 } });
+  });
+
+  it('does nothing at all for a zero delta', () => {
+    playingWith([{ live: 900, src: 3 }]);
+    EntityOps.turnBy(authoredRef(3), 0);
+    EntityOps.resizeBy(authoredRef(3), { x: 1, y: 1 });
+    expect(PlayRealm.transformBy).not.toHaveBeenCalled();
   });
 });

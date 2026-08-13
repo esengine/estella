@@ -18,7 +18,7 @@ import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides
  * compares it against its own and refuses a mismatch (P1) rather than failing
  * obscurely on a shape it doesn't understand. Bump on any incompatible message change.
  */
-export const PLAY_PROTOCOL_VERSION = 5;
+export const PLAY_PROTOCOL_VERSION = 6;
 
 /**
  * The handshake check: `null` if the realm's reported protocol version is compatible
@@ -226,7 +226,15 @@ export type PlayOutbound =
    * world position, and to the parent-local write a Transform holds, happens
    * where the camera is. The axis lock resolves after it, in world space.
    */
-  | { type: 'estella:play:dragTo'; entityId: number; x: number; y: number; axis?: 'x' | 'y' };
+  | { type: 'estella:play:dragTo'; entityId: number; x: number; y: number; axis?: 'x' | 'y' }
+  /**
+   * Turn or resize a running entity by a RELATIVE amount.
+   *
+   * Neither needs the camera the way a move does: an angle about the origin and
+   * a ratio of two distances mean the same under any pan, zoom or roll. The
+   * editor computes them; the realm composes them onto the transform.
+   */
+  | { type: 'estella:play:transformBy'; entityId: number; rotateBy?: number; scaleBy?: { x: number; y: number } };
 
 /** realm → editor. Discriminated by `type`. */
 export type PlayInbound =

@@ -2082,7 +2082,7 @@ export function Viewport() {
   };
 
   return (
-    <div className={`viewport${playInViewport ? ' viewport--play' : ''}${playInViewport && isPaused ? ' viewport--paused' : ''}`}>
+    <div className={`viewport${playInViewport ? ' viewport--play' : ''}${playInViewport && isPaused ? ' viewport--paused' : ''}${inspectPlay ? ' viewport--inspect' : ''}`}>
       {/* Docked scene toolbar under the panel tabs — view menus + display controls
           on the left, quick display toggles pinned right. Tool selection lives in the
           floating palette over the canvas (.ov-left). */}

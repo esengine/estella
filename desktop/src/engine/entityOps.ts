@@ -19,6 +19,8 @@ import { SceneCommands, toModelValue } from './SceneCommands';
 import { PlayInspect } from './PlayInspect';
 import { PlayRealm } from './PlayRealm';
 import { srcIdOf, type EntityRef } from './entityRef';
+import { SceneQuery } from './SceneQuery';
+import { turnQuat2D, scaleVecBy } from './viewportMath';
 import { PlayEdits } from './playEdits';
 
 /** The value vocabulary every inspector control commits in. */
@@ -88,6 +90,45 @@ export const EntityOps = {
     const src = srcIdOf(ref);
     if (src == null || !point.world) return null;
     SceneCommands.setEntityXY(src, point.world.x, point.world.y);
+    return 'document';
+  },
+
+  /**
+   * Turn `ref` by an angle, or resize it by a factor — relative, because both
+   * mean the same thing under any camera and so need no projection at all.
+   *
+   * Document-side they are ordinary field writes on the transform the editor's
+   * own gizmos already drive; live they are one message the realm composes.
+   */
+  turnBy(ref: EntityRef, radians: number): OpWorld {
+    if (radians === 0) return EntityOps.worldFor(ref);
+    if (liveNow()) {
+      const live = PlayInspect.liveIdOf(ref);
+      if (live == null) return null;
+      PlayRealm.transformBy(live, { rotateBy: radians });
+      PlayEdits.record(ref, 'Transform', 'rotation');
+      return 'live';
+    }
+    const src = srcIdOf(ref);
+    if (src == null) return null;
+    const q = SceneQuery.getFieldValue(src, 'Transform', 'rotation') as { z?: number; w?: number } | null;
+    SceneCommands.setFieldValue(src, 'Transform', 'rotation', turnQuat2D(q ?? undefined, radians));
+    return 'document';
+  },
+
+  resizeBy(ref: EntityRef, factor: { x: number; y: number }): OpWorld {
+    if (factor.x === 1 && factor.y === 1) return EntityOps.worldFor(ref);
+    if (liveNow()) {
+      const live = PlayInspect.liveIdOf(ref);
+      if (live == null) return null;
+      PlayRealm.transformBy(live, { scaleBy: factor });
+      PlayEdits.record(ref, 'Transform', 'scale');
+      return 'live';
+    }
+    const src = srcIdOf(ref);
+    if (src == null) return null;
+    const sc = SceneQuery.getFieldValue(src, 'Transform', 'scale') as { x?: number; y?: number; z?: number } | null;
+    SceneCommands.setFieldValue(src, 'Transform', 'scale', scaleVecBy(sc ?? undefined, factor));
     return 'document';
   },
 } as const;

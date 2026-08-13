@@ -120,3 +120,22 @@ export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>
     .sort((a, b) => compareDrawRank(b.rank, a.rank) || b.index - a.index)
     .map((c) => c.entity);
 }
+
+/** A 2D rotation quaternion turned by `radians`. */
+export function turnQuat2D(q: { z?: number; w?: number } | undefined, radians: number): { x: number; y: number; z: number; w: number } {
+  const angle = quatAngleZ2D(q) + radians;
+  return { x: 0, y: 0, z: Math.sin(angle / 2), w: Math.cos(angle / 2) };
+}
+
+/** The Z angle of a 2D rotation quaternion; 0 for one that isn't there. */
+export function quatAngleZ2D(q: { z?: number; w?: number } | undefined): number {
+  return 2 * Math.atan2(q?.z ?? 0, q?.w ?? 1);
+}
+
+/** A scale vector multiplied by a per-axis factor, keeping z. */
+export function scaleVecBy(
+  s: { x?: number; y?: number; z?: number } | undefined,
+  factor: { x: number; y: number },
+): { x: number; y: number; z: number } {
+  return { x: (s?.x ?? 1) * factor.x, y: (s?.y ?? 1) * factor.y, z: s?.z ?? 1 };
+}

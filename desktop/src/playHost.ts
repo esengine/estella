@@ -20,7 +20,7 @@ import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility, CanvasPoint, PlayOverlayBox } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
-import { pointInOBB, rankPickCandidates, worldToLocal2D, type PickCandidate } from '@/engine/viewportMath';
+import { pointInOBB, rankPickCandidates, worldToLocal2D, turnQuat2D, scaleVecBy, type PickCandidate } from '@/engine/viewportMath';
 import {
   inspectEntity, findEntities, readResources, readSystems,
   type Realm, type EntityFilter,
@@ -253,6 +253,18 @@ function pickAt(world: App['world'], nx: number, ny: number): number | null {
     });
   }
   return rankPickCandidates(hits)[0] ?? null;
+}
+
+/** Turn / resize a running entity by a relative amount, composed onto what it
+ *  already has. Local, because rotation and scale are inherited multiplicatively
+ *  and a delta on the local value is the delta a person sees on the world one. */
+function transformBy(world: App['world'], entity: number, rotateBy?: number, scaleBy?: { x: number; y: number }): void {
+  const transformDef = getComponent('Transform');
+  if (!transformDef || !world.valid(entity as never)) return;
+  const data = { ...(world.get(entity as never, transformDef) as Record<string, unknown>) };
+  if (rotateBy) data.rotation = turnQuat2D(data.rotation as { z?: number; w?: number } | undefined, rotateBy);
+  if (scaleBy) data.scale = scaleVecBy(data.scale as { x?: number; y?: number } | undefined, scaleBy);
+  world.set(entity as never, transformDef, data as never);
 }
 
 /**
@@ -1106,6 +1118,9 @@ window.addEventListener('message', (e: MessageEvent) => {
       break;
     case 'estella:play:dragTo':
       if (app && data.entityId != null) dragTo(app.world, data.entityId, data.x, data.y, data.axis);
+      break;
+    case 'estella:play:transformBy':
+      if (app && data.entityId != null) transformBy(app.world, data.entityId, data.rotateBy, data.scaleBy);
       break;
   }
 });

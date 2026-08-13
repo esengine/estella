@@ -393,6 +393,11 @@ export class PlayRealmInstance {
     this.post({ type: 'estella:play:dragTo', entityId, x, y, ...(axis ? { axis } : {}) });
   }
 
+  /** Turn / resize a running entity by a relative amount (reverts on Stop). */
+  transformBy(entityId: number, delta: { rotateBy?: number; scaleBy?: { x: number; y: number } }): void {
+    this.post({ type: 'estella:play:transformBy', entityId, ...delta });
+  }
+
   /** Live-edit a field of a running entity (debug; reverts on Stop). */
   setField(entityId: number, comp: string, key: string, value: unknown): void {
     this.post({ type: 'estella:play:setField', entityId, comp, key, value });
