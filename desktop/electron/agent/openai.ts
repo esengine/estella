@@ -194,6 +194,16 @@ export function answerOrphanedCalls(messages: Message[]): number {
   return added;
 }
 
+/**
+ * Append editor context — a diagnostics feed, a nudge, a verdict's failures —
+ * as a USER turn. A mid-conversation `system` message is legal in this protocol
+ * and is not carried by every endpoint that speaks it: one delivered the turn
+ * with no content at all, and the model answered that the message was empty.
+ */
+export function pushContextMessage(messages: Message[], text: string): void {
+  messages.push({ role: 'user', content: text });
+}
+
 const SHAPE: HistoryShape<Message> = {
   askedIn: (message) => {
     const content = message?.content;
@@ -303,18 +313,9 @@ class OpenAISession implements AgentSession {
     });
   }
 
-  /**
-   * Land buffered context after the history rather than by rewriting the system
-   * prompt. The prompt is the first message of every request, so editing it per
-   * turn would re-bill the whole conversation wherever caching is on.
-   *
-   * A `system` message mid-conversation is legal here — unlike the Anthropic
-   * provider's compatible dialect, which has only two roles to work with and has
-   * to smuggle the text onto the user turn.
-   */
   private flushContext(): void {
     if (this.pending.length === 0) return;
-    this.messages.push({ role: 'system', content: this.pending.join('\n\n') });
+    pushContextMessage(this.messages, this.pending.join('\n\n'));
     this.pending.length = 0;
   }
 

@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildChatRequest, answerOrphanedCalls, createOpenAIProvider, OPENAI_FORMAT,
+  pushContextMessage,
 } from '../electron/agent/openai';
 import { ANTHROPIC_FORMAT } from '../electron/agent/anthropic';
 import type { CatalogTool } from '../electron/agent/types';
@@ -70,6 +71,23 @@ describe('the Chat Completions request', () => {
  * refuses again on every message after it, with nothing on screen tying the
  * failure to the Stop that caused it.
  */
+describe('editor context on its way to the model', () => {
+  it('lands as a user turn', () => {
+    const messages: Msg[] = [{ role: 'user', content: 'go' }];
+    pushContextMessage(messages, 'the editor flags 2 problems');
+    expect(messages[1]).toEqual({ role: 'user', content: 'the editor flags 2 problems' });
+  });
+
+  // A mid-conversation `system` message is legal here and is not carried by
+  // every endpoint speaking this protocol: one delivered the turn empty, taking
+  // the verdict's failures, the diagnostics feed and every nudge with it.
+  it('never rides a mid-conversation system message', () => {
+    const messages: Msg[] = [{ role: 'user', content: 'go' }];
+    pushContextMessage(messages, 'fix these before reporting the work as done');
+    expect(messages.filter((m) => m.role === 'system')).toEqual([]);
+  });
+});
+
 describe('a history left half-answered by a Stop', () => {
   const asked = (...ids: string[]): Msg => ({
     role: 'assistant',
