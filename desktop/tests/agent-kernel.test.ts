@@ -859,6 +859,55 @@ describe('the verdict on the work', () => {
     expect(ended()).toMatchObject({ reason: 'aborted', acceptance: { verdict: 'unverified' } });
   });
 
+  /**
+   * A run cut off mid-work is the one you most want a reading on. Its own claims
+   * are not due — it never reached the end of what it was describing — but
+   * whether it left the project standing is, and that is what these answer.
+   */
+  describe('a turn that ran out of rounds', () => {
+    const outOfRounds = () => fakeSession(
+      Array.from({ length: 200 }, () => asks(call('add_entity'))),
+    );
+
+    it('still asks what can only fail it', async () => {
+      const s = outOfRounds();
+      await runTurn(deps(s), 'build a pause menu', null, new AbortController().signal);
+      const { reason, acceptance } = ended();
+      expect(reason).toBe('max_rounds');
+      expect(acceptance.results.map((r) => r.check)).toContain('diagnostics');
+      expect(acceptance.verdict).toBe('unverified');
+    });
+
+    it('says failed when it left the project broken', async () => {
+      driver = vi.fn(async (method: string) => {
+        if (method === 'mark') return { seq: 0 };
+        if (method === 'stepsSince') return 1;
+        if (method === 'getDiagnostics') {
+          return [{ entityName: 'PauseMenu', problem: 'error', detail: 'no Canvas above it' }];
+        }
+        if (method === 'playState') return { playing, ready: true };
+        return null;
+      }) as never;
+      (driver as { js: unknown }).js = vi.fn(async () => null);
+      (driver as { op: unknown }).op = vi.fn(async () => ({ diagnostics: [] }));
+
+      const s = outOfRounds();
+      await runTurn(deps(s), 'build a pause menu', null, new AbortController().signal);
+      expect(ended().acceptance.verdict).toBe('failed');
+    });
+
+    // Its own claims are not due — the work is unfinished, and a cut-off run
+    // must never be able to reach `passed`.
+    it('cannot pass, whatever it declared', async () => {
+      const s = fakeSession([
+        asks(call('done_when', { criteria: [{ says: 'the menu opens', probe: 'ok' }] })),
+        ...Array.from({ length: 200 }, () => asks(call('add_entity'))),
+      ]);
+      await runTurn(deps(s), 'build a pause menu', null, new AbortController().signal);
+      expect(ended().acceptance.verdict).not.toBe('passed');
+    });
+  });
+
   describe('declaring what done means', () => {
     // Criteria written once the work exists are shaped by whatever got built,
     // which is the failure the whole mechanism is there to close.

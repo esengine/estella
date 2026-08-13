@@ -457,8 +457,13 @@ export async function runTurn(
   // one, so the newest run claims every edit the person makes after it.
   const endMark = await driver('mark', []).catch(() => null);
   const files = tx ? deps.journal?.changes(tx) ?? [] : [];
-  // A turn that never reached the point of answering — stopped, or out of
-  // rounds — was never evaluated, and `unverified` is the honest word for it.
+  // Nothing of a cut-off turn's OWN is due, but "did it leave the project
+  // standing" is. Handed no criteria, this can only fail or leave unverified.
+  // Not after a Stop — the user asked for the turn to be over now.
+  const cutOff = reason === 'max_rounds' || reason === 'error';
+  if (!accepted && cutOff && (steps > 0 || files.length > 0)) {
+    accepted = await evaluate(deps, []).catch(() => null);
+  }
   const acceptance: Acceptance = accepted ?? { verdict: 'unverified', results: [] };
   emit({ type: 'turn_end', steps, mark, endMark, tx, files, reason, acceptance });
   return { mark, endMark, steps, tx, acceptance };
