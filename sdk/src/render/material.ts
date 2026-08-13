@@ -89,6 +89,10 @@ export interface MaterialOptions {
     switches?: Record<string, boolean>;
 }
 
+/** The `version` a `.esmaterial` this build writes carries, named the way its
+ *  sibling formats name theirs. */
+export const MATERIAL_FORMAT_VERSION = '1.0';
+
 export interface MaterialAssetData {
     version: string;
     type: 'material';
@@ -672,7 +676,7 @@ export const Material = {
 
         if (isInstance) {
             const asset: MaterialAssetData = {
-                version: '1.0', type: 'material', shader: shaderPath, instanceOf: parentPath, properties,
+                version: MATERIAL_FORMAT_VERSION, type: 'material', shader: shaderPath, instanceOf: parentPath, properties,
             };
             if (data.overrides.has('blendMode')) asset.blendMode = data.blendMode;
             if (data.overrides.has('depthTest')) asset.depthTest = data.depthTest;
@@ -682,7 +686,7 @@ export const Material = {
         }
 
         const asset: MaterialAssetData = {
-            version: '1.0',
+            version: MATERIAL_FORMAT_VERSION,
             type: 'material',
             shader: shaderPath,
             blendMode: data.blendMode,

@@ -11,7 +11,7 @@
  * Reflection is the SAME call the inspector makes, so there is no second list.
  */
 import {
-  BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate, reflectEsshader,
+  BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate, reflectEsshader, MATERIAL_FORMAT_VERSION,
   type MaterialAssetData, type ShaderParam,
 } from 'esengine';
 import { BUILTIN_SHADER_PREFIX } from './materialInspectorModel';
@@ -26,7 +26,7 @@ export function newMaterialDocument(templateId: string): MaterialAssetData | nul
   const template = builtinShaderTemplate(templateId);
   if (!template) return null;
   return {
-    version: '1.0',
+    version: MATERIAL_FORMAT_VERSION,
     type: 'material',
     shader: `${BUILTIN_SHADER_PREFIX}${templateId}`,
     blendMode: 0,

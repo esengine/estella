@@ -78,6 +78,7 @@ export {
     shutdownMaterialAPI,
     isTextureRef,
     CullMode,
+    MATERIAL_FORMAT_VERSION,
     type ShaderHandle,
     type MaterialHandle,
     type MaterialOptions,
