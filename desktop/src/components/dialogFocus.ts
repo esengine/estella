@@ -40,7 +40,7 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true
 
     // Seed focus inside — unless the shell already autofocused its own field
     // (command palettes / settings focus their search input on mount).
-    if (!container.contains(doc.activeElement)) container.focus();
+    if (!container.contains(doc.activeElement)) container.focus({ preventScroll: true });
 
     // Trap Tab: cycle within the container; recapture if focus escaped.
     const onKey = (e: KeyboardEvent) => {
@@ -48,7 +48,7 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true
       const items = focusables(container);
       if (items.length === 0) {
         e.preventDefault();
-        container.focus();
+        container.focus({ preventScroll: true });
         return;
       }
       const first = items[0];
@@ -57,17 +57,20 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true
       const inside = active instanceof HTMLElement && container.contains(active);
       if (e.shiftKey && (!inside || active === first)) {
         e.preventDefault();
-        last.focus();
+        last.focus({ preventScroll: true });
       } else if (!e.shiftKey && (!inside || active === last)) {
         e.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
     win.addEventListener('keydown', onKey, true);
     return () => {
       win.removeEventListener('keydown', onKey, true);
       // Hand focus back to whoever opened the dialog (if still in the DOM).
-      if (opener?.isConnected) opener.focus();
+      // Never SCROLLING to it: a dialog that has just closed may still hold
+      // focus somewhere off screen, and the default focus() drags the nearest
+      // scrollable ancestor over to it — which moved the whole editor.
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);

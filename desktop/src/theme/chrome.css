@@ -269,6 +269,14 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t) var(--e-out);
+  /* A CLOSED drawer is parked off the edge (translateX/Y(100%)) and is still in
+     the layout, so without this it hands the page 384px of horizontal overflow
+     (and the bottom one 379px of vertical) for as long as it is shut — which is
+     nearly always. `clip`, not `hidden`: hidden merely has no scrollbar and can
+     still be scrolled BY CODE, and a focus() handing itself back on close did
+     exactly that, sliding the whole editor sideways with no way to slide it
+     back. Clip creates no scroll container at all. */
+  overflow: clip;
 }
 .scrim.open { opacity: 1; pointer-events: auto; }
 .scrim--bottom { align-items: flex-end; }
