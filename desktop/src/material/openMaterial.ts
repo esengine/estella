@@ -8,6 +8,7 @@
  *          parent ref (UE MIC).
  */
 import { builtinShaderTemplate, type MaterialAssetData } from 'esengine';
+import { newMaterialDocument } from './shaderCatalog';
 import { ProjectStore } from '@/project/ProjectStore';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { dockApi } from '@/layout/dockApi';
@@ -49,23 +50,13 @@ async function writeMeta(rel: string): Promise<void> {
  */
 export async function createMaterial(dir: string, templateId = 'sprite-unlit'): Promise<void> {
   const template = builtinShaderTemplate(templateId);
-  if (!template) {
+  const asset = newMaterialDocument(templateId);
+  if (!template || !asset) {
     Toasts.push(t('mat.unknownTemplate', { id: templateId }), 'error');
     return;
   }
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
   const matRel = uniqueMaterialPath(folder, `New${template.label}Material`);
-
-  const asset: MaterialAssetData = {
-    version: '1.0',
-    type: 'material',
-    shader: `builtin:${templateId}`,
-    blendMode: 0,
-    depthTest: false,
-    depthWrite: true,
-    cull: 0,
-    properties: structuredClone(template.defaults) as MaterialAssetData['properties'],
-  };
 
   try {
     await window.estella.fs.write(matRel, JSON.stringify(asset, null, 2) + '\n');

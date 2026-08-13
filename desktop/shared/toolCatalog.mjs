@@ -546,7 +546,7 @@ const ATOMS = [
     schema: obj({}), method: 'listEntityTemplates', args: () => [], root: 'editor' },
   { name: 'list_shader_templates',
     description: "The material picker's catalog: every shader a material can name, and what each one takes. "
-      + 'Answers `[{ ref, label, description, source, params: [{ name, type, default, range? }] }]` — `ref` is EXACTLY what goes in a material\'s `shader` field (`builtin:sprite-outline` for a stock one, the file path for a project `.esshader`), and `params` are the uniforms you then set in its `properties`. '
+      + 'Answers `[{ ref, label, description, source, params: [{ name, type, default, range? }], material }]` — `ref` is EXACTLY what goes in a material\'s `shader` field (`builtin:sprite-outline` for a stock one, the file path for a project `.esshader`), `params` are the uniforms you then set in its `properties`, and `material` is a WHOLE `.esmaterial` already bound to it: pass it to create_asset as the content and change the properties you care about, rather than working the file format out. '
       + 'ASK THIS RATHER THAN GUESSING: the stock templates exist only as runtime values and shader source, so their ids and their parameters are in NEITHER the staged types nor anything search_project_files can reach — a project has no text of them to find. '
       + 'Outline, hit-flash, dissolve, pixelate and UV-scroll are among the ones already here; reaching for a hand-written shader before reading this list is writing one that exists.',
     schema: obj({}), method: 'listShaderTemplates', args: () => [], root: 'editor' },

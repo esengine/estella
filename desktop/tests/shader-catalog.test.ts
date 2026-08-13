@@ -48,6 +48,30 @@ describe('the stock templates', () => {
   });
 });
 
+// The other half of what the run went looking for: `interface MaterialAsset`,
+// `type: 'material'`, `"version":`, `properties` — the file format, guessed at
+// from types because nothing hands over a whole one.
+describe('the material each template comes with', () => {
+  it('is a document that can be written as it stands', () => {
+    expect(byRef('builtin:sprite-outline')!.material).toMatchObject({
+      version: '1.0',
+      type: 'material',
+      shader: 'builtin:sprite-outline',
+      properties: expect.any(Object),
+    });
+  });
+
+  it('starts from the template own defaults, so it renders before anything is set', () => {
+    const material = byRef('builtin:sprite-outline')!.material!;
+    const params = byRef('builtin:sprite-outline')!.params.map((p) => p.name);
+    for (const key of Object.keys(material.properties ?? {})) expect(params).toContain(key);
+  });
+
+  it('is absent for a project shader, whose own file declares them', () => {
+    expect(projectShaderEntry('a.esshader', '#pragma param u_x float default(1)').material).toBeUndefined();
+  });
+});
+
 describe("a project's own shader", () => {
   it('is named by its path and reflected the same way', () => {
     const entry = projectShaderEntry('assets/shaders/wave.esshader', [

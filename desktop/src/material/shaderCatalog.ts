@@ -10,8 +10,32 @@
  * param` declarations cannot be found by reading types or grepping the project.
  * Reflection is the SAME call the inspector makes, so there is no second list.
  */
-import { BUILTIN_SHADER_TEMPLATES, reflectEsshader, type ShaderParam } from 'esengine';
+import {
+  BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate, reflectEsshader,
+  type MaterialAssetData, type ShaderParam,
+} from 'esengine';
 import { BUILTIN_SHADER_PREFIX } from './materialInspectorModel';
+
+/**
+ * A new material bound to a stock template, as the file would be written. Null
+ * for an id no template answers to. The New-Material flow and the catalog an
+ * agent reads both come through here, so what it is told to write is what the
+ * menu would have written.
+ */
+export function newMaterialDocument(templateId: string): MaterialAssetData | null {
+  const template = builtinShaderTemplate(templateId);
+  if (!template) return null;
+  return {
+    version: '1.0',
+    type: 'material',
+    shader: `${BUILTIN_SHADER_PREFIX}${templateId}`,
+    blendMode: 0,
+    depthTest: false,
+    depthWrite: true,
+    cull: 0,
+    properties: structuredClone(template.defaults) as MaterialAssetData['properties'],
+  };
+}
 
 /** One parameter of a shader, as a caller needs it to write a material. */
 export interface ShaderParamInfo {
@@ -32,6 +56,9 @@ export interface ShaderCatalogEntry {
   description: string;
   source: 'builtin' | 'project';
   params: ShaderParamInfo[];
+  /** A whole `.esmaterial` bound to it, ready to write. Absent for a project
+   *  shader, whose defaults are its own file's to declare. */
+  material?: MaterialAssetData;
 }
 
 const info = (p: ShaderParam): ShaderParamInfo => ({
@@ -51,6 +78,7 @@ export function builtinShaderCatalog(): ShaderCatalogEntry[] {
     description: t.description,
     source: 'builtin' as const,
     params: reflectEsshader(t.source).params.map(info),
+    material: newMaterialDocument(t.id) ?? undefined,
   }));
 }
 
