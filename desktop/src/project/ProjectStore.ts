@@ -19,6 +19,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
 import { ViewportController } from '@/engine/ViewportController';
 import { blankInputMap } from './inputMapDoc';
+import { blankPrefab, blankScene } from './newAssetDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { discoverSceneAssets } from 'esengine';
@@ -593,23 +594,7 @@ class ProjectStoreImpl {
 
   /** A fresh, untitled scene document: a single orthographic Camera at the origin. */
   private blankScene(): SceneData {
-    return {
-      version: '1.0',
-      name: 'Untitled',
-      entities: [
-        {
-          id: 0,
-          name: 'Camera',
-          parent: null,
-          children: [],
-          components: [
-            { type: 'Transform', data: { position: { x: 0, y: 0, z: 10 } } },
-            { type: 'Camera', data: { projectionType: 1, orthoSize: 300, isActive: true, priority: 0 } },
-          ],
-          visible: true,
-        },
-      ],
-    } as unknown as SceneData;
+    return blankScene();
   }
 
   /**
@@ -691,12 +676,8 @@ class ProjectStoreImpl {
    * Goes through `extractPrefab` to mint entity ids — a source's in-memory prefab
    * carries `prefabEntityId: '0'`, which the runtime spawn door now refuses.
    */
-  private async blankPrefab(name: string): Promise<PrefabData> {
-    const built = await sourceById('empty')?.build?.({ parent: null });
-    const root = built?.entities[0];
-    if (!root) throw new Error('the "Empty" entity source is not registered');
-    const entity = { id: 0, name, parent: null, children: [], components: root.components, visible: true };
-    return extractPrefab([entity as unknown as ExtractEntity], 0, name);
+  private blankPrefab(name: string): Promise<PrefabData> {
+    return blankPrefab(name);
   }
 
   /** Create a blank `.esprefab` under `destDir`; double-click opens it in Prefab Mode. */

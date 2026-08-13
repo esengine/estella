@@ -383,13 +383,23 @@ const ATOMS = [
   { name: 'create_asset', effect: 'journaled',
     description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader (.esshader), material (.esmaterial), materialgraph (.esmatgraph), animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves). '
       + 'A material graph is the ONE type whose file is not the whole asset: it compiles to a sibling `.esshader`, which is written by save_asset_document — so create it, open_asset it, and save it, rather than leaving a graph with no shader beside it. '
-      + "A material's `shader` field names one from list_shader_templates — `builtin:<id>` for a stock template, which needs no shader file of its own; check that list before writing a shader by hand.",
+      + "A material's `shader` field names one from list_shader_templates — `builtin:<id>` for a stock template, which needs no shader file of its own; check that list before writing a shader by hand. "
+      + 'LEAVE `content` OUT to get the document the editor own "New …" menu would have written — a blank scene with its camera, an empty state machine, a material bound to `template` (a shader template id, default sprite-unlit). That is the way to create one of these without reconstructing its file format; supply `content` only for a type that has no blank of its own, or when you already know exactly what the file should say.',
     schema: obj({
       destDir: { type: 'string' }, baseName: { type: 'string' },
-      content: { type: 'string' }, type: { type: 'string' },
-    }, ['destDir', 'baseName', 'content', 'type']),
-    js: (i) => `window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, ${JSON.stringify(i.content)}, ${JSON.stringify(i.type)})
-      .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
+      content: { type: 'string' }, type: { type: 'string' }, template: { type: 'string' },
+    }, ['destDir', 'baseName', 'type']),
+    // Content omitted means "the one the New… menu would have written". The
+    // editor answers with it rather than the caller reconstructing a format.
+    js: (i) => `(async () => {
+      const content = ${i.content === undefined
+    ? `await window.__estellaEditor.newAssetDocument(${JSON.stringify(i.type)}, ${JSON.stringify({ name: i.baseName, template: i.template })})`
+    : JSON.stringify(i.content)};
+      if (content === null) throw new Error('type "${i.type}" has no blank of its own — supply the content yourself');
+      const path = await window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, content, ${JSON.stringify(i.type)});
+      await window.__estellaEditor.refreshAssets();
+      return path;
+    })()` },
   { name: 'delete_asset', effect: 'journaled',
     description: 'Delete a project file (or folder) to the OS trash — its `.meta` goes with it and the registry is re-scanned, so nothing is left half-removed. '
       + 'This is how you take back an asset you created by mistake: the editor command behind the Content Browser\'s Delete acts on whatever is SELECTED there, which a driver cannot see. '

@@ -44,6 +44,7 @@ import { App } from './App';
 import { ProjectStore } from './project/ProjectStore';
 import { AssetRegistry } from './project/AssetRegistry';
 import { builtinShaderCatalog, projectShaderEntry } from './material/shaderCatalog';
+import { newAssetDocument } from './project/newAssetDocument';
 import { useEditorStore } from './store/editorStore';
 import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
@@ -423,6 +424,10 @@ function buildEditorAutomation(): unknown {
      *  including the open project's own components and prefabs, so automation sees
      *  the same list a person does. */
     listEntityTemplates: () => allEntitySources().map(({ id, label, category }) => ({ id, label, category })),
+    /** The document a new asset of this type starts as — the one the "New …"
+     *  menu writes. Null for a type that has no blank of its own. */
+    newAssetDocument: (type: string, opts?: { name?: string; template?: string }) =>
+      newAssetDocument(type, opts),
     /** The material picker's catalog: every shader a material can name, and the
      *  parameters each takes. The stock ones exist only as runtime values and
      *  shader source, so nothing about them is in a project's staged types. */

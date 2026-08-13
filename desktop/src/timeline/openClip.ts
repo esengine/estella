@@ -11,6 +11,7 @@
  */
 
 import { parseAnimationClip } from 'esengine';
+import { BLANK_CLIP } from '@/project/newAssetDocument';
 import { t } from '@/i18n';
 import { TimelineDocument } from './TimelineDocument';
 import { previewRootFor } from './previewRoot';
@@ -48,10 +49,6 @@ export async function openAnimationClip(path: string): Promise<void> {
     Toasts.push(t('seq.toast.openFailed', { error: String(e) }), 'error');
   }
 }
-
-// A blank multi-track timeline, in the canonical serialized shape parseAnimationClip
-// reads (the Sequencer fills it by recording keys on a selected entity).
-const BLANK_CLIP = { version: '1.1', type: 'timeline', duration: 5, wrapMode: 'loop', tracks: [] };
 
 /** Create an empty `.estimeline` timeline in @p dir and open it in the Sequencer. */
 export async function createAnimationClip(dir: string): Promise<void> {
