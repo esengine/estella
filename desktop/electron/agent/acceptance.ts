@@ -25,6 +25,16 @@ import type { AcceptanceCriterion } from '../../src/project/format';
 export type Criterion = AcceptanceCriterion;
 
 /**
+ * A criterion as the TURN declared it, plus what asking it at that moment
+ * answered. `heldBefore` is a claim that was already true before any work: it
+ * still gets checked, and it can still break, but it cannot be the thing that
+ * says the work happened.
+ */
+export interface DeclaredCriterion extends Criterion {
+  heldBefore?: boolean;
+}
+
+/**
  * Who the claim belongs to, which is what decides whether it can PASS a turn.
  *
  * Only `turn` can: the editor's checks and the project's standing claims say
@@ -39,7 +49,7 @@ export type CriterionOwner = 'editor' | 'project' | 'turn';
  * because keeping one means writing it into the project as it stands.
  * `unsettled` is neither pass nor fail: nothing was in a position to answer it.
  */
-export interface CriterionResult extends Criterion {
+export interface CriterionResult extends DeclaredCriterion {
   state: 'held' | 'broke' | 'unsettled';
   /** What it answered, or why nothing could answer it. */
   detail?: string;
@@ -106,7 +116,7 @@ export function criteriaProblem(criteria: unknown): string | null {
  */
 export async function evaluate(
   deps: KernelDeps,
-  criteria: readonly Criterion[],
+  criteria: readonly DeclaredCriterion[],
 ): Promise<Acceptance> {
   const standing = deps.standing?.() ?? [];
   const results: CriterionResult[] = [
@@ -114,11 +124,20 @@ export async function evaluate(
     ...await declaredChecks(deps, standing, 'project'),
     ...await declaredChecks(deps, criteria, 'turn'),
   ];
+  return { verdict: verdictOf(results), results };
+}
+
+/**
+ * The verdict a set of results comes to: `passed` needs a claim of the turn's
+ * OWN that held and was not already holding, and nothing of the turn's left
+ * hanging. Exported because a claim only a person can settle is settled later,
+ * in the window, and a second reading of the rule there is a second answer.
+ */
+export function verdictOf(results: readonly CriterionResult[]): Verdict {
   const claims = results.filter((r) => r.owner === 'turn');
-  const verdict: Verdict = results.some((r) => r.state === 'broke') ? 'failed'
-    : claims.some((r) => r.state === 'held') ? 'passed'
-      : 'unverified';
-  return { verdict, results };
+  if (results.some((r) => r.state === 'broke')) return 'failed';
+  if (claims.some((r) => r.state === 'unsettled')) return 'unverified';
+  return claims.some((r) => r.state === 'held' && !r.heldBefore) ? 'passed' : 'unverified';
 }
 
 async function editorChecks(deps: KernelDeps): Promise<CriterionResult[]> {
@@ -164,7 +183,7 @@ async function editorChecks(deps: KernelDeps): Promise<CriterionResult[]> {
 
 async function declaredChecks(
   deps: KernelDeps,
-  criteria: readonly Criterion[],
+  criteria: readonly DeclaredCriterion[],
   owner: CriterionOwner,
 ): Promise<CriterionResult[]> {
   if (criteria.length === 0) return [];
@@ -185,6 +204,27 @@ async function declaredChecks(
       continue;
     }
     out.push(await runProbe(deps, c, owner));
+  }
+  return out;
+}
+
+/**
+ * Ask the criteria BEFORE the work and mark the ones that already hold: one
+ * that answers true against the untouched project is a guard, not evidence.
+ * Declaring is always pre-write (the tool refuses it after), so this is the one
+ * moment it can be asked. Nothing is claimed when the game is not up.
+ */
+export async function markBaseline(
+  deps: KernelDeps,
+  criteria: readonly Criterion[],
+): Promise<DeclaredCriterion[]> {
+  const probes = criteria.filter((c) => c.probe);
+  if (probes.length === 0 || !await isPlaying(deps)) return criteria.map((c) => ({ ...c }));
+  const out: DeclaredCriterion[] = [];
+  for (const c of criteria) {
+    if (!c.probe) { out.push({ ...c }); continue; }
+    const asked = await runProbe(deps, c, 'turn');
+    out.push(asked.state === 'held' ? { ...c, heldBefore: true } : { ...c });
   }
   return out;
 }

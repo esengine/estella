@@ -754,6 +754,10 @@ describe('the verdict on the work', () => {
   });
 
   it('passes a turn whose claims held', async () => {
+    // False when it was declared, true at the end — which is what a criterion
+    // about the work looks like. The first ask is the baseline.
+    let asked = 0;
+    probe = () => ++asked > 1;
     const s = fakeSession([
       asks(declare({ says: 'the bar starts full', probe: 'ok' })),
       asks(call('add_entity')),
@@ -762,6 +766,30 @@ describe('the verdict on the work', () => {
     ]);
     await runTurn(deps(s), 'health bar', null, new AbortController().signal);
     expect(ended().acceptance.verdict).toBe('passed');
+  });
+
+  // The airJumpsLeft === 1 claim, from a real run: the field's own default,
+  // true the moment it existed, and it carried the turn to `passed` while the
+  // claim that mattered was handed to the person and graded in prose.
+  it('does not pass on a claim that was already true before the work', async () => {
+    const s = fakeSession([
+      asks(declare({ says: 'the player has a collider', probe: 'ok' })),
+      asks(call('add_entity')),
+      asks(call('capture_viewport')),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    expect(ended().acceptance.verdict).toBe('unverified');
+  });
+
+  it('says so at declaration, while there is still time to claim something else', async () => {
+    const s = fakeSession([
+      asks(declare({ says: 'the player has a collider', probe: 'ok' })),
+      ends(), ends(),
+    ]);
+    await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+    const told = events.find((e) => e.type === 'tool_end' && e.summary.includes('ALREADY HOLD'));
+    expect(told).toBeTruthy();
   });
 
   // The whole point: the turn ends with a verdict the model never wrote, so a

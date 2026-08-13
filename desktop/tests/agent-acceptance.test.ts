@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import {
-  criteriaProblem, evaluate, failureReport, MAX_CRITERIA,
+  criteriaProblem, evaluate, failureReport, markBaseline, verdictOf, MAX_CRITERIA,
 } from '../electron/agent/acceptance';
 import type { Criterion, KernelDeps } from '../electron/agent/types';
 
@@ -157,13 +157,67 @@ describe('what nothing was in a position to answer', () => {
     expect(out.results.find((r) => r.owner === 'turn')?.detail).toContain('only a person');
   });
 
-  it('still passes on the claims a machine could settle', async () => {
+  // Passing on the machine-checkable half is what made `manual` the cheap way
+  // out: declare the hard claim as theirs, grade it yourself in the closing
+  // paragraph, and the verdict still reads passed with nobody ever asked.
+  it('does not pass while a claim is still waiting on a person', async () => {
     const deps = fakeDriver({ probe: () => true });
     const out = await evaluate(deps, [
       { says: 'the bar empties', probe: 'true' },
       { says: 'it reads at 1080p', manual: 'a judgement about legibility' },
     ]);
-    expect(out.verdict).toBe('passed');
+    expect(out.verdict).toBe('unverified');
+  });
+
+  it('passes once the person has settled theirs', () => {
+    expect(verdictOf([
+      { says: 'the bar empties', probe: 'true', state: 'held', owner: 'turn' },
+      { says: 'it reads at 1080p', manual: 'legibility', state: 'held', owner: 'turn' },
+    ])).toBe('passed');
+  });
+
+  it('fails when the person says it did not hold', () => {
+    expect(verdictOf([
+      { says: 'the bar empties', probe: 'true', state: 'held', owner: 'turn' },
+      { says: 'it reads at 1080p', manual: 'legibility', state: 'broke', owner: 'turn' },
+    ])).toBe('failed');
+  });
+});
+
+/**
+ * A claim that was already true before the work is a guard on what already
+ * worked. It is worth keeping and it can still break — what it cannot be is the
+ * thing that says this turn achieved something.
+ */
+describe('a claim that already held when it was declared', () => {
+  const guard = { says: 'the player has a collider', probe: 'true' };
+
+  it('is marked at declaration, while there is still time to claim something else', async () => {
+    const deps = fakeDriver({ probe: () => true });
+    expect(await markBaseline(deps, [guard])).toEqual([{ ...guard, heldBefore: true }]);
+  });
+
+  it('claims nothing either way when the game is not up', async () => {
+    const deps = fakeDriver({ playing: false, probe: () => true });
+    expect(await markBaseline(deps, [guard])).toEqual([{ ...guard }]);
+  });
+
+  it('leaves a claim that is false right now alone', async () => {
+    const deps = fakeDriver({ probe: () => false });
+    expect(await markBaseline(deps, [guard])).toEqual([{ ...guard }]);
+  });
+
+  it('does not carry a turn to passed on its own', async () => {
+    const deps = fakeDriver({ probe: () => true });
+    const out = await evaluate(deps, [{ ...guard, heldBefore: true }]);
+    expect(out.results.find((r) => r.owner === 'turn')?.state).toBe('held');
+    expect(out.verdict).toBe('unverified');
+  });
+
+  it('still fails the turn when it breaks', async () => {
+    const deps = fakeDriver({ probe: () => false });
+    const out = await evaluate(deps, [{ ...guard, heldBefore: true }]);
+    expect(out.verdict).toBe('failed');
   });
 });
 

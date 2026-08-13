@@ -16,7 +16,8 @@ import type {
   AgentEvent, CatalogTool, ConfirmReason, KernelDeps, ToolCall, ToolOutcome, UserImage,
 } from './types';
 import {
-  criteriaProblem, evaluate, failureReport, type Acceptance, type Criterion,
+  criteriaProblem, evaluate, failureReport, markBaseline,
+  type Acceptance, type Criterion, type DeclaredCriterion,
 } from './acceptance';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
@@ -80,7 +81,7 @@ const ACCEPTANCE_TOOL = 'done_when';
 /** What the turn has claimed and whether it has written yet. Held by runTurn
  *  and threaded down, because both facts belong to the turn and not to a call. */
 interface TurnState {
-  criteria: Criterion[];
+  criteria: DeclaredCriterion[];
   wroteAnything: boolean;
 }
 
@@ -91,11 +92,12 @@ interface TurnState {
  * exists are shaped by whatever got built, which is the failure mode the whole
  * mechanism is there to close.
  */
-function declare(
+async function declare(
+  deps: KernelDeps,
   call: ToolCall,
   turn: TurnState,
-  emit: KernelDeps['emit'],
-): { outcome: ToolOutcome; mutated: boolean } {
+): Promise<{ outcome: ToolOutcome; mutated: boolean }> {
+  const emit = deps.emit;
   const refuse = (content: string) => {
     emit({ type: 'tool_end', id: call.id, ok: false, summary: content });
     return { outcome: { id: call.id, content, isError: true }, mutated: false };
@@ -110,8 +112,15 @@ function declare(
   const problem = criteriaProblem((call.input as { criteria?: unknown }).criteria);
   if (problem) return refuse(problem);
 
-  turn.criteria = [...(call.input as { criteria: Criterion[] }).criteria];
-  const summary = `${turn.criteria.length} criteria — checked at the end of this turn`;
+  turn.criteria = await markBaseline(deps, (call.input as { criteria: Criterion[] }).criteria);
+  // Said now, while there is still time to claim something else: a criterion
+  // that answers true against the untouched project is a guard on what already
+  // works, and cannot be what shows this turn did anything.
+  const already = turn.criteria.filter((c) => c.heldBefore);
+  const summary = `${turn.criteria.length} criteria — checked at the end of this turn`
+    + (already.length === 0 ? '' : `. ${already.length} of them ALREADY HOLD, with none of the `
+      + `work done: ${already.map((c) => `"${c.says}"`).join(', ')}. Those cannot show this turn `
+      + 'achieved anything — declare at least one that is false right now and true once you are done.');
   emit({ type: 'tool_end', id: call.id, ok: true, summary });
   return { outcome: { id: call.id, content: summary, isError: false }, mutated: false };
 }
@@ -574,7 +583,7 @@ async function execute(
 
   const effect = tool.effect ?? 'read';
   emit({ type: 'tool_start', call, effect });
-  if (call.name === ACCEPTANCE_TOOL) return declare(call, turn, emit);
+  if (call.name === ACCEPTANCE_TOOL) return declare(deps, call, turn);
 
   // The one gate. Everything the turn's checkpoint covers runs unasked. The flag
   // is why the tier is not enough: journaled with NO transaction open is

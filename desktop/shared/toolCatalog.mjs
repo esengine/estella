@@ -271,8 +271,10 @@ const ATOMS = [
     description: 'State what would prove this work done, BEFORE you change anything — the editor checks it at the end of the turn and reports whether it held. '
       + 'Each criterion is { says, probe } or { says, manual }. `says` is the claim in the words the user would use ("the bar empties as the player takes damage"). '
       + '`probe` is an expression evaluated in the RUNNING game, true when the claim holds — the same scope play_probe gives you (`find`, `get`, `resource`), e.g. '
-      + '`find("Health")[0].data.current < 100`. `manual` is for a claim only a person can settle ("it reads well at 1080p"), and says why; those are reported as owned by them, not as passed. '
+      + '`find("Health")[0].data.current < 100`. `manual` is for a claim only a PERSON can settle ("it reads well at 1080p"), and says why. '
+      + 'If you intend to check it yourself with a tool, it is a `probe`, not a `manual` — and a turn whose claims are left for a person is not passed until that person answers, so `manual` spends their attention rather than saving you writing an expression. '
       + 'A claim with neither is refused: something nothing can check is not a claim. '
+      + 'Declare something that is FALSE right now and true when you are done: a criterion that already holds against the untouched project is a guard on what already worked, it is reported as such, and it can never be what shows this turn achieved anything. '
       + 'This is the ONE thing in the turn you do not get to grade — the verdict is computed from these, not from what you say about the work. '
       + 'It must be called before your first write, because criteria written afterwards are shaped by whatever you happened to build.',
     schema: obj({
