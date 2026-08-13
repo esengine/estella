@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-08-13
+
 ### Added
 
 - **The profiler answers "where did this frame go", and its rows add up.** The
@@ -173,6 +175,161 @@ published separately; it ships inside the editor.
   cannot each round their own way to a different answer. The editor's own
   `presentWait` subtraction is gone; the panel, the unit bar and the systems table
   now all read the tree.
+
+- **Capabilities — a layer of intent above the tool catalog.** A capability
+  declares what a run is allowed to be about, orchestrating only tools it names
+  and reaching them only through `call`. Both MCP fronts get them for free
+  because they enter the same `TOOLS` list, and `check-capabilities` holds the
+  line that every name exists and no effect is under-declared.
+
+- **A file write is only irreversible if nobody kept the bytes.** The undo stack
+  covers the document and stops at the disk, which is why thirteen tools that
+  merely write project files sat beside running arbitrary code and asked before
+  each one. `fileJournal` opens a transaction per turn, captures every project
+  path a write is about to touch, and one Revert puts the set back — so those
+  thirteen move to a `journaled` tier that runs unasked, for the same reason an
+  undoable edit does. A path too big for the budget is recorded as unjournaled
+  rather than skipped: a Revert that silently leaves a 400MB import behind,
+  under a bar saying the turn came back, is the failure this exists to prevent.
+
+- **One Revert takes back both halves of a turn.** The checkpoint undid the
+  document and left every file the turn wrote. It now reverts the pair — the
+  document first, so the restored files land on a scene already at its pre-turn
+  state — and the change set lists entities and files together, which is what
+  makes a run legible as one thing.
+
+- **A History panel where an agent run is one row.** Ctrl+Z was the only way to
+  read what had happened, and thirty-eight identical undos is not reading. A run
+  is bounded by its own two checkpoints, so the newest one no longer swallows the
+  edits made after it; clicking a row puts the project back to that point — every
+  run past it, files included — and says how far that reaches before anything
+  moves. Undone steps stay on the timeline, dimmed, because forward is a place
+  you can go.
+
+- **A turn ends with a verdict it did not write.** `done_when` takes claims, each
+  naming the thing that settles it: a probe evaluated in the running game, or
+  `manual` for what only a person can judge. The kernel computes the verdict, so
+  no closing paragraph can reach it; the editor's own checks run underneath and
+  can only ever fail a turn; and `unverified` is a verdict, because a run that
+  claimed nothing should not read as one that passed.
+
+- **Claims the project makes, which no run can weaken.** A project states its own
+  standing criteria in its manifest, in the same shape a turn declares its own.
+  A turn cannot add to them, weaken them or remove them, and they can only fail
+  it. A claim a run proved gets a Keep button, so a project accumulates the
+  checks nobody sat down to write.
+
+- **The claim only a person can settle is one a person is asked.** `manual` said
+  only a person could judge it and then nobody ever was. The run now stops short
+  of passed until they answer — two buttons on that row — and the answer rides
+  the event stream, so it survives the reload that rebuilds the transcript.
+
+- **A criterion is asked at the moment it is declared.** One that already answers
+  true is a guard on what worked before and can never be what shows the turn
+  achieved something. Declared after the work it is still taken, but each one
+  then counts only where the editor could show it false right then — which
+  replaced a blunt refusal that, across four real runs, meant no claims at all.
+
+- **A run cut off mid-work still says whether it left the project standing.**
+  Out of rounds used to mean out of answers: no diagnostics, no compile check,
+  an empty result list under a run that had changed five files. Its own claims
+  are still not due, so this can only ever fail or leave unverified.
+
+- **The running game, read by name.** `find_entities`, `inspect_entity`,
+  `list_resources` and `get_systems` answer what the game is doing without a
+  hand-written probe and without a confirmation — three shapes chosen so an
+  answer cannot be misread: a `total` beside a capped list, `null` timings with a
+  note, and an over-large value replaced in its own place.
+
+- **Driving the game is not something to ask permission for.** `play_input`,
+  `step`, `set_play` and `set_time_scale` are `ephemeral`: they move a realm that
+  Stop discards and never touch the edit World. `set_play(state)` replaces
+  `toggle_play`, so staging a paused situation is one call rather than a race.
+
+- **Press the button, do not compute where the button is.** `click_ui` takes a
+  NAME, puts the point to the engine's own hit test, and refuses rather than
+  clicking whatever is there instead. `send_gamepad` hands a game a controller on
+  a machine with none, held until released and outranking the poll at its index.
+
+- **The shader picker's list, and the material that comes with it.**
+  `list_shader_templates` answers which shaders a material can name, what each
+  one takes, and a whole `.esmaterial` already bound to it. The stock templates
+  are runtime values, so none of that was in a project's staged types: one real
+  run searched for `sprite-outline` three times and missed three times while the
+  template of that name sat in the engine.
+
+- **`create_asset` without content is the New… menu.** Leave it out and the file
+  is the one the editor's own create menu would have written — a scene with its
+  camera, an empty state machine, a material bound to `template`. One table, each
+  entry pointing at the definition that already existed.
+
+- **`search_symbols` — which names exist.** The question that comes before
+  `lookup_symbol`, and the one searching files cannot answer: the shipped types
+  re-export under mangled aliases on a single line, so no grep of a project turns
+  that into a list of what is available.
+
+### Changed
+
+- **`done_when` is served by the kernel, not the editor.** It is loop state and
+  reaches no editor door, so `loopOnly` keeps it off the MCP fronts, which have
+  no turn to declare anything about.
+
+- **The material format version has a name.** `MATERIAL_FORMAT_VERSION`, beside
+  the constants its sibling formats already had, shared by the three writers that
+  each spelled `'1.0'` out.
+
+### Fixed
+
+- **Every launch was a new origin, so every preference started over.** The
+  packaged renderer is served over a loopback origin and the port was ephemeral;
+  localStorage belongs to the origin. The dock layout, the model beside the
+  composer, the play target — twelve keys — came back to their defaults on every
+  start, silently, because each falls back rather than failing. The port is
+  remembered now, and anything already holding it falls back to ephemeral.
+
+- **The saved model pick was read before its own key existed.** The store's
+  initializer read a `const` declared below it; the dead-zone throw landed in the
+  `catch` that is there for a browser refusing storage, which answered "nothing
+  saved". A loud failure wearing the shape of a quiet one.
+
+- **A verdict's failures were held back for want of a turn to sit on.** Context
+  between rounds must follow a user turn, and a verdict speaks after the model
+  has stopped — so everything a turn was being asked to fix stayed in the buffer,
+  and the model was re-invoked with nothing new in it.
+
+- **A claim the project makes, added while the project is open.** Standing
+  criteria were re-read when the project opened or when the manifest was written
+  through the editor's own door — never for an edit from anywhere else, which is
+  most of how one gets into a project. Claims that silently did not load look
+  exactly like a project that has none.
+
+- **The reflex that checks the work was switched off by looking first.** "Have
+  you looked at this?" was answered for a whole turn by any single glance, and
+  the prompt opens by telling the agent to look before it edits — so the good
+  behaviour was the off switch. It is a running answer to "has anything changed
+  since you last looked" now, and reading the running game by name counts as
+  looking, which it did not before.
+
+- **A run that got nowhere twice stops being offered again.** Carry on was
+  offered for any ending you could continue from, whether or not the run had
+  produced anything to continue from — and each press starts a fresh budget.
+
+- **A key already held answers that it produced no press edge.** A key stays down
+  until released, so a second `key_down` makes no edge and the game does nothing,
+  while everything read back afterwards looks perfectly healthy.
+
+- **A search no longer passes off a mis-set regular expression as an absence.** A
+  regex sent to a literal search matches nothing, and `[]` is what "it is not
+  there" looks like.
+
+- **A shut drawer was 384px of page nobody could scroll back from.** A closed
+  drawer is still in the layout, parked off the edge; `body` said
+  `overflow-x: hidden`, which takes the scrollbar away and leaves the box
+  scrollable by code — and the focus a closing dialog hands back is code.
+
+- **A history row moved the document and left the disk where it was.** Clicking a
+  row before an agent run gave the scene from before it and the scripts from
+  after — a state the project had never been in.
 
 ## [0.50.0] - 2026-08-11
 
@@ -5193,7 +5350,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/esengine/estella/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/esengine/estella/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/esengine/estella/compare/v0.47.0...v0.49.0
 [0.47.0]: https://github.com/esengine/estella/compare/v0.46.0...v0.47.0
