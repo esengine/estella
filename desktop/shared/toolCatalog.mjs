@@ -276,7 +276,7 @@ const ATOMS = [
       + 'A claim with neither is refused: something nothing can check is not a claim. '
       + 'Declare something that is FALSE right now and true when you are done: a criterion that already holds against the untouched project is a guard on what already worked, it is reported as such, and it can never be what shows this turn achieved anything. '
       + 'This is the ONE thing in the turn you do not get to grade — the verdict is computed from these, not from what you say about the work. '
-      + 'It must be called before your first write, because criteria written afterwards are shaped by whatever you happened to build.',
+      + 'Call it BEFORE your first write. Declared afterwards it is still taken, but each criterion then counts only where the editor can show it FALSE at that moment — anything already true by then, or that nothing can settle right then, is recorded as a guard and proves nothing about your work. That is the cost of describing the finish line once you have started building toward it.',
     schema: obj({
       criteria: {
         type: 'array',

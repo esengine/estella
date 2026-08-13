@@ -788,7 +788,8 @@ describe('the verdict on the work', () => {
       ends(), ends(),
     ]);
     await runTurn(deps(s), 'health bar', null, new AbortController().signal);
-    const told = events.find((e) => e.type === 'tool_end' && e.summary.includes('ALREADY HOLD'));
+    const told = events.find((e) => e.type === 'tool_end'
+      && e.summary.includes('cannot show this turn achieved anything'));
     expect(told).toBeTruthy();
   });
 
@@ -909,9 +910,12 @@ describe('the verdict on the work', () => {
   });
 
   describe('declaring what done means', () => {
-    // Criteria written once the work exists are shaped by whatever got built,
-    // which is the failure the whole mechanism is there to close.
-    it('is refused after the turn has already changed something', async () => {
+    /**
+     * Claims made once the work exists are shaped by what got built, and the
+     * price for that is paid per criterion rather than by refusing the call:
+     * kept only where it could be shown false at that moment.
+     */
+    it('takes one declared after the work, and says what that costs', async () => {
       const s = fakeSession([
         asks(call('add_entity')),
         asks(declare({ says: 'the bar starts full', probe: 'ok' })),
@@ -920,9 +924,42 @@ describe('the verdict on the work', () => {
       ]);
       await runTurn(deps(s), 'health bar', null, new AbortController().signal);
       const outcome = s.results.flat().find((o) => o.id === 'cdone_when');
-      expect(outcome).toMatchObject({ isError: true });
-      expect(outcome!.content).toContain('too late');
+      expect(outcome).toMatchObject({ isError: false });
+      expect(outcome!.content).toContain('AFTER this turn changed something');
+    });
+
+    it('cannot be carried to passed by one it could not show false', async () => {
+      // The probe answers true throughout, so nothing here shows the work did it.
+      const s = fakeSession([
+        asks(call('add_entity')),
+        asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+        ends(),
+      ]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
       expect(ended().acceptance.verdict).toBe('unverified');
+    });
+
+    it('counts one that WAS false when it was declared', async () => {
+      let asked = 0;
+      probe = () => ++asked > 1;
+      const s = fakeSession([
+        asks(call('add_entity')),
+        asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+        ends(),
+      ]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+      expect(ended().acceptance.verdict).toBe('passed');
+    });
+
+    it('discounts a late claim nothing could settle at the time', async () => {
+      playing = false;
+      const s = fakeSession([
+        asks(call('add_entity')),
+        asks(declare({ says: 'the bar starts full', probe: 'ok' })),
+        ends(),
+      ]);
+      await runTurn(deps(s), 'health bar', null, new AbortController().signal);
+      expect(ended().acceptance.verdict).not.toBe('passed');
     });
 
     it('refuses a claim that names nothing to settle it, and says which rule', async () => {

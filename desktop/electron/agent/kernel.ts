@@ -88,9 +88,9 @@ interface TurnState {
 /**
  * Answer {@link ACCEPTANCE_TOOL}: keep the claims, or refuse and say which rule.
  *
- * Refused after the first write on purpose. Criteria written once the work
- * exists are shaped by whatever got built, which is the failure mode the whole
- * mechanism is there to close.
+ * Claims made once the work exists are shaped by what got built — so they are
+ * priced rather than refused: {@link markBaseline} keeps only what it can show
+ * false at that moment, and the rest becomes a guard that proves nothing.
  */
 async function declare(
   deps: KernelDeps,
@@ -102,25 +102,24 @@ async function declare(
     emit({ type: 'tool_end', id: call.id, ok: false, summary: content });
     return { outcome: { id: call.id, content, isError: true }, mutated: false };
   };
-  if (turn.wroteAnything) {
-    return refuse(
-      'too late — this turn has already changed something, and criteria written after the work '
-      + 'are shaped by the work. Say in your answer what you would have claimed, and declare it '
-      + 'first next time.',
-    );
-  }
   const problem = criteriaProblem((call.input as { criteria?: unknown }).criteria);
   if (problem) return refuse(problem);
 
-  turn.criteria = await markBaseline(deps, (call.input as { criteria: Criterion[] }).criteria);
+  const late = turn.wroteAnything;
+  turn.criteria = await markBaseline(
+    deps, (call.input as { criteria: Criterion[] }).criteria, late,
+  );
   // Said now, while there is still time to claim something else: a criterion
   // that answers true against the untouched project is a guard on what already
   // works, and cannot be what shows this turn did anything.
   const already = turn.criteria.filter((c) => c.heldBefore);
   const summary = `${turn.criteria.length} criteria — checked at the end of this turn`
-    + (already.length === 0 ? '' : `. ${already.length} of them ALREADY HOLD, with none of the `
-      + `work done: ${already.map((c) => `"${c.says}"`).join(', ')}. Those cannot show this turn `
-      + 'achieved anything — declare at least one that is false right now and true once you are done.');
+    + (late ? '. Declared AFTER this turn changed something, so each one counts only where it '
+      + 'could be shown false at this moment — anything already true, or that nothing here can '
+      + 'settle, is a guard rather than evidence. Declare first next time.' : '')
+    + (already.length === 0 ? '' : ` ${already.length} of them cannot show this turn achieved `
+      + `anything: ${already.map((c) => `"${c.says}"`).join(', ')}. Declare at least one that is `
+      + 'false right now and true once you are done.');
   emit({ type: 'tool_end', id: call.id, ok: true, summary });
   return { outcome: { id: call.id, content: summary, isError: false }, mutated: false };
 }

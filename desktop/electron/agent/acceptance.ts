@@ -212,20 +212,25 @@ async function declaredChecks(
 }
 
 /**
- * Ask the criteria BEFORE the work and mark the ones that already hold: one
- * that answers true against the untouched project is a guard, not evidence.
- * Declaring is always pre-write (the tool refuses it after), so this is the one
- * moment it can be asked. Nothing is claimed when the game is not up.
+ * Ask each criterion the moment it is declared: one already answering true is a
+ * guard on what worked before, not evidence of this turn. `afterWork` inverts
+ * the benefit of the doubt — a claim made once the work exists counts only
+ * where this could show it FALSE then, unmeasurable ones included.
  */
 export async function markBaseline(
   deps: KernelDeps,
   criteria: readonly Criterion[],
+  afterWork = false,
 ): Promise<DeclaredCriterion[]> {
   const probes = criteria.filter((c) => c.probe);
-  if (probes.length === 0 || !await isPlaying(deps)) return criteria.map((c) => ({ ...c }));
+  const playing = probes.length > 0 && await isPlaying(deps);
+  const unmeasured = (c: Criterion): DeclaredCriterion =>
+    (afterWork ? { ...c, heldBefore: true } : { ...c });
+  if (!playing) return criteria.map(unmeasured);
+
   const out: DeclaredCriterion[] = [];
   for (const c of criteria) {
-    if (!c.probe) { out.push({ ...c }); continue; }
+    if (!c.probe) { out.push(unmeasured(c)); continue; }
     const asked = await runProbe(deps, c, 'turn');
     out.push(asked.state === 'held' ? { ...c, heldBefore: true } : { ...c });
   }

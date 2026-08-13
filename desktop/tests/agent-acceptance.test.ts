@@ -207,6 +207,34 @@ describe('a claim that already held when it was declared', () => {
     expect(await markBaseline(deps, [guard])).toEqual([{ ...guard }]);
   });
 
+  /**
+   * Declared once the work exists, the benefit of the doubt goes the other way:
+   * a claim shaped by what got built is the failure this guards, so it counts
+   * only where it could be shown false at that moment.
+   */
+  describe('and declared after the turn had already changed something', () => {
+    it('still counts one that was false when it was declared', async () => {
+      const deps = fakeDriver({ probe: () => false });
+      expect(await markBaseline(deps, [guard], true)).toEqual([{ ...guard }]);
+    });
+
+    it('discounts one that already held', async () => {
+      const deps = fakeDriver({ probe: () => true });
+      expect(await markBaseline(deps, [guard], true)).toEqual([{ ...guard, heldBefore: true }]);
+    });
+
+    it('discounts one nothing could settle at the time', async () => {
+      const deps = fakeDriver({ playing: false, probe: () => false });
+      expect(await markBaseline(deps, [guard], true)).toEqual([{ ...guard, heldBefore: true }]);
+    });
+
+    it('discounts one only a person can settle', async () => {
+      const manual = { says: 'it reads well', manual: 'a judgement about legibility' };
+      expect(await markBaseline(fakeDriver(), [manual], true))
+        .toEqual([{ ...manual, heldBefore: true }]);
+    });
+  });
+
   it('does not carry a turn to passed on its own', async () => {
     const deps = fakeDriver({ probe: () => true });
     const out = await evaluate(deps, [{ ...guard, heldBefore: true }]);
