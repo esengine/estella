@@ -266,6 +266,12 @@ function isReExportBarrel(line: string): boolean {
   return line.length > 400 && /^export\s+(type\s+)?\{/.test(line);
 }
 
+/**
+ * Regex syntax nobody types by accident. A bare `.` is left out — `player.speed`
+ * is a literal somebody means — so this fires on intent, not on punctuation.
+ */
+const REGEX_INTENT = /\.\*|\.\+|\\[wsdbWSDB]|\[[^\]]+\]|\([^)]*\)|\|\||^\^|\$$/;
+
 export async function searchInRoot(
   root: string,
   opts: { query: string; regex?: boolean; glob?: string; maxResults?: number },
@@ -296,6 +302,16 @@ export async function searchInRoot(
       out.push({ file: rel, line: i + 1, text: line.slice(0, 400) });
       if (out.length >= max) return out;
     }
+  }
+  // Nothing found, for a query that reads as a regular expression searched
+  // literally. Answering `[]` says "it is not there", which is a different
+  // thing and the caller acts on it — so say which of the two this was.
+  if (out.length === 0 && !opts.regex && REGEX_INTENT.test(query)) {
+    throw new Error(
+      `no literal match for "${query}", and it reads as a regular expression — `
+      + 'this search takes a literal substring unless you pass `regex: true`. '
+      + 'Search again with regex: true, or with the plain text you meant.',
+    );
   }
   return out;
 }

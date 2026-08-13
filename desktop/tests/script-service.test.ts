@@ -12,7 +12,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, existsSync } fro
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adoptProjectScripts, scriptDiagnostics, lookupScriptSymbol, isScriptPath } from '../electron/scriptService';
+import { adoptProjectScripts, scriptDiagnostics, lookupScriptSymbol, searchScriptSymbols, isScriptPath } from '../electron/scriptService';
 import { searchInRoot } from '../electron/projectFs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -192,5 +192,36 @@ describe('project search', () => {
     const hits = await searchInRoot(root, { query: 'xxxxx', glob: 'long.ts' });
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].text.length).toBeLessThanOrEqual(400);
+  });
+});
+
+/**
+ * Which names exist — the question you have before you have a name, and the one
+ * grep cannot answer: the shipped types re-export under mangled aliases on a
+ * single line, which the file search skips as noise. The compiler has the list.
+ */
+describe('searchScriptSymbols', () => {
+  it('finds an SDK export from a fragment of its name', () => {
+    const names = searchScriptSymbols('UINod').map((s) => s.name);
+    expect(names).toContain('UINode');
+  });
+
+  it('answers with a name and its kind, not a rendered signature', () => {
+    const [hit] = searchScriptSymbols('defineComponent');
+    expect(hit).toMatchObject({ name: 'defineComponent', kind: expect.any(String) });
+    expect(hit).not.toHaveProperty('signature');
+  });
+
+  it('lists the project own symbols too', () => {
+    writeFileSync(path.join(root, 'src', 'wellKnown.ts'), 'export const wellKnownThing = 1;\n');
+    expect(searchScriptSymbols('wellKnownThing').map((s) => s.name)).toContain('wellKnownThing');
+  });
+
+  it('honours the limit, so a broad fragment is still one screen', () => {
+    expect(searchScriptSymbols('e', 5).length).toBeLessThanOrEqual(5);
+  });
+
+  it('says nothing for a fragment nothing is named after', () => {
+    expect(searchScriptSymbols('zzzNoSuchSymbolAnywhere')).toEqual([]);
   });
 });

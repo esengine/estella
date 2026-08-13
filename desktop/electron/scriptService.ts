@@ -33,6 +33,14 @@ export interface ScriptDiagnostic {
 }
 
 /** What the compiler knows about a name, for someone who cannot read the .d.ts. */
+/** A name and what kind of thing it is — the answer to "what is there", which
+ *  comes before "what is this one". */
+export interface SymbolBrief {
+  name: string;
+  kind: string;
+  file: string;
+}
+
 export interface SymbolInfo {
   name: string;
   kind: string;
@@ -269,6 +277,26 @@ class ProjectScripts {
     return `${head} { ${rendered.join('; ')}${tail} }`.slice(0, 2400);
   }
 
+  /**
+   * WHICH names exist, without rendering any of them. `lookup` answers what one
+   * symbol is and costs a quickInfo per hit; this answers what there is to ask
+   * about, which is the question you have when you do not know the name yet.
+   */
+  list(query: string, limit = 40): SymbolBrief[] {
+    this.rescan();
+    const items = this.service.getNavigateToItems(query, Math.min(limit * 4, 256), undefined, false, true);
+    const seen = new Set<string>();
+    const out: SymbolBrief[] = [];
+    for (const item of items) {
+      const key = `${item.name}:${item.kind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: item.name, kind: item.kind, file: path.relative(this.root, item.fileName) });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   lookup(name: string, limit = 8): SymbolInfo[] {
     this.rescan();
     const items = this.service.getNavigateToItems(name, 64, undefined, false, true);
@@ -339,6 +367,11 @@ export function scriptDiagnostics(relPath?: string): ScriptDiagnostic[] {
 
 export function lookupScriptSymbol(name: string, limit?: number): SymbolInfo[] {
   return service().lookup(name, limit);
+}
+
+/** Which symbols exist whose name looks like `query` — see {@link ScriptService.list}. */
+export function searchScriptSymbols(query: string, limit?: number): SymbolBrief[] {
+  return service().list(query, limit);
 }
 
 /** Whether a path is something the service has an opinion about. */

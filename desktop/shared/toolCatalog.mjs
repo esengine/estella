@@ -534,6 +534,11 @@ const ATOMS = [
       + '`name` also takes an ARRAY — ask about everything you are about to use in one call (["Query", "Res", "Mut", "Time"]) and the reply is keyed by name. Learning an API is a dozen symbols; a dozen calls is a dozen round trips. '
       + 'Use this INSTEAD of paging the SDK .d.ts — that file is tens of thousands of lines and reading it a hundred at a time costs a context window to learn one method name.',
     schema: obj({ name: { type: ['string', 'array'] }, limit: { type: 'number' } }, ['name']), op: 'lookup_symbol' },
+  { name: 'search_symbols',
+    description: 'WHICH names exist, asked of the TypeScript compiler: `query` is a fragment of a name and the reply is `[{ name, kind, file }]` — the SDK, the project\'s own code and the staged types together, matched by prefix, substring and camelCase (`uinode`, `Scene`, `regAct`). '
+      + 'This is the question that comes BEFORE lookup_symbol, and the one searching the files cannot answer: the shipped types re-export under mangled aliases on a single line (`export { jg as UINode, … }`), which no grep of a project turns into a list of what is available. '
+      + 'Ask here when you do not know the name yet, then lookup_symbol the ones that look right.',
+    schema: obj({ query: { type: 'string' }, limit: { type: 'number' } }, ['query']), op: 'search_symbols' },
   { name: 'search_project_files',
     description: 'Lines matching `query` across the project (case-insensitive substring, or a regular expression with `regex: true`); `glob` filters paths — `*.ts`, `src/**`, `src/*.ts`, or a plain substring like ".ts". '
       + 'Each hit is { file, line, text }. The door between list_project_files and reading a file whole. '

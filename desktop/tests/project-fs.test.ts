@@ -119,6 +119,26 @@ describe('searchInRoot', () => {
     expect(hits[0].line).toBe(1);
   });
 
+  // A regular expression searched literally matches nothing, and `[]` is what
+  // "it is not there" looks like — so a run reads absence off a query that was
+  // never asked. Seen four times in one dogfood turn (`export.*SceneManager`).
+  it('refuses to pass off a mis-set regex as an absence', async () => {
+    await expect(searchInRoot(root, { query: 'export.*SceneManager' }))
+      .rejects.toThrow(/reads as a regular expression/);
+  });
+
+  it('says nothing about a plain query that genuinely is not there', async () => {
+    expect(await searchInRoot(root, { query: 'nowhereAtAll' })).toEqual([]);
+    // A dot is punctuation in code, not evidence of intent.
+    expect(await searchInRoot(root, { query: 'player.speed' })).toEqual([]);
+  });
+
+  it('leaves a real regex search alone, found or not', async () => {
+    expect(await searchInRoot(root, { query: 'define(System|Component)', regex: true }))
+      .toHaveLength(1);
+    expect(await searchInRoot(root, { query: 'zzz(a|b)', regex: true })).toEqual([]);
+  });
+
   // The SDK types are what this tool exists for, and the dot-dir rule that keeps
   // them out of the Content Browser was hiding them here too — so a search for a
   // declaration the compiler had just named came back empty, which reads as "no

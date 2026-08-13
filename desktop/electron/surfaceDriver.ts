@@ -17,7 +17,7 @@
  * so an in-process caller and a remote MCP client cannot drift apart.
  */
 import type { BrowserWindow } from 'electron';
-import { scriptDiagnostics, lookupScriptSymbol, isScriptPath } from './scriptService';
+import { scriptDiagnostics, lookupScriptSymbol, searchScriptSymbols, isScriptPath } from './scriptService';
 import { searchInRoot, writeInRoot } from './projectFs';
 
 /** What the tool registry calls: a surface/editor method, plus the two escape
@@ -377,6 +377,11 @@ export function createSurfaceDriver(
         for (const name of names) out[name] = lookupScriptSymbol(name, limit);
         return out;
       }
+      case 'search_symbols':
+        return searchScriptSymbols(
+          String(input.query ?? ''),
+          input.limit === undefined ? undefined : Number(input.limit),
+        );
       case 'search_project_files':
         return searchInRoot(requireProjectRoot(), {
           query: String(input.query ?? ''),
