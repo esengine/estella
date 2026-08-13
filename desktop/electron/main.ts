@@ -3,7 +3,7 @@
 import { app, BrowserWindow, Menu, shell, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile, open, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   openProject,
@@ -144,6 +144,34 @@ protocol.registerSchemesAsPrivileged([
 // as a fallback; the packaged renderer normally loads over a loopback http origin
 // (see appBaseUrl) so dockview popouts get the same-origin http opener they require.
 const APP_ORIGIN = 'app://local';
+
+/**
+ * The port the renderer was served on last time.
+ *
+ * An ephemeral port makes a NEW ORIGIN every launch, and localStorage belongs to
+ * the origin — so the dock layout, the model beside the composer and every other
+ * preference the window keeps came back to its default each time, silently.
+ */
+const rendererPortFile = (): string => path.join(app.getPath('userData'), 'renderer-origin.json');
+
+function rememberedRendererPort(): number {
+  try {
+    const port = (JSON.parse(readFileSync(rendererPortFile(), 'utf8')) as { port?: unknown }).port;
+    return typeof port === 'number' && port > 0 && port < 65536 ? port : 0;
+  } catch {
+    return 0; // never served, or a torn write — an ephemeral port is the fallback
+  }
+}
+
+function rememberRendererPort(baseUrl: string): void {
+  const port = Number(new URL(baseUrl).port);
+  if (!port) return;
+  try {
+    writeFileSync(rendererPortFile(), `${JSON.stringify({ port }, null, 2)}\n`);
+  } catch (err) {
+    console.warn('[loopback] could not remember the renderer port', err);
+  }
+}
 
 // Where the renderer is served from: Vite dev server, a loopback http origin when
 // packaged (set in whenReady), or app:// as a last resort. Trailing slash so
@@ -1657,7 +1685,8 @@ app.whenReady().then(async () => {
   // and is unaffected. Fall back to app:// if the server can't start.
   if (!VITE_DEV_SERVER_URL) {
     try {
-      appBaseUrl = await loopbackServer(RENDERER_DIST);
+      appBaseUrl = await loopbackServer(RENDERER_DIST, rememberedRendererPort());
+      rememberRendererPort(appBaseUrl);
     } catch (err) {
       console.error('[loopback] renderer server failed; falling back to app://', err);
       appBaseUrl = `${APP_ORIGIN}/`;

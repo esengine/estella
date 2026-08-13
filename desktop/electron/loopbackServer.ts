@@ -36,7 +36,7 @@ const servers = new Map<string, { server: http.Server; url: string }>();
  * (with a trailing slash). Throws if the directory has no `index.html` — a clear
  * failure beats silently serving 404s.
  */
-export async function loopbackServer(rootDir: string): Promise<string> {
+export async function loopbackServer(rootDir: string, preferredPort = 0): Promise<string> {
   const root = path.resolve(rootDir);
   if (!existsSync(path.join(root, 'index.html'))) {
     throw new Error(`no index.html in ${root} — nothing to serve`);
@@ -59,7 +59,13 @@ export async function loopbackServer(rootDir: string): Promise<string> {
       res.writeHead(404).end('not found');
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  // The port IS the origin, and the origin is where the renderer's localStorage
+  // lives. A caller that wants its preferences back next launch asks for the
+  // port it had; anything already holding it falls back rather than failing.
+  await new Promise<void>((resolve) => {
+    server.once('error', () => { server.listen(0, '127.0.0.1', resolve); });
+    server.listen(preferredPort, '127.0.0.1', resolve);
+  });
   const addr = server.address();
   const port = typeof addr === 'object' && addr ? addr.port : 0;
   const url = `http://127.0.0.1:${port}/`;
