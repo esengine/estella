@@ -83,6 +83,28 @@ interface StepRequest {
  * Anthropic-only field to a gateway fails in the two ways that are hardest to
  * notice: silently ignored, or billed differently than the code says.
  */
+/**
+ * Put editor context — a diagnostics feed, a nudge, a verdict's failures — where
+ * the model will read it. After a user turn it rides that turn (or, on
+ * Anthropic's own dialect, the operator channel beside it); after the model's
+ * own answer, which is where a VERDICT speaks, it takes a user turn of its own.
+ */
+export function placeContext(messages: Message[], text: string, dialect: Dialect): void {
+  const last = messages[messages.length - 1];
+  if (last?.role !== 'user') {
+    messages.push({ role: 'user', content: [{ type: 'text', text }] });
+    return;
+  }
+  if (dialect === 'anthropic') {
+    messages.push({ role: 'system', content: text } as unknown as Message);
+    return;
+  }
+  const blocks = typeof last.content === 'string'
+    ? [{ type: 'text' as const, text: last.content }]
+    : [...last.content];
+  last.content = [...blocks, { type: 'text' as const, text }];
+}
+
 export function buildStepRequest(opts: {
   dialect: Dialect;
   model: string;
@@ -297,25 +319,14 @@ class AnthropicSession implements AgentSession {
    * core format, still after the cached prefix, but it IS user-role text and
    * carries no more authority than the rest of that turn.
    *
-   * Placement is constrained either way: it must follow a user turn. That holds
-   * here — the kernel always appends the user turn or a tool-result turn before
-   * stepping — but hold the text rather than emitting an invalid message if
-   * that ever stops being true.
+   * Placement is constrained either way: it must follow a user turn. The turn a
+   * verdict speaks in does not have one — the model has just stopped, so the
+   * history ends on its answer — and a user turn of our own is what carries the
+   * text there rather than losing it.
    */
   private flushContext(): void {
     if (this.pending.length === 0) return;
-    const last = this.messages[this.messages.length - 1];
-    if (!last || last.role !== 'user') return;
-    const text = this.pending.join('\n\n');
-
-    if (this.opts.dialect === 'anthropic') {
-      this.messages.push({ role: 'system', content: text });
-    } else {
-      const blocks = typeof last.content === 'string'
-        ? [{ type: 'text' as const, text: last.content }]
-        : [...last.content];
-      last.content = [...blocks, { type: 'text' as const, text }];
-    }
+    placeContext(this.messages, this.pending.join('\n\n'), this.opts.dialect);
     this.pending.length = 0;
   }
 

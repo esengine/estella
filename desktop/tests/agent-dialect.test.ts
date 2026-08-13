@@ -14,8 +14,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  buildStepRequest, createAnthropicProvider, toolResultContent,
+  buildStepRequest, createAnthropicProvider, toolResultContent, placeContext,
 } from '../electron/agent/anthropic';
+
+type Msg = Parameters<typeof placeContext>[0][number];
 import { describeApiError } from '../electron/agent/apiError';
 import { DEFAULT_MODEL } from '../src/settings/agentIds';
 import type { CatalogTool } from '../electron/agent/types';
@@ -124,11 +126,16 @@ describe('where per-turn editor context lands', () => {
     ]);
   });
 
-  it('holds the text rather than emitting a message with nothing to attach to', () => {
+  // A VERDICT speaks where there is no user turn to attach to: the model has
+  // stopped and the history ends on its answer, so the failures it is being
+  // asked to fix need a turn of their own.
+  it('speaks on its own turn when there is nothing to attach to', () => {
     const session = createAnthropicProvider({ apiKey: 'k' }).createSession({ system: 's', tools: TOOLS });
     session.pushContext('orphan');
     (session as unknown as { flushContext(): void }).flushContext();
-    expect((session as unknown as { messages: unknown[] }).messages).toHaveLength(0);
+    const messages = (session as unknown as { messages: { role: string }[] }).messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ role: 'user' });
   });
 });
 
@@ -301,4 +308,37 @@ describe('an image on the person\'s turn', () => {
         const [msg] = messagesOf(undefined, []);
         expect(msg.content).toBe('like this');
     });
+});
+
+/**
+ * Where the editor's own words go. They must follow a user turn, and the turn a
+ * VERDICT speaks in has none — the model has just answered — so context with
+ * nothing to attach to takes a user turn of its own rather than going nowhere.
+ */
+describe('editor context, placed', () => {
+  const user = (text: string): Msg => ({ role: 'user', content: text });
+  const assistant = (text: string): Msg => ({ role: 'assistant', content: text });
+  const roles = (m: Msg[]) => m.map((x) => x.role);
+
+  it('takes a user turn of its own after the model has answered', () => {
+    for (const dialect of ['anthropic', 'compatible'] as const) {
+      const messages: Msg[] = [user('go'), assistant('done!')];
+      placeContext(messages, 'two of the things this work has to do are not holding', dialect);
+      expect(roles(messages)).toEqual(['user', 'assistant', 'user']);
+      expect(JSON.stringify(messages[2])).toContain('not holding');
+    }
+  });
+
+  it('rides the user turn a gateway can carry, rather than a role it cannot', () => {
+    const messages: Msg[] = [user('go')];
+    placeContext(messages, 'the editor flags 2 problems', 'compatible');
+    expect(roles(messages)).toEqual(['user']);
+    expect(JSON.stringify(messages[0])).toContain('flags 2 problems');
+  });
+
+  it('uses the operator channel where there is one', () => {
+    const messages: Msg[] = [user('go')];
+    placeContext(messages, 'the editor flags 2 problems', 'anthropic');
+    expect(roles(messages)).toEqual(['user', 'system']);
+  });
 });
