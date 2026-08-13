@@ -9,8 +9,9 @@
  * and how one of the two paths quietly stops being maintained.
  *
  * So the choice is made once, here: the document sink records undo and reaches
- * disk, the live sink posts to the realm and evaporates on Stop. Callers name
- * an entity by {@link EntityRef} and say what they want.
+ * disk, the live sink posts to the realm and — unless Stop is told to keep it —
+ * evaporates. Being the one door is also what lets {@link PlayEdits} know what a
+ * person changed, as opposed to what the game did.
  */
 import type { EntityId, FieldWrite, InspectorFieldType } from '@/types';
 import { useEditorStore } from '@/store/editorStore';
@@ -18,6 +19,7 @@ import { SceneCommands, toModelValue } from './SceneCommands';
 import { PlayInspect } from './PlayInspect';
 import { PlayRealm } from './PlayRealm';
 import { srcIdOf, type EntityRef } from './entityRef';
+import { PlayEdits } from './playEdits';
 
 /** The value vocabulary every inspector control commits in. */
 type FieldValue = Parameters<FieldWrite>[2];
@@ -45,6 +47,7 @@ export const EntityOps = {
       // model itself; the realm takes a whole component value, so the same merge
       // happens here against what the realm last reported.
       PlayInspect.setField(live, comp, key, toModelValue(PlayInspect.componentData(live, comp), type, key, value as never));
+      PlayEdits.record(ref, comp, key);
       return 'live';
     }
     const src = srcIdOf(ref);
@@ -58,6 +61,7 @@ export const EntityOps = {
       const live = PlayInspect.liveIdOf(ref);
       if (live == null) return null;
       PlayInspect.setVisible(live, visible);
+      PlayEdits.recordVisibility(ref);
       return 'live';
     }
     const src = srcIdOf(ref);
@@ -78,6 +82,7 @@ export const EntityOps = {
       const live = PlayInspect.liveIdOf(ref);
       if (live == null || !point.canvas) return null;
       PlayRealm.dragTo(live, point.canvas.x, point.canvas.y, axis);
+      PlayEdits.record(ref, 'Transform', 'position');
       return 'live';
     }
     const src = srcIdOf(ref);

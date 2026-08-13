@@ -98,5 +98,18 @@ export const layoutMessages = defineMessages({
 
     // — App shell toasts —
     'layout.toast.openSceneFirst': { en: 'Open a scene before playing', zh: '请先打开场景再运行' },
+
+    // — Keeping what a play session changed —
+    'play.keep.offer': {
+        en: '{n} change(s) made while playing — keep them in the scene?',
+        zh: '运行期间改动了 {n} 处 — 保留到场景里吗？',
+    },
+    'play.keep.action': { en: 'Keep', zh: '保留' },
+    'play.keep.kept': { en: 'Kept {n} change(s) — undo to revert', zh: '已保留 {n} 处改动 — 撤销可还原' },
+    'play.keep.undoLabel': { en: 'Keep play changes', zh: '保留运行期改动' },
+    'play.keep.spawnedDropped': {
+        en: '{n} change(s) were made to entities the game spawned — the scene has no row for them, so they end with the session.',
+        zh: '有 {n} 处改动落在游戏自己创建的实体上 — 场景里没有对应的行，它们随会话一起结束。',
+    },
     'layout.toast.noPlayInPrefab': { en: 'Exit Prefab Mode before playing — a prefab has no scene to run.', zh: '请先退出预制体编辑再运行——预制体没有可运行的场景。' },
 });

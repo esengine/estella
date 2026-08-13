@@ -435,6 +435,17 @@ export class SceneCommandsImpl {
     this.writeField_(sourceId, compName, key, 'vec2list', verts);
   }
 
+  /**
+   * Write a field's value AS IT ALREADY IS — the door for a value that came from
+   * a world rather than from a control, which has no inspector shape to convert
+   * from (keeping what a play session left behind).
+   */
+  setFieldValue(sourceId: EntityId, compName: string, key: string, value: unknown): void {
+    const e = this.model.entityBySource(sourceId);
+    if (!e) return;
+    this.writeResolved_(sourceId, compName, key, clampFieldValue(compName, key, value));
+  }
+
   /** The unconditional single-field write (model + undo/gesture bookkeeping). */
   private writeField_(
     sourceId: EntityId,
@@ -460,6 +471,24 @@ export class SceneCommandsImpl {
     // Transform.position, so the scene file never stores one.
     const effective = { ...defaultDataFor(compName), ...cur };
     const after = clampFieldValue(compName, key, toModelValue(effective, type, key, value));
+    this.writeResolved_(sourceId, compName, key, after, k, firstTouch, before);
+  }
+
+  /** Everything from the model write on: the gesture ledger, or its own undo step. */
+  private writeResolved_(
+    sourceId: EntityId,
+    compName: string,
+    key: string,
+    after: unknown,
+    editK?: string,
+    firstTouchIn?: boolean,
+    beforeIn?: unknown,
+  ): void {
+    const k = editK ?? editKey(sourceId, compName, key);
+    const firstTouch = firstTouchIn ?? (!this.gesture || !this.gesture.touched.has(k));
+    const before = editK !== undefined
+      ? beforeIn
+      : (firstTouch ? structuredClone(this.modelFieldValue(sourceId, compName, key)) : undefined);
     this.model.setField(sourceId, compName, key, after);
 
     if (this.gesture) {

@@ -34,6 +34,7 @@ import { uiPreviewAspect } from '@/mode/resolutionPresets';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
+import { PlayEdits, offerToKeepPlayEdits } from '@/engine/playEdits';
 import { TimelinePreview } from '@/engine/TimelinePreview';
 import { FlipbookViewportPreview } from '@/engine/FlipbookViewportPreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
@@ -210,6 +211,7 @@ export function App() {
         return;
       }
       const players = useEditorStore.getState().playPlayers;
+      PlayEdits.clear(); // a fresh session owes nothing
       void PlayRealms.startSession(payload, players);
       PlayInspect.start(); // poll the running game for live inspect/debug
       // 'window' → a Game dock tab; 'viewport' → the Viewport mounts it (PIE).
@@ -225,8 +227,13 @@ export function App() {
         requestAnimationFrame(() => dockApi.maximizePanel('viewport'));
       }
     } else {
-      PlayRealms.stopSession();
-      PlayInspect.stop();
+      // Read what was changed while the realm can still answer, THEN tear it
+      // down. The offer is a toast rather than a dialog: Stop must not wait on a
+      // person, and a modal in an automated run is a hang.
+      void offerToKeepPlayEdits().finally(() => {
+        PlayInspect.stop();
+        PlayRealms.stopSession();
+      });
       if (autoMaximized.current) {
         dockApi.exitMaximized();
         autoMaximized.current = false;

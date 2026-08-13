@@ -41,6 +41,20 @@ the pointer, where a drag lands — so it is the game's own camera doing the pro
 and a moved entity ends up where the game will draw it. As with any play-time edit, it
 lasts until Stop.
 
+## Keeping what you changed
+
+Play-time edits end at Stop — that is what makes them safe to make. But the scene
+document is never destroyed while the game runs, so the work does not have to be
+thrown away: if you changed anything, Stop offers to **keep** it, and the Output Log
+lists exactly what that would be. Keeping is one undo step.
+
+What gets kept is the FIELD's value as the running world holds it at Stop, for each
+field you touched. So dragging one axis of a position keeps the position — including
+an axis a script was driving. The log line shows the value before you decide.
+
+Entities the game spawned cannot be kept: the scene has no row to write them to. Those
+are counted in the log rather than silently dropped.
+
 ## Autosave & recovery
 
 The editor periodically snapshots your **unsaved** documents — only when there are
