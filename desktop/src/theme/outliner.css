@@ -118,6 +118,10 @@
 .row.folder .rname { color: var(--text); }
 .row.sel.folder .rname { color: var(--on-accent); } /* selected folder reads white on the blue fill */
 
-/* World picker (UE5): switch the Outliner/Details between edit + live game —
-   a full-width shared Segmented; only the row placement is outliner-specific. */
-.world-pick { padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+/* The banner that says the tree is the running game's, and that what you change
+   in it ends at Stop. */
+.out-live { padding: 5px 10px; font-size: var(--fs-xs); font-weight: 500; color: var(--run-hi); background: rgba(70, 160, 74, 0.12); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+
+/* A row the game made: nothing in the document answers to it, so it reads as a
+   guest — dimmer name, no drag affordance. */
+.row.spawned .rname { color: var(--text-dim); font-style: italic; }

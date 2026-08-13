@@ -14,12 +14,13 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { uiPickWorld, uiWorldToScreen, createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
+import { uiPickWorld, uiWorldToScreen, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
-import type { PlayOutbound, PlayInbound, LiveVisibility } from './engine/playProtocol';
+import type { PlayOutbound, PlayInbound, LiveVisibility, CanvasPoint, PlayOverlayBox } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
+import { pointInOBB, rankPickCandidates, worldToLocal2D, type PickCandidate } from '@/engine/viewportMath';
 import {
   inspectEntity, findEntities, readResources, readSystems,
   type Realm, type EntityFilter,
@@ -184,7 +185,124 @@ function realm(): Realm {
   };
 }
 
-function liveSnapshot(world: App['world'], selectedId: number | null, withTree: boolean): { tree: SceneData | null; selected: LiveEntity | null } {
+// — Where things are on the frame this realm drew —
+// Points cross the boundary normalized to THIS canvas; `worldToScreen` answers
+// in framebuffer pixels with y up.
+
+const normalizePoint = (glX: number, glY: number): CanvasPoint => ({
+  x: canvas.width > 0 ? glX / canvas.width : 0,
+  y: canvas.height > 0 ? 1 - glY / canvas.height : 0,
+});
+const denormalizePoint = (nx: number, ny: number): { x: number; y: number } => ({
+  x: nx * canvas.width,
+  y: (1 - ny) * canvas.height,
+});
+
+/** Where `entity` is drawn, for the editor's overlay. Null when it has no place
+ *  on screen — no transform, a UI node, or no camera to project through. */
+function overlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | null {
+  const view = app?.getResource(CameraView);
+  const transformDef = getComponent('Transform');
+  if (!view || !transformDef) return null;
+  const t = world.tryGet(entity as never, transformDef) as { worldPosition?: { x: number; y: number; z?: number } } | null;
+  const at = t?.worldPosition;
+  if (!at) return null;
+  const z = at.z ?? 0;
+  const originScreen = view.worldToScreen(at.x, at.y, z);
+  if (!originScreen) return null;
+  // No box is not no overlay: an empty or a camera still has an origin to put a
+  // move gizmo on, it just has no outline to draw.
+  const box = entityWorldBox(world, entity as never);
+  const corners = box
+    ? entityBoxCorners(box)
+        .map((c) => view.worldToScreen(c.x, c.y, z))
+        .filter((p): p is { x: number; y: number } => p !== null)
+        .map((p) => normalizePoint(p.x, p.y))
+    : [];
+  return { corners: corners.length === 4 ? corners : [], origin: normalizePoint(originScreen.x, originScreen.y) };
+}
+
+/** The topmost entity at a canvas point, ranked the way the frame stacked it. */
+function pickAt(world: App['world'], nx: number, ny: number): number | null {
+  const view = app?.getResource(CameraView);
+  const transformDef = getComponent('Transform');
+  const spriteDef = getComponent('Sprite');
+  if (!view || !transformDef) return null;
+  const gl = denormalizePoint(nx, ny);
+  const hits: PickCandidate<number>[] = [];
+  for (const e of world.getAllEntities()) {
+    const id = e as never as number;
+    const t = world.tryGet(e, transformDef) as { worldPosition?: { x: number; y: number; z?: number } } | null;
+    if (!t?.worldPosition) continue;
+    // Each candidate is tested on ITS OWN plane: under a perspective camera one
+    // shared world point is where a sprite's shadow falls, not where it is drawn.
+    const wp = view.screenToWorld(gl.x, gl.y, t.worldPosition.z ?? 0);
+    const box = entityWorldBox(world, e);
+    if (!wp || !box || !pointInOBB(wp.x, wp.y, box)) continue;
+    const sprite = spriteDef ? (world.tryGet(e, spriteDef) as { layer?: number } | null) : null;
+    const layer = sprite?.layer ?? 0;
+    hits.push({
+      entity: id,
+      index: hits.length,
+      rank: {
+        layer,
+        order: layerOrderOf(layer, lastInit?.ySortLayers ?? 0, lastInit?.depthLayers ?? 0),
+        worldY: t.worldPosition.y,
+        worldZ: t.worldPosition.z ?? 0,
+      },
+    });
+  }
+  return rankPickCandidates(hits)[0] ?? null;
+}
+
+/**
+ * Put an entity's origin at a canvas point. `Transform.position` is
+ * parent-local, so a parented entity's world target is re-expressed in its
+ * parent's live world frame — the same rule the editor's own move obeys.
+ */
+function dragTo(world: App['world'], entity: number, nx: number, ny: number, axis?: 'x' | 'y'): void {
+  const view = app?.getResource(CameraView);
+  const transformDef = getComponent('Transform');
+  const parentDef = getComponent('Parent');
+  if (!view || !transformDef || !world.valid(entity as never)) return;
+  const t = world.tryGet(entity as never, transformDef) as
+    { position?: { x: number; y: number; z?: number }; worldPosition?: { x: number; y: number; z?: number } } | null;
+  if (!t?.worldPosition || !t.position) return;
+  const z = t.worldPosition.z ?? 0;
+  const gl = denormalizePoint(nx, ny);
+  const target = view.screenToWorld(gl.x, gl.y, z);
+  if (!target) return;
+  // The lock resolves HERE, in world space, so a rotated camera cannot turn
+  // "along X" into a diagonal.
+  const wantX = axis === 'y' ? t.worldPosition.x : target.x;
+  const wantY = axis === 'x' ? t.worldPosition.y : target.y;
+
+  // `position` is parent-local, so the world target is re-expressed in the
+  // parent's live frame — through the same inverse-TRS the editor's own move
+  // uses, because a parent's rotation and scale are part of the answer.
+  const parent = parentDef ? (world.tryGet(entity as never, parentDef) as { entity?: number } | null) : null;
+  const pt = parent?.entity !== undefined && world.valid(parent.entity as never)
+    ? (world.tryGet(parent.entity as never, transformDef) as {
+      worldPosition?: { x: number; y: number };
+      worldRotation?: { z: number; w: number };
+      worldScale?: { x: number; y: number };
+    } | null)
+    : null;
+  const local = pt?.worldPosition
+    ? worldToLocal2D(wantX, wantY, {
+      x: pt.worldPosition.x,
+      y: pt.worldPosition.y,
+      rot: quaternionToAngle2D(pt.worldRotation?.z ?? 0, pt.worldRotation?.w ?? 1),
+      sx: pt.worldScale?.x ?? 1,
+      sy: pt.worldScale?.y ?? 1,
+    })
+    : { x: wantX, y: wantY };
+  const data = { ...(world.get(entity as never, transformDef) as Record<string, unknown>) };
+  data.position = { x: local.x, y: local.y, z: t.position.z ?? 0 };
+  world.set(entity as never, transformDef, data as never);
+}
+
+function liveSnapshot(world: App['world'], selectedId: number | null, withTree: boolean): { tree: SceneData | null; selected: LiveEntity | null; overlay: PlayOverlayBox | null } {
   const nameDef = getComponent('Name');
   const parentDef = getComponent('Parent');
   const all = world.getAllEntities();
@@ -210,6 +328,17 @@ function liveSnapshot(world: App['world'], selectedId: number | null, withTree: 
       ? { hideable: true, hidden: !isEntityVisible(world, e as never) }
       : {};
 
+  // The document id this entity was loaded from — the editor's half of its
+  // identity. Only the ENTRY scene's entities have one the editor can use: it is
+  // the document open in the editor, and another scene's ids mean nothing there.
+  const ownerDef = getComponent('SceneOwner');
+  const entryScene = lastInit?.entrySceneName ?? '__play';
+  const srcOf = (e: number): number | undefined => {
+    const owner = ownerDef ? (world.tryGet(e as never, ownerDef) as { scene?: string } | null) : null;
+    if ((owner?.scene ?? '') !== entryScene) return undefined;
+    return app ? sceneOriginOf(app, e as never) : undefined;
+  };
+
   // The tree walk is O(entities) — a detail-only sample (withTree false) skips it
   // so the editor can poll the selected entity faster than the tree.
   const tree = withTree
@@ -219,7 +348,8 @@ function liveSnapshot(world: App['world'], selectedId: number | null, withTree: 
         entities: all.map((e): LiveEntity => {
           const id = e as never as number;
           // Component TYPES only — no data decode (the Outliner reads kind from types).
-          return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })), ...visibilityOf(id) } as LiveEntity;
+          const src = srcOf(id);
+          return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })), ...visibilityOf(id), ...(src === undefined ? {} : { src }) } as LiveEntity;
         }),
       } as unknown as SceneData)
     : null;
@@ -243,9 +373,14 @@ function liveSnapshot(world: App['world'], selectedId: number | null, withTree: 
       const p = assets?.pathForHandle(kind, handle) ?? null;
       return p === null ? null : projectRelative(p, projectBase);
     });
-    selected = { id: selectedId, name: nameOf(selectedId), parent: parentOf.get(selectedId) ?? null, children: childrenOf.get(selectedId) ?? [], components } as unknown as LiveEntity;
+    const src = srcOf(selectedId);
+    selected = { id: selectedId, name: nameOf(selectedId), parent: parentOf.get(selectedId) ?? null, children: childrenOf.get(selectedId) ?? [], components, ...(src === undefined ? {} : { src }) } as unknown as LiveEntity;
   }
-  return { tree, selected };
+  // Rides with the selected entity's data rather than a query of its own: the
+  // overlay has to be as fresh as the values beside it, and a second round-trip
+  // per frame would make it a frame staler than what it points at.
+  const overlay = selectedId != null && world.valid(selectedId as never) ? overlayBoxOf(world, selectedId) : null;
+  return { tree, selected, overlay };
 }
 
 type InitMessage = Extract<PlayOutbound, { type: 'estella:play:init' }>;
@@ -385,6 +520,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
+  // The editor's tree is the scene document's; this realm's is the running
+  // world's. Without the mapping between them the two can only be shown side by
+  // side, never as one thing.
+  enableSceneOrigins(app);
 
   // The editor's play realm has no ad host, but "watch an ad to revive" is a
   // flow a game has to be able to REHEARSE here — the mock keeps the real
@@ -907,6 +1046,9 @@ window.addEventListener('message', (e: MessageEvent) => {
       if (data.kind === 'snapshot') {
         const reply = app ? liveSnapshot(app.world, data.selectedId ?? null, data.withTree !== false) : null;
         post({ type: 'estella:play:reply', reqId: data.reqId, data: reply });
+      } else if (data.kind === 'pick') {
+        const entityId = app && data.x != null && data.y != null ? pickAt(app.world, data.x, data.y) : null;
+        post({ type: 'estella:play:reply', reqId: data.reqId, data: { entityId } });
       } else if (data.kind === 'stats') {
         // Per-phase + per-system timing + render counters — the running game's
         // engine segment for the editor profiler (PerfMonitor, realm 'play').
@@ -961,6 +1103,9 @@ window.addEventListener('message', (e: MessageEvent) => {
       if (app && data.entityId != null && app.world.valid(data.entityId as never)) {
         setEntityVisible(app.world, data.entityId as never, data.visible);
       }
+      break;
+    case 'estella:play:dragTo':
+      if (app && data.entityId != null) dragTo(app.world, data.entityId, data.x, data.y, data.axis);
       break;
   }
 });

@@ -150,6 +150,10 @@ export const detailsMessages = defineMessages({
         en: 'Select a running entity in the Outliner to inspect + tweak it live.',
         zh: '在大纲中选择一个运行中的实体，即可实时检视和调整。',
     },
+    'det.gameGone': {
+        en: 'The running game no longer has this entity.',
+        zh: '运行中的游戏里已经没有这个实体了。',
+    },
 
     // — Material asset inspector —
     'det.loadingMaterial': { en: 'Loading material…', zh: '正在加载材质…' },

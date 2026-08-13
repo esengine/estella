@@ -13,6 +13,7 @@ import {
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
+  entityWorldBox,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -235,34 +236,11 @@ export const ViewportController = {
    */
   entityBounds(id: EntityId): OBB | null {
     const world = EngineHost.world;
-    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
-    // UI nodes are screen-space; they're picked via the UI hit-test, not a world OBB.
-    if (world.has(id, UINode)) return null;
-    const t = world.get(id, Transform);
-    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
-
-    let w = ICON_WORLD_HALF * 2;
-    let h = ICON_WORLD_HALF * 2;
-    let px = 0.5;
-    let py = 0.5;
-    if (world.has(id, Sprite)) {
-      const sp = world.get(id, Sprite);
-      w = sp.size.x * t.worldScale.x;
-      h = sp.size.y * t.worldScale.y;
-      px = sp.pivot?.x ?? 0.5;
-      py = sp.pivot?.y ?? 0.5;
-    }
-    const ox = w * (0.5 - px);
-    const oy = h * (0.5 - py);
-    const c = Math.cos(rot);
-    const s = Math.sin(rot);
-    return {
-      cx: t.worldPosition.x + ox * c - oy * s,
-      cy: t.worldPosition.y + ox * s + oy * c,
-      hw: Math.abs(w) / 2,
-      hh: Math.abs(h) / 2,
-      rot,
-    };
+    if (!world) return null;
+    // The icon half-size is the editor's own: it is the size of the thing the
+    // editor drew for an entity that draws nothing, so a camera is still
+    // clickable. The running world has no icons and asks for no box.
+    return entityWorldBox(world, id, { iconHalf: ICON_WORLD_HALF });
   },
 
   /**

@@ -18,7 +18,7 @@ import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides
  * compares it against its own and refuses a mismatch (P1) rather than failing
  * obscurely on a shape it doesn't understand. Bump on any incompatible message change.
  */
-export const PLAY_PROTOCOL_VERSION = 3;
+export const PLAY_PROTOCOL_VERSION = 5;
 
 /**
  * The handshake check: `null` if the realm's reported protocol version is compatible
@@ -103,12 +103,36 @@ export interface PlayPayload {
  *  `tree` is null for a detail-only sample (`withTree: false`) — the editor polls
  *  the selected entity faster than the O(entities) tree.
  *
- *  Each tree entity carries {@link LiveVisibility} alongside the fields SceneData
- *  declares, so the running world's Outliner reads the same `hidden` bit an
- *  edited scene does and the shared tree builder needs no live-specific branch. */
+ *  Each tree entity carries {@link LiveVisibility} and {@link LiveOrigin} alongside
+ *  the fields SceneData declares, so the running world's Outliner reads the same
+ *  `hidden` bit an edited scene does and the shared tree builder needs no
+ *  live-specific branch. */
 export interface PlaySnapshot {
   tree: SceneData | null;
   selected: SceneData['entities'][number] | null;
+  /** Where the selected entity sits on the realm's own canvas — null when
+   *  nothing is selected, or it has no place on screen (a UI node, off camera). */
+  overlay: PlayOverlayBox | null;
+}
+
+/**
+ * A point on the realm's canvas, normalized 0..1 from the TOP-LEFT.
+ *
+ * Normalized because the two sides disagree about pixels — device ratio, a
+ * letterboxed camera viewport, an iframe scaled to a device preset — and each
+ * disagreement is a gizmo drawn off the thing it points at.
+ */
+export interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+/** An entity's drawn box, as the realm's own camera projects it. */
+export interface PlayOverlayBox {
+  /** The four corners, counter-clockwise from the box's local -x,-y. */
+  corners: CanvasPoint[];
+  /** The transform origin — where a move gizmo is anchored. */
+  origin: CanvasPoint;
 }
 
 /** The visibility half of a live tree entity — what the Outliner's eye reads.
@@ -121,7 +145,24 @@ export interface LiveVisibility {
   hideable?: boolean;
 }
 
-export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats' | 'step';
+/**
+ * The authoring identity of a live entity: the id it carries in the scene
+ * DOCUMENT the editor has open. Absent means the running game spawned it, so
+ * nothing in the editor's scene corresponds to it. A row keyed by `src` is the
+ * same row before, during and after a play session.
+ */
+export interface LiveOrigin {
+  src?: number;
+}
+
+export type PlayQueryKind = 'snapshot' | 'subsystems' | 'stats' | 'step' | 'pick';
+
+/** What `query { kind: 'pick' }` answers with: the topmost entity at that canvas
+ *  point, or null. Asked of the realm rather than computed in the editor because
+ *  the side holding the camera and the renderer is the side that knows. */
+export interface PlayPickReply {
+  entityId: number | null;
+}
 
 /** What `query { kind: 'step' }` answers with: the clock AFTER the advance, so a
  *  caller can tell frames that ran from a request that reached no app. */
@@ -169,13 +210,23 @@ export type PlayOutbound =
     selectedId?: number | null; withTree?: boolean;
     // `step` only: how far to advance, and with what fixed delta.
     frames?: number; dt?: number;
+    // `pick` only: the canvas point to ask about.
+    x?: number; y?: number;
   }
   | { type: 'estella:play:setField'; entityId: number; comp: string; key: string; value: unknown }
   // Show/hide a live entity (the Outliner's eye). An operation rather than a
   // field write: WHICH components carry visibility is the engine's knowledge, and
   // the realm answers it with the SDK's own setEntityVisible so the editor never
   // has to keep a second list of what counts as a renderer.
-  | { type: 'estella:play:setVisible'; entityId: number; visible: boolean };
+  | { type: 'estella:play:setVisible'; entityId: number; visible: boolean }
+  /**
+   * Put an entity's origin at a canvas point, optionally locked to a world axis.
+   *
+   * A drag is a screen-space gesture, so it is sent as one; the conversion to a
+   * world position, and to the parent-local write a Transform holds, happens
+   * where the camera is. The axis lock resolves after it, in world space.
+   */
+  | { type: 'estella:play:dragTo'; entityId: number; x: number; y: number; axis?: 'x' | 'y' };
 
 /** realm → editor. Discriminated by `type`. */
 export type PlayInbound =

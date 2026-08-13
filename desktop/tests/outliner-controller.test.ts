@@ -10,6 +10,9 @@ import type { SceneData } from 'esengine';
 import { EditorSession } from '@/engine/EditorSession';
 import { createSceneOutlinerStore } from '@/outliner/OutlinerController';
 import { entityKey, folderKey } from '@/outliner/OutlinerModel';
+import { refKey, spawnedRef } from '@/engine/entityRef';
+
+const liveKey = (id: number) => refKey(spawnedRef(id));
 
 const ent = (id: number, parent: number | null, children: number[]) => ({ id, name: `E${id}`, parent, children, components: [] as unknown[] });
 // 1 ─ 2 ─ 3   (a chain); root 1 lives in folder "A/B".
@@ -83,24 +86,27 @@ describe('OutlinerController', () => {
     expect(store.getState().selectedFolder).toBeNull();
   });
 
-  // The snapshot-source self-heal. A running world announces nothing when an
-  // entity dies, and its ids are RECYCLED — so a key kept past its entity would
-  // open a row belonging to something else entirely.
-  it('retainIds drops expansion + cursor for entities the source no longer has', () => {
-    store.getState().setExpanded([entityKey(1), entityKey(2), folderKey('A')]);
-    store.getState().setCursor(entityKey(2));
-    store.getState().retainIds(new Set([1]));
+  // The live self-heal. A running world announces nothing when an entity dies,
+  // and its ids are RECYCLED — so a key kept past its entity would open a row
+  // belonging to something else entirely.
+  it('retainLiveIds drops expansion + cursor for spawned rows the world no longer has', () => {
+    store.getState().setExpanded([liveKey(1), liveKey(2), entityKey(2), folderKey('A')]);
+    store.getState().setCursor(liveKey(2));
+    store.getState().retainLiveIds(new Set([1]));
     const exp = store.getState().expanded;
-    expect(exp.has(entityKey(1))).toBe(true);
-    expect(exp.has(entityKey(2))).toBe(false);
-    expect(exp.has(folderKey('A'))).toBe(true); // folder keys are not entity keys
+    expect(exp.has(liveKey(1))).toBe(true);
+    expect(exp.has(liveKey(2))).toBe(false);
+    // A document row answers to the model, not to a realm snapshot: an entity
+    // the running game never spawned still has its row in the scene.
+    expect(exp.has(entityKey(2))).toBe(true);
+    expect(exp.has(folderKey('A'))).toBe(true);
     expect(store.getState().cursor).toBeNull();
   });
 
-  it('retainIds keeps the same expansion object when nothing went away', () => {
-    store.getState().setExpanded([entityKey(1)]);
+  it('retainLiveIds keeps the same expansion object when nothing went away', () => {
+    store.getState().setExpanded([liveKey(1)]);
     const before = store.getState().expanded;
-    store.getState().retainIds(new Set([1, 2, 3]));
+    store.getState().retainLiveIds(new Set([1, 2, 3]));
     expect(store.getState().expanded).toBe(before); // no re-render on a steady frame
   });
 

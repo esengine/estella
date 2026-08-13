@@ -3,13 +3,16 @@
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import { PerfMonitor } from '@/engine/PerfMonitor';
+import { authoredRef, type EntityRef } from '@/engine/entityRef';
 import type { EntityId, InspectSource } from '@/types';
 
 /**
  * Entity selection — model-anchored.
  *
- * Selection holds stable **source ids** (they survive undo/redo recreates, where
- * the runtime World id changes). A selected entity can still be removed out from
+ * Selection holds a stable **ref** — a source id for anything the document
+ * declares (surviving undo/redo recreates, where the runtime World id changes),
+ * a realm handle for an entity only the running game has.
+ * A selected entity can still be removed out from
  * under us (delete, undo-of-create, scene reload). Instead of scattering
  * defensive `select(null)` after every such op, this store listens for the
  * model's `entityRemoved` event and drops the dead id — selection self-heals, and
@@ -24,6 +27,14 @@ import type { EntityId, InspectSource } from '@/types';
  * single inspector surface, no duplicate "details" column in the content browser.
  */
 interface SelectionState {
+  /**
+   * What is selected, in whichever world owns it. The document's own entities
+   * carry their source id here too, so a selection made in the editor is still
+   * the same selection once the game is running.
+   */
+  selectedRef: EntityRef | null;
+  /** The primary selection's SOURCE id — null when the running game spawned it
+   *  and the document has no such entity. */
   selectedId: EntityId | null;
   selectedIds: Set<EntityId>;
   /** The PRIMARY selected asset (project-relative path), mutually exclusive with
@@ -34,6 +45,9 @@ interface SelectionState {
   selectedAssets: Set<string>;
   /** Replace the selection with a single entity (or clear it with null). */
   select: (id: EntityId | null) => void;
+  /** Replace the selection with a ref — the door for rows the document doesn't
+   *  have (entities the running game spawned). */
+  selectRef: (ref: EntityRef | null) => void;
   /** Ctrl/Cmd-click: add/remove one entity from the selection. */
   toggleSelect: (id: EntityId) => void;
   /** Shift-click / box: replace the selection with a set, with a primary. */
@@ -54,6 +68,8 @@ interface SelectionState {
   setInspectSource: (src: InspectSource | null) => void;
   /** Remove one id from the selection (despawn self-healing). */
   dropId: (id: EntityId) => void;
+  /** Clear a selection only the running realm could resolve (called on Stop). */
+  dropSpawnedSelection: () => void;
 }
 
 export type SelectionStore = ReturnType<typeof createSelectionStore>;
@@ -66,7 +82,20 @@ export type SelectionStore = ReturnType<typeof createSelectionStore>;
  * restart with the incoming scene. One per EditorSession.
  */
 export function createSelectionStore(model: SceneModelImpl) {
+  // The one place ref and id are decided together — they are two readings of a
+  // single fact, and a setter that updated only one would show the Inspector an
+  // entity the Outliner is not highlighting.
+  const entityPick = (ids: Set<EntityId>, primary: EntityId | null) => ({
+    selectedIds: ids,
+    selectedId: primary,
+    selectedRef: primary != null ? authoredRef(primary) : null,
+    selectedAsset: null,
+    selectedAssets: new Set<string>(),
+  });
+  const noEntity = { selectedId: null, selectedRef: null, selectedIds: new Set<EntityId>() };
+
   const useStore = create<SelectionState>((set) => ({
+    selectedRef: null,
     selectedId: null,
     selectedIds: new Set<EntityId>(),
     selectedAsset: null,
@@ -77,13 +106,25 @@ export function createSelectionStore(model: SceneModelImpl) {
     // 'select' zone captures the synchronous subscriber work a selection triggers.
     select: (selectedId) =>
       PerfMonitor.measure('select', () =>
+        set(entityPick(selectedId != null ? new Set([selectedId]) : new Set(), selectedId)),
+      ),
+
+    selectRef: (ref) =>
+      PerfMonitor.measure('select', () => {
+        if (ref == null || ref.world === 'authored') {
+          set(entityPick(ref == null ? new Set() : new Set([ref.src]), ref?.src ?? null));
+          return;
+        }
+        // A running-game entity has no document id, so it cannot join the
+        // multi-selection the edit commands act on.
         set({
-          selectedId,
-          selectedIds: selectedId != null ? new Set([selectedId]) : new Set(),
+          selectedRef: ref,
+          selectedId: null,
+          selectedIds: new Set(),
           selectedAsset: null,
           selectedAssets: new Set(),
-        }),
-      ),
+        });
+      }),
 
     toggleSelect: (id) =>
       PerfMonitor.measure('select', () =>
@@ -93,20 +134,20 @@ export function createSelectionStore(model: SceneModelImpl) {
             next.delete(id);
             const primary =
               s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-            return { selectedIds: next, selectedId: primary, selectedAsset: null, selectedAssets: new Set() };
+            return entityPick(next, primary);
           }
           next.add(id);
-          return { selectedIds: next, selectedId: id, selectedAsset: null, selectedAssets: new Set() };
+          return entityPick(next, id);
         }),
       ),
 
     selectMany: (ids, primary) =>
-      PerfMonitor.measure('select', () => set({ selectedIds: new Set(ids), selectedId: primary, selectedAsset: null, selectedAssets: new Set() })),
+      PerfMonitor.measure('select', () => set(entityPick(new Set(ids), primary))),
 
     // Selecting an asset clears any entity selection (mutually exclusive).
     selectAsset: (selectedAsset) =>
       PerfMonitor.measure('select', () =>
-        set({ selectedAsset, selectedAssets: selectedAsset ? new Set([selectedAsset]) : new Set(), selectedId: null, selectedIds: new Set() })),
+        set({ selectedAsset, selectedAssets: selectedAsset ? new Set([selectedAsset]) : new Set(), ...noEntity })),
 
     toggleAsset: (path) =>
       PerfMonitor.measure('select', () =>
@@ -116,15 +157,15 @@ export function createSelectionStore(model: SceneModelImpl) {
             next.delete(path);
             const primary =
               s.selectedAsset === path ? (next.size ? [...next][next.size - 1] : null) : s.selectedAsset;
-            return { selectedAssets: next, selectedAsset: primary, selectedId: null, selectedIds: new Set() };
+            return { selectedAssets: next, selectedAsset: primary, ...noEntity };
           }
           next.add(path);
-          return { selectedAssets: next, selectedAsset: path, selectedId: null, selectedIds: new Set() };
+          return { selectedAssets: next, selectedAsset: path, ...noEntity };
         }),
       ),
 
     selectAssets: (paths, primary) =>
-      PerfMonitor.measure('select', () => set({ selectedAssets: new Set(paths), selectedAsset: primary, selectedId: null, selectedIds: new Set() })),
+      PerfMonitor.measure('select', () => set({ selectedAssets: new Set(paths), selectedAsset: primary, ...noEntity })),
 
     dropId: (id) =>
       set((s) => {
@@ -133,8 +174,11 @@ export function createSelectionStore(model: SceneModelImpl) {
         next.delete(id);
         const primary =
           s.selectedId === id ? (next.size ? [...next][next.size - 1] : null) : s.selectedId;
-        return { selectedIds: next, selectedId: primary };
+        return { selectedIds: next, selectedId: primary, selectedRef: primary != null ? authoredRef(primary) : null };
       }),
+
+    dropSpawnedSelection: () =>
+      set((s) => (s.selectedRef?.world === 'spawned' ? { selectedRef: null } : s)),
   }));
 
   model.subscribe((ev) => {

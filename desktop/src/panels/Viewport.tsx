@@ -44,6 +44,7 @@ import { PluginOverlays } from '@/plugins/PluginOverlays';
 import { Perf } from '@/components/Perf';
 import { OvDropdown, DdRadio } from '@/components/OverlayMenu';
 import { TargetScreenDropdown, playHostAspectStyle } from '@/mode/TargetScreen';
+import { PlayOverlay } from './PlayOverlay';
 import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
@@ -1018,6 +1019,13 @@ export function Viewport() {
   // to the new window, so PlayRealm must re-bind its message listener to that window
   // (attach does), or the realm→editor handshake is stranded on the old one.
   const playInViewport = isPlaying && playTarget === 'viewport';
+  // Whether the editor or the game gets the pointer over the running frame. Off
+  // by default: a game you cannot click is not a game. Cleared on Stop so the
+  // next session starts playable.
+  const [inspectPlay, setInspectPlay] = useState(false);
+  useEffect(() => {
+    if (!playInViewport) setInspectPlay(false);
+  }, [playInViewport]);
   useEffect(() => {
     if (playTarget !== 'viewport') return;
     const host = playHostRef.current;
@@ -2529,8 +2537,23 @@ export function Viewport() {
               className="viewport__play-host"
               style={playHostAspectStyle(device, orientation, projectState?.screenPresets) ?? undefined}
               ref={playHostRef}
-            />
+            >
+              {/* Inside the host box, so it is exactly the rect the realm's canvas
+                  fills — the overlay's coordinates are normalized to that canvas. */}
+              {playInViewport && realm.ready && <PlayOverlay interactive={inspectPlay} />}
+            </div>
           </div>
+          {playInViewport && realm.ready && (
+            <button
+              type="button"
+              className={`viewport__inspect${inspectPlay ? ' on' : ''}`}
+              title={t('vp.inspectPlayTip')}
+              onClick={() => setInspectPlay((v) => !v)}
+            >
+              <MousePointer2 size={13} strokeWidth={2} />
+              {t('vp.inspectPlay')}
+            </button>
+          )}
           {playInViewport && (!realm.ready || realm.error) && (
             <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
               {realm.error ? t('vp.playFailed', { error: realm.error }) : t('vp.startingGame')}

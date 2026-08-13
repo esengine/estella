@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  One write, whichever world is showing.
+ *
+ * The point of the op layer is that a caller cannot accidentally write to the
+ * wrong world, and cannot silently write to none. Both halves are claims here:
+ * where each op landed, and that a ref the running world has no entity for is
+ * refused rather than quietly dropped into the document.
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('@/engine/SceneCommands', () => ({
+  SceneCommands: {
+    setField: vi.fn(),
+    setEntityVisible: vi.fn(),
+    setEntityXY: vi.fn(),
+  },
+  toModelValue: (_cur: unknown, _type: unknown, _key: string, value: unknown) => value,
+}));
+vi.mock('@/engine/PlayRealm', () => ({
+  PlayRealm: { setField: vi.fn(), setVisible: vi.fn(), dragTo: vi.fn(), snapshot: vi.fn() },
+}));
+
+import { EntityOps } from '@/engine/entityOps';
+import { SceneCommands } from '@/engine/SceneCommands';
+import { PlayRealm } from '@/engine/PlayRealm';
+import { PlayInspect } from '@/engine/PlayInspect';
+import { useEditorStore } from '@/store/editorStore';
+import { authoredRef, spawnedRef } from '@/engine/entityRef';
+
+/** Play, with the realm holding runtime 900 for document row 3 and nothing else. */
+function playingWith(pairs: Array<{ live: number; src?: number }>) {
+  useEditorStore.setState({ isPlaying: true });
+  vi.spyOn(PlayInspect, 'liveIdOf').mockImplementation((ref) => {
+    if (ref == null) return null;
+    if (ref.world === 'spawned') return pairs.some((p) => p.live === ref.live) ? ref.live : null;
+    return pairs.find((p) => p.src === ref.src)?.live ?? null;
+  });
+  vi.spyOn(PlayInspect, 'componentData').mockReturnValue({});
+}
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+  useEditorStore.setState({ isPlaying: false });
+});
+
+describe('while editing', () => {
+  it('sends a field write to the document, by source id', () => {
+    expect(EntityOps.setField(authoredRef(3), 'Transform', 'position', 'vec3', [1, 2, 0])).toBe('document');
+    expect(SceneCommands.setField).toHaveBeenCalledWith(3, 'Transform', 'position', 'vec3', [1, 2, 0]);
+    expect(PlayRealm.setField).not.toHaveBeenCalled();
+  });
+
+  it('moves through the document command, in world units', () => {
+    expect(EntityOps.moveToPoint(authoredRef(3), { world: { x: 10, y: 20 } })).toBe('document');
+    expect(SceneCommands.setEntityXY).toHaveBeenCalledWith(3, 10, 20);
+  });
+
+  it('refuses a ref the document has no entity for', () => {
+    // A spawned ref outside play has nothing behind it in either world; writing
+    // its realm id into the document would edit whatever row shares the number.
+    expect(EntityOps.setField(spawnedRef(900), 'Transform', 'position', 'vec3', [1, 2, 0])).toBeNull();
+    expect(SceneCommands.setField).not.toHaveBeenCalled();
+  });
+});
+
+describe('while playing', () => {
+  it('sends the same field write to the realm, by runtime id', () => {
+    playingWith([{ live: 900, src: 3 }]);
+    expect(EntityOps.setField(authoredRef(3), 'Sprite', 'color', 'color', [1, 0, 0, 1])).toBe('live');
+    expect(PlayRealm.setField).toHaveBeenCalledWith(900, 'Sprite', 'color', [1, 0, 0, 1]);
+    expect(SceneCommands.setField).not.toHaveBeenCalled();
+  });
+
+  it('never reaches the document — that is what makes a play edit temporary', () => {
+    playingWith([{ live: 900, src: 3 }]);
+    EntityOps.setVisible(authoredRef(3), false);
+    EntityOps.moveToPoint(authoredRef(3), { canvas: { x: 0.5, y: 0.25 } }, 'x');
+    expect(PlayRealm.setVisible).toHaveBeenCalledWith(900, false);
+    expect(PlayRealm.dragTo).toHaveBeenCalledWith(900, 0.5, 0.25, 'x');
+    expect(SceneCommands.setEntityVisible).not.toHaveBeenCalled();
+    expect(SceneCommands.setEntityXY).not.toHaveBeenCalled();
+  });
+
+  it('refuses a write to something the running world destroyed', () => {
+    playingWith([]); // row 3 was never spawned, or is already gone
+    expect(EntityOps.setField(authoredRef(3), 'Sprite', 'color', 'color', [1, 0, 0, 1])).toBeNull();
+    expect(PlayRealm.setField).not.toHaveBeenCalled();
+    expect(SceneCommands.setField).not.toHaveBeenCalled();
+  });
+
+  it('writes to a spawned entity the document knows nothing about', () => {
+    playingWith([{ live: 901 }]);
+    expect(EntityOps.setVisible(spawnedRef(901), false)).toBe('live');
+    expect(PlayRealm.setVisible).toHaveBeenCalledWith(901, false);
+  });
+
+  it('reports the world a write would land in without performing one', () => {
+    playingWith([{ live: 900, src: 3 }]);
+    expect(EntityOps.worldFor(authoredRef(3))).toBe('live');
+    expect(EntityOps.worldFor(authoredRef(4))).toBeNull();
+    expect(EntityOps.worldFor(null)).toBeNull();
+    expect(PlayRealm.setField).not.toHaveBeenCalled();
+  });
+});

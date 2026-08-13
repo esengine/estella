@@ -18,6 +18,29 @@ The **Play** controls in the toolbar run your game:
 Because play uses an isolated realm — the same runtime that ships your game — what you
 see in play is what a player gets.
 
+## The Outliner while playing
+
+There is one hierarchy, not two. While the game runs the Outliner shows the **running
+world**, and a row that came from your scene keeps the identity it had before Play — so
+what you had expanded stays expanded, what you had selected stays selected, and the
+Inspector tracks that entity's live values. Entities the game spawned appear under a
+**Runtime** group; they are gone on Stop, as are any values you tweak while playing.
+
+Authoring is the document's, so it waits for Stop: while playing you can select, search,
+fold and hide rows, but not rename, reparent, create or delete.
+
+## Moving things while the game runs
+
+The selected entity is outlined on the running frame. Turn on **Inspect** (above the
+game) and the pointer belongs to the editor instead of the game: click to select what is
+under it, drag the entity to move it, or drag an axis handle to move it along one. It is
+off by default, because a game you cannot click is not a game.
+
+The running world is what answers all of this — where the entity is drawn, what is under
+the pointer, where a drag lands — so it is the game's own camera doing the projection,
+and a moved entity ends up where the game will draw it. As with any play-time edit, it
+lasts until Stop.
+
 ## Autosave & recovery
 
 The editor periodically snapshots your **unsaved** documents — only when there are

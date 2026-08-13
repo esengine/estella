@@ -141,6 +141,11 @@ export const viewportMessages = defineMessages({
     // — Play chrome (Play-in-viewport + Game panel) —
     'vp.playFailed': { en: 'Play failed: {error}', zh: '运行失败：{error}' },
     'vp.startingGame': { en: 'Starting game…', zh: '正在启动游戏…' },
+    'vp.inspectPlay': { en: 'Inspect', zh: '检视' },
+    'vp.inspectPlayTip': {
+        en: 'Select and move entities in the running game. While on, clicks go to the editor instead of the game.',
+        zh: '在运行中的游戏里选择和移动实体。开启期间点击归编辑器，不再传给游戏。',
+    },
     'vp.pausedFlag': { en: '⏸ PAUSED', zh: '⏸ 已暂停' },
     'vp.openModePanels': { en: 'Open {mode} panels', zh: '打开{mode}面板' },
     'vp.pressPlay': { en: 'Press Play to run the game.', zh: '点击“运行”启动游戏。' },

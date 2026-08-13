@@ -6,11 +6,10 @@
 import { defineMessages } from './types';
 
 export const outlinerMessages = defineMessages({
-    // — World picker (edit vs live game) + the live-game tree —
-    'out.inspectedWorld': { en: 'Inspected world', zh: '检视的世界' },
-    'out.worldEditor': { en: 'Editor', zh: '编辑器' },
-    'out.worldGame': { en: 'Game', zh: '游戏' },
+    // — The tree while the game runs —
+    'out.liveWorld': { en: 'Live — edits end at Stop', zh: '运行中 · 改动在停止时结束' },
     'out.waitingGame': { en: 'Waiting for the running game…', zh: '正在等待运行中的游戏…' },
+    'out.spawnedTip': { en: 'Spawned by the running game', zh: '由运行中的游戏创建' },
 
     // — Header strip (search / sort / create buttons) —
     // `type:` / `comp:` are literal query tokens (parseQuery grammar) — never translated.

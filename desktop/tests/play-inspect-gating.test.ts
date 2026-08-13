@@ -19,6 +19,8 @@ vi.mock('@/engine/PlayRealm', () => ({
 
 import { PlayInspect } from '@/engine/PlayInspect';
 import { PlayRealm } from '@/engine/PlayRealm';
+import { useSelection } from '@/store/selectionStore';
+import { spawnedRef } from '@/engine/entityRef';
 
 const snapshotMock = vi.mocked(PlayRealm.snapshot);
 
@@ -32,6 +34,7 @@ const tree = (ids: number[]): SceneData =>
 let now = 0;
 
 beforeEach(() => {
+  useSelection.getState().select(null);
   vi.useFakeTimers();
   now = 0;
   vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -39,6 +42,7 @@ beforeEach(() => {
     Promise.resolve({
       tree: opts?.tree === false ? null : tree([1, 2]),
       selected: sel != null ? (tree([sel as number]).entities[0] ?? null) : null,
+      overlay: null,
     }),
   );
 });
@@ -81,7 +85,7 @@ describe('PlayInspect gating', () => {
     expect(snapshotMock).toHaveBeenCalledTimes(1);
     expect(snapshotMock.mock.calls[0][1]).toEqual({ tree: true }); // first sample seeds the tree
 
-    PlayInspect.select(7); // detail polling engages
+    useSelection.getState().selectRef(spawnedRef(1)); // detail polling engages
     await advance(500);
     const withTree = snapshotMock.mock.calls.filter((c) => c[1]?.tree !== false).length;
     const detailOnly = snapshotMock.mock.calls.filter((c) => c[1]?.tree === false).length;
@@ -117,7 +121,7 @@ describe('PlayInspect gating', () => {
     await advance(200);
     const first = PlayInspect.getTree();
     snapshotMock.mockImplementation((_sel, opts) =>
-      Promise.resolve({ tree: opts?.tree === false ? null : tree([1, 2, 3]), selected: null }),
+      Promise.resolve({ tree: opts?.tree === false ? null : tree([1, 2, 3]), selected: null, overlay: null }),
     );
     await advance(300);
     expect(PlayInspect.getTree()).not.toBe(first);
@@ -129,10 +133,12 @@ describe('PlayInspect gating', () => {
     PlayInspect.start();
     const unsub = PlayInspect.subscribe(() => {});
     await advance(200);
+    useSelection.getState().selectRef(spawnedRef(1));
     expect(PlayInspect.getTree()).not.toBeNull();
     PlayInspect.stop();
     expect(PlayInspect.getTree()).toBeNull();
-    expect(PlayInspect.getSelection()).toBeNull();
+    // A ref only the realm could resolve does not outlive it.
+    expect(useSelection.getState().selectedRef).toBeNull();
     unsub();
   });
 });

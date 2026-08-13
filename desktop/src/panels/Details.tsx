@@ -61,7 +61,8 @@ import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
-import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
+import { SceneCommands } from '@/engine/SceneCommands';
+import { EntityOps } from '@/engine/entityOps';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
@@ -974,7 +975,9 @@ function ComponentSection({
 // routes edits to the realm (live, reverts on Stop). Structure is read-only here
 // (no add/remove/rename of the running game) — just live value debugging.
 function GameDetails() {
-  const { selectedEntity, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
+  const { selectedEntity } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
+  const selectedRef = useSelection((s) => s.selectedRef);
+  const selection = PlayInspect.liveIdOf(selectedRef);
   // Persisted, shared collapse — a folded section stays folded across selections and
   // restarts (chrome components default folded via the store's policy).
   const collapseMap = useInspectorCollapse((s) => s.explicit);
@@ -986,15 +989,12 @@ function GameDetails() {
   const selData = selectedEntity ? ({ entities: [selectedEntity] } as SceneData) : null;
   const info = selection != null ? buildEntityInfo(selData, selection) : null;
   const inspector = selection != null ? buildInspector(selData, selection) : [];
-  const compData = (name: string): Record<string, unknown> =>
-    (selectedEntity?.components.find((c) => c.type === name)?.data as Record<string, unknown>) ?? {};
-
   return (
     <div className="insp">
       <div className="game-live">{t('det.playingLive')}</div>
       {selection == null || !info ? (
         <div className="empty">
-          <p>{t('det.gameSelectHint')}</p>
+          <p>{selectedRef == null ? t('det.gameSelectHint') : t('det.gameGone')}</p>
         </div>
       ) : (
         <>
@@ -1023,9 +1023,7 @@ function GameDetails() {
                   extra={decoratorExtra(ctx)}
                   fieldExtra={(f) => decoratorFieldExtra({ ...ctx, field: f })}
                   hideFields={decoratorOwnedFields(ctx)}
-                  write={(key, type, value) =>
-                    PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
-                  }
+                  write={(key, type, value) => EntityOps.setField(selectedRef!, comp.name, key, type, value)}
                 />
               );
             })}
@@ -2164,14 +2162,15 @@ function SourceInspector({ source }: { source: InspectSource }) {
   );
 }
 
-// Dispatcher: the live game inspector during PIE, the edit inspector otherwise.
-// Both halves of "during PIE" matter — Stop takes the Outliner's world picker
-// away, so a choice that outlived the realm would strand this panel on a world
-// that no longer exists, with nothing on screen able to switch it back.
+// One inspector over whichever world is running the show: while the game is up
+// the selection names a live entity, so this reads and writes that one.
 export function Details() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
-  const inspectWorld = useEditorStore((s) => s.inspectWorld);
-  return isPlaying && inspectWorld === 'game' ? <GameDetails /> : <EditorDetails />;
+  const selectedRef = useSelection((s) => s.selectedRef);
+  // An asset selection is a document fact and outranks the running world — it is
+  // the one thing you can still legitimately be inspecting mid-session.
+  const selectedAsset = useSelection((s) => s.selectedAsset);
+  return isPlaying && selectedAsset == null && selectedRef != null ? <GameDetails /> : <EditorDetails />;
 }
 
 function EditorDetails() {

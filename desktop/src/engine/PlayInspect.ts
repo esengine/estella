@@ -1,26 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  PlayInspect.ts — the editor's "Game" inspection source.
- *        While playing, it samples the running realm for a live SceneData snapshot
- *        (via PlayRealm.snapshot → serializeScene of the realm's World) and holds
- *        the user's live selection. The Outliner/Details build their view-models
- *        from this snapshot (reusing buildSceneTree/buildInspector) when in Game
- *        mode; field edits route to PlayRealm.setField (live, reverts on Stop).
+ * @file  PlayInspect.ts — the editor's window into the running world.
+ *        While playing, it samples the realm for a live SceneData snapshot
+ *        (via PlayRealm.snapshot → the realm's own World walk) and resolves the
+ *        editor's {@link EntityRef} selection against it. The Outliner/Details
+ *        build their view-models from this snapshot; field edits route to
+ *        PlayRealm.setField (live, reverts on Stop).
  *
  *        Sampling is a COALESCED loop, not a fixed-interval poll: one request is
  *        in flight at a time and the next is armed only after the reply. It runs
- *        ONLY while a game-mode panel is actually subscribed (the GameTree /
- *        GameDetails views mount only in Game mode), and at split rates: the
+ *        ONLY while a consumer is actually subscribed, and at split rates: the
  *        O(entities) tree at ~7Hz, the selected entity's full data at ~30Hz
  *        (detail-only samples skip the realm's tree walk entirely).
  *
- *        Selection here is a REALM runtime id — distinct from the editor's
- *        source-id selection (selectionStore), never mixed.
+ *        Selection lives in selectionStore, as a ref — this holds only the
+ *        mapping that resolves one to a realm runtime id.
  */
 import { createStore } from 'zustand/vanilla';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
+import type { LiveOrigin, PlayOverlayBox } from './playProtocol';
+import { useSelection } from '@/store/selectionStore';
+import { refOfLive, type EntityRef } from './entityRef';
 import { PlayRealm } from './PlayRealm';
 
 interface PlayInspectState {
@@ -28,7 +30,8 @@ interface PlayInspectState {
   snapshot: SceneData | null;
   /** Full data of the selected entity (Details), fetched alongside the tree. */
   selectedEntity: SceneData['entities'][number] | null;
-  selection: EntityId | null;
+  /** Where that entity is drawn on the realm's canvas (the viewport overlay). */
+  overlay: PlayOverlayBox | null;
 }
 
 /** Minimum gap between STRUCTURAL tree samples (ms) — the Outliner doesn't need
@@ -38,24 +41,29 @@ const TREE_GAP_MS = 150;
  *  live values smoothly; the realm decodes data only for that one entity. */
 const DETAIL_GAP_MS = 33;
 
+type LiveEntity = SceneData['entities'][number] & LiveOrigin;
+
 /** A cheap structural signature of the shallow tree (ids / parent / name / component
  *  types) — drives keeping the tree reference stable when only values changed.
  *
- *  `hidden` rides along despite being a value: it is the one value the TREE shows,
- *  so leaving it out would hold the old reference and the eye you just clicked
- *  would not change. */
+ *  `hidden` and `src` ride along despite not being structure: they are what the
+ *  TREE shows and what its rows are keyed by, so leaving them out would hold the
+ *  old reference and the eye you just clicked would not change. */
 function treeSig(t: SceneData): string {
   return t.entities
-    .map((e) => `${e.id},${e.parent ?? ''},${e.name},${(e as { hidden?: boolean }).hidden ? 'h' : ''},${e.components.map((c) => c.type).join('+')}`)
+    .map((e) => {
+      const live = e as LiveEntity & { hidden?: boolean };
+      return `${e.id},${e.parent ?? ''},${e.name},${live.hidden ? 'h' : ''},${live.src ?? ''},${e.components.map((c) => c.type).join('+')}`;
+    })
     .join('|');
 }
 
 class PlayInspectImpl {
-  private readonly store = createStore<PlayInspectState>(() => ({ snapshot: null, selectedEntity: null, selection: null }));
+  private readonly store = createStore<PlayInspectState>(() => ({ snapshot: null, selectedEntity: null, overlay: null }));
   private active = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  // Consumers of the live snapshot (the game-mode Outliner/Details views). Zero
-  // subscribers = nobody is looking = don't sample the realm at all.
+  // Consumers of the live snapshot. Zero subscribers = nobody is looking = don't
+  // sample the realm at all.
   private subscribers = 0;
   // One loop at a time: `scheduled` covers a queued-or-in-flight tick; `epoch`
   // invalidates an in-flight tick across stop()/start() so it can't double-arm.
@@ -65,6 +73,10 @@ class PlayInspectImpl {
   // Signature of the CURRENT tree snapshot — computed once when a tree arrives,
   // cached so a new sample hashes only itself (not the old tree again).
   private curTreeSig = '';
+  // Identity, both ways, for the tree currently held. Rebuilt with it.
+  private srcToLive = new Map<EntityId, EntityId>();
+  private liveToSrc = new Map<EntityId, EntityId>();
+  private liveIds = new Set<EntityId>();
 
   subscribe = (fn: () => void): (() => void) => {
     const unsub = this.store.subscribe(fn);
@@ -78,11 +90,19 @@ class PlayInspectImpl {
   getSnapshot = (): PlayInspectState => this.store.getState();
   /** Identity-stable slices so Details-only ticks don't re-render the Outliner. */
   getTree = (): SceneData | null => this.store.getState().snapshot;
-  getSelection = (): EntityId | null => this.store.getState().selection;
 
-  select(selection: EntityId | null): void {
-    this.store.setState({ ...this.store.getState(), selection });
-    void this.poll(false); // fetch the newly-selected entity's full data immediately
+  /** The realm runtime id `ref` names right now, or null when the running world
+   *  has no such entity (never spawned, or already destroyed). */
+  liveIdOf(ref: EntityRef | null): EntityId | null {
+    if (ref == null) return null;
+    if (ref.world === 'spawned') return this.liveIds.has(ref.live) ? ref.live : null;
+    return this.srcToLive.get(ref.src) ?? null;
+  }
+
+  /** Identity of a realm runtime id — authored when the realm reported a document
+   *  id for it, else spawned. */
+  refOf(live: EntityId): EntityRef {
+    return refOfLive(live, this.liveToSrc.get(live));
   }
 
   /** Begin sampling (call on Play). Idempotent; idles until a consumer subscribes. */
@@ -101,7 +121,24 @@ class PlayInspectImpl {
     this.timer = null;
     this.lastTreeAt = 0;
     this.curTreeSig = '';
-    this.store.setState({ snapshot: null, selectedEntity: null, selection: null });
+    this.srcToLive = new Map();
+    this.liveToSrc = new Map();
+    this.liveIds = new Set();
+    this.store.setState({ snapshot: null, selectedEntity: null, overlay: null });
+    // A selection the realm owned outlives nothing: with the realm gone there is
+    // no entity behind it and no row to show it on.
+    useSelection.getState().dropSpawnedSelection();
+  }
+
+  /** Where the selection is drawn on the realm's canvas, as of the last sample. */
+  getOverlay = (): PlayOverlayBox | null => this.store.getState().overlay;
+
+  /** The live data of `comp` on `id`, for a write that has to merge into it.
+   *  Only the SELECTED entity's data is sampled, so anything else answers empty. */
+  componentData(id: EntityId, comp: string): Record<string, unknown> {
+    const sel = this.store.getState().selectedEntity;
+    if (!sel || sel.id !== id) return {};
+    return (sel.components.find((c) => c.type === comp)?.data as Record<string, unknown>) ?? {};
   }
 
   /** Live-edit a field of the running game; refresh immediately for snappy feedback. */
@@ -115,6 +152,11 @@ class PlayInspectImpl {
   setVisible(id: EntityId, visible: boolean): void {
     PlayRealm.setVisible(id, visible);
     void this.poll(true);
+  }
+
+  /** Re-sample now (a selection change wants its entity's data without waiting). */
+  refresh(): void {
+    void this.poll(false);
   }
 
   // Start the loop if it should run and isn't already (called on start + on the
@@ -140,13 +182,17 @@ class PlayInspectImpl {
       this.scheduled = false;
       return;
     }
-    const gap = this.store.getState().selection != null ? DETAIL_GAP_MS : TREE_GAP_MS;
+    const gap = this.selectedLiveId() != null ? DETAIL_GAP_MS : TREE_GAP_MS;
     const wait = Math.max(0, gap - (performance.now() - t0));
     this.timer = setTimeout(() => void this.tick(epoch), wait);
   }
 
+  private selectedLiveId(): EntityId | null {
+    return this.liveIdOf(useSelection.getState().selectedRef);
+  }
+
   private async poll(withTree: boolean): Promise<void> {
-    const sel = this.store.getState().selection;
+    const sel = this.selectedLiveId();
     const res = await PlayRealm.snapshot(sel, { tree: withTree });
     if (!res) return;
     const cur = this.store.getState();
@@ -157,18 +203,37 @@ class PlayInspectImpl {
     if (res.tree) {
       this.lastTreeAt = performance.now();
       const sig = treeSig(res.tree);
-      if (cur.snapshot == null || sig !== this.curTreeSig) snapshot = res.tree;
+      if (cur.snapshot == null || sig !== this.curTreeSig) {
+        snapshot = res.tree;
+        this.reindex(res.tree);
+      }
       this.curTreeSig = sig;
     }
     const sameSelected = cur.selectedEntity === res.selected
       || (cur.selectedEntity != null && res.selected != null
         && JSON.stringify(cur.selectedEntity) === JSON.stringify(res.selected));
-    if (snapshot === cur.snapshot && sameSelected) return;
+    // The overlay moves with the game whether or not any value changed — a
+    // gizmo that only redrew when the Inspector did would lag the sprite it is
+    // drawn around by however long that took.
+    const sameOverlay = JSON.stringify(cur.overlay) === JSON.stringify(res.overlay ?? null);
+    if (snapshot === cur.snapshot && sameSelected && sameOverlay) return;
     this.store.setState({
       snapshot,
       selectedEntity: sameSelected ? cur.selectedEntity : res.selected,
-      selection: cur.selection,
+      overlay: sameOverlay ? cur.overlay : (res.overlay ?? null),
     });
+  }
+
+  private reindex(tree: SceneData): void {
+    this.srcToLive = new Map();
+    this.liveToSrc = new Map();
+    this.liveIds = new Set();
+    for (const e of tree.entities as LiveEntity[]) {
+      this.liveIds.add(e.id);
+      if (e.src === undefined) continue;
+      this.srcToLive.set(e.src, e.id);
+      this.liveToSrc.set(e.id, e.src);
+    }
   }
 }
 

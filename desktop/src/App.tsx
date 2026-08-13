@@ -212,7 +212,6 @@ export function App() {
       const players = useEditorStore.getState().playPlayers;
       void PlayRealms.startSession(payload, players);
       PlayInspect.start(); // poll the running game for live inspect/debug
-      useEditorStore.getState().setInspectWorld('game'); // flip Outliner/Details to the live game
       // 'window' → a Game dock tab; 'viewport' → the Viewport mounts it (PIE).
       if (useEditorStore.getState().playTarget === 'window') dockApi.openGame();
       // Client players each get their own Game tab beside player 1.
@@ -228,7 +227,6 @@ export function App() {
     } else {
       PlayRealms.stopSession();
       PlayInspect.stop();
-      useEditorStore.getState().setInspectWorld('editor');
       if (autoMaximized.current) {
         dockApi.exitMaximized();
         autoMaximized.current = false;

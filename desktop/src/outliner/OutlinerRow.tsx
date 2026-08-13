@@ -43,6 +43,9 @@ export interface OutlinerRowProps {
   agentFresh?: boolean;
   /** The pointer is over a transcript row that names this entity. */
   agentPeeked?: boolean;
+  /** The running game made this entity; no document row corresponds to it, and
+   *  it is gone on Stop. */
+  spawned?: boolean;
   /** Keyboard-focus row (shows a focus ring; distinct from selection). */
   cursored?: boolean;
   /** Lowercased substring to highlight in the name (the search bare text). */
@@ -109,7 +112,8 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${dropPos === 'after' ? ' drop-after' : ''}` +
         `${props.agentTouched ? ' agent-touched' : ''}` +
         `${props.agentFresh ? ' agent-fresh' : ''}` +
-        `${props.agentPeeked ? ' agent-peek' : ''}`
+        `${props.agentPeeked ? ' agent-peek' : ''}` +
+        `${props.spawned ? ' spawned' : ''}`
       }
       style={{ paddingLeft: depth * 14 }}
       role="treeitem"

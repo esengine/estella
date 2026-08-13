@@ -32,11 +32,6 @@ interface EditorState {
   // (tweaking entities in the Outliner/Details) keeps its panels. Persisted.
   maximizeOnPlay: boolean;
   setMaximizeOnPlay: (v: boolean) => void;
-  // Which world the Outliner/Details inspect: the edit scene or the live game
-  // (UE5 world picker). Auto-flips to 'game' on Play, 'editor' on Stop.
-  inspectWorld: 'editor' | 'game';
-  setInspectWorld: (w: 'editor' | 'game') => void;
-
   // Launcher (project browser) vs editor shell. The editor opens on the
   // launcher until a project is opened/created; `enterEditor` dismisses it.
   showLauncher: boolean;
@@ -183,9 +178,6 @@ export const useEditorStore = create<EditorState>((set) => ({
     if (typeof localStorage !== 'undefined') localStorage.setItem('estella.maximizeOnPlay', maximizeOnPlay ? '1' : '0');
     set({ maximizeOnPlay });
   },
-  inspectWorld: 'editor',
-  setInspectWorld: (inspectWorld) => set({ inspectWorld }),
-
   showLauncher: true,
   enterEditor: () => set({ showLauncher: false, isPlaying: false, isPaused: false }),
   openLauncher: () => set({ showLauncher: true, isPlaying: false, isPaused: false }),

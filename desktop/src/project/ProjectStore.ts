@@ -397,7 +397,6 @@ class ProjectStoreImpl {
     const es = useEditorStore.getState();
     if (es.isPlaying || es.isPaused) {
       PlayInspect.stop();
-      es.setInspectWorld('editor');
       es.stop();
     }
     // A new project supersedes any in-flight revalidation of the old one (its

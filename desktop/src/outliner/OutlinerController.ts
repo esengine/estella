@@ -8,16 +8,15 @@
  * drivable by EditorControlSurface / the editor MCP — the panel is a thin
  * renderer over this + {@link buildOutlinerItems}.
  *
- * Expansion is keyed by stable string ITEM KEYS (`e<id>` for entities, `f:<path>`
- * for folders), so one set covers both row kinds. One store per tree: the edited
- * scene has one, the running world another — their ids come from different
- * spaces (source ids vs realm runtime ids) and must never share an expansion set.
+ * Expansion is keyed by stable string ITEM KEYS (`e<id>` for a document entity,
+ * `l<id>` for one the running game spawned, `f:<path>` for folders), so ONE set
+ * covers every row kind — a row keeps its twist through Play and Stop.
  *
- * Self-healing follows the shape of the source. A model announces a removal, so
- * the scene store prunes on `entityRemoved` and resets on `reset`; a snapshot
- * source announces nothing, so the live store prunes with {@link retainIds} on
- * each arriving tree — the running world recycles entity ids, and a recycled id
- * would otherwise inherit a dead entity's expansion.
+ * Self-healing follows the shape of each source. The model announces a removal,
+ * so document keys prune on `entityRemoved` and reset on `reset`; the running
+ * world announces nothing, so its keys prune with {@link retainLiveIds} on each
+ * arriving tree — it recycles entity ids, and a recycled id would otherwise
+ * inherit a dead entity's expansion.
  */
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
@@ -70,8 +69,9 @@ interface OutlinerState {
 
   /** Prune a removed entity's key (self-heal on the model's `entityRemoved`). */
   dropId: (id: EntityId) => void;
-  /** Keep only these entities' keys — the snapshot-source self-heal. */
-  retainIds: (ids: ReadonlySet<EntityId>) => void;
+  /** Keep only these realm ids among the SPAWNED keys — the live self-heal.
+   *  Document keys are untouched: they answer to the model, not to a snapshot. */
+  retainLiveIds: (ids: ReadonlySet<EntityId>) => void;
   /** Reset the view on a scene swap (the model's `reset`). */
   reset: () => void;
 }
@@ -150,9 +150,9 @@ export function createOutlinerStore(source: OutlinerSource) {
         next.delete(k);
         return { expanded: next, cursor };
       }),
-    retainIds: (ids) =>
+    retainLiveIds: (ids) =>
       set((s) => {
-        const stale = [...s.expanded].filter((k) => k.startsWith('e') && !ids.has(Number(k.slice(1))));
+        const stale = [...s.expanded].filter((k) => k.startsWith('l') && !ids.has(Number(k.slice(1))));
         const cursor = s.cursor && stale.includes(s.cursor) ? null : s.cursor;
         if (stale.length === 0) return cursor === s.cursor ? s : { cursor };
         const next = new Set(s.expanded);

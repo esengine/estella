@@ -22,25 +22,25 @@ import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQ
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { useAgent, touchedEntities } from '@/store/AgentStore';
-import { usePlayOutliner, pruneToLiveEntities } from '@/outliner/playOutliner';
+import { authoredRef, refKey } from '@/engine/entityRef';
+import { EntityOps } from '@/engine/entityOps';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, VIS_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
 import type { LiveVisibility } from '@/engine/playProtocol';
 import { createFromSource, type EntitySource } from '@/engine/entitySources';
 import { CreatePopover } from '@/components/CreatePopover';
-import { Segmented } from '@/components/Segmented';
 import { IconButton } from '@/components/IconButton';
 import { useAgentFresh } from '@/outliner/agentFresh';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
 const NO_EXPANSION: ReadonlySet<string> = new Set();
-// Stable props so the memoized game-tree rows don't all re-render on selection.
-const GAME_COLUMNS = [TYPE_COLUMN, VIS_COLUMN];
-const gameOnClick = (item: OutlinerItem) => {
-  if (item.kind === 'entity') PlayInspect.select(item.id);
-};
+// While playing, the rows describe a running world: no lock, no prefab bar.
+const LIVE_COLUMNS = [TYPE_COLUMN, VIS_COLUMN];
+// Where entities the game spawned collect — they belong to no authored folder,
+// and a few thousand bullets must not bury the scene you are reading.
+const RUNTIME_FOLDER = 'Runtime';
 
 const SORT_MODE_LABEL: Record<SortMode, string> = {
   manual: t('out.sortManual'),
@@ -52,82 +52,6 @@ const COL_ID_LABEL: Record<string, string> = { lock: t('out.colLock'), vis: t('o
 
 const entityIds = (items: OutlinerItem[]): EntityId[] =>
   items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
-
-// The live "Game" tree: the running realm, over the same builder, row and
-// virtualization as the editor tree. No folders (nothing organizes a running
-// game but its own hierarchy) and no authoring — what it does offer is the two
-// things you need to READ a world of a few thousand entities: rows that fold,
-// and an eye that turns one off to find out what it was.
-function GameTree() {
-  const snapshot = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getTree);
-  const selection = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSelection);
-  const expanded = usePlayOutliner((s) => s.expanded);
-  const query = usePlayOutliner((s) => s.query);
-  const setQuery = usePlayOutliner((s) => s.setQuery);
-  const toggleExpanded = usePlayOutliner((s) => s.toggleExpanded);
-
-  // Keyed on the snapshot REFERENCE, which PlayInspect holds stable unless the
-  // tree actually differs — so a steady game rebuilds neither set per sample.
-  const liveIds = useMemo(() => new Set((snapshot?.entities ?? []).map((e) => e.id)), [snapshot]);
-  const hideable = useMemo(
-    () => new Set((snapshot?.entities ?? []).filter((e) => (e as LiveVisibility).hideable).map((e) => e.id)),
-    [snapshot],
-  );
-  useEffect(() => pruneToLiveEntities(liveIds), [liveIds]);
-
-  const items = useMemo(() => buildOutlinerItems(snapshot, { expanded, query }), [snapshot, expanded, query]);
-  const highlight = useMemo(() => parseQuery(query).text, [query]);
-  const columnCtx = useMemo<OutlinerColumnContext>(
-    () => ({
-      onToggleVisible: (id, visible) => PlayInspect.setVisible(id, visible),
-      canToggleVisible: (id) => hideable.has(id),
-    }),
-    [hideable],
-  );
-  const expandAll = () => usePlayOutliner.getState().setExpanded(collectExpandableKeys(snapshot));
-
-  return (
-    <>
-      <div className="phead">
-        <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
-        <IconButton title={t('out.expandAll')} onClick={expandAll}>
-          <ChevronsUpDown size={14} strokeWidth={2} />
-        </IconButton>
-        <IconButton title={t('out.collapseAll')} onClick={() => usePlayOutliner.getState().setExpanded([])}>
-          <ChevronsDownUp size={14} strokeWidth={2} />
-        </IconButton>
-      </div>
-      {items.length === 0 ? (
-        <div className="pbody">
-          <EmptyState
-            icon={Search}
-            title={liveIds.size === 0 ? t('out.waitingGame') : t('out.noMatch', { query })}
-          />
-        </div>
-      ) : (
-        <VirtualTree
-          className="pbody"
-          role="tree"
-          aria-label={t('out.treeGame')}
-          items={items}
-          rowHeight={ROW_H}
-          getKey={(it) => it.key}
-          renderRow={(it) => (
-            <OutlinerRow
-              item={it}
-              selected={it.kind === 'entity' && selection === it.id}
-              highlight={highlight}
-              columns={GAME_COLUMNS}
-              columnCtx={columnCtx}
-              onToggle={toggleExpanded}
-              onClick={gameOnClick}
-            />
-          )}
-        />
-      )}
-    </>
-  );
-}
 
 /** Right-click prefab-instance actions (Select Source / Apply / Revert), or [] if
  *  the entity isn't a prefab instance — the Outliner twin of the Inspector's
@@ -166,10 +90,13 @@ export function Outliner() {
   const hiddenColumns = useOutliner((s) => s.hiddenColumns);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedId = useSelection((s) => s.selectedId);
+  const selectedRef = useSelection((s) => s.selectedRef);
   const selectedAsset = useSelection((s) => s.selectedAsset);
-  const isPlaying = useEditorStore((s) => s.isPlaying);
-  const inspectWorld = useEditorStore((s) => s.inspectWorld);
-  const setInspectWorld = useEditorStore((s) => s.setInspectWorld);
+  // While the game runs, the tree IS the running world — that is where the
+  // entities are. The document is not a second view to switch to; it is what the
+  // running world was built from, and its rows keep their identity here.
+  const live = useEditorStore((s) => s.isPlaying);
+  const liveTree = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getTree);
   const initRef = useRef(false);
   const dragIds = useRef<EntityId[] | null>(null);
   const dragFolder = useRef<string | null>(null); // the folder path being dragged (vs entities)
@@ -189,9 +116,25 @@ export function Outliner() {
     () => (engine.status === 'ready' ? (SceneModel.current?.entities.length ?? 0) : 0),
     [engine.status, structRev],
   );
+  // An authored row keeps the folder it was filed under while the game runs; a
+  // spawned one has no document to be filed in, so it collects under Runtime.
+  const liveFolderOf = (id: EntityId): string => {
+    const ref = PlayInspect.refOf(id);
+    return ref.world === 'authored' ? SceneModel.folderOf(ref.src) : RUNTIME_FOLDER;
+  };
   const items = useMemo(
-    () =>
-      engine.status === 'ready'
+    () => {
+      if (live) {
+        return buildOutlinerItems(liveTree, {
+          expanded,
+          query,
+          sort: sortMode,
+          folderOf: liveFolderOf,
+          folders: SceneModel.sceneFolders(),
+          refOf: (id) => PlayInspect.refOf(id),
+        });
+      }
+      return engine.status === 'ready'
         ? buildOutlinerItems(SceneModel.current, {
             expanded,
             query,
@@ -200,9 +143,23 @@ export function Outliner() {
             folderOrderOf: (p) => SceneModel.folderOrderOf(p),
             folders: SceneModel.sceneFolders(),
           })
-        : [],
-    [engine.status, structRev, expanded, query, sortMode],
+        : [];
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [live, liveTree, engine.status, structRev, expanded, query, sortMode],
   );
+  // Keyed on the snapshot REFERENCE, which PlayInspect holds stable unless the
+  // tree actually differs — so a steady game rebuilds neither set per sample.
+  const liveIds = useMemo(() => new Set((liveTree?.entities ?? []).map((e) => e.id)), [liveTree]);
+  const hideable = useMemo(
+    () => new Set((liveTree?.entities ?? []).filter((e) => (e as LiveVisibility).hideable).map((e) => e.id)),
+    [liveTree],
+  );
+  // Stop empties this too, so a spawned row's expansion cannot outlive the realm
+  // and greet a recycled handle already open on the next Play.
+  useEffect(() => {
+    useOutliner.getState().retainLiveIds(live ? liveIds : new Set());
+  }, [live, liveIds]);
   const flatIds = useMemo(() => entityIds(items), [items]);
   const highlight = useMemo(() => parseQuery(query).text, [query]);
   // What the agent changed, and what the pointer is over in its transcript. The
@@ -218,14 +175,25 @@ export function Outliner() {
   // elsewhere in the tree arrives with no more emphasis than one from four
   // turns ago. So the arrival gets its own moment, and then stops.
   const agentFresh = useAgentFresh(agentTouched);
-  const activeColumns = useMemo(() => OUTLINER_COLUMNS.filter((c) => !hiddenColumns.has(c.id)), [hiddenColumns]);
+  const activeColumns = useMemo(
+    () => (live ? LIVE_COLUMNS : OUTLINER_COLUMNS.filter((c) => !hiddenColumns.has(c.id))),
+    [live, hiddenColumns],
+  );
+  // The eye means one thing and lands in whichever world is showing — which is
+  // the op layer's job, not this panel's.
   const columnCtx = useMemo<OutlinerColumnContext>(
-    () => ({
-      onToggleVisible: (id, visible) => SceneCommands.setEntityVisible(id, visible),
-      onToggleLock: (id, locked) => SceneCommands.setEntityLocked(id, locked),
-      isPrefab: (id) => SceneModel.prefabTag(id) != null,
-    }),
-    [],
+    () =>
+      live
+        ? {
+            onToggleVisible: (id, visible) => EntityOps.setVisible(PlayInspect.refOf(id), visible),
+            canToggleVisible: (id) => hideable.has(id),
+          }
+        : {
+            onToggleVisible: (id, visible) => EntityOps.setVisible(authoredRef(id), visible),
+            onToggleLock: (id, locked) => SceneCommands.setEntityLocked(id, locked),
+            isPrefab: (id) => SceneModel.prefabTag(id) != null,
+          },
+    [live, hideable],
   );
 
   // A scene swap resets the model ('reset' event). This panel is a persistent dock
@@ -259,25 +227,27 @@ export function Outliner() {
   // Reveal-on-select: when the primary selection changes (e.g. a viewport pick),
   // expand its ancestors + folder and scroll it into view. If it isn't in the flat
   // list yet (ancestors collapsed), expand once — items rebuild and this re-runs.
-  const handledSel = useRef<EntityId | null>(null);
-  const expandedSel = useRef<EntityId | null>(null);
+  // Keyed by ref, so a row found again after Play is the row you had selected.
+  const selKey = selectedRef ? refKey(selectedRef) : null;
+  const handledSel = useRef<string | null>(null);
+  const expandedSel = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedId == null) {
+    if (selKey == null) {
       handledSel.current = expandedSel.current = null;
       return;
     }
-    if (handledSel.current === selectedId) return;
-    const idx = items.findIndex((i) => i.kind === 'entity' && i.id === selectedId);
+    if (handledSel.current === selKey) return;
+    const idx = items.findIndex((i) => i.key === selKey);
     if (idx >= 0) {
-      handledSel.current = selectedId;
+      handledSel.current = selKey;
       expandedSel.current = null;
-      useOutliner.getState().setCursor(entityKey(selectedId));
+      useOutliner.getState().setCursor(selKey);
       scrollToIndex(idx);
-    } else if (expandedSel.current !== selectedId) {
-      expandedSel.current = selectedId; // attempt expansion once (avoids a loop when filtered out)
-      useOutliner.getState().revealEntity(selectedId);
+    } else if (expandedSel.current !== selKey) {
+      expandedSel.current = selKey; // attempt expansion once (avoids a loop when filtered out)
+      if (selectedId != null) useOutliner.getState().revealEntity(selectedId);
     }
-  }, [selectedId, items]);
+  }, [selKey, selectedId, items]);
 
   // — Keyboard navigation (↑↓ move · ←→ collapse/expand/jump · Enter toggle · F2/Del) —
   const cursorItem = (): OutlinerItem | null => items.find((i) => i.key === cursor) ?? null;
@@ -287,7 +257,7 @@ export function Outliner() {
     useOutliner.getState().setCursor(it.key);
     if (it.kind === 'entity') {
       useOutliner.getState().selectFolder(null);
-      select(it.id);
+      useSelection.getState().selectRef(it.ref);
     } else {
       useOutliner.getState().selectFolder(it.path);
       useSelection.getState().select(null);
@@ -346,12 +316,12 @@ export function Outliner() {
       }
       case 'F2': {
         e.preventDefault();
-        if (cursor) setRenaming(cursor);
+        if (cursor && !live) setRenaming(cursor);
         break;
       }
       case 'Delete':
       case 'Backspace': {
-        const sel = [...useSelection.getState().selectedIds];
+        const sel = live ? [] : [...useSelection.getState().selectedIds];
         if (sel.length) {
           e.preventDefault();
           SceneCommands.deleteEntities(sel);
@@ -392,8 +362,15 @@ export function Outliner() {
       return;
     }
     useOutliner.getState().selectFolder(null); // an entity selection clears the folder one
-    const id = item.id;
     const store = useSelection.getState();
+    // The running world's rows select one at a time: the multi-selection exists
+    // for the commands that edit the document, and those are off while playing.
+    if (live) {
+      store.selectRef(item.ref);
+      PlayInspect.refresh();
+      return;
+    }
+    const id = item.id;
     if (e.metaKey || e.ctrlKey) {
       store.toggleSelect(id);
     } else if (e.shiftKey && store.selectedId != null) {
@@ -411,17 +388,21 @@ export function Outliner() {
   const onContextMenu = (e: React.MouseEvent, item: OutlinerItem) => {
     e.preventDefault();
     e.stopPropagation(); // a row menu pre-empts the empty-space menu on the container
+    if (live) return; // every row action writes the document; the game owns it now
     if (item.kind === 'entity' && !useSelection.getState().selectedIds.has(item.id)) select(item.id);
     setCtx({ x: e.clientX, y: e.clientY, item });
   };
   // Right-click on empty space (below the rows / no entities) → the scene menu.
   const onBodyContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (live) return;
     setCtx({ x: e.clientX, y: e.clientY, item: null });
   };
   const expandAll = () =>
     useOutliner.getState().setExpanded(
-      collectExpandableKeys(SceneModel.current, { folderOf: (id) => SceneModel.folderOf(id), folders: SceneModel.sceneFolders() }),
+      live
+        ? collectExpandableKeys(liveTree, { folderOf: liveFolderOf, refOf: (id) => PlayInspect.refOf(id) })
+        : collectExpandableKeys(SceneModel.current, { folderOf: (id) => SceneModel.folderOf(id), folders: SceneModel.sceneFolders() }),
     );
 
   const onStartRename = (item: OutlinerItem) => setRenaming(item.key);
@@ -679,12 +660,6 @@ export function Outliner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
 
-  // While playing, a world picker switches the outliner (+ Details) between the
-  // edit scene and the live running game. Gated on `isPlaying` as well as the
-  // choice: Stop takes the picker away, and a mode you can no longer leave would
-  // strand the panel on a world that no longer exists.
-  const gameMode = isPlaying && inspectWorld === 'game';
-
   // Stable handlers (latest-ref) so the memoized rows skip on a selection change.
   const rowFns = {
     onRowClick, onContextMenu, onStartRename, commitRename, onDragStartRow, onDragOverRow, onDropRow,
@@ -709,16 +684,25 @@ export function Outliner() {
   const renderRow = (it: OutlinerItem) => (
     <OutlinerRow
       item={it}
-      selected={it.kind === 'folder' ? selectedFolder === it.path : selectedIds.has(it.id)}
+      selected={
+        it.kind === 'folder'
+          ? selectedFolder === it.path
+          : live
+            ? it.key === selKey
+            : selectedIds.has(it.id)
+      }
       cursored={cursor === it.key}
       highlight={highlight}
-      agentTouched={it.kind === 'entity' && agentTouched.has(it.id)}
-      agentFresh={it.kind === 'entity' && agentFresh.has(it.id)}
-      agentPeeked={it.kind === 'entity' && agentPeeked.includes(it.id)}
+      // The document's marks — an agent's edits, a prefab's role — are facts
+      // about rows in the document, not about entities in a running game.
+      agentTouched={!live && it.kind === 'entity' && agentTouched.has(it.id)}
+      agentFresh={!live && it.kind === 'entity' && agentFresh.has(it.id)}
+      agentPeeked={!live && it.kind === 'entity' && agentPeeked.includes(it.id)}
+      spawned={it.kind === 'entity' && it.ref.world === 'spawned'}
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefabRole={
-        it.kind === 'entity'
+        !live && it.kind === 'entity'
           ? SceneModel.isInstanceRoot(it.id)
             ? 'root'
             : SceneModel.prefabTag(it.id) != null
@@ -728,7 +712,7 @@ export function Outliner() {
       }
       columns={activeColumns}
       columnCtx={columnCtx}
-      draggable
+      draggable={!live}
       onToggle={toggleExpanded}
       onClick={H.onClick}
       onContextMenu={H.onContextMenu}
@@ -741,110 +725,111 @@ export function Outliner() {
     />
   );
 
+  const empty = live ? liveIds.size === 0 : sceneCount === 0;
   return (
     <div className="panel">
-      {isPlaying && (
-        <div className="world-pick">
-          <Segmented
-            grow
-            ariaLabel={t('out.inspectedWorld')}
-            value={gameMode ? 'game' : 'editor'}
-            options={[
-              { value: 'editor', label: t('out.worldEditor') },
-              { value: 'game', label: t('out.worldGame') },
-            ]}
-            onChange={(v) => setInspectWorld(v)}
-          />
-        </div>
-      )}
-      {gameMode ? (
-        <GameTree />
-      ) : (
-        <>
-          <div className="phead">
-            <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
-            <IconButton
-              active={sortMode !== 'manual'}
-              title={t('out.sortLabel', { mode: SORT_MODE_LABEL[sortMode] })}
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setSortMenu({ x: r.left, y: r.bottom + 2 });
-              }}
-            >
-              <ArrowDownUp size={14} strokeWidth={2} />
+      <div className="phead">
+        <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
+        <IconButton
+          active={sortMode !== 'manual'}
+          title={t('out.sortLabel', { mode: SORT_MODE_LABEL[sortMode] })}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setSortMenu({ x: r.left, y: r.bottom + 2 });
+          }}
+        >
+          <ArrowDownUp size={14} strokeWidth={2} />
+        </IconButton>
+        {live ? (
+          // A running world is read, not authored: what it needs is a way to
+          // fold a few thousand rows down to the ones being looked at.
+          <>
+            <IconButton title={t('out.expandAll')} onClick={expandAll}>
+              <ChevronsUpDown size={14} strokeWidth={2} />
             </IconButton>
+            <IconButton title={t('out.collapseAll')} onClick={() => useOutliner.getState().setExpanded([])}>
+              <ChevronsDownUp size={14} strokeWidth={2} />
+            </IconButton>
+          </>
+        ) : (
+          <>
             <IconButton title={t('out.newFolderTip')} onClick={() => newFolder('', null)}>
               <FolderPlus size={15} strokeWidth={2} />
             </IconButton>
             <IconButton title={t('out.addEntityTip')} onClick={() => setCreateFor({ parent: null })}>
               <Plus size={15} strokeWidth={2} />
             </IconButton>
-          </div>
-          {sceneCount > 0 && (
-            <div
-              className="outliner-cols"
-              title={t('out.columnsTip')}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setColsMenu({ x: e.clientX, y: e.clientY });
-              }}
-            >
-              <span className="c-name">{t('out.colName')}</span>
-              {activeColumns.map((col) => (
-                <span key={col.id} className="c-col" data-col={col.id} style={{ width: col.width }}>
-                  {col.header}
-                </span>
-              ))}
-            </div>
-          )}
-          {sceneCount === 0 ? (
-            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
-              <EmptyState
-                icon={Boxes}
-                title={engine.status === 'ready' ? t('out.emptyScene') : t('out.waitingEngine')}
-                hint={engine.status === 'ready' ? t('out.emptyHint') : undefined}
-              >
-                {engine.status === 'ready' && (
-                  <button type="button" className="empty-state__action" onClick={() => setCreateFor({ parent: null })}>
-                    <Plus size={14} /> {t('out.addEntity')}
-                  </button>
-                )}
-              </EmptyState>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
-              <EmptyState icon={Search} title={t('out.noMatch', { query })} />
-            </div>
+          </>
+        )}
+      </div>
+      {live && <div className="out-live">{t('out.liveWorld')}</div>}
+      {!empty && (
+        <div
+          className="outliner-cols"
+          title={live ? undefined : t('out.columnsTip')}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (!live) setColsMenu({ x: e.clientX, y: e.clientY });
+          }}
+        >
+          <span className="c-name">{t('out.colName')}</span>
+          {activeColumns.map((col) => (
+            <span key={col.id} className="c-col" data-col={col.id} style={{ width: col.width }}>
+              {col.header}
+            </span>
+          ))}
+        </div>
+      )}
+      {empty ? (
+        <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
+          {live ? (
+            <EmptyState icon={Search} title={t('out.waitingGame')} />
           ) : (
-            <VirtualTree
-              className="pbody"
-              tabIndex={0}
-              role="tree"
-              aria-label={t('out.tree')}
-              aria-multiselectable
-              items={items}
-              rowHeight={ROW_H}
-              getKey={(it) => it.key}
-              renderRow={renderRow}
-              scrollToIndex={scrollTo.index}
-              scrollNonce={scrollTo.nonce}
-              onKeyDown={onKeyDown}
-              onDragOver={onBodyDragOver}
-              onDrop={onBodyDrop}
-              onContextMenu={onBodyContextMenu}
-            />
+            <EmptyState
+              icon={Boxes}
+              title={engine.status === 'ready' ? t('out.emptyScene') : t('out.waitingEngine')}
+              hint={engine.status === 'ready' ? t('out.emptyHint') : undefined}
+            >
+              {engine.status === 'ready' && (
+                <button type="button" className="empty-state__action" onClick={() => setCreateFor({ parent: null })}>
+                  <Plus size={14} /> {t('out.addEntity')}
+                </button>
+              )}
+            </EmptyState>
           )}
-        </>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
+          <EmptyState icon={Search} title={t('out.noMatch', { query })} />
+        </div>
+      ) : (
+        <VirtualTree
+          className="pbody"
+          tabIndex={0}
+          role="tree"
+          aria-label={live ? t('out.treeGame') : t('out.tree')}
+          aria-multiselectable={!live}
+          items={items}
+          rowHeight={ROW_H}
+          getKey={(it) => it.key}
+          renderRow={renderRow}
+          scrollToIndex={scrollTo.index}
+          scrollNonce={scrollTo.nonce}
+          onKeyDown={onKeyDown}
+          onDragOver={onBodyDragOver}
+          onDrop={onBodyDrop}
+          onContextMenu={onBodyContextMenu}
+        />
       )}
 
-      {ctx && !gameMode && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {ctx && !live && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
       {createFor && (
         <CreatePopover
           onClose={() => setCreateFor(null)}
           onPick={(t) => createTemplate(t, createFor.parent)}
         />
       )}
-      {sortMenu && !gameMode && (
+      {sortMenu && (
         <ContextMenu
           x={sortMenu.x}
           y={sortMenu.y}
@@ -855,7 +840,7 @@ export function Outliner() {
           }))}
         />
       )}
-      {colsMenu && !gameMode && (
+      {colsMenu && !live && (
         <ContextMenu
           x={colsMenu.x}
           y={colsMenu.y}

@@ -24,7 +24,7 @@ import { t } from '@/i18n';
 import { playProtocolMismatch } from './playProtocol';
 import { bootProfiler } from './bootProfiler';
 import { projectReplacing } from '@/project/projectReplacing';
-import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply, PlayStepReply } from './playProtocol';
+import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply, PlayStepReply, PlayPickReply } from './playProtocol';
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
 
@@ -373,6 +373,24 @@ export class PlayRealmInstance {
       this.post({ type: 'estella:play:query', kind: 'stats', reqId });
       setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
     });
+  }
+
+  /** The topmost running entity at a canvas point (normalized, top-left origin),
+   *  or null. Null too if no realm is up. */
+  pick(x: number, y: number): Promise<number | null> {
+    if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
+    const reqId = ++this.reqSeq;
+    return new Promise((resolve) => {
+      this.pending.set(reqId, (data) => resolve((data as PlayPickReply)?.entityId ?? null));
+      this.post({ type: 'estella:play:query', kind: 'pick', reqId, x, y });
+      setTimeout(() => { if (this.pending.delete(reqId)) resolve(null); }, 2000);
+    });
+  }
+
+  /** Drag a running entity's origin to a canvas point (reverts on Stop). Fire and
+   *  forget: the next snapshot is the confirmation, at the rate the overlay draws. */
+  dragTo(entityId: number, x: number, y: number, axis?: 'x' | 'y'): void {
+    this.post({ type: 'estella:play:dragTo', entityId, x, y, ...(axis ? { axis } : {}) });
   }
 
   /** Live-edit a field of a running entity (debug; reverts on Stop). */

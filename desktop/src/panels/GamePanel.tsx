@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { MousePointer2 } from 'lucide-react';
 import { t } from '@/i18n';
 import { PlayRealm, PlayRealms } from '@/engine/PlayRealm';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
 import { TargetScreenDropdown, playHostAspectStyle, targetScreenLabel, useProjectScreenPresets } from '@/mode/TargetScreen';
+import { PlayOverlay } from './PlayOverlay';
 
 // The "Game" dock panel: hosts the isolated play-realm iframe (the realm owns the
 // element + re-parents it here, so the realm survives panel remounts). The host
@@ -13,7 +15,8 @@ import { TargetScreenDropdown, playHostAspectStyle, targetScreenLabel, useProjec
 // status overlay is a separate absolutely-positioned sibling.
 //
 // The overlay bar carries the target-screen control, so a game can be run at a
-// device's shape instead of at whatever aspect the dock was last dragged to.
+// device's shape instead of at whatever aspect the dock was last dragged to, and
+// the Inspect toggle that hands the pointer to the editor's gizmos.
 
 function overlayFor(snap: { playing: boolean; ready: boolean; error: string | null }): string | null {
   return snap.error
@@ -32,6 +35,11 @@ export function GamePanel() {
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
   const presets = useProjectScreenPresets();
+  // Whether the editor or the game gets the pointer over the frame; see PlayOverlay.
+  const [inspect, setInspect] = useState(false);
+  useEffect(() => {
+    if (!snap.ready) setInspect(false);
+  }, [snap.ready]);
 
   // Only host the realm iframe in 'window' mode — in 'viewport' mode the Viewport
   // owns it (one iframe, one mount). Guards against a stale Game tab stealing it.
@@ -52,9 +60,22 @@ export function GamePanel() {
       <div className="game-panel__bar">
         <TargetScreenDropdown />
         {sizeLabel && <span className="game-panel__size">{sizeLabel}</span>}
+        {playTarget === 'window' && snap.ready && (
+          <button
+            type="button"
+            className={`game-panel__inspect${inspect ? ' on' : ''}`}
+            title={t('vp.inspectPlayTip')}
+            onClick={() => setInspect((v) => !v)}
+          >
+            <MousePointer2 size={13} strokeWidth={2} />
+            {t('vp.inspectPlay')}
+          </button>
+        )}
       </div>
       <div className="game-panel__stage">
-        <div className="game-panel__host" style={aspect ?? undefined} ref={hostRef} />
+        <div className="game-panel__host" style={aspect ?? undefined} ref={hostRef}>
+          {playTarget === 'window' && snap.ready && <PlayOverlay interactive={inspect} />}
+        </div>
       </div>
       {overlay && <div className={`game-panel__overlay${snap.error ? ' error' : ''}`}>{overlay}</div>}
     </div>

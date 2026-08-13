@@ -5,8 +5,9 @@
  *
  * Flattens a SceneData into a render-ordered list of {@link OutlinerItem}s — a
  * tagged union of `entity` and `folder` rows — honoring the expansion set (keyed
- * by stable string item keys) + a name filter. The same builder feeds the editor
- * tree and the always-expanded live "Game" tree.
+ * by stable string item keys) + a name filter. One builder, two sources: the
+ * edited scene and the running world, whose rows carry the same keys through
+ * `refOf` so the tree does not reshuffle when the game starts.
  *
  * Folders are organizational PATHS (orthogonal to the transform `parent`): they
  * group **root** entities only; a parented entity always nests under its parent.
@@ -17,6 +18,7 @@
  */
 import type { SceneData } from 'esengine';
 import type { SceneNode, EntityId } from '@/types';
+import { authoredRef, refKey, type EntityRef } from '@/engine/entityRef';
 import { buildSceneTree } from '@/engine/SceneQuery';
 import { ROOT_FOLDER, normalizeFolder, folderName, folderParent, folderPrefixes, isFolderUnder } from './folders';
 
@@ -35,7 +37,11 @@ interface OutlinerItemBase {
 }
 export interface OutlinerEntityItem extends OutlinerItemBase {
   kind: 'entity';
+  /** The id in the world this tree was built from — a source id for the scene
+   *  document, a realm handle for the running game. Live ops take this one. */
   id: EntityId;
+  /** Who this row IS, independent of which world is showing. */
+  ref: EntityRef;
   node: SceneNode;
 }
 export interface OutlinerFolderItem extends OutlinerItemBase {
@@ -70,8 +76,11 @@ export interface BuildOutlinerOpts {
   folders?: readonly string[];
   /** Free-text name filter; matches + their ancestors survive (case-insensitive). */
   query?: string;
-  /** Render every node expanded — the live-game tree, and implicitly while filtering. */
+  /** Render every node expanded — implicitly on while filtering. */
   expandAll?: boolean;
+  /** Row identity when the ids are not the document's (the running world).
+   *  Absent ⇒ every id is a document source id. */
+  refOf?: (id: EntityId) => EntityRef;
 }
 
 /** A parsed search query: bare-word name text + `type:`/`comp:` token filters. */
@@ -143,6 +152,8 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
   const expandAll = !!opts.expandAll || active;
   const folderOf = opts.folderOf ?? (() => ROOT_FOLDER);
   const sort = opts.sort ?? 'manual';
+  const refOf = opts.refOf ?? authoredRef;
+  const keyOf = (id: EntityId): string => refKey(refOf(id));
 
   // Group the shown roots by their folder path, and gather every folder to show:
   // each root path's prefixes, plus the scene's explicit folders (only when not
@@ -191,11 +202,12 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
 
   const emitEntity = (node: SceneNode, depth: number, parentKey: string | null, sortKey: number): void => {
     const hasChildren = !!node.children?.length;
-    const expanded = expandAll || opts.expanded.has(entityKey(node.id));
-    out.push({ kind: 'entity', key: entityKey(node.id), id: node.id, node, depth, hasChildren, expanded, parentKey, sortKey });
+    const key = keyOf(node.id);
+    const expanded = expandAll || opts.expanded.has(key);
+    out.push({ kind: 'entity', key, id: node.id, ref: refOf(node.id), node, depth, hasChildren, expanded, parentKey, sortKey });
     if (hasChildren && expanded) {
       sortNodes(node.children!, sort).forEach((c, i) =>
-        emitEntity(c, depth + 1, entityKey(node.id), sort === 'manual' ? (entityIndex.get(c.id) ?? i) : i),
+        emitEntity(c, depth + 1, key, sort === 'manual' ? (entityIndex.get(c.id) ?? i) : i),
       );
     }
   };
@@ -225,14 +237,15 @@ export function buildOutlinerItems(data: SceneData | null, opts: BuildOutlinerOp
 }
 
 /** Every expandable key (folders + entity parents) — the auto-expand set for a fresh scene. */
-export function collectExpandableKeys(data: SceneData | null, opts?: Pick<BuildOutlinerOpts, 'folderOf' | 'folders'>): string[] {
+export function collectExpandableKeys(data: SceneData | null, opts?: Pick<BuildOutlinerOpts, 'folderOf' | 'folders' | 'refOf'>): string[] {
   const folderOf = opts?.folderOf ?? (() => ROOT_FOLDER);
+  const refOf = opts?.refOf ?? authoredRef;
   const out: string[] = [];
   const folders = new Set<string>();
   const walk = (nodes: SceneNode[]): void => {
     for (const n of nodes) {
       if (n.children?.length) {
-        out.push(entityKey(n.id));
+        out.push(refKey(refOf(n.id)));
         walk(n.children);
       }
     }
