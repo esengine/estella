@@ -650,6 +650,19 @@ describe('looking before reporting', () => {
     expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(false);
   });
 
+  // The prompt tells it to ask by NAME before writing a probe, and a reflex
+  // that credited only the probe sent the turn which did exactly that back to
+  // look again — the free door not counting as looking, the charged one doing.
+  it('counts reading the running game by name as a look', async () => {
+    const s = fakeSession([
+      asks(call('add_entity')),
+      asks(call('inspect_entity')),
+      ends(),
+    ]);
+    await runTurn(deps(s), 'build me a board', null, new AbortController().signal);
+    expect(s.context.some((c) => c.includes('capture_viewport now'))).toBe(false);
+  });
+
   it('says nothing to a turn that only read', async () => {
     // Answering a question is not building something, and a question does not
     // need a screenshot to be answered honestly.
@@ -982,7 +995,10 @@ describe('what verification means for a model that cannot see', () => {
     const nudge = s.context.find((c) => c.includes('never ran it'));
     expect(nudge).toBeTruthy();
     expect(nudge).toContain('set_play');
-    expect(nudge).toContain('play_probe');
+    // The door it is sent to is the free one. Pointed at play_probe, the nudge
+    // spent a confirmation on every look it asked for.
+    expect(nudge).toContain('inspect_entity');
+    expect(nudge).not.toContain('play_probe');
     expect(nudge).not.toContain('capture_viewport now');
   });
 

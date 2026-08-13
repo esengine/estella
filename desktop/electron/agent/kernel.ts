@@ -342,9 +342,10 @@ export async function runTurn(
                 + 'capture_viewport now; if it is something that has to be PLAYED, set_play, '
                 + 'drive it with play_input and screenshot that. Then fix what you see, or report.'
               : 'You changed the scene this turn and never ran it. RUN it: set_play, then '
-                + 'play_probe to read the state back (`find(NAME)` gives every entity carrying a '
-                + 'component, with its data), play_input to drive the controls a player would use, '
-                + 'step to advance the frames, and play_probe again to prove they did something. '
+                + 'find_entities / inspect_entity to read the state back (inspect_entity gives one '
+                + 'entity whole, every component with its live data), play_input to drive the '
+                + 'controls a player would use, step to advance the frames, and inspect_entity '
+                + 'again to prove they did something. '
                 + "You cannot receive images, but `screenshot` with `format: 'grid'` gives you the "
                 + 'picture as text — take one, because whether anything DREW is not a question the '
                 + 'component values answer. get_logs shows what the running game complained about. '
@@ -646,6 +647,7 @@ async function execute(
  */
 const LOOKING_TOOLS = new Set([
   'capture_viewport', 'screenshot', 'set_play', 'play_probe', 'play_input',
+  'find_entities', 'inspect_entity', 'list_resources', 'get_systems',
 ]);
 
 /** The scene's outstanding validation issues as one line of context, or null

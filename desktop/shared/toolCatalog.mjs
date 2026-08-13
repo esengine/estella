@@ -681,6 +681,7 @@ const ATOMS = [
       : { kind: 'gamepad', pad: i.pad ?? 0, buttons: i.buttons ?? [], axes: i.axes ?? [], frame: i.frame }) },
   { name: 'play_probe', effect: 'irreversible',
     description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. One expression gives its value; several statements need an explicit `return`. "
+      + 'ASK BY NAME FIRST: find_entities / inspect_entity / list_resources / get_systems answer "what does the game think is going on right now" without costing the user anything, and this one interrupts them for a confirmation every single call. Come here for what those four cannot answer — staging a situation, arithmetic over many entities, reaching something they do not carry. '
       + 'These are ALREADY IN SCOPE (no prefix, though `window.__estellaPlay` holds them too): '
       + '**`find(NAME)`** — an ARRAY of `{ entity, data }`, one per entity carrying that component (`.length`, `[0]`, `for..of` and `.map` all work; `.total` is the count, `.truncatedAt` is set when a limit cut it short, and returning the array itself serialises as a plain list); '
       + '**`get(ENTITY, NAME)`** — one entity\'s component data, or null when it does not have it; '
