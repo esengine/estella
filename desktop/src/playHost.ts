@@ -582,7 +582,16 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
       down: (x: number, y: number, button = 0) => injected.onPointerDown?.(button, x, y),
       up: (button = 0) => injected.onPointerUp?.(button),
       wheel: (dx: number, dy: number) => injected.onWheel?.(dx, dy),
-      keyDown: (code: string) => injected.onKeyDown?.(code),
+      // A key already held produces no press edge, and `isKeyPressed` is what a
+      // game reads for "jump". Answered rather than swallowed: everything the
+      // caller reads back afterwards looks perfectly healthy.
+      keyDown: (code: string) => {
+        const held = inputState()?.isKeyDown(code) === true;
+        injected.onKeyDown?.(code);
+        return held
+          ? { ok: true, pressEdge: false, note: `${code} was already down — no press edge this frame. Send key_up first, then key_down.` }
+          : { ok: true, pressEdge: true };
+      },
       keyUp: (code: string) => injected.onKeyUp?.(code),
       touchStart: (id: number, x: number, y: number) => injected.onTouchStart?.(id, x, y),
       touchMove: (id: number, x: number, y: number) => injected.onTouchMove?.(id, x, y),

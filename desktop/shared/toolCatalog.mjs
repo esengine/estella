@@ -701,6 +701,7 @@ const ATOMS = [
       + 'ask the camera (CameraView.screenToWorld / UICameraInfo.worldMouseX) for where that is in the world rather than converting by hand. '
       + '`code` is a KeyboardEvent code for the key kinds. It goes through the platform binding\'s own callbacks, so UI gets first refusal exactly as it would for a real event. '
       + 'A pressed EDGE (isMouseButtonPressed / isKeyPressed) lasts one frame: call step() right after, then read the result. '
+      + 'A key stays DOWN until you send key_up for it, and `key_down` on one already held makes no new edge — it answers `pressEdge: false` and the game does not react, while everything you read back afterwards looks perfectly normal. '
       + 'Calling the game\'s own handler instead proves only that the handler works — not that a click reaches it.',
     schema: obj({
       kind: { type: 'string' }, x: { type: 'number' }, y: { type: 'number' },

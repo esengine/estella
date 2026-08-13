@@ -331,7 +331,7 @@ export function createSurfaceDriver(
           down: `i.down(${x},${y},${button});`,
           up: `i.up(${button});`,
           wheel: `i.wheel(${x},${y});`,
-          key_down: `i.keyDown(${code});`,
+          key_down: `return i.keyDown(${code});`,
           key_up: `i.keyUp(${code});`,
           tap: `i.touchStart(${id},${x},${y}); i.touchEnd(${id});`,
           // A pad is HELD until released — a game reads it every frame, so a
@@ -356,7 +356,10 @@ export function createSurfaceDriver(
         return unwrap(await frame.executeJavaScript(carryError(
           `(() => { const p = window.__estellaPlay; if (!p || !p.input) `
           + `throw new Error('this play realm publishes no input door — it predates play_input'); `
-          + `const i = p.input; ${call} return 'ok'; })()`,
+          // A kind that has something to say answers with it; the rest, and any
+          // realm older than the one that started answering, keep 'ok'.
+          + `const i = p.input; const r = (() => { ${call} })(); `
+          + `return r === undefined ? 'ok' : r; })()`,
         )));
       }
       // — What the TypeScript compiler knows. Main-process because the language
