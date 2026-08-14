@@ -43,8 +43,8 @@ const toPx = (p: CanvasPoint, w: number, h: number): [number, number] => [p.x * 
 
 /** Whether a press at `p` landed ON the selection: inside its outline, or within
  *  reach of the origin handle for something that has no outline to speak of. */
-function grabbed(box: PlayOverlayBox, p: CanvasPoint, size: { w: number; h: number }): boolean {
-  const [ox, oy] = toPx(box.origin, size.w, size.h);
+function grabbed(box: PlayOverlayBox, origin: CanvasPoint, p: CanvasPoint, size: { w: number; h: number }): boolean {
+  const [ox, oy] = toPx(origin, size.w, size.h);
   const [px, py] = toPx(p, size.w, size.h);
   if (Math.hypot(px - ox, py - oy) <= HANDLE * 2) return true;
   if (box.corners.length !== 4) return false;
@@ -96,7 +96,7 @@ export function PlayOverlay({ interactive }: Props) {
   };
   /** Pointer angle + distance about the selection's origin, in CSS px. */
   const polarOf = (p: CanvasPoint): { angle: number; dist: number } => {
-    if (!overlay) return { angle: 0, dist: 0 };
+    if (!overlay?.origin) return { angle: 0, dist: 0 };
     const [ox, oy] = toPx(overlay.origin, size.w, size.h);
     const [px, py] = toPx(p, size.w, size.h);
     // Screen y grows downward and world y upward, so the angle is negated to
@@ -113,12 +113,14 @@ export function PlayOverlay({ interactive }: Props) {
     const axis = data?.axis as 'x' | 'y' | undefined;
     // A press grabs the selection only on a HANDLE or inside the outline; a
     // handle says so itself, because a rotate ring sits well outside the thing
-    // it turns. Anywhere else selects whatever is under the pointer.
-    const onIt = data?.grab != null || axis != null || (overlay != null && grabbed(overlay, p, size));
+    // it turns. Anywhere else selects whatever is under the pointer. A box with
+    // no origin has nothing to grab at all — it is where the layout put it.
+    const anchor = overlay?.origin;
+    const onIt = anchor != null && (data?.grab != null || axis != null || grabbed(overlay!, anchor, p, size));
     const polar = polarOf(p);
     drag.current = {
-      dx: overlay ? overlay.origin.x - p.x : 0,
-      dy: overlay ? overlay.origin.y - p.y : 0,
+      dx: anchor ? anchor.x - p.x : 0,
+      dy: anchor ? anchor.y - p.y : 0,
       axis,
       moved: false,
       pickOnly: !onIt,
@@ -171,7 +173,7 @@ export function PlayOverlay({ interactive }: Props) {
   };
 
   const box = overlay && size.w > 0 ? overlay : null;
-  const origin = box ? toPx(box.origin, size.w, size.h) : null;
+  const origin = box?.origin ? toPx(box.origin, size.w, size.h) : null;
   const outline = box && box.corners.length === 4
     ? box.corners.map((c) => toPx(c, size.w, size.h).join(',')).join(' ')
     : null;
@@ -185,10 +187,10 @@ export function PlayOverlay({ interactive }: Props) {
       onPointerUp={onPointerUp}
       onPointerCancel={() => { drag.current = null; }}
     >
-      {origin && (
+      {(origin || outline) && (
         <svg className="play-ov__svg" width={size.w} height={size.h} aria-hidden="true">
           {outline && <polygon className="play-ov__box" points={outline} />}
-          {interactive && tool === 'move' && (
+          {origin && interactive && tool === 'move' && (
             <>
               <line className="play-ov__axis x" x1={origin[0]} y1={origin[1]} x2={origin[0] + ARM} y2={origin[1]} />
               <line className="play-ov__axis y" x1={origin[0]} y1={origin[1]} x2={origin[0]} y2={origin[1] - ARM} />
@@ -196,10 +198,10 @@ export function PlayOverlay({ interactive }: Props) {
               <rect className="play-ov__grab y" data-grab="move" data-axis="y" x={origin[0] - 6} y={origin[1] - ARM - 2} width={12} height={16} />
             </>
           )}
-          {interactive && tool === 'rotate' && (
+          {origin && interactive && tool === 'rotate' && (
             <circle className="play-ov__ring" data-grab="rotate" cx={origin[0]} cy={origin[1]} r={ARM} />
           )}
-          {interactive && tool === 'scale' && (
+          {origin && interactive && tool === 'scale' && (
             <>
               <line className="play-ov__axis x" x1={origin[0]} y1={origin[1]} x2={origin[0] + ARM} y2={origin[1]} />
               <line className="play-ov__axis y" x1={origin[0]} y1={origin[1]} x2={origin[0]} y2={origin[1] - ARM} />
@@ -207,14 +209,16 @@ export function PlayOverlay({ interactive }: Props) {
               <rect className="play-ov__box-end y" data-grab="scale" x={origin[0] - 5} y={origin[1] - ARM - 5} width={10} height={10} />
             </>
           )}
-          <rect
-            className="play-ov__origin"
-            data-grab="move"
-            x={origin[0] - HANDLE}
-            y={origin[1] - HANDLE}
-            width={HANDLE * 2}
-            height={HANDLE * 2}
-          />
+          {origin && (
+            <rect
+              className="play-ov__origin"
+              data-grab="move"
+              x={origin[0] - HANDLE}
+              y={origin[1] - HANDLE}
+              width={HANDLE * 2}
+              height={HANDLE * 2}
+            />
+          )}
         </svg>
       )}
     </div>

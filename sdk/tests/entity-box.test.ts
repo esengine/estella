@@ -8,7 +8,7 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it } from 'vitest';
-import { entityWorldBox, entityBoxCorners } from '../src/ecs/entityBox';
+import { entityWorldBox, entityBoxCorners, uiNodeWorldBox } from '../src/ecs/entityBox';
 import { Transform, Sprite } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
@@ -29,6 +29,12 @@ const T = (x: number, y: number, sx = 1, sy = 1, angle = 0) => ({
     worldPosition: { x, y, z: 0 },
     worldScale: { x: sx, y: sy, z: 1 },
     worldRotation: { x: 0, y: 0, z: Math.sin(angle / 2), w: Math.cos(angle / 2) },
+});
+
+/** The engine side of a UI box: a resolved layout size, in the core's own tables. */
+const layout = (w: number, h: number) => ({
+    getCppRegistry: () => ({}),
+    getWasmModule: () => ({ uiNode_computedWidth: () => w, uiNode_computedHeight: () => h }),
 });
 
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
@@ -79,6 +85,23 @@ describe('an entity world box', () => {
 
     it('has no box for an entity that is not there', () => {
         expect(entityWorldBox(fakeWorld({}), ent(9))).toBeNull();
+    });
+
+    it('is not where a UI node is: that box comes from the layout', () => {
+        const rows = { 1: { [name(Transform)]: T(0, 0, 2, 1), [name(UINode)]: {} } };
+        const world = { ...fakeWorld(rows) as object, ...layout(120, 40) } as never;
+        expect(entityWorldBox(world, ent(1))).toBeNull();
+        // Scaled like any other box, centred on the transform: layout gives size,
+        // the transform gives place.
+        expect(uiNodeWorldBox(world, ent(1))).toEqual({ cx: 0, cy: 0, hw: 120, hh: 20, rot: 0 });
+    });
+
+    it('has no UI box for something that is not a laid-out UI node', () => {
+        const sprite = { 1: { [name(Transform)]: T(0, 0), [name(Sprite)]: { size: { x: 10, y: 10 } } } };
+        expect(uiNodeWorldBox({ ...fakeWorld(sprite) as object, ...layout(120, 40) } as never, ent(1))).toBeNull();
+        // A node the layout has not sized yet has no box to outline or hit-test.
+        const node = { 1: { [name(Transform)]: T(0, 0), [name(UINode)]: {} } };
+        expect(uiNodeWorldBox({ ...fakeWorld(node) as object, ...layout(0, 0) } as never, ent(1))).toBeNull();
     });
 
     it('walks its corners counter-clockwise from the local -x,-y', () => {

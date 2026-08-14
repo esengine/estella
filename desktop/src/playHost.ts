@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { uiPickWorld, uiWorldToScreen, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
+import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
@@ -198,9 +198,30 @@ const denormalizePoint = (nx: number, ny: number): { x: number; y: number } => (
   y: (1 - ny) * canvas.height,
 });
 
+/** The UI camera this realm lays screen-space UI out with, if it has one. */
+function uiCamera(): UICameraData | null {
+  const cam = app?.getResourceByName('UICameraInfo') as UICameraData | undefined;
+  return cam?.valid ? cam : null;
+}
+
+/** Where a UI node is drawn: its layout box, through the camera that composed it.
+ *  No origin — the box is the layout's answer, with no position field to drag. */
+function uiOverlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | null {
+  const cam = uiCamera();
+  const box = cam ? uiNodeWorldBox(world, entity as never) : null;
+  if (!cam || !box) return null;
+  const corners = entityBoxCorners(box).map((c) => {
+    const s = uiWorldToScreen(cam, c.x, c.y);
+    return normalizePoint(s.x, s.y);
+  });
+  return { corners };
+}
+
 /** Where `entity` is drawn, for the editor's overlay. Null when it has no place
- *  on screen — no transform, a UI node, or no camera to project through. */
+ *  on screen — no transform, or no camera to project through. */
 function overlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | null {
+  const ui = uiOverlayBoxOf(world, entity);
+  if (ui) return ui;
   const view = app?.getResource(CameraView);
   const transformDef = getComponent('Transform');
   if (!view || !transformDef) return null;
@@ -222,13 +243,20 @@ function overlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | nul
   return { corners: corners.length === 4 ? corners : [], origin: normalizePoint(originScreen.x, originScreen.y) };
 }
 
-/** The topmost entity at a canvas point, ranked the way the frame stacked it. */
+/** The topmost entity at a canvas point, ranked the way the frame stacked it.
+ *  UI first: it is drawn over the world and hit-tested in its own space. */
 function pickAt(world: App['world'], nx: number, ny: number): number | null {
+  const gl = denormalizePoint(nx, ny);
+  const uiCam = uiCamera();
+  if (uiCam) {
+    const wp = screenToUiWorld(uiCam, gl.x, gl.y);
+    const hit = uiPickWorld(world, wp.x, wp.y);
+    if (hit !== null) return hit as never as number;
+  }
   const view = app?.getResource(CameraView);
   const transformDef = getComponent('Transform');
   const spriteDef = getComponent('Sprite');
   if (!view || !transformDef) return null;
-  const gl = denormalizePoint(nx, ny);
   const hits: PickCandidate<number>[] = [];
   for (const e of world.getAllEntities()) {
     const id = e as never as number;

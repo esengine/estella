@@ -131,8 +131,9 @@ export interface CanvasPoint {
 export interface PlayOverlayBox {
   /** The four corners, counter-clockwise from the box's local -x,-y. */
   corners: CanvasPoint[];
-  /** The transform origin — where a move gizmo is anchored. */
-  origin: CanvasPoint;
+  /** The transform origin — where a move gizmo is anchored. Absent for a box a
+   *  drag cannot move: a UI node is placed by layout, not by a position field. */
+  origin?: CanvasPoint;
 }
 
 /** The visibility half of a live tree entity — what the Outliner's eye reads.

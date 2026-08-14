@@ -14,6 +14,7 @@ import type { World } from './world';
 import { Transform, Sprite } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { quaternionToAngle2D } from '../ui/util/math';
+import { worldEngineApi } from './bridge/engineApi';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -90,6 +91,40 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
         hw: Math.abs(w) / 2,
         hh: Math.abs(h) / 2,
         rot,
+    };
+}
+
+/**
+ * What a UI box derivation needs on top of the reads: a laid-out size lives in
+ * the engine core, not in a component.
+ *
+ * @experimental
+ */
+export type LayoutWorld = ReadableWorld & Pick<World, 'getCppRegistry' | 'getWasmModule'>;
+
+/**
+ * The world box of a UI node's resolved layout — {@link entityWorldBox} for the
+ * space UI lives in. Null for anything that is not a laid-out UI node.
+ *
+ * @experimental
+ */
+export function uiNodeWorldBox(world: LayoutWorld, entity: Entity): EntityBox | null {
+    if (!world.valid(entity) || !world.has(entity, UINode) || !world.has(entity, Transform)) return null;
+    const engine = worldEngineApi(world);
+    const registry = world.getCppRegistry();
+    if (!registry || !engine?.uiNode_computedWidth || !engine.uiNode_computedHeight) return null;
+
+    const t = world.get(entity, Transform);
+    const w = engine.uiNode_computedWidth(registry, entity) * t.worldScale.x;
+    const h = engine.uiNode_computedHeight(registry, entity) * t.worldScale.y;
+    if (!(w > 0) || !(h > 0)) return null;
+    const r = t.worldRotation as { z: number; w: number };
+    return {
+        cx: t.worldPosition.x,
+        cy: t.worldPosition.y,
+        hw: Math.abs(w) / 2,
+        hh: Math.abs(h) / 2,
+        rot: quaternionToAngle2D(r.z, r.w),
     };
 }
 

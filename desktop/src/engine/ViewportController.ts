@@ -13,7 +13,7 @@ import {
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
-  entityWorldBox,
+  entityWorldBox, uiNodeWorldBox,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -418,21 +418,7 @@ export const ViewportController = {
    *  pivot-centered on the world transform). */
   uiEntityWorldOBB(id: EntityId): OBB | null {
     const world = EngineHost.world;
-    const module = EngineHost.module;
-    if (!world || !module || !world.has(id, UINode) || !world.has(id, Transform)) return null;
-    const reg = world.getCppRegistry();
-    if (!reg) return null;
-    const t = world.get(id, Transform);
-    const w = module.uiNode_computedWidth(reg, id) * t.worldScale.x;
-    const h = module.uiNode_computedHeight(reg, id) * t.worldScale.y;
-    if (!(w > 0) || !(h > 0)) return null;
-    return {
-      cx: t.worldPosition.x,
-      cy: t.worldPosition.y,
-      hw: Math.abs(w) / 2,
-      hh: Math.abs(h) / 2,
-      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
-    };
+    return world ? uiNodeWorldBox(world, id) : null;
   },
 
   /**
