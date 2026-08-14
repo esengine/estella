@@ -7,5 +7,5 @@
   "files": ["plugin.json", "src", "README.md"],
   "keywords": ["estella", "estella-plugin", "ldtk", "tilemap"],
   "scripts": { "test": "vitest run" },
-  "devDependencies": { "vitest": "^2.1.9" }
+  "devDependencies": { "typescript": "^6.0.3", "vitest": "^2.1.9" }
 }

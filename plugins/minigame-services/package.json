@@ -14,5 +14,5 @@
   "keywords": ["estella", "estella-plugin", "minigame", "wechat", "share", "payment", "leaderboard"],
   "scripts": { "test": "vitest run" },
   "peerDependencies": { "esengine": ">=0.51" },
-  "devDependencies": { "esengine": "workspace:*", "vitest": "^2.1.9" }
+  "devDependencies": { "esengine": "workspace:*", "typescript": "^6.0.3", "vitest": "^2.1.9" }
 }
