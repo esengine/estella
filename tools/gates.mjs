@@ -54,6 +54,8 @@ export const GATES = [
   // could survive fails here rather than in someone else's project.
   { id: 'tsc-plugins', run: 'pnpm -r --filter "./plugins/*" exec tsc --noEmit' },
   { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test' },
+  // The plugins we ship prove the public API only if they are held to it.
+  { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
