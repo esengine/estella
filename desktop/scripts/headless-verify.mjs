@@ -56,11 +56,9 @@ const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
-// capturePage returns DISPLAY-referred pixels: Chromium converts the sRGB canvas
-// through the OS display profile before compositing, so on a wide-gamut machine
-// every WebGPU point assertion reads P3-ish values (pure green → ~[116,249,75])
-// while the GL path's raw readPixels stays clean — the "R/B channel bleed" was
-// this, not a render bug. Pin the profile so captures are device-independent.
+// capturePage returns DISPLAY-referred pixels: a page painting rgb(0,255,0)
+// captures as rgb(58,254,32) with this switch and without it, so a WebGPU
+// colour assertion needs an engine-side readback before it means anything.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 // WebGPU: the unsafe flag covers non-default platforms (Linux CI); the optional
 // software adapter (ESTELLA_VERIFY_WEBGPU_ADAPTER=swiftshader) gives GPU-less
