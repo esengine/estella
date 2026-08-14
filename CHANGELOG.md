@@ -14,6 +14,31 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The WebGPU backend was fine; the way it was measured was not.** Its ten pixel
+  gates had one passing, which read as a backend that could not be shipped on.
+  They were read with a different instrument: GL asserts against the engine's
+  buffer, while WebGPU had no readback on the web, so the runner captured the
+  composited page — a colour-managed path that turns a painted `rgb(0,255,0)`
+  into `rgb(58,254,32)` with no engine involved.
+
+  The engine now returns its own pixels on both backends (`captureFramePixels`),
+  and on the web that copy rides the surface pass's own encoder, because the
+  browser presents the swapchain image with that submit. Measured that way,
+  **51 of the 52 pixel gates pass on WebGPU**, and the registry declares them
+  instead of ten.
+
+- **A compressed texture reaches the WebGPU backend.** KTX2 was WebGL2-only: the
+  loader probed WebGL extensions, which answer for one backend and answer "none"
+  for the other, so a KTX2 asset arrived as the white placeholder. The device
+  answers what it samples (not the adapter, whose offer is void until the device
+  asked for the feature), the engine publishes the features a host must request,
+  and the upload goes through the ResourceManager both backends implement.
+
+  Remaining: a shader with a `#pragma switch` has no WGSL for its permutations,
+  so such a material does not compile on WebGPU.
+
 ### Added
 
 - **The schedule can say which systems' order nobody decided.** A system's
