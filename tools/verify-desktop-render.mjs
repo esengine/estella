@@ -87,7 +87,7 @@ function packageAndRun(project, templateDir, work) {
     const out = path.join(work, path.basename(project));
     mkdirSync(out, { recursive: true });
     execFileSync(process.execPath, [
-        path.join(ROOT, 'desktop', 'scripts', 'export-project.mjs'), project,
+        path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export', project,
         '--platform', 'desktop', '--out', out, '--template', templateDir,
     ], { cwd: ROOT, stdio: 'inherit' });
 

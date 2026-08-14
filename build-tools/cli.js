@@ -297,6 +297,23 @@ program
         logger.printTime(startTime);
     });
 
+// Forwarded rather than reimplemented: the pipeline owns packaging, and its own
+// entry is what CI and a build server call. This is here so someone who already
+// knows `cli.js` does not have to learn a second command to ship a project.
+program
+    .command('export <projectDir>')
+    .description('Package a project (no editor) — see pipeline/bin/estella.mjs for the options')
+    .allowUnknownOption()
+    .helpOption(false)
+    .action(async (projectDir, _opts, command) => {
+        const { spawnSync } = await import('child_process');
+        const bin = path.join(config.paths.root, 'pipeline', 'bin', 'estella.mjs');
+        const result = spawnSync(process.execPath, [bin, 'export', projectDir, ...command.args.slice(1)], {
+            stdio: 'inherit',
+        });
+        process.exit(result.status ?? 1);
+    });
+
 program
     .command('verify-template <archives...>')
     .description('Check published runtime-template archives carry everything a release must')

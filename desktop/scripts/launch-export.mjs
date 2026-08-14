@@ -3,7 +3,7 @@
 /**
  * @file  launch-export.mjs — a packaged web build actually starts, and draws.
  *
- * Exporting is checked (export-project reports errors, warnings and size) and
+ * Exporting is checked (the pipeline reports errors, warnings and size) and
  * the ENGINE is checked (verify:render). Between them sits the thing nobody ran
  * in CI: the package itself, opened the way a player opens it. That gap is
  * where a wrong export default, a missing runtime config or a path that only

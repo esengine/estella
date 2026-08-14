@@ -678,7 +678,7 @@ function packageExample(driver, name, opts) {
     rmSync(work, { recursive: true, force: true });
     mkdirSync(work, { recursive: true });
     quietly('export', process.execPath, [
-        path.join(ROOT, 'desktop', 'scripts', 'export-project.mjs'),
+        path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export',
         path.join(ROOT, 'examples', name),
         '--platform', driver.name,
         '--template', opts.template,

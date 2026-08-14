@@ -169,7 +169,7 @@ jobs:
             name=$(echo "$name" | xargs)
             [ -z "$name" ] && continue
             echo "::group::packaging $name"
-            node desktop/scripts/export-project.mjs "examples/$name" \
+            node pipeline/bin/estella.mjs export "examples/$name" \
               --platform android --template template \
               --out "build/pkg/$name" --json "build/pkg/$name.json"
             APK=$(node -e "process.stdout.write(require('./build/pkg/$name.json').apkFile || '')")

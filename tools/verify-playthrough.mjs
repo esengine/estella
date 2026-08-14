@@ -48,7 +48,7 @@ mkdirSync(WORK, { recursive: true });
 const out = path.join(WORK, PROJECT);
 
 const exported = spawnSync(process.execPath, [
-  path.join(DESKTOP, 'scripts', 'export-project.mjs'), projectDir,
+  path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export', projectDir,
   '--platform', 'web', '--out', out,
 ], { encoding: 'utf8', cwd: ROOT });
 

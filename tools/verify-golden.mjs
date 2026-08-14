@@ -145,7 +145,7 @@ for (const { id, target } of pairs) {
   rmSync(out, { recursive: true, force: true });
 
   const exported = spawnSync(process.execPath, [
-    path.join(DESKTOP, 'scripts', 'export-project.mjs'), projectDir(id),
+    path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export', projectDir(id),
     '--platform', target, '--out', out,
   ], { encoding: 'utf8', cwd: ROOT });
 
