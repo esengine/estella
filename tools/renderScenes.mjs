@@ -23,11 +23,13 @@
 export const TIERS = ['pr', 'nightly'];
 
 /**
- * Why nothing runs the second backend, stated rather than left as an empty step.
- * The scenes below that declare `webgpu` say which are MEANT to carry it, and a
- * machine with a GPU can (`--backend webgpu`) — no automation can.
+ * What the second backend is worth, measured rather than assumed. CI cannot
+ * answer it (Dawn gets no adapter on a runner); the scenes declaring `webgpu`
+ * are what a machine with a GPU settles by `--backend webgpu`. The gap that
+ * answer reports is the renderer's, not the runner's.
  */
-export const WEBGPU_GAP = 'Dawn gets no adapter on a CI runner: the step was skipped for 25 runs, then failed on all ten scenes';
+export const WEBGPU_GAP = 'no CI adapter, and on a real GPU 1 of the 10 passes: '
+  + 'a systematic colour shift (pure green reads 58,254,32), and editor-grid and bloom-ldr draw nothing';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
