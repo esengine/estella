@@ -30,7 +30,7 @@ import { EngineHost } from './EngineHost';
 import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample } from './PerfMonitor';
-import { parseProfileCapture, summarizeCapture, frameProfileOf } from 'esengine';
+import { parseProfileCapture, summarizeCapture, frameProfileOf, captureFramePixels } from 'esengine';
 import type { ProfileCapture, CapturedFrame } from 'esengine';
 import { profileReportOf, type ProfileReport } from './profileReport';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -885,6 +885,19 @@ export class EditorControlSurfaceImpl {
   setGrid(enabled: boolean, spacing?: number): void {
     if (enabled) EngineHost.syncEditorViewToScene();
     EngineHost.setGrid(enabled, spacing);
+  }
+
+  /**
+   * The frame as the ENGINE holds it, whichever backend drew it. `captureViewport`
+   * reads the page instead, which on WebGPU is a compositor copy — blank in a
+   * hidden window, colour managed everywhere else. Null when the surface was not
+   * configured for readback, which has to be decided before anything is drawn.
+   */
+  async captureViewportPixels(): Promise<ViewportCapture | null> {
+    const canvas = EngineHost.canvas;
+    const module = EngineHost.module;
+    if (!canvas || !module) return null;
+    return captureFramePixels(module, canvas.width, canvas.height, async () => { await this.step(1, 1 / 60); });
   }
 
   captureViewport(): ViewportCapture {

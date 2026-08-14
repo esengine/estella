@@ -56,9 +56,9 @@ const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
-// capturePage returns DISPLAY-referred pixels: a page painting rgb(0,255,0)
-// captures as rgb(58,254,32) with this switch and without it, so a WebGPU
-// colour assertion needs an engine-side readback before it means anything.
+// Pins the profile for anything that goes through the compositor (a screenshot
+// for a human). The pixel assertions do not: a composited read is colour
+// managed, turning rgb(0,255,0) into rgb(58,254,32) switch or no switch.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 // WebGPU: the unsafe flag covers non-default platforms (Linux CI); the optional
 // software adapter (ESTELLA_VERIFY_WEBGPU_ADAPTER=swiftshader) gives GPU-less
@@ -270,60 +270,27 @@ app.whenReady().then(async () => {
       })()`);
     }
 
-    // WebGPU: the engine has no synchronous readback (buffer maps are async)
-    // and a hidden window never presents, so drawImage-style page readback is
-    // blank — capture the PAGE instead (capturePage forces a composite; the
-    // same technique the engine-parity runner uses). The canvas sits at the
-    // page origin at its backing size, so the page pixels ARE the frame.
-    // Converted to the RGBA bottom-up order of ViewportCapture so both
-    // backends share the assertion math below.
-    // NOT the same instrument as GL's: this composite is colour managed, so a
-    // page painted rgb(0,255,0) reads back as rgb(58,254,32) and every colour
-    // assertion carries that shift. Geometry is what it can answer.
-    const grabWebGPU = async () => {
-      const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
-      const bmp = image.toBitmap(); // BGRA, top-down
-      const { width, height } = image.getSize();
-      const rgba = Buffer.alloc(width * height * 4);
-      for (let y = 0; y < height; y++) {
-        const srcRow = y * width * 4;
-        const dstRow = (height - 1 - y) * width * 4;
-        for (let x = 0; x < width; x++) {
-          const s = srcRow + x * 4;
-          const d = dstRow + x * 4;
-          rgba[d] = bmp[s + 2];
-          rgba[d + 1] = bmp[s + 1];
-          rgba[d + 2] = bmp[s];
-          rgba[d + 3] = bmp[s + 3];
-        }
-      }
-      return { rgba, width, height };
-    };
-    const webgpuFrame = BACKEND === 'webgpu' ? await grabWebGPU() : null;
+    // Both backends are read the same way: the ENGINE's pixels, in the page.
+    // Reading the composited page instead answers what a display would show —
+    // rgb(0,255,0) comes back as rgb(58,254,32).
+    const readFrame = (expr) => exec(`(async () => {
+      const api = window.__estellaHeadless.api;
+      const c = (api.captureViewportPixels ? await api.captureViewportPixels() : null)
+        ?? api.captureViewport();
+      const px = c.rgba, w = c.width, h = c.height;
+      ${expr}
+    })()`);
 
-    const captureStats = (rgba, width, height) => {
-      const min = [255, 255, 255], max = [0, 0, 0];
-      let nonZero = 0;
-      for (let i = 0; i < rgba.length; i += 4) {
-        for (let k = 0; k < 3; k++) { const v = rgba[i + k]; if (v < min[k]) min[k] = v; if (v > max[k]) max[k] = v; }
-        if (rgba[i] | rgba[i + 1] | rgba[i + 2]) nonZero++;
-      }
-      const spread = (max[0] - min[0]) + (max[1] - min[1]) + (max[2] - min[2]);
-      return { w: width, h: height, totalPixels: rgba.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
-    };
 
-    const capture = webgpuFrame
-      ? captureStats(webgpuFrame.rgba, webgpuFrame.width, webgpuFrame.height)
-      : await exec(`(() => {
-      const c = window.__estellaHeadless.api.captureViewport();
-      const px = c.rgba; const min = [255, 255, 255], max = [0, 0, 0]; let nonZero = 0;
+    const capture = await readFrame(`
+      const min = [255, 255, 255], max = [0, 0, 0]; let nonZero = 0;
       for (let i = 0; i < px.length; i += 4) {
         for (let k = 0; k < 3; k++) { const v = px[i + k]; if (v < min[k]) min[k] = v; if (v > max[k]) max[k] = v; }
         if (px[i] | px[i + 1] | px[i + 2]) nonZero++;
       }
       const spread = (max[0] - min[0]) + (max[1] - min[1]) + (max[2] - min[2]);
-      return { w: c.width, h: c.height, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
-    })()`);
+      return { w, h, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
+    `);
     const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of
     // { x, y, rgb:[r,g,b], tol? } where x,y are normalized [0,1] from the TOP-LEFT.
@@ -331,52 +298,30 @@ app.whenReady().then(async () => {
     // (TextureLoader imageOrientation) — `rendered` (color variation) alone misses it.
     let expect = null;
     if (process.env.ESTELLA_VERIFY_EXPECT) {
-      const points = JSON.parse(process.env.ESTELLA_VERIFY_EXPECT);
-      const evaluate = (rgba, w, h) => {
-        const out = points.map((p) => {
-          const px = Math.round(p.x * (w - 1));
-          const glRow = (h - 1) - Math.round(p.y * (h - 1)); // capture rows are bottom-up
-          const i = (glRow * w + px) * 4;
-          const got = [rgba[i], rgba[i + 1], rgba[i + 2]];
-          const tol = p.tol ?? 24;
-          const ok = got.every((g, k) => Math.abs(g - p.rgb[k]) <= tol);
-          return { x: p.x, y: p.y, want: p.rgb, got, ok };
-        });
-        return { points: out, ok: out.every((o) => o.ok) };
-      };
-      expect = webgpuFrame
-        ? evaluate(webgpuFrame.rgba, webgpuFrame.width, webgpuFrame.height)
-        : await exec(`(() => {
-        const pts = ${JSON.stringify(points)};
-        const c = window.__estellaHeadless.api.captureViewport();
-        const { width: w, height: h, rgba } = c;
+      expect = await readFrame(`
+        const pts = ${JSON.stringify(JSON.parse(process.env.ESTELLA_VERIFY_EXPECT))};
         const out = pts.map((p) => {
-          const px = Math.round(p.x * (w - 1));
-          const glRow = (h - 1) - Math.round(p.y * (h - 1)); // GL readback is bottom-up
-          const i = (glRow * w + px) * 4;
-          const got = [rgba[i], rgba[i + 1], rgba[i + 2]];
+          const pxX = Math.round(p.x * (w - 1));
+          const row = (h - 1) - Math.round(p.y * (h - 1)); // readback rows are bottom-up
+          const i = (row * w + pxX) * 4;
+          const got = [px[i], px[i + 1], px[i + 2]];
           const tol = p.tol ?? 24;
           const ok = got.every((g, k) => Math.abs(g - p.rgb[k]) <= tol);
           return { x: p.x, y: p.y, want: p.rgb, got, ok };
         });
         return { points: out, ok: out.every((o) => o.ok) };
-      })()`);
+      `);
     }
     // Optional PNG dump (ESTELLA_VERIFY_OUT) of the engine framebuffer (not the
     // page) so the rendered frame can be eyeballed. GL readback is bottom-up → flip.
-    if (process.env.ESTELLA_VERIFY_OUT && BACKEND === 'webgpu') {
-      const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
-      await writeFile(process.env.ESTELLA_VERIFY_OUT, image.toPNG());
-    } else if (process.env.ESTELLA_VERIFY_OUT) {
-      const dataUrl = await exec(`(() => {
-        const c = window.__estellaHeadless.api.captureViewport();
-        const cv = document.createElement('canvas'); cv.width = c.width; cv.height = c.height;
-        const ctx = cv.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
-        const w = c.width, h = c.height, src = c.rgba;
-        for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(src.subarray(sy, sy + w * 4), y * w * 4); }
+    if (process.env.ESTELLA_VERIFY_OUT) {
+      const dataUrl = await readFrame(`
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d'); const img = ctx.createImageData(w, h);
+        for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(px.subarray(sy, sy + w * 4), y * w * 4); }
         ctx.putImageData(img, 0, 0);
         return cv.toDataURL('image/png');
-      })()`);
+      `);
       await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
     }
     // Optional resize assertion (ESTELLA_VERIFY_RESIZE = "WxH"): shrink the
@@ -387,20 +332,11 @@ app.whenReady().then(async () => {
       const [rw, rh] = process.env.ESTELLA_VERIFY_RESIZE.split('x').map(Number);
       await exec(`window.__estellaHeadless.api.resizeViewport(${rw}, ${rh})`);
       await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
-      if (BACKEND === 'webgpu') {
-        const image = await win.webContents.capturePage({ x: 0, y: 0, width: rw, height: rh });
-        const bmp = image.toBitmap();
+      resize = await readFrame(`
         let nonZero = 0;
-        for (let i = 0; i < bmp.length; i += 4) if (bmp[i] | bmp[i + 1] | bmp[i + 2]) nonZero++;
-        resize = { w: rw, h: rh, nonZeroPixels: nonZero, ok: nonZero > 0 };
-      } else {
-        resize = await exec(`(() => {
-          const c = window.__estellaHeadless.api.captureViewport();
-          let nonZero = 0;
-          for (let i = 0; i < c.rgba.length; i += 4) if (c.rgba[i] | c.rgba[i + 1] | c.rgba[i + 2]) nonZero++;
-          return { w: c.width, h: c.height, nonZeroPixels: nonZero, ok: c.width === ${rw} && c.height === ${rh} && nonZero > 0 };
-        })()`);
-      }
+        for (let i = 0; i < px.length; i += 4) if (px[i] | px[i + 1] | px[i + 2]) nonZero++;
+        return { w, h, nonZeroPixels: nonZero, ok: w === ${rw} && h === ${rh} && nonZero > 0 };
+      `);
     }
     // Optional offscreen material-preview assertion (ESTELLA_VERIFY_PREVIEW =
     // {w,h,rgb:[r,g,b],tol?}): renders a scene material to an offscreen target and checks the
@@ -434,47 +370,28 @@ app.whenReady().then(async () => {
       // Optional PNG of the grid-on frame (ESTELLA_VERIFY_GRID_OUT) for eyeballing.
       // Same per-backend readback split as ESTELLA_VERIFY_OUT (GL page capture of a
       // hidden window never composites — read the framebuffer in-page instead).
-      if (process.env.ESTELLA_VERIFY_GRID_OUT && BACKEND === 'webgpu') {
-        const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
-        await writeFile(process.env.ESTELLA_VERIFY_GRID_OUT, image.toPNG());
-      } else if (process.env.ESTELLA_VERIFY_GRID_OUT) {
-        const dataUrl = await exec(`(() => {
-          const c = window.__estellaHeadless.api.captureViewport();
-          const cv = document.createElement('canvas'); cv.width = c.width; cv.height = c.height;
-          const ctx = cv.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
-          const w = c.width, h = c.height, src = c.rgba;
-          for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(src.subarray(sy, sy + w * 4), y * w * 4); }
+      if (process.env.ESTELLA_VERIFY_GRID_OUT) {
+        const dataUrl = await readFrame(`
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d'); const img = ctx.createImageData(w, h);
+          for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(px.subarray(sy, sy + w * 4), y * w * 4); }
           ctx.putImageData(img, 0, 0);
           return cv.toDataURL('image/png');
-        })()`);
+        `);
         await writeFile(process.env.ESTELLA_VERIFY_GRID_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
       }
-      if (BACKEND === 'webgpu') {
-        const on = (await grabWebGPU()).rgba;
-        await exec('window.__estellaHeadless.api.setGrid(false)');
-        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
-        const off = (await grabWebGPU()).rgba;
+      await readFrame('window.__estellaGridOn = px.slice(); return true;');
+      await exec('window.__estellaHeadless.api.setGrid(false)');
+      await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+      grid = await readFrame(`
+        const on = window.__estellaGridOn;
         let differing = 0;
         for (let i = 0; i < on.length; i += 4) {
-          const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]);
+          const d = Math.abs(on[i] - px[i]) + Math.abs(on[i + 1] - px[i + 1]) + Math.abs(on[i + 2] - px[i + 2]);
           if (d > 12) differing++;
         }
-        grid = { differingPixels: differing, ok: differing > 300 };
-      } else {
-        await exec('window.__estellaGridOn = window.__estellaHeadless.api.captureViewport().rgba.slice()');
-        await exec('window.__estellaHeadless.api.setGrid(false)');
-        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
-        grid = await exec(`(() => {
-          const off = window.__estellaHeadless.api.captureViewport().rgba;
-          const on = window.__estellaGridOn;
-          let differing = 0;
-          for (let i = 0; i < on.length; i += 4) {
-            const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]);
-            if (d > 12) differing++;
-          }
-          return { differingPixels: differing, ok: differing > 300 };
-        })()`);
-      }
+        return { differingPixels: differing, ok: differing > 300 };
+      `);
     }
     finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss }, server);
   } catch (e) {

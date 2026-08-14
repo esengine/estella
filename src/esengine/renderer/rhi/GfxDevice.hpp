@@ -537,6 +537,16 @@ public:
     /** @brief Abandons a readback (any state); its resources are released. */
     virtual void discardReadback(ReadbackHandle handle) = 0;
 
+    /**
+     * @brief Requests the next completed frame's on-screen image as a readback.
+     * @details One question, whichever backend answers it: a default framebuffer
+     *          is read directly, a swapchain image only inside its own frame.
+     *          Poll and take it like any other readback.
+     */
+    virtual ReadbackHandle captureNextFrame(u32 w, u32 h) {
+        return requestReadback(FramebufferHandle::Default, w, h);
+    }
+
     // =========================================================================
     // GPU Timing (optional; EXT_disjoint_timer_query on WebGL2)
     // =========================================================================

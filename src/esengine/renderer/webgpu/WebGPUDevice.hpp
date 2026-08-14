@@ -221,6 +221,16 @@ public:
     void present();
 
     /**
+     * @brief Whether bytes read back from the DEFAULT framebuffer are BGRA rather
+     *        than RGBA.
+     *
+     * The format is the surface's choice (BGRA8 on Metal, RGBA8 on Vulkan), so
+     * anyone writing an image has to ask rather than assume.
+     */
+    bool surfaceBytesAreBGRA() const;
+#endif
+
+    /**
      * @brief Configure the swapchain with CopySrc, so {@link captureNextFrame}
      *        can read it. Must be set BEFORE the surface is configured.
      *
@@ -230,25 +240,17 @@ public:
     void setSurfaceReadback(bool enabled) { surface_readback_ = enabled; }
 
     /**
-     * @brief Copy the next completed frame's swapchain image into a readback,
-     *        resolved through the usual pollReadback / takeReadback pair.
+     * @brief Copy the next completed frame's swapchain image into a readback.
      *
      * Books the copy; endFrame performs it, because the renderer gives the
-     * swapchain image back there and every caller outside runs too late.
+     * swapchain image back there and every caller outside runs too late. This is
+     * the whole reason the seam is virtual: a GL default framebuffer can be read
+     * on demand, and this one cannot.
      *
      * Invalid without {@link setSurfaceReadback}, or with a capture in flight.
      */
-    ReadbackHandle captureNextFrame(u32 w, u32 h);
+    ReadbackHandle captureNextFrame(u32 w, u32 h) override;
 
-    /**
-     * @brief Whether bytes read back from the DEFAULT framebuffer are BGRA rather
-     *        than RGBA.
-     *
-     * The format is the surface's choice (BGRA8 on Metal, RGBA8 on Vulkan), so
-     * anyone writing an image has to ask rather than assume.
-     */
-    bool surfaceBytesAreBGRA() const;
-#endif
     void endFrame() override;
 
 private:
@@ -386,6 +388,10 @@ private:
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_RGBA8Unorm;
     /** Whether the surface was configured with CopySrc — see setSurfaceReadback. */
     bool surface_readback_ = false;
+    /** The pass being recorded draws to the surface, so a capture rides its encoder. */
+    bool pass_is_surface_ = false;
+    /** A booked capture was already copied by a pass; endFrame only maps it. */
+    bool capture_copied_ = false;
     /** A capture booked by captureNextFrame, served by endFrame. 0 = none. */
     u32 capture_id_ = 0;
     u32 surface_width_ = 0;
@@ -410,6 +416,8 @@ private:
     /** A staging buffer + record with no copy submitted yet; 0 on failure. */
     u32 allocReadback(u32 w, u32 h);
     void submitReadbackCopy(u32 id, WGPUTexture source);
+    void encodeReadbackCopy(WGPUCommandEncoder encoder, u32 id, WGPUTexture source);
+    void mapReadback(u32 id);
 
     // Internal clear family (region-scoped clears + mid-pass clearStencil).
     // Explicit layout so ONE bind group serves every write-mask variant.

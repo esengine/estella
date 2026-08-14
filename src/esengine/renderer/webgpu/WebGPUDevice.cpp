@@ -380,10 +380,8 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     cfg.device = device_;
     cfg.format = surface_format_;
     cfg.usage = WGPUTextureUsage_RenderAttachment;
-#if !defined(__EMSCRIPTEN__)
-    // Opt-in (setSurfaceReadback): lets requestReadback copy the presented frame.
+    // Opt-in (setSurfaceReadback): lets captureNextFrame copy the presented frame.
     if (surface_readback_) cfg.usage |= WGPUTextureUsage_CopySrc;
-#endif
     cfg.width = width;
     cfg.height = height;
     // Auto, not Opaque: let the backend pick a mode the surface advertises. A
@@ -1533,6 +1531,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     WGPUTextureView dsView = nullptr;
     pass_ds_format_ = WGPUTextureFormat_Undefined;
     pass_color_format_ = surface_format_;
+    pass_is_surface_ = desc.target == FramebufferHandle::Default;
     if (desc.target != FramebufferHandle::Default) {
         auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
         if (fbIt == framebuffers_.end()) {
@@ -1675,6 +1674,15 @@ void WebGPUDevice::endRenderPass() {
                                              gpu_time_ring_[gpu_time_slot_].buf, 0, 16);
     }
 
+    // A booked capture rides the pass's OWN encoder: the browser presents the
+    // swapchain image with this submit, so a copy encoded afterwards copies a
+    // destroyed texture. Several surface passes overwrite; the last one wins.
+    if (capture_id_ && pass_is_surface_ && frame_texture_ && encoder_) {
+        encodeReadbackCopy(encoder_, capture_id_, frame_texture_);
+        capture_copied_ = true;
+    }
+    pass_is_surface_ = false;
+
     WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder_, nullptr);
     wgpuCommandEncoderRelease(encoder_);
     encoder_ = nullptr;
@@ -1699,14 +1707,16 @@ void WebGPUDevice::endRenderPass() {
 /** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
  *  A frame may have opened several passes on it, so no single pass may do this. */
 void WebGPUDevice::endFrame() {
-#if !defined(__EMSCRIPTEN__)
     // A capture is served HERE and nowhere else: this is the last instant at which
     // the frame is both finished and still ours. Asking from outside cannot work —
     // whoever could ask runs after the renderer has already given the image back.
     if (capture_id_) {
         const u32 id = capture_id_;
         capture_id_ = 0;
-        if (frame_texture_) {
+        if (capture_copied_) {
+            capture_copied_ = false;
+            mapReadback(id);
+        } else if (frame_texture_) {
             submitReadbackCopy(id, frame_texture_);
         } else {
             // Nothing drew, so there is no image to copy. Leaving the record
@@ -1715,12 +1725,10 @@ void WebGPUDevice::endFrame() {
             if (it != readbacks_.end()) it->second.status = GfxReadbackStatus::Failed;
         }
     }
-#endif
     if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
 }
 
-#if !defined(__EMSCRIPTEN__)
 ReadbackHandle WebGPUDevice::captureNextFrame(u32 w, u32 h) {
     if (!isDeviceUsable() || !device_ || w == 0 || h == 0) return ReadbackHandle::Invalid;
     if (!surface_readback_) {
@@ -1732,7 +1740,6 @@ ReadbackHandle WebGPUDevice::captureNextFrame(u32 w, u32 h) {
     capture_id_ = allocReadback(w, h);
     return static_cast<ReadbackHandle>(capture_id_);
 }
-#endif
 
 // =============================================================================
 // Readback (async seam: texture → staging copy, resolved when the map lands)
@@ -1800,12 +1807,11 @@ u32 WebGPUDevice::allocReadback(u32 w, u32 h) {
     return id;
 }
 
-void WebGPUDevice::submitReadbackCopy(u32 id, WGPUTexture source) {
+void WebGPUDevice::encodeReadbackCopy(WGPUCommandEncoder encoder, u32 id, WGPUTexture source) {
     auto it = readbacks_.find(id);
-    if (it == readbacks_.end() || !source) return;
+    if (it == readbacks_.end() || !source || !encoder) return;
     ReadbackRec& rec = it->second;
 
-    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
     WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
     src.texture = source;
     WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
@@ -1815,11 +1821,12 @@ void WebGPUDevice::submitReadbackCopy(u32 id, WGPUTexture source) {
     dst.layout.rowsPerImage = rec.height;
     WGPUExtent3D size{rec.width, rec.height, 1};
     wgpuCommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &size);
-    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
-    wgpuCommandEncoderRelease(encoder);
-    wgpuQueueSubmit(queue_, 1, &commands);
-    wgpuCommandBufferRelease(commands);
+}
 
+void WebGPUDevice::mapReadback(u32 id) {
+    auto it = readbacks_.find(id);
+    if (it == readbacks_.end()) return;
+    ReadbackRec& rec = it->second;
     WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
     cb.mode = WGPUCallbackMode_AllowSpontaneous;
     cb.callback = &WebGPUDevice::onReadbackMapped;
@@ -1827,6 +1834,17 @@ void WebGPUDevice::submitReadbackCopy(u32 id, WGPUTexture source) {
     cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
     wgpuBufferMapAsync(rec.buffer, WGPUMapMode_Read, 0,
                        static_cast<u64>(rec.paddedBytesPerRow) * rec.height, cb);
+}
+
+void WebGPUDevice::submitReadbackCopy(u32 id, WGPUTexture source) {
+    if (readbacks_.find(id) == readbacks_.end() || !source) return;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    encodeReadbackCopy(encoder, id, source);
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
+    mapReadback(id);
 }
 
 GfxReadbackStatus WebGPUDevice::pollReadback(ReadbackHandle handle) {

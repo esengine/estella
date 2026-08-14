@@ -854,6 +854,40 @@ u32 renderer_getSnapshotHeight() {
     return g_renderFrame->getSnapshotHeight();
 }
 
+// =============================================================================
+// Frame readback (what was drawn, from the backend that drew it)
+// =============================================================================
+
+/**
+ * Books the next completed frame for readback and returns a handle to poll.
+ * The one way to ask a running engine what is on screen; a host that reads the
+ * page instead gets the display's answer, which is colour managed.
+ */
+u32 renderer_captureFrame(u32 w, u32 h) {
+    auto* device = g_device;
+    if (!device) return 0;
+    return static_cast<u32>(device->captureNextFrame(w, h));
+}
+
+/** 0 = pending (step a frame, poll again), 1 = ready, 2 = failed/unknown. */
+i32 renderer_pollFrameCapture(u32 handle) {
+    auto* device = g_device;
+    if (!device || !handle) return 2;
+    switch (device->pollReadback(static_cast<ReadbackHandle>(handle))) {
+        case GfxReadbackStatus::Pending: return 0;
+        case GfxReadbackStatus::Ready: return 1;
+        default: return 2;
+    }
+}
+
+/** Copies a ready capture into @p dest (w*h*4 bytes, bottom-up RGBA) and releases it. */
+bool renderer_takeFrameCapture(u32 handle, uintptr_t dest, u32 destSize) {
+    auto* device = g_device;
+    if (!device || !handle || !dest) return false;
+    return device->takeReadback(static_cast<ReadbackHandle>(handle),
+                                reinterpret_cast<void*>(dest), static_cast<usize>(destSize));
+}
+
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
     if (!g_renderFrame || w <= 0 || h <= 0) return;
 

@@ -137,6 +137,11 @@ void gl_enableErrorCheck(bool enabled);
 u32 gl_checkErrors(const std::string& context);
 
 void renderer_captureNextFrame();
+
+/** Books the next completed frame for readback; poll + take it. */
+u32 renderer_captureFrame(u32 w, u32 h);
+i32 renderer_pollFrameCapture(u32 handle);
+bool renderer_takeFrameCapture(u32 handle, uintptr_t dest, u32 destSize);
 u32 renderer_getCapturedFrameSize();
 uintptr_t renderer_getCapturedFrameData();
 uintptr_t renderer_getCapturedEntities();

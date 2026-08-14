@@ -180,6 +180,18 @@ export {
     getContextLossGuardInfo,
 } from './render/renderer';
 
+/**
+ * What the engine drew, from the backend that drew it — so a capture is not the
+ * display's opinion of the frame.
+ *
+ * @beta Pre-1.0: the frame-advance callback may become a schedule hook.
+ */
+export {
+    captureFramePixels,
+    canCaptureFramePixels,
+    type FramePixels,
+} from './render/framePixels';
+
 export {
     LayerOrder,
     layerOrderOf,

@@ -180,7 +180,7 @@ bool initRendererInternal(const char* canvasSelector) {
 // hands it over via Module.preinitializedWebGPUDevice; the wasm side stays
 // fully synchronous. @p width/@p height size the canvas swapchain (the SDK
 // passes the canvas backing size it already manages).
-bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height) {
+bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height, bool readback) {
 #ifdef ES_ENABLE_WEBGPU
     if (g_initialized) return true;
 
@@ -191,6 +191,10 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
         return false;
     }
     auto device = makeUnique<WebGPUDevice>(raw);
+    // Before the surface is configured, because the usage is fixed there: a host
+    // that will ask what was drawn (the editor's viewport capture, a pixel gate)
+    // has to say so now.
+    device->setSurfaceReadback(readback);
     if (!device->configureSurface(canvasSelector.c_str(), width, height)) {
         ES_LOG_ERROR("initRendererWebGPU: surface configuration failed for '{}'", canvasSelector);
         return false;
@@ -202,7 +206,7 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
     g_activeContext = &legacyCtx().context();
     return g_activeContext->init(std::move(device));
 #else
-    (void)canvasSelector; (void)width; (void)height;
+    (void)canvasSelector; (void)width; (void)height; (void)readback;
     ES_LOG_ERROR("initRendererWebGPU: this build carries no WebGPU backend (ES_ENABLE_WEBGPU off)");
     return false;
 #endif
@@ -639,6 +643,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_diagnose", &esengine::renderer_diagnose);
 
     emscripten::function("renderer_captureNextFrame", &esengine::renderer_captureNextFrame);
+    emscripten::function("renderer_captureFrame", &esengine::renderer_captureFrame);
+    emscripten::function("renderer_pollFrameCapture", &esengine::renderer_pollFrameCapture);
+    emscripten::function("renderer_takeFrameCapture", &esengine::renderer_takeFrameCapture);
     emscripten::function("renderer_getCapturedFrameSize", &esengine::renderer_getCapturedFrameSize);
     emscripten::function("renderer_getCapturedFrameData", &esengine::renderer_getCapturedFrameData);
     emscripten::function("renderer_getCapturedEntities", &esengine::renderer_getCapturedEntities);

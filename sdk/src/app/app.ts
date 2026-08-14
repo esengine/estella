@@ -1299,7 +1299,13 @@ export class App {
  */
 export type RenderSurfaceSource =
     | { readonly kind: 'gl-context'; readonly handle: number }
-    | { readonly kind: 'webgpu'; readonly canvasSelector?: string }
+    | {
+        readonly kind: 'webgpu';
+        readonly canvasSelector?: string;
+        /** Configure the swapchain so the engine can read its own frames back
+         *  (`captureFrame`). Fixed at surface configuration, hence here. */
+        readonly readback?: boolean;
+    }
     | { readonly kind: 'default' };
 
 export interface WebAppOptions {
@@ -1372,7 +1378,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     switch (surface.kind) {
         case 'webgpu': {
             const size = options?.getViewportSize?.() ?? { width: 800, height: 600 };
-            if (!module.initRendererWebGPU(surface.canvasSelector ?? '#canvas', size.width, size.height)) {
+            if (!module.initRendererWebGPU(
+                surface.canvasSelector ?? '#canvas', size.width, size.height, surface.readback === true)) {
                 throw new Error(
                     'WebGPU renderer initialization failed — the module needs a ' +
                     'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');

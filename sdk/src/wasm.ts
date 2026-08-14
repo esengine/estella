@@ -149,7 +149,7 @@ export interface ESEngineModule {
      * instantiation; '#canvas' resolves to the module's canvas. Returns false
      * when the build carries no WebGPU backend or no device was provided.
      */
-    initRendererWebGPU(canvasSelector: string, width: number, height: number): boolean;
+    initRendererWebGPU(canvasSelector: string, width: number, height: number, readback: boolean): boolean;
     shutdownRenderer(): void;
     /**
      * Select which EstellaContext the bindings route through. Pass null to clear.
@@ -459,6 +459,10 @@ export interface ESEngineModule {
 
     // Frame Capture API
     renderer_captureNextFrame(): void;
+    /** Books the next completed frame for readback; poll + take it (frameCapture.ts). */
+    renderer_captureFrame?(w: number, h: number): number;
+    renderer_pollFrameCapture?(handle: number): number;
+    renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_getCapturedFrameSize(): number;
     renderer_getCapturedFrameData(): number;
     renderer_getCapturedEntities(): number;

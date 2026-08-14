@@ -23,14 +23,12 @@
 export const TIERS = ['pr', 'nightly'];
 
 /**
- * Why the second backend's answer cannot be trusted yet: the two are read by
- * different instruments. GL reports the engine's buffer; WebGPU has no web
- * readback, so the runner captures the composited page — a colour-managed path
- * that reads a painted rgb(0,255,0) as rgb(58,254,32).
+ * What still separates the second backend from the first: a CI runner has no
+ * Dawn adapter, so nothing here runs it. Where an adapter exists, every scene
+ * that declares `webgpu` passes — both backends are read the same way, off the
+ * engine's own buffer.
  */
-export const WEBGPU_GAP = 'no CI adapter; and where one exists the frames are read by capturePage, '
-  + 'which colour-manages them (rgb(0,255,0) captures as rgb(58,254,32)) — the backend needs an '
-  + 'engine-side readback before these ten mean anything';
+export const WEBGPU_GAP = 'no adapter on a CI runner; with one, all 10 pass (`--backend webgpu`)';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
