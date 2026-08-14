@@ -279,6 +279,9 @@ app.whenReady().then(async () => {
     // page origin at its backing size, so the page pixels ARE the frame.
     // Converted to the RGBA bottom-up order of ViewportCapture so both
     // backends share the assertion math below.
+    // NOT the same instrument as GL's: this composite is colour managed, so a
+    // page painted rgb(0,255,0) reads back as rgb(58,254,32) and every colour
+    // assertion carries that shift. Geometry is what it can answer.
     const grabWebGPU = async () => {
       const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
       const bmp = image.toBitmap(); // BGRA, top-down

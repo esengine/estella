@@ -23,13 +23,14 @@
 export const TIERS = ['pr', 'nightly'];
 
 /**
- * What the second backend is worth, measured rather than assumed. CI cannot
- * answer it (Dawn gets no adapter on a runner); the scenes declaring `webgpu`
- * are what a machine with a GPU settles by `--backend webgpu`. The gap that
- * answer reports is the renderer's, not the runner's.
+ * Why the second backend's answer cannot be trusted yet: the two are read by
+ * different instruments. GL reports the engine's buffer; WebGPU has no web
+ * readback, so the runner captures the composited page — a colour-managed path
+ * that reads a painted rgb(0,255,0) as rgb(58,254,32).
  */
-export const WEBGPU_GAP = 'no CI adapter, and on a real GPU 1 of the 10 passes: '
-  + 'a systematic colour shift (pure green reads 58,254,32), and editor-grid and bloom-ldr draw nothing';
+export const WEBGPU_GAP = 'no CI adapter; and where one exists the frames are read by capturePage, '
+  + 'which colour-manages them (rgb(0,255,0) captures as rgb(58,254,32)) — the backend needs an '
+  + 'engine-side readback before these ten mean anything';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
