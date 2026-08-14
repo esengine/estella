@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { cookAssets } from '../electron/cookAssets';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 
 let root: string;
 

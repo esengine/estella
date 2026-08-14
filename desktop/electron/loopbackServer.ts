@@ -25,7 +25,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { isInsideRoot } from './pathSandbox';
+import { isInsideRoot } from '../../pipeline/src/fs/pathSandbox';
 import { httpContentType } from './mimeTypes';
 
 /** Served root (absolute) → its running loopback server + URL. */

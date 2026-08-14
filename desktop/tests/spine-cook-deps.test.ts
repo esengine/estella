@@ -10,8 +10,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { scanAssetDatabase } from '../electron/assetDb';
-import { cookAssets } from '../electron/cookAssets';
+import { scanAssetDatabase } from '../../pipeline/src/assets/assetDb';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 
 let root: string;
 

@@ -9,8 +9,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { cookAssets } from '../electron/cookAssets';
-import { decodePngImage } from '../electron/atlasPacker';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
+import { decodePngImage } from '../../pipeline/src/assets/atlasPacker';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 interface AssetManifest {

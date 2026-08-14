@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildAddressableManifest } from '../electron/addressableManifest';
+import { buildAddressableManifest } from '../../pipeline/src/assets/addressableManifest';
 import type { AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
 
 const SLICED = {

@@ -14,8 +14,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { resolveFfmpeg, transcodeVideoForWasm, videoImportSettings } from '../electron/videoCook';
-import { cookAssets } from '../electron/cookAssets';
+import { resolveFfmpeg, transcodeVideoForWasm, videoImportSettings } from '../../pipeline/src/assets/videoCook';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 
 const execFileAsync = promisify(execFile);
 

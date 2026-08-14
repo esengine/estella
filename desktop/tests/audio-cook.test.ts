@@ -5,7 +5,7 @@
  * chunks) and the WAV→MP3 transcode through the real LAME wasm encoder.
  */
 import { describe, it, expect } from 'vitest';
-import { parseWav, encodeWavToMp3, audioImportSettings } from '../electron/audioCook';
+import { parseWav, encodeWavToMp3, audioImportSettings } from '../../pipeline/src/assets/audioCook';
 
 /** Build a minimal RIFF/WAVE file. */
 function makeWav(opts: {

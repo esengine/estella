@@ -12,7 +12,7 @@
  *        those would make the editor retrigger itself forever.
  */
 import { describe, it, expect } from 'vitest';
-import { isContentDir, isContentFile, isNonContentPath, isPluginSourcePath, isWatchedPath } from '../electron/contentPolicy';
+import { isContentDir, isContentFile, isNonContentPath, isPluginSourcePath, isWatchedPath } from '../../pipeline/src/assets/contentPolicy';
 
 describe('content classification', () => {
   it('excludes dot entries, dependency and build dirs', () => {

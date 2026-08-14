@@ -24,7 +24,7 @@ import {
   META_EXT,
 } from './projectFs';
 import { PROJECT_MANIFEST_FILE, type AcceptanceCriterion } from '../../pipeline/src/project/format';
-import { isInsideRoot } from './pathSandbox';
+import { isInsideRoot } from '../../pipeline/src/fs/pathSandbox';
 import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
@@ -32,8 +32,8 @@ import { buildProjectScripts } from './buildScripts';
 import { buildOpenDataContext } from './buildOpenData';
 import { extractProjectSchemas } from './extractSchemas';
 import { scaffoldScript, type ScriptKind } from './scriptScaffold';
-import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from './assetDb';
-import { cookAssets } from './cookAssets';
+import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from '../../pipeline/src/assets/assetDb';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';

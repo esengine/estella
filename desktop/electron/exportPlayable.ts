@@ -23,7 +23,7 @@ import {
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from './cookAssets';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';

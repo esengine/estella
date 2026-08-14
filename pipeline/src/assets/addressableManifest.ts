@@ -17,8 +17,8 @@
  */
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { deriveManifestRevision, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
-import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../sdk/src/asset/textureImportSettings';
+import { deriveManifestRevision, type AddressableManifest } from '../../../sdk/src/asset/AddressableManifest';
+import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
 
 /** The flat v1.0 cook manifest this reads (see cookAssets `CookManifestEntry`). */
 interface FlatManifest {

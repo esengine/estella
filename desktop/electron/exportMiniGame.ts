@@ -35,8 +35,8 @@ import {
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from './cookAssets';
-import { buildAddressableManifest } from './addressableManifest';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
+import { buildAddressableManifest } from '../../pipeline/src/assets/addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';

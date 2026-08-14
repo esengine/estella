@@ -18,7 +18,7 @@ import {
     updateAssetIndex,
     readCachedAssetIndex,
     type AssetIndex,
-} from '../../electron/assetDb';
+} from '../../../pipeline/src/assets/assetDb';
 import { collectAssetUsagesOfAll } from '../../src/project/assetRefs';
 import { budgeted, calibrate, corpusDir } from './harness';
 

@@ -8,7 +8,7 @@
 // editor; `.esanimator` had no CLI entry, so an imported animator controller
 // never got a `.meta`).
 import { describe, it, expect } from 'vitest';
-import { EXT_TO_TYPE, metaTypeFor } from '../electron/assetMeta';
+import { EXT_TO_TYPE, metaTypeFor } from '../../pipeline/src/assets/assetMeta';
 import {
   EXT_TO_TYPE as SHARED, metaTypeForContent, needsContentType, isProjectPlumbing,
 } from '../../tools/assetMetaTable.js';

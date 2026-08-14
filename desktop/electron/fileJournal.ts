@@ -32,8 +32,8 @@ import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { META_EXT } from './contentPolicy';
-import { resolveInside } from './pathSandbox';
+import { META_EXT } from '../../pipeline/src/assets/contentPolicy';
+import { resolveInside } from '../../pipeline/src/fs/pathSandbox';
 
 const HOLDING_DIR = path.join(tmpdir(), 'estella-agent-journal');
 

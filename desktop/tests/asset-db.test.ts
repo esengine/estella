@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { scanAssetDatabase, type AssetIndex } from '../electron/assetDb';
+import { scanAssetDatabase, type AssetIndex } from '../../pipeline/src/assets/assetDb';
 
 let root: string;
 

@@ -16,7 +16,7 @@
  */
 import { watch, type FSWatcher } from 'node:fs';
 import type { WebContents } from 'electron';
-import { isWatchedPath } from './contentPolicy';
+import { isWatchedPath } from '../../pipeline/src/assets/contentPolicy';
 
 // Our own cache writes (assets.json / schemas.json / scripts.mjs under
 // `.esengine`) MUST be ignored — refreshing on them would loop; contentPolicy's

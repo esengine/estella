@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { assetTypeOf } from '../src/project/assetTypes';
-import { metaTypeFor } from '../electron/assetMeta';
+import { metaTypeFor } from '../../pipeline/src/assets/assetMeta';
 import { importerDefaults, hasImporterSettings } from '../../pipeline/src/project/importSettings';
 
 describe('video asset type', () => {

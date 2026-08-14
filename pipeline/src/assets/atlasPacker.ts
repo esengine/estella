@@ -11,7 +11,7 @@
  * pixel fixtures.
  */
 import { PNG } from 'pngjs';
-import { ShelfPacker } from '../../sdk/src/util/shelfPack';
+import { ShelfPacker } from '../../../sdk/src/util/shelfPack';
 
 export interface AtlasInputImage {
     /** Stable identity (the project-relative texture path). */

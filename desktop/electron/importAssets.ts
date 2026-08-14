@@ -10,10 +10,10 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { isInsideRoot } from './pathSandbox';
+import { isInsideRoot } from '../../pipeline/src/fs/pathSandbox';
 import { resolveInRoot, META_EXT } from './projectFs';
 import { capture } from './fileJournal';
-import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
+import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter.

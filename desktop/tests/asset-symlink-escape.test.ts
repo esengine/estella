@@ -16,8 +16,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { scanAssetDatabase } from '../electron/assetDb';
-import { cookAssets } from '../electron/cookAssets';
+import { scanAssetDatabase } from '../../pipeline/src/assets/assetDb';
+import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 
 const SECRET = 'SECRET-BYTES-NOT-IN-THE-PROJECT';
 const LEAK_UUID = '33333333-3333-4333-8333-333333333333';

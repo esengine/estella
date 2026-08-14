@@ -21,17 +21,17 @@ import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { readTextInRoot } from './projectFs';
-import { isInsideRoot } from './pathSandbox';
+import { readTextInRoot } from '../project/readProject';
+import { isInsideRoot } from '../fs/pathSandbox';
 import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
+import { resolveRelativePath } from '../../../sdk/src/tilemap/tiledPath';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
-import { parseSpineAtlasPages } from '../../sdk/src/spine/atlasPages';
-import { getEditorType } from '../../sdk/src/assetTypes';
+import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
+import { getEditorType } from '../../../sdk/src/assetTypes';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';

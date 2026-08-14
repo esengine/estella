@@ -24,8 +24,8 @@ import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets, loadAssetGroups } from './cookAssets';
-import { buildAddressableManifest } from './addressableManifest';
+import { cookAssets, loadAssetGroups } from '../../pipeline/src/assets/cookAssets';
+import { buildAddressableManifest } from '../../pipeline/src/assets/addressableManifest';
 import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
 import {

@@ -17,8 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HOME = 'desktop/electron/pathSandbox.ts';
-const SCOPE = /^desktop\/(electron|src)\/.*\.tsx?$/;
+const HOME = 'pipeline/src/fs/pathSandbox.ts';
+const SCOPE = /^(desktop\/(electron|src)|pipeline\/src)\/.*\.tsx?$/;
 
 // The two spellings of lexical containment, which is the check that is not one.
 const IDIOMS = [

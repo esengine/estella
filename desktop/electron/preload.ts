@@ -5,8 +5,8 @@ import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntr
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScaffoldScriptResult, ScriptKind } from './scriptScaffold';
-import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
-import type { CookResult } from './cookAssets';
+import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from '../../pipeline/src/assets/assetDb';
+import type { CookResult } from '../../pipeline/src/assets/cookAssets';
 import type { ExportGameResult } from './exportGame';
 import type { RevertResult } from './fileJournal';
 import type {

@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../electron/assetDb';
+import { scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../../pipeline/src/assets/assetDb';
 
 let root: string;
 
