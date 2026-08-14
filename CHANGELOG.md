@@ -14,6 +14,25 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A scene is checked the way a prefab has always been.** A prefab has been
+  validated at every gate it passes since it got a format — editor open, runtime
+  load, cook, CI — while a scene, the document a game ships, was checked nowhere.
+  A repeated entity id made the loader keep whichever entity came last, and every
+  reference to that id landed on the wrong entity with nothing to say so.
+
+  Ids, topology, parent cycles and entity references are now one set of checks
+  both documents are read by; each format adds only what is its own. The loader
+  refuses the two findings it cannot honour and reports the rest, and the CI gate
+  reads every scene in the repo as well as every prefab.
+
+- **Two people editing one scene stop naming the same entity.** A session
+  numbered new entities from the highest id in the file, so two people who opened
+  the same scene both used that number and the merged file had two entities
+  answering to one id. Sessions now start a random distance past it, the way
+  prefabs already mint theirs.
+
 ### Changed
 
 - **A project packages without the editor.** Cooking a project and packaging it —
