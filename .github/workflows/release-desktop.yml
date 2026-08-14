@@ -48,17 +48,31 @@ jobs:
 
       # The release body is the tag's own section of CHANGELOG.md (the release
       # commit lands the section before the tag, so it is always present here).
-      - name: Create the draft release with this version's changelog section
+      #
+      # Existing is not the same as correct, and asking only "does it exist"
+      # is how 0.52.0 published with an EMPTY body: its release had been created
+      # by electron-builder (which names it after package.json's version and
+      # writes no notes) after this job's own draft was deleted mid-run, so the
+      # short-circuit saw a release and left the notes it never wrote. Writing
+      # title and body unconditionally makes this job the author of both no
+      # matter who created the row. `edit` deliberately does not touch --draft:
+      # re-running against an already-published tag must not unpublish it.
+      - name: Create or correct the release with this version's changelog section
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v="${GITHUB_REF_NAME#v}"
           awk -v ver="$v" 'index($0, "## [" ver "]") == 1 {f=1; next} /^## \[/ {if (f) exit} f' CHANGELOG.md > /tmp/notes.md
           grep -q '[^[:space:]]' /tmp/notes.md || echo "See CHANGELOG.md for this release's notes." > /tmp/notes.md
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/notes.md
+          else
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
               --draft --title "$GITHUB_REF_NAME" \
               --notes-file /tmp/notes.md
+          fi
 
   # The engine wasm is platform-independent, so it is compiled ONCE here and
   # shared with the platform packagers as an artifact. This is what the
@@ -452,6 +466,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # One row per tag, checked FIRST because every question below is asked
+          # of "the" release and `gh release view` picks arbitrarily between a
+          # pair. electron-builder creates a release of its own whenever it finds
+          # no draft for the tag, and its concurrent uploads can create two — 0.52.0
+          # ended up with a second, half-filled row that way. Publishing one of a
+          # pair strands the other's assets silently, so stop and let a human pick.
+          rows=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | length")
+          if [ "$rows" -ne 1 ]; then
+            echo "::error::$rows releases carry the tag $GITHUB_REF_NAME — exactly one must"
+            exit 1
+          fi
+
           assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
           echo "$assets"
           missing=""
@@ -460,6 +487,16 @@ jobs:
           done
           if [ -n "$missing" ]; then
             echo "::error::the draft is missing:$missing"
+            exit 1
+          fi
+
+          # The notes are what a reader of the release actually gets, and they are
+          # the one thing here no later job would notice missing: 0.52.0 published
+          # with an empty body and every asset present. The draft job writes it
+          # from CHANGELOG.md, so empty means that job never reached this row.
+          body=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q '.body')
+          if ! printf '%s' "$body" | grep -q '[^[:space:]]'; then
+            echo "::error::the release has no notes — CHANGELOG.md section for $GITHUB_REF_NAME never reached it"
             exit 1
           fi
 
