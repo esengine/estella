@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { SceneData } from 'esengine';
 import { authoredRef, spawnedRef, refKey, refOfLive, sameRef, srcIdOf } from '@/engine/entityRef';
 import { buildOutlinerItems, entityKey } from '@/outliner/OutlinerModel';
+import { mergeLiveTree } from '@/outliner/liveTree';
 import { useSelection } from '@/store/selectionStore';
 
 /** A live tree as the realm reports it: realm handles, `src` only where the
@@ -30,6 +31,9 @@ const liveTree = (rows: Array<{ id: number; src?: number; parent?: number | null
       ...(r.src === undefined ? {} : { src: r.src }),
     })),
   }) as unknown as SceneData;
+
+/** The scene document those rows were loaded from: plain ids, no realm handles. */
+const sceneDoc = (rows: Array<{ id: number; parent?: number | null }>): SceneData => liveTree(rows);
 
 const srcOfLive = (tree: SceneData) => {
   const map = new Map<number, number>();
@@ -94,6 +98,74 @@ describe('the tree of a running world', () => {
     const opened = buildOutlinerItems(tree, { expanded: new Set([entityKey(3)]), refOf });
     expect(opened.map((i) => i.key)).toEqual([entityKey(3), entityKey(4)]);
     expect(opened[1].parentKey).toBe(entityKey(3));
+  });
+});
+
+describe('rows the running world no longer has', () => {
+  it('keeps a destroyed entity in the tree, on the row it was authored as', () => {
+    const live = liveTree([{ id: 900, src: 3 }]); // document row 4 was destroyed
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }, { id: 4 }]));
+    const items = buildOutlinerItems(view.data, { expanded: new Set(), refOf: view.refOf });
+    expect(items.map((i) => i.key)).toEqual([entityKey(3), entityKey(4)]);
+    expect(items[1].kind === 'entity' && view.gone.has(items[1].id)).toBe(true);
+  });
+
+  it('gives a tombstone an id no realm handle can be', () => {
+    // Two id spaces in one array: handle 4 (a bullet) and document row 4 (gone)
+    // are different entities, and one row must not swallow the other.
+    const live = liveTree([{ id: 900, src: 3 }, { id: 4 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }, { id: 4 }]));
+    const ids = (view.data!.entities as Array<{ id: number }>).map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(buildOutlinerItems(view.data, { expanded: new Set(), refOf: view.refOf })).toHaveLength(3);
+  });
+
+  it('answers for a tombstone as the document row it is', () => {
+    const view = mergeLiveTree(liveTree([{ id: 900, src: 3 }]), sceneDoc([{ id: 3 }, { id: 4 }]));
+    const [tomb] = [...view.gone];
+    // Which is what makes every op resolve it through liveIdOf and find nothing.
+    expect(view.refOf(tomb)).toEqual(authoredRef(4));
+  });
+
+  it('nests a tombstone under the parent that survived it', () => {
+    const view = mergeLiveTree(liveTree([{ id: 900, src: 3 }]), sceneDoc([{ id: 3 }, { id: 4, parent: 3 }]));
+    const items = buildOutlinerItems(view.data, { expanded: new Set([entityKey(3)]), refOf: view.refOf });
+    expect(items.map((i) => i.key)).toEqual([entityKey(3), entityKey(4)]);
+    expect(items[1].parentKey).toBe(entityKey(3));
+  });
+
+  it('nests a tombstone under its parent when both are gone', () => {
+    const doc = sceneDoc([{ id: 3 }, { id: 4 }, { id: 5, parent: 4 }]);
+    const view = mergeLiveTree(liveTree([{ id: 900, src: 3 }]), doc);
+    const items = buildOutlinerItems(view.data, { expanded: new Set([entityKey(4)]), refOf: view.refOf });
+    expect(items.map((i) => i.key)).toEqual([entityKey(3), entityKey(4), entityKey(5)]);
+    expect(items[2].parentKey).toBe(entityKey(4));
+  });
+
+  it('leaves a tombstone where the document has it, not at the end', () => {
+    const live = liveTree([{ id: 900, src: 3 }, { id: 901, src: 5 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }, { id: 4 }, { id: 5 }]));
+    const items = buildOutlinerItems(view.data, { expanded: new Set(), refOf: view.refOf });
+    expect(items.map((i) => i.key)).toEqual([entityKey(3), entityKey(4), entityKey(5)]);
+  });
+
+  it('shows no tombstones while nothing of the document is running', () => {
+    // Booting, or a game that moved on to another scene. That is not this scene
+    // with holes in it, and a whole document of tombstones says nothing.
+    const live = liveTree([{ id: 901 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }, { id: 4 }]));
+    expect(view.data).toBe(live);
+    expect(view.gone.size).toBe(0);
+  });
+
+  it('hands back the realm tree itself while every authored row is alive', () => {
+    // Reference identity: a steady game must not rebuild the Outliner every sample.
+    const live = liveTree([{ id: 900, src: 3 }, { id: 901 }]);
+    expect(mergeLiveTree(live, sceneDoc([{ id: 3 }])).data).toBe(live);
+  });
+
+  it('has nothing to show before the realm reports a tree', () => {
+    expect(mergeLiveTree(null, sceneDoc([{ id: 3 }])).data).toBeNull();
   });
 });
 

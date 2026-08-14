@@ -15,6 +15,7 @@ import type React from 'react';
 import { Fragment, memo } from 'react';
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { NodeIcon } from '@/components/icons';
+import { t } from '@/i18n';
 import type { ReactNode } from 'react';
 import type { OutlinerItem } from './OutlinerModel';
 import type { OutlinerColumn, OutlinerColumnContext } from './columns';
@@ -46,6 +47,8 @@ export interface OutlinerRowProps {
   /** The running game made this entity; no document row corresponds to it, and
    *  it is gone on Stop. */
   spawned?: boolean;
+  /** The document has this entity, the running world no longer does. */
+  gone?: boolean;
   /** Keyboard-focus row (shows a focus ring; distinct from selection). */
   cursored?: boolean;
   /** Lowercased substring to highlight in the name (the search bare text). */
@@ -113,8 +116,10 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${props.agentTouched ? ' agent-touched' : ''}` +
         `${props.agentFresh ? ' agent-fresh' : ''}` +
         `${props.agentPeeked ? ' agent-peek' : ''}` +
-        `${props.spawned ? ' spawned' : ''}`
+        `${props.spawned ? ' spawned' : ''}` +
+        `${props.gone ? ' gone' : ''}`
       }
+      title={props.gone ? t('out.goneTip') : undefined}
       style={{ paddingLeft: depth * 14 }}
       role="treeitem"
       aria-selected={selected}

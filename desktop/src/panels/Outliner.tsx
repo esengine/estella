@@ -19,6 +19,7 @@ import { contributedContextRows } from '@/plugins/contextMenus';
 import { VirtualTree } from '@/components/VirtualTree';
 import { t } from '@/i18n';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem, type SortMode } from '@/outliner/OutlinerModel';
+import { mergeLiveTree } from '@/outliner/liveTree';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { useAgent, touchedEntities } from '@/store/AgentStore';
@@ -116,22 +117,25 @@ export function Outliner() {
     () => (engine.status === 'ready' ? (SceneModel.current?.entities.length ?? 0) : 0),
     [engine.status, structRev],
   );
+  // A destroyed enemy leaves the running world, not the scene you are editing:
+  // its row stays, as a tombstone.
+  const liveView = useMemo(() => mergeLiveTree(liveTree, SceneModel.current), [liveTree, structRev]);
   // An authored row keeps the folder it was filed under while the game runs; a
   // spawned one has no document to be filed in, so it collects under Runtime.
   const liveFolderOf = (id: EntityId): string => {
-    const ref = PlayInspect.refOf(id);
+    const ref = liveView.refOf(id);
     return ref.world === 'authored' ? SceneModel.folderOf(ref.src) : RUNTIME_FOLDER;
   };
   const items = useMemo(
     () => {
       if (live) {
-        return buildOutlinerItems(liveTree, {
+        return buildOutlinerItems(liveView.data, {
           expanded,
           query,
           sort: sortMode,
           folderOf: liveFolderOf,
           folders: SceneModel.sceneFolders(),
-          refOf: (id) => PlayInspect.refOf(id),
+          refOf: liveView.refOf,
         });
       }
       return engine.status === 'ready'
@@ -146,7 +150,7 @@ export function Outliner() {
         : [];
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [live, liveTree, engine.status, structRev, expanded, query, sortMode],
+    [live, liveView, engine.status, structRev, expanded, query, sortMode],
   );
   // Keyed on the snapshot REFERENCE, which PlayInspect holds stable unless the
   // tree actually differs — so a steady game rebuilds neither set per sample.
@@ -185,7 +189,7 @@ export function Outliner() {
     () =>
       live
         ? {
-            onToggleVisible: (id, visible) => EntityOps.setVisible(PlayInspect.refOf(id), visible),
+            onToggleVisible: (id, visible) => EntityOps.setVisible(liveView.refOf(id), visible),
             canToggleVisible: (id) => hideable.has(id),
           }
         : {
@@ -193,7 +197,7 @@ export function Outliner() {
             onToggleLock: (id, locked) => SceneCommands.setEntityLocked(id, locked),
             isPrefab: (id) => SceneModel.prefabTag(id) != null,
           },
-    [live, hideable],
+    [live, hideable, liveView],
   );
 
   // A scene swap resets the model ('reset' event). This panel is a persistent dock
@@ -401,7 +405,7 @@ export function Outliner() {
   const expandAll = () =>
     useOutliner.getState().setExpanded(
       live
-        ? collectExpandableKeys(liveTree, { folderOf: liveFolderOf, refOf: (id) => PlayInspect.refOf(id) })
+        ? collectExpandableKeys(liveView.data, { folderOf: liveFolderOf, refOf: liveView.refOf })
         : collectExpandableKeys(SceneModel.current, { folderOf: (id) => SceneModel.folderOf(id), folders: SceneModel.sceneFolders() }),
     );
 
@@ -699,6 +703,7 @@ export function Outliner() {
       agentFresh={!live && it.kind === 'entity' && agentFresh.has(it.id)}
       agentPeeked={!live && it.kind === 'entity' && agentPeeked.includes(it.id)}
       spawned={it.kind === 'entity' && it.ref.world === 'spawned'}
+      gone={live && it.kind === 'entity' && liveView.gone.has(it.id)}
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
       prefabRole={

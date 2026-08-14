@@ -10,6 +10,7 @@ export const outlinerMessages = defineMessages({
     'out.liveWorld': { en: 'Live — edits end at Stop', zh: '运行中 · 改动在停止时结束' },
     'out.waitingGame': { en: 'Waiting for the running game…', zh: '正在等待运行中的游戏…' },
     'out.spawnedTip': { en: 'Spawned by the running game', zh: '由运行中的游戏创建' },
+    'out.goneTip': { en: 'Destroyed — the scene still has it, the running game does not', zh: '已销毁 · 场景里还有它，运行中的游戏里没有了' },
 
     // — Header strip (search / sort / create buttons) —
     // `type:` / `comp:` are literal query tokens (parseQuery grammar) — never translated.

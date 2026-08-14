@@ -125,3 +125,9 @@
 /* A row the game made: nothing in the document answers to it, so it reads as a
    guest — dimmer name, no drag affordance. */
 .row.spawned .rname { color: var(--text-dim); font-style: italic; }
+
+/* A row the game destroyed. Struck through rather than merely dim, which is what
+   a hidden row already reads as. */
+.row.gone .rname { color: var(--text-faint); text-decoration: line-through; }
+.row.gone .ricon { opacity: 0.4; }
+.row.sel.gone .rname { color: rgba(255, 255, 255, 0.7); }
