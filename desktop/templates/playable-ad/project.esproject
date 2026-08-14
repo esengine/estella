@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Playable Ad",
+  "description": "One portrait scene sized for a playable: a tap anywhere calls the CTA, and there is nothing to load.",
+  "tag": "Starter",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 720,
+    "height": 1280
+  },
+  "spineVersion": "none"
+}

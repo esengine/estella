@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "name": "Top-down",
+  "description": "Eight-way movement with a camera that follows: a walled field, a few obstacles, and a character controller that slides along them.",
+  "tag": "Starter",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none",
+  "features": {
+    "physics": {
+      "enabled": true
+    }
+  }
+}

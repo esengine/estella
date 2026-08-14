@@ -1,0 +1,529 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "folders": [
+    "Level"
+  ],
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0,
+            "clearColor": {
+              "r": 0.09,
+              "g": 0.1,
+              "b": 0.12,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Floor",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 1160,
+              "y": 680
+            },
+            "color": {
+              "r": 0.16,
+              "g": 0.18,
+              "b": 0.22,
+              "a": 1
+            },
+            "layer": -10
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 2,
+      "name": "WallTop",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 340,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 1200,
+              "y": 40
+            },
+            "color": {
+              "r": 0.27,
+              "g": 0.3,
+              "b": 0.36,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 6.0,
+              "y": 0.2
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 3,
+      "name": "WallBottom",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -340,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 1200,
+              "y": 40
+            },
+            "color": {
+              "r": 0.27,
+              "g": 0.3,
+              "b": 0.36,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 6.0,
+              "y": 0.2
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 4,
+      "name": "WallLeft",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -580,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 40,
+              "y": 640
+            },
+            "color": {
+              "r": 0.27,
+              "g": 0.3,
+              "b": 0.36,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.2,
+              "y": 3.2
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 5,
+      "name": "WallRight",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 580,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 40,
+              "y": 640
+            },
+            "color": {
+              "r": 0.27,
+              "g": 0.3,
+              "b": 0.36,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.2,
+              "y": 3.2
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 6,
+      "name": "Crate1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -180,
+              "y": 120,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 72,
+              "y": 72
+            },
+            "color": {
+              "r": 0.62,
+              "g": 0.47,
+              "b": 0.27,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.36,
+              "y": 0.36
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 7,
+      "name": "Crate2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 160,
+              "y": -60,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 72,
+              "y": 72
+            },
+            "color": {
+              "r": 0.62,
+              "g": 0.47,
+              "b": 0.27,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.36,
+              "y": 0.36
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 8,
+      "name": "Crate3",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 240,
+              "y": 190,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShapeRenderer",
+          "data": {
+            "shapeType": 2,
+            "cornerRadius": 0,
+            "size": {
+              "x": 72,
+              "y": 72
+            },
+            "color": {
+              "r": 0.62,
+              "g": 0.47,
+              "b": 0.27,
+              "a": 1
+            },
+            "layer": 0
+          }
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.36,
+              "y": 0.36
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        }
+      ],
+      "visible": true,
+      "folder": "Level"
+    },
+    {
+      "id": 9,
+      "name": "Player",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -320,
+              "y": -200,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 36,
+              "y": 36
+            },
+            "texture": "@uuid:2bde6b7d-0dbe-4434-9e30-ed1cd8e3fe82",
+            "color": {
+              "r": 0.35,
+              "g": 0.78,
+              "b": 1.0,
+              "a": 1
+            },
+            "layer": 1
+          }
+        },
+        {
+          "type": "Player",
+          "data": {}
+        },
+        {
+          "type": "RigidBody",
+          "data": {
+            "bodyType": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": {
+              "x": 0.18,
+              "y": 0.18
+            },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        },
+        {
+          "type": "CharacterController",
+          "data": {
+            "maskBits": 65533
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

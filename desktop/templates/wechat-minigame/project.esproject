@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "WeChat Mini Game",
+  "description": "A portrait project sized and configured for the WeChat host — Build ▸ Package targets the mini-game platform.",
+  "tag": "Starter",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 750,
+    "height": 1334
+  },
+  "spineVersion": "none"
+}
