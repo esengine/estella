@@ -63,6 +63,7 @@ function registerAll(ctx: PluginContext): Record<string, { dispose(): void }> {
       build: () => {},
     }),
     assetType: ctx.assets.registerType({ id: 'acme.dialogue', extensions: ['dlg'] }),
+    importer: ctx.assets.registerImporter({ id: 'ldtk', extensions: ['ldtk'], import: () => {} }),
     entityTemplate: ctx.entities.registerTemplate({ id: 'acme.turret', label: 'Turret', components: [] }),
     contextMenu: ctx.contextMenus.register({
       id: 'acme.reveal',
@@ -85,7 +86,7 @@ describe('contribution inventory', () => {
     const kinds = b.contributions().map((c) => c.kind);
     const expected: ContributionKind[] = [
       'command', 'panel', 'setting', 'tool', 'overlay',
-      'inspector', 'assetType', 'entityTemplate', 'contextMenu',
+      'inspector', 'assetType', 'importer', 'entityTemplate', 'contextMenu',
     ];
     // Every kind present, and nothing registered twice.
     expect([...kinds].sort()).toEqual([...expected].sort());
@@ -103,6 +104,8 @@ describe('contribution inventory', () => {
     expect(byKind.get('inspector')?.id).toBe('acme.tools.audit');
     // An asset type has no title of its own; its extensions are the useful label.
     expect(byKind.get('assetType')?.label).toBe('.dlg');
+    // Same for an importer: what it converts is what identifies it in the list.
+    expect(byKind.get('importer')).toMatchObject({ id: 'acme.tools.ldtk', label: '.ldtk' });
     // An overlay has neither — and must NOT fall back to its id, or the panel row
     // prints the same string in the label column and the id column.
     expect(byKind.get('overlay')).toMatchObject({ id: 'acme.gizmo', label: '' });
@@ -117,11 +120,11 @@ describe('contribution inventory', () => {
   it('drops a contribution from the list when it is retracted', () => {
     const b = build();
     const handles = registerAll(b.ctx);
-    expect(b.contributions()).toHaveLength(9);
+    expect(b.contributions()).toHaveLength(10);
 
     handles.panel.dispose();
     const after = b.contributions();
-    expect(after).toHaveLength(8);
+    expect(after).toHaveLength(9);
     expect(after.some((c) => c.kind === 'panel')).toBe(false);
     // The others are untouched — retraction is per contribution, not per plugin.
     expect(after.some((c) => c.kind === 'command')).toBe(true);
@@ -138,6 +141,6 @@ describe('contribution inventory', () => {
     const b = build();
     registerAll(b.ctx);
     b.contributions().length = 0;
-    expect(b.contributions()).toHaveLength(9);
+    expect(b.contributions()).toHaveLength(10);
   });
 });

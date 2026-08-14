@@ -60,6 +60,7 @@ const KIND_LABEL: Record<ContributionKind, MsgKey> = {
   overlay: 'plug.kind.overlay',
   inspector: 'plug.kind.inspector',
   assetType: 'plug.kind.assetType',
+  importer: 'plug.kind.importer',
   entityTemplate: 'plug.kind.entityTemplate',
   contextMenu: 'plug.kind.contextMenu',
   agentTool: 'plug.kind.agentTool',

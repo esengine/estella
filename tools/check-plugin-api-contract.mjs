@@ -23,6 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { importsAnotherModule } from './lib/moduleImports.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -139,7 +140,7 @@ for (const [kind, claims] of [['verdict', VERDICT], ['promise', PROMISES]]) {
  */
 const imports = whole.typings.split('\n')
     .map((l, i) => [i + 1, l])
-    .filter(([, l]) => /^\s*(import\b|export\s+(\*|\{[^}]*\})\s+from\b)/.test(l));
+    .filter(([, l]) => importsAnotherModule(l));
 for (const [line, l] of imports) {
     failures.push(`${SURFACES.typings.path}:${line} imports — the file ships verbatim as the author's .d.ts, so it must stay self-contained`
         + `\n      ${l.trim()}`);

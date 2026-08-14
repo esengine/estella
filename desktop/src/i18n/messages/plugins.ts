@@ -74,6 +74,7 @@ export const pluginMessages = defineMessages({
     'plug.kind.overlay': { en: 'Gizmo', zh: 'Gizmo' },
     'plug.kind.inspector': { en: 'Inspector', zh: '检视器' },
     'plug.kind.assetType': { en: 'Asset type', zh: '资产类型' },
+    'plug.kind.importer': { en: 'Importer', zh: '导入器' },
     'plug.kind.entityTemplate': { en: 'Entity', zh: '实体' },
     'plug.kind.contextMenu': { en: 'Menu item', zh: '菜单项' },
     'plug.kind.agentTool': { en: 'Agent tool', zh: 'Agent 工具' },

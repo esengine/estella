@@ -307,6 +307,31 @@ ctx.tools.activate('acme.measure');
 - `ctx.contextMenus.register(…)` — a row in the Outliner or Content Browser
   right-click menu, gated by the thing that was clicked.
 
+### Importers
+
+An importer turns a file the engine cannot read into assets it can. The editor
+calls it when a claimed file appears or changes, and on **Reimport** in the
+Content Browser:
+
+```typescript
+ctx.assets.registerImporter({
+  id: 'ldtk',                     // becomes acme.level-tools.ldtk
+  extensions: ['ldtk'],
+  async import(path) {
+    const level = JSON.parse(await ctx.fs.readProject(path));
+    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
+  },
+});
+```
+
+What you write is an ordinary project asset, so nothing downstream — the
+registry, the inspector, cooking, the shipped build — learns your format. Declare
+the `fs:project` capability, or there is nowhere to put the output.
+
+Throwing (or rejecting) reports the failure against your plugin in the Output Log
+and leaves the other importers running. A file is never imported twice at once, so
+an import that takes a while cannot be re-entered by the writes it is making.
+
 ### Lending the agent a tool
 
 The built-in agent's entire vocabulary is the tool catalog. A plugin that adds a

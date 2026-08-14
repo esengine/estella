@@ -25,6 +25,7 @@ import { entitySourceRegistry, prefabFromSpecs } from '@/engine/entitySources';
 import { overlayRegistry, viewportProjection } from './overlays';
 import { inspectorRegistry } from './inspector';
 import { contextMenuRegistry } from './contextMenus';
+import { importerRegistry, runImporters } from './importers';
 import { localizePlugin as localize } from './localize';
 import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
@@ -42,7 +43,7 @@ import type { PointerInput as CorePointerInput } from '@/tools/EditorTool';
 import type { PluginManifest, PluginCapability } from './manifest';
 import { agentToolProblem, registerAgentTool, publishAgentTools } from './agentTools';
 import type {
-  AgentToolContribution,
+  AgentToolContribution, AssetImporterContribution,
   AssetTypeContribution, CommandContribution, ContextMenuContribution, Disposable, EditorEvents,
   EditorPlugin, EditorProjectApi, EditorSceneApi, EntityTemplateContribution, FieldValue,
   InspectorContribution, OverlayContribution, PanelContribution, PluginContext,
@@ -197,6 +198,7 @@ export type ContributionKind =
   | 'overlay'
   | 'inspector'
   | 'assetType'
+  | 'importer'
   | 'entityTemplate'
   | 'contextMenu'
   | 'agentTool';
@@ -370,6 +372,28 @@ export function buildPluginContext(
       inspectorRegistry.register(owner, { ...section, id: `${id}.${section.id}` }),
     );
 
+  // A plugin callback that may be async: `guard` catches a throw, and a rejection
+  // is routed back through it so both failure modes reach the same reporting.
+  const guardAsync = async (what: string, fn: () => void | Promise<void>): Promise<void> => {
+    try {
+      await fn();
+    } catch (e) {
+      guard(what, () => { throw e; }, undefined);
+    }
+  };
+
+  const registerImporter = (importer: AssetImporterContribution): Disposable =>
+    noted(
+      'importer',
+      `${id}.${importer.id}`,
+      importer.extensions.map((e) => `.${e}`).join(' '),
+      importerRegistry.register(owner, {
+        id: `${id}.${importer.id}`,
+        extensions: importer.extensions,
+        run: (path) => guardAsync(`import ${path}`, () => importer.import(path)),
+      }),
+    );
+
   const registerAssetType = (type: AssetTypeContribution): Disposable =>
     noted(
       'assetType',
@@ -467,7 +491,11 @@ export function buildPluginContext(
     },
     overlays: { register: registerOverlay },
     inspector: { register: registerInspector },
-    assets: { registerType: registerAssetType },
+    assets: {
+      registerType: registerAssetType,
+      registerImporter,
+      reimport: (path: string) => runImporters([path]),
+    },
     entities: { registerTemplate },
     contextMenus: { register: registerContextMenuItem },
     agentTools: { register: registerAgentToolContribution },

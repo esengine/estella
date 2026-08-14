@@ -284,6 +284,28 @@ ctx.tools.activate('acme.measure');
 - `ctx.contextMenus.register(…)`——大纲或内容浏览器右键菜单里的一行，可按被点击
   的对象决定是否出现。
 
+### 导入器
+
+导入器把引擎读不懂的文件转成它读得懂的资产。被认领的文件出现或改变时，以及在内容
+浏览器里点**重新导入**时，编辑器会调用它：
+
+```typescript
+ctx.assets.registerImporter({
+  id: 'ldtk',                     // 最终是 acme.level-tools.ldtk
+  extensions: ['ldtk'],
+  async import(path) {
+    const level = JSON.parse(await ctx.fs.readProject(path));
+    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
+  },
+});
+```
+
+你写出来的就是普通的项目资产，所以下游的一切——注册表、检查器、cook、发行包——都不
+需要认识你的格式。记得声明 `fs:project` 能力，否则没有地方放输出。
+
+抛异常（或 reject）会把这次失败记在你的插件名下（输出日志里），其余导入器照常运行。
+同一个文件不会被同时导入两次，所以一次耗时较久的导入不会被它自己写出的文件重新触发。
+
 ### 借一个工具给 Agent
 
 内置 Agent 的全部词汇就是工具目录。**插件加了能力却没加工具,等于只给人加了、没给 Agent 加**——所以如果你的插件能烘焙遮蔽,就把它教给 Agent:

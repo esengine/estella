@@ -14,6 +14,7 @@ import { fsRefresh } from './fsRefresh';
 import { projectReplacing } from './projectReplacing';
 import { PlayRealm, PlayRealms } from '../engine/PlayRealm';
 import { pluginPathsChanged, isPluginPath } from '../plugins/init';
+import { hasImporter, runImporters } from '../plugins/importers';
 
 let inited = false;
 let debounce: ReturnType<typeof setTimeout> | null = null;
@@ -28,6 +29,8 @@ let pendingPaths = new Set<string>();
 let sawOverflow = false;
 let pluginDebounce: ReturnType<typeof setTimeout> | null = null;
 let pendingPluginPaths = new Set<string>();
+let importDebounce: ReturnType<typeof setTimeout> | null = null;
+let pendingImports = new Set<string>();
 
 // A project source module under src/ — a change here can alter a project
 // component's field schema, so the inspector must re-extract (esbuild, ~100ms).
@@ -81,6 +84,20 @@ export function initFsWatch(): void {
       fsRefresh.bump();
     }, 60);
 
+    // A file a contributed importer claims appeared or changed → convert it. Its
+    // own window because an import WRITES, and converting on the registry's beat
+    // would race the scan that has to see the output.
+    const importable = paths.filter(hasImporter);
+    if (importable.length > 0) {
+      for (const p of importable) pendingImports.add(p);
+      if (importDebounce) clearTimeout(importDebounce);
+      importDebounce = setTimeout(() => {
+        const batch = [...pendingImports];
+        pendingImports = new Set();
+        void runImporters(batch);
+      }, 200);
+    }
+
     // The open document — a scene, or the prefab being edited in Prefab Mode —
     // changed on disk (external edit, git, build output) → reload it.
     if (ProjectStore.isOpenDocumentPath(paths)) {
@@ -121,12 +138,13 @@ export function initFsWatch(): void {
  *  old project can't flush against the new one. Subscribed to the project swap
  *  below rather than called by the store — the watcher owns this state. */
 function resetFsWatch(): void {
-  for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce, pluginDebounce]) {
+  for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce, pluginDebounce, importDebounce]) {
     if (t) clearTimeout(t);
   }
-  debounce = schemaDebounce = scriptsDebounce = sceneDebounce = pluginDebounce = null;
+  debounce = schemaDebounce = scriptsDebounce = sceneDebounce = pluginDebounce = importDebounce = null;
   pendingPaths = new Set();
   pendingPluginPaths = new Set();
+  pendingImports = new Set();
   sawOverflow = false;
 }
 

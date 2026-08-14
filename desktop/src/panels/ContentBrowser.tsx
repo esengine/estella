@@ -20,6 +20,7 @@ import { formatBytes } from '@/project/sizeBudget';
 import { openAssetOfType } from '@/project/assetOpen';
 import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
+import { hasImporter, runImporters } from '@/plugins/importers';
 import { syncAssetPaths } from '@/project/assetPathSync';
 import { findAssetUsagesOfAll, type AssetUsage } from '@/project/assetUsages';
 import { deleteAssets } from '@/project/deleteAssets';
@@ -1090,6 +1091,9 @@ export function ContentBrowser() {
       ...(ref ? [{ label: t('cb.menuCopyReference'), onClick: () => copy(ref, t('cb.copiedReference')) }] : []),
       ...(entry.isDir ? [] : [{ label: t('cb.menuFindUsages'), onClick: () => setUsagesPath(path) }]),
       { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(path) },
+      // Only where something claims to convert this file — a Reimport that reruns
+      // nothing would be a menu row promising work the editor cannot do.
+      ...(hasImporter(path) ? [{ label: t('cb.menuReimport'), onClick: () => void runImporters([path]) } as MenuItem] : []),
       ...contributedContextRows('content/item', { path }),
       { sep: true },
       { label: t('ui.delete'), danger: true, onClick: () => void remove(selectedAssets.has(path) && selectedAssets.size > 1 ? [...selectedAssets] : [path]) },

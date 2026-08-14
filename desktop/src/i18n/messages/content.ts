@@ -76,6 +76,7 @@ export const contentMessages = defineMessages({
     'cb.menuNewAnimatorController': { en: 'New Animation Controller', zh: '新建动画控制器' },
     'cb.menuNewBehaviorTree': { en: 'New Behavior Tree', zh: '新建行为树' },
     'cb.menuShowInExplorer': { en: 'Show in Explorer', zh: '在资源管理器中显示' },
+    'cb.menuReimport': { en: 'Reimport', zh: '重新导入' },
     'cb.delivery': { en: 'Delivery', zh: '交付方式' },
     'cb.deliveryLocal': { en: 'Local (in package)', zh: '本地（打进包）' },
     'cb.deliverySubpackage': { en: 'Subpackage (on-demand)', zh: '分包（按需）' },

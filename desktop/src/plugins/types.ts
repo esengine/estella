@@ -312,6 +312,25 @@ export interface AssetTypeContribution {
   create?: { label: LocalizedString; run(dir: string): Promise<string | void> | string | void };
 }
 
+// — Asset importers ————————————————————————————————————————————————————————————
+
+/**
+ * Turns a file the engine cannot read into assets it can.
+ *
+ * The editor calls `import` when a claimed file appears or changes, and on a
+ * reimport. Write the result with `ctx.fs.writeProject` (so declare `fs:project`):
+ * it is then an ordinary asset, and nothing downstream learns your format.
+ */
+export interface AssetImporterContribution {
+  /** Namespaced id, e.g. `acme.ldtk`. */
+  id: string;
+  /** Source extensions (lower-case, no dot) this converts. */
+  extensions: readonly string[];
+  /** Convert one source file, project-relative. Throwing (or rejecting) reports
+   *  the failure against your plugin; the other importers still run. */
+  import(path: string): void | Promise<void>;
+}
+
 // — Entity templates ——————————————————————————————————————————————————————————
 
 /** One component of a template: its type, and any non-default field values. */
@@ -547,6 +566,11 @@ export interface PluginContext {
   };
   readonly assets: {
     registerType(type: AssetTypeContribution): Disposable;
+    /** Convert a foreign file into engine assets. See {@link AssetImporterContribution}. */
+    registerImporter(importer: AssetImporterContribution): Disposable;
+    /** Re-run the importers claiming `path` (project-relative), as the Content
+     *  Browser's Reimport does. Resolves when they have finished. */
+    reimport(path: string): Promise<void>;
   };
   readonly entities: {
     registerTemplate(template: EntityTemplateContribution): Disposable;

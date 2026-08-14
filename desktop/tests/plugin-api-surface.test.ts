@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as api from '@/plugins/api';
+import { importsAnotherModule } from '../../tools/lib/moduleImports.mjs';
 
 const TYPES_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/plugins/types.ts');
 const source = readFileSync(TYPES_FILE, 'utf8');
@@ -33,10 +34,18 @@ describe('plugin API surface', () => {
   });
 
   it('keeps types.ts import-free so the shipped .d.ts stands alone', () => {
+    // The push gate refuses the same thing, through this same predicate — two
+    // regexes for one rule is how one of them ends up accepting what the other
+    // refuses (a method named `import(` was exactly that).
     const imports = source
       .split('\n')
-      .filter((line) => /^\s*import\b/.test(line) && !line.trim().startsWith('*'));
+      .filter((line) => importsAnotherModule(line) && !line.trim().startsWith('*'));
     expect(imports, 'types.ts must not import anything (it ships as standalone typings)').toEqual([]);
+    for (const line of ["import x from 'y';", "import{a}from'y'", 'import * as y from "y"', "import 'y'",
+      '  import type { A } from "y"', "export * from './x'", "export { a } from './x'"]) {
+      expect(importsAnotherModule(line), `${line} must count as an import`).toBe(true);
+    }
+    expect(importsAnotherModule('  import(path: string): void;')).toBe(false);
   });
 
   it('exposes definePlugin as an identity function', () => {
