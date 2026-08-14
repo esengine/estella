@@ -2234,6 +2234,20 @@ export function Viewport() {
             />
           ))}
         </div>
+        {/* The grid switch, where the docked toolbar's snap menu cannot reach: the
+            gizmos work on the running game, so what they snap to has to be sayable
+            there. The increments stay in that menu. */}
+        {playInViewport && inspectPlay && (
+          <div className="ov-cluster ov-cluster--v">
+            <OvTool
+              icon={Magnet}
+              toggle
+              label={`${t('vp.gridSnap')}  (${snapping ? snapStep : t('vp.snapOff')})`}
+              active={snapping}
+              onClick={() => useEditorStore.setState({ snapping: !snapping })}
+            />
+          </div>
+        )}
       </div>
 
       {/* The engine canvas mounts here; pointer events drive pick + transform + pan. */}

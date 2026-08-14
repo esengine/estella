@@ -81,9 +81,17 @@ describe('while playing', () => {
     EntityOps.setVisible(authoredRef(3), false);
     EntityOps.moveToPoint(authoredRef(3), { canvas: { x: 0.5, y: 0.25 } }, 'x');
     expect(PlayRealm.setVisible).toHaveBeenCalledWith(900, false);
-    expect(PlayRealm.dragTo).toHaveBeenCalledWith(900, 0.5, 0.25, 'x');
+    expect(PlayRealm.dragTo).toHaveBeenCalledWith(900, 0.5, 0.25, 'x', undefined);
     expect(SceneCommands.setEntityVisible).not.toHaveBeenCalled();
     expect(SceneCommands.setEntityXY).not.toHaveBeenCalled();
+  });
+
+  it('hands the grid to the side that can resolve it', () => {
+    // A grid step is world units; the canvas point is not. Snapping in the editor
+    // would need the game's camera, which is exactly what it does not have.
+    playingWith([{ live: 900, src: 3 }]);
+    EntityOps.moveToPoint(authoredRef(3), { canvas: { x: 0.5, y: 0.25 }, snap: 32 });
+    expect(PlayRealm.dragTo).toHaveBeenCalledWith(900, 0.5, 0.25, undefined, 32);
   });
 
   it('refuses a write to something the running world destroyed', () => {

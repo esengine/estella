@@ -389,8 +389,8 @@ export class PlayRealmInstance {
 
   /** Drag a running entity's origin to a canvas point (reverts on Stop). Fire and
    *  forget: the next snapshot is the confirmation, at the rate the overlay draws. */
-  dragTo(entityId: number, x: number, y: number, axis?: 'x' | 'y'): void {
-    this.post({ type: 'estella:play:dragTo', entityId, x, y, ...(axis ? { axis } : {}) });
+  dragTo(entityId: number, x: number, y: number, axis?: 'x' | 'y', snap?: number): void {
+    this.post({ type: 'estella:play:dragTo', entityId, x, y, ...(axis ? { axis } : {}), ...(snap ? { snap } : {}) });
   }
 
   /** Turn / resize a running entity by a relative amount (reverts on Stop). */

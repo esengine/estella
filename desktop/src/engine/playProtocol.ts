@@ -18,7 +18,7 @@ import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides
  * compares it against its own and refuses a mismatch (P1) rather than failing
  * obscurely on a shape it doesn't understand. Bump on any incompatible message change.
  */
-export const PLAY_PROTOCOL_VERSION = 6;
+export const PLAY_PROTOCOL_VERSION = 7;
 
 /**
  * The handshake check: `null` if the realm's reported protocol version is compatible
@@ -225,9 +225,10 @@ export type PlayOutbound =
    *
    * A drag is a screen-space gesture, so it is sent as one; the conversion to a
    * world position, and to the parent-local write a Transform holds, happens
-   * where the camera is. The axis lock resolves after it, in world space.
+   * where the camera is. The axis lock resolves after it, in world space — and
+   * so does `snap`, a grid in world units the resolved point lands on.
    */
-  | { type: 'estella:play:dragTo'; entityId: number; x: number; y: number; axis?: 'x' | 'y' }
+  | { type: 'estella:play:dragTo'; entityId: number; x: number; y: number; axis?: 'x' | 'y'; snap?: number }
   /**
    * Turn or resize a running entity by a RELATIVE amount.
    *

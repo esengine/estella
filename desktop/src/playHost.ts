@@ -20,7 +20,7 @@ import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility, CanvasPoint, PlayOverlayBox } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
-import { pointInOBB, rankPickCandidates, worldToLocal2D, turnQuat2D, scaleVecBy, type PickCandidate } from '@/engine/viewportMath';
+import { pointInOBB, rankPickCandidates, worldToLocal2D, turnQuat2D, scaleVecBy, snapTo, type PickCandidate } from '@/engine/viewportMath';
 import {
   inspectEntity, findEntities, readResources, readSystems,
   type Realm, type EntityFilter,
@@ -300,7 +300,7 @@ function transformBy(world: App['world'], entity: number, rotateBy?: number, sca
  * parent-local, so a parented entity's world target is re-expressed in its
  * parent's live world frame — the same rule the editor's own move obeys.
  */
-function dragTo(world: App['world'], entity: number, nx: number, ny: number, axis?: 'x' | 'y'): void {
+function dragTo(world: App['world'], entity: number, nx: number, ny: number, axis?: 'x' | 'y', snap?: number): void {
   const view = app?.getResource(CameraView);
   const transformDef = getComponent('Transform');
   const parentDef = getComponent('Parent');
@@ -312,10 +312,10 @@ function dragTo(world: App['world'], entity: number, nx: number, ny: number, axi
   const gl = denormalizePoint(nx, ny);
   const target = view.screenToWorld(gl.x, gl.y, z);
   if (!target) return;
-  // The lock resolves HERE, in world space, so a rotated camera cannot turn
-  // "along X" into a diagonal.
-  const wantX = axis === 'y' ? t.worldPosition.x : target.x;
-  const wantY = axis === 'x' ? t.worldPosition.y : target.y;
+  // The lock and the grid resolve HERE, in world space, so a rotated camera
+  // cannot turn "along X" into a diagonal, nor a zoom change what a grid step is.
+  const wantX = axis === 'y' ? t.worldPosition.x : snapTo(target.x, snap ?? 0);
+  const wantY = axis === 'x' ? t.worldPosition.y : snapTo(target.y, snap ?? 0);
 
   // `position` is parent-local, so the world target is re-expressed in the
   // parent's live frame — through the same inverse-TRS the editor's own move
@@ -1145,7 +1145,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       }
       break;
     case 'estella:play:dragTo':
-      if (app && data.entityId != null) dragTo(app.world, data.entityId, data.x, data.y, data.axis);
+      if (app && data.entityId != null) dragTo(app.world, data.entityId, data.x, data.y, data.axis, data.snap);
       break;
     case 'estella:play:transformBy':
       if (app && data.entityId != null) transformBy(app.world, data.entityId, data.rotateBy, data.scaleBy);

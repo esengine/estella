@@ -24,6 +24,7 @@ import { PlayRealm } from '@/engine/PlayRealm';
 import { EntityOps } from '@/engine/entityOps';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
+import { snapTo, quatAngleZ2D } from '@/engine/viewportMath';
 import type { CanvasPoint, PlayOverlayBox } from '@/engine/playProtocol';
 
 /** Half-size of the origin handle, in CSS px. */
@@ -75,8 +76,13 @@ export function PlayOverlay({ interactive }: Props) {
     /** Pointer angle / distance about the origin when the gesture began (px). */
     startAngle: number;
     startDist: number;
-    lastAngle: number;
-    lastDist: number;
+    /** The live rotation / scale the gesture started from — what a snap grid is
+     *  measured from, since the grid is the RESULT's, not the gesture's. */
+    startRot: number;
+    startScale: number;
+    /** Turn / factor already sent, so each message carries only the step left. */
+    sentTurn: number;
+    sentScale: number;
   } | null>(null);
 
   useEffect(() => {
@@ -118,6 +124,8 @@ export function PlayOverlay({ interactive }: Props) {
     const anchor = overlay?.origin;
     const onIt = anchor != null && (data?.grab != null || axis != null || grabbed(overlay!, anchor, p, size));
     const polar = polarOf(p);
+    const live = PlayInspect.liveIdOf(selectedRef);
+    const t = live == null ? {} : PlayInspect.componentData(live, 'Transform');
     drag.current = {
       dx: anchor ? anchor.x - p.x : 0,
       dy: anchor ? anchor.y - p.y : 0,
@@ -127,8 +135,10 @@ export function PlayOverlay({ interactive }: Props) {
       from: { x: e.clientX, y: e.clientY },
       startAngle: polar.angle,
       startDist: polar.dist,
-      lastAngle: polar.angle,
-      lastDist: polar.dist,
+      startRot: quatAngleZ2D(t.rotation as { z?: number; w?: number } | undefined),
+      startScale: (t.scale as { x?: number } | undefined)?.x ?? 1,
+      sentTurn: 0,
+      sentScale: 1,
     };
   };
 
@@ -140,21 +150,34 @@ export function PlayOverlay({ interactive }: Props) {
       d.moved = true;
     }
     const p = pointOf(e);
+    const ed = useEditorStore.getState();
     if (tool === 'rotate' || tool === 'scale') {
-      // Sent as the step since the last event, so the realm composes rather than
-      // needing a gesture-start value it was never told.
+      // Measured from the gesture start and sent as the step still owed, so the
+      // realm goes on composing while the total lands where the grid says. A
+      // per-event step could not: each one would be snapped away to nothing.
       const { angle, dist } = polarOf(p);
       if (tool === 'rotate') {
-        EntityOps.turnBy(selectedRef, angle - d.lastAngle);
-      } else if (d.lastDist > 1) {
-        const k = Math.max(0.05, dist / d.lastDist);
-        EntityOps.resizeBy(selectedRef, { x: k, y: k });
+        const turned = angle - d.startAngle;
+        const want = ed.snapping
+          ? snapTo(d.startRot + turned, (ed.snapAngle * Math.PI) / 180) - d.startRot
+          : turned;
+        EntityOps.turnBy(selectedRef, want - d.sentTurn);
+        d.sentTurn = want;
+      } else if (d.startDist > 1) {
+        const f = dist / d.startDist;
+        const want = Math.max(0.01, ed.snapping && d.startScale
+          ? snapTo(d.startScale * f, ed.snapScale) / d.startScale
+          : f);
+        EntityOps.resizeBy(selectedRef, { x: want / d.sentScale, y: want / d.sentScale });
+        d.sentScale = want;
       }
-      d.lastAngle = angle;
-      d.lastDist = dist;
       return;
     }
-    EntityOps.moveToPoint(selectedRef, { canvas: { x: p.x + d.dx, y: p.y + d.dy } }, d.axis);
+    EntityOps.moveToPoint(
+      selectedRef,
+      { canvas: { x: p.x + d.dx, y: p.y + d.dy }, snap: ed.snapping ? ed.snapStep : 0 },
+      d.axis,
+    );
   };
 
   const onPointerUp = (e: React.PointerEvent) => {

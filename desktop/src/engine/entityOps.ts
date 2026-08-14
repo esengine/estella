@@ -77,13 +77,19 @@ export const EntityOps = {
    *
    * Each world is given the point in the space it can answer in: the editor
    * projects its own viewport and writes world x/y, the realm is handed a point
-   * on its canvas. Neither reimplements the other's projection.
+   * on its canvas. Neither reimplements the other's projection. `snap` travels
+   * with a canvas point for the same reason the axis lock does: both resolve in
+   * world units, which only the side holding the camera has.
    */
-  moveToPoint(ref: EntityRef, point: { world?: { x: number; y: number }; canvas?: { x: number; y: number } }, axis?: 'x' | 'y'): OpWorld {
+  moveToPoint(
+    ref: EntityRef,
+    point: { world?: { x: number; y: number }; canvas?: { x: number; y: number }; snap?: number },
+    axis?: 'x' | 'y',
+  ): OpWorld {
     if (liveNow()) {
       const live = PlayInspect.liveIdOf(ref);
       if (live == null || !point.canvas) return null;
-      PlayRealm.dragTo(live, point.canvas.x, point.canvas.y, axis);
+      PlayRealm.dragTo(live, point.canvas.x, point.canvas.y, axis, point.snap);
       PlayEdits.record(ref, 'Transform', 'position');
       return 'live';
     }
