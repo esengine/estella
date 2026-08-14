@@ -9,7 +9,7 @@
  *  sameness is the point (see docs/REARCH_STEAM.md §6.0). */
 /**
  * Every platform a runtime TEMPLATE is published for. Distinct from the export
- * target vocabulary in desktop/src/project/platforms.ts, which spells the three
+ * target vocabulary in pipeline/src/project/platforms.ts, which spells the three
  * desktop OSes as one `desktop` target — the two shared the name `NativePlatform`,
  * and every layer above hand-narrowed this one back to the mobile pair.
  */

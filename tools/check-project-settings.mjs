@@ -10,7 +10,7 @@
  * export each restate the list of settings by hand. It looked right in Play and
  * shipped wrong, which is the one failure this file exists to make impossible.
  *
- * So the derivation lives once (desktop/src/project/runtimeConfig.ts) and this
+ * So the derivation lives once (pipeline/src/project/runtimeConfig.ts) and this
  * checks that every field of it is actually carried by each consumer:
  *
  *   parse     the manifest reader (format.ts) has a branch for the feature — that
@@ -31,8 +31,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 
-const RUNTIME_CONFIG = 'desktop/src/project/runtimeConfig.ts';
-const FORMAT = 'desktop/src/project/format.ts';
+const RUNTIME_CONFIG = 'pipeline/src/project/runtimeConfig.ts';
+const FORMAT = 'pipeline/src/project/format.ts';
 const STORE = 'desktop/src/project/ProjectStore.ts';
 
 /**
