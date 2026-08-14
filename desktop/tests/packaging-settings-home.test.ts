@@ -13,7 +13,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import '@/settings';
 import { settingsRegistry } from '@/settings/registry';
 import { ProjectStore } from '@/project/ProjectStore';
-import { BUILTIN_PLATFORMS } from '@/project/platforms';
+import { BUILTIN_PLATFORMS } from '../../pipeline/src/project/platforms';
 import { platformLabel, unlabeledBuiltins } from '@/project/platformLabels';
 import type { EnumSetting, ObjectListSetting } from '@/settings/types';
 

@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   collectSubsystems, subsystemGapWarnings, targetGaps, SUBSYSTEM_CMAKE_FLAG, type Subsystem,
-} from '../src/project/targetSupport';
+} from '../../pipeline/src/project/targetSupport';
 import { exportGame } from '../electron/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

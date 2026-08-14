@@ -16,7 +16,7 @@ import { AssetRegistry } from '@/project/AssetRegistry';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, baseName, TYPE_CODE } from '@/project/assetMeta';
-import { formatBytes } from '@/project/sizeBudget';
+import { formatBytes } from '../../../pipeline/src/project/sizeBudget';
 import { openAssetOfType } from '@/project/assetOpen';
 import { assetTypeRegistry } from '@/project/assetTypes';
 import { contributedContextRows } from '@/plugins/contextMenus';
@@ -39,7 +39,7 @@ import { ASSET_GROUP_MODES, type AssetGroupMode } from 'esengine';
 import { onAssetReveal } from '@/project/assetReveal';
 import { fsRefresh } from '@/project/fsRefresh';
 import { t, type MsgKey } from '@/i18n';
-import type { DirEntry } from '@/project/format';
+import type { DirEntry } from '../../../pipeline/src/project/format';
 import type { AssetType } from '@/types';
 
 const TILE_MIN = 64;

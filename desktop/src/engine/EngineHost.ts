@@ -26,7 +26,7 @@ import { loadEditorDragonBones, editorDragonBonesManager } from './dragonBonesLo
 import type { DragonBonesManager } from 'esengine/dragonbones';
 import { checkEngineBuild } from './EngineGuard';
 import { bootProfiler } from './bootProfiler';
-import { PROJECT_MANIFEST_FILE } from '@/project/format';
+import { PROJECT_MANIFEST_FILE } from '../../../pipeline/src/project/format';
 import type { ReadonlyWorldT, WorldT } from './schema';
 
 // Scene the editor opens on boot (placeholder until a project/open-scene flow exists).

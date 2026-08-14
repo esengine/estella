@@ -31,7 +31,7 @@
 import { loadEsbuild } from './esbuildRuntime';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
-} from '../src/project/runtimeConfig';
+} from '../../pipeline/src/project/runtimeConfig';
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';

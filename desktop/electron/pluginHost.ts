@@ -34,7 +34,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
 import { validateManifest, type PluginManifest } from '../src/plugins/manifest';
-import { PROJECT_PLUGIN_REL } from '../src/plugins/paths';
+import { PROJECT_PLUGIN_REL } from '../../pipeline/src/project/pluginPaths';
 import { PROJECT_PLATFORM_DIR, platformTrustId } from './platformCatalog';
 
 /** Where a project keeps its own plugins (sibling of `.esengine/platforms/`),

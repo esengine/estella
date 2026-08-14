@@ -12,7 +12,7 @@
  *        A project's own platform is not here (only the project knows its name);
  *        callers pass the label the profile declared, and the id is the floor.
  */
-import { BUILTIN_PLATFORMS, type ExportPlatform } from '@/project/platforms';
+import { BUILTIN_PLATFORMS, type ExportPlatform } from '../../../pipeline/src/project/platforms';
 import { t } from '@/i18n';
 
 const BUILTIN_LABEL: Record<string, string> = {

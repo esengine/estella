@@ -21,7 +21,7 @@ import path from 'node:path';
 import {
   summarizeBuildFiles, bucketIndexFrom, kindOf, measureBuild, collectBuildFiles,
 } from '../electron/sizeReport';
-import { resolveSizeBudgets, evaluateSizeBudget, formatBytes, PROJECT_BUDGET_NOTE } from '../src/project/sizeBudget';
+import { resolveSizeBudgets, evaluateSizeBudget, formatBytes, PROJECT_BUDGET_NOTE } from '../../pipeline/src/project/sizeBudget';
 
 const MB = 1024 * 1024;
 

@@ -15,7 +15,7 @@
 import { writeFile, mkdir, rm, stat, readdir, cp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { WORKSPACE_DIR } from '../src/project/format';
+import { WORKSPACE_DIR } from '../../pipeline/src/project/format';
 import { resolveInRoot } from './projectFs';
 
 const AUTOSAVE_SUBDIR = 'autosave';

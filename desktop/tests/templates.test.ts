@@ -5,7 +5,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseManifest, resolveLayout, resolveScripts, isTransientProjectPath, PROJECT_MANIFEST_FILE } from '@/project/format';
+import { parseManifest, resolveLayout, resolveScripts, isTransientProjectPath, PROJECT_MANIFEST_FILE } from '../../pipeline/src/project/format';
 import { scaffoldProjectFiles, npmPackageName } from '../electron/projectScaffold';
 
 // The bundled starter templates (shipped to resources/templates by

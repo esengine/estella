@@ -16,7 +16,7 @@ import {
   parseManifest,
   type RecentEntry,
   type TemplateEntry,
-} from '../src/project/format';
+} from '../../pipeline/src/project/format';
 import { scaffoldProjectFiles } from './projectScaffold';
 
 type StoredRecent = Pick<RecentEntry, 'name' | 'root' | 'openedAt'>;

@@ -10,7 +10,7 @@
  *        simulator here.)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { runtimeConfigOf } from '@/project/runtimeConfig';
+import { runtimeConfigOf } from '../../pipeline/src/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';

@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  The pipeline's public surface: what a project IS, and what turning one
+ *        into a build needs. Every consumer — the editor, the command line, CI —
+ *        comes through here, so there is one answer rather than one per host.
+ */
+export * from './project/format';
+export * from './project/platforms';
+export * from './project/runtimeConfig';
+export * from './project/sizeBudget';
+export * from './project/targetSupport';
+export * from './project/importSettings';
+export * from './project/pluginPaths';

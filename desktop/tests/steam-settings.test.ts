@@ -8,7 +8,7 @@
  * the depot ids the project had. That is the whole reason these setters exist.
  */
 import { describe, it, expect } from 'vitest';
-import { parseManifest, type SteamPackaging } from '@/project/format';
+import { parseManifest, type SteamPackaging } from '../../pipeline/src/project/format';
 
 /** The merge, as the store performs it, over a plain object. */
 function mergeSteam(prev: SteamPackaging | undefined, patch: Partial<SteamPackaging>): SteamPackaging | undefined {

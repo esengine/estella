@@ -23,7 +23,7 @@
  */
 import { writeFile, readFile, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { WORKSPACE_DIR } from '../../src/project/format';
+import { WORKSPACE_DIR } from '../../../pipeline/src/project/format';
 import type { AgentEvent } from './types';
 
 const AGENT_SUBDIR = 'agent';

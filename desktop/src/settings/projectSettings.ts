@@ -14,7 +14,7 @@ import { rgbaToHex8 } from '@/components/ColorControl';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { useEditorMode } from '@/store/editorModeStore';
-import { SORTING_LAYER_COUNT, type ScreenOrientation, type CameraScaleMode, type ScreenPreset } from '@/project/format';
+import { SORTING_LAYER_COUNT, type ScreenOrientation, type CameraScaleMode, type ScreenPreset } from '../../../pipeline/src/project/format';
 import { t } from '@/i18n';
 
 /** Where a desktop build goes. A channel, not a platform — see

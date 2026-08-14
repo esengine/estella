@@ -21,7 +21,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pluginIdProblem } from '../src/plugins/manifest';
-import { PLUGIN_TYPES_DIR } from '../src/plugins/paths';
+import { PLUGIN_TYPES_DIR } from '../../pipeline/src/project/pluginPaths';
 
 /** Sample contributions the scaffold can write into the entry file. */
 export type ScaffoldContribution = 'command' | 'panel' | 'inspector' | 'overlay' | 'tool';

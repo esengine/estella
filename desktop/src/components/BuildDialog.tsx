@@ -33,12 +33,12 @@ import {
   Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
   Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Apple, Package, TriangleAlert, Plus,
 } from 'lucide-react';
-import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
+import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '../../../pipeline/src/project/platforms';
 import { platformLabel } from '@/project/platformLabels';
 import type { PlayableNetworkOption } from '../../electron/platformCatalog';
 import type { TemplatePlatform } from '../../electron/nativeTemplates';
 import type { BuildSizeReport } from '../../electron/sizeReport';
-import { formatBytes } from '@/project/sizeBudget';
+import { formatBytes } from '../../../pipeline/src/project/sizeBudget';
 import { BuildSizePanel } from '@/components/BuildSizePanel';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
@@ -48,7 +48,7 @@ import { Group as SettingsGroup, groupByGroup } from '@/components/SettingsRow';
 import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
 import { ProjectStore } from '@/project/ProjectStore';
-import { cookOptionsOf } from '@/project/runtimeConfig';
+import { cookOptionsOf } from '../../../pipeline/src/project/runtimeConfig';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { t } from '@/i18n';

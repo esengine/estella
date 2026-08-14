@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { assetTypeOf } from '../src/project/assetTypes';
 import { metaTypeFor } from '../electron/assetMeta';
-import { importerDefaults, hasImporterSettings } from '../src/project/assetImporter';
+import { importerDefaults, hasImporterSettings } from '../../pipeline/src/project/importSettings';
 
 describe('video asset type', () => {
   it('classifies video containers as "video" in the content browser', () => {

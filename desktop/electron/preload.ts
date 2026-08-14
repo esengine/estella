@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry, ExportPlatform } from '../src/project/format';
+import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry, ExportPlatform } from '../../pipeline/src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScaffoldScriptResult, ScriptKind } from './scriptScaffold';

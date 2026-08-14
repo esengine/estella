@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { playHostAspectStyle, targetScreenLabel } from '@/mode/TargetScreen';
 import { deviceDims, screenPresets, screenPresetById, RESOLUTION_PRESETS } from '@/mode/resolutionPresets';
-import { parseManifest } from '@/project/format';
+import { parseManifest } from '../../pipeline/src/project/format';
 
 describe('play host sizing', () => {
   it('leaves the host unconstrained for the `design` sentinel', () => {

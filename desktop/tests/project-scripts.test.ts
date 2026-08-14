@@ -14,7 +14,7 @@ import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { parseManifest, resolveScripts, DEFAULT_SCRIPTS } from '../src/project/format';
+import { parseManifest, resolveScripts, DEFAULT_SCRIPTS } from '../../pipeline/src/project/format';
 import { extractProjectSchemas } from '../electron/extractSchemas';
 
 const EXAMPLES = fileURLToPath(new URL('../../examples', import.meta.url));

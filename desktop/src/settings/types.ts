@@ -11,7 +11,7 @@
  *  - `effect` — for store-owned settings, push the value to runtime on set + on
  *               hydrate (CSS variable, engine resource, …). Persisted by the store.
  */
-import type { ExportPlatform } from '@/project/platforms';
+import type { ExportPlatform } from '../../../pipeline/src/project/platforms';
 
 /** Where a setting lives / persists. editor → per-user (localStorage). */
 export type SettingScope = 'editor' | 'project';

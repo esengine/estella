@@ -6,7 +6,7 @@
  *        can't disagree. `.meta` sidecars and dot entries are pipeline/plumbing, not
  *        content. Pure (no I/O) → unit-testable.
  */
-import { PROJECT_PLUGIN_REL } from '../src/plugins/paths';
+import { PROJECT_PLUGIN_REL } from '../../pipeline/src/project/pluginPaths';
 
 /** Sidecar suffix carrying an asset's uuid/type/importer (see assetDb). */
 export const META_EXT = '.meta';

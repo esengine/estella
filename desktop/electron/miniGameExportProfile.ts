@@ -12,7 +12,7 @@
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
 import { WECHAT_MODULE_BUILD_TARGET } from './sideModuleScan';
-import type { SizeBudget } from '../src/project/sizeBudget';
+import type { SizeBudget } from '../../pipeline/src/project/sizeBudget';
 
 /**
  * A mini-game vendor's id. Open on purpose: the value is identity — the cook's

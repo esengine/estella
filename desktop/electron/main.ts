@@ -23,7 +23,7 @@ import {
   resolveInRoot,
   META_EXT,
 } from './projectFs';
-import { PROJECT_MANIFEST_FILE, type AcceptanceCriterion } from '../src/project/format';
+import { PROJECT_MANIFEST_FILE, type AcceptanceCriterion } from '../../pipeline/src/project/format';
 import { isInsideRoot } from './pathSandbox';
 import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
@@ -42,7 +42,7 @@ import {
   removeNativeTemplate, downloadNativeTemplate, type TemplatePlatform,
 } from './nativeTemplates';
 import { isTemplatePlatform } from '../../build-tools/utils/nativeTemplate.js';
-import { DESKTOP_OSES } from '../src/project/platforms';
+import { DESKTOP_OSES } from '../../pipeline/src/project/platforms';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
@@ -82,9 +82,9 @@ import {
   listPlayableNetworks, loadPlayableProfile,
   type PlatformRuntimeDirs, type ProjectPlatformKind,
 } from './platformCatalog';
-import { resolveLayout, resolveScripts, resolveOrientation, resolveAppId, type ExportPlatform } from '../src/project/format';
-import { runtimeConfigOf } from '../src/project/runtimeConfig';
-import type { WorkspaceState } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation, resolveAppId, type ExportPlatform } from '../../pipeline/src/project/format';
+import { runtimeConfigOf } from '../../pipeline/src/project/runtimeConfig';
+import type { WorkspaceState } from '../../pipeline/src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
 // Renderer) has an adapter to acquire. Without it navigator.gpu has no adapter and

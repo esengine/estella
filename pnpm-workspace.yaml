@@ -1,5 +1,6 @@
 packages:
   - 'sdk'
+  - 'pipeline'
   - 'desktop'
   - 'plugins/*'
 onlyBuiltDependencies:

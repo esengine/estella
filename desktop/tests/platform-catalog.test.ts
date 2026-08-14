@@ -17,7 +17,7 @@ import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR,
   listPlayableNetworks, loadPlayableProfile,
 } from '../electron/platformCatalog';
-import { BUILTIN_PLATFORMS } from '../src/project/platforms';
+import { BUILTIN_PLATFORMS } from '../../pipeline/src/project/platforms';
 
 let root: string;
 let webDir: string;

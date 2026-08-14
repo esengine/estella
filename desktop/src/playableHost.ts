@@ -16,7 +16,7 @@ import {
 } from 'esengine';
 import type { SceneData, EmbeddedSideModuleRegistry } from 'esengine';
 import type { ESEngineModule as EngineModule } from 'esengine/wasm';
-import type { PackagedRuntimeFields } from '@/project/runtimeConfig';
+import type { PackagedRuntimeFields } from '../../pipeline/src/project/runtimeConfig';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the

@@ -22,7 +22,7 @@ import {
   type OpenedProject,
   type WorkspaceState,
   type DirEntry,
-} from '../src/project/format';
+} from '../../pipeline/src/project/format';
 import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
 import { resolveInside } from './pathSandbox';
 import { capture } from './fileJournal';

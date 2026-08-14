@@ -25,7 +25,7 @@ import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba,
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
-import { readTextureCookSettings } from '../src/project/assetImporter';
+import { readTextureCookSettings } from '../../pipeline/src/project/importSettings';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../sdk/src/asset/contentHash';

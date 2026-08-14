@@ -120,7 +120,7 @@ async function loadProjectFormat() {
         // into one module: a headless export that derived the project's settings by
         // hand would be a second answer to what a project MEANS.
         stdin: {
-            contents: "export * from './src/project/format';\nexport * from './src/project/runtimeConfig';\n",
+            contents: "export * from '../pipeline/src/project/format';\nexport * from '../pipeline/src/project/runtimeConfig';\n",
             resolveDir: DESKTOP,
             sourcefile: 'projectFormat.ts',
             loader: 'ts',

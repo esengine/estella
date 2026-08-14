@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, runtimeConfigOf,
-} from '@/project/runtimeConfig';
+} from '../../pipeline/src/project/runtimeConfig';
 
 describe('runtimeConfigOf', () => {
   it('answers with the engine defaults for a project that declares nothing', () => {

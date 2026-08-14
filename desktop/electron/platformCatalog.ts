@@ -30,7 +30,7 @@ import {
   BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
   type PlayableAdProfile,
 } from './playableAdProfile';
-import { BUILTIN_PLATFORMS, DESKTOP_OSES, desktopTemplateFor, type PlatformPrereq } from '../src/project/platforms';
+import { BUILTIN_PLATFORMS, DESKTOP_OSES, desktopTemplateFor, type PlatformPrereq } from '../../pipeline/src/project/platforms';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';

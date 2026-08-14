@@ -30,7 +30,7 @@ import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
-} from '../src/project/runtimeConfig';
+} from '../../pipeline/src/project/runtimeConfig';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
@@ -49,12 +49,12 @@ import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
-import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../src/project/platforms';
-import type { DesktopPackaging, SteamPackaging } from '../src/project/format';
-import type { SizeBudget } from '../src/project/sizeBudget';
+import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../../pipeline/src/project/platforms';
+import type { DesktopPackaging, SteamPackaging } from '../../pipeline/src/project/format';
+import type { SizeBudget } from '../../pipeline/src/project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
-import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
+import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../../pipeline/src/project/targetSupport';
 export type { ExportPlatform };
 
 /**

@@ -8,13 +8,12 @@
  *        from a `.meta` block, and dotted keys (sliceBorder.*) round-trip nested.
  */
 import { describe, it, expect } from 'vitest';
+import { buildImporterComponent, applyImporterEdit } from '../src/project/assetImporter';
 import {
   importerDefaults,
-  buildImporterComponent,
-  applyImporterEdit,
   hasImporterSettings,
   readTextureCookSettings,
-} from '../src/project/assetImporter';
+} from '../../pipeline/src/project/importSettings';
 
 describe('importerDefaults (import-time .meta)', () => {
   it('reproduces the texture defaults (incl. nested 9-slice)', () => {

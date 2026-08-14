@@ -26,7 +26,7 @@ import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { makeZip, zipTree, listZip, readZip, extractZip } from '../../build-tools/utils/zip.js';
 import { validateManifest, resolveLocalized, type PluginManifest } from '../src/plugins/manifest';
-import { PLUGIN_TYPES_DIR } from '../src/plugins/paths';
+import { PLUGIN_TYPES_DIR } from '../../pipeline/src/project/pluginPaths';
 
 /** The extension, spelled once. */
 export const PLUGIN_PACKAGE_EXT = 'esplugin';

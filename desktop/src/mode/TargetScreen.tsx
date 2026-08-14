@@ -20,7 +20,7 @@ import { OvDropdown, DdCheck, DdRadio } from '@/components/OverlayMenu';
 import { useEditorMode } from '@/store/editorModeStore';
 import { screenPresets, screenPresetById, deviceDims } from '@/mode/resolutionPresets';
 import { ProjectStore } from '@/project/ProjectStore';
-import type { ScreenPreset as ProjectScreenPreset } from '@/project/format';
+import type { ScreenPreset as ProjectScreenPreset } from '../../../pipeline/src/project/format';
 
 /** The open project's declared screens, reactively. */
 export function useProjectScreenPresets(): ProjectScreenPreset[] | undefined {

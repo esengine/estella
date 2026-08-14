@@ -16,7 +16,7 @@
  * criterion with neither is refused rather than recorded as passing.
  */
 import type { KernelDeps } from './types';
-import type { AcceptanceCriterion } from '../../src/project/format';
+import type { AcceptanceCriterion } from '../../../pipeline/src/project/format';
 
 /**
  * One claim, and the thing that settles it. The project's standing claims are

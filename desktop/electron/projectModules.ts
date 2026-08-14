@@ -36,7 +36,7 @@
 import { readFile, readdir, cp, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
+import { isNativePlatform, type ExportPlatform } from '../../pipeline/src/project/platforms';
 
 /** Where a project keeps them. */
 export const PROJECT_MODULES_DIR = path.join('.esengine', 'modules');

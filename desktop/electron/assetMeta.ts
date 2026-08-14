@@ -14,7 +14,7 @@ import { writeFile, open } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { META_EXT } from './contentPolicy';
-import { importerDefaults } from '../src/project/assetImporter';
+import { importerDefaults } from '../../pipeline/src/project/importSettings';
 import {
   EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES,
 } from '../../tools/assetMetaTable.js';

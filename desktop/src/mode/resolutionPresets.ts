@@ -9,7 +9,7 @@
  *        orientation toggle swaps them at render time.
  */
 import { t } from '@/i18n';
-import type { ScreenPreset as ProjectScreenPreset } from '@/project/format';
+import type { ScreenPreset as ProjectScreenPreset } from '../../../pipeline/src/project/format';
 
 /** The built-in ids. Not a closed set: a project may declare its own screens, so
  *  anything holding a selection types it as `string`. */

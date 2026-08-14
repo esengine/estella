@@ -6,7 +6,7 @@
  *        that invalid values are dropped/clamped.
  */
 import { describe, it, expect } from 'vitest';
-import { parseManifest } from '../src/project/format';
+import { parseManifest } from '../../pipeline/src/project/format';
 
 describe('parseManifest — physics', () => {
   it('parses the full physics world config', () => {

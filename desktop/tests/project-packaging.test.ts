@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseManifest, resolveOrientation, orientationFromDesignResolution } from '../src/project/format';
+import { parseManifest, resolveOrientation, orientationFromDesignResolution } from '../../pipeline/src/project/format';
 
 describe('parseManifest — packaging', () => {
   it('parses a valid packaging section', () => {

@@ -7,7 +7,7 @@
  *        disappears entirely.
  */
 import { describe, it, expect } from 'vitest';
-import { parseManifest } from '../src/project/format';
+import { parseManifest } from '../../pipeline/src/project/format';
 
 describe('parseManifest — features.ui', () => {
   it("keeps theme 'light'; dark/junk = absence", () => {

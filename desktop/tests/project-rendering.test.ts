@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseManifest, cameraScaleModeValue, resolveScreenFit, trimSortingLayers, SORTING_LAYER_COUNT,
-} from '../src/project/format';
+} from '../../pipeline/src/project/format';
 
 describe('parseManifest — rendering.colorSpace', () => {
   it("keeps 'linear'", () => {

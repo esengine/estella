@@ -12,7 +12,7 @@
  * that tests can drive without a project.
  */
 import { ProjectStore } from '@/project/ProjectStore';
-import { PROJECT_PLUGIN_REL, PLUGIN_TYPES_FILE } from './paths';
+import { PROJECT_PLUGIN_REL, PLUGIN_TYPES_FILE } from '../../../pipeline/src/project/pluginPaths';
 import { PluginHost } from './PluginHost';
 // The public type surface, as TEXT. types.ts is types-only and import-free
 // precisely so it doubles as the `.d.ts` plugin authors compile against — shipping

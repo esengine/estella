@@ -47,7 +47,8 @@ export const GATES = [
   // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },
   { id: 'api-surface-dts', run: 'node tools/api-surface.mjs --check-dts' },
-  // The editor imports `esengine` — it reads dist, not the SDK's sources.
+  // Both read `esengine` from dist, and the editor reads the pipeline.
+  { id: 'tsc-pipeline', run: 'pnpm --filter @estella/pipeline exec tsc --noEmit' },
   { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit' },
   // The shipped plugins type-check against the editor's LIVE plugin API surface
   // (types.ts, the file authors are handed), so a change to it that no plugin
@@ -56,6 +57,9 @@ export const GATES = [
   { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test' },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
+  // Same shape of rule, other direction: what builds a project may not need the
+  // process that edits one.
+  { id: 'pipeline-boundary', run: 'node tools/check-pipeline-boundary.mjs' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },

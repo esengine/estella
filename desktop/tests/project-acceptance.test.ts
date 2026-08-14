@@ -8,7 +8,7 @@
  * silently never run, while the file said they were there.
  */
 import { describe, it, expect } from 'vitest';
-import { parseManifest } from '@/project/format';
+import { parseManifest } from '../../pipeline/src/project/format';
 
 const project = (acceptance: unknown) =>
   parseManifest({ formatVersion: '1', name: 'Platformer', acceptance });

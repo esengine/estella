@@ -9,7 +9,7 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Toaster } from '@/components/Toaster';
 import { t } from '@/i18n';
-import type { RecentEntry, TemplateEntry } from '@/project/format';
+import type { RecentEntry, TemplateEntry } from '../../../pipeline/src/project/format';
 import { version } from '../../package.json';
 
 // Project browser shown before a project is open. A hub layout — persistent top
