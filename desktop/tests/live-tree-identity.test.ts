@@ -12,8 +12,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { SceneData } from 'esengine';
 import { authoredRef, spawnedRef, refKey, refOfLive, sameRef, srcIdOf } from '@/engine/entityRef';
-import { buildOutlinerItems, entityKey } from '@/outliner/OutlinerModel';
-import { mergeLiveTree } from '@/outliner/liveTree';
+import { buildOutlinerItems, entityKey, folderKey } from '@/outliner/OutlinerModel';
+import { mergeLiveTree, revealKeys } from '@/outliner/liveTree';
 import { useSelection } from '@/store/selectionStore';
 
 /** A live tree as the realm reports it: realm handles, `src` only where the
@@ -166,6 +166,35 @@ describe('rows the running world no longer has', () => {
 
   it('has nothing to show before the realm reports a tree', () => {
     expect(mergeLiveTree(null, sceneDoc([{ id: 3 }])).data).toBeNull();
+  });
+});
+
+describe('finding a row again after a pick', () => {
+  const RUNTIME = 'Runtime';
+
+  it('climbs the running world to a row the document never had', () => {
+    // A bullet picked in the running game: its ancestors are realm handles up to
+    // the authored row it was spawned under, whose key is the document's.
+    const live = liveTree([{ id: 900, src: 3 }, { id: 901, parent: 900 }, { id: 902, parent: 901 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }]));
+    expect(revealKeys(view, spawnedRef(902), () => '')).toEqual([refKey(spawnedRef(901)), entityKey(3)]);
+  });
+
+  it('opens the folder a spawned root is collected in', () => {
+    const live = liveTree([{ id: 900, src: 3 }, { id: 901 }, { id: 902, parent: 901 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }]));
+    expect(revealKeys(view, spawnedRef(902), () => RUNTIME)).toEqual([refKey(spawnedRef(901)), folderKey(RUNTIME)]);
+  });
+
+  it('climbs an authored row by the keys the document tree uses', () => {
+    const live = liveTree([{ id: 900, src: 3 }, { id: 901, src: 4, parent: 900 }]);
+    const view = mergeLiveTree(live, sceneDoc([{ id: 3 }, { id: 4, parent: 3 }]));
+    expect(revealKeys(view, authoredRef(4), () => 'Enemies')).toEqual([entityKey(3), folderKey('Enemies')]);
+  });
+
+  it('has nothing to open for a row this tree does not have', () => {
+    const view = mergeLiveTree(liveTree([{ id: 900, src: 3 }]), sceneDoc([{ id: 3 }]));
+    expect(revealKeys(view, spawnedRef(901), () => '')).toEqual([]);
   });
 });
 

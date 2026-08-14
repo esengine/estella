@@ -19,7 +19,7 @@ import { contributedContextRows } from '@/plugins/contextMenus';
 import { VirtualTree } from '@/components/VirtualTree';
 import { t } from '@/i18n';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem, type SortMode } from '@/outliner/OutlinerModel';
-import { mergeLiveTree } from '@/outliner/liveTree';
+import { mergeLiveTree, revealKeys } from '@/outliner/liveTree';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { useAgent, touchedEntities } from '@/store/AgentStore';
@@ -249,9 +249,13 @@ export function Outliner() {
       scrollToIndex(idx);
     } else if (expandedSel.current !== selKey) {
       expandedSel.current = selKey; // attempt expansion once (avoids a loop when filtered out)
-      if (selectedId != null) useOutliner.getState().revealEntity(selectedId);
+      // Whichever tree is showing answers where the row hangs: a spawned one has
+      // no document row to climb, and its ancestors are keyed by realm handle.
+      if (live && selectedRef) useOutliner.getState().expand(revealKeys(liveView, selectedRef, liveFolderOf));
+      else if (selectedId != null) useOutliner.getState().revealEntity(selectedId);
     }
-  }, [selKey, selectedId, items]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selKey, selectedId, items, live, liveView]);
 
   // — Keyboard navigation (↑↓ move · ←→ collapse/expand/jump · Enter toggle · F2/Del) —
   const cursorItem = (): OutlinerItem | null => items.find((i) => i.key === cursor) ?? null;
