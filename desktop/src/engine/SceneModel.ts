@@ -37,6 +37,18 @@ export type ModelEvent =
 
 type Listener = (ev: ModelEvent) => void;
 
+/**
+ * Where a session starts allocating: a random distance past the highest id in
+ * the file, so two people editing the same scene do not both name their first
+ * new entity the same thing. An empty scene starts at 1 — no other version of it
+ * exists to merge with.
+ */
+const ID_SESSION_SPREAD = 0x10000;
+function firstIdAfter(maxId: number): number {
+  if (maxId === 0) return 1;
+  return maxId + 1 + Math.floor(Math.random() * ID_SESSION_SPREAD);
+}
+
 /** A removed entity plus where it sat — everything an exact restore needs. */
 export interface RemovedEntity {
   entity: SceneEntity;
@@ -125,7 +137,7 @@ export class SceneModelImpl {
     this.entityIndex_ = new Map(loaded.entities.map((e) => [e.id, e]));
     let maxId = 0;
     for (const e of loaded.entities) if (e.id > maxId) maxId = e.id;
-    this.nextSourceId = maxId + 1;
+    this.nextSourceId = firstIdAfter(maxId);
     for (const [sourceId, runtime] of entityMap) {
       this.sourceToRuntime.set(sourceId, runtime);
       this.runtimeToSource.set(runtime, sourceId);
