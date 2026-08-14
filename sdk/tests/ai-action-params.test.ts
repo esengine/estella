@@ -16,6 +16,7 @@ import {
     type AiParams,
 } from '../src/ai/fsm/registry';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
+import { aiRegistry, registerAction, type AiContext } from '../src/ai/fsm/AiContext';
 
 const PAIR: AiParamDef[] = [
     { name: 'controller', type: 'enum' },
@@ -110,5 +111,31 @@ describe('a registered action sees both shapes, whichever the caller has', () =>
         expect(reg.getActionParams('ui.setPage')).toEqual(PAIR);
         expect(reg.getActionSeparator('ui.setPage')).toBe(':');
         expect(reg.getActionParams('unknown')).toEqual([]);
+    });
+});
+
+describe('the public registerAction', () => {
+    const bb = new Blackboard();
+    const ctx = {} as AiContext;
+
+    it('takes a declaration, so a game action reaches the same typed controls', () => {
+        let seen: number | undefined;
+        registerAction('test.award', {
+            params: [{ name: 'amount', type: 'number' }],
+            run: (_ctx, _bb, _arg, params) => { seen = params?.amount as number; },
+        });
+
+        expect(aiRegistry.getActionParams('test.award')).toEqual([{ name: 'amount', type: 'number' }]);
+        invokeAction(aiRegistry, 'test.award', ctx, bb, { arg: '25' });
+        expect(seen).toBe(25);
+    });
+
+    it('still takes a bare function', () => {
+        let seen: string | undefined;
+        registerAction('test.plain', (_ctx, _bb, arg) => { seen = arg; });
+
+        expect(aiRegistry.getActionParams('test.plain')).toEqual([]);
+        invokeAction(aiRegistry, 'test.plain', ctx, bb, { arg: 'raw' });
+        expect(seen).toBe('raw');
     });
 });

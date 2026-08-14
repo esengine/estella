@@ -10599,7 +10599,7 @@ PrefabsPlugin
 
 ## registerAction — function @experimental
 ```
-(name: string, fn: AiAction<AiContext>): void
+(name: string, fn: AiAction<AiContext> | AiActionSpec<AiContext>): void
 ```
 
 ## registerAnimatorController — function @experimental

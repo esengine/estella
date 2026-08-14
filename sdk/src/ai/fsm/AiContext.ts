@@ -16,7 +16,7 @@ import type { World } from '../../ecs/world';
 import type { CommandsInstance } from '../../ecs/commands';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import type { Blackboard } from './Blackboard';
-import { AiRegistry, type AiAction, type AiCondition } from './registry';
+import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition } from './registry';
 
 export interface AiContext {
     /** The agent entity this action/condition runs for. */
@@ -44,8 +44,12 @@ export interface AiContext {
  */
 export const aiRegistry = new AiRegistry<AiContext>();
 
-/** Register a named action referenced by FSM state hooks / BT leaves. */
-export function registerAction(name: string, fn: AiAction<AiContext>): void {
+/**
+ * Register a named action referenced by FSM state hooks / BT leaves / event
+ * rows — as a bare function, or with declared parameters, which is what turns
+ * an editor text box into typed controls.
+ */
+export function registerAction(name: string, fn: AiAction<AiContext> | AiActionSpec<AiContext>): void {
     aiRegistry.registerAction(name, fn);
 }
 
