@@ -79,9 +79,10 @@ That directory is what the exporter bundles separately and names in `game.json`.
 Without it the host has no context, and `available` says so rather than a board
 failing on a device.
 
-In the editor's play mode there is no context at all, so the board draws against
-invented friends — the same renderer that ships, on an offscreen canvas. It is
-`rehearse()`, the editor calls it for you, and a real host always wins.
+In the editor's play mode there is no host, so the editor stands in for one: it
+runs **that same file** against an offscreen canvas and invented friends. So the
+board you look at while building the panel is the one that ships, and nothing
+here needs a rehearsal mode of its own.
 
 ## Built on the public API
 

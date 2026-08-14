@@ -17,6 +17,8 @@
 import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
+import { extendPlatform } from 'esengine';
+import { rehearseOpenData, type OpenDataRehearsal } from './engine/openDataRehearsal';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility, CanvasPoint, PlayOverlayBox } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
@@ -439,6 +441,7 @@ type InitMessage = Extract<PlayOutbound, { type: 'estella:play:init' }>;
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const wasmBase = new URL('./wasm/', import.meta.url).href; // sibling of host.js
 const bundleUrl = new URL('../cache/scripts.mjs', import.meta.url).href; // project bundle
+const openDataUrl = new URL('../cache/open-data.js', import.meta.url).href; // the project's context, if it has one
 const projectBase = new URL('../../', import.meta.url).href.replace(/\/$/, ''); // project root — assets live here
 
 function resize(): void {
@@ -450,6 +453,7 @@ window.addEventListener('resize', resize);
 resize();
 
 let app: App | null = null;
+let openData: OpenDataRehearsal | null = null;
 let engineModule: ESEngineModule | null = null;
 let glHandle = 0;
 /** The init snapshot of the current play session, replayed on hot-reload: a code
@@ -558,8 +562,34 @@ function startFrameHeartbeat(): void {
 const HEARTBEAT_MS = 500;
 let heartbeat: number | null = null;
 
+/**
+ * Stand in for the host's open data context, where the project has one.
+ *
+ * Installed as PLATFORM capabilities rather than handed to a service, so any
+ * leaderboard sees the seam it would see on a device. Once per session, as a
+ * host's context outlives a hot reload.
+ */
+async function ensureOpenDataContext(): Promise<void> {
+  if (openData !== null) return;
+  const res = await fetch(openDataUrl).catch(() => null);
+  if (!res?.ok) return; // no context in this project — and none on a device either
+  try {
+    openData = rehearseOpenData(await res.text());
+  } catch (e) {
+    console.warn('[play] the open data context threw while starting:', e);
+    return;
+  }
+  const rehearsal = openData;
+  extendPlatform({
+    openDataCanvas: () => rehearsal.canvas as never,
+    openDataPostMessage: (message: Record<string, unknown>) => { rehearsal.post(message); },
+    setCloudKeyValues: (entries: Readonly<Record<string, string>>) => { rehearsal.write(entries); return true; },
+  });
+}
+
 async function buildAppAndRun(msg: InitMessage): Promise<void> {
   const module = engineModule!;
+  await ensureOpenDataContext();
   app = createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
     ySortLayers: msg.ySortLayers,
@@ -613,11 +643,6 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     achievements: msg.achievements,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
-
-  // A friends board, rehearsed as the ad above is. AFTER the runtime init, which
-  // is where the game's own plugins install — and by NAME, because a board is a
-  // package the editor does not depend on.
-  (app.getResourceByName('Leaderboard') as { rehearse?(): void } | undefined)?.rehearse?.();
 
   // Realm-local debug handle for automation/diagnostics (mirrors the headless
   // host's __estellaHeadless): the editor can't reach into this OOPIF except by

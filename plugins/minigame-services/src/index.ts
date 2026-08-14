@@ -16,9 +16,8 @@ import { Leaderboard, LeaderboardAPI } from './leaderboard';
 export { Share, ShareAPI, type ShareCard } from './share';
 export { Payment, PaymentAPI, type PaymentRequest, type PaymentFailure } from './payment';
 export {
-  Leaderboard, LeaderboardAPI, createLocalLeaderboard,
-  type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
-  type LeaderboardStyle, type LocalLeaderboardOptions, type CloudPlayer,
+  Leaderboard, LeaderboardAPI,
+  type LeaderboardOptions, type LeaderboardScope, type LeaderboardStyle,
 } from './leaderboard';
 
 export class MiniGameServicesPlugin implements Plugin {

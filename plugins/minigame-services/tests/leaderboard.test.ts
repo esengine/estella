@@ -20,7 +20,6 @@ const host = {
   sent: [] as Record<string, unknown>[],
   cloud: [] as Array<Readonly<Record<string, string>>>,
   canvas: null as unknown,
-  makeCanvas: (w: number, h: number) => ({ width: w, height: h, getContext: () => null }) as unknown,
 };
 
 vi.mock('esengine', () => ({
@@ -39,13 +38,12 @@ vi.mock('esengine', () => ({
     return true;
   },
   platformDevicePixelRatio: () => host.dpr,
-  platformCreateCanvas: (w: number, h: number) => host.makeCanvas(w, h),
   // No WebGL in a unit test — which is itself worth exercising: the service must
   // stay usable and just report texture 0.
   createCanvasTexture: () => null,
 }));
 
-const { LeaderboardAPI, createLocalLeaderboard } = await import('../src/leaderboard');
+const { LeaderboardAPI } = await import('../src/leaderboard');
 
 beforeEach(() => {
   host.context = true;
@@ -54,7 +52,6 @@ beforeEach(() => {
   host.sent = [];
   host.cloud = [];
   host.canvas = { width: 512, height: 512, getContext: () => null };
-  host.makeCanvas = (w: number, h: number) => ({ width: w, height: h, getContext: () => null });
 });
 
 const api = () => new LeaderboardAPI(() => null);
@@ -138,100 +135,6 @@ describe('show / hide', () => {
     l.show();
     l.hide();
     expect(host.sent[1]).toEqual({ kind: 'hide' });
-  });
-});
-
-/**
- * The rehearsal board. Its value is entirely in being the SAME renderer that
- * ships inside the open data context — an approximation drawn here would tell
- * you nothing about what appears on a phone — so what these pin is that it
- * really does draw, and that it stands in for the platform everywhere.
- */
-describe('the local board', () => {
-  /** A 2D context that records what was drawn on it. */
-  function recordingCanvas() {
-    const calls: Array<{ op: string; args: unknown[] }> = [];
-    const ctx = new Proxy({} as Record<string, unknown>, {
-      get: (_t, prop: string) => {
-        if (prop === 'measureText') return (s: string) => ({ width: s.length * 7 });
-        if (prop === 'canvas') return undefined;
-        return (...args: unknown[]) => { calls.push({ op: prop, args }); };
-      },
-      set: () => true,
-    });
-    return { calls, ctx };
-  }
-
-  /** 1:1 and wide enough that nothing is clipped: the clipping rule has its own
-   *  test, and letting it fire here would only make this one assert the wrong thing. */
-  function drawnOn() {
-    const rec = recordingCanvas();
-    host.dpr = 1;
-    host.makeCanvas = (w: number, h: number) => ({ width: w, height: h, getContext: () => rec.ctx });
-    return rec;
-  }
-
-  it('draws the rows through the same renderer that ships', () => {
-    const rec = drawnOn();
-    host.context = false; // no open data context at all — the provider is the whole board
-    const l = api();
-    l.setProvider(createLocalLeaderboard({ width: 640 }));
-    expect(l.available).toBe(true);
-    expect(l.show()).toBe(true);
-
-    const texts = rec.calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]));
-    // The invented friends, ranked — and the one who never played is absent,
-    // the same rule the shipped board follows because it IS that board.
-    expect(texts).toContain('Player One');
-    expect(texts).toContain('18400');
-    expect(texts).not.toContain('Never Played');
-  });
-
-  it('re-keys the invented rows to whatever key the game asked for', () => {
-    // A game with its own key would otherwise rehearse against an empty board
-    // and reasonably read that as "this is broken".
-    const rec = drawnOn();
-    const l = api();
-    l.setProvider(createLocalLeaderboard({ width: 640 }));
-    l.show({ key: 'my.own.key' });
-    expect(rec.calls.some((c) => c.op === 'fillText' && c.args[0] === '18400')).toBe(true);
-  });
-
-  it('answers `available` where the platform cannot', () => {
-    host.context = false;
-    const l = api();
-    expect(l.available).toBe(false);
-    l.setProvider(createLocalLeaderboard());
-    expect(l.available).toBe(true);
-    l.setProvider(null);
-    expect(l.available).toBe(false);
-  });
-
-  it('rehearses only where the host has nothing, and only once', () => {
-    const l = api();
-    l.rehearse();
-    // A real context wins: nothing was installed, so `show` still goes to it.
-    l.show();
-    expect(host.sent).toHaveLength(1);
-
-    host.context = false;
-    const off = api();
-    off.rehearse();
-    expect(off.available).toBe(true);
-    const board = off;
-    off.rehearse(); // second call keeps the first board
-    expect(board.available).toBe(true);
-  });
-
-  it('clears the board when the provider is swapped out', () => {
-    const l = api();
-    l.setProvider(createLocalLeaderboard());
-    l.show();
-    expect(l.visible).toBe(true);
-    // The canvas behind the texture is going away with the provider.
-    l.setProvider(null);
-    expect(l.visible).toBe(false);
-    expect(l.texture).toBe(0);
   });
 });
 

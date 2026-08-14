@@ -130,6 +130,9 @@ export type { PlatformShareOptions, PlatformPaymentRequest } from './platform/ty
 
 export {
     getPlatform,
+    // A host may add what its platform cannot answer — the editor's play realm
+    // stands in for an open data context this way.
+    extendPlatform,
     getPlatformType,
     isPlatformInitialized,
     isWeChat,

@@ -31,13 +31,21 @@ published separately; it ships inside the editor.
   `open-data/` directory was getting the engine's board by default; it needs that
   file to keep one.
 
+- **Play mode rehearses the open data CONTEXT, not a leaderboard.** It runs the
+  project's own `open-data/index.ts` against an offscreen canvas and invented
+  friends, and answers through the platform capabilities a device would — so any
+  board is rehearsed, `submit()` reaches it, and a context that does not compile
+  refuses Play the way it refuses an export. The stand-in that used to live in
+  the service (`setProvider`, `createLocalLeaderboard`) is gone with it.
+
 ### Added
 
 - **Host capabilities a package can reach**: `platformCanOpenData`,
   `platformOpenDataPostMessage`, `platformOpenDataCanvas`,
   `platformSetCloudKeyValues`, `platformCreateCanvas`, `platformDevicePixelRatio`,
   and `createCanvasTexture` — a texture whose content is a canvas something else
-  draws on. Exported because a shipped plugin holds each one up.
+  draws on. Exported because a shipped plugin holds each one up. Plus
+  `extendPlatform`, for a host that can answer what its adapter cannot.
 
 - **A plugin can put a button on the editor's activity bar** —
   `ctx.activityBar.register({ id, title, icon, run })`, with the glyph as the

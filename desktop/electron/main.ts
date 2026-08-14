@@ -29,6 +29,7 @@ import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
+import { buildOpenDataContext } from './buildOpenData';
 import { extractProjectSchemas } from './extractSchemas';
 import { scaffoldScript, type ScriptKind } from './scriptScaffold';
 import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from './assetDb';
@@ -1375,6 +1376,21 @@ ipcMain.handle('project:preparePlayRealm', async () => {
       hostPath: '',
       errors: [`"${main}" did not compile, so the game would run without its own code:`, ...scripts.errors],
       warnings: scripts.warnings,
+      sideModules: [],
+    };
+  }
+  // The open data context, so the realm can rehearse it. Refused the same way:
+  // a context that does not compile is one the export would refuse too, and
+  // finding that out here beats finding it out on a device.
+  const openData = await buildOpenDataContext(root).catch((e: Error) => (
+    { ok: false, outputPath: null, errors: [String(e?.message ?? e)], warnings: [] }
+  ));
+  if (!openData.ok) {
+    return {
+      ok: false,
+      hostPath: '',
+      errors: ['"open-data" did not compile, so the game would play without its context:', ...openData.errors],
+      warnings: openData.warnings,
       sideModules: [],
     };
   }

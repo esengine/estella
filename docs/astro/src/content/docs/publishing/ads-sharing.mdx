@@ -174,16 +174,21 @@ runtime, so `limit` is how many rows fit, not a page.
 ### Your own board
 
 Write the file yourself instead of importing the package's. It runs in the
-context, so it may **not import `esengine`** — the export fails if it does,
-which is better than finding out on a device. Inside, you have a 2D canvas from
-`wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`, and `wx.onMessage()`
-carrying whatever `show()` sent.
+context, so it may **not import `esengine`** — the export fails if it does, and
+so does entering Play, which is better than finding out on a device. Inside, you
+have a 2D canvas from `wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`, and
+`wx.onMessage()` carrying whatever `show()` sent.
 
 ### At your desk
 
-Play mode has no context at all, so the board rehearses: the same renderer that
-ships inside the context, drawn on an offscreen canvas with obviously-invented
-friends. The panel can be laid out and styled without packaging anything.
+Play mode has no host, so the editor stands in for one: it runs **your**
+`open-data/index.ts` against an offscreen canvas and obviously-invented friends,
+and answers `Leaderboard` through the same capabilities a device would. The
+board you lay the panel out against is the one that ships — whoever wrote it —
+and `submit()` reaches it, so your own row moves.
+
+What it cannot rehearse is the part that is genuinely the host's: real friends
+and the sandbox they live in. Check that on a device before you ship.
 
 What it cannot rehearse is the part that is genuinely the host's — real friends
 and the sandbox they live in. Check that on a device before you ship.

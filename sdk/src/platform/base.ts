@@ -23,6 +23,18 @@ export function setPlatform(adapter: PlatformAdapter): void {
 }
 
 /**
+ * Add capabilities to the platform this app is already on — a host answering
+ * what its adapter cannot (the editor's play realm stands in for an open data
+ * context this way). Its own door because `setPlatform({ ...getPlatform() })`
+ * drops every method an adapter holds on its PROTOTYPE.
+ *
+ * @throws Error if no platform is set — there is nothing to extend yet.
+ */
+export function extendPlatform(extra: Partial<PlatformAdapter>): void {
+    Object.assign(getPlatform(), extra);
+}
+
+/**
  * Get the current platform adapter
  * @throws Error if platform not initialized
  */

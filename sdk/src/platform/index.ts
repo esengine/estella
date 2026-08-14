@@ -23,6 +23,7 @@ export type {
 // Re-export base functions
 export {
     setPlatform,
+    extendPlatform,
     getPlatform,
     getPlatformType,
     isPlatformInitialized,
