@@ -27,13 +27,7 @@
             "projectionType": 1,
             "orthoSize": 300,
             "isActive": true,
-            "priority": 0,
-            "clearColor": {
-              "r": 0.09,
-              "g": 0.1,
-              "b": 0.12,
-              "a": 1
-            }
+            "priority": 0
           }
         }
       ],
