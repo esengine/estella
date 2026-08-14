@@ -55,8 +55,12 @@ if (!['webgl2', 'webgpu'].includes(BACKEND)) {
 // A scene runs on the second backend only where it says so: the two backends
 // agree on most frames and deliberately differ on a couple of tolerances, and
 // guessing that per scene is how the WebGPU list became a third copy.
-const selected = (only ? SCENES.filter((s) => only.has(s.id)) : scenesAtTier(TIER))
-  .filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : true));
+// A tier run on the second backend takes the scenes that DECLARE it; naming
+// scenes explicitly is a decision already made, so `--only` is not filtered —
+// that is how a scene earns the declaration in the first place.
+const selected = only
+  ? SCENES.filter((s) => only.has(s.id))
+  : scenesAtTier(TIER).filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : true));
 const scenes = selected.map((s) => ({
   id: s.id,
   env: BACKEND === 'webgpu'
