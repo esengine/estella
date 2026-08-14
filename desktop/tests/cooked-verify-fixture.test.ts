@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '.cooked-verify');
@@ -83,7 +83,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     const res = await exportGame({
       root: SRC,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: path.resolve(HERE, '..', 'src', 'gameHost.ts'),
+      gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
       wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),

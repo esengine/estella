@@ -21,8 +21,8 @@
  * reusable; the IPC wiring lives in main.ts.
  */
 import type { Plugin } from 'esbuild';
-import { loadEsbuild } from './esbuildRuntime';
-import { esengineAlias } from './esengineResolve';
+import { loadEsbuild } from '../../pipeline/src/bundle/esbuildRuntime';
+import { esengineAlias } from '../../pipeline/src/bundle/esengineResolve';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';

@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, cpSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 import { solidPng } from '../scripts/solidPng.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,7 @@ const REDSRC = path.join(ROOT, 'red-src');
 const opts = (root: string, outDir: string) => ({
   root,
   entryScene: 'assets/scenes/main.esscene',
-  gameHostEntry: path.resolve(HERE, '..', 'src', 'gameHost.ts'),
+  gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
   wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),

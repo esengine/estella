@@ -24,10 +24,10 @@ import {
     templateStoreDir, iosTemplateSources, releaseAssetBases, parseTemplateIndex,
     TEMPLATE_INDEX,
     type TemplatePlatform, type NativeTemplateManifest,
-} from '../../build-tools/utils/nativeTemplate.js';
-import { extractZip } from '../../build-tools/utils/zip.js';
+} from '../../../build-tools/utils/nativeTemplate.js';
+import { extractZip } from '../../../build-tools/utils/zip.js';
 
-export type { TemplatePlatform, NativeTemplateManifest };
+export type { NativeTemplateManifest };
 
 /** A template this editor can actually use, with where it came from. */
 export interface UsableTemplate {

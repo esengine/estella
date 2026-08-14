@@ -14,7 +14,7 @@ import { runtimeConfigOf } from '../../pipeline/src/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 let root: string;
 let out: string;

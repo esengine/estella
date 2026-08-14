@@ -28,23 +28,23 @@
  *        have no import maps and a different module/asset model, so this is its
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
-import { loadEsbuild } from './esbuildRuntime';
+import { loadEsbuild } from '../bundle/esbuildRuntime';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
-} from '../../pipeline/src/project/runtimeConfig';
+} from '../project/runtimeConfig';
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from '../../pipeline/src/assets/cookAssets';
-import { buildAddressableManifest } from '../../pipeline/src/assets/addressableManifest';
+import { cookAssets } from '../assets/cookAssets';
+import { buildAddressableManifest } from '../assets/addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
-import { esengineAlias } from './esengineResolve';
-import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
+import { esengineAlias } from '../bundle/esengineResolve';
+import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import {
   sceneUsesPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE,
-} from './sideModuleScan';
+} from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';

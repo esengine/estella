@@ -9,11 +9,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportGame } from '../electron/exportGame';
-import type { ExportProgress } from '../electron/exportProgress';
+import { exportGame } from '../../pipeline/src/export/exportGame';
+import type { ExportProgress } from '../../pipeline/src/export/exportProgress';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', 'src', 'gameHost.ts');
+const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
 
 let root: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';

@@ -14,7 +14,7 @@
  * appended to a real compile error costs more than the explanation is worth.
  */
 import { describe, it, expect } from 'vitest';
-import { explainBundleError, explainBundleErrors, isNodeBuiltin } from '../electron/bundleDiagnostics';
+import { explainBundleError, explainBundleErrors, isNodeBuiltin } from '../../pipeline/src/bundle/bundleDiagnostics';
 
 describe('recognizing a Node built-in', () => {
     it('knows the built-ins in both spellings', () => {

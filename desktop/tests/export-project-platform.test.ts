@@ -15,8 +15,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { exportGame } from '../electron/exportGame';
-import { loadProjectPlatform } from '../electron/platformCatalog';
+import { exportGame } from '../../pipeline/src/export/exportGame';
+import { loadProjectPlatform } from '../../pipeline/src/export/platformCatalog';
 
 const TEX = '11111111-1111-4111-8111-111111111111';
 const SCN = '22222222-2222-4222-8222-222222222222';

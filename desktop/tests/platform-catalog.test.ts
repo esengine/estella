@@ -16,7 +16,7 @@ import path from 'node:path';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR,
   listPlayableNetworks, loadPlayableProfile,
-} from '../electron/platformCatalog';
+} from '../../pipeline/src/export/platformCatalog';
 import { BUILTIN_PLATFORMS } from '../../pipeline/src/project/platforms';
 
 let root: string;

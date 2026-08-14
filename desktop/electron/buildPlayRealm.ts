@@ -23,30 +23,11 @@
  */
 import { cp, mkdir, rm, writeFile, readFile, stat, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
+import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from '../../pipeline/src/export/projectModules';
+import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../../pipeline/src/bundle/importMap';
 
 const PLAY_DIR = '.esengine/play';
-
-// Subpath exports can't be a single `esengine/` → `./sdk/` mapping (import maps
-// don't append /index.js for directories), so list the real files (mirrors
-// sdk/package.json `exports`).
-// The realm + the shipped game share this import map (esengine → ./sdk) and the
-// CSP hash for the inline <script type=importmap>. Subpath exports are listed
-// explicitly (import maps don't append /index.js for a directory).
-export const IMPORT_MAP = {
-  imports: {
-    esengine: './sdk/index.js',
-    'esengine/spine': './sdk/spine/index.js',
-    'esengine/dragonbones': './sdk/dragonbones/index.js',
-    'esengine/physics': './sdk/physics/index.js',
-    'esengine/wasm': './sdk/wasm.js',
-    'esengine/factory': './sdk/webAppFactory.js',
-  },
-};
-export const IMPORT_MAP_JSON = JSON.stringify(IMPORT_MAP);
-export const IMPORT_MAP_CSP_HASH = `sha256-${createHash('sha256').update(IMPORT_MAP_JSON).digest('base64')}`;
 
 // The inline import map is an inline <script>, so CSP must allow it — by HASH
 // (not 'unsafe-inline', which would permit any inline script). 'unsafe-eval' is

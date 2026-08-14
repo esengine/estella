@@ -11,7 +11,7 @@ import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync } from 'node:f
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { downloadNativeTemplate } from '../electron/nativeTemplates';
+import { downloadNativeTemplate } from '../../pipeline/src/export/nativeTemplates';
 import { checkForUpdate } from '../electron/updateCheck';
 import {
   releaseAssetBase, releaseAssetBases, releaseMirrors, RELEASE_MIRROR_ENV,

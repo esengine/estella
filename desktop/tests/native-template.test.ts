@@ -17,8 +17,8 @@ import path from 'node:path';
 import {
   resolveNativeTemplate, iosSourcesFromTemplate, installNativeTemplate,
   listNativeTemplates, removeNativeTemplate, downloadNativeTemplate,
-} from '../electron/nativeTemplates';
-import { listPlatforms } from '../electron/platformCatalog';
+} from '../../pipeline/src/export/nativeTemplates';
+import { listPlatforms } from '../../pipeline/src/export/platformCatalog';
 import {
   requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
   missingTemplateEntries, isTemplatePlatform,

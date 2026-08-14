@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildOpenDataContext } from '../electron/buildOpenData';
+import { buildOpenDataContext } from '../../pipeline/src/bundle/buildOpenData';
 import { rehearseOpenData } from '@/engine/openDataRehearsal';
 
 let root: string;

@@ -32,10 +32,10 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { loadEsbuild } from './esbuildRuntime';
+import { loadEsbuild } from '../../pipeline/src/bundle/esbuildRuntime';
 import { validateManifest, type PluginManifest } from '../src/plugins/manifest';
 import { PROJECT_PLUGIN_REL } from '../../pipeline/src/project/pluginPaths';
-import { PROJECT_PLATFORM_DIR, platformTrustId } from './platformCatalog';
+import { PROJECT_PLATFORM_DIR, platformTrustId } from '../../pipeline/src/export/platformCatalog';
 
 /** Where a project keeps its own plugins (sibling of `.esengine/platforms/`),
  *  resolved to this OS's separator from the one shared spelling. */

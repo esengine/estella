@@ -18,11 +18,11 @@ import { fileURLToPath } from 'node:url';
 import {
   collectSubsystems, subsystemGapWarnings, targetGaps, SUBSYSTEM_CMAKE_FLAG, type Subsystem,
 } from '../../pipeline/src/project/targetSupport';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const GAME_HOST = path.join(HERE, '..', 'src', 'gameHost.ts');
+const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
 
 describe('collectSubsystems', () => {
   it('sees components wherever they sit in the document', () => {

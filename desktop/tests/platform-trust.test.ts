@@ -16,7 +16,7 @@ import path from 'node:path';
 import {
   listPlatforms, listPlayableNetworks, loadProjectPlatform, setPlatformTrustGate,
   platformTrustId, PROJECT_PLATFORM_DIR,
-} from '../electron/platformCatalog';
+} from '../../pipeline/src/export/platformCatalog';
 import { discoverPlugins } from '../electron/pluginHost';
 
 let root: string;

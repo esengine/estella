@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   loadProjectModules, sideModuleDeclarations, stageProjectModules, PROJECT_MODULES_DIR,
-} from '../electron/projectModules';
+} from '../../pipeline/src/export/projectModules';
 
 let root: string;
 

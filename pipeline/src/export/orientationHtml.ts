@@ -15,8 +15,9 @@
  *        and desktop sizes its own window.
  */
 import { createHash } from 'node:crypto';
+import type { ScreenOrientation } from '../project/format';
 
-export type ScreenOrientation = 'portrait' | 'landscape';
+export type { ScreenOrientation };
 
 /** CSS pinning the canvas to `orientation`: the `#rotate-hint` overlay replaces the
  *  canvas whenever the device is turned the wrong way. */

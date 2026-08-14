@@ -28,19 +28,18 @@ import { isInsideRoot } from '../../pipeline/src/fs/pathSandbox';
 import * as journal from './fileJournal';
 import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
-import { buildProjectScripts } from './buildScripts';
-import { buildOpenDataContext } from './buildOpenData';
+import { buildProjectScripts } from '../../pipeline/src/bundle/buildScripts';
+import { buildOpenDataContext } from '../../pipeline/src/bundle/buildOpenData';
 import { extractProjectSchemas } from './extractSchemas';
 import { scaffoldScript, type ScriptKind } from './scriptScaffold';
 import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from '../../pipeline/src/assets/assetDb';
 import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
-import { exportGame } from './exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
-  removeNativeTemplate, downloadNativeTemplate, type TemplatePlatform,
-} from './nativeTemplates';
+  removeNativeTemplate, downloadNativeTemplate, } from '../../pipeline/src/export/nativeTemplates';
 import { isTemplatePlatform } from '../../build-tools/utils/nativeTemplate.js';
 import { DESKTOP_OSES } from '../../pipeline/src/project/platforms';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
@@ -81,10 +80,11 @@ import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
   listPlayableNetworks, loadPlayableProfile,
   type PlatformRuntimeDirs, type ProjectPlatformKind,
-} from './platformCatalog';
+} from '../../pipeline/src/export/platformCatalog';
 import { resolveLayout, resolveScripts, resolveOrientation, resolveAppId, type ExportPlatform } from '../../pipeline/src/project/format';
 import { runtimeConfigOf } from '../../pipeline/src/project/runtimeConfig';
 import type { WorkspaceState } from '../../pipeline/src/project/format';
+import type { TemplatePlatform } from '../../pipeline/src/project/platforms';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
 // Renderer) has an adapter to acquire. Without it navigator.gpu has no adapter and

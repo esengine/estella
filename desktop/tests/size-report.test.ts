@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   summarizeBuildFiles, bucketIndexFrom, kindOf, measureBuild, collectBuildFiles,
-} from '../electron/sizeReport';
+} from '../../pipeline/src/export/sizeReport';
 import { resolveSizeBudgets, evaluateSizeBudget, formatBytes, PROJECT_BUDGET_NOTE } from '../../pipeline/src/project/sizeBudget';
 
 const MB = 1024 * 1024;

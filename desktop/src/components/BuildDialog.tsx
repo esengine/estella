@@ -35,9 +35,8 @@ import {
 } from 'lucide-react';
 import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '../../../pipeline/src/project/platforms';
 import { platformLabel } from '@/project/platformLabels';
-import type { PlayableNetworkOption } from '../../electron/platformCatalog';
-import type { TemplatePlatform } from '../../electron/nativeTemplates';
-import type { BuildSizeReport } from '../../electron/sizeReport';
+import type { PlayableNetworkOption } from '../../../pipeline/src/export/platformCatalog';
+import type { BuildSizeReport } from '../../../pipeline/src/export/sizeReport';
 import { formatBytes } from '../../../pipeline/src/project/sizeBudget';
 import { BuildSizePanel } from '@/components/BuildSizePanel';
 import { Modal } from '@/components/Modal';
@@ -52,6 +51,7 @@ import { cookOptionsOf } from '../../../pipeline/src/project/runtimeConfig';
 import { AssetRegistry } from '@/project/AssetRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { t } from '@/i18n';
+import type { TemplatePlatform } from '../../../pipeline/src/project/platforms';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
 type Config = 'development' | 'shipping';

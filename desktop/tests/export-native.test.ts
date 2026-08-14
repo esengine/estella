@@ -12,10 +12,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', 'src', 'gameHost.ts');
+const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
 
 let root: string;
 let out: string;

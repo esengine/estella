@@ -16,24 +16,24 @@
  *        here — runtime is validated in a browser / ad preview). Pure Node (esbuild
  *        + fs); IPC wiring in main.ts.
  */
-import { loadEsbuild } from './esbuildRuntime';
+import { loadEsbuild } from '../bundle/esbuildRuntime';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
-} from '../../pipeline/src/project/runtimeConfig';
+} from '../project/runtimeConfig';
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from '../../pipeline/src/assets/cookAssets';
+import { cookAssets } from '../assets/cookAssets';
 import type { OnExportProgress } from './exportProgress';
-import { esengineAlias } from './esengineResolve';
-import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
+import { esengineAlias } from '../bundle/esengineResolve';
+import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
-import { makeZip } from '../../build-tools/utils/zip.js';
+import { makeZip } from '../../../build-tools/utils/zip.js';
 import {
   sceneUsesPhysics, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
-} from './sideModuleScan';
+} from '../bundle/sideModuleScan';
 
 export interface ExportPlayableResult {
   ok: boolean;

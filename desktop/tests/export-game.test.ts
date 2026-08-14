@@ -14,10 +14,10 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', 'src', 'gameHost.ts');
+const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
 
 /** A solid RGBA PNG of an exact size — block alignment is what decides whether
  *  the cook may compress it, so a fixture has to say which it is. */

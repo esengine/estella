@@ -14,10 +14,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { exportGame } from '../electron/exportGame';
+import { exportGame } from '../../pipeline/src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PLAYABLE_HOST = path.join(HERE, '..', 'src', 'playableHost.ts');
+const PLAYABLE_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'playableHost.ts');
 
 let root: string;
 let out: string;

@@ -37,6 +37,7 @@ import { installedTemplateDir, iosTemplateSources } from '../../build-tools/util
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.join(HERE, '..');
 const REPO = path.join(DESKTOP, '..');
+const PIPELINE = path.join(REPO, 'pipeline');
 
 function parseArgs(argv) {
     const [projectDir, ...rest] = argv;
@@ -79,23 +80,23 @@ const fileUrl = (p) => `file:///${p.replace(/\\/g, '/')}`;
 // (pngjs). esbuild itself stays external: the module resolves it at runtime the
 // same way the electron main process does.
 async function loadExportGame() {
-    const require = createRequire(path.join(DESKTOP, 'package.json'));
+    const require = createRequire(path.join(PIPELINE, 'package.json'));
     const esbuild = require('esbuild');
-    // Inside desktop/, so the bundle's own `import 'esbuild'` resolves through
-    // desktop/node_modules the way it does for the electron main process.
-    const dir = mkdtempSync(path.join(DESKTOP, '.export-'));
+    // Inside the pipeline package, so the bundle's own `import 'esbuild'` resolves
+    // the way it does for the module being bundled.
+    const dir = mkdtempSync(path.join(PIPELINE, 'src', '.export-'));
     const outfile = path.join(dir, 'exportGame.mjs');
     await esbuild.build({
-        entryPoints: [path.join(DESKTOP, 'electron', 'exportGame.ts')],
+        entryPoints: [path.join(PIPELINE, 'src', 'export', 'exportGame.ts')],
         outfile, bundle: true, format: 'esm', platform: 'node', target: 'node20',
         // The Basis encoder finds its own .cjs/.wasm through `import.meta.url`,
         // so inlining it makes it look beside the BUNDLE. External keeps the
-        // specifier, and the temp dir is as deep under desktop/ as electron/ is.
-        external: ['esbuild', 'electron', 'sharp', '../../build-tools/basis/encoder.mjs'],
+        // specifier, and the temp dir sits as deep in the package as the cook does.
+        external: ['esbuild', 'electron', 'sharp', '../../../build-tools/basis/encoder.mjs'],
         logLevel: 'error',
         banner: {
             js: "import { createRequire as __esCreateRequire } from 'node:module';\n"
-                + `const require = __esCreateRequire('${fileUrl(path.join(DESKTOP, 'package.json'))}');\n`,
+                + `const require = __esCreateRequire('${fileUrl(path.join(PIPELINE, 'package.json'))}');\n`,
         },
     });
     const mod = await import(fileUrl(outfile));
@@ -111,17 +112,17 @@ async function loadExportGame() {
  * project packaged landscape — a 600x1080 shmup included.
  */
 async function loadProjectFormat() {
-    const require = createRequire(path.join(DESKTOP, 'package.json'));
+    const require = createRequire(path.join(PIPELINE, 'package.json'));
     const esbuild = require('esbuild');
-    const dir = mkdtempSync(path.join(DESKTOP, '.format-'));
+    const dir = mkdtempSync(path.join(PIPELINE, '.format-'));
     const outfile = path.join(dir, 'format.mjs');
     await esbuild.build({
         // runtimeConfig re-exports nothing of format's, so both entries are bundled
         // into one module: a headless export that derived the project's settings by
         // hand would be a second answer to what a project MEANS.
         stdin: {
-            contents: "export * from '../pipeline/src/project/format';\nexport * from '../pipeline/src/project/runtimeConfig';\n",
-            resolveDir: DESKTOP,
+            contents: "export * from './src/project/format';\nexport * from './src/project/runtimeConfig';\n",
+            resolveDir: PIPELINE,
             sourcefile: 'projectFormat.ts',
             loader: 'ts',
         },
@@ -215,7 +216,7 @@ try {
         root: opts.projectDir,
         entryScene,
         scriptsEntry,
-        gameHostEntry: path.join(DESKTOP, 'src', 'gameHost.ts'),
+        gameHostEntry: path.join(DESKTOP, '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
         sdkDistDir: path.join(REPO, 'sdk', 'dist'),
         wasmDir,
         outDir,

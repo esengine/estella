@@ -18,7 +18,7 @@
  */
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import type { BuildSizeReport, SizeBucket, SizeKind } from '../../electron/sizeReport';
+import type { BuildSizeReport, SizeBucket, SizeKind } from '../../../pipeline/src/export/sizeReport';
 import type { BudgetScope, SizeVerdict } from '../../../pipeline/src/project/sizeBudget';
 import { formatBytes, PROJECT_BUDGET_NOTE } from '../../../pipeline/src/project/sizeBudget';
 import { t } from '@/i18n';

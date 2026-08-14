@@ -2,16 +2,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry, ExportPlatform } from '../../pipeline/src/project/format';
-import type { BuildScriptsResult } from './buildScripts';
+import type { BuildScriptsResult } from '../../pipeline/src/bundle/buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScaffoldScriptResult, ScriptKind } from './scriptScaffold';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from '../../pipeline/src/assets/assetDb';
 import type { CookResult } from '../../pipeline/src/assets/cookAssets';
-import type { ExportGameResult } from './exportGame';
+import type { ExportGameResult } from '../../pipeline/src/export/exportGame';
 import type { RevertResult } from './fileJournal';
 import type {
   PlatformStatus, CreatePlatformResult, PlayableNetworkOption, ProjectPlatformKind,
-} from './platformCatalog';
+} from '../../pipeline/src/export/platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { AvailableUpdate, DownloadProgress, UpdateStatus } from './autoUpdate';
 import type { LaunchError } from './externalProgram';
@@ -19,12 +19,13 @@ import type { DetectedEditor } from './editorCatalog';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 import type { ScaffoldPluginOptions, ScaffoldPluginResult } from './pluginScaffold';
 import type { PluginPackageInfo, InstallPluginResult } from './pluginPackage';
-import type { NativeTemplateEntry, InstallResult, TemplatePlatform } from './nativeTemplates';
+import type { NativeTemplateEntry, InstallResult } from '../../pipeline/src/export/nativeTemplates';
 import type { McpEndpointStatus } from './mcpEndpoint';
 import type { SecretStatus } from './secrets';
 import type { AgentStatus, AgentMessage } from './agent/host';
 import type { AgentEvent, ConfirmAnswer, UserImage } from './agent/types';
 import type { ConversationSummary } from './agent/store';
+import type { TemplatePlatform } from '../../pipeline/src/project/platforms';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.

@@ -20,41 +20,41 @@
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import type { BuildOptions, Plugin } from 'esbuild';
-import { loadEsbuild } from './esbuildRuntime';
+import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets, loadAssetGroups } from '../../pipeline/src/assets/cookAssets';
-import { buildAddressableManifest } from '../../pipeline/src/assets/addressableManifest';
-import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
+import { cookAssets, loadAssetGroups } from '../assets/cookAssets';
+import { buildAddressableManifest } from '../assets/addressableManifest';
+import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
-} from '../../pipeline/src/project/runtimeConfig';
-import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
+} from '../project/runtimeConfig';
+import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../bundle/importMap';
 import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
-import { ESENGINE_EXTERNAL } from './esengineResolve';
-import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
+import { ESENGINE_EXTERNAL } from '../bundle/esengineResolve';
+import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
-import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
-import { emitAndroidGradleProject } from '../../build-tools/utils/gradleProject.js';
-import { androidTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
-import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
-import { assembleAab, aabFileName } from '../../build-tools/utils/aab.js';
-import { assembleDesktopApp } from '../../build-tools/utils/desktopApp.js';
-import { emitSteamBuild, defaultDepotId } from '../../build-tools/utils/steamChannel.js';
-import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
-import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../../pipeline/src/project/platforms';
-import type { DesktopPackaging, SteamPackaging } from '../../pipeline/src/project/format';
-import type { SizeBudget } from '../../pipeline/src/project/sizeBudget';
+import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
+import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
+import { androidTemplateSources } from '../../../build-tools/utils/nativeTemplate.js';
+import { assembleApk, apkFileName } from '../../../build-tools/utils/apk.js';
+import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
+import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
+import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
+import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
+import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
+import type { DesktopPackaging, SteamPackaging } from '../project/format';
+import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
-import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../../pipeline/src/project/targetSupport';
+import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
 export type { ExportPlatform };
 
 /**

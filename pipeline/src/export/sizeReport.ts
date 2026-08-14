@@ -25,11 +25,11 @@
  */
 import { readFile, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { ExportPlatform } from '../../pipeline/src/project/platforms';
+import type { ExportPlatform } from '../project/platforms';
 import {
   evaluateSizeBudget, resolveSizeBudgets,
   type SizeBudget, type SizeVerdict,
-} from '../../pipeline/src/project/sizeBudget';
+} from '../project/sizeBudget';
 
 /** Where a file sits in the delivery model — see the file header. */
 export type SizeBucket = 'initial' | 'lazy' | 'remote';
