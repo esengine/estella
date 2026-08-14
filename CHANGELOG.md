@@ -14,6 +14,24 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A project packages without the editor.** Cooking a project and packaging it —
+  the asset database, the textures, atlases, audio and video, the addressable
+  manifest, every export target from web to Steam, and the game host a shipped
+  build boots into — lived inside the Electron main process. Anything that wanted
+  a build needed the process that edits one: CI, a build server, a machine that
+  never opened the editor.
+
+  All of it is a package of its own now, and `pipeline/bin/estella.mjs export`
+  (or `cli.js export`) ships a project from the command line, taking the engine
+  runtime from the build tree so a machine that built the engine and never built
+  the editor can still produce a game. The editor calls the same code; there is
+  no second packaging path to drift.
+
+  Two gates hold the line: one refuses an import from the pipeline into anything
+  above it, and one packages a real example from the command line on every run.
+
 ## [0.52.0] - 2026-08-14
 
 ### Added
