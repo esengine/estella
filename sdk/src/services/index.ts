@@ -6,11 +6,6 @@ export {
 } from './ads';
 export { createTakeover, type Takeover, type TakeoverHost } from './takeover';
 export {
-    Leaderboard, LeaderboardAPI, createLocalLeaderboard,
-    type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
-    type LeaderboardStyle, type LocalLeaderboardOptions,
-} from './leaderboard';
-export {
     Achievements, AchievementsAPI, createLocalAchievements, type AchievementProvider,
 } from './achievements';
 export { Identity, IdentityAPI, type LoginResult } from './identity';

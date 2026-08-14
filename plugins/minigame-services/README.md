@@ -1,8 +1,9 @@
 # estella-plugin-minigame-services
 
-The mini-game host's **share sheet** and **in-game purchase**, as Estella
-services. Both used to ship inside the engine; they live here because most games
-never open either, and because a service is exactly the shape a plugin should be.
+The mini-game host's **share sheet**, **in-game purchase** and **friends
+leaderboard**, as Estella services. All three used to ship inside the engine;
+they live here because most games open none of them, and because a service is
+exactly the shape a plugin should be.
 
 ```bash
 npm install estella-plugin-minigame-services
@@ -10,7 +11,7 @@ npm install estella-plugin-minigame-services
 
 ```ts title="src/main.ts"
 import { addPlugin } from 'esengine';
-import { miniGameServicesPlugin, Share, Payment } from 'estella-plugin-minigame-services';
+import { miniGameServicesPlugin, Share, Payment, Leaderboard } from 'estella-plugin-minigame-services';
 
 addPlugin(miniGameServicesPlugin);
 ```
@@ -49,12 +50,48 @@ Failures reject with the host's own message and `code`, untranslated: vendors
 number them differently, and a mapping invented here would be a guess your game
 then branches on.
 
+## Leaderboard
+
+A friends board has two halves in two JS runtimes, and this package is both.
+
+**The game's half** asks for the board and wears its pixels:
+
+```ts
+const board = app.getResource(Leaderboard);
+
+// Hide the button where the host has no open data context (web, native).
+if (board.available) showLeaderboardButton();
+
+board.submit(score);            // your own cloud row — the one write allowed here
+board.show({ limit: 10 });      // a REQUEST to draw; no rows ever come back
+uiVisual.texture = board.texture; // what it drew, as an engine texture handle
+board.hide();
+```
+
+**The context's half** runs in the second runtime, which has no engine, no WebGL
+and no DOM. The project owns that file; this package supplies what goes in it:
+
+```ts title="open-data/index.ts"
+import 'estella-plugin-minigame-services/open-data';
+```
+
+That directory is what the exporter bundles separately and names in `game.json`.
+Without it the host has no context, and `available` says so rather than a board
+failing on a device.
+
+In the editor's play mode there is no context at all, so the board draws against
+invented friends — the same renderer that ships, on an offscreen canvas. It is
+`rehearse()`, the editor calls it for you, and a real host always wins.
+
 ## Built on the public API
 
-Only `esengine`'s public surface: `defineResource`, the `Plugin` interface, and
-the host capability functions (`platformShare`, `platformCanShare`,
-`platformOnShareRequest`, `platformCanPay`, `platformRequestPayment`). Declare
-`esengine` a **peer** dependency if you write one of these — a copy vendored
-inside the package would be a second engine whose resources nothing can read.
+Only `esengine`'s public surface: `defineResource`, the `Plugin` interface,
+`createCanvasTexture`, and the host capability functions (`platformShare`,
+`platformCanShare`, `platformOnShareRequest`, `platformCanPay`,
+`platformRequestPayment`, `platformCanOpenData`, `platformOpenDataPostMessage`,
+`platformOpenDataCanvas`, `platformSetCloudKeyValues`, `platformCreateCanvas`,
+`platformDevicePixelRatio`). Declare `esengine` a **peer** dependency if you
+write one of these — a copy vendored inside the package would be a second engine
+whose resources nothing can read.
 
 Apache-2.0.

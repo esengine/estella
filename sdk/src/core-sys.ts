@@ -116,6 +116,15 @@ export {
     platformOnShareRequest,
     platformCanPay,
     platformRequestPayment,
+    // The open data domain: the runtime holding the player's friends, the canvas
+    // it draws on, the one-way channel to it, and this player's own cloud row —
+    // what a friends leaderboard is made of, and unreachable from a package.
+    platformCanOpenData,
+    platformOpenDataPostMessage,
+    platformOpenDataCanvas,
+    platformSetCloudKeyValues,
+    platformCreateCanvas,
+    platformDevicePixelRatio,
 } from './platform';
 export type { PlatformShareOptions, PlatformPaymentRequest } from './platform/types';
 

@@ -2,14 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    servicesPlugin.ts
- * @brief   Installs the platform-services resources (Ads, Share, Leaderboard).
+ * @brief   Installs the platform-services resources (Ads, Achievements, Identity).
  *
- * Resources, and one system that does nothing until it has to. Ads and Share
- * cost nothing per frame; the leaderboard has to re-take the open data
- * context's canvas while it is on screen, because that canvas is drawn by
- * another runtime and the engine has no way to be told it changed. So it is
- * sampled — but only between `show` and `hide`, which on every other frame is
- * one boolean.
+ * What is here is what the ENGINE owes a game on every platform. A service that
+ * only some hosts have — a share sheet, a purchase, a friends board — is a
+ * package (`estella-plugin-minigame-services`), built on the same platform
+ * capabilities this file uses.
  *
  * The ads service is handed the app's clock and the audio device as two narrow
  * hooks, so a fullscreen takeover can pause the game it covers without the
@@ -17,9 +15,7 @@
  */
 import type { App, Plugin } from '../app/app';
 import { Audio } from '../audio';
-import { Schedule, defineSystem } from '../ecs/system';
 import { Ads, AdsAPI } from './ads';
-import { Leaderboard, LeaderboardAPI } from './leaderboard';
 import { Achievements, AchievementsAPI } from './achievements';
 import { Identity, IdentityAPI } from './identity';
 import { createTakeover } from './takeover';
@@ -51,18 +47,6 @@ export class ServicesPlugin implements Plugin {
         });
         app.insertResource(Achievements, new AchievementsAPI());
         app.insertResource(Identity, new IdentityAPI());
-        // Resolved per call rather than captured: the module is attached by
-        // connectCpp, which can run after the plugins have built.
-        app.insertResource(Leaderboard, new LeaderboardAPI(() => app.wasmModule));
-
-        // Last in the frame: the other runtime draws on its own schedule, so
-        // the freshest canvas is the one that exists after everything else has
-        // run. Costs one boolean on a frame with no board up.
-        app.addSystemToSchedule(Schedule.Last, defineSystem(
-            [],
-            () => { app.getResource(Leaderboard)?.sample(); },
-            { name: 'LeaderboardSample' },
-        ));
     }
 }
 

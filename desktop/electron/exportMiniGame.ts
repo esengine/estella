@@ -374,16 +374,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //     the `esengine` alias is deliberately WITHHELD here: a context that
   //     imports the engine fails to resolve at export instead of throwing on a
   //     device, which is the only place that mistake would otherwise surface.
-  //     The project's own context wins; absent, the engine's built-in
-  //     leaderboard ships instead (sdk `dist/open-data.js`, already bundled to
-  //     one file with no imports — see sdk/src/opendata). Shipping it by default
-  //     is the difference between a capability and a capability someone else
-  //     still has to build: the context is the hardest part of a mini-game to
-  //     write, and a game that just wants a friends board should not have to.
+  //
+  //     The project owns this file and a package may be what it imports
+  //     (`estella-plugin-minigame-services/open-data` is a friends board in one
+  //     line). No directory, no context — which is what asking for none means.
   const openDataEntry = ['index.ts', 'index.js']
     .map((f) => path.join(opts.root, OPEN_DATA_DIR, f))
-    .find((f) => existsSync(f))
-    ?? [path.join(opts.sdkDir, 'open-data.js')].find((f) => existsSync(f));
+    .find((f) => existsSync(f));
   if (openDataEntry) {
     progress({ phase: 'Bundling open data context' });
     try {

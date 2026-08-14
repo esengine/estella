@@ -18,7 +18,7 @@
  * (nothing tiles a leaderboard), and `update()`.
  */
 import { requireResourceManager } from '../wasm/resourceManager';
-import type { ESEngineModule } from '../wasm';
+import type { App } from '../app/app';
 import { findWebGL2Context } from './loaders/TextureLoader';
 import { uploadBoundTextureImage, applyBoundTextureSampling, type GlImageSource } from './glTextureUpload';
 
@@ -39,15 +39,16 @@ export interface CanvasTexture {
 /**
  * Wrap `source` in an engine texture and take its content once.
  *
- * Returns null where there is no WebGL2 context to upload through — the native
- * backend and any host still booting. That is a real answer, not a failure: the
- * only caller is a leaderboard, which has already asked whether this platform
- * has an open data context at all.
+ * Null where there is no WebGL2 context to upload through (the native backend,
+ * a host still booting) — an answer, not a failure. Takes the App because the
+ * module behind it is engine-internal, and a service that samples someone
+ * else's canvas has an App and should need nothing more.
  */
 export function createCanvasTexture(
-    module: ESEngineModule | null | undefined,
+    app: App | null | undefined,
     source: GlImageSource,
 ): CanvasTexture | null {
+    const module = app?.wasmModule;
     const gl = findWebGL2Context(module?.GL);
     if (!gl || !module) return null;
 

@@ -92,17 +92,6 @@ export default defineConfig([
         treeshake,
     },
     {
-        // The built-in leaderboard, for the open data context — a SECOND JS
-        // runtime with no WebGL, no wasm and almost none of the host API. It
-        // ships as its own single file because the exporter bundles it into the
-        // game package separately, and because nothing here may reach the
-        // engine: one file with no imports is the shape that cannot.
-        input: 'src/opendata/index.ts',
-        output: { file: 'dist/open-data.js', format: 'cjs', sourcemap: false, minify },
-        plugins: [preserveViteIgnore()],
-        treeshake,
-    },
-    {
         input: 'src/index.node.ts',
         output: { file: 'dist/index.node.js', format: 'esm', sourcemap: true, minify },
         external: (id) => id.startsWith('node:'),

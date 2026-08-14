@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    leaderboard.ts
- * @brief   The friends leaderboard as an engine service.
+ * @brief   The friends leaderboard, as a package.
  *
  * The shape of this API is not a design choice; it is the host's constraint
  * made visible. A player's friends can be READ only inside the open data
@@ -19,20 +19,22 @@
  *
  * An API that returned `Promise<Row[]>` would be the honest-looking one, and it
  * is the one no host can implement.
+ *
+ * The other half — what draws inside the context — is `./opendata`, which this
+ * file must never import: that runtime has no engine, and the package a project
+ * points its `open-data/index.ts` at is bundled on its own.
  */
-import { defineResource } from '../ecs/resource';
 import {
-    platformCanOpenData, platformOpenDataCanvas, platformOpenDataPostMessage, platformSetCloudKeyValues,
-    platformDevicePixelRatio, platformCreateCanvas,
-} from '../platform';
-import type { ESEngineModule } from '../wasm';
-import type { PlatformCanvas } from '../platform/types';
-import { createCanvasTexture, type CanvasTexture } from '../asset/canvasTexture';
-import type { LeaderboardScope, LeaderboardStyle, ShowMessage } from '../opendata/protocol';
-import { createBoard, type CloudPlayer, type HostCanvas } from '../opendata/board';
-import { log } from '../util/logger';
+    defineResource, log,
+    platformCanOpenData, platformOpenDataCanvas, platformOpenDataPostMessage,
+    platformSetCloudKeyValues, platformDevicePixelRatio, platformCreateCanvas,
+    createCanvasTexture,
+    type App, type CanvasTexture, type PlatformCanvas,
+} from 'esengine';
+import { createBoard, type CloudPlayer, type HostCanvas } from './opendata/board';
+import type { LeaderboardScope, LeaderboardStyle, ShowMessage } from './opendata/protocol';
 
-export type { LeaderboardScope, LeaderboardStyle };
+export type { LeaderboardScope, LeaderboardStyle, CloudPlayer };
 
 /** What to draw, and how. Everything has a default a game can ignore. */
 export interface LeaderboardOptions {
@@ -70,7 +72,7 @@ export class LeaderboardAPI {
     private key_ = DEFAULT_KEY;
     private provider_: LeaderboardProvider | null = null;
 
-    constructor(private readonly module_: () => ESEngineModule | null) {}
+    constructor(private readonly app_: () => App | null) {}
 
     /** Whether SOME board exists here — the host's context, or an installed
      *  provider. What a menu reads to hide its leaderboard button honestly. */
@@ -79,10 +81,21 @@ export class LeaderboardAPI {
     }
 
     /**
+     * Draw against invented friends where this host has no open data context.
+     *
+     * The editor's play realm calls it, so a board can be looked at before the
+     * game is on a phone; a game may call it too (a web demo). A no-op where a
+     * real context exists — the real thing always wins.
+     */
+    rehearse(options?: LocalLeaderboardOptions): void {
+        if (this.available) return;
+        this.setProvider(createLocalLeaderboard(options));
+    }
+
+    /**
      * Install (or clear with null) a {@link LeaderboardProvider} that answers
-     * INSTEAD of the platform. The editor's play mode installs the local one,
-     * so a board can be looked at without a device. Clearing drops the texture
-     * — the canvas behind it is going away.
+     * INSTEAD of the platform — a board to look at where the host has none.
+     * Clearing drops the texture: the canvas behind it is going away.
      */
     setProvider(provider: LeaderboardProvider | null): void {
         if (provider === this.provider_) return;
@@ -152,15 +165,15 @@ export class LeaderboardAPI {
         this.texture_?.update();
     }
 
-    /** Re-take the context's canvas. Called by the service system, once a frame
-     *  and only while the board is up. @internal */
+    /** Re-take the context's canvas. Called by the plugin's system, once a frame
+     *  and only while the board is up. */
     sample(): void {
         if (!this.shown_) return;
         if (!this.texture_) this.ensureTexture_();
         this.texture_?.update();
     }
 
-    /** Release the GL texture. @internal */
+    /** Release the GL texture. The handle is dead afterwards. */
     dispose(): void {
         this.texture_?.destroy();
         this.texture_ = null;
@@ -177,11 +190,11 @@ export class LeaderboardAPI {
         if (this.texture_) return;
         const canvas = this.provider_ ? this.provider_.canvas() : platformOpenDataCanvas();
         if (!canvas) return;
-        this.texture_ = createCanvasTexture(this.module_(), canvas);
+        this.texture_ = createCanvasTexture(this.app_(), canvas);
         if (!this.texture_) {
             // Said once, where it is actionable: the board will be a blank quad
             // and nothing else explains why.
-            log.warn('services', 'leaderboard: no WebGL2 context to sample the open data canvas with');
+            log.warn('leaderboard', 'no WebGL2 context to sample the open data canvas with');
         }
     }
 }
@@ -210,15 +223,10 @@ const REHEARSAL_FRIENDS: readonly CloudPlayer[] = [
 /**
  * A board you can look at without a device.
  *
- * It runs the ENGINE'S OWN board — the same `createBoard` that ships inside the
- * open data context — against an offscreen 2D canvas and invented friends. That
- * is the whole point: a rehearsal that drew its own approximation would tell
- * you nothing about the thing that ships. What it cannot rehearse is the part
+ * It runs the SAME board this package ships into the context, against an
+ * offscreen canvas and invented friends — a rehearsal that drew its own
+ * approximation would rehearse nothing. What it cannot stand in for is the part
  * that is genuinely the host's: real friends, and the sandbox they live in.
- *
- * The cloud read answers SYNCHRONOUSLY here, where a host answers over IPC. The
- * board treats both the same (it repaints from the callback either way), and a
- * fake delay would only be a number nobody chose.
  */
 export function createLocalLeaderboard(options: LocalLeaderboardOptions = {}): LeaderboardProvider {
     const friends = options.friends ?? REHEARSAL_FRIENDS;

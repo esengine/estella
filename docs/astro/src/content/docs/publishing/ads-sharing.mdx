@@ -119,10 +119,21 @@ host starts beside your game, with no engine, no WebGL and no wasm in it — and
 there is no channel back from that runtime to yours. So the board is drawn
 *over there* and arrives here as pixels.
 
-The API says that out loud rather than hiding it:
+It ships as a package rather than in the engine, because a game that never opens
+one should not carry a renderer for it:
+
+```bash
+npm install estella-plugin-minigame-services
+```
+
+The API says the host's constraint out loud rather than hiding it:
 
 ```typescript
-import { defineSystem, Res, Leaderboard, UIVisual } from 'esengine';
+import { UIVisual } from 'esengine';
+import { miniGameServicesPlugin, Leaderboard } from 'estella-plugin-minigame-services';
+
+addPlugin(miniGameServicesPlugin);
+const leaderboard = app.getResource(Leaderboard);
 
 // Your half: write your own row. It is the one cloud operation the game
 // itself may do — reading anyone's, including your own, belongs to the context.
@@ -142,30 +153,37 @@ leaderboard.hide();   // clears the board and stops sampling
 any package that declares none. Hide the button rather than open a panel that
 stays blank.
 
-### What ships by default
+### The other half
 
-Nothing to write: the engine's own board is bundled into every mini-game export
-that does not supply one, and `Leaderboard.show()` draws it. Rows are ranked,
-the player's own row is emphasised, and a friend who has never played is left
-off rather than shown as zero.
+The project owns the context directory; the package supplies what goes in it:
 
-Style it through `show({ style })` — colours, row height, font size, whether to
-draw avatars. The canvas is a fixed size and **cannot scroll**: no pointer or
-key event reaches that runtime, so `limit` is how many rows fit, not a page.
+```typescript title="open-data/index.ts"
+import 'estella-plugin-minigame-services/open-data';
+```
+
+That is the whole file. The exporter bundles `open-data/` separately and names
+it in `game.json`; a project without one ships no context, and `available` says
+so rather than a board failing on a device.
+
+What arrives is a board with the rows ranked, the player's own row emphasised,
+and a friend who has never played left off rather than shown as zero. Style it
+through `show({ style })` — colours, row height, font size, avatars. The canvas
+is a fixed size and **cannot scroll**: no pointer or key event reaches that
+runtime, so `limit` is how many rows fit, not a page.
 
 ### Your own board
 
-Put an `open-data/index.ts` in the project and the exporter bundles that
-instead. It runs in the context, so it may **not import `esengine`** — the
-export fails if it does, which is better than finding out on a device. Inside,
-you have a 2D canvas from `wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`,
-and `wx.onMessage()` carrying whatever `show()` sent.
+Write the file yourself instead of importing the package's. It runs in the
+context, so it may **not import `esengine`** — the export fails if it does,
+which is better than finding out on a device. Inside, you have a 2D canvas from
+`wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`, and `wx.onMessage()`
+carrying whatever `show()` sent.
 
 ### At your desk
 
-Play mode installs a local board: the engine's own renderer, the same code that
+Play mode has no context at all, so the board rehearses: the same renderer that
 ships inside the context, drawn on an offscreen canvas with obviously-invented
-friends. So the panel can be laid out and styled without packaging anything.
+friends. The panel can be laid out and styled without packaging anything.
 
 What it cannot rehearse is the part that is genuinely the host's — real friends
 and the sandbox they live in. Check that on a device before you ship.

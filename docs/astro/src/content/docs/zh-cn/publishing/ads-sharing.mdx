@@ -108,10 +108,21 @@ share.share({ title: '来加入我的游戏' }); // 或一次性卡片
 WebGL、也没有 wasm——而且它没有回到你这边的通道。所以榜是**在那边画的**，到你
 这边时已经是像素。
 
-API 把这件事直说，而不是遮掩：
+它以**包**的形式发布而不是待在引擎里：一个从不开排行榜的游戏，不该背着一份榜的
+渲染器。
+
+```bash
+npm install estella-plugin-minigame-services
+```
+
+API 把宿主的这条约束直说，而不是遮掩：
 
 ```typescript
-import { defineSystem, Res, Leaderboard, UIVisual } from 'esengine';
+import { UIVisual } from 'esengine';
+import { miniGameServicesPlugin, Leaderboard } from 'estella-plugin-minigame-services';
+
+addPlugin(miniGameServicesPlugin);
+const leaderboard = app.getResource(Leaderboard);
 
 // 你这一半：写自己的那一行。这是游戏本身唯一能做的云操作——
 // 读任何人的（包括你自己的）都属于开放数据域。
@@ -130,28 +141,35 @@ leaderboard.hide();   // 清空并停止采样
 没有开放数据域的地方 `Leaderboard.available` 是 `false`——网页、原生，以及任何
 没有声明开放数据域的包。**把按钮藏起来**，别打开一个永远空白的面板。
 
-### 默认就带的那份
+### 另外那一半
 
-不用写任何东西：引擎自带的排行榜会被打进每一个没有自备开放数据域的小游戏导出包，
-`Leaderboard.show()` 直接就能画。行会排名，玩家自己那一行会加重，**从没玩过的
-好友不会以 0 分出现**，而是不出现。
+开放数据域这个目录属于项目，里面放什么由包提供：
 
-样式走 `show({ style })`——颜色、行高、字号、画不画头像。画布尺寸固定且
-**不能滚动**：没有任何指针或按键事件能到达那个运行时，所以 `limit` 是「放得下
+```typescript title="open-data/index.ts"
+import 'estella-plugin-minigame-services/open-data';
+```
+
+整个文件就这一行。导出器会把 `open-data/` 单独打一个包并写进 `game.json`；项目
+里没有这个目录就不带开放数据域，`available` 会如实说没有，而不是让一块榜到设备
+上才画不出来。
+
+带来的这块榜：行会排名，玩家自己那一行会加重，**从没玩过的好友不会以 0 分出现**，
+而是不出现。样式走 `show({ style })`——颜色、行高、字号、画不画头像。画布尺寸固定
+且**不能滚动**：没有任何指针或按键事件能到达那个运行时，所以 `limit` 是「放得下
 几行」，不是分页。
 
 ### 自己写一份
 
-在项目里放一个 `open-data/index.ts`，导出器就会改用它。它运行在开放数据域里，
-所以**不允许 import `esengine`**——真这么写会导出失败，这比到设备上才发现要好。
-在里面你有 `wx.getSharedCanvas()` 给的 2D 画布、`wx.getFriendCloudStorage()`，
-以及 `wx.onMessage()` 收到的 `show()` 发过去的内容。
+不 import 包的那份，自己写这个文件就行。它运行在开放数据域里，所以**不允许
+import `esengine`**——真这么写会导出失败，这比到设备上才发现要好。在里面你有
+`wx.getSharedCanvas()` 给的 2D 画布、`wx.getFriendCloudStorage()`，以及
+`wx.onMessage()` 收到的 `show()` 发过去的内容。
 
 ### 在你自己的桌面上
 
-Play 模式会装一块本地榜：跑的是**引擎自己的渲染器**，和开放数据域里那份是同一段
-代码，画在离屏画布上，用一眼就看得出是假的好友数据。所以面板的排版和配色不打包
-就能调。
+Play 模式里根本没有开放数据域，所以榜会**排演**：跑的是和开放数据域里那份同一段
+渲染代码，画在离屏画布上，用一眼就看得出是假的好友数据。所以面板的排版和配色不
+打包就能调。
 
 它替代不了的是真正属于宿主的那部分——真实好友，以及它们所在的沙箱。发版前请在
 真机上过一眼。

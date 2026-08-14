@@ -103,6 +103,12 @@ export {
 
 export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStats } from './wasm/resourceManager';
 
+/** A texture whose content is a canvas SOMETHING ELSE draws on, re-taken on
+ *  demand — the seam a service outside the engine needs to put another
+ *  runtime's pixels (an open data context, a host overlay) on a quad. */
+export { createCanvasTexture, type CanvasTexture } from './asset/canvasTexture';
+export type { GlImageSource } from './asset/glTextureUpload';
+
 // =============================================================================
 // Scene
 // =============================================================================
@@ -427,13 +433,11 @@ export {
 export {
     Achievements, AchievementsAPI, createLocalAchievements,
     Ads, AdsAPI, createMockAdProvider, createTakeover,
-    Leaderboard, LeaderboardAPI, createLocalLeaderboard,
     Identity, IdentityAPI,
     ServicesPlugin, servicesPlugin,
     type AchievementProvider,
     type AdProvider, type MockAdProviderOptions, type Takeover, type TakeoverHost,
-    type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
-    type LeaderboardStyle, type LocalLeaderboardOptions, type LoginResult,
+    type LoginResult,
 } from './services';
 
 // =============================================================================

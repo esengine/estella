@@ -12,6 +12,7 @@ import { initResourceManager, shutdownResourceManager } from '../src/wasm/resour
 import { setLinearColorSpace } from '../src/ecs/env';
 import { createCanvasTexture } from '../src/asset/canvasTexture';
 import type { ESEngineModule } from '../src/wasm';
+import type { App } from '../src/app/app';
 
 const SRGB8_ALPHA8 = 0x8c43;
 const RGBA = 0x1908;
@@ -41,9 +42,10 @@ function makeGl() {
     };
 }
 
-/** A module whose GL registry hands out ids, with `gl` as the live context. */
-function makeModule(gl: ReturnType<typeof makeGl>): ESEngineModule {
-    return {
+/** An App whose module's GL registry hands out ids, with `gl` as the live
+ *  context — the App is what a caller has, so it is what this takes. */
+function makeApp(gl: ReturnType<typeof makeGl>): App {
+    const module = {
         GL: {
             currentContext: { GLctx: gl },
             contexts: [],
@@ -51,6 +53,7 @@ function makeModule(gl: ReturnType<typeof makeGl>): ESEngineModule {
             textures: {} as Record<number, WebGLTexture>,
         },
     } as unknown as ESEngineModule;
+    return { wasmModule: module } as unknown as App;
 }
 
 /** A stand-in for the shared canvas: something with a size that can change. */
@@ -71,7 +74,7 @@ afterEach(() => {
 describe('createCanvasTexture', () => {
     it('takes the source once and registers it as an engine texture', () => {
         const gl = makeGl();
-        const tex = createCanvasTexture(makeModule(gl), makeSource(256, 128))!;
+        const tex = createCanvasTexture(makeApp(gl), makeSource(256, 128))!;
         expect(tex.handle).toBe(42);
         expect(tex.width).toBe(256);
         expect(tex.height).toBe(128);
@@ -81,7 +84,7 @@ describe('createCanvasTexture', () => {
 
     it('keeps the handle across a re-take — a component is holding it', () => {
         const gl = makeGl();
-        const tex = createCanvasTexture(makeModule(gl), makeSource(64, 64))!;
+        const tex = createCanvasTexture(makeApp(gl), makeSource(64, 64))!;
         const before = tex.handle;
         tex.update();
         tex.update();
@@ -93,7 +96,7 @@ describe('createCanvasTexture', () => {
     it('follows the source when it is resized', () => {
         const gl = makeGl();
         const source = makeSource(64, 64) as { width: number; height: number };
-        const tex = createCanvasTexture(makeModule(gl), source as never)!;
+        const tex = createCanvasTexture(makeApp(gl), source as never)!;
         source.width = 320;
         source.height = 200;
         tex.update();
@@ -103,7 +106,7 @@ describe('createCanvasTexture', () => {
 
     it('uploads in the engine\'s orientation, un-premultiplied, and leaves the flag off', () => {
         const gl = makeGl();
-        createCanvasTexture(makeModule(gl), makeSource(8, 8));
+        createCanvasTexture(makeApp(gl), makeSource(8, 8));
         const flips = gl.pixelStorei.mock.calls.filter((c) => c[0] === UNPACK_FLIP_Y_WEBGL);
         // Set for the upload, then restored — every other uploader shares this
         // context and none of them asks for a flip they did not set.
@@ -112,18 +115,18 @@ describe('createCanvasTexture', () => {
 
     it('is sRGB-encoded in the linear pipeline and plain RGBA in gamma', () => {
         const gamma = makeGl();
-        createCanvasTexture(makeModule(gamma), makeSource(8, 8));
+        createCanvasTexture(makeApp(gamma), makeSource(8, 8));
         expect(gamma.texImage2D.mock.calls[0][2]).toBe(RGBA);
 
         setLinearColorSpace(true);
         const linear = makeGl();
-        createCanvasTexture(makeModule(linear), makeSource(8, 8));
+        createCanvasTexture(makeApp(linear), makeSource(8, 8));
         expect(linear.texImage2D.mock.calls[0][2]).toBe(SRGB8_ALPHA8);
     });
 
     it('has no mipmaps and does not tile — a chain per frame is waste, and nothing tiles a panel', () => {
         const gl = makeGl();
-        createCanvasTexture(makeModule(gl), makeSource(8, 8));
+        createCanvasTexture(makeApp(gl), makeSource(8, 8));
         expect(gl.generateMipmap).not.toHaveBeenCalled();
         const minFilter = gl.texParameteri.mock.calls.find((c) => c[1] === TEXTURE_MIN_FILTER);
         expect(minFilter?.[2]).toBe(LINEAR);
@@ -134,7 +137,7 @@ describe('createCanvasTexture', () => {
 
     it('sets sampler state once, not on every re-take', () => {
         const gl = makeGl();
-        const tex = createCanvasTexture(makeModule(gl), makeSource(8, 8))!;
+        const tex = createCanvasTexture(makeApp(gl), makeSource(8, 8))!;
         const afterCreate = gl.texParameteri.mock.calls.length;
         tex.update();
         expect(gl.texParameteri.mock.calls.length).toBe(afterCreate);
@@ -147,11 +150,12 @@ describe('createCanvasTexture', () => {
 
     it('releases the GL texture on destroy, and a re-take afterwards is a no-op', () => {
         const gl = makeGl();
-        const module = makeModule(gl);
-        const tex = createCanvasTexture(module, makeSource(8, 8))!;
+        const app = makeApp(gl);
+        const tex = createCanvasTexture(app, makeSource(8, 8))!;
         tex.destroy();
         expect(gl.deleteTexture).toHaveBeenCalledTimes(1);
-        expect((module.GL as unknown as { textures: Record<number, unknown> }).textures[7]).toBeUndefined();
+        const gpu = app.wasmModule!.GL as unknown as { textures: Record<number, unknown> };
+        expect(gpu.textures[7]).toBeUndefined();
         const uploads = gl.texImage2D.mock.calls.length;
         tex.update();
         tex.destroy();

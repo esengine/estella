@@ -14,6 +14,40 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The friends leaderboard is a package, not an engine service.** It moved to
+  `estella-plugin-minigame-services` alongside share and payment, and with it the
+  open data context it draws in. The engine keeps what only it can offer — the
+  capabilities the board is built from — so a third-party board is built the same
+  way ours is.
+
+  Removed from `esengine` (all `@experimental`): `Leaderboard`, `LeaderboardAPI`,
+  `createLocalLeaderboard`, `LeaderboardOptions`, `LeaderboardProvider`,
+  `LeaderboardScope`, `LeaderboardStyle`, `LocalLeaderboardOptions`. Import them
+  from the package instead, and add `open-data/index.ts` to the project with one
+  line — `import 'estella-plugin-minigame-services/open-data';` — which is what a
+  mini-game export now bundles as the context. A project that had no
+  `open-data/` directory was getting the engine's board by default; it needs that
+  file to keep one.
+
+### Added
+
+- **Host capabilities a package can reach**: `platformCanOpenData`,
+  `platformOpenDataPostMessage`, `platformOpenDataCanvas`,
+  `platformSetCloudKeyValues`, `platformCreateCanvas`, `platformDevicePixelRatio`,
+  and `createCanvasTexture` — a texture whose content is a canvas something else
+  draws on. Exported because a shipped plugin holds each one up.
+
+- **A plugin can put a button on the editor's activity bar** —
+  `ctx.activityBar.register({ id, title, icon, run })`, with the glyph as the
+  plugin's own inline SVG. The audio mixer uses it, which is how it got back the
+  rail entry it had before it became a plugin.
+
+- **`registerAction` takes a declaration**, not only a bare function — the form
+  the docs already taught, and what turns an editor text box into typed controls
+  for a game's own action.
+
 ## [0.51.0] - 2026-08-13
 
 ### Added

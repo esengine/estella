@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, Leaderboard, createLocalLeaderboard, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
+import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
@@ -581,15 +581,6 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   // pause/audio ceremony and just skips the video.
   app.getResource(Ads)?.setProvider(createMockAdProvider());
 
-  // Same reason, harder problem: a friends leaderboard is drawn by a second JS
-  // runtime that exists only on a mini-game host, so without this there is
-  // nowhere to look at one until the game is on a phone. The local board runs
-  // the ENGINE'S OWN renderer — the one that ships inside that runtime —
-  // against an offscreen canvas and obviously-invented friends, so what you see
-  // here is what will be drawn there. What it cannot stand in for is the part
-  // that is genuinely the host's: real friends.
-  app.getResource(Leaderboard)?.setProvider(createLocalLeaderboard());
-
   // Role first, runtime second: initPlayRealmRuntime ends in app.run(), and by
   // then the Net role must already be decided (see beginNet).
   const netReady = beginNet(msg);
@@ -622,6 +613,12 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     achievements: msg.achievements,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
+
+  // A friends board, rehearsed as the ad above is. AFTER the runtime init, which
+  // is where the game's own plugins install — and by NAME, because a board is a
+  // package the editor does not depend on.
+  (app.getResourceByName('Leaderboard') as { rehearse?(): void } | undefined)?.rehearse?.();
+
   // Realm-local debug handle for automation/diagnostics (mirrors the headless
   // host's __estellaHeadless): the editor can't reach into this OOPIF except by
   // main-process frame eval, and the eval needs SOMETHING to query. getComponent
