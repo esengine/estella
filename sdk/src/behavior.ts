@@ -133,6 +133,8 @@ export function defineBehavior<S extends object>(name: string, def: BehaviorDef<
 
     const { start, update, destroy } = def;
 
+    // system-access: runs a behaviour a project wrote, which may read or write
+    // any component it names.
     const system = defineSystem(
         [Query(Mut(Comp)), Res(Time), Res(Input), Commands(), GetWorld()],
         (q, time, input, commands, world) => {

@@ -6,7 +6,7 @@
  */
 
 import { World } from '../ecs/world';
-import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, type RunCondition } from '../ecs/system';
+import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { EventRegistry, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -17,6 +17,13 @@ import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
 import { setWasmErrorHandler } from '../wasm/wasmError';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
+import {
+    dependencyEdges,
+    detectAmbiguities,
+    parallelBatches,
+    type Ambiguity,
+    type ResolveTargets,
+} from './ambiguity';
 import { platformNow } from '../platform';
 import { RenderPipeline } from '../render/renderPipeline';
 import type { SceneConfig } from '../scene/sceneManager';
@@ -322,14 +329,7 @@ export class App {
         options?: { runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition }
     ): this {
         const name = system._name || `System_${++this.systemCounter_}`;
-        const scoped: SystemDef = {
-            _id: Symbol(`System_${name}`),
-            _params: system._params,
-            _fn: system._fn,
-            _name: name,
-            _runBefore: system._runBefore,
-            _runAfter: system._runAfter,
-        };
+        const scoped = rescopeSystem(system, name);
         this.templateToRuntime_.set(system._id, scoped._id);
 
         this.scheduleBucket_(schedule, name).push({
@@ -473,14 +473,7 @@ export class App {
 
             // Use the scoped system name the App would generate so ordering
             // lookups match. Mirrors addSystemToSchedule's naming path.
-            const scoped: SystemDef = {
-                _id: Symbol(`System_${name}`),
-                _params: sys._params,
-                _fn: sys._fn,
-                _name: name,
-                _runBefore: sys._runBefore,
-                _runAfter: sys._runAfter,
-            };
+            const scoped = rescopeSystem(sys, name);
             this.templateToRuntime_.set(sys._id, scoped._id);
 
             this.scheduleBucket_(schedule, name).push({
@@ -1120,20 +1113,18 @@ export class App {
         return sorted;
     }
 
-    private sortSystems(systems: SystemEntry[]): SystemEntry[] {
-        if (systems.length <= 1) {
-            return systems;
-        }
-
+    /**
+     * Expands an ordering name to the indices it refers to — a system, or every
+     * member of a set that is also in this schedule. A name matching neither
+     * resolves to nothing, which is how ordering against a system that was never
+     * registered stays a no-op rather than an error.
+     */
+    private resolverFor(systems: readonly SystemEntry[]): ResolveTargets {
         const nameToIndex = new Map<string, number>();
         for (let i = 0; i < systems.length; i++) {
             nameToIndex.set(systems[i].system._name, i);
         }
-
-        // Expand a name that may refer to a SystemSet into the indices of
-        // every member of the set that is also in this schedule. Returns
-        // empty when the name matches neither a system nor a known set.
-        const resolveTargets = (name: string): number[] => {
+        return (name: string): number[] => {
             const direct = nameToIndex.get(name);
             if (direct !== undefined) return [direct];
             const members = this.setMembership_.get(name);
@@ -1145,33 +1136,42 @@ export class App {
             }
             return out;
         };
+    }
 
-        // Build a local dependency graph: `adj[i]` lists indices that must run
-        // *before* system `i`. Both runBefore and runAfter feed into the same
-        // structure — runBefore is translated symmetrically into
-        // "target depends on me" without mutating the caller's SystemEntry
-        // objects (the old path appended to target.runAfter, leaving duplicated
-        // edges across repeat sorts).
-        const adj: number[][] = systems.map(() => []);
-        const addEdge = (from: number, to: number) => {
-            if (from === to) return;
-            const list = adj[to];
-            if (!list.includes(from)) list.push(from);
-        };
+    /**
+     * Pairs of systems in `schedule` that touch the same data with nothing
+     * saying which runs first, so their order is whatever registration and the
+     * sort happened to produce.
+     *
+     * @beta
+     */
+    scheduleAmbiguities(schedule: Schedule): Ambiguity[] {
+        const systems = this.systems_.get(schedule) ?? [];
+        return detectAmbiguities(systems, this.resolverFor(systems));
+    }
 
-        for (let i = 0; i < systems.length; i++) {
-            const e = systems[i];
-            if (e.runAfter) {
-                for (const depName of e.runAfter) {
-                    for (const j of resolveTargets(depName)) addEdge(j, i);
-                }
-            }
-            if (e.runBefore) {
-                for (const targetName of e.runBefore) {
-                    for (const j of resolveTargets(targetName)) addEdge(i, j);
-                }
-            }
+    /**
+     * `schedule` grouped into batches that could run at the same time — how much
+     * of it is inherently sequential. The schedule still runs them in order.
+     *
+     * @beta
+     */
+    scheduleBatches(schedule: Schedule): string[][] {
+        const systems = this.systems_.get(schedule) ?? [];
+        return parallelBatches(systems, this.resolverFor(systems));
+    }
+
+    private sortSystems(systems: SystemEntry[]): SystemEntry[] {
+        if (systems.length <= 1) {
+            return systems;
         }
+
+        const resolveTargets = this.resolverFor(systems);
+
+        // `adj[i]` lists indices that must run *before* system `i` — the same
+        // edges the ambiguity check reads, so what orders a schedule and what
+        // judges its order can never be two answers.
+        const adj = dependencyEdges(systems, resolveTargets);
 
         // DFS topological sort with path-aware cycle reporting.
         // color: 0 = unvisited, 1 = in the current DFS stack (GRAY), 2 = done.

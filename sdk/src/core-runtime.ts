@@ -363,11 +363,20 @@ export {
     type SystemDef,
     type SystemParam,
     type SystemOptions,
+    type SystemTouches,
     type SystemSet,
     type SystemSetOptions,
     type InferParam,
     type InferParams,
 } from './ecs/system';
+
+/**
+ * What the schedule can say about itself: which systems' order nobody decided,
+ * and how much of it is inherently sequential.
+ *
+ * @beta
+ */
+export type { Ambiguity } from './app/ambiguity';
 
 // =============================================================================
 // Behavior (per-entity scripted behavior → one ECS system)

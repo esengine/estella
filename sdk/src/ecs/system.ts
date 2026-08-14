@@ -155,6 +155,8 @@ export interface SystemDef {
     readonly _runBefore?: readonly string[];
     /** @internal */
     readonly _runAfter?: readonly string[];
+    /** @internal */
+    readonly _touches?: SystemTouches;
 }
 
 let templateCounter_ = 0;
@@ -173,6 +175,21 @@ export interface SystemOptions {
     runBefore?: string[];
     /** This system runs after each of these names (a system or a set). */
     runAfter?: string[];
+    /** What the system reaches for through {@link GetWorld}. See {@link SystemTouches}. */
+    touches?: SystemTouches;
+}
+
+/**
+ * What a system reaches for outside its declared parameters — a {@link GetWorld}
+ * user's claim about the escape hatch, without which the scheduler assumes it
+ * touches everything. By component NAME: the reason to reach through the World
+ * is usually a type registered later than the system.
+ *
+ * @public
+ */
+export interface SystemTouches {
+    reads?: readonly string[];
+    writes?: readonly string[];
 }
 
 /**
@@ -199,6 +216,22 @@ export function defineSystem<P extends readonly SystemParam[]>(
         _name: options?.name ?? '',
         _runBefore: options?.runBefore,
         _runAfter: options?.runAfter,
+        _touches: options?.touches,
+    };
+}
+
+/**
+ * The same system under a scheduler-owned identity and name.
+ *
+ * Registration gives a template its own id so the same definition can be added
+ * twice, and copying the fields by hand at each site is how a field added to
+ * SystemDef silently stops travelling with it.
+ */
+export function rescopeSystem(system: SystemDef, name: string): SystemDef {
+    return {
+        ...system,
+        _id: Symbol(`System_${name}`),
+        _name: name,
     };
 }
 

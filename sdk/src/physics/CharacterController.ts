@@ -309,6 +309,8 @@ export function registerCharacterControllerSystem(app: App): void {
     warnedNonFiniteMove = false;
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
+        // system-access: reads and writes the Transform of whatever a character is
+        // standing on, which the solver decides per contact.
         defineSystem(
             [Query(Mut(CharacterController)), Res(Time), Res(Physics), GetWorld()],
             (

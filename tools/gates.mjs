@@ -65,6 +65,9 @@ export const GATES = [
   { id: 'headless-export', run: 'node tools/check-headless-export.mjs' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
+  // A system's parameters are what the schedule knows about it; the World
+  // escape hatch has to say what it reaches for or the schedule knows nothing.
+  { id: 'system-access', run: 'node tools/check-system-access.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs' },

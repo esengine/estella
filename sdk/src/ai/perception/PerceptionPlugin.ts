@@ -97,6 +97,7 @@ export class PerceptionPlugin implements Plugin {
     build(app: App): void {
         app.addSystemToSchedule(
             Schedule.PreUpdate,
+            // system-access: senses whatever a project's perception graph names.
             defineSystem(
                 [GetWorld()],
                 world => {

@@ -179,6 +179,7 @@ export class StatsPlugin implements Plugin {
         const collector = this.collector_;
         const overlay = this.overlay_;
 
+        // system-access: counts what the world holds, whatever that is.
         const statsCollectSystem = defineSystem(
             [Res(Time), GetWorld()],
             (time, world) => {

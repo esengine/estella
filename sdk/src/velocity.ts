@@ -60,7 +60,13 @@ export const velocitySystem = defineSystem(
             }
         }
     },
-    { name: 'VelocitySystem' }
+    {
+        name: 'VelocitySystem',
+        // The World is here for one question — does this entity have a physics
+        // body — and RigidBody cannot be named as a query filter because the
+        // physics module may never have registered it.
+        touches: { reads: ['RigidBody'] },
+    }
 );
 
 export const velocityPlugin: Plugin = {

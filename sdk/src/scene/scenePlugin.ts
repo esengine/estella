@@ -37,7 +37,9 @@ const sceneStreamingSystem = defineSystem(
         }
         streaming.update();
     },
-    { name: 'SceneStreamingSystem' }
+    // The World is here to read one entity's Transform — the focus the streaming
+    // controller follows, which is chosen at runtime rather than queried.
+    { name: 'SceneStreamingSystem', touches: { reads: ['Transform'] } }
 );
 
 export const sceneManagerPlugin: Plugin = {

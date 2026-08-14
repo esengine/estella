@@ -145,6 +145,8 @@ export class FsmPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
+            // system-access: steps a project's state machine, whose states read and
+            // write whatever that project's graph names.
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {

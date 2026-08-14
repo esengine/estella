@@ -138,6 +138,8 @@ export class BtPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
+            // system-access: steps a project's behaviour tree, whose nodes read and
+            // write whatever that project's tree names.
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {

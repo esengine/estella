@@ -46,6 +46,21 @@ export function promisedBody(body) {
     return body.split('\n').filter((l) => !l.startsWith('@internal ')).join('\n');
 }
 
+
+/**
+ * Whether `after` only ADDS optional members to `before` — an addition that
+ * breaks nobody, since existing code constructs the value without the field.
+ * A snapshot renders an optional member as `name: T | undefined`, and that
+ * spelling is what makes the addition safe, so it is what this looks for.
+ */
+export function isAdditiveMembers(before, after) {
+    const was = before.split('\n').filter(Boolean);
+    const now = new Set(after.split('\n').filter(Boolean));
+    if (was.some((line) => !now.has(line))) return false;
+    const added = [...now].filter((line) => !was.includes(line));
+    return added.length > 0 && added.every((line) => /:\s.*\|\s*undefined$/.test(line));
+}
+
 /**
  * Compare one entry against its released self. Only @public carries a promise,
  * so only @public produces a failure; @beta is noted because "may adjust" should
@@ -66,7 +81,12 @@ export function baselineFindings(was, now) {
             } else if (after.kind !== before.kind) {
                 failures.push(`${name} — @public ${before.kind} became a ${after.kind}`);
             } else if (promisedBody(after.body) !== promisedBody(before.body)) {
-                failures.push(`${name} — @public signature changed`);
+                if (before.kind === 'interface'
+                    && isAdditiveMembers(promisedBody(before.body), promisedBody(after.body))) {
+                    notes.push(`${name} — @public interface gained an optional member`);
+                } else {
+                    failures.push(`${name} — @public signature changed`);
+                }
             }
         } else if (before.tier === 'beta') {
             if (!after) notes.push(`${name} — @beta removed`);

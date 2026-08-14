@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a repo tool, shipped as .mjs with no declarations
-import { parseSnapshot, baselineFindings, UNCLAIMED } from '../../tools/lib/apiSnapshot.mjs';
+import { parseSnapshot, baselineFindings, isAdditiveMembers, UNCLAIMED } from '../../tools/lib/apiSnapshot.mjs';
 
 type Entry = { kind: string; tier: string; deprecated: boolean; body: string };
 
@@ -104,5 +104,38 @@ describe('baselineFindings', () => {
         expect(baselineFindings(was, now).failures).toEqual([
             expect.stringContaining('@public signature changed'),
         ]);
+    });
+});
+
+describe('an interface that gains an optional member', () => {
+    const was = snapshot(sig('Options — interface @public', 'name: string | undefined'));
+
+    it('is not a broken promise: nothing that compiled stops compiling', () => {
+        const now = snapshot(sig('Options — interface @public',
+            'name: string | undefined\ntouches: Touches | undefined'));
+        const { failures, notes } = baselineFindings(was, now);
+        expect(failures).toEqual([]);
+        expect(notes.join()).toMatch(/optional member/);
+    });
+
+    it('still fails when the added member is required', () => {
+        const now = snapshot(sig('Options — interface @public',
+            'name: string | undefined\ntouches: Touches'));
+        expect(baselineFindings(was, now).failures).toHaveLength(1);
+    });
+
+    it('still fails when an existing member changed', () => {
+        const now = snapshot(sig('Options — interface @public',
+            'name: number | undefined\ntouches: Touches | undefined'));
+        expect(baselineFindings(was, now).failures).toHaveLength(1);
+    });
+
+    it('still fails when a member was dropped', () => {
+        const now = snapshot(sig('Options — interface @public', 'touches: Touches | undefined'));
+        expect(baselineFindings(was, now).failures).toHaveLength(1);
+    });
+
+    it('is not additive when nothing was added', () => {
+        expect(isAdditiveMembers('a: string | undefined', 'a: string | undefined')).toBe(false);
     });
 });

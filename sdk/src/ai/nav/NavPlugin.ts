@@ -116,6 +116,8 @@ export class NavPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
+            // system-access: moves agents whose components are registered by the
+            // project, through the same World view the editor steps.
             defineSystem(
                 [Res(Nav), Res(Time), GetWorld()],
                 (nav: Navigation, time: TimeData, world) => {
