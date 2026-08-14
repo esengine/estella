@@ -28,9 +28,10 @@
  *   none: a rehearsed purchase that charges nothing and grants nothing rehearses
  *   only the dialog, and the part that goes wrong is the part behind it.
  */
-import { defineResource } from '../ecs/resource';
-import { platformCanPay, platformRequestPayment } from '../platform';
-import type { PlatformPaymentRequest } from '../platform/types';
+import {
+    defineResource, platformCanPay, platformRequestPayment,
+    type PlatformPaymentRequest,
+} from 'esengine';
 
 export type PaymentRequest = PlatformPaymentRequest;
 

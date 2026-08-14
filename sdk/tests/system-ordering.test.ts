@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app/app';
+import { App, flushPendingRegistrations } from '../src/app/app';
 import { addSystem, defineSystem, Schedule } from '../src/ecs/system';
 
 describe('System Dependency Ordering', () => {
@@ -222,7 +222,7 @@ describe('System Dependency Ordering', () => {
 
             addSystem(camera);
             addSystem(move);
-            flushPendingSystems(app);
+            flushPendingRegistrations(app);
 
             (app as any).runner_ = { run: (sys: any) => sys._fn() };
             await (app as any).runSchedule(Schedule.Update);

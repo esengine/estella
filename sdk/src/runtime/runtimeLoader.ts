@@ -34,7 +34,7 @@ import { VideoPlayer } from '../video/VideoAPI';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
-import { flushPendingSystems } from '../app/app';
+import { flushPendingRegistrations } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
@@ -534,7 +534,7 @@ export interface RuntimeInitConfig {
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
 
-    flushPendingSystems(app);
+    flushPendingRegistrations(app);
 
     // Install the per-App runtime Assets up front (scene loads reuse it) and
     // hand it the manifest so on-demand loadGroup works from the first frame.

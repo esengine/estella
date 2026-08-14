@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Platform services: the ads takeover ceremony and the share card.
+ * @file  Platform services: the ads takeover ceremony.
  *
  * The contract under test is the part every game hand-rolls wrong: the game
  * clock pauses and the audio device suspends for exactly the span of the ad,
@@ -11,7 +11,6 @@
 import { describe, it, expect } from 'vitest';
 import { AdsAPI, createMockAdProvider, type AdProvider } from '../src/services/ads';
 import { createTakeover, type TakeoverHost } from '../src/services/takeover';
-import { ShareAPI } from '../src/services/share';
 
 function recordingHost(): TakeoverHost & { events: string[]; paused: boolean } {
     const h = {
@@ -99,23 +98,5 @@ describe('AdsAPI takeover ceremony', () => {
         ads.setProvider(counting);
         await ads.showRewarded('a');
         expect(created).toBe(2);
-    });
-});
-
-describe('ShareAPI', () => {
-    it('is honestly unavailable off-platform, and share() says so', () => {
-        const share = new ShareAPI();
-        expect(share.available).toBe(false);
-        expect(share.share({ title: 'hi' })).toBe(false);
-    });
-
-    it('resolves a functional default card at share time', () => {
-        const share = new ShareAPI();
-        let score = 1;
-        share.setShareCard(() => ({ title: `score ${score}` }));
-        score = 42;
-        // Off-platform share() returns false, but the card resolution itself is
-        // what passive shares consume — reach it through the resolver.
-        expect((share as unknown as { resolveCard_(): { title: string } }).resolveCard_().title).toBe('score 42');
     });
 });

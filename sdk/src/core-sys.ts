@@ -107,6 +107,18 @@ export {
 // Platform (base functions only)
 // =============================================================================
 
+// Host CAPABILITIES, as opposed to the base functions below: the seams a service
+// is built on. Public because a service can live outside the engine, and there is
+// no second way to reach a host. Exported as a shipped plugin holds each one up.
+export {
+    platformShare,
+    platformCanShare,
+    platformOnShareRequest,
+    platformCanPay,
+    platformRequestPayment,
+} from './platform';
+export type { PlatformShareOptions, PlatformPaymentRequest } from './platform/types';
+
 export {
     getPlatform,
     getPlatformType,

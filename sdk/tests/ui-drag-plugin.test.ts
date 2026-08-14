@@ -10,7 +10,7 @@
  *        the emitted events.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flushPendingSystems } from '../src/app/app';
+import { flushPendingRegistrations } from '../src/app/app';
 import type { App } from '../src/app/app';
 import { Transform } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
@@ -38,7 +38,7 @@ beforeEach(() => {
     worldMouseX: 0, worldMouseY: 0, valid: true,
   } as UICameraData);
   dragPlugin.build(app); // reads UIEvents; registers Draggable/DragState; adds DragSystem
-  flushPendingSystems(app);
+  flushPendingRegistrations(app);
 });
 
 function draggable(opts: Partial<{ enabled: boolean; dragThreshold: number; lockX: boolean; lockY: boolean; hovered: boolean }> = {}): Entity {

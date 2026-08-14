@@ -68,10 +68,25 @@ installed provider. Use it to hide the "watch ad" button honestly:
 
 ## Sharing
 
+Sharing and [in-game purchase](#in-game-purchase) ship as a package rather than
+inside the engine — most games open neither:
+
+```bash
+npm install estella-plugin-minigame-services
+```
+
+```typescript title="src/main.ts"
+import { addPlugin } from 'esengine';
+import { miniGameServicesPlugin } from 'estella-plugin-minigame-services';
+
+addPlugin(miniGameServicesPlugin);
+```
+
 A mini-game host has **two** share surfaces, and a game should configure both:
 
 ```typescript
-import { defineSystem, addStartupSystem, Res, Share } from 'esengine';
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Share } from 'estella-plugin-minigame-services';
 
 addStartupSystem(defineSystem([Res(Share)], (share) => {
   // The DEFAULT card: what the host's own share menu (top-right on WeChat)
@@ -195,7 +210,8 @@ Android-only: the call is present on an iPhone and the platform refuses it. So
 than finding out when someone taps Buy.
 
 ```typescript
-import { defineSystem, Res, Payment } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { Payment } from 'estella-plugin-minigame-services';
 
 if (!payment.available) return;   // iOS, web, native — do not open the shop
 

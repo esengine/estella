@@ -10,9 +10,10 @@
  * time, so it can answer with live state — a room code, the current score.
  * Fire-and-forget by design: no host reports whether the player shared.
  */
-import { defineResource } from '../ecs/resource';
-import { platformShare, platformCanShare, platformOnShareRequest } from '../platform';
-import type { PlatformShareOptions } from '../platform/types';
+import {
+    defineResource, platformShare, platformCanShare, platformOnShareRequest,
+    type PlatformShareOptions,
+} from 'esengine';
 
 export type ShareCard = PlatformShareOptions;
 

@@ -143,9 +143,10 @@ npm install estella-plugin-tiled
 </FileTree>
 
 ```ts title="src/main.ts"
+import { addPlugin } from 'esengine';
 import { TiledPlugin } from 'estella-plugin-tiled';
 
-app.use(TiledPlugin);
+addPlugin(TiledPlugin);
 ```
 
 运行时那半不需要任何专门机制——它就是一个普通模块，和 `src/` 里的其余代码一起被打包

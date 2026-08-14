@@ -19,11 +19,9 @@ import type { App, Plugin } from '../app/app';
 import { Audio } from '../audio';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Ads, AdsAPI } from './ads';
-import { Share, ShareAPI } from './share';
 import { Leaderboard, LeaderboardAPI } from './leaderboard';
 import { Achievements, AchievementsAPI } from './achievements';
 import { Identity, IdentityAPI } from './identity';
-import { Payment, PaymentAPI } from './payment';
 import { createTakeover } from './takeover';
 import { getPlatform } from '../platform';
 
@@ -51,10 +49,8 @@ export class ServicesPlugin implements Plugin {
         getPlatform().onStoreOverlay?.((covered) => {
             if (covered) takeover.begin(); else takeover.end();
         });
-        app.insertResource(Share, new ShareAPI());
         app.insertResource(Achievements, new AchievementsAPI());
         app.insertResource(Identity, new IdentityAPI());
-        app.insertResource(Payment, new PaymentAPI());
         // Resolved per call rather than captured: the module is attached by
         // connectCpp, which can run after the plugins have built.
         app.insertResource(Leaderboard, new LeaderboardAPI(() => app.wasmModule));

@@ -9,7 +9,7 @@
  *        the harness satisfies.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flushPendingSystems } from '../src/app/app';
+import { flushPendingRegistrations } from '../src/app/app';
 import type { App } from '../src/app/app';
 import { Input, InputState } from '../src/input/input';
 import { UIEvents, UIEventQueue } from '../src/ui/core/events';
@@ -26,7 +26,7 @@ beforeEach(() => {
   app.insertResource(Input, new InputState());   // fresh, so key state can't leak between tests
   app.insertResource(UIEvents, new UIEventQueue());
   focusPlugin.build(app); // registers Focusable, inserts a fresh FocusManager, adds FocusSystem
-  flushPendingSystems(app);
+  flushPendingRegistrations(app);
 });
 
 /** A focusable entity. `enabled` drives the (builtin) Interactable gate. */

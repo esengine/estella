@@ -160,9 +160,10 @@ the manifest points at, and runtime code the game imports itself.
 </FileTree>
 
 ```ts title="src/main.ts"
+import { addPlugin } from 'esengine';
 import { TiledPlugin } from 'estella-plugin-tiled';
 
-app.use(TiledPlugin);
+addPlugin(TiledPlugin);
 ```
 
 The runtime half needs no mechanism of its own — it is an ordinary module, bundled

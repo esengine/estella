@@ -10,7 +10,7 @@
  * numbers looking sensible.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app/app';
+import { App, addPlugin, flushPendingRegistrations } from '../src/app/app';
 import {
     Schedule, defineSystem, defineSystemSet, addStartupSystem,
     addSystemToSchedule, addSystemSetToSchedule,
@@ -71,7 +71,7 @@ describe('module-level registration', () => {
         addSystemToSchedule(Schedule.PostUpdate, trace('bundle-post', order));
 
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         await app.tick(1 / 60);
 
         expect(order).toEqual(['bundle-startup', 'bundle-post']);
@@ -89,7 +89,7 @@ describe('module-level registration', () => {
         addSystemSetToSchedule(Schedule.Update, set);
 
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         await app.tick(1 / 60);
         expect(order).toEqual([]);
 
@@ -103,13 +103,46 @@ describe('module-level registration', () => {
         addSystemToSchedule(Schedule.Update, trace('once', order));
 
         const first = App.new();
-        flushPendingSystems(first);
+        flushPendingRegistrations(first);
         const second = App.new();
-        flushPendingSystems(second);
+        flushPendingRegistrations(second);
 
         await first.tick(1 / 60);
         await second.tick(1 / 60);
         expect(order).toEqual(['once']);
+    });
+
+    it('carries a project bundle PLUGIN too, before its own systems run', async () => {
+        // A plugin package is installed from the bundle, which is imported before
+        // an App exists — the same reason systems have a module-level door. And a
+        // project system may read what the plugin inserted, so plugins go first.
+        const order: string[] = [];
+        addPlugin({
+            name: 'FromBundle',
+            build: (app) => {
+                order.push('plugin-built');
+                app.addStartupSystem(trace('plugin-startup', order));
+            },
+        });
+        addStartupSystem(trace('bundle-startup', order));
+
+        const app = App.new();
+        flushPendingRegistrations(app);
+        await app.tick(1 / 60);
+
+        expect(order[0]).toBe('plugin-built');
+        expect(order).toContain('plugin-startup');
+        expect(order).toContain('bundle-startup');
+    });
+
+    it('drains the plugins, so a second app does not build them again', async () => {
+        const built: string[] = [];
+        addPlugin({ name: 'Once', build: () => built.push('built') });
+
+        flushPendingRegistrations(App.new());
+        flushPendingRegistrations(App.new());
+
+        expect(built).toEqual(['built']);
     });
 });
 

@@ -394,7 +394,8 @@ export { writePtrField, readPtrField } from './ecs/bridge/BuiltinBridge';
 
 export {
     App,
-    flushPendingSystems,
+    addPlugin,
+    flushPendingRegistrations,
     type FrameCosts,
     type Plugin,
     type PluginDependency,

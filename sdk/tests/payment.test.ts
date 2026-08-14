@@ -8,7 +8,7 @@
  * that read the API's existence would open and then fail at the tap.
  */
 import { describe, it, expect } from 'vitest';
-import { PaymentAPI } from '../src/services/payment';
+import { platformCanPay, platformRequestPayment } from '../src/platform';
 import { MiniGamePlatformAdapter } from '../src/platform/minigame/adapter';
 import { setPlatform } from '../src/platform/base';
 import type { MiniGameGlobal, MiniGameProfile } from '../src/platform/minigame/api';
@@ -16,8 +16,12 @@ import type { PlatformAdapter } from '../src/platform/types';
 
 type PayOpts = Parameters<NonNullable<MiniGameGlobal['requestMidasPayment']>>[0];
 
+/** The service façade these rules are read through lives in
+ *  estella-plugin-minigame-services; what is pinned here is the ADAPTER under it. */
+const api = { get available() { return platformCanPay(); }, request: platformRequestPayment };
+
 function host(opts: { where?: string; pay?: (o: PayOpts) => void } = {}): {
-    api: PaymentAPI; calls: PayOpts[];
+    api: typeof api; calls: PayOpts[];
 } {
     const calls: PayOpts[] = [];
     const profile: MiniGameProfile = {
@@ -31,16 +35,16 @@ function host(opts: { where?: string; pay?: (o: PayOpts) => void } = {}): {
         } as unknown as MiniGameGlobal,
     };
     setPlatform(new MiniGamePlatformAdapter(profile));
-    return { api: new PaymentAPI(), calls };
+    return { api, calls };
 }
 
 /** A mini-game host with no purchase API at all. */
-function hostWithoutPay(): PaymentAPI {
+function hostWithoutPay(): typeof api {
     setPlatform(new MiniGamePlatformAdapter({
         id: 'wechat', hostLabel: 'Test',
         global: { getSystemInfoSync: () => ({ platform: 'android' }) } as unknown as MiniGameGlobal,
     }));
-    return new PaymentAPI();
+    return api;
 }
 
 describe('available', () => {
@@ -66,7 +70,7 @@ describe('available', () => {
     it('is false with no purchase API, and off-platform', () => {
         expect(hostWithoutPay().available).toBe(false);
         setPlatform({ name: 'web', devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
-        expect(new PaymentAPI().available).toBe(false);
+        expect(api.available).toBe(false);
     });
 });
 

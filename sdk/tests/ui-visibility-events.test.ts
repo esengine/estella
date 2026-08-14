@@ -9,7 +9,7 @@
  *        reads the watcher makes, not just the events it emits.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushPendingSystems } from '../src/app/app';
+import { flushPendingRegistrations } from '../src/app/app';
 import type { App } from '../src/app/app';
 import { EntityEventQueue } from '../src/ecs/entityEvents';
 import { UIEvents, UIEventQueue, UIEventType } from '../src/ui/core/events';
@@ -96,7 +96,7 @@ describe('UIVisibilityPlugin', () => {
         events = new UIEventQueue();
         app.insertResource(UIEvents, events);
         uiVisibilityPlugin.build(app);
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
     });
 
     /** A UI node, on screen unless told otherwise. */

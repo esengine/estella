@@ -5,7 +5,6 @@ export {
     type AdProvider, type MockAdProviderOptions,
 } from './ads';
 export { createTakeover, type Takeover, type TakeoverHost } from './takeover';
-export { Share, ShareAPI, type ShareCard } from './share';
 export {
     Leaderboard, LeaderboardAPI, createLocalLeaderboard,
     type LeaderboardOptions, type LeaderboardProvider, type LeaderboardScope,
@@ -15,5 +14,4 @@ export {
     Achievements, AchievementsAPI, createLocalAchievements, type AchievementProvider,
 } from './achievements';
 export { Identity, IdentityAPI, type LoginResult } from './identity';
-export { Payment, PaymentAPI, type PaymentRequest, type PaymentFailure } from './payment';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';

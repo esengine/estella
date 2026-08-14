@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app/app';
+import { App, flushPendingRegistrations } from '../src/app/app';
 import { defineBehavior } from '../src/behavior';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { getUserComponents } from '../src/ecs/component';
@@ -30,7 +30,7 @@ describe('defineBehavior', () => {
         });
 
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
 
         const e = app.world.spawn('e1');
         app.world.insert(e, Bhv, { n: 0 });
@@ -48,7 +48,7 @@ describe('defineBehavior', () => {
         let starts = 0;
         const Bhv = defineBehavior('Once', { start() { starts++; } });
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         const e = app.world.spawn();
         app.world.insert(e, Bhv, {});
 
@@ -63,7 +63,7 @@ describe('defineBehavior', () => {
         let destroyed = 0;
         const Bhv = defineBehavior('OnRemove', { destroy() { destroyed++; } });
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         const e = app.world.spawn();
         app.world.insert(e, Bhv, {});
 
@@ -80,7 +80,7 @@ describe('defineBehavior', () => {
         const started: string[] = [];
         const Bhv = defineBehavior('Spawned', { start(ctx) { started.push(`e${ctx.entity}`); } });
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
 
         await app.tick(1 / 60); // nothing yet
         expect(started).toEqual([]);
@@ -95,9 +95,9 @@ describe('defineBehavior', () => {
         const order: string[] = [];
         defineBehavior('Fixed', { schedule: Schedule.FixedUpdate, update() { order.push('fixed'); } });
         const app = App.new();
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         const Other = defineBehavior('Var', { update() { order.push('var'); } });
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
         const e = app.world.spawn();
         app.world.insert(e, getUserComponents().get('Fixed')!, {});
         app.world.insert(e, Other, {});

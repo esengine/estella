@@ -61,10 +61,24 @@ const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
 
 ## 分享
 
+分享和[内购](#内购)以包的形式发布，不在引擎里——大多数游戏两个都不会打开：
+
+```bash
+npm install estella-plugin-minigame-services
+```
+
+```typescript title="src/main.ts"
+import { addPlugin } from 'esengine';
+import { miniGameServicesPlugin } from 'estella-plugin-minigame-services';
+
+addPlugin(miniGameServicesPlugin);
+```
+
 小游戏宿主有**两个**分享面,游戏两个都该配置:
 
 ```typescript
-import { defineSystem, addStartupSystem, Res, Share } from 'esengine';
+import { defineSystem, addStartupSystem, Res } from 'esengine';
+import { Share } from 'estella-plugin-minigame-services';
 
 addStartupSystem(defineSystem([Res(Share)], (share) => {
   // 默认卡片:宿主自己的分享菜单(微信右上角)展示的内容,也是 share() 不带参数时
@@ -177,7 +191,8 @@ code**。
 应该在打开之前就问，而不是等玩家点了「购买」才发现。
 
 ```typescript
-import { defineSystem, Res, Payment } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { Payment } from 'estella-plugin-minigame-services';
 
 if (!payment.available) return;   // iOS、网页、原生——不要打开商店
 

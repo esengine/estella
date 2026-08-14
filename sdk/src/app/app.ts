@@ -1410,7 +1410,26 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     return app;
 }
 
-export function flushPendingSystems(app: App): void {
-    const drained = getDefaultContext().drainPendingSystems();
-    app.addBundleSystems(drained as ReadonlyArray<{ schedule: number; system: SystemDef }>);
+/**
+ * Install a {@link Plugin} from a project bundle — the module-level twin of
+ * {@link App.addPlugin}, and the door a plugin PACKAGE is installed through: a
+ * bundle is imported before an App exists.
+ *
+ * @experimental
+ */
+export function addPlugin(plugin: Plugin): void {
+    getDefaultContext().pendingPlugins.push(plugin);
+}
+
+/**
+ * Install everything a project bundle registered at module level. One door, so a
+ * host cannot drain half of it — plugins first, because a project's own system
+ * may read a resource one of them inserts.
+ *
+ * @experimental
+ */
+export function flushPendingRegistrations(app: App): void {
+    const context = getDefaultContext();
+    for (const plugin of context.drainPendingPlugins()) app.addPlugin(plugin as Plugin);
+    app.addBundleSystems(context.drainPendingSystems() as ReadonlyArray<{ schedule: number; system: SystemDef }>);
 }

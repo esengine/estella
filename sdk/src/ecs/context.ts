@@ -55,6 +55,9 @@ export interface WasmErrorState {
 export class AppContext {
     readonly componentRegistry = new Map<string, any>();
     readonly pendingSystems: PendingSystemEntry[] = [];
+    /** Plugins a project bundle installed at module level, drained with the
+     *  systems: a bundle is imported before an App exists. */
+    readonly pendingPlugins: unknown[] = [];
     editorBridge: EditorBridge | null = null;
     readonly wasmError: WasmErrorState = { handler: null, lastReportTime: 0, suppressedCount: 0 };
 
@@ -75,9 +78,15 @@ export class AppContext {
         return drained;
     }
 
+    /** @brief Drain all pending plugins and clear the queue */
+    drainPendingPlugins(): unknown[] {
+        return this.pendingPlugins.splice(0);
+    }
+
     /** @brief Reset all mutable state for a new session */
     reset(): void {
         this.pendingSystems.length = 0;
+        this.pendingPlugins.length = 0;
         this.componentRegistry.clear();
         this.editorBridge = null;
         this.wasmError.handler = null;

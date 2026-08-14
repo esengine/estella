@@ -8,7 +8,7 @@
  *        runtime scheduler (not just the per-unit tests).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, flushPendingSystems } from '../src/app/app';
+import { App, flushPendingRegistrations } from '../src/app/app';
 import { Input, InputState, GamepadButton, GamepadAxis } from '../src/input/input';
 import { defineInputMap, Axis2D, Button, Keys2D, Stick, Key, GpButton } from '../src/input/inputMap';
 import { defineBehavior } from '../src/behavior';
@@ -45,7 +45,7 @@ describe('gameplay loop integration (input map + behavior + scheduler)', () => {
         const app = App.new();
         const input = new InputState();
         app.insertResource(Input, input); // no inputPlugin (no platform in tests) — drive the state directly
-        flushPendingSystems(app);         // InputMapEval (PreUpdate) + Behavior:Player (Update)
+        flushPendingRegistrations(app);         // InputMapEval (PreUpdate) + Behavior:Player (Update)
 
         const e = app.world.spawn();
         app.world.insert(e, Player, { x: 0, y: 0, speed: 10 });
@@ -82,7 +82,7 @@ describe('gameplay loop integration (input map + behavior + scheduler)', () => {
         });
         const app = App.new();
         app.insertResource(Input, new InputState());
-        flushPendingSystems(app);
+        flushPendingRegistrations(app);
 
         const e = app.world.spawn();
         app.world.insert(e, Enemy, {});
