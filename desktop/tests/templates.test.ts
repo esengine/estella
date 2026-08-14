@@ -34,9 +34,9 @@ describe('bundled starter templates', () => {
     const scenePath = path.join(dir, manifest.defaultScene!);
     expect(existsSync(scenePath)).toBe(true);
     const scene = JSON.parse(readFileSync(scenePath, 'utf8')) as {
-      entities: Array<{ components: Array<{ type: string; data?: Record<string, unknown> }> }>;
+      entities: Array<{ components?: Array<{ type: string; data?: Record<string, unknown> }> }>;
     };
-    const cameras = scene.entities.flatMap((e) => e.components).filter((c) => c.type === 'Camera');
+    const cameras = scene.entities.flatMap((e) => e.components ?? []).filter((c) => c.type === 'Camera');
     expect(cameras.some((c) => c.data?.isActive === true)).toBe(true);
 
     // Script entry points (schema extraction + play-realm bundle entry).
