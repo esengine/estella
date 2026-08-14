@@ -98,6 +98,10 @@ function OutlinerRowInner(props: OutlinerRowProps) {
   const collapsible = props.collapsible !== false;
   const showTwist = hasChildren && collapsible;
   const childCount = item.kind === 'folder' ? item.count : (item.node.children?.length ?? 0);
+  // Both halves of "this row and the running game disagree" say so, not just the
+  // destroyed one: a row nothing in the scene document explains is the one most
+  // worth hovering.
+  const runtimeTip = props.gone ? t('out.goneTip') : props.spawned ? t('out.spawnedTip') : undefined;
 
   return (
     <div
@@ -119,7 +123,7 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${props.spawned ? ' spawned' : ''}` +
         `${props.gone ? ' gone' : ''}`
       }
-      title={props.gone ? t('out.goneTip') : undefined}
+      title={runtimeTip}
       style={{ paddingLeft: depth * 14 }}
       role="treeitem"
       aria-selected={selected}
