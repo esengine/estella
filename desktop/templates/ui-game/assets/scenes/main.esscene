@@ -1,0 +1,873 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": { "x": 0, "y": 0, "z": 10 }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 7, 14],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": { "x": 800, "y": 600 },
+            "scaleMode": 2,
+            "backgroundColor": { "r": 0.07, "g": 0.08, "b": 0.11, "a": 1 }
+          }
+        },
+        { "type": "UINode", "data": {} },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "screens",
+                "pages": ["menu", "playing", "over"],
+                "current": "menu"
+              }
+            ]
+          }
+        },
+        {
+          "type": "GameState",
+          "data": { "score": 0, "timeLeft": 0, "running": false }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "MenuScreen",
+      "parent": 1,
+      "children": [3, 4, 5],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "screens",
+                "component": "UINode",
+                "property": "display",
+                "pages": { "menu": 0, "playing": 1, "over": 1 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "MenuTitle",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": -150, "unit": 0 },
+            "height": { "value": 64, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Reflex",
+            "fontSize": 48,
+            "bold": true,
+            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "MenuHint",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": -74, "unit": 0 },
+            "height": { "value": 28, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Hit the square as often as you can before the clock runs out.",
+            "fontSize": 16,
+            "color": { "r": 0.62, "g": 0.66, "b": 0.74, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "PlayButton",
+      "parent": 2,
+      "children": [6],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 220, "unit": 0 },
+            "height": { "value": 60, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -110, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": 20, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.18, "g": 0.45, "b": 0.85, "a": 1 }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true }
+        },
+        {
+          "type": "Focusable",
+          "data": { "tabIndex": 0, "isFocused": false }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": ["normal", "hover", "pressed", "disabled", "focused"],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.18, "g": 0.45, "b": 0.85, "a": 1 },
+                  "hover": { "r": 0.26, "g": 0.55, "b": 0.95, "a": 1 },
+                  "pressed": { "r": 0.13, "g": 0.36, "b": 0.7, "a": 1 },
+                  "focused": { "r": 0.26, "g": 0.55, "b": 0.95, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.12 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "params": { "controller": "screens", "page": "playing" }
+              },
+              {
+                "event": "click",
+                "target": "Canvas",
+                "action": "game.start",
+                "params": { "seconds": 15 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "PlayLabel",
+      "parent": 5,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Play",
+            "fontSize": 22,
+            "bold": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "PlayScreen",
+      "parent": 1,
+      "children": [8, 11],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "screens",
+                "component": "UINode",
+                "property": "display",
+                "pages": { "menu": 1, "playing": 0, "over": 1 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "Hud",
+      "parent": 7,
+      "children": [9, 10],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 32, "unit": 0 },
+            "insetRight": { "value": 32, "unit": 0 },
+            "insetTop": { "value": 24, "unit": 0 },
+            "height": { "value": 34, "unit": 0 }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "ScoreLabel",
+      "parent": 8,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Score 0",
+            "fontSize": 20,
+            "bold": true,
+            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        },
+        { "type": "HudLabel", "data": { "field": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "TimeLabel",
+      "parent": 8,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": { "flexGrow": 1, "alignSelf": 4 }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "15.0s",
+            "fontSize": 20,
+            "bold": true,
+            "color": { "r": 0.95, "g": 0.42, "b": 0.36, "a": 1 },
+            "align": 2,
+            "verticalAlign": 1
+          }
+        },
+        { "type": "HudLabel", "data": { "field": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "Field",
+      "parent": 7,
+      "children": [12],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 32, "unit": 0 },
+            "insetRight": { "value": 32, "unit": 0 },
+            "insetTop": { "value": 76, "unit": 0 },
+            "insetBottom": { "value": 32, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.12, "g": 0.13, "b": 0.17, "a": 1 }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "Target",
+      "parent": 11,
+      "children": [13],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 104, "unit": 0 },
+            "height": { "value": 104, "unit": 0 },
+            "insetLeft": { "value": 6, "unit": 1 },
+            "insetTop": { "value": 10, "unit": 1 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.95, "g": 0.42, "b": 0.36, "a": 1 }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true }
+        },
+        {
+          "type": "Focusable",
+          "data": { "tabIndex": 0, "isFocused": false }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": ["normal", "hover", "pressed", "disabled", "focused"],
+                "current": "normal"
+              },
+              {
+                "name": "slots",
+                "pages": ["a", "b", "c", "d", "e", "f"],
+                "current": "a"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.95, "g": 0.42, "b": 0.36, "a": 1 },
+                  "hover": { "r": 1, "g": 0.52, "b": 0.44, "a": 1 },
+                  "pressed": { "r": 0.78, "g": 0.3, "b": 0.26, "a": 1 },
+                  "focused": { "r": 1, "g": 0.52, "b": 0.44, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.1 }
+              },
+              {
+                "controller": "slots",
+                "component": "UINode",
+                "property": "insetLeft.value",
+                "pages": { "a": 6, "b": 43, "c": 80, "d": 6, "e": 43, "f": 80 },
+                "tween": { "easing": 5, "duration": 0.16 }
+              },
+              {
+                "controller": "slots",
+                "component": "UINode",
+                "property": "insetTop.value",
+                "pages": { "a": 10, "b": 10, "c": 10, "d": 60, "e": 60, "f": 60 },
+                "tween": { "easing": 5, "duration": 0.16 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              {
+                "event": "click",
+                "target": "Canvas",
+                "action": "game.hit"
+              },
+              {
+                "event": "click",
+                "action": "game.jump"
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "name": "TargetLabel",
+      "parent": 12,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "TAP",
+            "fontSize": 20,
+            "bold": true,
+            "color": { "r": 0.15, "g": 0.09, "b": 0.08, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 14,
+      "name": "OverScreen",
+      "parent": 1,
+      "children": [15, 16, 17, 19],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "screens",
+                "component": "UINode",
+                "property": "display",
+                "pages": { "menu": 1, "playing": 1, "over": 0 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 15,
+      "name": "OverTitle",
+      "parent": 14,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": -130, "unit": 0 },
+            "height": { "value": 56, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Time!",
+            "fontSize": 42,
+            "bold": true,
+            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 16,
+      "name": "FinalLabel",
+      "parent": 14,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": -58, "unit": 0 },
+            "height": { "value": 32, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "You scored 0",
+            "fontSize": 22,
+            "color": { "r": 0.62, "g": 0.66, "b": 0.74, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        { "type": "HudLabel", "data": { "field": 2 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 17,
+      "name": "AgainButton",
+      "parent": 14,
+      "children": [18],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 220, "unit": 0 },
+            "height": { "value": 60, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -110, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": 20, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.18, "g": 0.45, "b": 0.85, "a": 1 }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true }
+        },
+        {
+          "type": "Focusable",
+          "data": { "tabIndex": 0, "isFocused": false }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": ["normal", "hover", "pressed", "disabled", "focused"],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.18, "g": 0.45, "b": 0.85, "a": 1 },
+                  "hover": { "r": 0.26, "g": 0.55, "b": 0.95, "a": 1 },
+                  "pressed": { "r": 0.13, "g": 0.36, "b": 0.7, "a": 1 },
+                  "focused": { "r": 0.26, "g": 0.55, "b": 0.95, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.12 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "params": { "controller": "screens", "page": "playing" }
+              },
+              {
+                "event": "click",
+                "target": "Canvas",
+                "action": "game.start",
+                "params": { "seconds": 15 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 18,
+      "name": "AgainLabel",
+      "parent": 17,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Play again",
+            "fontSize": 22,
+            "bold": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 19,
+      "name": "MenuButton",
+      "parent": 14,
+      "children": [20],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 220, "unit": 0 },
+            "height": { "value": 52, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -110, "unit": 0 },
+            "insetTop": { "value": 50, "unit": 1 },
+            "marginTop": { "value": 96, "unit": 0 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true }
+        },
+        {
+          "type": "Focusable",
+          "data": { "tabIndex": 0, "isFocused": false }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": ["normal", "hover", "pressed", "disabled", "focused"],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 },
+                  "hover": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 },
+                  "pressed": { "r": 0.14, "g": 0.16, "b": 0.2, "a": 1 },
+                  "focused": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.12 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "params": { "controller": "screens", "page": "menu" }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 20,
+      "name": "MenuLabel",
+      "parent": 19,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Menu",
+            "fontSize": 18,
+            "color": { "r": 0.86, "g": 0.88, "b": 0.93, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

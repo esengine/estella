@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "UI Game",
+  "description": "Menu, round and game over as three pages of one canvas: the screens and the buttons are authored data, and the code is only the rules.",
+  "tag": "Starter",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}
