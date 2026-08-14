@@ -55,6 +55,42 @@ describe('buildProjectScripts (E8-1)', () => {
         expect(out).toContain('amplitude');
     });
 
+    it('bundles a plugin installed from npm, sharing the one engine instance', async () => {
+        // A plugin's runtime half is an ordinary dependency, but it has to reach
+        // the same engine the game runs on: a copy bundled inside the package is a
+        // second component registry, and its systems register into nothing.
+        const proj = mkdtempSync(path.join(tmpdir(), 'estella-pkgruntime-'));
+        try {
+            const pkg = path.join(proj, 'node_modules', 'estella-plugin-demo');
+            mkdirSync(path.join(pkg, 'runtime'), { recursive: true });
+            writeFileSync(
+                path.join(pkg, 'package.json'),
+                JSON.stringify({ name: 'estella-plugin-demo', version: '1.0.0', type: 'module', main: 'runtime/index.js' }),
+            );
+            writeFileSync(
+                path.join(pkg, 'runtime', 'index.js'),
+                `import { defineComponent } from 'esengine';\n`
+                    + `export const DemoService = defineComponent('DemoService', { level: 1 });\n`,
+            );
+            mkdirSync(path.join(proj, 'src'), { recursive: true });
+            // The entry imports ONLY the package, so a surviving bare `esengine`
+            // import can only have come from inside it.
+            writeFileSync(
+                path.join(proj, 'src', 'main.ts'),
+                `import { DemoService } from 'estella-plugin-demo';\nvoid DemoService;\n`,
+            );
+
+            const res = await buildProjectScripts(proj);
+            expect(res.errors).toEqual([]);
+            expect(res.ok).toBe(true);
+            const out = readFileSync(res.outputPath!, 'utf8');
+            expect(out).toContain('DemoService'); // the package's code is IN the bundle
+            expect(out).toMatch(/from\s*["']esengine["']/); // …and its engine import is not
+        } finally {
+            rmSync(proj, { recursive: true, force: true });
+        }
+    });
+
     it('reports a clean failure when the entry is missing', async () => {
         const empty = mkdtempSync(path.join(tmpdir(), 'estella-empty-'));
         try {

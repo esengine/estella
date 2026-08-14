@@ -134,6 +134,47 @@ Approval covers that version from that folder. A new version, or a different
 folder claiming the same id, asks again.
 </Aside>
 
+## From npm
+
+A plugin can also be an npm package the project depends on:
+
+```bash
+npm install estella-plugin-tiled
+```
+
+Any **direct** dependency that ships a `plugin.json` at its root is a plugin. The
+editor lists it like any other, needing trust the same way — and because approval
+covers a version, an update asks again.
+
+A package is also the way to ship a plugin's two halves together: the editor half
+the manifest points at, and runtime code the game imports itself.
+
+<FileTree>
+- node_modules/estella-plugin-tiled/
+  - package.json
+  - plugin.json  `"main": { "editor": "editor/index.js" }`
+  - editor/
+    - index.js
+  - runtime/
+    - index.js
+</FileTree>
+
+```ts title="src/main.ts"
+import { TiledPlugin } from 'estella-plugin-tiled';
+
+app.use(TiledPlugin);
+```
+
+The runtime half needs no mechanism of its own — it is an ordinary module, bundled
+into your game like the rest of `src/`. Declare `esengine` as a **peer**
+dependency, never a regular one: the project's bundler leaves every `esengine`
+import external so the whole game shares one engine instance, and a copy vendored
+inside your package would be a second component registry whose systems register
+into nothing.
+
+Only direct dependencies are considered. A package that arrives because something
+else depends on it is not something the project asked to run in its editor.
+
 ## Typings
 
 The editor writes `@estella/editor-api`'s typings into your project at
@@ -349,8 +390,11 @@ mysterious.
 
 - **`<project>/.esengine/plugins/<id>/`** — versioned with the project and shared
   with your team. This is the usual place.
-- **`<userData>/plugins/<id>/`** — your own tools, across every project. A project
-  plugin with the same id takes precedence, and the shadowed one says so.
+- **an npm package the project depends on** — see [From npm](#from-npm) above.
+- **`<userData>/plugins/<id>/`** — your own tools, across every project.
+
+On an id collision the first of those three wins, and the others are listed saying
+who took it.
 
 ## Project platform profiles
 

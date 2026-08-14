@@ -37,6 +37,7 @@ export const pluginMessages = defineMessages({
     'plug.phase.shadowed': { en: 'Shadowed', zh: '被遮蔽' },
 
     'plug.scope.project': { en: 'project', zh: '项目' },
+    'plug.scope.package': { en: 'package', zh: '依赖包' },
     'plug.scope.user': { en: 'user', zh: '用户' },
 
     // The trust gate. Deliberately plain about what loading a plugin means: it runs

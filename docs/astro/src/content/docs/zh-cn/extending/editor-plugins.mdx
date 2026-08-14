@@ -118,6 +118,44 @@ export default definePlugin({
 批准只对应那个版本、那个目录。新版本，或另一个目录声称同一 id，都会重新询问。
 </Aside>
 
+## 来自 npm
+
+插件也可以是项目依赖的一个 npm 包：
+
+```bash
+npm install estella-plugin-tiled
+```
+
+任何**直接依赖**，只要根目录带一个 `plugin.json`，就是一个插件。编辑器会像列出其它
+插件一样列出它，同样需要授信——而授信是按版本记的，所以升级会重新询问。
+
+一个包也是把插件两半一起发布的方式：清单指向的编辑器那半，和游戏自己 import 的运行
+时那半。
+
+<FileTree>
+- node_modules/estella-plugin-tiled/
+  - package.json
+  - plugin.json  `"main": { "editor": "editor/index.js" }`
+  - editor/
+    - index.js
+  - runtime/
+    - index.js
+</FileTree>
+
+```ts title="src/main.ts"
+import { TiledPlugin } from 'estella-plugin-tiled';
+
+app.use(TiledPlugin);
+```
+
+运行时那半不需要任何专门机制——它就是一个普通模块，和 `src/` 里的其余代码一起被打包
+进你的游戏。把 `esengine` 声明为 **peer** 依赖，不要声明成普通依赖：项目的打包器会把
+每一处 `esengine` import 留成 external，整个游戏共用一份引擎实例；而包里自带的那份副本
+会是第二个组件注册表，它注册进去的系统等于注册进了虚空。
+
+只有直接依赖会被考虑。因为别的包依赖它才被装进来的包，不是项目要求在自己编辑器里运行
+的东西。
+
 ## 类型定义
 
 编辑器每次打开项目时，都会把 `@estella/editor-api` 的类型写进
@@ -302,8 +340,10 @@ ctx.scene.transact('Rename Markers', () => {
 ## 插件放在哪
 
 - **`<项目>/.esengine/plugins/<id>/`**——随项目版本管理，与团队共享。通常放这里。
-- **`<userData>/plugins/<id>/`**——你个人的工具，跨所有项目。同 id 时项目里的那个
-  优先，被遮蔽的那个会说明原因。
+- **项目依赖的一个 npm 包**——见上面的 [来自 npm](#来自-npm)。
+- **`<userData>/plugins/<id>/`**——你个人的工具，跨所有项目。
+
+同 id 时，这三处按上面的顺序取第一个，其余的会列出来并说明是谁占了。
 
 ## 项目平台配置
 

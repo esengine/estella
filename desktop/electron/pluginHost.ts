@@ -6,11 +6,12 @@
  *
  * Three things the renderer cannot do for itself:
  *
- *  1. DISCOVERY. Plugins live on disk in two scopes — inside the project
- *     (`.esengine/plugins/`, versioned with it, shared by the team) and per-user
- *     (`<userData>/plugins/`, personal tools across projects). A project plugin
- *     shadows a user plugin with the same id, and the shadowed one is REPORTED
- *     rather than dropped.
+ *  1. DISCOVERY. Plugins live on disk in three scopes — inside the project
+ *     (`.esengine/plugins/`, versioned with it, shared by the team), installed
+ *     from npm (a direct dependency shipping a `plugin.json`), and per-user
+ *     (`<userData>/plugins/`, personal tools across projects). On an id collision
+ *     the higher-priority scope wins and the shadowed one is REPORTED rather than
+ *     dropped.
  *
  *  2. COMPILATION. Authors write ESM TypeScript with no build step; esbuild turns
  *     the entry into one CJS module through the same single door the project-script
@@ -41,8 +42,9 @@ export const PROJECT_PLUGIN_DIR = path.join(...PROJECT_PLUGIN_REL.split('/'));
 /** Per-user plugin folder name, under Electron's userData. */
 export const USER_PLUGIN_DIR = 'plugins';
 
-/** Which scope a plugin was found in. Project shadows user on an id collision. */
-export type PluginScope = 'project' | 'user';
+/** Which scope a plugin was found in. On an id collision the first of
+ *  project → package → user wins, and the others say who took it. */
+export type PluginScope = 'project' | 'package' | 'user';
 
 /**
  * What kind of project-supplied code an entry is.
@@ -86,6 +88,23 @@ const EDITOR_EXTERNALS = ['react', 'react-dom', 'react-dom/client', 'react/jsx-r
 // Discovery
 // =============================================================================
 
+/** One plugin folder read into a record. `fallbackId` names it while the manifest
+ *  cannot: an unreadable plugin still has to appear, carrying the reason. */
+async function readOnePlugin(pluginDir: string, scope: PluginScope, fallbackId: string): Promise<DiscoveredPlugin> {
+  const base = { kind: 'plugin' as const, scope, dir: pluginDir };
+  const manifestFile = path.join(pluginDir, 'plugin.json');
+  if (!existsSync(manifestFile)) return { ...base, id: fallbackId, error: 'folder has no plugin.json' };
+  try {
+    const parsed: unknown = JSON.parse(await readFile(manifestFile, 'utf8'));
+    const result = validateManifest(parsed);
+    return 'error' in result
+      ? { ...base, id: fallbackId, error: result.error }
+      : { ...base, id: result.manifest.id, manifest: result.manifest };
+  } catch (e) {
+    return { ...base, id: fallbackId, error: `plugin.json is not valid JSON (${String(e)})` };
+  }
+}
+
 async function readPluginDir(dir: string, scope: PluginScope): Promise<DiscoveredPlugin[]> {
   if (!existsSync(dir)) return [];
   let names: string[];
@@ -99,25 +118,32 @@ async function readPluginDir(dir: string, scope: PluginScope): Promise<Discovere
   } catch {
     return [];
   }
+  return Promise.all(names.map((name) => readOnePlugin(path.join(dir, name), scope, name)));
+}
+
+/**
+ * Plugins the project installed from npm. Only DIRECT dependencies count: editor
+ * code arriving because something else depends on it is not something the project
+ * asked for. A `plugin.json` is the test, not the `estella-plugin-` name, which no
+ * scoped package could satisfy.
+ */
+async function readPackagePlugins(root: string): Promise<DiscoveredPlugin[]> {
+  let names: string[];
+  try {
+    const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    names = [...new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})])].sort();
+  } catch {
+    return []; // no package.json, or unreadable — a project with no npm dependencies
+  }
   const out: DiscoveredPlugin[] = [];
   for (const name of names) {
-    const pluginDir = path.join(dir, name);
-    const manifestFile = path.join(pluginDir, 'plugin.json');
-    if (!existsSync(manifestFile)) {
-      out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: 'folder has no plugin.json' });
-      continue;
-    }
-    try {
-      const parsed: unknown = JSON.parse(await readFile(manifestFile, 'utf8'));
-      const result = validateManifest(parsed);
-      if ('error' in result) {
-        out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: result.error });
-      } else {
-        out.push({ id: result.manifest.id, kind: 'plugin', scope, dir: pluginDir, manifest: result.manifest });
-      }
-    } catch (e) {
-      out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: `plugin.json is not valid JSON (${String(e)})` });
-    }
+    const dir = path.join(root, 'node_modules', ...name.split('/'));
+    // An ordinary dependency is not a broken plugin, so it is skipped in silence.
+    if (!existsSync(path.join(dir, 'plugin.json'))) continue;
+    out.push(await readOnePlugin(dir, 'package', name));
   }
   return out;
 }
@@ -161,20 +187,25 @@ async function readPlatformProfiles(root: string): Promise<DiscoveredPlugin[]> {
 }
 
 /**
- * Every piece of project-supplied code visible right now, project scope first. A
- * user plugin whose id a project plugin also claims is listed with `shadowedBy`, so
- * the UI can explain why it isn't running instead of leaving the user wondering.
+ * Every piece of project-supplied code visible right now, most specific scope
+ * first: a folder in this project beats a package it depends on, and both beat a
+ * personal one installed for every project. A shadowed plugin is listed carrying
+ * `shadowedBy` rather than dropped, so the UI can say why it isn't running.
  */
 export async function discoverPlugins(root: string | null, userDataDir: string): Promise<DiscoveredPlugin[]> {
   const project = root ? await readPluginDir(path.join(root, PROJECT_PLUGIN_DIR), 'project') : [];
   const platforms = root ? await readPlatformProfiles(root) : [];
+  const packages = root ? await readPackagePlugins(root) : [];
   const user = await readPluginDir(path.join(userDataDir, USER_PLUGIN_DIR), 'user');
-  const claimed = new Set(project.map((p) => p.id));
-  return [
-    ...project,
-    ...platforms,
-    ...user.map((p) => (claimed.has(p.id) ? { ...p, shadowedBy: 'project' as PluginScope } : p)),
-  ];
+  const claimed = new Map(project.map((p) => [p.id, p.scope]));
+  const resolve = (list: DiscoveredPlugin[]): DiscoveredPlugin[] =>
+    list.map((p) => {
+      const by = claimed.get(p.id);
+      if (by !== undefined) return { ...p, shadowedBy: by };
+      claimed.set(p.id, p.scope);
+      return p;
+    });
+  return [...project, ...platforms, ...resolve(packages), ...resolve(user)];
 }
 
 // =============================================================================

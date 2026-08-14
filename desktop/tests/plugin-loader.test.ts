@@ -11,7 +11,7 @@
  * id (with the shadowed one still listed, so the user can see why it isn't running).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,8 @@ const SAMPLE_PROJECT = path.resolve(HERE, '../../examples/sprite-animation');
 const SAMPLE_ID = 'estella.scene-report';
 
 let scratch: string;
+/** A second project, for the npm-installed plugins (its own package.json). */
+let pkgRoot: string;
 /** A throwaway userData dir, so the real one is never read or written. */
 let userData: string;
 
@@ -35,11 +37,11 @@ const writePlugin = (root: string, folder: string, manifest: unknown, entry?: st
 
 beforeAll(() => {
   scratch = mkdtempSync(path.join(tmpdir(), 'estella-plugins-'));
+  pkgRoot = mkdtempSync(path.join(tmpdir(), 'estella-pkgplugins-'));
   userData = mkdtempSync(path.join(tmpdir(), 'estella-userdata-'));
 });
 afterAll(() => {
-  rmSync(scratch, { recursive: true, force: true });
-  rmSync(userData, { recursive: true, force: true });
+  for (const dir of [scratch, pkgRoot, userData]) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('plugin discovery', () => {
@@ -88,6 +90,82 @@ describe('plugin discovery', () => {
 
   it('returns nothing (rather than throwing) with no project open', async () => {
     await expect(discoverPlugins(null, path.join(userData, 'absent'))).resolves.toEqual([]);
+  });
+});
+
+describe('plugins installed from npm', () => {
+  /** A package in the project's node_modules, optionally declared as a dependency. */
+  const writePackage = (root: string, name: string, manifest: unknown, declared = true): string => {
+    const dir = path.join(root, 'node_modules', ...name.split('/'));
+    mkdirSync(dir, { recursive: true });
+    if (manifest !== undefined) {
+      writeFileSync(path.join(dir, 'plugin.json'), typeof manifest === 'string' ? manifest : JSON.stringify(manifest));
+    }
+    writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }));
+    if (declared) {
+      const file = path.join(root, 'package.json');
+      const pkg = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as { dependencies?: Record<string, string> }) : {};
+      pkg.dependencies = { ...pkg.dependencies, [name]: '^1.0.0' };
+      writeFileSync(file, JSON.stringify(pkg));
+    }
+    return dir;
+  };
+  const manifest = (id: string) => ({ id, name: id, version: '1.0.0', main: { editor: 'editor/index.js' } });
+
+  it('finds a plugin the project depends on', async () => {
+    writePackage(pkgRoot, 'estella-plugin-tiled', manifest('estella.tiled'));
+    const found = await discoverPlugins(pkgRoot, userData);
+    const hit = found.find((p) => p.id === 'estella.tiled');
+    expect(hit?.scope).toBe('package');
+    expect(hit?.error).toBeUndefined();
+    expect(hit?.manifest?.main?.editor).toBe('editor/index.js');
+  });
+
+  it('finds one under a scope, which a name convention could not', async () => {
+    writePackage(pkgRoot, '@acme/estella-plugin-yarn', manifest('acme.yarn'));
+    const found = await discoverPlugins(pkgRoot, userData);
+    expect(found.find((p) => p.id === 'acme.yarn')?.scope).toBe('package');
+  });
+
+  it('passes over an ordinary dependency in silence', async () => {
+    // Most dependencies are not plugins. Reporting each one as a broken plugin
+    // would bury the list under everything the project happens to install.
+    writePackage(pkgRoot, 'left-pad', undefined);
+    const found = await discoverPlugins(pkgRoot, userData);
+    expect(found.some((p) => p.dir.endsWith('left-pad'))).toBe(false);
+  });
+
+  it('will not run a plugin the project never asked for', async () => {
+    // Installed as somebody else's transitive dependency. Editor code arriving
+    // because a package you did depend on depends on it is not a decision the
+    // project made.
+    writePackage(pkgRoot, 'estella-plugin-sneaky', manifest('sneaky.tools'), false);
+    const found = await discoverPlugins(pkgRoot, userData);
+    expect(found.some((p) => p.id === 'sneaky.tools')).toBe(false);
+  });
+
+  it('reports a package whose manifest is broken', async () => {
+    writePackage(pkgRoot, 'estella-plugin-broken', '{ not json');
+    const found = await discoverPlugins(pkgRoot, userData);
+    const hit = found.find((p) => p.dir.endsWith('estella-plugin-broken'));
+    expect(hit?.error).toMatch(/not valid JSON/);
+    // Named by its package, since the manifest could not name it.
+    expect(hit?.id).toBe('estella-plugin-broken');
+  });
+
+  it('is shadowed by a plugin folder in the project, and shadows a user one', async () => {
+    const shared = 'acme.both';
+    writePackage(pkgRoot, 'estella-plugin-both', manifest(shared));
+    writePlugin(pkgRoot, 'both', { ...manifest(shared), main: { editor: 'src/editor.ts' } }, 'export default { activate() {} }');
+    const userDir = path.join(userData, 'plugins', 'both');
+    mkdirSync(userDir, { recursive: true });
+    writeFileSync(path.join(userDir, 'plugin.json'), JSON.stringify(manifest(shared)));
+
+    const found = (await discoverPlugins(pkgRoot, userData)).filter((p) => p.id === shared);
+    expect(found).toHaveLength(3); // all three listed
+    expect(found.find((p) => p.scope === 'project')!.shadowedBy).toBeUndefined();
+    expect(found.find((p) => p.scope === 'package')!.shadowedBy).toBe('project');
+    expect(found.find((p) => p.scope === 'user')!.shadowedBy).toBe('project');
   });
 });
 

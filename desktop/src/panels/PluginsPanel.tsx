@@ -39,6 +39,12 @@ const PHASE_LABEL: Record<PluginPhase, MsgKey> = {
   shadowed: 'plug.phase.shadowed',
 };
 
+const SCOPE_LABEL: Record<PluginRecord['scope'], MsgKey> = {
+  project: 'plug.scope.project',
+  package: 'plug.scope.package',
+  user: 'plug.scope.user',
+};
+
 const CAPABILITY_LABEL: Record<string, MsgKey> = {
   'fs:project': 'plug.cap.fsProject',
   net: 'plug.cap.net',
@@ -150,7 +156,7 @@ function PluginRow({ record }: { record: PluginRecord }) {
       <div className="plug-row__head">
         <span className="plug-row__name">{record.name}</span>
         {record.version && <span className="plug-row__version">{record.version}</span>}
-        <span className="plug-row__scope">{t(record.scope === 'project' ? 'plug.scope.project' : 'plug.scope.user')}</span>
+        <span className="plug-row__scope">{t(SCOPE_LABEL[record.scope])}</span>
         <span className="plug-row__spacer" />
         <PhaseChip phase={record.phase} />
       </div>
