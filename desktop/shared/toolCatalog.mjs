@@ -683,7 +683,8 @@ const ATOMS = [
   { name: 'click_ui', effect: 'ephemeral',
     description: 'Click a UI element BY NAME in the running game, or refuse. '
       + 'Computing where a button is and clicking there is the arithmetic that lands beside it and reports success — so the point is put to the ENGINE\'S OWN hit test first, and unless it answers with that element (or a child of it, which is what a label on a button is) nothing is sent and the reply says what is there instead. '
-      + 'Answers { entity, name, at, hit }. Two entities of the same name is refused rather than picked between. Use play_input with x/y for anything that is not a UI element.',
+      + 'The click LANDS before this returns: it is spread over the four frames a press-then-release needs (an edge is dropped at the end of every frame, so a click sent inside one is cleared before anything samples it), and what it caused has settled by the time you read. '
+      + 'Answers { entity, name, at, hit, frames }. Two entities of the same name is refused rather than picked between. Use play_input with x/y for anything that is not a UI element.',
     schema: obj({
       target: { type: 'string', description: 'the entity name of the UI element' },
       frame: { type: 'number' },
@@ -724,7 +725,9 @@ const ATOMS = [
       + 'x/y are SCREEN pixels, canvas-relative, y DOWN — the same numbers a real pointer event carries and what `Input.mouseX/mouseY` then read; '
       + 'ask the camera (CameraView.screenToWorld / UICameraInfo.worldMouseX) for where that is in the world rather than converting by hand. '
       + '`code` is a KeyboardEvent code for the key kinds. It goes through the platform binding\'s own callbacks, so UI gets first refusal exactly as it would for a real event. '
-      + 'A pressed EDGE (isMouseButtonPressed / isKeyPressed) lasts one frame: call step() right after, then read the result. '
+      + 'The event ARRIVES before this returns: it carries the frame it needs to be sampled (a click, four — move, press, release, settle), '
+      + 'because a pressed edge (isMouseButtonPressed / isKeyPressed) is dropped at the end of every frame and an injection from outside the game can land mid-frame. '
+      + 'So read the result straight after; step() is for letting the game RUN on, not for delivering the input. '
       + 'A key stays DOWN until you send key_up for it, and `key_down` on one already held makes no new edge — it answers `pressEdge: false` and the game does not react, while everything you read back afterwards looks perfectly normal. '
       + 'Calling the game\'s own handler instead proves only that the handler works — not that a click reaches it.',
     schema: obj({

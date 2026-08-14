@@ -325,19 +325,23 @@ export function createSurfaceDriver(
         const button = Number(input.button ?? 0);
         const code = JSON.stringify(String(input.code ?? ''));
         const id = 1;
+        // Every injection takes the frame it needs to be sampled, and the wrapper
+        // takes one first so the boundary is ours: an edge sent into a frame past
+        // its PreUpdate is cleared before anything reads it, and still says 'ok'.
         const call = {
-          click: `i.down(${x},${y},${button}); i.up(${button});`,
-          move: `i.move(${x},${y});`,
-          down: `i.down(${x},${y},${button});`,
-          up: `i.up(${button});`,
-          wheel: `i.wheel(${x},${y});`,
-          key_down: `return i.keyDown(${code});`,
-          key_up: `i.keyUp(${code});`,
-          tap: `i.touchStart(${id},${x},${y}); i.touchEnd(${id});`,
+          click: `i.move(${x},${y}); await f(1); i.down(${x},${y},${button}); await f(1); `
+            + `i.up(${button}); await f(2);`,
+          move: `i.move(${x},${y}); await f(1);`,
+          down: `i.down(${x},${y},${button}); await f(1);`,
+          up: `i.up(${button}); await f(1);`,
+          wheel: `i.wheel(${x},${y}); await f(1);`,
+          key_down: `const r = i.keyDown(${code}); await f(1); return r;`,
+          key_up: `i.keyUp(${code}); await f(1);`,
+          tap: `i.touchStart(${id},${x},${y}); await f(1); i.touchEnd(${id}); await f(2);`,
           // A pad is HELD until released — a game reads it every frame, so a
           // one-shot press would be gone before the frame that reads it.
           gamepad: `i.gamepad(${Number(input.pad ?? 0)},${JSON.stringify(input.buttons ?? [])},`
-            + `${JSON.stringify(input.axes ?? [])});`,
+            + `${JSON.stringify(input.axes ?? [])}); await f(1);`,
           gamepad_release: `i.releaseGamepad(${input.pad === undefined ? '' : Number(input.pad)});`,
         }[kind ?? ''];
         // Clicking a NAMED element answers with where it went, so it is not one
@@ -354,11 +358,12 @@ export function createSurfaceDriver(
           );
         }
         return unwrap(await frame.executeJavaScript(carryError(
-          `(() => { const p = window.__estellaPlay; if (!p || !p.input) `
+          `(async () => { const p = window.__estellaPlay; if (!p || !p.input) `
           + `throw new Error('this play realm publishes no input door — it predates play_input'); `
+          + `const i = p.input; const f = (n) => (p.step ? p.step(n) : undefined); await f(1); `
           // A kind that has something to say answers with it; the rest, and any
           // realm older than the one that started answering, keep 'ok'.
-          + `const i = p.input; const r = (() => { ${call} })(); `
+          + `const r = await (async () => { ${call} })(); `
           + `return r === undefined ? 'ok' : r; })()`,
         )));
       }

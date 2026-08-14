@@ -82,6 +82,11 @@ function inputState(): InputState | null {
  * own pick is asked what is at the point, and a click is sent only when the
  * answer is that element or a descendant of it (a label on a button is one, and
  * the interaction system bubbles from it anyway).
+ *
+ * A click is press THEN release, which is two frames however it is delivered, so
+ * the gesture is spread over stepped frames here rather than left to the caller:
+ * move, press, release, and one more for what the click caused to settle. What
+ * it returns on is therefore a game that has already reacted.
  */
 async function clickUiByName(app_: App, name: string): Promise<unknown> {
   const world = app_.world;
@@ -134,10 +139,16 @@ async function clickUiByName(app_: App, name: string): Promise<unknown> {
   const dpr = window.devicePixelRatio || 1;
   const screen = { x: gl.x / dpr, y: (camera.screenH - gl.y) / dpr };
   const cb = inputEventCallbacks(app_.getResource(Input));
+  const frames = 4;
   cb.onPointerMove?.(screen.x, screen.y);
+  await app_.stepFrames(1); // hover, and the boundary is ours from here
   cb.onPointerDown?.(0, screen.x, screen.y);
+  await app_.stepFrames(1); // the press edge is sampled
   cb.onPointerUp?.(0);
-  return { entity: target as never as number, name, at: screen, hit: hit as never as number };
+  // Two: the release frame emits `click` (handlers run inside it), the next one
+  // is where what they did — a page switch, a gear, a relayout — has settled.
+  await app_.stepFrames(2);
+  return { entity: target as never as number, name, at: screen, hit: hit as never as number, frames };
 }
 
 /** Whether `hit` is `target` or under it — a label on a button is a child, and
