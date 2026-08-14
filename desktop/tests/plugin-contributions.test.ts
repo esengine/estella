@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSectionBuilder, isInfoRow, inspectorRegistry } from '@/plugins/inspector';
+import { activityBarRegistry, railIcon } from '@/plugins/activityBar';
 import { contextMenuRegistry, contributedContextRows } from '@/plugins/contextMenus';
 import { assetTypeRegistry, assetTypeOf, assetTypeDef, ASSET_TYPES } from '@/project/assetTypes';
 import { toolRegistry } from '@/tools/toolRegistry';
@@ -24,7 +25,7 @@ const PLUGIN = 'plugin:acme';
 const id = (v: LocalizedString) => (typeof v === 'string' ? v : v.en);
 
 afterEach(() => {
-  for (const registry of [inspectorRegistry, contextMenuRegistry, assetTypeRegistry, toolRegistry]) {
+  for (const registry of [inspectorRegistry, contextMenuRegistry, assetTypeRegistry, toolRegistry, activityBarRegistry]) {
     registry.disposeOwner(PLUGIN);
   }
 });
@@ -73,6 +74,35 @@ describe('inspector section builder', () => {
     const { ui, fields } = createSectionBuilder(id);
     ui.number('n', 'N', 1, { min: 0 });
     expect(fields[0].slider).toBe(false);
+  });
+});
+
+// — Activity bar ——————————————————————————————————————————————————————————————
+
+describe('the rail glyph', () => {
+  it('takes an svg element and nothing else', () => {
+    expect(railIcon('<svg viewBox="0 0 24 24"><path d="M0 0h24"/></svg>')).toContain('<path');
+    expect(railIcon('  <SVG></SVG>  ')).toBe('<SVG></SVG>');
+    // A wrong value draws the fallback rather than putting a stray element —
+    // or a half-written one — into the rail.
+    expect(railIcon(undefined)).toBeNull();
+    expect(railIcon('')).toBeNull();
+    expect(railIcon('mixer.png')).toBeNull();
+    expect(railIcon('<img src="x">')).toBeNull();
+    expect(railIcon('<svg><path d="M0 0h24"/>')).toBeNull();
+    // `<svgfoo>` is not an svg, and the shape check must not read it as one.
+    expect(railIcon('<svgx></svgx>')).toBeNull();
+  });
+});
+
+describe('activity bar registry', () => {
+  it('keeps a plugin`s buttons in registration order and retracts them with the plugin', () => {
+    activityBarRegistry.register(PLUGIN, { id: 'a', title: 'A', icon: null, run: () => {} });
+    activityBarRegistry.register(PLUGIN, { id: 'b', title: 'B', icon: null, run: () => {} });
+    expect(activityBarRegistry.all().map((i) => i.id)).toEqual(['a', 'b']);
+
+    activityBarRegistry.disposeOwner(PLUGIN);
+    expect(activityBarRegistry.all()).toEqual([]);
   });
 });
 

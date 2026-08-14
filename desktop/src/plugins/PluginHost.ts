@@ -34,6 +34,7 @@ import { assetTypeRegistry } from '@/project/assetTypes';
 import { overlayRegistry } from './overlays';
 import { inspectorRegistry } from './inspector';
 import { contextMenuRegistry } from './contextMenus';
+import { activityBarRegistry } from './activityBar';
 import { LogStore } from '@/store/LogStore';
 import { Toasts } from '@/store/Toasts';
 import { PerfMonitor } from '@/engine/PerfMonitor';
@@ -101,6 +102,7 @@ const CONTRIBUTION_REGISTRIES = [
   inspectorRegistry,
   assetTypeRegistry,
   contextMenuRegistry,
+  activityBarRegistry,
 ];
 
 interface LoadedPlugin {

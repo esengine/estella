@@ -78,6 +78,7 @@ export const pluginMessages = defineMessages({
     'plug.kind.importer': { en: 'Importer', zh: '导入器' },
     'plug.kind.entityTemplate': { en: 'Entity', zh: '实体' },
     'plug.kind.contextMenu': { en: 'Menu item', zh: '菜单项' },
+    'plug.kind.activityBar': { en: 'Rail button', zh: '侧栏按钮' },
     'plug.kind.agentTool': { en: 'Agent tool', zh: 'Agent 工具' },
 
     // — New plugin. The editor writes the folder because the SHAPE of a plugin is

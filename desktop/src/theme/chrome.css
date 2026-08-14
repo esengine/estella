@@ -249,6 +249,11 @@
   from { transform: translateY(-50%) scaleY(0.2); opacity: 0; }
   to { transform: translateY(-50%) scaleY(1); opacity: 1; }
 }
+/* A contributed glyph is the plugin's own SVG: size it to the rail's own 19px
+   and let it inherit the button's colour, so it lives through hover and both
+   themes exactly as a built-in does. */
+.act-glyph { display: grid; place-items: center; }
+.act-glyph svg { width: 19px; height: 19px; display: block; }
 .act-spacer { flex: 1; }
 .act-sep { width: 20px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
 

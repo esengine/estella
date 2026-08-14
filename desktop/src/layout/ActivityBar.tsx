@@ -3,7 +3,8 @@
 // Far-left icon rail (activity bar). Switches the editing mode, reveals docked
 // panels, and toggles the Content Drawer — the summoned quick-access surface.
 import { useSyncExternalStore } from 'react';
-import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Gauge, Settings, Sparkles } from 'lucide-react';
+import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Gauge, Settings, Sparkles, Plug } from 'lucide-react';
+import { activityBarRegistry } from '@/plugins/activityBar';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
 import { useSelection } from '@/store/selectionStore';
@@ -30,6 +31,9 @@ export function ActivityBar() {
   // The mode rail is derived from the registry, so a contributed mode appears
   // (and a retracted one disappears) without a reload.
   const modes = useSyncExternalStore(editorModeRegistry.subscribe.bind(editorModeRegistry), editorModes);
+  // Plugin buttons join the panel group rather than the modes: what a plugin
+  // reveals is a surface of its own, and the modes are what the editor edits.
+  const contributed = useSyncExternalStore(activityBarRegistry.subscribe, activityBarRegistry.all);
 
   return (
     <div className="activity">
@@ -96,6 +100,13 @@ export function ActivityBar() {
       >
         <Gauge size={19} strokeWidth={1.7} />
       </button>
+      {contributed.map((item) => (
+        <button key={item.id} type="button" className="act" title={item.title} onClick={item.run}>
+          {item.icon
+            ? <span className="act-glyph" dangerouslySetInnerHTML={{ __html: item.icon }} />
+            : <Plug size={19} strokeWidth={1.7} />}
+        </button>
+      ))}
 
       <span className="act-spacer" />
 

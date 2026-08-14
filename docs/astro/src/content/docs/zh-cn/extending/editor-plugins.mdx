@@ -222,6 +222,28 @@ ctx.panels.register({
 import { createRoot } from 'react-dom/client';
 ```
 
+### 左侧栏上的一个按钮
+
+只能从菜单里翻出来的面板等于没人开。在最左边那条图标栏上加一个按钮，和编辑器自
+己那些面板按钮并排：
+
+```ts
+ctx.activityBar.register({
+  id: 'acme.level-tools.rail',
+  title: { en: 'Level Budget', 'zh-CN': '关卡预算' },
+  // 内联 SVG，按 19px 绘制。用 currentColor 它才会跟着侧栏走悬停和明暗主题。
+  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
+  run: () => ctx.panels.open('acme.level-tools.budget'),
+});
+```
+
+不给 `icon` 就用所有贡献物共用的那个插头图标——两个插件也就都长成插头，所以自己
+带一个。
+
+这条栏又短又是公用的。**你的插件是什么**，就为那件事贡献一个按钮；别的都是命令，
+命令的去处是「工具」菜单。
+
 ### 检查器分区
 
 在某个组件下（或某种资产类型下）加一段，由编辑器用它自己的属性 UI 渲染你声明的

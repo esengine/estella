@@ -106,6 +106,30 @@ export interface PanelContribution {
   mount(host: HTMLElement): () => void;
 }
 
+// — Activity bar ——————————————————————————————————————————————————————————————
+
+/**
+ * A button on the far-left icon rail, beside the ones that reveal the editor's
+ * own panels — one click to the surface a plugin owns, rather than a menu.
+ *
+ * The rail is short and shared. Contribute one button, for the thing your plugin
+ * IS; a second belongs in the Tools menu, where a command already goes.
+ */
+export interface ActivityBarContribution {
+  /** Under your plugin id, e.g. `acme.level-tools.rail`. */
+  id: string;
+  /** Tooltip — the rail shows no text. */
+  title: LocalizedString;
+  /**
+   * Inline `<svg>` for the glyph, drawn at 19px. `stroke="currentColor"` (or
+   * `fill`) makes it follow the rail through hover and both themes. Anything
+   * else falls back to the plug every contributed thing wears — which two
+   * plugins would then collide on, so ship an icon.
+   */
+  icon?: string;
+  run(): void;
+}
+
 export interface SettingContributionBase {
   /** Under your plugin id, e.g. `acme.level-tools.warnAt`. Read it back with
    *  {@link PluginContext.settings}.get, which takes the same id you wrote. */
@@ -574,6 +598,9 @@ export interface PluginContext {
     register(panel: PanelContribution): Disposable;
     /** Open (or bring forward) a panel by id. */
     open(id: string): void;
+  };
+  readonly activityBar: {
+    register(item: ActivityBarContribution): Disposable;
   };
   readonly settings: {
     register(setting: SettingContribution): Disposable;

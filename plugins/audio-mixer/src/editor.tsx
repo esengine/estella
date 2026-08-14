@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { definePlugin, type PluginContext } from '@estella/editor-api';
 import { Mixer } from './Mixer';
 import { PANEL_TITLE } from './strings';
-import { CSS } from './style';
+import { CSS, RAIL_ICON } from './style';
 
 export default definePlugin({
   activate(ctx: PluginContext) {
@@ -29,6 +29,13 @@ export default definePlugin({
       title: PANEL_TITLE,
       category: { en: 'Audio', 'zh-CN': '音频' },
       menu: 'window',
+      run: () => ctx.panels.open('estella.audio-mixer.panel'),
+    });
+
+    ctx.activityBar.register({
+      id: 'estella.audio-mixer.rail',
+      title: PANEL_TITLE,
+      icon: RAIL_ICON,
       run: () => ctx.panels.open('estella.audio-mixer.panel'),
     });
   },

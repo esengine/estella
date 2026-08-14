@@ -64,6 +64,7 @@ const KIND_LABEL: Record<ContributionKind, MsgKey> = {
   importer: 'plug.kind.importer',
   entityTemplate: 'plug.kind.entityTemplate',
   contextMenu: 'plug.kind.contextMenu',
+  activityBar: 'plug.kind.activityBar',
   agentTool: 'plug.kind.agentTool',
 };
 

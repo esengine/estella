@@ -244,6 +244,29 @@ is no second copy:
 import { createRoot } from 'react-dom/client';
 ```
 
+### A button on the rail
+
+A panel reachable only through a menu is a panel nobody opens. One button on the
+far-left rail, beside the ones that reveal the editor's own panels:
+
+```ts
+ctx.activityBar.register({
+  id: 'acme.level-tools.rail',
+  title: { en: 'Level Budget' },
+  // Inline SVG, drawn at 19px. `currentColor` is what makes it follow the rail
+  // through hover and both themes.
+  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
+  run: () => ctx.panels.open('acme.level-tools.budget'),
+});
+```
+
+Leave `icon` out and you get the plug every contributed thing wears — which is
+also what two plugins would collide on, so ship one.
+
+The rail is short and shared. Contribute a button for the thing your plugin **is**;
+anything else is a command, and the Tools menu is where commands go.
+
 ### Inspector sections
 
 Adds a section under a component (or for an asset type), built from rows the

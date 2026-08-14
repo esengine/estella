@@ -49,3 +49,9 @@ export const CSS = `
 }
 .mixer-add:hover { color: var(--text); border-color: var(--acc); }
 `;
+
+/** The rail glyph: three faders at three settings. `currentColor`, so the rail
+ *  owns hover and theme. */
+export const RAIL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.7" stroke-linecap="round"><path d="M6 3v18M12 3v18M18 3v18"/><path
+  d="M3 8h6M9 15h6M15 6h6"/></svg>`;

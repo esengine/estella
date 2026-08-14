@@ -24,6 +24,7 @@ import { assetTypeRegistry, CONTRIBUTED_ASSET_ICON } from '@/project/assetTypes'
 import { entitySourceRegistry, prefabFromSpecs } from '@/engine/entitySources';
 import { overlayRegistry, viewportProjection } from './overlays';
 import { inspectorRegistry } from './inspector';
+import { activityBarRegistry, railIcon } from './activityBar';
 import { contextMenuRegistry } from './contextMenus';
 import { importerRegistry, runImporters } from './importers';
 import { localizePlugin as localize } from './localize';
@@ -44,7 +45,7 @@ import type { PointerInput as CorePointerInput } from '@/tools/EditorTool';
 import type { PluginManifest, PluginCapability } from './manifest';
 import { agentToolProblem, registerAgentTool, publishAgentTools } from './agentTools';
 import type {
-  AgentToolContribution, AssetImporterContribution,
+  ActivityBarContribution, AgentToolContribution, AssetImporterContribution,
   AssetTypeContribution, CommandContribution, ContextMenuContribution, Disposable, EditorEvents,
   EditorPlugin, EditorProjectApi, EditorSceneApi, EntityTemplateContribution, FieldValue,
   InspectorContribution, OverlayContribution, PanelContribution, PluginContext,
@@ -212,6 +213,7 @@ export type ContributionKind =
   | 'importer'
   | 'entityTemplate'
   | 'contextMenu'
+  | 'activityBar'
   | 'agentTool';
 
 /** One thing a plugin added, as the Plugins panel shows it. */
@@ -472,6 +474,19 @@ export function buildPluginContext(
     return { dispose: () => { handle.dispose(); publishAgentTools(); } };
   };
 
+  const registerActivityBarItem = (item: ActivityBarContribution): Disposable =>
+    noted(
+      'activityBar',
+      scoped(item.id),
+      localize(item.title),
+      activityBarRegistry.register(owner, {
+        id: scoped(item.id),
+        title: localize(item.title),
+        icon: railIcon(item.icon),
+        run: () => guard(`activity bar ${item.id}`, () => item.run(), undefined),
+      }),
+    );
+
   const registerContextMenuItem = (item: ContextMenuContribution): Disposable =>
     noted(
       'contextMenu',
@@ -501,6 +516,7 @@ export function buildPluginContext(
       register: registerPluginPanel,
       open: (pid) => dockApi.openPanel(pid),
     },
+    activityBar: { register: registerActivityBarItem },
     settings: {
       register: registerSetting,
       get: <T extends boolean | number | string>(sid: string) => useSettings.getState().getValue(scoped(sid)) as T | undefined,
