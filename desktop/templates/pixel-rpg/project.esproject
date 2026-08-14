@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "name": "Pixel RPG",
+  "description": "A 16-pixel overworld you walk: a tilemap with collision in it, a four-way animated hero, a camera on whole pixels, and a sign that talks back.",
+  "tag": "Starter",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 320,
+    "height": 180
+  },
+  "spineVersion": "none",
+  "features": {
+    "physics": {
+      "enabled": true
+    }
+  }
+}

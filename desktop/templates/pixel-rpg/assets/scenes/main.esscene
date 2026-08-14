@@ -1,0 +1,155 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 90,
+            "isActive": true,
+            "priority": 0,
+            "pixelPerfect": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "World",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -256, "y": 192, "z": 0 } } },
+        {
+          "type": "TilemapLayer",
+          "data": {
+            "cellSize": { "x": 16, "y": 16 },
+            "renderLayer": 0,
+            "opacity": 1,
+            "visible": true,
+            "tilesetAsset": "@uuid:7e1c2a90-11d4-4b8a-9d1a-2c6f0b8e4a03",
+            "chunks": "RVNUTQQAAAAAAAAAAAAAAAUAAQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUAAQAFAAUAAQAFAAUAAQAFAAUAAQAFAAUAAQAFAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQAFAAEAAQAFAAEAAQABAAEAAQAFAAEAAQABAAEAAQAFAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAUAAQABAAEAAQABAAEABQABAAEAAQABAAEAAQABAAMABQAFAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAwAFAAUAAQABAAEAAQABAAEAAQAGAAEAAQABAAEAAQADAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAMABQAFAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAwAFAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQADAAUAAQABAAEAAQABAAcABwAHAAcABwAHAAcAAQAIAAMABQAFAAEAAQABAAEABwABAAIAAQACAAEABwABAAEAAwAFAAUAAQABAAEAAQAHAAIAAQACAAEAAgAHAAEAAQADAAUAAQABAAEAAQABAAcAAQACAAEAAgABAAcAAQABAAMAAQAAAAAAAAAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUAAQAFAAUABQABAAUABQABAAUABQABAAUABQABAAUABQAFAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAUABQABAAEAAQABAAEABgAEAAQABgAEAAQABgABAAEABQAFAAEAAQABAAEAAQAEAAQABAAEAAQABAAEAAEAAQABAAUAAQABAAEAAQABAAQABAAEAAQABAAEAAQAAQABAAUABQADAAEAAQABAAEABgAEAAQABAAGAAQABgABAAEABQAFAAMAAQABAAEAAQAEAAQABgAEAAQABgAEAAEAAQAFAAUAAwABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQADAAMAAwADAAMAAwADAAMAAwABAAEAAQABAAEABQAFAAMAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQAFAAUAAwABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAUABQADAAEAAQABAAEAAQABAAEAAQABAAUAAQABAAEAAQAFAAMAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQAFAAUAAwABAAEAAQAFAAEAAQABAAEAAQABAAEAAQABAAUABQADAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQAFAAAAAAABAAAABQAFAAEAAQABAAEABwACAAEAAgABAAIABwABAAEAAwAFAAUAAQABAAEAAQAHAAEAAgABAAIAAQAHAAEAAQADAAUAAQABAAEAAQABAAcABwAHAAEAAQAHAAcAAQABAAMABQAFAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAwAFAAUAAQABAAEABQABAAEAAQABAAEAAQABAAEAAQADAAUAAQABAAEAAQABAAEAAQABAAEAAQABAAYAAQABAAMAAQAFAAUABQABAAUABQAFAAEABQAFAAUAAQAFAAUAAwAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAMAAQABAAEAAQABAAEAAQAFAAEAAQABAAEAAQABAAUAAwABAAEABgABAAEAAQABAAEAAQABAAEAAQABAAUABQADAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQAFAAMAAQABAAEAAQABAAUAAQABAAEAAQABAAEAAQAFAAUAAwABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQADAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEABQAFAAMABQAFAAUAAQAFAAUABQABAAUABQAFAAEABQAFAAUAAwAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Sign",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -24, "y": -8, "z": 0 } } },
+        {
+          "type": "Talkable",
+          "data": { "line": "The road south leaves the valley. The pond is east." }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Player",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -8, "y": -72, "z": 1 } } },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 16, "y": 16 },
+            "texture": "@uuid:7e1c2a90-11d4-4b8a-9d1a-2c6f0b8e4a02",
+            "layer": 5
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/walk-down.esanim" }
+        },
+        {
+          "type": "Facings",
+          "data": {
+            "down": "assets/animations/walk-down.esanim",
+            "left": "assets/animations/walk-left.esanim",
+            "right": "assets/animations/walk-right.esanim",
+            "up": "assets/animations/walk-up.esanim"
+          }
+        },
+        { "type": "Player", "data": {} },
+        { "type": "RigidBody", "data": { "bodyType": 1 } },
+        {
+          "type": "BoxCollider",
+          "data": {
+            "halfExtents": { "x": 0.05, "y": 0.035 },
+            "offset": { "x": 0, "y": -0.045 },
+            "categoryBits": 1,
+            "maskBits": 65535
+          }
+        },
+        { "type": "CharacterController", "data": { "maskBits": 65535 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Canvas",
+      "parent": null,
+      "children": [5],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": { "x": 320, "y": 180 },
+            "scaleMode": 2
+          }
+        },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Say",
+      "parent": 4,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 16, "unit": 0 },
+            "insetRight": { "value": 16, "unit": 0 },
+            "insetBottom": { "value": 10, "unit": 0 },
+            "height": { "value": 14, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Arrow keys or WASD to walk.",
+            "fontSize": 10,
+            "color": { "r": 0.95, "g": 0.95, "b": 0.9, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1,
+            "strokeColor": { "r": 0.05, "g": 0.05, "b": 0.08, "a": 1 },
+            "strokeWidth": 2
+          }
+        },
+        { "type": "SayLine", "data": {} }
+      ],
+      "visible": true
+    }
+  ]
+}

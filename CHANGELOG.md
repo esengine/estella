@@ -47,6 +47,11 @@ published separately; it ships inside the editor.
   draws on. Exported because a shipped plugin holds each one up. Plus
   `extendPlatform`, for a host that can answer what its adapter cannot.
 
+- **A Pixel RPG starter**, the seventh: a 16-pixel overworld with collision in
+  the tileset, a four-way animated hero, a camera clamped to the map and snapped
+  to whole pixels, and a sign that answers. Its art is drawn for it — nothing to
+  license, and every texture imported `nearest`.
+
 - **A plugin can put a button on the editor's activity bar** —
   `ctx.activityBar.register({ id, title, icon, run })`, with the glyph as the
   plugin's own inline SVG. The audio mixer uses it, which is how it got back the
