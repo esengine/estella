@@ -14,6 +14,25 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The schedule can say which systems' order nobody decided.** A system's
+  parameters already declare what it touches, and the schedule only ever used
+  them to look up values. Read as sets they answer whether two systems conflict
+  and whether anything decided which runs first — where nothing did, the order
+  falls out of registration, so moving a plugin in the build list can change what
+  a game does with nothing to point at.
+
+  `app.scheduleAmbiguities(schedule)` names those pairs and what they disagree
+  over; `app.scheduleBatches(schedule)` shows how much of a schedule is
+  inherently sequential. Execution is unchanged.
+
+  A system that reaches through `GetWorld()` can now say what for
+  (`touches: { reads, writes }`) instead of being assumed to touch everything —
+  and every engine system that cannot yet says why in one line, which is the
+  standing account of what separates the engine from running any of them at the
+  same time.
+
 ### Fixed
 
 - **A scene is checked the way a prefab has always been.** A prefab has been
