@@ -186,6 +186,18 @@ export {
  *
  * @beta Pre-1.0: the frame-advance callback may become a schedule hook.
  */
+/**
+ * What a WebGPU device has to be created with for the engine to use everything
+ * it ships — compressed textures above all.
+ *
+ * @beta
+ */
+export {
+    ENGINE_WEBGPU_FEATURES,
+    engineWebGPUFeatures,
+    type WebGPUAdapterLike,
+} from './render/webgpuFeatures';
+
 export {
     captureFramePixels,
     canCaptureFramePixels,

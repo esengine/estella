@@ -109,6 +109,10 @@ public:
      */
     void init(GfxDevice& device);
 
+    /** The device resources are created on, or null before {@link init}.
+     *  Read by callers that must ASK the backend what it supports. */
+    GfxDevice* device() const { return device_; }
+
     /**
      * @brief Shuts down and releases all resources
      */

@@ -53,6 +53,13 @@ export interface CppResourceManager {
      *  format (or RGBA32). Native only (the basis transcoder lives in the host);
      *  the web KTX2 path is WebGL2 + the wasm transcoder instead. */
     createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean): { handle: number; width: number; height: number } | null;
+    /** Whether the ACTIVE backend samples this compressed format (the C++
+     *  `GfxCompressedFormat` ordinal). Absent on an older wasm build. */
+    supportsCompressedFormat?(format: number): boolean;
+    /** Uploads pre-transcoded blocks (level 0 first) as one compressed texture,
+     *  whichever backend is running. Absent on an older wasm build. */
+    createCompressedTexture?(width: number, height: number, format: number,
+                             dataPtr: number, dataLen: number, mipLevels: number): number;
     /** Module-free {@link updateTextureSubregion} — native byte upload for the
      *  glyph atlas, symmetric with {@link createTextureFromBytes}. */
     updateTextureSubregionFromBytes?(handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array): void;

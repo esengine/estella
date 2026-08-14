@@ -11,6 +11,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
+#include "../renderer/rhi/GfxDevice.hpp"
 #endif
 
 namespace esengine {
@@ -81,6 +82,31 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
         }
     }
 
+    return handle.id();
+}
+
+/**
+ * Whether the ACTIVE backend can sample this compressed format — the question
+ * WebGL extensions answer for one backend only, and answer with "none" for the
+ * other, which arrives as a texture that never loaded.
+ */
+bool rm_supportsCompressedFormat(resource::ResourceManager& rm, i32 format) {
+    auto* device = rm.device();
+    if (!device) return false;
+    if (format < 0 || format > static_cast<i32>(GfxCompressedFormat::S3TC_DXT5_SRGB)) return false;
+    return device->supportsCompressedFormat(static_cast<GfxCompressedFormat>(format));
+}
+
+/** Uploads pre-transcoded blocks (level 0 first) as one compressed texture. */
+u32 rm_createCompressedTexture(resource::ResourceManager& rm, u32 width, u32 height,
+                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels) {
+    if (format < 0 || format > static_cast<i32>(GfxCompressedFormat::S3TC_DXT5_SRGB)) return 0;
+    const u8* data = boundarySpan<u8>(dataPtr, dataLen, "rm_createCompressedTexture");
+    if (!data) return 0;
+    auto handle = rm.createCompressedTexture(width, height,
+                                             static_cast<GfxCompressedFormat>(format),
+                                             ConstSpan<u8>(data, dataLen),
+                                             mipLevels ? mipLevels : 1);
     return handle.id();
 }
 

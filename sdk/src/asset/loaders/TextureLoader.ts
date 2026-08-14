@@ -8,7 +8,10 @@ import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
-import { isKtx2, isKtx2Path, loadCompressedTexture, type BasisTranscoder } from '../compressed';
+import {
+    isKtx2, isKtx2Path, loadCompressedTexture, chooseEngineTargetFormat, engineFormatCode,
+    type BasisTranscoder,
+} from '../compressed';
 import { uploadBoundTextureImage, applyBoundTextureSampling } from '../glTextureUpload';
 import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
 
@@ -219,11 +222,16 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
             return { handle: r.handle, width: r.width, height: r.height };
         }
-        const gl = this.getWebGL2Context();
-        if (!gl) throw new Error('TextureLoader: KTX2 textures require a WebGL2 context');
         const transcoder = await this.ensureTranscoder_();
         if (!transcoder) {
             throw new Error('TextureLoader: no Basis transcoder available (basis side module missing — KTX2 assets need it)');
+        }
+        const gl = this.getWebGL2Context();
+        if (!gl) {
+            // No GL context (the WebGPU backend): ask the ENGINE which format it
+            // samples and upload through it. Sampler state is what the GL path
+            // below still has and this one does not — here it takes the defaults.
+            return this.loadCompressedViaEngine(path, transcoder, bytes);
         }
         // KTX2 payloads are color, like the PNG path: linear mode wants the
         // sRGB variant of whatever compressed format the device supports.
@@ -232,6 +240,37 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const r = loadCompressedTexture(gl, this.module_!, transcoder, bytes,
             { ...settings, srgb: linearColorSpace() });
         return { handle: r.handle, width: r.width, height: r.height };
+    }
+
+    /**
+     * KTX2 through the engine's own upload, for a backend with no GL context.
+     * Falls back to an RGBA decode when no compressed format is available or the
+     * transcode to it fails — the same bargain the GL path makes.
+     */
+    private async loadCompressedViaEngine(
+        path: string, transcoder: BasisTranscoder, bytes: Uint8Array,
+    ): Promise<TextureResult> {
+        const rm = requireResourceManager();
+        const module = this.module_;
+        const srgb = linearColorSpace();
+        if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
+            const supports = rm.supportsCompressedFormat.bind(rm);
+            const target = chooseEngineTargetFormat((code) => supports(code), srgb);
+            if (target) {
+                const t = transcoder.transcode(bytes, target);
+                if (t) {
+                    const code = engineFormatCode(target, srgb);
+                    const handle = withMalloc(module, t.data.length, (ptr) => {
+                        module.HEAPU8.set(t.data, ptr);
+                        return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1);
+                    });
+                    if (handle) return { handle, width: t.width, height: t.height };
+                }
+            }
+        }
+        const rgba = transcoder.transcodeToRgba(bytes);
+        if (!rgba) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
+        return this.loadFromPixels(rgba.width, rgba.height, rgba.data, false);
     }
 
     /**

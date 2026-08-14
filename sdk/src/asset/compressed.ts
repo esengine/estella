@@ -124,6 +124,37 @@ export function detectCompressedTextureSupport(gl: WebGL2RenderingContext): Comp
 }
 
 /**
+ * The C++ `GfxCompressedFormat` ordinal for each target, as [unorm, sRGB].
+ *
+ * Asking the ENGINE which formats it samples is the only question both backends
+ * answer; WebGL extensions are one backend's answer, and on the other one that
+ * answer is "none", which is how a compressed texture became a white placeholder.
+ */
+const ENGINE_FORMAT_CODE: Record<CompressedTextureFormat, readonly [number, number]> = {
+    [CompressedTextureFormat.ETC2_RGBA8]: [1, 6],
+    [CompressedTextureFormat.ASTC_4x4]: [2, 7],
+    [CompressedTextureFormat.S3TC_DXT5]: [5, 8],
+};
+
+/** The engine's ordinal for `format` under the running colour pipeline. */
+export function engineFormatCode(format: CompressedTextureFormat, srgb: boolean): number {
+    return ENGINE_FORMAT_CODE[format][srgb ? 1 : 0];
+}
+
+/** Best target the ENGINE says it can sample, in quality/size order. */
+export function chooseEngineTargetFormat(
+    supports: (code: number) => boolean, srgb = false,
+): CompressedTextureFormat | null {
+    const order = [
+        CompressedTextureFormat.ASTC_4x4,
+        CompressedTextureFormat.ETC2_RGBA8,
+        CompressedTextureFormat.S3TC_DXT5,
+    ];
+    for (const f of order) if (supports(engineFormatCode(f, srgb))) return f;
+    return null;
+}
+
+/**
  * Best available target in quality/size order: ASTC > ETC2 > S3TC. null = none.
  * With `srgb` (linear pipeline) a format only qualifies when its sRGB variant is
  * uploadable — S3TC needs the separate s3tc_srgb extension; ASTC/ETC2 sRGB ride

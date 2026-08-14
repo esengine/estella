@@ -14,6 +14,7 @@ import {
   installEditorGrid,
   setEditorMode,
   setPlayMode,
+  engineWebGPUFeatures,
 } from 'esengine';
 import type { App, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource, FrameCosts } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -602,12 +603,10 @@ class EngineHostImpl {
       if (!gpu) throw new Error('WebGPU is not available in this renderer.');
       const adapter = await gpu.requestAdapter();
       if (!adapter) throw new Error('No WebGPU adapter available.');
-      // Opt into timestamp-query when the adapter supports it, so the engine's GPU
-      // timer can populate gpuMs/gpuScopes (matches the GL timer-query path). Absent
-      // it, the WebGPU backend reports no GPU timing — same as before.
-      const hasTimestamp = adapter.features?.has('timestamp-query') ?? false;
-      const requiredFeatures = hasTimestamp ? ['timestamp-query'] : [];
-      console.info(`[engine] webgpu timestamp-query: ${hasTimestamp ? 'enabled (GPU timing on)' : 'unavailable (no GPU timing)'}`);
+      // The engine says which optional features it uses; a device created without
+      // them refuses the work later, as a texture that never loaded.
+      const requiredFeatures = engineWebGPUFeatures(adapter);
+      console.info(`[engine] webgpu features: ${requiredFeatures.join(', ') || '(none available)'}`);
       moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice(
         requiredFeatures.length ? { requiredFeatures } : undefined);
       // Surface Dawn validation failures: without a listener an invalid draw is

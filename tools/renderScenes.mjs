@@ -24,12 +24,12 @@ export const TIERS = ['pr', 'nightly'];
 
 /**
  * What still separates the second backend from the first. Measured where an
- * adapter exists, 50 of the 52 agree with their GL frames; the two that do not
- * come back as the white placeholder — a texture that never arrived rather than
- * a frame drawn wrong.
+ * adapter exists, 51 of the 52 agree with their GL frames. The one that does not
+ * uses a `#pragma switch` shader, and twin generation skips those: a permutation
+ * has no WGSL to run, so the material never compiles on this backend.
  */
-export const WEBGPU_GAP = 'no adapter on a CI runner; with one, 50/52 pass — ktx2 and '
-  + 'material-switch land the white placeholder, so a compressed texture does not reach this backend';
+export const WEBGPU_GAP = 'no adapter on a CI runner; with one, 51/52 pass — material-switch '
+  + 'needs WGSL twins for shader permutations, which gen-shader-twins does not emit';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
@@ -98,7 +98,7 @@ export const SCENES = [
     // positioned Sprite (bottom-left anchor, tileset UV).
   { id: "tilemap-gidobj", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/tilemap-gidobj.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-gidobj.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "10", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.5,\"y\":0.12,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.8125,\"y\":0.375,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.9375,\"y\":0.375,\"rgb\":[255,255,0],\"tol\":40},{\"x\":0.875,\"y\":0.8125,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.875,\"y\":0.9375,\"rgb\":[255,255,0],\"tol\":40}]" } },
   { id: "material", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-tint.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-tint.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
-  { id: "ktx2", tier: "nightly", env: { ESTELLA_VERIFY_SCENE: "/scenes/ktx2-sprite.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ktx2-sprite.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,180,0],\"tol\":50}]" } },
+  { id: "ktx2", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ktx2-sprite.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ktx2-sprite.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,180,0],\"tol\":50}]" } },
   { id: "material-instance", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-instance.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-instance.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   { id: "material-texture", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-tex.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-tex.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
   { id: "material-switch", tier: "nightly", env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-sw.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-sw.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":50},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },

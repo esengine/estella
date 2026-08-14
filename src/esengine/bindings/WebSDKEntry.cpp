@@ -430,6 +430,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("createTexture", &esengine::rm_createTexture)
         .function("createTextureEx", &esengine::rm_createTextureEx)
         .function("createShader", &esengine::rm_createShader)
+        .function("supportsCompressedFormat", &esengine::rm_supportsCompressedFormat)
+        .function("createCompressedTexture", &esengine::rm_createCompressedTexture)
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
         .function("retargetExternalTexture", &esengine::rm_retargetExternalTexture)

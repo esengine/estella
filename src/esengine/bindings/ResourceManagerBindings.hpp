@@ -25,6 +25,13 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
                         i32 filterMode, i32 wrapMode);
 u32 rm_createShader(resource::ResourceManager& rm,
                      const std::string& vertSrc, const std::string& fragSrc);
+/** Whether the active backend samples this compressed format. */
+bool rm_supportsCompressedFormat(resource::ResourceManager& rm, i32 format);
+
+/** Uploads pre-transcoded blocks as one compressed texture. */
+u32 rm_createCompressedTexture(resource::ResourceManager& rm, u32 width, u32 height,
+                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels);
+
 u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
                                 u32 width, u32 height);
 /** @brief Points an EXISTING texture handle at a freshly uploaded GPU object. */

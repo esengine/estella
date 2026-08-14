@@ -868,12 +868,11 @@ void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
 
 bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
     if (toWGPUCompressedFormat(format) == WGPUTextureFormat_Undefined) return false;
-    // Native: the host passes the adapter, so query it for real — and it requests
-    // exactly the supported compression families at device creation, so "adapter
-    // has" == "device can create". Without an adapter handle (the web WebGPU
-    // build) assume the ETC2 core baseline.
-    if (!adapter_) return toWGPUCompressedFormat(format) != WGPUTextureFormat_Undefined;
-    return wgpuAdapterHasFeature(adapter_, compressionFeatureFor(format)) != 0;
+    if (!device_) return false;
+    // The DEVICE, not the adapter: a format the adapter offers is unusable until
+    // the device was created asking for its feature, and createTexture rejects it
+    // — which arrives as a texture that never loaded rather than as this answer.
+    return wgpuDeviceHasFeature(device_, compressionFeatureFor(format)) != 0;
 }
 
 // =============================================================================

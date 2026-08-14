@@ -144,6 +144,7 @@ valid: (entity: Entity) => boolean
 ## CppResourceManager — interface @experimental
 ```
 acquireTextureByPath: (path: string) => number
+createCompressedTexture: ((width: number, height: number, format: number, dataPtr: number, dataLen: number, mipLevels: number) => number) | undefined
 createLabelAtlasFont: (textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number) => number
 createShader: (vertSrc: string, fragSrc: string) => number
 createTexture: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean) => number
@@ -168,6 +169,7 @@ releaseTexture: (handle: number) => void
 retargetExternalTexture: ((handle: number, glTextureId: number, width: number, height: number) => boolean) | undefined
 setTextureBudget: (bytes: number) => void
 setTextureMetadata: (handle: number, left: number, right: number, top: number, bottom: number) => void
+supportsCompressedFormat: ((format: number) => boolean) | undefined
 trimTextureCache: () => number
 updateTextureSubregion: (handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number) => void
 updateTextureSubregionFromBytes: ((handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array) => void) | undefined
