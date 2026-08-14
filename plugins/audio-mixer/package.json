@@ -1,0 +1,19 @@
+{
+  "name": "estella-plugin-audio-mixer",
+  "version": "0.1.0",
+  "description": "The project audio mixer for the Estella editor: a strip per bus, with effects and ducking.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": ["plugin.json", "src", "README.md"],
+  "keywords": ["estella", "estella-plugin", "audio", "mixer"],
+  "scripts": { "test": "vitest run" },
+  "peerDependencies": { "esengine": ">=0.51", "react": ">=19", "react-dom": ">=19" },
+  "devDependencies": {
+    "esengine": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "vitest": "^2.1.9"
+  }
+}

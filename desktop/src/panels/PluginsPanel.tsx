@@ -42,6 +42,7 @@ const PHASE_LABEL: Record<PluginPhase, MsgKey> = {
 const SCOPE_LABEL: Record<PluginRecord['scope'], MsgKey> = {
   project: 'plug.scope.project',
   package: 'plug.scope.package',
+  builtin: 'plug.scope.builtin',
   user: 'plug.scope.user',
 };
 

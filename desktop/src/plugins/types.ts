@@ -65,7 +65,8 @@ export interface SceneNode {
 export type Keybinding = string | string[];
 
 export interface CommandContribution {
-  /** Namespace with your plugin id, e.g. `acme.bakeOcclusion`. */
+  /** Under your plugin id, e.g. `acme.level-tools.bake`. The host puts it there
+   *  if you do not, so it can never claim a built-in's id. */
   id: string;
   title: LocalizedString;
   /** Grouping shown in the command palette. */
@@ -88,7 +89,7 @@ export interface CommandContribution {
 export type PanelPlacement = 'document' | 'side-left' | 'side-right' | 'bottom';
 
 export interface PanelContribution {
-  /** Namespace with your plugin id, e.g. `acme.budget`. */
+  /** Under your plugin id, e.g. `acme.level-tools.budget` (see {@link CommandContribution.id}). */
   id: string;
   title: LocalizedString;
   placement?: PanelPlacement;
@@ -106,7 +107,8 @@ export interface PanelContribution {
 }
 
 export interface SettingContributionBase {
-  /** Namespace with your plugin id, e.g. `acme.budget.warnAt`. */
+  /** Under your plugin id, e.g. `acme.level-tools.warnAt`. Read it back with
+   *  {@link PluginContext.settings}.get, which takes the same id you wrote. */
   id: string;
   label: LocalizedString;
   description?: LocalizedString;
@@ -182,7 +184,7 @@ export interface ToolContext {
  * user is never stuck in a plugin's tool.
  */
 export interface ToolContribution {
-  /** Namespaced id, e.g. `acme.measure`. */
+  /** Under your plugin id, e.g. `acme.level-tools.measure`. */
   id: string;
   title: LocalizedString;
   /** Restrict to these editor modes ('scene' | 'ui' | 'tilemap'); omitted ⇒ all. */
@@ -234,7 +236,7 @@ export interface OverlayGraphics {
 }
 
 export interface OverlayContribution {
-  /** Namespaced id, e.g. `acme.spawn-radius`. */
+  /** Under your plugin id, e.g. `acme.level-tools.spawn-radius`. */
   id: string;
   /** Restrict to these editor modes; omitted ⇒ drawn in all of them. */
   modes?: readonly string[];
@@ -297,7 +299,7 @@ export type InspectorContribution = ComponentInspectorContribution | AssetInspec
 // — Asset types ———————————————————————————————————————————————————————————————
 
 export interface AssetTypeContribution {
-  /** Namespaced type id, e.g. `acme.dialogue`. */
+  /** Under your plugin id, e.g. `acme.level-tools.dialogue`. */
   id: string;
   /** Extensions (lower-case, no dot) that resolve to this type. */
   extensions: readonly string[];
@@ -322,7 +324,7 @@ export interface AssetTypeContribution {
  * it is then an ordinary asset, and nothing downstream learns your format.
  */
 export interface AssetImporterContribution {
-  /** Namespaced id, e.g. `acme.ldtk`. */
+  /** Under your plugin id, e.g. `acme.level-tools.ldtk`. */
   id: string;
   /** Source extensions (lower-case, no dot) this converts. */
   extensions: readonly string[];
@@ -341,7 +343,7 @@ export interface ComponentSpec {
 
 /** A ready-made entity offered by the Create picker (and drag-drop, and the menu). */
 export interface EntityTemplateContribution {
-  /** Namespaced id, e.g. `acme.turret`. */
+  /** Under your plugin id, e.g. `acme.level-tools.turret`. */
   id: string;
   label: LocalizedString;
   /** Create-picker bucket; unknown categories fall under `Other`. */
@@ -413,7 +415,7 @@ export interface AgentToolContribution {
 }
 
 export interface ContextMenuContribution {
-  /** Namespaced id, e.g. `acme.reveal-refs`. */
+  /** Under your plugin id, e.g. `acme.level-tools.reveal-refs`. */
   id: string;
   location: ContextMenuLocation;
   label: LocalizedString;
@@ -476,6 +478,19 @@ export interface EditorProjectApi {
   listAssets(): string[];
   /** Re-scan the asset registry; resolves when a new ref is resolvable. */
   refreshAssets(): Promise<void>;
+
+  /**
+   * One block of the project's own settings — `features.<name>` in
+   * `project.esproject`. A built-in name (`audio`, `physics`, `rendering`, …)
+   * reads what Project Settings edits; any other name is yours to define.
+   */
+  feature<T = unknown>(name: string): T | undefined;
+  /**
+   * Replace a settings block and persist it. Requires the `fs:project`
+   * capability — it writes the project. Fields the editor does not model
+   * survive, so a block you own is safe to keep anything in.
+   */
+  setFeature(name: string, value: unknown): Promise<void>;
 }
 
 /** Files a plugin may read/write. Paths are relative to the plugin's own folder
@@ -500,9 +515,18 @@ export interface EditorViewportApi {
   worldToViewport(x: number, y: number): Vec2 | null;
 }
 
-/** Editor events a plugin can observe. Handlers are dropped on unload. */
+/**
+ * Editor events a plugin can observe. Handlers are dropped on unload.
+ *
+ * `sceneChanged` and `projectChanged` share a source today — the open scene is
+ * part of the project's state. Neither ever misses; either may fire more often
+ * than its name suggests.
+ */
 export interface EditorEvents {
-  on(event: 'selectionChanged' | 'sceneChanged' | 'playStateChanged', handler: () => void): Disposable;
+  on(
+    event: 'selectionChanged' | 'sceneChanged' | 'playStateChanged' | 'projectChanged',
+    handler: () => void,
+  ): Disposable;
 }
 
 // =============================================================================
@@ -517,6 +541,11 @@ export interface EditorEvents {
 export interface PluginContext {
   readonly id: string;
   readonly version: string;
+  /** The editor's language (`en`, `zh-CN`), for text a plugin renders ITSELF —
+   *  {@link localize} resolves your own {@link LocalizedString}s against it.
+   *  Labels handed to a contribution are resolved by the host already. Fixed for
+   *  the session: changing the language reloads the editor. */
+  readonly locale: string;
   /** Disposables retracted on unload — the simplest correct cleanup. */
   readonly subscriptions: Disposable[];
 

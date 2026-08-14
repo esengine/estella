@@ -63,6 +63,16 @@ extraResources:
     to: sdk-types
     filter:
       - "**/*.d.ts"
+  # The plugins the editor ships with. They are ordinary plugins — the same
+  # manifest, the same contribution API a third party writes against — installed
+  # rather than built in, which is what keeps that API load-bearing. Staged as
+  # directories because the plugin host compiles their entry from disk.
+  - from: ../plugins
+    to: plugins
+    filter:
+      - "**/*"
+      - "!**/node_modules/**"
+      - "!**/tests/**"
   # New-project templates: the bundled blank-slate starter(s) plus the sample
   # projects, staged as real directories (createFromTemplate copies a template
   # with fs.cp, which cannot source from inside the asar). The launcher reads

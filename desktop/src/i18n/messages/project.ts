@@ -360,7 +360,7 @@ export const projectMessages = defineMessages({
     'proj.saveAssetGroupsFailed': { en: 'Failed to save asset delivery config', zh: '保存资产交付配置失败' },
     'proj.savePlatformFailed': { en: 'Failed to save platform settings', zh: '保存平台设置失败' },
     'proj.savePhysicsFailed': { en: 'Failed to save physics setting', zh: '保存物理设置失败' },
-    'proj.saveAudioFailed': { en: 'Failed to save audio setting', zh: '保存音频设置失败' },
+    'proj.saveFeatureFailed': { en: 'Failed to save project setting: {name}', zh: '保存项目设置失败：{name}' },
     'proj.saveUiThemeFailed': { en: 'Failed to save UI theme', zh: '保存 UI 主题失败' },
     'proj.startupScene': { en: 'Startup scene: {name}', zh: '启动场景：{name}' },
     'proj.saveStartupSceneFailed': { en: 'Failed to save startup scene', zh: '保存启动场景失败' },

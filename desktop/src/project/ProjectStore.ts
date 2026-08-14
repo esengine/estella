@@ -1620,14 +1620,29 @@ class ProjectStoreImpl {
    * the Mixer reflects immediately.
    */
   async setAudio(config: AudioProjectConfig): Promise<void> {
+    await this.setFeature('audio', config);
+  }
+
+  /**
+   * Replace one `features.<name>` block and persist it — the one door a project
+   * setting is written through, whoever writes it. In-memory first (the UI
+   * reflects immediately), the editor runtime re-derived, then the RAW manifest
+   * rewritten so unmodeled fields survive.
+   */
+  async setFeature(name: string, value: unknown): Promise<void> {
     const st = this.state;
     if (!st) return;
-    const features: ProjectFeatures = { ...st.features, audio: config };
+    const features = { ...st.features, [name]: value } as ProjectFeatures;
     this.store.setState({ project: { ...st, features } });
     this.applyEditorRuntimeConfig();
     await this.patchManifest((raw) => {
-        raw.features = { ...(raw.features as Record<string, unknown> ?? {}), audio: config };
-    }, t('proj.saveAudioFailed'));
+        raw.features = { ...(raw.features as Record<string, unknown> ?? {}), [name]: value };
+    }, t('proj.saveFeatureFailed', { name }));
+  }
+
+  /** One block of the project's own settings, or undefined when it has none. */
+  feature(name: string): unknown {
+    return (this.state?.features as Record<string, unknown> | undefined)?.[name];
   }
 
   /** The project's declared physics feature, with defaults (for Project Settings). The

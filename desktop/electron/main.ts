@@ -1403,19 +1403,33 @@ const userData = (): string => app.getPath('userData');
 // also keeps the catalog unit-testable with no gate installed.
 setPlatformTrustGate((id, file) => isTrusted(userData(), id, '0.0.0', file));
 
+/**
+ * Where the editor's own plugins ship — a resource in a packaged app, the
+ * monorepo's `plugins/` in a dev run, the same shape the templates take. Trusted
+ * because they arrived with the app: prompting for a feature of the editor you
+ * installed teaches people to click through prompts.
+ */
+const BUILTIN_PLUGIN_DIR = app.isPackaged
+  ? path.join(process.resourcesPath, 'plugins')
+  : path.join(process.env.APP_ROOT ?? '', '..', 'plugins');
+
+const allPlugins = () => discoverPlugins(projectRoot, userData(), BUILTIN_PLUGIN_DIR);
+const pluginTrusted = (p: { scope: string; id: string; dir: string; manifest?: { version: string } }) =>
+  p.scope === 'builtin' || isTrusted(userData(), p.id, p.manifest?.version ?? '0.0.0', p.dir);
+
 ipcMain.handle('plugins:list', async () => {
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   return found.map((p) => ({ ...p, disabled: isDisabled(userData(), p.id) }));
 });
 
 ipcMain.handle('plugins:load', async (_e, id: string) => {
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   const plugin = found.find((p) => p.id === id && !p.shadowedBy);
   if (!plugin) return { ok: false, errors: [`plugin "${id}" not found`], warnings: [] };
   const entry = plugin.manifest?.main?.editor;
   if (!entry) return { ok: false, errors: [`plugin "${id}" has no renderer entry`], warnings: [] };
   const built = await compilePlugin(plugin.dir, entry);
-  return { ...built, trusted: isTrusted(userData(), id, plugin.manifest!.version, plugin.dir) };
+  return { ...built, trusted: pluginTrusted(plugin) };
 });
 
 // The renderer says only "the user approved this id" — main resolves which version
@@ -1423,13 +1437,13 @@ ipcMain.handle('plugins:load', async (_e, id: string) => {
 // Trust WITHOUT compiling — what a project platform profile needs, since it has no
 // renderer entry to build and approving it only permits a main-process import.
 ipcMain.handle('plugins:trustState', async (_e, id: string) => {
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   const entry = found.find((p) => p.id === id && p.manifest);
-  return !!entry && isTrusted(userData(), id, entry.manifest!.version, entry.dir);
+  return !!entry && pluginTrusted(entry);
 });
 
 ipcMain.handle('plugins:trust', async (_e, id: string) => {
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   const plugin = found.find((p) => p.id === id && p.manifest);
   if (plugin) trustPlugin(userData(), id, plugin.manifest!.version, plugin.dir);
 });
@@ -1438,7 +1452,7 @@ ipcMain.handle('plugins:setEnabled', (_e, id: string, enabled: boolean) =>
   setPluginEnabled(userData(), id, enabled),
 );
 ipcMain.handle('plugins:reveal', async (_e, id: string) => {
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   const dir = found.find((p) => p.id === id)?.dir;
   if (dir) shell.openPath(dir);
 });
@@ -1466,7 +1480,7 @@ ipcMain.handle('plugins:scaffold', async (_e, scope: 'project' | 'user', opts: S
 // name carries the id and version, so a folder of these stays readable.
 ipcMain.handle('plugins:export', async (_e, id: string) => {
   if (!win) return { ok: false, error: 'no window' };
-  const found = await discoverPlugins(projectRoot, userData());
+  const found = await allPlugins();
   const entry = found.find((p) => p.id === id && p.kind === 'plugin');
   if (!entry?.manifest) return { ok: false, error: `plugin "${id}" not found` };
 

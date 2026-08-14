@@ -68,7 +68,7 @@ export interface PluginRecord {
   /** What kind of project-supplied code this is. A `project-platform` row has no
    *  activation — approving it only permits the export pipeline to import it. */
   kind: 'plugin' | 'project-platform';
-  scope: 'project' | 'package' | 'user';
+  scope: 'project' | 'package' | 'user' | 'builtin';
   dir: string;
   phase: PluginPhase;
   /** Why it's failed / incompatible / shadowed. */

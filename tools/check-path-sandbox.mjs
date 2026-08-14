@@ -12,7 +12,7 @@
  * on the line above with `path-sandbox: <why>`.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +29,9 @@ const OPT_OUT = /path-sandbox:/;
 
 const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
   .split('\n')
-  .filter((f) => SCOPE.test(f) && f !== HOME);
+  // `git ls-files` lists what is TRACKED, which includes a file deleted in the
+  // working tree: reading one throws and takes every later gate with it.
+  .filter((f) => SCOPE.test(f) && f !== HOME && existsSync(path.join(ROOT, f)));
 
 const findings = [];
 for (const file of files) {

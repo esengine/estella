@@ -1,0 +1,13 @@
+{
+  "id": "estella.audio-mixer",
+  "name": { "en": "Audio Mixer", "zh-CN": "音频混音台" },
+  "version": "0.1.0",
+  "description": {
+    "en": "One strip per audio bus: fader, mute, insert effects and ducking.",
+    "zh-CN": "每条音频总线一条推子：音量、静音、插入效果和闪避。"
+  },
+  "publisher": "estella",
+  "engines": { "editor": ">=0.51" },
+  "main": { "editor": "src/editor.tsx" },
+  "capabilities": ["fs:project"]
+}

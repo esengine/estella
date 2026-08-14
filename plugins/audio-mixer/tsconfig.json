@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": { "@estella/editor-api": ["../../desktop/src/plugins/types.ts"] }
+  },
+  "include": ["src", "tests"]
+}

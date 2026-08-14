@@ -95,7 +95,6 @@ const STRUCTURAL: PanelDef[] = [
 const BOTTOM: PanelDef[] = [
   { id: 'sequencer', title: () => t('layout.panel.sequencer'), placement: 'bottom', refs: ['content', 'log'], ensure: true },
   { id: 'profiler', title: () => t('layout.panel.profiler'), placement: 'bottom', refs: ['log', 'content'], ensure: true, noPerf: true },
-  { id: 'audiomixer', title: () => t('mix.panelTitle'), placement: 'bottom', refs: ['log', 'content'], ensure: true },
   // Opened on demand rather than ensured: most sessions have no plugins, and a
   // permanent tab for an empty list is noise.
   { id: 'plugins', title: () => t('plug.panelTitle'), placement: 'bottom', refs: ['log', 'content'] },

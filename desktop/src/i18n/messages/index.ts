@@ -33,7 +33,6 @@ import { sequencerMessages } from './sequencer';
 import { nodegraphMessages } from './nodegraph';
 import { tileMessages } from './tile';
 import { flipbookMessages } from './flipbook';
-import { mixerMessages } from './mixer';
 import { materialMessages } from './material';
 import { projectMessages } from './project';
 import { controllerMessages } from './controllers';
@@ -60,7 +59,6 @@ export const messageModules = {
     nodegraph: nodegraphMessages,
     tile: tileMessages,
     flipbook: flipbookMessages,
-    mixer: mixerMessages,
     material: materialMessages,
     project: projectMessages,
     controllers: controllerMessages,
@@ -87,7 +85,6 @@ export const editorMessages = {
     ...nodegraphMessages,
     ...tileMessages,
     ...flipbookMessages,
-    ...mixerMessages,
     ...materialMessages,
     ...projectMessages,
     ...controllerMessages,

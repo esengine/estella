@@ -3,7 +3,7 @@
 // Far-left icon rail (activity bar). Switches the editing mode, reveals docked
 // panels, and toggles the Content Drawer — the summoned quick-access surface.
 import { useSyncExternalStore } from 'react';
-import { ListTree, SlidersHorizontal, SlidersVertical, FolderOpen, Terminal, Clapperboard, Gauge, Settings, Sparkles } from 'lucide-react';
+import { ListTree, SlidersHorizontal, FolderOpen, Terminal, Clapperboard, Gauge, Settings, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
 import { useSelection } from '@/store/selectionStore';
@@ -95,16 +95,6 @@ export function ActivityBar() {
         onClick={() => dockApi.revealAndExpand('profiler')}
       >
         <Gauge size={19} strokeWidth={1.7} />
-      </button>
-      <button
-        type="button"
-        className="act"
-        title={t('mix.panelTitle')}
-        onClick={() => dockApi.revealAndExpand('audiomixer')}
-      >
-        {/* Vertical faders read as a mixing console — distinct from the Details
-            toggle's horizontal sliders just above it on the rail. */}
-        <SlidersVertical size={19} strokeWidth={1.7} />
       </button>
 
       <span className="act-spacer" />

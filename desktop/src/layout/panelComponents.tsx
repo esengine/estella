@@ -22,7 +22,6 @@ import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { FlipbookEditor } from '@/panels/FlipbookEditor';
-import { AudioMixerPanel } from '@/panels/AudioMixerPanel';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
 import { ControllersPanel } from '@/panels/ControllersPanel';
@@ -74,7 +73,6 @@ export const PANEL_RENDERERS: Record<string, PanelRenderer> = {
   sequencer: () => <Sequencer />,
   tileset: () => <TilesetEditor />,
   flipbook: () => <FlipbookEditor />,
-  audiomixer: () => <AudioMixerPanel />,
   tilemap: () => <TilemapPainter />,
   uiWidgets: () => <UIWidgetsPanel />,
   controllers: () => <ControllersPanel />,

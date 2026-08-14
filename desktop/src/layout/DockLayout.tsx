@@ -23,6 +23,7 @@ import {
   panelRegistry, panelTitle,
 } from '@/layout/panels';
 import { PANEL_RENDERERS, MountedPanel, type PanelRenderer } from '@/layout/panelComponents';
+import { pruneLayout } from '@/layout/pruneLayout';
 import { t } from '@/i18n';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount. The
@@ -248,9 +249,13 @@ export function DockLayout() {
     });
 
     const saved = localStorage.getItem(LAYOUT_KEY);
-    if (saved) {
+    // dockview refuses a layout WHOLE over one panel it cannot render, so the
+    // missing ones are dropped from it first: a panel costs its own tab rather
+    // than the arrangement.
+    const restorable = saved ? pruneLayout(JSON.parse(saved), new Set(Object.keys(components))) : null;
+    if (restorable) {
       try {
-        api.fromJSON(JSON.parse(saved));
+        api.fromJSON(restorable as Parameters<typeof api.fromJSON>[0]);
         retitleRestoredPanels(api);
       } catch {
         api.clear();

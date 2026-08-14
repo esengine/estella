@@ -44,7 +44,7 @@ describe('panel registry', () => {
   });
 
   it('ensures exactly the bottom utility tabs, each with dock references', () => {
-    expect(ensuredPanels().map((d) => d.id)).toEqual(['sequencer', 'profiler', 'audiomixer']);
+    expect(ensuredPanels().map((d) => d.id)).toEqual(['sequencer', 'profiler']);
     for (const def of ensuredPanels()) {
       expect(def.placement).toBe('bottom');
       expect(def.refs?.length).toBeGreaterThan(0);

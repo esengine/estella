@@ -20,6 +20,8 @@ import { discoverPlugins, compilePlugin, PROJECT_PLUGIN_DIR } from '../electron/
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE_PROJECT = path.resolve(HERE, '../../examples/sprite-animation');
 const SAMPLE_ID = 'estella.scene-report';
+/** The plugins the editor ships with, as a dev run resolves them. */
+const SHIPPED_PLUGINS = path.resolve(HERE, '../../plugins');
 
 let scratch: string;
 /** A second project, for the npm-installed plugins (its own package.json). */
@@ -90,6 +92,34 @@ describe('plugin discovery', () => {
 
   it('returns nothing (rather than throwing) with no project open', async () => {
     await expect(discoverPlugins(null, path.join(userData, 'absent'))).resolves.toEqual([]);
+  });
+
+  it('finds the editor’s own plugins, without a project', async () => {
+    // They ship with the app, so they are there before anything is opened.
+    const found = await discoverPlugins(null, userData, SHIPPED_PLUGINS);
+    const mixer = found.find((p) => p.id === 'estella.audio-mixer');
+    expect(mixer, 'the shipped mixer is missing from plugins/').toBeDefined();
+    expect(mixer!.scope).toBe('builtin');
+    expect(mixer!.error).toBeUndefined();
+  });
+
+  it('passes over a shipped package that has no editor half', async () => {
+    // plugins/ holds packages, and a runtime-only one is not a broken plugin.
+    const shipped = (await discoverPlugins(null, userData, SHIPPED_PLUGINS))
+      .filter((p) => p.scope === 'builtin');
+    expect(shipped.some((p) => p.error)).toBe(false);
+    expect(shipped.some((p) => p.dir.endsWith('minigame-services'))).toBe(false);
+  });
+
+  it('lets a project plugin shadow a shipped one of the same id', async () => {
+    // How a project pins its own build of a plugin the editor ships.
+    writePlugin(scratch, 'mixer', {
+      id: 'estella.audio-mixer', name: 'Mine', version: '9.0.0', main: { editor: 'src/editor.ts' },
+    }, 'export default { activate() {} }');
+    const found = (await discoverPlugins(scratch, userData, SHIPPED_PLUGINS))
+      .filter((p) => p.id === 'estella.audio-mixer');
+    expect(found.find((p) => p.scope === 'project')!.shadowedBy).toBeUndefined();
+    expect(found.find((p) => p.scope === 'builtin')!.shadowedBy).toBe('project');
   });
 });
 

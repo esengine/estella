@@ -38,6 +38,7 @@ export const pluginMessages = defineMessages({
 
     'plug.scope.project': { en: 'project', zh: '项目' },
     'plug.scope.package': { en: 'package', zh: '依赖包' },
+    'plug.scope.builtin': { en: 'built in', zh: '内置' },
     'plug.scope.user': { en: 'user', zh: '用户' },
 
     // The trust gate. Deliberately plain about what loading a plugin means: it runs

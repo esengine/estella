@@ -6,12 +6,13 @@
  *
  * Three things the renderer cannot do for itself:
  *
- *  1. DISCOVERY. Plugins live on disk in three scopes — inside the project
+ *  1. DISCOVERY. Plugins live on disk in four scopes — inside the project
  *     (`.esengine/plugins/`, versioned with it, shared by the team), installed
- *     from npm (a direct dependency shipping a `plugin.json`), and per-user
- *     (`<userData>/plugins/`, personal tools across projects). On an id collision
- *     the higher-priority scope wins and the shadowed one is REPORTED rather than
- *     dropped.
+ *     from npm (a direct dependency shipping a `plugin.json`), per-user
+ *     (`<userData>/plugins/`, personal tools across projects), and the ones the
+ *     editor ships with. On an id collision the higher-priority scope wins and
+ *     the shadowed one is REPORTED rather than dropped — which is also how a
+ *     project replaces a shipped plugin with its own build of it.
  *
  *  2. COMPILATION. Authors write ESM TypeScript with no build step; esbuild turns
  *     the entry into one CJS module through the same single door the project-script
@@ -43,8 +44,8 @@ export const PROJECT_PLUGIN_DIR = path.join(...PROJECT_PLUGIN_REL.split('/'));
 export const USER_PLUGIN_DIR = 'plugins';
 
 /** Which scope a plugin was found in. On an id collision the first of
- *  project → package → user wins, and the others say who took it. */
-export type PluginScope = 'project' | 'package' | 'user';
+ *  project → package → user → builtin wins, and the others say who took it. */
+export type PluginScope = 'project' | 'package' | 'user' | 'builtin';
 
 /**
  * What kind of project-supplied code an entry is.
@@ -90,10 +91,12 @@ const EDITOR_EXTERNALS = ['react', 'react-dom', 'react-dom/client', 'react/jsx-r
 
 /** One plugin folder read into a record. `fallbackId` names it while the manifest
  *  cannot: an unreadable plugin still has to appear, carrying the reason. */
+const NO_MANIFEST = 'folder has no plugin.json';
+
 async function readOnePlugin(pluginDir: string, scope: PluginScope, fallbackId: string): Promise<DiscoveredPlugin> {
   const base = { kind: 'plugin' as const, scope, dir: pluginDir };
   const manifestFile = path.join(pluginDir, 'plugin.json');
-  if (!existsSync(manifestFile)) return { ...base, id: fallbackId, error: 'folder has no plugin.json' };
+  if (!existsSync(manifestFile)) return { ...base, id: fallbackId, error: NO_MANIFEST };
   try {
     const parsed: unknown = JSON.parse(await readFile(manifestFile, 'utf8'));
     const result = validateManifest(parsed);
@@ -118,7 +121,11 @@ async function readPluginDir(dir: string, scope: PluginScope): Promise<Discovere
   } catch {
     return [];
   }
-  return Promise.all(names.map((name) => readOnePlugin(path.join(dir, name), scope, name)));
+  const found = await Promise.all(names.map((name) => readOnePlugin(path.join(dir, name), scope, name)));
+  // A folder someone put in a plugins directory and got wrong is worth naming.
+  // One the editor SHIPS is a package that may simply have no editor half — a
+  // runtime-only plugin is not a broken one.
+  return scope === 'builtin' ? found.filter((p) => p.error !== NO_MANIFEST) : found;
 }
 
 /**
@@ -192,11 +199,16 @@ async function readPlatformProfiles(root: string): Promise<DiscoveredPlugin[]> {
  * personal one installed for every project. A shadowed plugin is listed carrying
  * `shadowedBy` rather than dropped, so the UI can say why it isn't running.
  */
-export async function discoverPlugins(root: string | null, userDataDir: string): Promise<DiscoveredPlugin[]> {
+export async function discoverPlugins(
+  root: string | null,
+  userDataDir: string,
+  builtinDir?: string,
+): Promise<DiscoveredPlugin[]> {
   const project = root ? await readPluginDir(path.join(root, PROJECT_PLUGIN_DIR), 'project') : [];
   const platforms = root ? await readPlatformProfiles(root) : [];
   const packages = root ? await readPackagePlugins(root) : [];
   const user = await readPluginDir(path.join(userDataDir, USER_PLUGIN_DIR), 'user');
+  const builtin = builtinDir ? await readPluginDir(builtinDir, 'builtin') : [];
   const claimed = new Map(project.map((p) => [p.id, p.scope]));
   const resolve = (list: DiscoveredPlugin[]): DiscoveredPlugin[] =>
     list.map((p) => {
@@ -205,7 +217,7 @@ export async function discoverPlugins(root: string | null, userDataDir: string):
       claimed.set(p.id, p.scope);
       return p;
     });
-  return [...project, ...platforms, ...resolve(packages), ...resolve(user)];
+  return [...project, ...platforms, ...resolve(packages), ...resolve(user), ...resolve(builtin)];
 }
 
 // =============================================================================

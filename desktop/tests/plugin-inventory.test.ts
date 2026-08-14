@@ -44,17 +44,17 @@ afterEach(() => {
 /** Register one of every kind, and hand back the disposables by kind. */
 function registerAll(ctx: PluginContext): Record<string, { dispose(): void }> {
   return {
-    command: ctx.commands.register({ id: 'acme.hello', title: 'Say hello', run() {} }),
-    panel: ctx.panels.register({ id: 'acme.panel', title: 'Acme', mount: () => () => {} }),
+    command: ctx.commands.register({ id: 'acme.tools.hello', title: 'Say hello', run() {} }),
+    panel: ctx.panels.register({ id: 'acme.tools.panel', title: 'Acme', mount: () => () => {} }),
     setting: ctx.settings.register({ id: 'acme.warn', type: 'boolean', label: 'Warn', default: true }),
     tool: ctx.tools.register({
-      id: 'acme.measure',
+      id: 'acme.tools.measure',
       title: 'Measure',
       onPointerDown: () => true,
       onPointerMove: () => {},
       onPointerUp: () => {},
     }),
-    overlay: ctx.overlays.register({ id: 'acme.gizmo', render: () => {} }),
+    overlay: ctx.overlays.register({ id: 'acme.tools.gizmo', render: () => {} }),
     inspector: ctx.inspector.register({
       kind: 'component',
       id: 'audit',
@@ -62,11 +62,11 @@ function registerAll(ctx: PluginContext): Record<string, { dispose(): void }> {
       title: 'Audit',
       build: () => {},
     }),
-    assetType: ctx.assets.registerType({ id: 'acme.dialogue', extensions: ['dlg'] }),
+    assetType: ctx.assets.registerType({ id: 'acme.tools.dialogue', extensions: ['dlg'] }),
     importer: ctx.assets.registerImporter({ id: 'ldtk', extensions: ['ldtk'], import: () => {} }),
-    entityTemplate: ctx.entities.registerTemplate({ id: 'acme.turret', label: 'Turret', components: [] }),
+    entityTemplate: ctx.entities.registerTemplate({ id: 'acme.tools.turret', label: 'Turret', components: [] }),
     contextMenu: ctx.contextMenus.register({
-      id: 'acme.reveal',
+      id: 'acme.tools.reveal',
       location: 'outliner/item',
       label: 'Reveal',
       run: () => {},
@@ -96,9 +96,9 @@ describe('contribution inventory', () => {
     const b = build();
     registerAll(b.ctx);
     const byKind = new Map(b.contributions().map((c) => [c.kind, c]));
-    expect(byKind.get('command')).toMatchObject({ id: 'acme.hello', label: 'Say hello' });
-    expect(byKind.get('panel')).toMatchObject({ id: 'acme.panel', label: 'Acme' });
-    expect(byKind.get('tool')).toMatchObject({ id: 'acme.measure', label: 'Measure' });
+    expect(byKind.get('command')).toMatchObject({ id: 'acme.tools.hello', label: 'Say hello' });
+    expect(byKind.get('panel')).toMatchObject({ id: 'acme.tools.panel', label: 'Acme' });
+    expect(byKind.get('tool')).toMatchObject({ id: 'acme.tools.measure', label: 'Measure' });
     // Inspector ids are namespaced by the host, and the list must show the id that
     // actually landed in the registry — not the one the plugin asked for.
     expect(byKind.get('inspector')?.id).toBe('acme.tools.audit');
@@ -108,12 +108,22 @@ describe('contribution inventory', () => {
     expect(byKind.get('importer')).toMatchObject({ id: 'acme.tools.ldtk', label: '.ldtk' });
     // An overlay has neither — and must NOT fall back to its id, or the panel row
     // prints the same string in the label column and the id column.
-    expect(byKind.get('overlay')).toMatchObject({ id: 'acme.gizmo', label: '' });
+    expect(byKind.get('overlay')).toMatchObject({ id: 'acme.tools.gizmo', label: '' });
+  });
+
+  it('puts a contribution under its plugin, however the author spelled the id', () => {
+    // The convention was documented and unenforced, so a plugin registering
+    // `details` could claim a built-in panel's id. Idempotent, so an id already
+    // under the plugin is left exactly as written.
+    const b = build();
+    b.ctx.panels.register({ id: 'mixer', title: 'Mixer', mount: () => () => {} });
+    b.ctx.commands.register({ id: 'acme.tools.already', title: 'Already', run() {} });
+    expect(b.contributions().map((c) => c.id)).toEqual(['acme.tools.mixer', 'acme.tools.already']);
   });
 
   it('resolves a localized label rather than listing the object', () => {
     const b = build();
-    b.ctx.commands.register({ id: 'acme.l10n', title: { en: 'Bake', 'zh-CN': '烘焙' }, run() {} });
+    b.ctx.commands.register({ id: 'acme.tools.l10n', title: { en: 'Bake', 'zh-CN': '烘焙' }, run() {} });
     expect(b.contributions()[0].label).toBe('Bake');
   });
 

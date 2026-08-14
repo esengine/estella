@@ -27,6 +27,7 @@ import { inspectorRegistry } from './inspector';
 import { contextMenuRegistry } from './contextMenus';
 import { importerRegistry, runImporters } from './importers';
 import { localizePlugin as localize } from './localize';
+import { editorLocale } from '@/i18n';
 import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
 import { useSelection } from '@/store/selectionStore';
@@ -129,13 +130,22 @@ function toPluginPointer(p: CorePointerInput): PluginPointerInput {
   };
 }
 
-function projectApi(): EditorProjectApi {
+function projectApi(id: string, capabilities: PluginCapability[]): EditorProjectApi {
   return {
     root: () => ProjectStore.getSnapshot()?.root ?? null,
     currentScene: () => ProjectStore.getSnapshot()?.currentScene ?? null,
     save: () => ProjectStore.save(),
     listAssets: () => AssetRegistry.listAssets().map((a) => a.path),
     refreshAssets: () => ProjectStore.refreshAssets(),
+    feature: <T,>(name: string) => ProjectStore.feature(name) as T | undefined,
+    // Writing a settings block writes the project, so it answers to the same
+    // capability reaching its files does.
+    setFeature: (name, value) => {
+      if (!capabilities.includes('fs:project')) {
+        throw new Error(`plugin "${id}" needs the "fs:project" capability in plugin.json to write project settings`);
+      }
+      return ProjectStore.setFeature(name, value);
+    },
   };
 }
 
@@ -176,6 +186,7 @@ function editorEvents(track: (d: Disposable) => Disposable): EditorEvents {
         case 'selectionChanged':
           return track({ dispose: useSelection.subscribe(handler) });
         case 'sceneChanged':
+        case 'projectChanged':
           return track({ dispose: ProjectStore.subscribe(handler) });
         case 'playStateChanged':
           // Fires only on an actual edit↔play transition, not on every store touch.
@@ -270,11 +281,19 @@ export function buildPluginContext(
     error: (...args: unknown[]) => LogStore.push('error', `plugin:${id}`, args.map(String).join(' ')),
   };
 
+  /**
+   * A contribution id, under its plugin. Idempotent, so the convention the docs
+   * ask for and the guarantee the host gives are the same string — and a plugin
+   * that forgets cannot claim `details` or `viewport` out from under a built-in.
+   */
+  const scoped = (contributionId: string): string =>
+    contributionId === id || contributionId.startsWith(`${id}.`) ? contributionId : `${id}.${contributionId}`;
+
   const registerCommand = (c: CommandContribution): Disposable => {
     const disposals: CoreDisposable[] = [
       commands.register(
         {
-          id: c.id,
+          id: scoped(c.id),
           label: localize(c.title),
           category: localize(c.category) || localize(manifest.name),
           keybinding: c.keybinding,
@@ -289,25 +308,25 @@ export function buildPluginContext(
     // built-in menus are — so a contributed row can't restate label or enablement.
     if (c.menu) {
       disposals.push(
-        registerMenuItem({ id: `${c.menu}/${c.id}`, location: c.menu, group: c.menu === 'tools' ? 'tools' : 'plugins', command: c.id }, owner),
+        registerMenuItem({ id: `${c.menu}/${scoped(c.id)}`, location: c.menu, group: c.menu === 'tools' ? 'tools' : 'plugins', command: scoped(c.id) }, owner),
       );
     }
-    return noted('command', c.id, localize(c.title), { dispose: () => disposals.forEach((d) => d.dispose()) });
+    return noted('command', scoped(c.id), localize(c.title), { dispose: () => disposals.forEach((d) => d.dispose()) });
   };
 
   const registerPluginPanel = (p: PanelContribution): Disposable =>
     noted(
       'panel',
-      p.id,
+      scoped(p.id),
       localize(p.title),
       registerPanel(
         {
-          id: p.id,
+          id: scoped(p.id),
           title: () => localize(p.title),
           placement: p.placement ?? 'bottom',
           width: p.width,
           refs: ['log', 'content'],
-          mount: (host) => guard(`panel ${p.id} mount`, () => p.mount(host), () => {}),
+          mount: (host) => guard(`panel ${scoped(p.id)} mount`, () => p.mount(host), () => {}),
         },
         owner,
       ),
@@ -320,7 +339,7 @@ export function buildPluginContext(
     if (!settingsRegistry.getSection(section)) {
       adopt(settingsRegistry.registerSection({ id: section, label: localize(manifest.name), category: 'plugin' }, owner));
     }
-    const base = { id: s.id, scope: 'editor' as const, section, label: localize(s.label), description: localize(s.description) || undefined };
+    const base = { id: scoped(s.id), scope: 'editor' as const, section, label: localize(s.label), description: localize(s.description) || undefined };
     const descriptor =
       s.type === 'enum'
         ? { ...base, type: 'enum' as const, default: s.default, options: s.options.map((o) => ({ value: o.value, label: localize(o.label) })) }
@@ -329,16 +348,16 @@ export function buildPluginContext(
           : s.type === 'string'
             ? { ...base, type: 'string' as const, default: s.default, placeholder: s.placeholder }
             : { ...base, type: 'boolean' as const, default: s.default };
-    return noted('setting', s.id, localize(s.label), settingsRegistry.register(descriptor, owner));
+    return noted('setting', scoped(s.id), localize(s.label), settingsRegistry.register(descriptor, owner));
   };
 
   const registerTool = (tool: ToolContribution): Disposable =>
     noted(
       'tool',
-      tool.id,
+      scoped(tool.id),
       localize(tool.title),
       toolRegistry.register(owner, {
-        id: tool.id,
+        id: scoped(tool.id),
         title: localize(tool.title),
         modes: tool.modes,
         // Every stroke callback is guarded: a throw mid-drag must not wedge the
@@ -362,7 +381,7 @@ export function buildPluginContext(
     // itself, so a per-frame throw is attributed once, at the frame boundary.
     // No label: an overlay has no title of its own, and repeating the id in the
     // label column would just print it twice on the same row.
-    noted('overlay', overlay.id, '', overlayRegistry.register(owner, overlay));
+    noted('overlay', scoped(overlay.id), '', overlayRegistry.register(owner, { ...overlay, id: scoped(overlay.id) }));
 
   const registerInspector = (section: InspectorContribution): Disposable =>
     noted(
@@ -385,10 +404,10 @@ export function buildPluginContext(
   const registerImporter = (importer: AssetImporterContribution): Disposable =>
     noted(
       'importer',
-      `${id}.${importer.id}`,
+      scoped(importer.id),
       importer.extensions.map((e) => `.${e}`).join(' '),
       importerRegistry.register(owner, {
-        id: `${id}.${importer.id}`,
+        id: scoped(importer.id),
         extensions: importer.extensions,
         run: (path) => guardAsync(`import ${path}`, () => importer.import(path)),
       }),
@@ -397,10 +416,10 @@ export function buildPluginContext(
   const registerAssetType = (type: AssetTypeContribution): Disposable =>
     noted(
       'assetType',
-      type.id,
+      scoped(type.id),
       type.extensions.map((e) => `.${e}`).join(' '),
       assetTypeRegistry.register(owner, {
-        id: type.id,
+        id: scoped(type.id),
         extensions: type.extensions,
         badge: type.badge ?? '',
         icon: CONTRIBUTED_ASSET_ICON,
@@ -418,10 +437,10 @@ export function buildPluginContext(
   const registerTemplate = (template: EntityTemplateContribution): Disposable =>
     noted(
       'entityTemplate',
-      template.id,
+      scoped(template.id),
       localize(template.label),
       entitySourceRegistry.register(owner, {
-        id: template.id,
+        id: scoped(template.id),
         label: localize(template.label),
         category: template.category ?? 'Scripts',
         icon: CONTRIBUTED_ASSET_ICON,
@@ -456,10 +475,11 @@ export function buildPluginContext(
   const registerContextMenuItem = (item: ContextMenuContribution): Disposable =>
     noted(
       'contextMenu',
-      item.id,
+      scoped(item.id),
       localize(item.label),
       contextMenuRegistry.register(owner, {
         ...item,
+        id: scoped(item.id),
         // A plain string is itself a LocalizedString, so resolving it here means
         // every consumer reads one already-localized label.
         label: localize(item.label),
@@ -471,6 +491,7 @@ export function buildPluginContext(
   const ctx: PluginContext = {
     id,
     version: manifest.version,
+    locale: editorLocale,
     subscriptions: [],
     log,
     ui: { toast: (message, level = 'info') => Toasts.push(message, level) },
@@ -482,7 +503,7 @@ export function buildPluginContext(
     },
     settings: {
       register: registerSetting,
-      get: <T extends boolean | number | string>(sid: string) => useSettings.getState().getValue(sid) as T | undefined,
+      get: <T extends boolean | number | string>(sid: string) => useSettings.getState().getValue(scoped(sid)) as T | undefined,
     },
     tools: {
       register: registerTool,
@@ -500,7 +521,7 @@ export function buildPluginContext(
     contextMenus: { register: registerContextMenuItem },
     agentTools: { register: registerAgentToolContribution },
     scene: sceneApi(),
-    project: projectApi(),
+    project: projectApi(id, capabilities),
     viewport: viewportProjection,
     fs: pluginFs(id, dir, capabilities),
     events: editorEvents(track),
