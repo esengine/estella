@@ -14,7 +14,156 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-08-14
+
+### Added
+
+- **One hierarchy, and gizmos on the running game.** The Outliner had two trees
+  with a picker between them, and the reason was never a UI decision: a document
+  id and a realm handle are different numbers for the same entity, so the two
+  could only be switched between. They are one tree now — an authored row keeps
+  its key, so expansion, scroll and selection survive Play and Stop, and what the
+  game spawned collects under Runtime.
+
+  The running frame gets gizmos with it. The editor cannot read the realm's
+  canvas and does not try: the realm answers where the selection is drawn, what
+  is under a point, and where a drag lands, because it holds the camera that
+  composed the frame. Points cross normalized to that canvas, so a device ratio,
+  a letterboxed viewport or a device preset cannot put the gizmo beside the thing
+  it points at. The pointer stays the game's until the Inspect toggle takes it.
+
+- **The transform tools work on the running game too.** Play had one gizmo and
+  edit had three, which made the tool you had picked mean nothing the moment you
+  pressed Play. W/E/R choose which gizmo is drawn over the running frame, and
+  they obey the snap setting in both realms — the same drag used to land on 32 in
+  the editor and on -33.603 in play. What snaps is the result, not the gesture: a
+  sprite already at 7° lands on 15/30/45, the rule the editor's own gizmo has
+  always used. The grid toggle comes along to the tool palette, since the docked
+  toolbar that holds the snap menu is hidden while the game runs.
+
+- **The HUD is clickable in the running game.** Clicking hit-tested only world
+  entities, so UI laid out in the screen space of its own camera was unreachable.
+  The realm picks UI first and then the world, which is the order the editor's
+  own viewport has always used, and the outline follows: a UI node's box is its
+  resolved layout, projected through the camera that composed it. That box
+  carries no origin and the overlay draws no handles without one — a UI node is
+  placed by layout, so dragging its transform would be accepted, overwritten on
+  the next relayout, and look like nothing happened.
+
+- **Stop can hand back what you changed while playing.** A play session's edits
+  ending at Stop is what makes them safe to make, and also a famous way to lose
+  an afternoon of tuning. What is offered back is what a PERSON changed: a diff
+  of the world cannot tell that from what the game did, so the journal records
+  the addresses the op layer was asked to write, which is where every deliberate
+  edit already passes. The offer is a sticky toast rather than a dialog — Stop
+  must not wait on an answer — keeping is one undo step, and entities the game
+  spawned are counted rather than dropped quietly.
+
+- **A row the game destroys stays in the tree.** The Outliner showed the realm's
+  tree projected through the document's identity, so an entity the game destroyed
+  simply stopped being reported and its row vanished from the scene you were
+  editing. The two trees are merged now: live rows as the realm reports them,
+  plus a tombstone for every authored row it no longer has, struck through and
+  carrying no eye. With nothing of the document running there are no tombstones —
+  a realm that is booting, or that has moved on to another scene, is not this
+  scene with holes in it.
+
+- **A live entity can say which document row it came from.** `SceneOrigins` and
+  `enableSceneOrigins` keep the map every scene load already builds on its way to
+  spawning, recorded on both spawn paths and off unless an App opts in: a running
+  game never asks, and the table would be the editor's cost charged to every
+  player. `entityWorldBox` and `uiNodeWorldBox` move to the SDK beside it — the
+  editor outlines and hit-tests the box the renderer draws, and two derivations
+  of it agree until a pivot or a parent scale is involved.
+
+- **A plugin can be a package the project depends on.** Plugins were a folder, so
+  sharing one meant exporting a `.esplugin` and importing it, with no version, no
+  update, and no way for the two halves of one plugin to arrive together. A
+  direct dependency shipping a `plugin.json` is now a plugin: it lists in the
+  Plugins panel like any other and needs trust the same way, and since approval
+  covers a version, an npm update asks again by construction. Only direct
+  dependencies are read — a package that arrives because something else depends
+  on it is not something the project asked to run in its editor.
+
+- **A project can install a plugin from its own bundle** — `addPlugin`, the
+  module-level twin of `App.addPlugin`, because a bundle is imported before an
+  App exists. Draining what a bundle registered is one call,
+  `flushPendingRegistrations`, since a host that can drain half of it eventually
+  will.
+
+- **A plugin can teach the editor to read a new file format.** The editor could
+  be told a file type exists — its badge, its icon, what double-clicking it does
+  — but not how to turn one into something the engine reads.
+  `ctx.assets.registerImporter` claims extensions and is called when a claimed
+  file appears or changes, and on Reimport in the Content Browser. What it writes
+  is an ordinary project asset, which is the whole design: the registry, the
+  inspector, cooking and the shipped build learn nothing about the foreign
+  format. The call is the editor's, not a click's, so the failure modes are the
+  contract — a throw and a rejection both report against the plugin and leave the
+  other importers running, and a file is never imported twice at once.
+
+- **An LDtk importer**, `estella-plugin-ldtk`: an npm package, written against
+  the public editor API alone, doing something the engine genuinely cannot do.
+  Drop a `.ldtk` into the project and its map appears, image paths re-based and
+  flip bits intact.
+
+- **The editor ships its own plugins.** A fourth discovery scope for the ones
+  that arrive with the app — trusted, because installing the app was the
+  decision, and listed in the panel like any other. A project that depends on the
+  package, or drops a copy in `.esengine/plugins/`, shadows the shipped one,
+  which is how you run a fork of a feature we ship. The audio mixer is the first,
+  rewritten against the public API alone, and three gaps it could not have worked
+  around are filled generally rather than for audio: `ctx.project.feature` /
+  `setFeature` (a settings block, persisted and live-applied through the one door
+  every project setting now goes through), the `projectChanged` event, and
+  `ctx.locale` for a plugin that renders its own UI.
+
+- **Host capabilities a package can reach**: `platformCanOpenData`,
+  `platformOpenDataPostMessage`, `platformOpenDataCanvas`,
+  `platformSetCloudKeyValues`, `platformCreateCanvas`, `platformDevicePixelRatio`,
+  and `createCanvasTexture` — a texture whose content is a canvas something else
+  draws on. For share and payment: `platformShare`, `platformCanShare`,
+  `platformOnShareRequest`, `platformCanPay` and `platformRequestPayment`, with
+  `PlatformShareOptions` and `PlatformPaymentRequest`. Each is exported because a
+  shipped plugin holds it up, and no capability is public ahead of one. With them
+  goes `extendPlatform`, for a host that can answer what its adapter cannot.
+
+- **Five more starters, so New Project is a choice.** There was one starter —
+  Blank — and forty-four examples beside it, which made "start a project" mean
+  "pick a demo and delete the demo out of it". Each of the new ones is a skeleton
+  rather than a showcase: 2D Platformer, Top-down, Playable Ad, WeChat Mini Game,
+  and a UI Game whose three screens and every button are scene data — controllers,
+  gears and `EventBinding` rows, with only the rules left in code. They are
+  type-checked by the same gate the examples are, so a starter that stops
+  compiling fails the push.
+
+- **A Pixel RPG starter**, the seventh: a 16-pixel overworld with collision in
+  the tileset, a four-way animated hero, a camera clamped to the map and snapped
+  to whole pixels, and a sign that answers. Its art is drawn for it — nothing to
+  license, and every texture imported `nearest`.
+
+- **A plugin can put a button on the editor's activity bar** —
+  `ctx.activityBar.register({ id, title, icon, run })`, with the glyph as the
+  plugin's own inline SVG. The audio mixer uses it, which is how it got back the
+  rail entry it had before it became a plugin.
+
+- **`registerAction` takes a declaration**, not only a bare function — the form
+  the docs already taught, and what turns an editor text box into typed controls
+  for a game's own action.
+
 ### Changed
+
+- **The share sheet and in-game purchase are a package, not engine services.**
+  They moved to `estella-plugin-minigame-services`, which is what proved the
+  runtime half of the plugin API was not actually reachable: every façade imports
+  the platform, and none of those seams were public, so no service could be
+  written outside the engine no matter how loosely it was coupled.
+
+  Removed from `esengine` (all `@experimental`): `Share`, `ShareAPI`, `Payment`,
+  `PaymentAPI`, `ShareCard`, `PaymentRequest`, `PaymentFailure`. Import them from
+  the package and install it with `addPlugin` in the project's own entry. What
+  stayed is as deliberate as what left: the takeover ceremony is not a mini-game
+  service — it is what pauses a game under anything fullscreen, and ads use it.
 
 - **The friends leaderboard is a package, not an engine service.** It moved to
   `estella-plugin-minigame-services` alongside share and payment, and with it the
@@ -38,28 +187,46 @@ published separately; it ships inside the editor.
   refuses Play the way it refuses an export. The stand-in that used to live in
   the service (`setProvider`, `createLocalLeaderboard`) is gone with it.
 
-### Added
+### Fixed
 
-- **Host capabilities a package can reach**: `platformCanOpenData`,
-  `platformOpenDataPostMessage`, `platformOpenDataCanvas`,
-  `platformSetCloudKeyValues`, `platformCreateCanvas`, `platformDevicePixelRatio`,
-  and `createCanvasTexture` — a texture whose content is a canvas something else
-  draws on. Exported because a shipped plugin holds each one up. Plus
-  `extendPlatform`, for a host that can answer what its adapter cannot.
+- **A stepped frame handed the boundary to nobody.** `stepFrames` says the loop
+  is held off for its duration, and it is — but it resumed by CALLING the loop,
+  which starts a frame inside the same microtask drain that resolves the call. So
+  the caller never got a boundary: its very next statement already ran inside a
+  live frame, and an input edge injected there landed past that frame's PreUpdate
+  and was cleared by its Last. A driver clicking a button in the running game got
+  `ok`, a game that never saw the click, and nothing anywhere to read. It resumes
+  on the next animation frame now — a task, not a microtask.
 
-- **A Pixel RPG starter**, the seventh: a 16-pixel overworld with collision in
-  the tileset, a four-way animated hero, a camera clamped to the map and snapped
-  to whole pixels, and a sign that answers. Its art is drawn for it — nothing to
-  license, and every texture imported `nearest`.
+- **A driven click is a press and a release, a frame apart.** `click_ui` and
+  `play_input` sent every edge of a gesture in one turn, with no hover before
+  either, which is not what a pointer does and survives only as long as nothing
+  clears the edges first. Both spread the gesture over stepped frames and return
+  on a game that has already reacted, so what the click caused is there to read.
 
-- **A plugin can put a button on the editor's activity bar** —
-  `ctx.activityBar.register({ id, title, icon, run })`, with the glyph as the
-  plugin's own inline SVG. The audio mixer uses it, which is how it got back the
-  rail entry it had before it became a plugin.
+- **A row picked in the running game is found in the tree.** Clicking the game
+  selected the entity and the Inspector showed it, but the Outliner left it
+  folded away under collapsed ancestors with nothing highlighted: reveal-on-select
+  asked the document where the row hangs, and an entity the game spawned has no
+  document row to climb. It is asked of the tree that is showing now, which
+  expands each ancestor by the key that tree gives it.
 
-- **`registerAction` takes a declaration**, not only a bare function — the form
-  the docs already taught, and what turns an editor text box into typed controls
-  for a game's own action.
+- **A row the running game spawned says so.** A destroyed row explained itself on
+  hover and a spawned one did not, though the row already knew which it was.
+
+- **The starters' background colour reaches the screen.** Three starters authored
+  `clearColor` on their Camera, which has no such field — the clear colour comes
+  from `Canvas.backgroundColor` — so each warned at load and then drew on black.
+
+- **One removed panel no longer costs the whole layout.** A saved layout naming a
+  panel this build cannot render was refused whole by dockview, which was already
+  true of any plugin panel left open when the editor quit. Layouts are pruned to
+  what can be rendered before restoring.
+
+- **Contribution ids are namespaced by construction, not by request.** The docs
+  asked plugins to prefix their ids; a plugin registering `details` would have
+  taken a built-in panel's. The host puts every contribution under its plugin id
+  now, idempotently, so the convention and the guarantee are the same string.
 
 ## [0.51.0] - 2026-08-13
 
@@ -5397,7 +5564,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.51.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.52.0...HEAD
+[0.52.0]: https://github.com/esengine/estella/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/esengine/estella/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/esengine/estella/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/esengine/estella/compare/v0.47.0...v0.49.0
