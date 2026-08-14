@@ -96,7 +96,7 @@ export async function ensureProjectShaderTwins(
         try {
             const r = await gen.processFile(module, f, {});
             if (r.status === 'generated') result.generated.push(f);
-            else if (r.status === 'skipped-switches') result.skipped.push(f);
+            else if (r.status.startsWith('skipped-')) result.skipped.push(f);
         } catch (err) {
             result.failed.push(f);
             console.warn(`[shader-twins] generation failed for ${path.relative(root, f)} —`,

@@ -287,12 +287,10 @@ export function sourceHash(source) {
 
 /** Whether `source` needs a (re)generated WGSL twin: it has no twin, or its
  *  GENERATED twin's stored source-hash no longer matches the authored GLSL
- *  (stale). A hand-authored `wgsl` twin (builtins) and a `#pragma switch` shader
- *  are left alone — the former is authored not derived, the latter needs
- *  per-permutation twins the generator can't emit. Pure + cheap (no engine), so
- *  the editor's on-open scan and CI --check share one definition of "stale". */
+ *  (stale). A hand-authored `wgsl` twin (builtins) is left alone — it is
+ *  authored, not derived. Pure + cheap (no engine), so the editor's on-open scan
+ *  and CI --check share one definition of "stale". */
 export function needsTwin(source) {
-  if (/#pragma switch\b/.test(source)) return false;
   const hasGenerated = /#pragma (?:vertex|fragment) wgsl[ \t]+full\b/.test(source);
   const hasHandwritten = /#pragma (?:vertex|fragment) wgsl(?![ \t]+full)/.test(source);
   if (hasHandwritten && !hasGenerated) return false;
@@ -310,36 +308,87 @@ export async function loadTwinModule() {
   return createModule();
 }
 
+/** An emscripten val array as a JS array of strings. */
+function valStrings(v) {
+  const out = [];
+  for (let i = 0; i < (v?.length ?? 0); i++) out.push(v[i]);
+  return out;
+}
+
+/**
+ * How many toggles a twin may carry. Each one doubles the emitted programs, and
+ * WGSL has no preprocessor to share between them — at four the body is sixteen
+ * copies of the shader, which is a size nobody asked for silently.
+ */
+const MAX_TOGGLES = 3;
+
+/** Every on/off combination of `toggles`, as arrays of the ones that are ON. */
+export function permutationsOf(toggles) {
+  const out = [];
+  for (let mask = 0; mask < (1 << toggles.length); mask++) {
+    out.push(toggles.filter((_, i) => (mask & (1 << i)) !== 0));
+  }
+  return out;
+}
+
+const permutationKey = (on) => [...on].sort().join(',');
+
+/**
+ * One body carrying every permutation, selected by the same `#ifdef` the GLSL
+ * side gets from real defines — `preprocessWGSL` resolves it at assembly, so
+ * both targets see identical variant logic.
+ */
+export function composePermutations(toggles, bodies, remaining = toggles, on = []) {
+  if (remaining.length === 0) return bodies.get(permutationKey(on)).trimEnd();
+  const [head, ...rest] = remaining;
+  const whenOn = composePermutations(toggles, bodies, rest, [...on, head]);
+  const whenOff = composePermutations(toggles, bodies, rest, on);
+  return `#ifdef ${head}\n${whenOn}\n#else\n${whenOff}\n#endif`;
+}
+
 export async function processFile(module, file, opts) {
   let source = await readFile(file, 'utf8');
-  if (!opts.force && !needsTwin(source)) {
-    return { file, status: /#pragma switch\b/.test(source) ? 'skipped-switches' : 'has-twin' };
-  }
+  if (!opts.force && !needsTwin(source)) return { file, status: 'has-twin' };
   // Regenerating (missing, stale, or --force): drop any old generated twin so the
   // new one — and its source-hash — replaces it cleanly.
   if (/#pragma (?:vertex|fragment) wgsl full/.test(source)) source = stripGeneratedTwins(source);
 
   const info = module.esshader_cookInfo(source, '');
   if (!info.valid) throw new Error(`parse failed: ${info.error}`);
-  if (info.hasSwitches) return { file, status: 'skipped-switches' };
 
-  const textures = [];
-  for (let i = 0; i < info.textures.length; i++) textures.push(info.textures[i]);
-
-  const adapted = assignVaryingLocations(
-    adaptGlsl(info.vertGlsl, textures),
-    adaptGlsl(info.fragGlsl, textures),
-  );
+  // A switch or a feature changes the assembled GLSL, so each combination is its
+  // own program to translate.
+  const toggles = [...valStrings(info.switches), ...valStrings(info.features)];
+  if (toggles.length > MAX_TOGGLES) {
+    return { file, status: `skipped-${toggles.length}-toggles` };
+  }
 
   const workDir = await mkdtemp(path.join(tmpdir(), 'esshader-twin-'));
   try {
-    const vertWgsl = await glslToWgsl(adapted.vert, 'vert', 'vs_main', workDir);
-    const fragWgsl = await glslToWgsl(adapted.frag, 'frag', 'fs_main', workDir);
+    const vert = new Map();
+    const frag = new Map();
+    for (const on of permutationsOf(toggles)) {
+      const key = permutationKey(on);
+      const cooked = toggles.length === 0 ? info : module.esshader_cookInfo(source, key);
+      if (!cooked.valid) throw new Error(`parse failed for [${key}]: ${cooked.error}`);
+      const textures = [];
+      for (let i = 0; i < cooked.textures.length; i++) textures.push(cooked.textures[i]);
+      const adapted = assignVaryingLocations(
+        adaptGlsl(cooked.vertGlsl, textures),
+        adaptGlsl(cooked.fragGlsl, textures),
+      );
+      // The stage tag is what glslang reads the shader stage from; the
+      // permutations reuse it in turn rather than each taking a name of its own.
+      vert.set(key, await glslToWgsl(adapted.vert, 'vert', 'vs_main', workDir));
+      frag.set(key, await glslToWgsl(adapted.frag, 'frag', 'fs_main', workDir));
+    }
 
     const banner = bannerFor(sourceHash(source));
+    const vertBody = composePermutations(toggles, vert);
+    const fragBody = composePermutations(toggles, frag);
     const twin =
-      `\n#pragma vertex wgsl full\n${banner}\n${vertWgsl.trimEnd()}\n#pragma end\n` +
-      `\n#pragma fragment wgsl full\n${banner}\n${fragWgsl.trimEnd()}\n#pragma end\n`;
+      `\n#pragma vertex wgsl full\n${banner}\n${vertBody}\n#pragma end\n` +
+      `\n#pragma fragment wgsl full\n${banner}\n${fragBody}\n#pragma end\n`;
 
     if (opts.check) return { file, status: 'would-generate' };
     await writeFile(file, source.trimEnd() + '\n' + twin, 'utf8');

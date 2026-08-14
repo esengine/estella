@@ -123,6 +123,17 @@ emscripten::val esshader_cookInfo(const std::string& source, const std::string& 
     out.set("hasWgslVertex", parsed.wgslStages.count(resource::ShaderStage::Vertex) != 0);
     out.set("hasWgslFragment", parsed.wgslStages.count(resource::ShaderStage::Fragment) != 0);
     out.set("hasSwitches", !parsed.switches.empty());
+    // The switch/feature NAMES, so a cook can enumerate the permutations it has
+    // to emit a twin for — WGSL resolves them at assembly time (preprocessWGSL),
+    // which needs every branch present in the body.
+    emscripten::val switches = emscripten::val::array();
+    u32 switchCount = 0;
+    for (const auto& s : parsed.switches) switches.set(switchCount++, s.name);
+    out.set("switches", switches);
+    emscripten::val featureNames = emscripten::val::array();
+    u32 featureCount = 0;
+    for (const auto& f : parsed.features) featureNames.set(featureCount++, f);
+    out.set("features", featureNames);
     out.set("vertGlsl", vert);
     out.set("fragGlsl", frag);
     emscripten::val textures = emscripten::val::array();
