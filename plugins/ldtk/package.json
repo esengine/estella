@@ -1,0 +1,11 @@
+{
+  "name": "estella-plugin-ldtk",
+  "version": "0.1.0",
+  "description": "Import LDtk levels into Estella, as Tiled maps the engine loads natively.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": ["plugin.json", "src", "README.md"],
+  "keywords": ["estella", "estella-plugin", "ldtk", "tilemap"],
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "vitest": "^2.1.9" }
+}

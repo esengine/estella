@@ -49,6 +49,11 @@ export const GATES = [
   { id: 'api-surface-dts', run: 'node tools/api-surface.mjs --check-dts' },
   // The editor imports `esengine` — it reads dist, not the SDK's sources.
   { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit' },
+  // The shipped plugins type-check against the editor's LIVE plugin API surface
+  // (types.ts, the file authors are handed), so a change to it that no plugin
+  // could survive fails here rather than in someone else's project.
+  { id: 'tsc-plugins', run: 'pnpm -r --filter "./plugins/*" exec tsc --noEmit' },
+  { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },

@@ -1,6 +1,7 @@
 packages:
   - 'sdk'
   - 'desktop'
+  - 'plugins/*'
 onlyBuiltDependencies:
   - esbuild
   - electron

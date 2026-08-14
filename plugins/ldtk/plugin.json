@@ -1,0 +1,13 @@
+{
+  "id": "estella.ldtk",
+  "name": "LDtk Importer",
+  "version": "0.1.0",
+  "description": {
+    "en": "Import LDtk levels as Tiled maps the engine loads natively.",
+    "zh-CN": "把 LDtk 关卡导入成引擎原生读取的 Tiled 地图。"
+  },
+  "publisher": "estella",
+  "engines": { "editor": ">=0.51" },
+  "main": { "editor": "src/editor.ts" },
+  "capabilities": ["fs:project"]
+}
