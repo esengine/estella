@@ -358,7 +358,7 @@ flush 走引擎时钟而非定时器,因此后台标签页或被挂起的小游�
 什么状态,以及最关键的:**上一个批次为什么被打断**:
 
 ```typescript
-import { Renderer, RenderType, FlushReason } from 'esengine';
+import { Renderer, RenderType, BatchBreak } from 'esengine';
 
 Renderer.captureNextFrame();          // arm: the NEXT rendered frame records
 
@@ -369,7 +369,7 @@ if (Renderer.hasCapturedData()) {
     console.log(
       `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
       `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
-      `flush=${FlushReason[dc.flushReason]}`
+      `break=${BatchBreak[dc.breakReason]}`
     );
   }
   console.log(`${capture!.cameraCount} camera pass(es)`);
@@ -390,7 +390,7 @@ if (Renderer.hasCapturedData()) {
 | `vertexCount` / `triangleCount` | 提交的几何量。 |
 | `entityCount` / `entityOffset` / `entities` | 被批进该调用的实体 id。 |
 | `layer` | 批次的渲染层。 |
-| `flushReason` | 该批次为何结束(`FlushReason`,见下)。 |
+| `breakReason` | 该调用为何没有并入前一个(`BatchBreak`,见下)。 |
 | `scissorX/Y/W/H`、`scissorEnabled` | 裁剪矩形状态(UI 遮罩)。 |
 | `stencilWrite` / `stencilTest` / `stencilRef` | 模板状态(遮罩写入/读取方)。 |
 | `textureSlotUsage` | 批次占用的纹理槽数。 |
@@ -398,20 +398,32 @@ if (Renderer.hasCapturedData()) {
 `RenderType` 说明一个调用画了什么:`Sprite`、`Spine`、`Mesh`、`ExternalMesh`、
 `Text`、`Particle`、`Shape`、`UIElement`。
 
-`FlushReason` 就是合批的故事——每个值都点名了迫使新开一个 draw call 的那次状态
-变化,也就是想合批更好该修什么:
+`BatchBreak` 就是合批的故事——每个值都点名了让这个调用无法并入前一个的那次状态
+变化,也就是想合批更好该修什么。每个成员都是合批判定自身的一个分支,所以这张表不
+会和产生它的规则脱节:
 
-| `FlushReason` | 含义 |
+| `BatchBreak` | 含义 |
 |---|---|
-| `BatchFull` | 顶点批次到达容量——"好"的 flush,说明内容多。 |
-| `TextureSlotsFull` | 纹理槽用尽——把更多贴图打进图集。 |
-| `ScissorChange` | 裁剪矩形变化(`UIMask` 边界)。 |
-| `StencilChange` | 模板状态变化(遮罩写入/测试边界)。 |
-| `MaterialChange` | 材质切换——按材质给实体分组。 |
-| `BlendModeChange` | 混合模式切换——加法/普通内容交错。 |
-| `StageEnd` | 渲染阶段边界。 |
-| `TypeChange` | 内容类型切换(如精灵 → 文本 → 精灵)。 |
-| `FrameEnd` | 该帧的最终 flush。 |
+| `RunStart` | 没有可并入的对象——一段的第一个调用。 |
+| `Instanced` | 实例化绘制:每个发射器一条命令,从不合并。 |
+| `Shader` | 着色器切换——没有任何东西能跨过去合批。 |
+| `Blend` | 混合模式切换——加法/普通内容交错。 |
+| `Layout` | 顶点布局切换(精灵四边形 vs 网格顶点)。 |
+| `Material` | 材质切换——按材质给实体分组。 |
+| `Depth` | 深度测试/写入不同——不透明与混合内容交错。 |
+| `Cull` | 剔除状态不同。 |
+| `State` | 其他某个渲染状态标志不同。 |
+| `Scissor` | 裁剪矩形变化(`UIMask` 边界)。 |
+| `Stencil` | 模板参考值变化(遮罩写入/测试边界)。 |
+| `IndexGap` | 索引不连续——排序把别的东西插在了两者之间。 |
+| `TextureSlots` | 本可合并,但合并后的贴图集合超出了 8 个纹理槽——把更多贴图打进图集。 |
+
+`None` 是合批自己的答案,永远不会出现在捕获到的调用上:走到它的命令被折进了前一
+个调用,而不是新开一个。
+
+同一套原因还会按帧发布成 `batch.break.*` 计数器,与 `batch.draws`、`batch.merged`
+并列——所以"6 个 draw call"不用捕获也能读成"1 次起始 + 5 次索引断裂,另有 41 条命
+令被合掉"。
 
 ### 重放到某个 draw call
 
@@ -506,8 +518,8 @@ FPS。对游戏内构建,上面的 `statsPlugin` 就是对应物。
   剖析时再加。
 - **先归因再优化** — 读 `systemTimings` / `phaseTimings` 找到*哪个*系统慢再动代码;
   浮层的 `max` 列能抓住平均值掩盖的单帧尖峰。
-- **用帧捕获修 draw call** — `flushReason` 点名打断每个批次的那次状态变化
-  (`TextureSlotsFull` → 打图集;`MaterialChange` → 按材质分组)。
+- **用帧捕获修 draw call** — `breakReason` 点名打断每个批次的那次状态变化
+  (`TextureSlots` → 打图集;`Material` → 按材质分组)。
 - **用类别记日志,别用 `console.log`** — 结构化条目让 handler 能按通道和级别过滤,
   `setLogLevel(LogLevel.Debug)` 不改代码就能打开详细输出。
 - **生产环境关闭 `GLDebug`** — 逐调用的 GL 错误检查很贵;只在追渲染 bug 时开。

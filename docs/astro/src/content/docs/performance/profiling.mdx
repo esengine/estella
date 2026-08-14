@@ -405,7 +405,7 @@ capture, let one frame render, then read back a record for **every draw call**
 **why the previous batch broke**:
 
 ```typescript
-import { Renderer, RenderType, FlushReason } from 'esengine';
+import { Renderer, RenderType, BatchBreak } from 'esengine';
 
 Renderer.captureNextFrame();          // arm: the NEXT rendered frame records
 
@@ -416,7 +416,7 @@ if (Renderer.hasCapturedData()) {
     console.log(
       `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
       `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
-      `flush=${FlushReason[dc.flushReason]}`
+      `break=${BatchBreak[dc.breakReason]}`
     );
   }
   console.log(`${capture!.cameraCount} camera pass(es)`);
@@ -437,7 +437,7 @@ if (Renderer.hasCapturedData()) {
 | `vertexCount` / `triangleCount` | Geometry submitted. |
 | `entityCount` / `entityOffset` / `entities` | The entity ids batched into this call. |
 | `layer` | Render layer of the batch. |
-| `flushReason` | Why this batch ended (`FlushReason`, below). |
+| `breakReason` | Why this call started instead of joining the one before it (`BatchBreak`, below). |
 | `scissorX/Y/W/H`, `scissorEnabled` | Scissor rect state (UI masks). |
 | `stencilWrite` / `stencilTest` / `stencilRef` | Stencil state (mask writers/readers). |
 | `textureSlotUsage` | Texture slots the batch consumed. |
@@ -445,20 +445,33 @@ if (Renderer.hasCapturedData()) {
 `RenderType` tells you what a call drew: `Sprite`, `Spine`, `Mesh`,
 `ExternalMesh`, `Text`, `Particle`, `Shape`, `UIElement`.
 
-`FlushReason` is the batching story — each value names the state change that
-forced a new draw call, i.e. what to fix to batch better:
+`BatchBreak` is the batching story — each value names the state change that kept
+this call from joining the one before it, i.e. what to fix to batch better. Every
+member is a branch of the merge predicate itself, so the list cannot drift from
+the rule that produced it:
 
-| `FlushReason` | Meaning |
+| `BatchBreak` | Meaning |
 |---|---|
-| `BatchFull` | Vertex batch hit capacity — a "good" flush; lots of content. |
-| `TextureSlotsFull` | Ran out of texture slots — atlas more textures together. |
-| `ScissorChange` | Scissor rect changed (a `UIMask` boundary). |
-| `StencilChange` | Stencil state changed (mask write/test boundary). |
-| `MaterialChange` | Material switched — group entities by material. |
-| `BlendModeChange` | Blend mode switched — interleaved additive/normal content. |
-| `StageEnd` | Render stage boundary. |
-| `TypeChange` | Content type switched (e.g. sprites → text → sprites). |
-| `FrameEnd` | Final flush of the frame. |
+| `RunStart` | Nothing to join — the first call of a run. |
+| `Instanced` | An instanced draw: one command per emitter, never coalesced. |
+| `Shader` | Shader switched — the state change nothing batches across. |
+| `Blend` | Blend mode switched — interleaved additive/normal content. |
+| `Layout` | Vertex layout switched (sprite quads vs mesh vertices). |
+| `Material` | Material switched — group entities by material. |
+| `Depth` | Depth test/write differ — opaque and blended content interleaved. |
+| `Cull` | Cull state differs. |
+| `State` | Some other render state flag differs. |
+| `Scissor` | Scissor rect changed (a `UIMask` boundary). |
+| `Stencil` | Stencil ref changed (mask write/test boundary). |
+| `IndexGap` | Indices are not contiguous — the sort put something between them. |
+| `TextureSlots` | Mergeable, but the combined set overflowed the 8 texture slots — atlas more textures together. |
+
+`None` is the merge's own answer and never appears on a captured call: a command
+that reaches it was folded into the one before it instead of starting a new one.
+
+The same reasons are published per frame as `batch.break.*` counters alongside
+`batch.draws` and `batch.merged`, so "6 draw calls" reads as "1 run start and
+5 index gaps, with 41 commands merged away" without capturing anything.
 
 ### Replaying to a draw call
 
@@ -564,9 +577,9 @@ is the equivalent.
 - **Blame before optimizing** — read `systemTimings` / `phaseTimings` to find
   *which* system is slow before touching code; the overlay's `max` column
   catches one-frame spikes an average hides.
-- **Capture a frame to fix draw calls** — `flushReason` names the exact state
-  change that broke each batch (`TextureSlotsFull` → atlas; `MaterialChange` →
-  group by material).
+- **Capture a frame to fix draw calls** — `breakReason` names the exact state
+  change that broke each batch (`TextureSlots` → atlas; `Material` → group by
+  material).
 - **Log with categories, not `console.log`** — structured entries let a
   handler filter by channel and level, and `setLogLevel(LogLevel.Debug)` turns
   verbosity on without code changes.
