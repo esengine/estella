@@ -68,7 +68,7 @@ export async function run(ed) {
     if (!check(ready, `cycle ${cycle}: the play realm never reported ready`)) return check.failures;
     await ed.call('step', { frames: 10, dt: 1 / 60 }, 60000);
 
-    await ed.call('set_play', { state: 'playing' }, 120000);
+    await ed.call('set_play', { state: 'stopped' }, 120000);
     let stopped = false;
     for (let i = 0; i < 40 && !stopped; i++) {
       stopped = (await ed.json('get_play_state', {}))?.playing === false;
