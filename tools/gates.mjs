@@ -60,6 +60,9 @@ export const GATES = [
   // Same shape of rule, other direction: what builds a project may not need the
   // process that edits one.
   { id: 'pipeline-boundary', run: 'node tools/check-pipeline-boundary.mjs' },
+  // And the boundary holds in practice: a real project packages from the command
+  // line with no editor built.
+  { id: 'headless-export', run: 'node tools/check-headless-export.mjs' },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },

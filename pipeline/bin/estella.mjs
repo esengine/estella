@@ -16,6 +16,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
+  --wasm <dir>        engine runtime to ship (default: the build tree, else the editor's copy)
   --scene <path>      entry scene, project-relative (default: the project's own)
   --title <name>      app title (default: the project's name)
   --scripts <path>    scripts entry, project-relative (default src/main.ts if present)
@@ -183,7 +184,7 @@ try {
     gameHostEntry: path.join(PIPELINE, 'src', 'runtime', 'gameHost.ts'),
     playableHostEntry: path.join(PIPELINE, 'src', 'runtime', 'playableHost.ts'),
     sdkDistDir: path.join(REPO, 'sdk', 'dist'),
-    wasmDir: engineRuntimeDir(platform),
+    wasmDir: opts.wasm ? path.resolve(opts.wasm) : engineRuntimeDir(platform),
     outDir,
     platform,
     title: opts.title ?? project.name ?? path.basename(opts.projectDir),
