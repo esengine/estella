@@ -858,7 +858,11 @@ export class App {
             if (wasRunning) {
                 this.lastTime_ = platformNow();
                 this.running_ = true;
-                void this.mainLoop();
+                // Resumed on the next animation frame, not by starting one here:
+                // a frame begun inside this call's own microtask drain swallows
+                // the input edge a caller injects the moment it returns.
+                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(this.mainLoop);
+                else void this.mainLoop();
             }
         }
     }

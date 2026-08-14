@@ -5,6 +5,8 @@ import { App } from '../src/app/app';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { Time } from '../src/ecs/resource';
 import { defineResource, Res } from '../src/ecs/resource';
+import { setPlatform } from '../src/platform/base';
+import type { PlatformAdapter } from '../src/platform/types';
 
 describe('App.tick()', () => {
     it('should lazily initialize runner and Time resource', async () => {
@@ -164,5 +166,30 @@ describe('App.stepFrames()', () => {
         const app = App.new();
         await app.stepFrames();
         expect(app.getResource(Time).frameCount).toBe(1);
+    });
+
+    // A driver injects an input edge the moment this returns; a frame started
+    // inside the call would clear it at its Last before anything sampled it.
+    it('leaves the resumed loop to the next animation frame, so the caller keeps the boundary', async () => {
+        // The loop reads the clock through the platform, which only a real entry
+        // point installs.
+        setPlatform({ now: () => performance.now() } as unknown as PlatformAdapter);
+        const app = App.new();
+        let frames = 0;
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], () => { frames++; }, { name: 'Count' },
+        ));
+
+        await app.run();
+        for (let i = 0; i < 20; i++) await Promise.resolve(); // the loop's first frame finishes
+        const before = frames;
+
+        await app.stepFrames(2);
+        expect(frames).toBe(before + 2);
+
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+        expect(frames).toBe(before + 2);
+
+        app.quit();
     });
 });
