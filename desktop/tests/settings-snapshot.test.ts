@@ -69,11 +69,16 @@ describe('a non-empty list of rows', () => {
     // No node test can render the rule, so it is checked where it is written.
     // Both halves count: the row control must not read shallowly, and Control
     // must not take a read on behalf of every type.
-    const src = readFileSync(new URL('../src/components/SettingsRow.tsx', import.meta.url), 'utf8');
+    // Read with one line ending: a CRLF checkout is a legal checkout, and cutting
+    // on '\n}\n' there finds nothing and hands back the rest of the FILE — every
+    // claim below then reads some other function and this fails for no reason.
+    const src = readFileSync(new URL('../src/components/SettingsRow.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     const body = (name: string) => {
       const from = src.indexOf(`function ${name}(`);
       expect(from).toBeGreaterThan(-1);
-      return src.slice(from, src.indexOf('\n}\n', from));
+      const to = src.indexOf('\n}\n', from);
+      expect(to).toBeGreaterThan(from); // the cut must land, or this reads the whole file
+      return src.slice(from, to);
     };
     expect(body('ObjectListControl')).not.toContain('useSettings(useShallow');
     expect(body('ObjectListControl')).toContain('JSON.stringify');
