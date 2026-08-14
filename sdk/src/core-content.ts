@@ -143,6 +143,20 @@ export {
 } from './scene/scene';
 
 /**
+ * Structural problems in an authored document, in one vocabulary for scenes and
+ * prefabs alike — what every gate that reads one judges by.
+ *
+ * @experimental Pre-1.0: diagnostic codes may gain members as checks are added.
+ */
+export { validateScene, sceneErrors } from './scene/validateScene';
+export type {
+    DocumentDiagnostic,
+    DocumentDiagnosticSeverity,
+    DocumentEntityId,
+    DocumentNode,
+} from './document/diagnostics';
+
+/**
  * Every asset a scene references, bucketed by declared type — the input to
  * releasing what a document acquired.
  *

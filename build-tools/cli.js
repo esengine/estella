@@ -18,7 +18,7 @@ import { startWatch } from './tasks/watch.js';
 import { BuildManifest } from './manifest.js';
 import { handleBuildError } from './utils/errorHelp.js';
 import { checkExamples } from './tasks/check-examples.js';
-import { validatePrefabs } from './tasks/validate-prefabs.js';
+import { validateDocuments } from './tasks/validate-documents.js';
 
 program
     .name('esengine-build')
@@ -288,12 +288,12 @@ program
     });
 
 program
-    .command('validate-prefabs')
-    .description('Run the unified prefab validator over every shipped .esprefab')
+    .command('validate-documents')
+    .description('Run the shared document validators over every shipped scene and prefab')
     .action(async () => {
-        logger.header('Validate Prefabs');
+        logger.header('Validate Documents');
         const startTime = Date.now();
-        await validatePrefabs(config.paths.root);
+        await validateDocuments(config.paths.root);
         logger.printTime(startTime);
     });
 

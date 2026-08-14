@@ -93,7 +93,7 @@ export const GATES = [
   // on, and refuses a published verdict the tags do not carry.
   { id: 'subsystem-tiers', run: 'node tools/check-subsystem-tiers.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
-  { id: 'prefabs', run: 'node build-tools/cli.js validate-prefabs' },
+  { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];
 
 /** The gates a scope runs, in declaration order. */

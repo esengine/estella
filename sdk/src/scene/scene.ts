@@ -7,6 +7,8 @@
 
 import { World } from '../ecs/world';
 import { Entity, INVALID_ENTITY } from '../types';
+import { isPrefabEntry, type SceneEntry } from './sceneEntry';
+import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -211,18 +213,6 @@ export function registerSceneComponentCodec(type: string, codec: SceneComponentC
 // Prefab instance entries (runtime play == ship)
 // =============================================================================
 
-// A scene-file entity is either an ordinary entity record or a prefab-instance
-// entry — a minimal delta over a `.esprefab` asset (`{ prefab, overrides, added,
-// removed }`). The runtime expands each instance into ordinary entities via the
-// SAME `flattenPrefab` core the editor uses (`prefab/sceneInstance.ts`), so a
-// saved prefab scene loads identically in the editor and at runtime.
-type SceneEntry = SceneEntityData | PrefabInstanceEntry;
-
-/** True for a prefab-instance entry (carries a `prefab` asset ref). */
-function isPrefabEntry(e: SceneEntry): e is PrefabInstanceEntry {
-    return typeof (e as PrefabInstanceEntry).prefab === 'string';
-}
-
 /** True if any scene entry is a prefab instance (cheap gate before expansion). */
 export function sceneHasPrefabEntries(scene: SceneData): boolean {
     return (scene.entities as SceneEntry[]).some(isPrefabEntry);
@@ -401,7 +391,32 @@ function normalizeLegacyComponent(compData: SceneComponentData): boolean {
 // Scene Loader
 // =============================================================================
 
+/**
+ * Findings that make a scene mean something other than what it says, where
+ * loading is worse than refusing: a repeated id sends every reference to it to
+ * whichever entity came last, and a parent cycle has no hierarchy to build.
+ * Everything else still loads — a lost parent leaves an entity at the root.
+ */
+const UNLOADABLE_SCENE: ReadonlySet<string> = new Set(['duplicate-id', 'parent-cycle']);
+
+/** Refuse a scene the loader cannot honour; report the rest and carry on. */
+function checkLoadable(sceneData: SceneData): void {
+    const diags = validateScene(sceneData);
+    if (diags.length === 0) return;
+    const fatal = diags.filter((d) => UNLOADABLE_SCENE.has(d.code));
+    for (const d of diags) {
+        if (!fatal.includes(d)) log.warn('scene', `${d.code}: ${d.message}`);
+    }
+    if (fatal.length > 0) {
+        throw new Error(
+            `Scene "${sceneData.name}" cannot be loaded as written:\n`
+            + fatal.map((d) => `  ${d.code}: ${d.message}`).join('\n'),
+        );
+    }
+}
+
 function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, Entity> {
+    checkLoadable(sceneData);
     const entityMap = new Map<number, Entity>();
 
     for (const entityData of sceneData.entities) {

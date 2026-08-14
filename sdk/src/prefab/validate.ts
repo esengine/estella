@@ -8,6 +8,16 @@ import type {
 } from './types';
 import { PREFAB_ADDRESS_SEP } from './types';
 import { getComponent } from '../ecs/component';
+import {
+    checkDocumentIds,
+    checkDocumentTopology,
+    checkParentCycle,
+    checkEntityRefs,
+    type DiagnosticSink,
+    type DocumentDiagnostic,
+    type DocumentDiagnosticSeverity,
+    type DocumentNode,
+} from '../document/diagnostics';
 
 export interface StaleOverride {
     override: PrefabOverride;
@@ -168,20 +178,9 @@ function reasonForOverride(
 // every gate (editor open/save, runtime load, cook, CI). It never throws — it
 // returns structured diagnostics so each caller decides how to surface them.
 
-export type PrefabDiagnosticSeverity = 'error' | 'warning';
-
-/** One structured problem found in a prefab asset. */
-export interface PrefabDiagnostic {
-    /** Stable machine code (kebab-case), e.g. `duplicate-id`, `parent-cycle`. */
-    code: string;
-    severity: PrefabDiagnosticSeverity;
-    /** One-line human-readable explanation. */
-    message: string;
-    /** The entity the problem is on, when applicable. */
-    entityId?: PrefabEntityId;
-    /** The component type / `Comp.field` / metadata key involved, when applicable. */
-    field?: string;
-}
+/** A prefab's findings are document findings; the name is kept for its readers. */
+export type PrefabDiagnosticSeverity = DocumentDiagnosticSeverity;
+export type PrefabDiagnostic = DocumentDiagnostic;
 
 export interface ValidatePrefabOptions {
     /** Resolver for nested / variant dependency + nested-override checks. */
@@ -189,6 +188,14 @@ export interface ValidatePrefabOptions {
     /** Instance-site overrides (a scene instance's delta) to validate too. */
     instanceOverrides?: readonly PrefabOverride[];
 }
+
+/** A prefab entity as the shared checks read it. */
+const prefabNode = (e: PrefabEntityData): DocumentNode => ({
+    id: e.prefabEntityId,
+    parent: e.parent,
+    children: e.children,
+    components: e.components,
+});
 
 /**
  * Validate a prefab asset end-to-end and return every problem found. Errors mean
@@ -200,13 +207,7 @@ export function validatePrefab(
     options?: ValidatePrefabOptions,
 ): PrefabDiagnostic[] {
     const diags: PrefabDiagnostic[] = [];
-    const push = (
-        code: string,
-        severity: PrefabDiagnosticSeverity,
-        message: string,
-        entityId?: PrefabEntityId,
-        field?: string,
-    ): void => {
+    const push: DiagnosticSink = (code, severity, message, entityId, field): void => {
         diags.push({
             code,
             severity,
@@ -216,28 +217,17 @@ export function validatePrefab(
         });
     };
 
-    // Pass 1: id integrity + per-entity component-type uniqueness.
+    // Pass 1: id integrity + per-entity component-type uniqueness, plus the one
+    // rule only a prefab has — its ids address nested entities, so an id that
+    // contains the address separator cannot be addressed at all.
+    const nodes: DocumentNode[] = prefab.entities.map(prefabNode);
+    const nodeById = checkDocumentIds(nodes, push);
     const byId = new Map<PrefabEntityId, PrefabEntityData>();
-    const seen = new Set<PrefabEntityId>();
     for (const e of prefab.entities) {
         if (e.prefabEntityId.includes(PREFAB_ADDRESS_SEP)) {
             push('invalid-id', 'error', `entity id "${e.prefabEntityId}" contains the reserved separator "${PREFAB_ADDRESS_SEP}"`, e.prefabEntityId);
         }
-        if (seen.has(e.prefabEntityId)) {
-            push('duplicate-id', 'error', `entity id "${e.prefabEntityId}" appears more than once`, e.prefabEntityId);
-        } else {
-            seen.add(e.prefabEntityId);
-        }
         byId.set(e.prefabEntityId, e);
-
-        const compTypes = new Set<string>();
-        for (const c of e.components) {
-            if (compTypes.has(c.type)) {
-                push('duplicate-component', 'error', `entity "${e.prefabEntityId}" has more than one "${c.type}" component`, e.prefabEntityId, c.type);
-            } else {
-                compTypes.add(c.type);
-            }
-        }
     }
 
     // Pass 2: root existence (exactly one, referenced by rootEntityId).
@@ -245,32 +235,17 @@ export function validatePrefab(
         push('root-missing', 'error', `rootEntityId "${prefab.rootEntityId}" is not an entity in the prefab`, prefab.rootEntityId);
     }
 
-    // Pass 3: topology — parent/children two-way consistency + detached roots.
+    // Pass 3: topology — parent/children two-way consistency. A prefab has ONE
+    // root, so a second entity with no parent is adrift rather than a sibling.
     for (const e of prefab.entities) {
-        if (e.parent === null) {
-            if (e.prefabEntityId !== prefab.rootEntityId) {
-                push('detached-entity', 'error', `entity "${e.prefabEntityId}" has parent=null but is not the root`, e.prefabEntityId);
-            }
-        } else {
-            const parent = byId.get(e.parent);
-            if (!parent) {
-                push('missing-parent', 'error', `entity "${e.prefabEntityId}" parent "${e.parent}" does not exist`, e.prefabEntityId);
-            } else if (!parent.children.includes(e.prefabEntityId)) {
-                push('inconsistent-topology', 'error', `entity "${e.prefabEntityId}" claims parent "${e.parent}" but that parent's children omit it`, e.prefabEntityId);
-            }
-        }
-        for (const childId of e.children) {
-            const child = byId.get(childId);
-            if (!child) {
-                push('missing-child', 'error', `entity "${e.prefabEntityId}" lists child "${childId}" which does not exist`, e.prefabEntityId, childId);
-            } else if (child.parent !== e.prefabEntityId) {
-                push('inconsistent-topology', 'error', `entity "${e.prefabEntityId}" lists "${childId}" as a child but its parent points elsewhere`, e.prefabEntityId, childId);
-            }
+        if (e.parent === null && e.prefabEntityId !== prefab.rootEntityId) {
+            push('detached-entity', 'error', `entity "${e.prefabEntityId}" has parent=null but is not the root`, e.prefabEntityId);
         }
     }
+    checkDocumentTopology(nodes, nodeById, push);
 
-    // Pass 4: no parent cycle (report at most one — a cycle spams otherwise).
-    detectParentCycle(prefab, byId, push);
+    // Pass 4: no parent cycle.
+    checkParentCycle(nodes, nodeById, push);
 
     // Pass 5: every entity reachable from the root (via children edges).
     if (byId.has(prefab.rootEntityId)) {
@@ -289,19 +264,10 @@ export function validatePrefab(
         }
     }
 
-    // Pass 6: entity-ref component fields must resolve within the prefab.
-    for (const e of prefab.entities) {
-        for (const c of e.components) {
-            const def = getComponent(c.type);
-            if (!def || def.entityFields.length === 0) continue;
-            for (const field of def.entityFields) {
-                const v = c.data[field];
-                if (typeof v === 'string' && !byId.has(v)) {
-                    push('dangling-entity-ref', 'warning', `entity "${e.prefabEntityId}" field "${c.type}.${field}" references "${v}", which is not in the prefab`, e.prefabEntityId, `${c.type}.${field}`);
-                }
-            }
-        }
-    }
+    // Pass 6: entity-ref component fields must resolve within the prefab. A
+    // prefab's ids are strings, so a numeric field is a runtime handle that never
+    // belonged to the document.
+    checkEntityRefs(nodes, nodeById, push, (v) => typeof v !== 'string');
 
     // Pass 7: override shape + staleness (variant / instance / nested sites).
     const checkOverrides = (
@@ -370,35 +336,6 @@ function overrideShapeError(o: PrefabOverride): string | null {
         default:
             return `unknown override type "${(o as { type: string }).type}"`;
     }
-}
-
-function detectParentCycle(
-    prefab: PrefabData,
-    byId: Map<PrefabEntityId, PrefabEntityData>,
-    push: (code: string, severity: PrefabDiagnosticSeverity, message: string, entityId?: PrefabEntityId) => void,
-): void {
-    const WHITE = 0, GRAY = 1, BLACK = 2;
-    const color = new Map<PrefabEntityId, number>();
-    for (const e of prefab.entities) color.set(e.prefabEntityId, WHITE);
-    let reported = false;
-
-    const visit = (id: PrefabEntityId, path: PrefabEntityId[]): void => {
-        if (reported) return;
-        const c = color.get(id);
-        if (c === BLACK) return;
-        if (c === GRAY) {
-            const start = path.indexOf(id);
-            const cycle = path.slice(start).concat(id).join(' → ');
-            push('parent-cycle', 'error', `parent cycle detected: ${cycle}`, id);
-            reported = true;
-            return;
-        }
-        color.set(id, GRAY);
-        const e = byId.get(id);
-        if (e && e.parent !== null && byId.has(e.parent)) visit(e.parent, [...path, id]);
-        color.set(id, BLACK);
-    };
-    for (const e of prefab.entities) visit(e.prefabEntityId, []);
 }
 
 function detectDependencyCycle(

@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": 1,
   "name": "UINode single-pass flex layout (REARCH_GUI F3.2)",
   "entities": [
     {

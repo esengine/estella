@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": 1,
   "name": "Screen root tracks the camera; parented UI rides its parent. The camera starts at the origin and is driven away at runtime, so the layout box moves without resizing.",
   "entities": [
     {
