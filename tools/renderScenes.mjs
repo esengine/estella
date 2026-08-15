@@ -112,6 +112,14 @@ export const SCENES = [
   { id: "material-preview", tier: "pr", webgpu: { ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" }, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-tint.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-tint.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_PREVIEW: "{\"w\":64,\"h\":64,\"rgb\":[255,0,0],\"tol\":45}" } },
   { id: "tilemap-hex", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/tilemap-hex.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-hex.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "6", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.40,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.40,\"rgb\":[0,255,0]},{\"x\":0.50,\"y\":0.55,\"rgb\":[0,0,255]},{\"x\":0.70,\"y\":0.55,\"rgb\":[255,255,0]}]" } },
   { id: "postprocess-lut", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/lut-grade.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/lut-grade.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "10", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.292,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.708,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  // Takes the GPU away for real (WEBGL_lose_context) and drives the whole
+  // recovery. It reuses tilemap-flip because the capture happens AFTER the
+  // cycle, and those four points are SAMPLED FROM ITS ATLAS — so they fail
+  // unless the asset layer put the content back, which is the half of recovery
+  // no backend can do for itself. A scene whose colours come from vertices
+  // passes with the re-upload deleted; this one was chosen by breaking it.
+  // No `webgpu` — a WebGPU device cannot be taken away through a GL extension.
+  { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
 ];
 
 const rank = (tier) => TIERS.indexOf(tier);

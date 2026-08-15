@@ -137,7 +137,7 @@ app.whenReady().then(async () => {
       webPreferences: { offscreen: false },
     });
     onRendererConsole(win.webContents, (msg) => {
-      if (/error|fail|unwind|exception|webgl/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
+      if (/error|fail|unwind|exception|webgl|recovery|placeholder/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
     });
     await win.loadURL(url);
 
@@ -247,6 +247,7 @@ app.whenReady().then(async () => {
 
         out.guard = d.guard();
         out.tablesAtLoss = d.glTables();
+        out.awaitingAtLoss = d.awaiting();
         out.glLostBeforeRestore = d.contextLost();
         out.restoreCalled = d.restore();
         await new Promise((r) => setTimeout(r, 500));
@@ -259,12 +260,14 @@ app.whenReady().then(async () => {
           if (!out.recovered) await new Promise((r) => setTimeout(r, 100));
         }
         out.statusAfterRecover = d.status();
+        out.awaitingAfterRecover = d.awaiting();
 
         // The full cycle: rebuild, re-upload the textures, and declare it whole.
         out.fullRecovered = await d.recoverFull();
         out.statusAfterFull = d.status();
         out.tablesAfterFull = d.glTables();
-        api.step(${STEPS}, 1 / 60);
+        out.awaitingAfterFull = d.awaiting();
+        await api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;
       })()`);

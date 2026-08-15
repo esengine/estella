@@ -33,6 +33,8 @@ declare global {
         recover(): boolean;
         finishRecovery(): void;
         recoverFull(): Promise<boolean>;
+        /** The engine's own list of textures still on the placeholder. */
+        awaiting(): string[];
         glTables(): Record<string, number>;
         lose(): boolean;
         contextLost(): boolean | null;
@@ -90,6 +92,10 @@ window.__estellaHeadless = {
       if (!assets) return false;
       return assets.recoverFromDeviceLoss();
     },
+    // The engine's list, not a count: which textures did not come back is the
+    // answer a failing recovery needs, and a number cannot give it.
+    awaiting: () => (EngineHost.getResource(Assets)?.texturesAwaitingReupload() ?? [])
+      .map((t) => `${t.handle}|${t.path}`),
     // EXPERIMENT: emscripten's GL object tables are the suspected blocker —
     // they hold wrappers minted against the dead context. Counting them says
     // whether a rebuild refilled them or merely added to the stale ones.
