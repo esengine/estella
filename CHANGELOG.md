@@ -16,6 +16,26 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A compressed model imported as a heap of vertices on the origin.** Draco and
+  meshopt hold a primitive's geometry inside an extension, so its accessors point
+  at nothing — and an accessor with no view reads as zeroes, which the spec allows
+  and which for POSITION means every vertex at (0,0,0). Nothing said so. Such a
+  primitive is now skipped with the reason and what to do about it (re-export
+  without compression), as is one whose POSITION carries no data at all.
+
+- **A sparse accessor was read in its unmodified state.** The spec's sparse
+  storage replaces some of an accessor's values — or supplies all of them, since
+  its base view is optional. Ignoring it produced geometry that loads without
+  complaint and is simply wrong. It is applied now, base view or not.
+
+- **A model copied into the project lost its own files.** A `.gltf` names its
+  buffers and images by relative uri, and only the source itself was copied — so
+  a `.bin` beside it (what "glTF Separate" exports) stayed outside, and importing
+  the copy again read nothing. Every uri the source points out to now travels
+  with it, at the same relative path, so the copy is a model in its own right.
+  One that reaches outside the model's folder lands beside it and says so, rather
+  than being written wherever the path leads.
+
 - **A model dropped into the editor produced nothing.** Importing a `.gltf`/`.glb`
   copied the file in and stopped there — the engine loads no model format, so the
   user was left with a file nothing could draw and no way to reach the importer
