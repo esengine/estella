@@ -385,40 +385,34 @@ export class Assets {
     }
 
     /**
-     * Re-uploads every cached texture behind the handle it already has.
+     * Re-uploads every texture the engine says is still the placeholder.
      *
-     * The GPU objects died with the device; the handles did not. The load path
-     * runs again for its BYTES and the result is retargeted onto the original
-     * handle — reusing it keeps this one sweep, not one per upload path.
+     * Driven by that list, not by this cache, which only held the subset this
+     * layer loaded — the difference between the two is exactly what never came
+     * back. The bytes arrive under no path of their own and are then moved onto
+     * the handle that has one, so the pool ends with the records it began with.
      */
     async reuploadTexturesAfterDeviceLoss(): Promise<number> {
         const rm = requireResourceManager();
-        if (!rm.retargetExternalTexture) return 0;
+        if (!rm.adoptTextureContent) return 0;
 
         let restored = 0;
-        for (const [key, previous] of [...this.textureCache_.entries()]) {
-            const cut = key.lastIndexOf(':');
-            if (cut < 0) continue;
-            const path = key.slice(0, cut);
-            const flip = key.slice(cut + 1) === 'f';
-
-            // Removed so the load is a real one: the cached entry names a GPU
-            // object that no longer exists.
-            this.textureCache_.delete(key);
+        for (const { handle, path } of this.texturesAwaitingReupload()) {
+            // Not this layer's to restore — a render target, a glyph atlas. Its
+            // own subsystem re-creates it, or it stays on the placeholder.
+            if (!path) continue;
+            const cut = path.lastIndexOf(':');
+            const ref = cut < 0 ? path : path.slice(0, cut);
+            const flip = cut < 0 || path.slice(cut + 1) === 'f';
             try {
-                const fresh = await this.loadTextureVariant_(path, flip);
-                const glId = rm.getTextureGLId(fresh.handle);
-                if (glId && rm.retargetExternalTexture(previous.handle, glId, fresh.width, fresh.height)) {
-                    restored++;
-                }
-                // The fresh POOL entry is scaffolding; its GPU object now belongs
-                // to the original handle, and external textures are not owned, so
-                // releasing the record does not take it away.
-                if (fresh.handle !== previous.handle) rm.releaseTexture(fresh.handle);
+                const fresh = await this.textureLoader_.loadDetached(
+                    this.resolveLoadPath_(ref), this.getLoadContext_(), flip,
+                    this.textureImportResolver_?.(ref));
+                if (rm.adoptTextureContent(handle, fresh.handle)) restored++;
+                rm.releaseTexture(fresh.handle);
             } catch (e) {
-                log.warn('assets', `Device recovery: re-upload failed for ${path}`, e);
+                log.warn('assets', `Device recovery: re-upload failed for ${ref}`, e);
             }
-            this.textureCache_.set(key, previous);
         }
         log.info('assets', `Device recovery: ${restored} texture(s) re-uploaded`);
         return restored;

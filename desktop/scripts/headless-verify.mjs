@@ -42,6 +42,7 @@ const MANIFEST = process.env.ESTELLA_VERIFY_MANIFEST ?? '/scenes/sprite-renderin
 const W = Number(process.env.ESTELLA_VERIFY_W) || 640;
 const H = Number(process.env.ESTELLA_VERIFY_H) || 480;
 const STEPS = Number(process.env.ESTELLA_VERIFY_STEPS) || 30;
+const ROUNDS = Number(process.env.ESTELLA_VERIFY_LOSS_ROUNDS) || 1;
 // ESTELLA_VERIFY_BACKEND=webgpu runs the same scene + assertions on the WebGPU
 // backend (needs a real adapter — local runs; CI runners have none).
 const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
@@ -106,7 +107,10 @@ function finish(result, server) {
   const dl = result.deviceLoss;
   const lossSeen = !dl || (dl.supported && dl.statusAfterLoss === 1
     && (dl.reportAfterLoss?.length ?? 0) > 0);
-  const cameBack = !dl || (dl.statusAfterFull === 0 && (dl.awaitingAfterFull?.length ?? 0) === 0);
+  // Every round, not just the last: a recovery can work once and never again,
+  // which is what a single round reports as a pass.
+  const cameBack = !dl || ((dl.statusAfterFull === 0 && (dl.awaitingAfterFull?.length ?? 0) === 0)
+    && (dl.rounds ?? []).every((r) => r.status === 0 && (r.awaiting?.length ?? 0) === 0));
   const drivenSteps = !dl || dl.mode === 'auto' || (dl.glLostAfterRestore === false
     && dl.recovered === true && dl.statusAfterRecover === 2 && dl.fullRecovered === true);
   const deviceLossOk = lossSeen && cameBack && drivenSteps;
@@ -236,29 +240,36 @@ app.whenReady().then(async () => {
       deviceLoss = await exec(`(async () => {
         const d = window.__estellaHeadless.device;
         const api = window.__estellaHeadless.api;
-        const out = { supported: d.lose(), mode: 'auto' };
-        if (!out.supported) return out;
+        // Rounds, because losing a context is not a one-off: backgrounding a
+        // tab does it again and again, and what a single round cannot show is
+        // whether the engine hands the last one's objects back.
+        const out = { mode: 'auto', supported: true, rounds: [], tablesBefore: d.glTables() };
+        for (let r = 0; r < ${ROUNDS}; r++) {
+          if (!d.lose()) return { ...out, supported: false };
 
-        for (let i = 0; i < 30 && d.status() === 0; i++) {
-          await api.step(1, 1 / 60);
-          await new Promise((r) => setTimeout(r, 50));
-        }
-        out.statusAfterLoss = d.status();
-        out.reportAfterLoss = d.report();
+          for (let i = 0; i < 30 && d.status() === 0; i++) {
+            await api.step(1, 1 / 60);
+            await new Promise((r2) => setTimeout(r2, 50));
+          }
+          out.statusAfterLoss = d.status();
+          out.reportAfterLoss = d.report();
 
-        // Standing in for the browser, not for the engine: a page gets its
-        // context back on its own, and there is no such event to wait for here.
-        out.restoreCalled = d.restore();
-        await new Promise((r) => setTimeout(r, 200));
+          // Standing in for the browser, not for the engine: a page gets its
+          // context back on its own, and there is no such event to wait for.
+          out.restoreCalled = d.restore();
+          await new Promise((r2) => setTimeout(r2, 200));
 
-        for (let i = 0; i < 200 && d.status() !== 0; i++) {
-          await api.step(1, 1 / 60);
-          await new Promise((r) => setTimeout(r, 16));
+          for (let i = 0; i < 200 && d.status() !== 0; i++) {
+            await api.step(1, 1 / 60);
+            await new Promise((r2) => setTimeout(r2, 16));
+          }
+          out.rounds.push({ status: d.status(), tables: d.glTables(), awaiting: d.awaiting() });
         }
         out.statusAfterFull = d.status();
         out.awaitingAfterFull = d.awaiting();
         out.recovered = out.statusAfterFull === 0;
         out.fullRecovered = out.recovered;
+        out.tablesAfterFull = d.glTables();
         await api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;

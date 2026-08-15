@@ -167,6 +167,18 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         rm.releaseTexture(asset.handle);
     }
 
+    /**
+     * Loads the bytes onto the GPU WITHOUT claiming the path — what a re-upload
+     * after a device loss wants, since the identity belongs to the handle being
+     * recovered. Claiming it leaves the pool holding two records, and the loser
+     * is swept up by the next loss with nobody able to re-upload it.
+     */
+    async loadDetached(
+        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
+    ): Promise<TextureResult> {
+        return this.decodeAndUpload_(path, ctx, flip, settings);
+    }
+
     private async loadWithFlip(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {

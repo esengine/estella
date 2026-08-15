@@ -144,6 +144,7 @@ valid: (entity: Entity) => boolean
 ## CppResourceManager — interface @experimental
 ```
 acquireTextureByPath: (path: string) => number
+adoptTextureContent: ((target: number, source: number) => boolean) | undefined
 createCompressedTexture: ((width: number, height: number, format: number, dataPtr: number, dataLen: number, mipLevels: number) => number) | undefined
 createLabelAtlasFont: (textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number) => number
 createShader: (vertSrc: string, fragSrc: string) => number

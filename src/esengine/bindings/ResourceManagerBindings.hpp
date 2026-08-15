@@ -41,6 +41,9 @@ bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
 /** @brief The textures still parked on the placeholder, as `handle|path` lines. */
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm);
 
+/** @brief Moves a freshly loaded texture's GPU object onto an existing handle. */
+bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source);
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes);
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);

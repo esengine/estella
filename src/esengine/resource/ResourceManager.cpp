@@ -313,6 +313,27 @@ bool ResourceManager::retargetExternalTexture(TextureHandle handle, u32 glTextur
     return true;
 }
 
+bool ResourceManager::adoptTextureContent(TextureHandle target, TextureHandle source) {
+    Texture* to = textures_.get(target);
+    Texture* from = textures_.get(source);
+    if (!to || !from) return false;
+
+    // Ownership moves with the object: the source record is about to be released,
+    // and a borrowed GPU texture whose owner is freed is a dangling bind.
+    const ::esengine::TextureHandle gpu = from->handle();
+    from->retarget(::esengine::TextureHandle::Invalid, /*owns=*/false);
+    to->retarget(gpu, /*owns=*/true);
+
+    for (usize i = 0; i < awaitingReupload_.size(); ++i) {
+        if (awaitingReupload_[i] == target) {
+            awaitingReupload_[i] = awaitingReupload_.back();
+            awaitingReupload_.pop_back();
+            break;
+        }
+    }
+    return true;
+}
+
 std::vector<TextureHandle> ResourceManager::texturesAwaitingReupload() const {
     return awaitingReupload_;
 }

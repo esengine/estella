@@ -317,6 +317,16 @@ public:
      */
     bool retargetExternalTexture(TextureHandle handle, u32 glTextureId, u32 width, u32 height);
 
+    /**
+     * @brief Moves a freshly loaded texture's GPU object onto an existing handle.
+     * @details A re-upload has to end with ONE record. Getting bytes onto the GPU
+     *          creates a second, and leaving it in the pool deposits an orphan
+     *          under the same path — swept up by the next loss, re-uploadable by
+     *          nobody, so the SECOND loss never finished recovering.
+     * @return False if either handle names no live texture.
+     */
+    bool adoptTextureContent(TextureHandle target, TextureHandle source);
+
     /** @brief Texture handles that were invalidated and not yet re-uploaded. */
     std::vector<TextureHandle> texturesAwaitingReupload() const;
 

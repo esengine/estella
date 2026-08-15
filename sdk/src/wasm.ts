@@ -82,6 +82,12 @@ export interface CppResourceManager {
      * Optional: absent on an older wasm build.
      */
     texturesAwaitingReupload?(): string;
+    /**
+     * Move a freshly loaded texture's GPU object onto an existing handle, so a
+     * re-upload ends with one pool record instead of leaving the loader's
+     * behind. Optional: absent on an older wasm build.
+     */
+    adoptTextureContent?(target: number, source: number): boolean;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;

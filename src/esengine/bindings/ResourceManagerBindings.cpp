@@ -131,6 +131,10 @@ bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
     return rm.retargetExternalTexture(resource::TextureHandle(handle), glTextureId, width, height);
 }
 
+bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source) {
+    return rm.adoptTextureContent(resource::TextureHandle(target), resource::TextureHandle(source));
+}
+
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm) {
     // One crossing: a loss parks every texture at once, so a call per handle is
     // a call per texture. A blank path is one no asset layer can bring back —
