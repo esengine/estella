@@ -124,15 +124,28 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
         "    @location(2) a_texCoord : vec2f,\n"
+        "#ifdef MESH\n"
+        "    @location(8)  a_model0 : vec4f,\n"
+        "    @location(9)  a_model1 : vec4f,\n"
+        "    @location(10) a_model2 : vec4f,\n"
+        "    @location(11) a_model3 : vec4f,\n"
+        "    @location(12) a_instTint : vec4f,\n"
+        "#endif\n"
         "};\n"
         "\n"
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
-        "    out.pos = frame.projection * vec4f(v.a_position, 1.0);\n"
+        "#ifdef MESH\n"
+        "    let world = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3) * vec4f(v.a_position, 1.0);\n"
+        "    out.v_color = v.a_color * v.a_instTint;\n"
+        "#else\n"
+        "    let world = vec4f(v.a_position, 1.0);\n"
         "    out.v_color = v.a_color;\n"
+        "#endif\n"
+        "    out.pos = frame.projection * world;\n"
         "    out.v_texCoord = v.a_texCoord;\n";
     if (lit) {
-        src += "    out.v_worldPos = v.a_position.xy;\n";
+        src += "    out.v_worldPos = world.xy;\n";
     }
     src +=
         "    return out;\n"
@@ -187,11 +200,21 @@ std::string canonicalPPVertexStage() {
 
 // Canonical 2D vertex stage for fragment-only .esshaders: the batch path bakes the
 // world transform into the vertices, so all 2D shaders share this pass-through.
+// The engine's vertex stage, in its two VERTEX SOURCES: the batch stream arrives
+// in world space, a resident mesh in local space with a per-object transform. So
+// MESH is how ONE material serves both rather than a second shader existing.
 std::string canonical2DVertexStage(bool lit) {
     std::string src =
         "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
         "layout(location = 2) in vec2 a_texCoord;\n"
+        "#ifdef MESH\n"
+        "layout(location = 8)  in vec4 a_model0;\n"
+        "layout(location = 9)  in vec4 a_model1;\n"
+        "layout(location = 10) in vec4 a_model2;\n"
+        "layout(location = 11) in vec4 a_model3;\n"
+        "layout(location = 12) in vec4 a_instTint;\n"
+        "#endif\n"
         "\n"
         "layout(std140) uniform FrameConstants {\n"
         "    mat4 u_projection;\n"
@@ -205,11 +228,17 @@ std::string canonical2DVertexStage(bool lit) {
     src +=
         "\n"
         "void main() {\n"
-        "    gl_Position = u_projection * vec4(a_position, 1.0);\n"
+        "#ifdef MESH\n"
+        "    vec4 world = mat4(a_model0, a_model1, a_model2, a_model3) * vec4(a_position, 1.0);\n"
+        "    v_color = a_color * a_instTint;\n"
+        "#else\n"
+        "    vec4 world = vec4(a_position, 1.0);\n"
         "    v_color = a_color;\n"
+        "#endif\n"
+        "    gl_Position = u_projection * world;\n"
         "    v_texCoord = a_texCoord;\n";
     if (lit) {
-        src += "    v_worldPos = a_position.xy;\n";
+        src += "    v_worldPos = world.xy;\n";
     }
     src += "}\n";
     return src;
@@ -454,6 +483,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         // pass-through, PostProcess the canonical fullscreen pass-through.
         if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
             result.stages[ShaderStage::Vertex] = canonical2DVertexStage(result.domain == "Lit2D");
+            result.vertexIsCanonical = true;
         } else if (result.domain == "PostProcess") {
             result.stages[ShaderStage::Vertex] = canonicalPPVertexStage();
         } else {

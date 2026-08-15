@@ -125,7 +125,8 @@ function finish(result, server) {
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.
   const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
-    && (!result.meshAsset || result.meshAsset.pointed > 0);
+    && (!result.meshAsset || result.meshAsset.pointed > 0)
+    && (!result.meshMaterial || result.meshMaterial.applied > 0);
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
@@ -164,6 +165,7 @@ app.whenReady().then(async () => {
     let deviceLoss = null;
     let meshResident = null;
     let meshAsset = null;
+    let meshMaterial = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -256,6 +258,17 @@ app.whenReady().then(async () => {
           ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_ASSET)});
         await window.__estellaHeadless.api.step(2, 1 / 60);
         return { pointed };
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_MESH_MATERIAL=<path> puts a material on the scene's meshes,
+    // through the asset layer, after the geometry is in place.
+    if (process.env.ESTELLA_VERIFY_MESH_MATERIAL) {
+      meshMaterial = await exec(`(async () => {
+        const applied = await window.__estellaHeadless.loadMaterialAsset(
+          ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_MATERIAL)});
+        await window.__estellaHeadless.api.step(2, 1 / 60);
+        return { applied };
       })()`);
     }
 
@@ -483,7 +496,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

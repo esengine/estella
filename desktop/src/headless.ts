@@ -45,6 +45,8 @@ declare global {
       makeMeshesResident: () => number;
       /** Loads an .esmesh and points every Mesh2D at it; returns how many. */
       loadMeshAsset: (path: string) => Promise<number>;
+      /** Loads an .esmaterial and points every Mesh2D at it; returns how many. */
+      loadMaterialAsset: (path: string) => Promise<number>;
     };
   }
 }
@@ -173,6 +175,20 @@ window.__estellaHeadless = {
     const mesh = await assets.load<{ handle: number }>('mesh', path);
     if (!mesh?.handle) return 0;
     return m.mesh2d_setMeshAll(registry, mesh.handle);
+  },
+  // The same door for materials, and for the same reason: a scene's asset refs
+  // are resolved by the runtime loader, which a headless editor host does not run.
+  loadMaterialAsset: async (path: string) => {
+    const assets = EngineHost.getResource(Assets);
+    const m = EngineHost.module as unknown as {
+      mesh2d_setMaterialAll?(registry: unknown, materialId: number): number;
+    } | null;
+    const registry = EngineHost.mutableWorld()?.getCppRegistry();
+    if (!assets || !m?.mesh2d_setMaterialAll || !registry) return 0;
+
+    const material = await assets.load<{ handle: number }>('material', path);
+    if (!material?.handle) return 0;
+    return m.mesh2d_setMaterialAll(registry, material.handle);
   },
 };
 

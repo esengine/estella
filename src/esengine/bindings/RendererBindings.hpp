@@ -88,6 +88,8 @@ u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity);
 u32 mesh2d_makeAllResident(ecs::Registry& registry);
 /** @brief Points every Mesh2D at one resident mesh; returns how many. */
 u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle);
+/** @brief Points every Mesh2D at one material; returns how many. */
+u32 mesh2d_setMaterialAll(ecs::Registry& registry, u32 materialId);
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
 #endif

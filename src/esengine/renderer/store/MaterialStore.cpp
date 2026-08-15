@@ -11,6 +11,9 @@
 #include "../rhi/GfxEnums.hpp"
 #include "../rhi/Texture.hpp"
 #include "./MaterialConstants.hpp"
+#include "../../resource/ShaderParser.hpp"
+#include "../rhi/Shader.hpp"
+#include "../../core/Log.hpp"
 
 namespace esengine {
 
@@ -39,6 +42,72 @@ void MaterialStore::recreateGpuResources() {
         rec.ubo = BufferHandle::Invalid;
         rec.uboDirty = true;
     }
+}
+
+u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources) const {
+    const MaterialRecord* rec = find(materialId);
+    if (!rec || !rec->shaderRef.isValid()) return 0;
+    const u32 key = rec->shaderRef.id();
+
+    auto cached = mesh_programs_.find(key);
+    if (cached != mesh_programs_.end()) return cached->second;
+
+    auto src = sources_.find(key);
+    if (src == sources_.end()) {
+        mesh_programs_[key] = 0;
+        return 0;
+    }
+
+    // The SAME source and features plus MESH: the author's fragment is untouched
+    // and only the engine's vertex stage changes, which is what makes this one
+    // material rather than two that must be kept in step.
+    resource::ParsedShader parsed = resource::ShaderParser::parse(src->second.source);
+    std::vector<std::string> features = resource::ShaderParser::splitFeatures(src->second.features);
+    features.push_back("MESH");
+    const auto target = resources.preferredShaderTarget();
+    const std::string vert = resource::ShaderParser::assembleStage(
+        parsed, resource::ShaderStage::Vertex, "", features, target);
+    const std::string frag = resource::ShaderParser::assembleStage(
+        parsed, resource::ShaderStage::Fragment, "", features, target);
+    // Only a shader whose vertex stage is the ENGINE's can be retargeted: one that
+    // writes its own decides how a vertex reaches clip space, and adding MESH to it
+    // would compile a program that still ignores the per-object transform.
+    if (!parsed.vertexIsCanonical) {
+        ES_LOG_WARN("MaterialStore: material {} writes its own vertex stage, so it cannot draw "
+                    "resident geometry (only a shader on the engine's vertex stage can)", materialId);
+        mesh_programs_[key] = 0;
+        return 0;
+    }
+    if (!parsed.valid || vert.empty() || frag.empty()) {
+        ES_LOG_WARN("MaterialStore: no mesh variant for material {} ({})",
+                    materialId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);
+        mesh_programs_[key] = 0;
+        return 0;
+    }
+
+    resource::ShaderHandle handle = resources.createShader(vert, frag, /*rewriteLoose=*/false,
+                                                           resources.preferredShaderLanguage());
+    Shader* shader = resources.getShader(handle);
+    if (!shader || !shader->isValid()) {
+        mesh_programs_[key] = 0;
+        return 0;
+    }
+    // Same sampler seeding the batch variant gets: GLSL ES 300 has no
+    // layout(binding=), so each program points its texture params at their units.
+    if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
+        shader->bind();
+        for (const auto& p : parsed.properties) {
+            if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
+                shader->setUniform(p.name, static_cast<i32>(p.textureUnit));
+            }
+        }
+        shader->unbind();
+    }
+    // No layout of its own: uniforms pack through the material's shaderRef, and
+    // this variant declares the same params, so its handle is never looked up.
+    const u32 program = shader->getProgramId();
+    mesh_programs_[key] = program;
+    return program;
 }
 
 void MaterialStore::refreshShaderPrograms(resource::ResourceManager& resources) {

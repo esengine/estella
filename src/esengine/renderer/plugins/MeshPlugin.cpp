@@ -158,18 +158,22 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                 }
 
-                // A material's shader is built for the BATCH vertex source: no
-                // model matrix, so it would draw this at its local origin with
-                // the instance attributes unconsumed. Said once, not obeyed.
-                if (key.materialId != 0) {
-                    if (!warned_material_) {
-                        warned_material_ = true;
-                        ES_LOG_WARN("Mesh2D: a custom material cannot draw resident geometry yet "
-                                    "(it is built for the batch vertex layout); using the mesh shader");
+                // A material's default program is built for the BATCH vertex
+                // source and would draw this at its local origin, so ask for the
+                // one compiled for THIS source; a failed variant falls back.
+                u32 materialProgram = 0;
+                if (key.materialId != 0 && ctx.materials) {
+                    materialProgram = ctx.materials->meshProgram(key.materialId, ctx.resources);
+                    if (materialProgram == 0) {
+                        if (!warned_material_) {
+                            warned_material_ = true;
+                            ES_LOG_WARN("Mesh2D: material {} has no mesh variant; using the mesh shader",
+                                        key.materialId);
+                        }
+                        key.materialId = 0;
                     }
-                    key.materialId = 0;
                 }
-                key.shaderId = residentShader;
+                key.shaderId = materialProgram != 0 ? materialProgram : residentShader;
                 key.layoutId = LayoutId::MeshInstance;
                 key.instanceCount = 1;
                 key.vertexBuffer = resident->vertexBuffer;

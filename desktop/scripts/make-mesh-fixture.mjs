@@ -22,7 +22,7 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 // two-triangles: the mesh2d geometry, so a file drawing what the scene draws is
 // the claim. lit-triangles: the same shape with per-face NORMALS and one white
 // colour, so on screen only the lighting can separate its halves.
-for (const name of ['two-triangles.gltf', 'lit-triangles.gltf']) {
+for (const name of ['two-triangles.gltf', 'lit-triangles.gltf', 'white-triangles.gltf']) {
   const run = spawnSync(process.execPath, [cli, 'import-gltf', path.join(scenes, name)], {
     stdio: 'inherit',
     cwd: path.join(HERE, '..', '..'),

@@ -261,6 +261,7 @@ material_undefine: (materialId: number) => void
 mesh2d_makeAllResident: ((registry: CppRegistry) => number) | undefined
 mesh2d_makeResident: ((registry: CppRegistry, entity: number) => number) | undefined
 mesh2d_setGeometry: ((registry: CppRegistry, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => void) | undefined
+mesh2d_setMaterialAll: ((registry: CppRegistry, materialId: number) => number) | undefined
 mesh2d_setMesh: ((registry: CppRegistry, entity: number, meshHandle: number) => void) | undefined
 mesh2d_setMeshAll: ((registry: CppRegistry, meshHandle: number) => number) | undefined
 mesh_create: ((posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => number) | undefined

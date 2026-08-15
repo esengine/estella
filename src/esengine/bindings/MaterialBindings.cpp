@@ -95,6 +95,9 @@ u32 material_compileEsshader(const std::string& source, const std::string& featu
     if (auto* rc = g_renderContext) {
         if (Shader* s = rm->getShader(handle)) {
             rc->materials().registerLayout(handle, buildMaterialLayout(parsed, *rc));
+            // Kept so the same material can be compiled for another vertex source
+            // (GPU-resident geometry) without the author's file being read again.
+            rc->materials().rememberSource(handle, source, featuresCsv);
             // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
             // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
             // Sampler seeding is a GLSL concept; on WGSL the unit rides the bind group.

@@ -530,6 +530,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("mesh2d_makeResident", &esengine::mesh2d_makeResident);
     emscripten::function("mesh2d_makeAllResident", &esengine::mesh2d_makeAllResident);
     emscripten::function("mesh2d_setMeshAll", &esengine::mesh2d_setMeshAll);
+    emscripten::function("mesh2d_setMaterialAll", &esengine::mesh2d_setMaterialAll);
 
     emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);

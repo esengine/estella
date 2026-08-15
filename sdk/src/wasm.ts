@@ -260,6 +260,8 @@ export interface ESEngineModule {
      * inline payloads. Returns how many were pointed.
      */
     mesh2d_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
+    /** Point every Mesh2D in the world at one material; returns how many. */
+    mesh2d_setMaterialAll?(registry: CppRegistry, materialId: number): number;
     recoverDevice?(): boolean;
     /**
      * Take up the replacement device left on `Module.pendingWebGPUDevice`. A

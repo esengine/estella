@@ -204,6 +204,15 @@ struct ParsedShader {
      *        an engine-owned interface. Authored twin pairs declare their own.
      */
     bool wgslVertexIsCanonical = false;
+
+    /**
+     * @brief True when the GLSL vertex stage is the injected canonical one.
+     * @details Only then does the engine decide how a vertex reaches clip space,
+     *          which is what lets a material be compiled for a second vertex
+     *          source (MESH). A shader that writes its own vertex stage owns
+     *          that decision and cannot be retargeted behind its back.
+     */
+    bool vertexIsCanonical = false;
 };
 
 // =============================================================================

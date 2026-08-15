@@ -160,6 +160,18 @@ public:
     /// the device rebuilt the programs behind them.
     void refreshShaderPrograms(resource::ResourceManager& resources);
 
+    /// Keeps a material shader's SOURCE beside its handle, so the same material can
+    /// be compiled for another vertex source later. Without it the store holds only
+    /// the assembled program and a variant would need the author's file again.
+    void rememberSource(resource::ShaderHandle shader, std::string source, std::string features) {
+        if (shader.isValid()) sources_[shader.id()] = { std::move(source), std::move(features) };
+    }
+
+    /// The program that draws @p materialId on GPU-RESIDENT geometry, compiled on
+    /// first use and cached. 0 when the material's source was never kept or the
+    /// variant fails — the caller then falls back rather than drawing it wrong.
+    u32 meshProgram(u32 materialId, resource::ResourceManager& resources) const;
+
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.
     /// Filed under the HANDLE, not the program id: rebuilding the program (a
@@ -266,6 +278,18 @@ private:
 
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;
+
+    /// A material shader's authored source + features, filed under its handle for
+    /// the same reason the layout is: a rebuilt program changes the id.
+    struct ShaderSource {
+        std::string source;
+        std::string features;
+    };
+    std::unordered_map<u32, ShaderSource> sources_;
+    /// Handle → the program compiled for the mesh vertex source (0 = tried and
+    /// failed). Mutable because compiling it is memoization: the collect path
+    /// asks a read-only store, and the answer is the same every time.
+    mutable std::unordered_map<u32, u32> mesh_programs_;
     GfxDevice* device_ = nullptr;
     resource::ResourceManager* resources_ = nullptr;
     TextureHandle defaultWhite_ = TextureHandle::Invalid;

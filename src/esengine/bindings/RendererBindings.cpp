@@ -362,6 +362,17 @@ u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
     return pointed;
 }
 
+u32 mesh2d_setMaterialAll(ecs::Registry& registry, u32 materialId) {
+    u32 pointed = 0;
+    for (auto entity : registry.view<ecs::Mesh2D>()) {
+        if (auto* mesh = registry.tryGet<ecs::Mesh2D>(entity)) {
+            mesh->material = materialId;
+            ++pointed;
+        }
+    }
+    return pointed;
+}
+
 u32 mesh2d_makeAllResident(ecs::Registry& registry) {
     u32 frozen = 0;
     for (auto entity : registry.view<ecs::Mesh2D>()) {
