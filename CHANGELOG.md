@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **`Mesh2D.lit` did nothing on an imported mesh.** The component declares the
+  field and the inspector offers it, but resident geometry picked its shader from
+  whether the mesh carried normals — so imported geometry could not be drawn unlit,
+  and a mesh with no normal channel took no light however the field was set (which
+  is most of what a simple or procedurally generated glTF is). What the geometry
+  carries and what the draw asked for are separate questions and are separate
+  shader features now; without normals the light lands on the constant normal a 2D
+  surface has, exactly as a sprite's does. An import writes `lit: true` for geometry
+  that carries normals, so the product says what it was authored for.
+
 - **The rotate gizmo could only turn about Z.** The inspector shows all three axes
   now, but the way anyone actually poses something — grab it and drag — was still
   the 2D one, so a model imported with a tilt had no on-canvas way to be turned off
