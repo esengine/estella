@@ -53,6 +53,31 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A glTF arrives with its images and its colours.** The import now reads the
+  materials too, and what it produces for each is not an `.esmaterial`: the
+  engine's mesh path is `texture(uv) * vertexColor * tint`, which is what glTF
+  calls baseColor, so the image and the factor land on the `Mesh2D` that draws
+  the geometry. A material would have been the weaker product — a material's
+  shader writes only a fragment, so it cannot read normals, and a layout may not
+  declare an attribute its shader ignores. Nearly every real model has normals,
+  so that route produces something most of them cannot be drawn with.
+
+  Images the file carries inline (a GLB chunk or a data URI) are written beside
+  the meshes; an image already on disk is referenced where it lies, because a
+  copy is a second thing to keep in sync with what the artist edits. The import
+  also writes one `.esprefab` naming which geometry is drawn with which image and
+  tint — the products are separate files, and nothing else records how they go
+  together. Asset refs are project-relative, so the project is found above the
+  source unless `--project` says otherwise.
+
+  V is flipped at that boundary: glTF puts uv (0,0) at the image's top-left and
+  the engine uploads textures bottom-up. Each convention is right on its own,
+  which is why the pixel gate — four probes at the texel centres of a 2×2 image —
+  found it as an exact vertical swap. Everything a PBR material says beyond
+  baseColor (metal, roughness, emission, a normal map, an alpha cutoff, a
+  single-sided flag, its extensions) has no consumer here yet and is reported
+  rather than quietly lost.
+
 - **One material, two vertex sources.** A material could not draw GPU-resident
   geometry: its program is built for the batch stream, whose vertices are already
   world-space, so it would place the mesh at its local origin and leave the
