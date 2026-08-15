@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.53.0] - 2026-08-14
 
 ### Fixed
 
@@ -5722,7 +5722,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.52.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.53.0...HEAD
+[0.53.0]: https://github.com/esengine/estella/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/esengine/estella/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/esengine/estella/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/esengine/estella/compare/v0.49.0...v0.50.0
