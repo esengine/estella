@@ -33,9 +33,10 @@
  *   --check  report what would change, write nothing (exit 1 if any)
  *   --force  regenerate even when a twin exists (replaces generated sections)
  *
- * Requires: a built engine (pnpm build:web). Shaders using `#pragma switch`
- * are skipped (permutations need per-set twins; hand-author those) — the tool
- * says so per file.
+ * Requires: a built engine (pnpm build:web). A `#pragma switch` or feature is a
+ * toggle: every combination is emitted into one body behind the same `#ifdef`
+ * the GLSL side uses. Past three toggles the file is skipped and says so —
+ * each one doubles the emitted programs.
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';

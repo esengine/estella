@@ -105,8 +105,11 @@ describe('gen-shader-twins needsTwin / sourceHash (staleness)', () => {
         expect(gen.needsTwin(twin(null))).toBe(true));
     it('hand-authored (non-full) twin → left alone', () =>
         expect(gen.needsTwin(`${glsl}\n#pragma fragment wgsl\n@fragment fn fs_main() { }\n#pragma end\n`)).toBe(false));
-    it('#pragma switch shader → never auto-generated', () =>
-        expect(gen.needsTwin(`${glsl}#pragma switch FOO default(off)\n`)).toBe(false));
+    // Switched shaders were skipped once, which left a material compiling on one
+    // backend and not the other. The generator emits every combination now, so
+    // one without a twin is missing one like any other shader.
+    it('#pragma switch shader → wants a twin like any other', () =>
+        expect(gen.needsTwin(`${glsl}#pragma switch FOO default(off)\n`)).toBe(true));
     it('editing only the twin body does not stale it; editing the GLSL does', () => {
         const fresh = twin(gen.sourceHash(glsl));
         expect(gen.needsTwin(fresh.replace('fs_main', 'fs_main_x'))).toBe(false);
