@@ -53,6 +53,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mesh's normals light it.** `applyLighting2D` has always taken a normal —
+  the 2D path passes it the constant (0,0,1), because a sprite has no other — and
+  Light2D already carried Point, Directional, Ambient and Spot with a position
+  that comes from a vec3 Transform. The lighting was 3D-ready; what was missing
+  was geometry with normals to hand it. The mesh shader declares `domain Lit2D`
+  for the light math it injects rather than for the canonical vertex stage that
+  domain also supplies, so one set of light math serves every lit surface.
+
+  Normals ride a shader variant: a vertex layout may only declare attributes its
+  shader consumes, so the channel, the normal matrix and the lighting are inside
+  one switch, and geometry without normals is still drawn by the program that
+  does not read them. The normal matrix is per object, because under a
+  non-uniform scale the model matrix is the wrong transform for a normal. The
+  importer carries NORMAL where the source has it.
+
 - **glTF geometry becomes meshes a project owns.** `estella import-gltf <file>`
   writes one `.esmesh` per triangle primitive beside its source. An import, not a
   cook: a glTF holds many primitives, so it is a source that produces several
@@ -63,12 +78,6 @@ published separately; it ships inside the editor.
   packed gives wrong vertices rather than an error), normalized integer
   accessors are scaled per spec, and `.glb` containers are read alongside
   `.gltf` with external or data-URI buffers.
-
-  Normals are deliberately not imported yet: WebGPU rejects a pipeline whose
-  vertex layout declares an attribute the shader does not consume, and no mesh
-  shader reads normals until there is lighting to read them for. The format
-  already describes them, so enabling them is a change in the importer rather
-  than a migration of every file written before it.
 
 - **A mesh is a reference a scene can hold.** The format alone was not enough —
   nothing could name one, so a scene could not point at geometry the way it
