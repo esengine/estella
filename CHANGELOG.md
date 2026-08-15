@@ -53,6 +53,26 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Geometry can stay on the GPU.** Every triangle the engine drew had its
+  vertices written into the frame's transient pool by the CPU first — the draw
+  list resolved both the layout and the buffers from that pool, so there was no
+  way to draw geometry that simply lives on the device. That is right for a
+  sprite stream that changes every frame, and a per-frame re-upload of anything
+  that does not.
+
+  A draw can now name its own vertex buffer, index buffer and layout, with the
+  frame streaming only the per-object transforms. The arrangement is not new —
+  the particle path has always been a static quad in slot 0 with a per-instance
+  stream in slot 1 — so the same mesh drawn twice costs one more transform
+  rather than a second copy of its vertices. A mesh is buffers, layout and
+  bounds as one record, and it declares only its own channels: the transform is
+  appended by the engine, so nothing above has to know how one reaches a shader.
+
+  `mesh2d_makeResident` freezes a component's inline geometry onto the GPU —
+  the same vertices, uploaded once. Its gate is the mesh2d scene and the mesh2d
+  assertions, run again with the geometry frozen mid-run: equal pixels is the
+  whole claim, on both backends.
+
 - **A game that loses its GPU comes back on its own.** Every piece of a recovery
   was in place and nothing called it: the only caller outside the engine was a
   test probe, so a shipped game that lost its device stayed on the placeholder
