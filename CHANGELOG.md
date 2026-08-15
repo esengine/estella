@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mesh assigned in the editor did not appear.** The edit realm resolved a
+  ref to a live handle in two places — one per scene-opening door — and they had
+  drifted: the automation door resolved textures and nothing else, while the
+  project door had no loader entry for `mesh` at all, so a mesh picked in the
+  Inspector projected as handle 0 and drew nothing (the scene-open preload was
+  the only way one ever reached the screen). Resolution is the realm's now, in
+  one binding both doors install, and `mesh` is an entry in the loader table like
+  every other loadable type — which also means a re-imported `.esmesh` refreshes
+  in place instead of staying the geometry it was at load. A test now asserts
+  that every asset field a component declares has a slot to load it from, so the
+  next such field cannot ship half-connected.
+
 - **A compressed model imported as a heap of vertices on the origin.** Draco and
   meshopt hold a primitive's geometry inside an extension, so its accessors point
   at nothing — and an accessor with no view reads as zeroes, which the spec allows
