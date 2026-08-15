@@ -113,7 +113,15 @@ function finish(result, server) {
     && (dl.rounds ?? []).every((r) => r.status === 0 && (r.awaiting?.length ?? 0) === 0));
   const drivenSteps = !dl || dl.mode === 'auto' || (dl.glLostAfterRestore === false
     && dl.recovered === true && dl.statusAfterRecover === 2 && dl.fullRecovered === true);
-  const deviceLossOk = lossSeen && cameBack && drivenSteps;
+  // Objects the dead context minted that nobody released — visible only across
+  // rounds. From the SECOND, so the first recovery's one-off costs are not read
+  // as a slope. Per table per round; unheld, buffers alone grew by 18.
+  const rounds = dl?.rounds ?? [];
+  const growthOk = rounds.length < 3 || ((first, last, spans) =>
+    ['programs', 'buffers', 'textures', 'vaos', 'framebuffers']
+      .every((k) => (last.tables[k] - first.tables[k]) <= spans * 6)
+  )(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
+  const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk;
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&

@@ -309,6 +309,15 @@ public:
      */
     u32 recreateGpuShaders();
 
+    /**
+     * @brief Frees every shader's GPU program, keeping the sources to rebuild.
+     * @details Belongs to the moment of the LOSS, not the rebuild: the ids name
+     *          a context about to stop existing, and a host keeps a wrapper for
+     *          each one until something releases it.
+     * @return How many were released.
+     */
+    u32 releaseLostGpuShaders();
+
     void invalidateGpuTextures(::esengine::TextureHandle placeholder);
 
     /**

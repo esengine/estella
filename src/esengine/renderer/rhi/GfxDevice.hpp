@@ -640,9 +640,19 @@ protected:
         device_info_.message = std::move(message);
         device_info_.context = std::move(context);
         device_info_.frame = device_frame_;
+        onDeviceLost();
         if (device_lost_handler_) device_lost_handler_(device_info_);
         return true;
     }
+
+    /**
+     * @brief Release what only this backend can name, while the dead device is
+     *        still the current one.
+     * @details The window matters: on a lost device these releases are silent
+     *          no-ops, whereas after the rebuild the same calls hand a NEW
+     *          device objects belonging to the old one.
+     */
+    virtual void onDeviceLost() {}
 
 private:
     GfxDeviceStatus device_status_ = GfxDeviceStatus::Live;

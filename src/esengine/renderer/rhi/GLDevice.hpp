@@ -44,6 +44,7 @@ public:
 protected:
     void captureDeviceIdentity() override;
     bool recreateDevice() override;
+    void onDeviceLost() override;
 
 public:
 

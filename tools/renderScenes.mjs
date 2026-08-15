@@ -117,9 +117,10 @@ export const SCENES = [
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.
   { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
   // The player's case: nothing asks for the recovery, only frames pass, and it
-  // happens THREE times — backgrounding a tab is not a one-off, and a recovery
-  // that works once and never again passes any single-round check.
-  { id: "device-loss-auto", tier: "pr", env: { ESTELLA_VERIFY_LOSS_ROUNDS: "3", ESTELLA_VERIFY_DEVICE_LOSS: "auto", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
+  // happens FOUR times — backgrounding a tab is not a one-off, a recovery that
+  // works once and never again passes any single-round check, and it takes
+  // three rounds to measure whether the host's object tables are growing.
+  { id: "device-loss-auto", tier: "pr", env: { ESTELLA_VERIFY_LOSS_ROUNDS: "4", ESTELLA_VERIFY_DEVICE_LOSS: "auto", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
 ];
 
 const rank = (tier) => TIERS.indexOf(tier);

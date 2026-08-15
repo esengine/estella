@@ -249,6 +249,11 @@ public:
     /// device that held it went away. The handle naming this Shader is unchanged.
     bool recompile();
 
+    /// Frees the GPU program while keeping everything needed to rebuild it.
+    /// Called while the dead device is still current — recompile() only clears
+    /// the handle, which strands the driver object in the host's table.
+    void releaseProgram();
+
 private:
     /**
      * @brief Compiles and links shader sources

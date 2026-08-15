@@ -161,8 +161,14 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // The one place a device loss becomes visible. Logged whether or not
     // anything above the engine is listening: a loss nobody recorded is the
     // black screen with no explanation.
-    gfxDevicePtr->setDeviceLostHandler([](const GfxDeviceLostInfo& info) {
+    gfxDevicePtr->setDeviceLostHandler([this](const GfxDeviceLostInfo& info) {
         ES_LOG_ERROR("{}", gfxFormatDeviceLost(info));
+        // While the dead device is still current: recompile() clears the handles
+        // during the REBUILD, where releasing an id would hand a new context an
+        // old one's object — so a wrapper per program per loss was never freed.
+        if (auto* resources = services_.getService<resource::ResourceManager>()) {
+            resources->releaseLostGpuShaders();
+        }
     });
 
     services_.registerOwned<GfxDevice>(std::move(gfxDevice));

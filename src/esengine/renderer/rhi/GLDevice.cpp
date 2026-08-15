@@ -282,6 +282,35 @@ void GLDevice::captureDeviceIdentity() {
                       getString(GfxStringName::Version));
 }
 
+void GLDevice::onDeviceLost() {
+#ifdef __EMSCRIPTEN__
+    // Only where the context is CONFIRMED gone: on a lost one these are silent
+    // no-ops that still free the host's wrapper — its tables are global, so a
+    // dead context otherwise leaks every id it minted. On a live one they delete.
+    const EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    if (ctx == 0 || !emscripten_is_webgl_context_lost(ctx)) return;
+
+    for (const auto& [id, meta] : buffer_meta_) {
+        GLuint name = id;
+        glDeleteBuffers(1, &name);
+    }
+    for (const auto& [id, format] : texture_formats_) {
+        GLuint name = id;
+        glDeleteTextures(1, &name);
+    }
+    for (const auto& [id, textures] : framebuffer_textures_) {
+        GLuint name = id;
+        glDeleteFramebuffers(1, &name);
+    }
+    for (const LayoutRecord& rec : layouts_) {
+        if (rec.vao) {
+            GLuint name = rec.vao;
+            glDeleteVertexArrays(1, &name);
+        }
+    }
+#endif
+}
+
 bool GLDevice::recreateDevice() {
 #ifdef __EMSCRIPTEN__
     // There is no device to build: the browser restores the context on the same

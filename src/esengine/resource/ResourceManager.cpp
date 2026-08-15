@@ -278,6 +278,15 @@ u32 ResourceManager::recreateGpuShaders() {
     return rebuilt;
 }
 
+u32 ResourceManager::releaseLostGpuShaders() {
+    u32 released = 0;
+    shaders_.forEachAlive([&](ShaderHandle, Shader& shader) {
+        shader.releaseProgram();
+        ++released;
+    });
+    return released;
+}
+
 void ResourceManager::invalidateGpuTextures(::esengine::TextureHandle placeholder) {
     awaitingReupload_.clear();
     textures_.forEachAlive([&](TextureHandle handle, Texture& texture) {

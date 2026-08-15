@@ -147,6 +147,11 @@ void Shader::unbind() const {
     if (device_) device_->useProgram(ShaderHandle::Invalid);
 }
 
+void Shader::releaseProgram() {
+    if (device_ && program_ != ShaderHandle::Invalid) device_->deleteProgram(program_);
+    program_ = ShaderHandle::Invalid;
+}
+
 bool Shader::recompile() {
     if (!device_ || vertexSource_.empty()) return false;
     // Copied out first: compile() assigns these members from its arguments, and
