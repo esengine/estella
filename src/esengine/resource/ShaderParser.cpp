@@ -655,6 +655,23 @@ struct LightConstants {
 fn sampleNormal(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {
     return normalize(textureSampleLevel(map, samp, uv, 0.0).xyz * 2.0 - 1.0);
 }
+fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f) -> vec3f {
+    let dp1 = dpdx(worldPos);
+    // Negated: this backend's framebuffer y runs the other way, so dpdy answers
+    // with the opposite sign to GLSL's dFdy. Left alone it flips T and B, and a
+    // normal map lights the wrong side — which only the second backend shows.
+    let dp2 = -dpdy(worldPos);
+    let duv1 = dpdx(uv);
+    let duv2 = -dpdy(uv);
+    let dp2perp = cross(dp2, N);
+    let dp1perp = cross(N, dp1);
+    let T = dp2perp * duv1.x + dp1perp * duv2.x;
+    let B = dp2perp * duv1.y + dp1perp * duv2.y;
+    let m = max(max(dot(T, T), dot(B, B)), 1e-12);
+    if (m <= 1e-11) { return N; }
+    let invmax = inverseSqrt(m);
+    return normalize(mat3x3f(T * invmax, B * invmax, N) * tangentNormal);
+}
 fn segHitsBox(p0 : vec2f, p1 : vec2f, box : vec4f) -> f32 {
     if (p0.x >= box.x && p0.y >= box.y && p0.x <= box.z && p0.y <= box.w) { return 0.0; }
     let d = p1 - p0;
@@ -999,6 +1016,24 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
             "highp vec3 sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
             "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
+            "}\n"
+            // Tangent frame from screen-space derivatives, so a tangent-space normal
+            // lands in world space without the geometry carrying a tangent channel —
+            // which most exported models do not. Degenerate UVs return N unchanged.
+            "highp vec3 perturbNormal(in highp vec3 N, in highp vec3 worldPos,\n"
+            "                         in highp vec2 uv, in highp vec3 tangentNormal) {\n"
+            "    highp vec3 dp1 = dFdx(worldPos);\n"
+            "    highp vec3 dp2 = dFdy(worldPos);\n"
+            "    highp vec2 duv1 = dFdx(uv);\n"
+            "    highp vec2 duv2 = dFdy(uv);\n"
+            "    highp vec3 dp2perp = cross(dp2, N);\n"
+            "    highp vec3 dp1perp = cross(N, dp1);\n"
+            "    highp vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;\n"
+            "    highp vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;\n"
+            "    highp float m = max(dot(T, T), dot(B, B));\n"
+            "    if (m <= 1e-11) return N;\n"
+            "    highp float invmax = inversesqrt(m);\n"
+            "    return normalize(mat3(T * invmax, B * invmax, N) * tangentNormal);\n"
             "}\n"
             // 2D hard shadows: a slab test of the fragment->light segment against a world AABB.
             // Returns 1.0 when the segment crosses the box's interior, else 0.0. The [0,1] param

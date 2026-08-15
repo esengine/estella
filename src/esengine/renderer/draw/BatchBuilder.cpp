@@ -101,6 +101,12 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     // textureless, so execute() must not touch sampler units for it).
     cmd.texture_count = (key.layoutId == LayoutId::Batch || key.textureId != 0) ? 1 : 0;
     cmd.texture_ids[0] = key.textureId;
+    // Slot 1 belongs to the draw, so it is only ever bound where the shader
+    // declares it — the Batch stream picks its extra slots per vertex instead.
+    if (key.normalTextureId != 0 && cmd.texture_count == 1 && key.layoutId != LayoutId::Batch) {
+        cmd.texture_ids[1] = key.normalTextureId;
+        cmd.texture_count = 2;
+    }
     cmd.entity = key.entity;
     cmd.type = key.type;
     cmd.layer = key.layer;

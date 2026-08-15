@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '310236a4dffb268f';
+export const ABI_LAYOUT_HASH = '96f79850bd2b098b';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -329,6 +329,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     Mesh2D: {
         defaults: {
             texture: 0,
+            normalMap: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
             layer: 0,
             lit: false,
@@ -338,11 +339,12 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             mesh: 0,
         },
         renderableField: 'enabled',
-        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }, { field: 'mesh', type: 'mesh' as AssetFieldType }],
+        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'normalMap', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }, { field: 'mesh', type: 'mesh' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
         fields: {
+            normalMap: { tooltip: "Normal map (tangent space). Needs a mesh with normals." },
             color: { tooltip: "Tint multiplied into the vertex colors (white = unchanged)." },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across renderables.", enumSource: "sortingLayers" },
             lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
@@ -999,6 +1001,7 @@ export interface Light2DData {
 
 export interface Mesh2DData {
     texture: number;
+    normalMap: number;
     color: Color;
     layer: number;
     lit: boolean;

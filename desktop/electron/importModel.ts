@@ -72,8 +72,9 @@ export async function importModel(root: string, destDir: string, absSource: stri
   // import of a different model cannot land on it.
   const externalRefs = new Map<string, string>();
   const external = (uri: string): string => externalRefs.get(uri) ?? uri;
-  for (const mesh of meshes) {
-    const image = mesh.material?.baseColorTexture;
+  const sourceImages = meshes.flatMap((mesh) =>
+    [mesh.material?.baseColorTexture, mesh.material?.normalTexture]);
+  for (const image of sourceImages) {
     if (!image?.external || externalRefs.has(image.file)) continue;
     const abs = path.join(sourceDir, decodeURIComponent(image.file));
     if (!existsSync(abs)) continue;

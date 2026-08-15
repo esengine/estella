@@ -551,6 +551,7 @@ export function createLight2DData(): Light2DPtrData {
 
 export interface Mesh2DPtrData {
     texture: number;
+    normalMap: number;
     color: Color;
     layer: number;
     lit: boolean;
@@ -565,13 +566,14 @@ export function fillMesh2D(
     ptr: number, out: Mesh2DPtrData,
 ): void {
     out.texture = u32[ptr >> 2];
-    const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
-    out.layer = u32[(ptr + 20) >> 2] | 0;
-    out.lit = u8[ptr + 24] !== 0;
-    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 28) >> 2]; parallax_.y = f32[((ptr + 28) >> 2) + 1];
-    out.material = u32[(ptr + 36) >> 2];
-    out.enabled = u8[ptr + 40] !== 0;
-    out.mesh = u32[(ptr + 44) >> 2];
+    out.normalMap = u32[(ptr + 4) >> 2];
+    const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
+    out.layer = u32[(ptr + 24) >> 2] | 0;
+    out.lit = u8[ptr + 28] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 32) >> 2]; parallax_.y = f32[((ptr + 32) >> 2) + 1];
+    out.material = u32[(ptr + 40) >> 2];
+    out.enabled = u8[ptr + 44] !== 0;
+    out.mesh = u32[(ptr + 48) >> 2];
 }
 
 export function writeMesh2D(
@@ -579,18 +581,20 @@ export function writeMesh2D(
     ptr: number, data: Mesh2DPtrData,
 ): void {
     u32[ptr >> 2] = data.texture;
-    f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
-    u32[(ptr + 20) >> 2] = data.layer | 0;
-    u8[ptr + 24] = data.lit ? 1 : 0;
-    f32[(ptr + 28) >> 2] = data.parallax.x; f32[((ptr + 28) >> 2) + 1] = data.parallax.y;
-    u32[(ptr + 36) >> 2] = data.material;
-    u8[ptr + 40] = data.enabled ? 1 : 0;
-    u32[(ptr + 44) >> 2] = data.mesh;
+    u32[(ptr + 4) >> 2] = data.normalMap;
+    f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
+    u32[(ptr + 24) >> 2] = data.layer | 0;
+    u8[ptr + 28] = data.lit ? 1 : 0;
+    f32[(ptr + 32) >> 2] = data.parallax.x; f32[((ptr + 32) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 40) >> 2] = data.material;
+    u8[ptr + 44] = data.enabled ? 1 : 0;
+    u32[(ptr + 48) >> 2] = data.mesh;
 }
 
 export function createMesh2DData(): Mesh2DPtrData {
     return {
         texture: 0,
+        normalMap: 0,
         color: { r: 0, g: 0, b: 0, a: 0 },
         layer: 0,
         lit: false,

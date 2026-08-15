@@ -230,6 +230,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "material": {
       "advanced": true,
     },
+    "normalMap": {
+      "tooltip": "Normal map (tangent space). Needs a mesh with normals.",
+    },
     "parallax": {
       "advanced": true,
       "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",

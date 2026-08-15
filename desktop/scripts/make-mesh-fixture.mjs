@@ -22,12 +22,13 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 // two-triangles: the mesh2d geometry, so a file drawing what the scene draws is
 // the claim. lit-triangles: the same shape with per-face NORMALS and one white
 // colour. textured-quad: an inline image and a baseColor factor. node-tree: a
-// parent and two placed children, one of them scaled.
+// parent and two placed children, one of them scaled. normalmap-quad: a normal
+// map over flat normals, which only a tangent frame can tell apart.
 //
 // public/ stands in for the project root, so the prefab's refs read `scenes/…`
 // — the spelling a component carries, resolved from the served root.
 for (const name of ['two-triangles.gltf', 'lit-triangles.gltf', 'white-triangles.gltf',
-                    'textured-quad.gltf', 'node-tree.gltf']) {
+                    'textured-quad.gltf', 'node-tree.gltf', 'normalmap-quad.gltf']) {
   const run = spawnSync(process.execPath,
     [cli, 'import-gltf', path.join(scenes, name), '--project', path.join(HERE, '..', 'public')], {
       stdio: 'inherit',

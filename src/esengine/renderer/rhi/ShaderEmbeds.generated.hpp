@@ -285,6 +285,11 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 // inside the switch on both sides.
 #pragma feature LIT
 
+// A normal map on top of those normals. Its tangent frame comes from the shared
+// perturbNormal (screen-space derivatives), so the geometry needs no tangent
+// channel — which is why this rides LIT rather than a vertex attribute.
+#pragma feature NORMAL_MAP
+
 // GPU-resident geometry. Slot 0 is the mesh's own vertices, which are LOCAL
 // space and are never rewritten; slot 1 is the per-object record the frame
 // streams, so the same mesh drawn twice costs one more transform rather than
@@ -322,7 +327,9 @@ out vec2 v_texCoord;
 out vec4 v_color;
 #ifdef LIT
 out highp vec3 v_worldNormal;
-out highp vec2 v_worldPos;
+// The full position, not just the plane's: a tangent frame is derived from how
+// it changes across a fragment, which xy alone cannot say for a tilted surface.
+out highp vec3 v_worldPos;
 #endif
 
 void main() {
@@ -333,7 +340,7 @@ void main() {
     v_color = a_color * a_instTint;
 #ifdef LIT
     v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
-    v_worldPos = world.xy;
+    v_worldPos = world.xyz;
 #endif
 }
 #pragma end
@@ -345,17 +352,24 @@ in vec2 v_texCoord;
 in vec4 v_color;
 #ifdef LIT
 in highp vec3 v_worldNormal;
-in highp vec2 v_worldPos;
+in highp vec3 v_worldPos;
 #endif
 
 uniform sampler2D u_texture;
+#ifdef NORMAL_MAP
+uniform sampler2D u_normalMap;
+#endif
 
 out vec4 fragColor;
 
 void main() {
     vec4 base = texture(u_texture, v_texCoord) * v_color;
 #ifdef LIT
-    fragColor = vec4(applyLighting2D(base.rgb, normalize(v_worldNormal), v_worldPos), base.a);
+    highp vec3 N = normalize(v_worldNormal);
+#ifdef NORMAL_MAP
+    N = perturbNormal(N, v_worldPos, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
+#endif
+    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos.xy), base.a);
 #else
     fragColor = base;
 #endif
@@ -390,7 +404,7 @@ struct VSOut {
     @location(1) v_color : vec4f,
 #ifdef LIT
     @location(2) v_worldNormal : vec3f,
-    @location(3) v_worldPos : vec2f,
+    @location(3) v_worldPos : vec3f,
 #endif
 };
 
@@ -404,7 +418,7 @@ struct VSOut {
     out.v_color = v.a_color * v.a_instTint;
 #ifdef LIT
     out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
-    out.v_worldPos = world.xy;
+    out.v_worldPos = world.xyz;
 #endif
     return out;
 }
@@ -413,6 +427,10 @@ struct VSOut {
 #pragma fragment wgsl
 @group(1) @binding(0) var t0 : texture_2d<f32>;
 @group(1) @binding(8) var s0 : sampler;
+#ifdef NORMAL_MAP
+@group(1) @binding(1) var t1 : texture_2d<f32>;
+@group(1) @binding(9) var s1 : sampler;
+#endif
 
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -420,14 +438,18 @@ struct VSOut {
     @location(1) v_color : vec4f,
 #ifdef LIT
     @location(2) v_worldNormal : vec3f,
-    @location(3) v_worldPos : vec2f,
+    @location(3) v_worldPos : vec3f,
 #endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
 #ifdef LIT
-    return vec4f(applyLighting2D(base.rgb, normalize(v.v_worldNormal), v.v_worldPos), base.a);
+    var N = normalize(v.v_worldNormal);
+#ifdef NORMAL_MAP
+    N = perturbNormal(N, v.v_worldPos, v.v_texCoord, sampleNormal(t1, s1, v.v_texCoord));
+#endif
+    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos.xy), base.a);
 #else
     return base;
 #endif

@@ -344,6 +344,7 @@ export interface Light2D {
 
 export interface Mesh2D {
     texture: number;
+    normalMap: number;
     color: Vec4;
     layer: number;
     lit: boolean;

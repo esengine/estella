@@ -1,0 +1,34 @@
+{
+  "version": "2",
+  "name": "normalmap-quad",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/normalmap-quad.esmesh",
+            "normalMap": "scenes/normalmap-quad_0.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

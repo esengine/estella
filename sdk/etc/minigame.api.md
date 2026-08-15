@@ -4222,6 +4222,7 @@ layer: number
 lit: boolean
 material: number
 mesh: number
+normalMap: number
 parallax: Vec2
 texture: number
 ```

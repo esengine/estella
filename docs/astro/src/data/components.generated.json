@@ -1287,6 +1287,12 @@
           "default": "none"
         },
         {
+          "key": "normalMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Normal map (tangent space). Needs a mesh with normals."
+        },
+        {
           "key": "color",
           "type": "Color",
           "default": "#ffffff",

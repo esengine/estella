@@ -15,6 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,8 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     // shader consumes: geometry without normals must not be drawn by a program
     // that reads them, and the reverse leaves the normals unlit.
     auto compile = [&](std::vector<std::string> features) -> u32 {
+        const bool normalMapped = std::find(features.begin(), features.end(), "NORMAL_MAP")
+                                != features.end();
         resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
@@ -52,12 +55,15 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
         if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
             shader->bind();
             shader->setUniform("u_texture", 0);
+            // Slot 1 is where a draw's own second texture is bound (see pushBatchDraw).
+            if (normalMapped) shader->setUniform("u_normalMap", 1);
             shader->unbind();
         }
         return shader->getProgramId();
     };
     mesh_shader_id_ = compile({});
     mesh_lit_shader_id_ = compile({"LIT"});
+    mesh_normalmap_shader_id_ = compile({"LIT", "NORMAL_MAP"});
 }
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -103,6 +109,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 textureId = tex->getId();
             }
         }
+        // Only meaningful with normals to perturb, so it is read where that is known.
+        u32 normalTextureId = 0;
+        if (mesh.normalMap.isValid() && resident && resident->hasNormals) {
+            if (Texture* tex = ctx.resources.getTexture(mesh.normalMap)) {
+                normalTextureId = tex->getId();
+            }
+        }
 
         BatchDrawKey key{
             .stage = ctx.current_stage,
@@ -110,6 +123,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = ctx.batch_shader_id,
             .blend = BlendMode::Normal,
             .textureId = textureId,
+            .normalTextureId = normalTextureId,
             .depth = position.z,
             .y = position.y,
             .entity = entity,
@@ -137,7 +151,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // vertices are local-space and untouched, so the CPU loop below — which
         // exists to bake world space into every vertex — is skipped entirely.
         if (resident && mesh_shader_id_ != 0) {
-            const u32 residentShader = resident->hasNormals ? mesh_lit_shader_id_ : mesh_shader_id_;
+            const u32 residentShader = normalTextureId != 0 && mesh_normalmap_shader_id_ != 0
+                ? mesh_normalmap_shader_id_
+                : (resident->hasNormals ? mesh_lit_shader_id_ : mesh_shader_id_);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = resident->hasNormals
                     ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;

@@ -44,6 +44,8 @@ export interface ImportedMaterial {
     /** baseColorFactor — the tint multiplied into the vertex colors. */
     baseColor: [number, number, number, number];
     baseColorTexture?: ImportedImageRef;
+    /** Tangent-space normal map; the engine derives its tangent frame per pixel. */
+    normalTexture?: ImportedImageRef;
 }
 
 /** An image the glTF carries inline (GLB chunk or data uri), to be written beside the meshes. */
@@ -110,7 +112,8 @@ interface GltfJson {
             metallicFactor?: number; roughnessFactor?: number;
             metallicRoughnessTexture?: GltfTextureRef;
         };
-        normalTexture?: GltfTextureRef; occlusionTexture?: GltfTextureRef;
+        normalTexture?: GltfTextureRef & { scale?: number };
+        occlusionTexture?: GltfTextureRef;
         emissiveTexture?: GltfTextureRef; emissiveFactor?: number[];
         alphaMode?: string; alphaCutoff?: number; doubleSided?: boolean;
         extensions?: Record<string, unknown>;
@@ -301,7 +304,11 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     if (pbr.metallicRoughnessTexture || (pbr.metallicFactor ?? 1) !== 0 || (pbr.roughnessFactor ?? 1) !== 1) {
         unused.push('metallic-roughness');
     }
-    if (src.normalTexture) unused.push('normal map');
+    // The engine has no strength on a normal map; a scaled one would be imported
+    // at full strength, which is a different surface than the author saw.
+    if (src.normalTexture?.scale !== undefined && src.normalTexture.scale !== 1) {
+        unused.push(`normal-map scale ${src.normalTexture.scale}`);
+    }
     if (src.occlusionTexture) unused.push('occlusion');
     if (src.emissiveTexture || (src.emissiveFactor ?? [0, 0, 0]).some(v => v !== 0)) unused.push('emissive');
     if (src.alphaMode === 'MASK') unused.push(`alpha cutoff ${src.alphaCutoff ?? 0.5}`);
@@ -311,10 +318,13 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
 
     const texture = pbr.baseColorTexture
         ? readTexture(ctx, textureCache, pbr.baseColorTexture, label) : null;
+    const normal = src.normalTexture
+        ? readTexture(ctx, textureCache, src.normalTexture, label) : null;
     return {
         name: src.name ?? `material_${index}`,
         baseColor: [factor[0] ?? 1, factor[1] ?? 1, factor[2] ?? 1, factor[3] ?? 1],
         ...(texture ? { baseColorTexture: texture } : {}),
+        ...(normal ? { normalTexture: normal } : {}),
     };
 }
 
@@ -578,14 +588,19 @@ export interface PrefabAssembly {
 
 function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
     const prefix = refs.prefix ?? '';
-    const image = mesh.material?.baseColorTexture;
-    const texture = image
+    const ref = (image?: ImportedImageRef): string | null => image
         ? (image.external ? refs.external?.(image.file) ?? image.file : prefix + image.file)
         : null;
+    const texture = ref(mesh.material?.baseColorTexture);
+    // A normal map needs normals to perturb; without them the engine draws the
+    // unlit variant and the map would be a reference to nothing.
+    const hasNormals = mesh.data.channels.some(c => c.semantic === MeshChannel.Normal);
+    const normalMap = hasNormals ? ref(mesh.material?.normalTexture) : null;
     const color = mesh.material?.baseColor;
     return { type: 'Mesh2D', data: {
         mesh: `${prefix}${mesh.name}.esmesh`,
         ...(texture ? { texture } : {}),
+        ...(normalMap ? { normalMap } : {}),
         ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
         enabled: true,
     } };

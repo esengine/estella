@@ -153,18 +153,32 @@ describe('glTF material import', () => {
     doc.materials = [{
       name: 'Metal',
       pbrMetallicRoughness: { metallicFactor: 1, roughnessFactor: 0.3 },
-      normalTexture: { index: 0 }, emissiveFactor: [1, 0, 0],
+      normalTexture: { index: 0, scale: 0.4 }, emissiveFactor: [1, 0, 0],
       alphaMode: 'MASK', alphaCutoff: 0.4, doubleSided: false,
       extensions: { KHR_materials_clearcoat: {} },
     }];
     const { warnings } = importGltfMeshes(gltf(doc), 'model');
     const line = warnings.join('\n');
     expect(line).toContain('metallic-roughness');
-    expect(line).toContain('normal map');
+    expect(line).toContain('normal-map scale 0.4');
     expect(line).toContain('emissive');
     expect(line).toContain('alpha cutoff 0.4');
     expect(line).toContain('backfaces are not culled');
     expect(line).toContain('KHR_materials_clearcoat');
+  });
+
+  it('carries a normal map, extracting its image like any other', () => {
+    const doc = withInlineImage();
+    doc.images = [
+      { mimeType: 'image/png', uri: `data:image/png;base64,${PNG_1PX}` },
+      { uri: 'bump.png' },
+    ];
+    doc.textures = [{ source: 0 }, { source: 1 }];
+    (doc.materials as { normalTexture?: unknown }[])[0]!.normalTexture = { index: 1 };
+    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    expect(warnings).toEqual([]);
+    expect(meshes[0]!.material?.normalTexture)
+      .toEqual({ file: 'bump.png', external: true });
   });
 
   it("flips V, because glTF's uv origin is the image's top-left", () => {
@@ -248,6 +262,20 @@ describe('glTF prefab assembly', () => {
     expect(data.scale.x).toBeCloseTo(2);
     expect(data.rotation.z).toBeCloseTo(Math.SQRT1_2);
     expect(data.rotation.w).toBeCloseTo(Math.SQRT1_2);
+  });
+
+  it('leaves out a normal map the geometry has no normals for', () => {
+    const doc = withInlineImage();
+    doc.images = [
+      { mimeType: 'image/png', uri: `data:image/png;base64,${PNG_1PX}` },
+      { uri: 'bump.png' },
+    ];
+    doc.textures = [{ source: 0 }, { source: 1 }];
+    (doc.materials as { normalTexture?: unknown }[])[0]!.normalTexture = { index: 1 };
+    // The fixture's primitive declares no NORMAL, so the engine draws it unlit —
+    // a normal map there would be a ref to something nothing reads.
+    const prefab = assemble(gltf({ ...doc, ...oneNode }));
+    expect(prefab.entities[0]!.components[1]!.data.normalMap).toBeUndefined();
   });
 
   it('scales the root, since a glTF is in metres', () => {

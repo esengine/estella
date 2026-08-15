@@ -136,6 +136,10 @@ export const SCENES = [
   // offset to have reached the child, and the fourth is background only if the
   // child's scale survived — ignore the tree and everything stacks on the origin.
   { id: "mesh-nodes", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/node-tree.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-nodes.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-nodes.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.45,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.7667,\"y\":0.60,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.7667,\"y\":0.5333,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // A normal map over FLAT normals: the quad faces the viewer, so without the map
+  // both halves take the same light. Its texels point -X and +X, so the lit half
+  // and the unlit one are the tangent frame, derived per pixel from derivatives.
+  { id: "mesh-normalmap", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/normalmap-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-normalmap.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-normalmap.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.375,\"y\":0.5,\"rgb\":[180,180,180],\"tol\":45},{\"x\":0.625,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

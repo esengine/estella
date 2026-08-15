@@ -5,7 +5,7 @@ Symbols: 113 public · 60 beta · 1428 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"310236a4dffb268f"
+"96f79850bd2b098b"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4240,6 +4240,7 @@ layer: number
 lit: boolean
 material: number
 mesh: number
+normalMap: number
 parallax: Vec2
 texture: number
 ```

@@ -48,6 +48,12 @@ struct Mesh2D {
     ES_PROPERTY(asset = texture)
     resource::TextureHandle texture;
 
+    /** @brief Tangent-space normal map, applied on top of the geometry's own normals.
+     *         Needs a mesh that HAS normals; its tangent frame is derived per pixel,
+     *         so the geometry carries no tangent channel. */
+    ES_PROPERTY(asset = texture, tooltip="Normal map (tangent space). Needs a mesh with normals.")
+    resource::TextureHandle normalMap;
+
     /** @brief Color tint multiplied with per-vertex colors (white = unchanged) */
     ES_PROPERTY(animatable, tooltip="Tint multiplied into the vertex colors (white = unchanged).")
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};

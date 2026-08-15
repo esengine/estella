@@ -83,6 +83,10 @@ struct BatchDrawKey {
     u32 shaderId = 0;
     BlendMode blend = BlendMode::Normal;
     u32 textureId = 0;
+    // A second sampler this draw needs for itself (a mesh's normal map), bound to
+    // slot 1. Not the same thing as the Batch stream's extra slots, which are a
+    // MERGE product chosen per vertex.
+    u32 normalTextureId = 0;
     f32 depth = 0.0f;
     // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
     // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.
