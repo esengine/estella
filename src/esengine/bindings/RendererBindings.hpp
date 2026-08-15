@@ -181,6 +181,7 @@ u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h);
+void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h);
 i32 renderer_pollPreviewReadback();
 uintptr_t renderer_getPreviewPtr();
 u32 renderer_getPreviewSize();

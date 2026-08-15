@@ -42,7 +42,8 @@ for (const s of SCENES) {
   // renders anything at all. Allowed, as a sentence — the same bargain the
   // golden corpus strikes with parityGap.
   const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
-    || s.env.ESTELLA_VERIFY_DEPTH_LAYERS || s.env.ESTELLA_VERIFY_YSORT || s.id === 'sprite-default';
+    || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
+    || s.env.ESTELLA_VERIFY_YSORT || s.id === 'sprite-default';
   if (!asserts && !s.rendersOnly) {
     fail(`"${s.id}" asserts nothing — give it an ESTELLA_VERIFY_EXPECT, or say in rendersOnly why it has none`);
   }

@@ -57,6 +57,7 @@ import { controllerCurrentPage, drivenField, readComponentData, readModelField, 
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
+import { AssetBinding } from '@/engine/AssetBinding';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
@@ -64,7 +65,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { EntityOps } from '@/engine/entityOps';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES } from 'esengine';
+import { parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, renderMeshPreview } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
@@ -1861,6 +1862,35 @@ function TexturePlatformOverrides({ importer, write }: { importer: Record<string
 // The asset inspector for every type without a bespoke editor. Renders read-only
 // metadata plus, for types with an importer schema, editable Import Settings
 // (written to the `.meta` sidecar) through the shared ComponentSection engine.
+/**
+ * A thumbnail of an `.esmesh`, rendered by the engine through the same path the
+ * viewport uses. Without one every mesh an import produced is the same icon —
+ * and a model arrives as several of them.
+ */
+const MESH_PREVIEW_PX = 148;
+
+function MeshPreview({ path }: { path: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let alive = true;
+    void AssetBinding.meshHandle(path).then(async (handle) => {
+      const canvas = canvasRef.current;
+      if (!alive || !handle || !canvas) return;
+      const img = await renderMeshPreview(
+        EngineHost.world?.getWasmModule(), handle, canvas.width, canvas.height);
+      if (alive && img) canvas.getContext('2d')?.putImageData(img, 0, 0);
+    });
+    return () => { alive = false; };
+  }, [path]);
+  return (
+    <div className="cb-prev" style={{ height: MESH_PREVIEW_PX + 12 }}>
+      <div className="pv">
+        <canvas ref={canvasRef} width={MESH_PREVIEW_PX} height={MESH_PREVIEW_PX} />
+      </div>
+    </div>
+  );
+}
+
 function GenericAssetInspector({ path }: { path: string }) {
   const name = baseName(path);
   const type = AssetRegistry.assetTypeAt(path);
@@ -1998,6 +2028,8 @@ function GenericAssetInspector({ path }: { path: string }) {
             Import Settings sit above the fold (the reason to open an asset). */}
         {type === 'audio' ? (
           <AudioWavePreview path={path} />
+        ) : type === 'mesh' ? (
+          <MeshPreview path={path} />
         ) : isImage && importer && (type === 'texture' || type === 'sprite') ? (
           // A texture's preview IS its 9-slice editor: the border is the one
           // import setting you cannot sensibly type in, and it writes through

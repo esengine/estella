@@ -10,7 +10,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { ESEngineModule } from '../wasm';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { requireResourceManager } from '../wasm/resourceManager';
-import { awaitReadback, READBACK_READY } from './readback';
+import { drawPreview, previewCore } from './assetPreview';
 import type { Vec2, Vec3, Vec4 } from '../types';
 import { BlendMode } from './blend';
 import { reflectEsshader } from './shaderReflect';
@@ -150,23 +150,6 @@ export interface MaterialData {
 type MaterialCore = Required<Pick<NonNullable<EngineApi>,
     'material_compileEsshader' | 'material_define' | 'material_setUniform'
     | 'material_setTexture' | 'material_undefine'>>;
-
-/**
- * What the material-ball thumbnail additionally needs: the renderer's preview
- * readback plus the module heap it lands in. Editor-only — a device renders no
- * thumbnails, and the readback pointer has no native wrapper — so it is narrowed
- * here (and checked at the call) instead of being required of every core.
- */
-type PreviewCore = MaterialCore & Pick<ESEngineModule,
-    'renderer_renderMaterialPreview' | 'renderer_pollPreviewReadback'
-    | 'renderer_getPreviewSize' | 'renderer_getPreviewWidth'
-    | 'renderer_getPreviewHeight' | 'renderer_getPreviewPtr' | 'HEAPU8'>;
-
-/** The connected core, when it answers the preview surface; null otherwise. */
-function previewCore(m: MaterialCore | null): PreviewCore | null {
-    const p = m as PreviewCore | null;
-    return typeof p?.renderer_renderMaterialPreview === 'function' ? p : null;
-}
 
 /** Guarded view of the core: after a wasm abort a call throws instead of reaching
  *  a dead module; a native host's bindings never abort. */
@@ -560,23 +543,7 @@ export const Material = {
      */
     async renderPreview(material: MaterialHandle, w: number, h: number): Promise<ImageData | null> {
         const m = previewCore(module);
-        if (!m) return null;
-        m.renderer_renderMaterialPreview(material, w, h);
-        if (await awaitReadback(() => m.renderer_pollPreviewReadback()) !== READBACK_READY) {
-            return null;
-        }
-        const size = m.renderer_getPreviewSize();
-        const pw = m.renderer_getPreviewWidth();
-        const ph = m.renderer_getPreviewHeight();
-        if (size === 0 || pw === 0 || ph === 0) return null;
-        const pixels = new Uint8ClampedArray(m.HEAPU8.buffer, m.renderer_getPreviewPtr(), size);
-        // Readback rows are bottom-up; flip so the thumbnail is upright.
-        const flipped = new Uint8ClampedArray(size);
-        const rowBytes = pw * 4;
-        for (let y = 0; y < ph; y++) {
-            flipped.set(pixels.subarray(y * rowBytes, (y + 1) * rowBytes), (ph - 1 - y) * rowBytes);
-        }
-        return new ImageData(flipped, pw, ph);
+        return m ? drawPreview(m, () => m.renderer_renderMaterialPreview(material, w, h)) : null;
     },
 
     releaseAll(): void {

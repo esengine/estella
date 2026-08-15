@@ -65,7 +65,15 @@ export interface NativeEngineApi {
     material_setTexture?(materialId: number, name: string, textureHandle: number): void;
     material_setUniform?(materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number): void;
     material_undefine?(materialId: number): void;
+    mesh2d_makeAllResident?(registry: unknown): number;
+    mesh2d_makeResident?(registry: unknown, entity: number): number;
     mesh2d_setGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): void;
+    mesh2d_setMaterialAll?(registry: unknown, materialId: number): number;
+    mesh2d_setMesh?(registry: unknown, entity: number, meshHandle: number): void;
+    mesh2d_setMeshAll?(registry: unknown, meshHandle: number): number;
+    mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): number;
+    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): number;
+    mesh_release?(meshHandle: number): void;
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
     particle_reset?(registry: unknown, entity: number): void;
@@ -143,6 +151,7 @@ export interface NativeEngineApi {
     renderer_pollSnapshotReadback?(): number;
     renderer_releaseTarget?(handle: number): void;
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number): void;
+    renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_resize?(width: number, height: number): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
@@ -170,6 +179,7 @@ export interface NativeEngineApi {
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
+    rm_adoptTextureContent?(rm: unknown, target: number, source: number): boolean;
     rm_createCompressedTexture?(rm: unknown, width: number, height: number, format: number, dataPtr: number, dataLen: number, mipLevels: number): number;
     rm_createLabelAtlasFont?(rm: unknown, textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
     rm_createShader?(rm: unknown, vertSrc: string, fragSrc: string): number;
@@ -191,6 +201,7 @@ export interface NativeEngineApi {
     rm_setTextureBudget?(rm: unknown, bytes: number): void;
     rm_setTextureMetadata?(rm: unknown, handleId: number, left: number, right: number, top: number, bottom: number): void;
     rm_supportsCompressedFormat?(rm: unknown, format: number): boolean;
+    rm_texturesAwaitingReupload?(rm: unknown): string;
     rm_trimTextureCache?(rm: unknown): number;
     rm_updateTextureSubregion?(rm: unknown, handleId: number, x: number, y: number, width: number, height: number, pixelsPtr: number, pixelsLen: number): void;
     tilemap_advanceAnimations?(entity: number, dtMs: number): void;
@@ -304,7 +315,15 @@ export function createNativeEngineApi(
     bind('material_setTexture', 'es_material_setTexture', false);
     bind('material_setUniform', 'es_material_setUniform', false);
     bind('material_undefine', 'es_material_undefine', false);
+    bind('mesh2d_makeAllResident', 'es_mesh2d_makeAllResident', true);
+    bind('mesh2d_makeResident', 'es_mesh2d_makeResident', true);
     bind('mesh2d_setGeometry', 'es_mesh2d_setGeometry', true);
+    bind('mesh2d_setMaterialAll', 'es_mesh2d_setMaterialAll', true);
+    bind('mesh2d_setMesh', 'es_mesh2d_setMesh', true);
+    bind('mesh2d_setMeshAll', 'es_mesh2d_setMeshAll', true);
+    bind('mesh_create', 'es_mesh_create', false);
+    bind('mesh_createFromChannels', 'es_mesh_createFromChannels', false);
+    bind('mesh_release', 'es_mesh_release', false);
     bind('particle_getAliveCount', 'es_particle_getAliveCount', false);
     bind('particle_play', 'es_particle_play', true);
     bind('particle_reset', 'es_particle_reset', true);
@@ -382,6 +401,7 @@ export function createNativeEngineApi(
     bind('renderer_pollSnapshotReadback', 'es_renderer_pollSnapshotReadback', false);
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
     bind('renderer_renderMaterialPreview', 'es_renderer_renderMaterialPreview', false);
+    bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);
     bind('renderer_replayToDrawCall', 'es_renderer_replayToDrawCall', false);
     bind('renderer_resize', 'es_renderer_resize', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
@@ -409,6 +429,7 @@ export function createNativeEngineApi(
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
     bind('rm_acquireTextureByPath', 'es_rm_acquireTextureByPath', true);
+    bind('rm_adoptTextureContent', 'es_rm_adoptTextureContent', true);
     bind('rm_createCompressedTexture', 'es_rm_createCompressedTexture', true);
     bind('rm_createLabelAtlasFont', 'es_rm_createLabelAtlasFont', true);
     bind('rm_createShader', 'es_rm_createShader', true);
@@ -430,6 +451,7 @@ export function createNativeEngineApi(
     bind('rm_setTextureBudget', 'es_rm_setTextureBudget', true);
     bind('rm_setTextureMetadata', 'es_rm_setTextureMetadata', true);
     bind('rm_supportsCompressedFormat', 'es_rm_supportsCompressedFormat', true);
+    bind('rm_texturesAwaitingReupload', 'es_rm_texturesAwaitingReupload', true);
     bind('rm_trimTextureCache', 'es_rm_trimTextureCache', true);
     bind('rm_updateTextureSubregion', 'es_rm_updateTextureSubregion', true);
     bind('tilemap_advanceAnimations', 'es_tilemap_advanceAnimations', false);

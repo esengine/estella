@@ -62,6 +62,20 @@ class AssetBindingImpl {
   }
 
   /**
+   * The live mesh handle for @p path, loading it into this realm if nothing has
+   * yet — what an inspector preview needs, since a mesh nothing references is
+   * never in a scene preload and has no engine-side cache to ask.
+   */
+  async meshHandle(path: string): Promise<number> {
+    const known = this.preload?.meshHandles.get(path);
+    if (known) return known;
+    const assets = EngineHost.getResource(Assets);
+    if (!assets) return 0;
+    await this.loadForSlot(assets, 'mesh', AssetRegistry.assetRef(path) ?? path, path);
+    return this.preload?.meshHandles.get(path) ?? 0;
+  }
+
+  /**
    * The async half: a projection resolved `ref` COLD (assigned after the scene
    * preload, or re-written on disk). Load it through its slot's loader, then
    * re-project what references it. Deduped per registry generation, so a broken

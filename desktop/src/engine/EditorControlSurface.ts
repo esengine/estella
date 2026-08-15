@@ -25,7 +25,7 @@ import type {
   SceneNode,
 } from '@/types';
 import type { SceneData, PrefabData, SubsystemStatus, EventBindingRow } from 'esengine';
-import { Material, Sprite, Renderer } from 'esengine';
+import { Material, Sprite, Mesh2D, Renderer, renderMeshPreview } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { isRequiredEmpty, componentByName, userSchema, coerceEnumInput, componentAuthorability, inspectorFields, modelAddableComponentEntries } from './schema';
 import { ViewportController } from './ViewportController';
@@ -970,6 +970,23 @@ export class EditorControlSurfaceImpl {
       const mat = (world.get(e, Sprite) as { material: number }).material;
       if (!mat) continue;
       const img = await Material.renderPreview(mat, w, h);
+      if (img) return { rgba: new Uint8Array(img.data), width: img.width, height: img.height };
+    }
+    return null;
+  }
+
+  /**
+   * The same, for the mesh a scene entity draws — a thumbnail of geometry rather
+   * than of a material. Null when no loaded mesh is in the scene.
+   */
+  async renderSceneMeshPreview(w: number, h: number): Promise<ViewportCapture | null> {
+    const world = EngineHost.world;
+    if (!world) return null;
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Mesh2D)) continue;
+      const mesh = (world.get(e, Mesh2D) as { mesh: number }).mesh;
+      if (!mesh) continue;
+      const img = await renderMeshPreview(world.getWasmModule(), mesh, w, h);
       if (img) return { rgba: new Uint8Array(img.data), width: img.width, height: img.height };
     }
     return null;

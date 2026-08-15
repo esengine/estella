@@ -88,6 +88,8 @@ export {
     type TextureRef,
 } from './render/material';
 
+export { renderMeshPreview } from './render/assetPreview';
+
 export {
     BUILTIN_SHADER_TEMPLATES,
     builtinShaderTemplate,

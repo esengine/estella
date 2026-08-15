@@ -1150,6 +1150,61 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
     g_renderFrame->renderToTarget(reg, vp, static_cast<u32>(w), static_cast<u32>(h));
 }
 
+/**
+ * A thumbnail of a loaded mesh, into the same offscreen target the material
+ * preview uses and by the same route (a throwaway scene through the real collect
+ * path) — so a thumbnail shows what the viewport would. The eye stands off-axis
+ * because a model seen head-on is a silhouette.
+ */
+void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
+    if (!g_renderFrame || w <= 0 || h <= 0) return;
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    const Mesh* res = rm ? rm->getMesh(resource::MeshHandle{meshId}) : nullptr;
+    if (!res) return;
+
+    ecs::Registry reg;
+    auto entity = reg.create();
+    reg.emplace<ecs::Transform>(entity);
+    auto& mesh = reg.emplace<ecs::Mesh2D>(entity);
+    mesh.mesh = resource::MeshHandle{meshId};
+    mesh.lit = true;
+    mesh.opaque = true;
+
+    auto light = reg.create();
+    auto& lightTransform = reg.emplace<ecs::Transform>(light);
+    lightTransform.position = glm::vec3(0.0f, 0.0f, 1.0f);
+    reg.emplace<ecs::Light2D>(light).type = static_cast<i32>(ecs::Light2DType::Directional);
+
+    if (g_transformSystem) {
+        esengine::World world{reg, ctx().services(), 0.0f};
+        g_transformSystem->update(world);
+    }
+
+    // Frame the mesh's own bounds: an .esmesh is authored at whatever scale its
+    // source used, so a fixed box would show one model whole and another as a dot.
+    const glm::vec3 centre = (res->localMin + res->localMax) * 0.5f;
+    const f32 radius = std::max(glm::length(res->localMax - res->localMin) * 0.5f, 1e-4f);
+    const glm::vec3 eye = centre + glm::normalize(glm::vec3(0.6f, 0.45f, 1.0f)) * (radius * 4.0f);
+    const glm::mat4 view = glm::lookAt(eye, centre, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    // The box is measured AFTER the turn: a flat model seen off-axis is much
+    // smaller than its diagonal, and framing by the diagonal draws it as a stamp
+    // in the middle of an empty thumbnail.
+    f32 half = 1e-4f;
+    for (i32 corner = 0; corner < 8; ++corner) {
+        const glm::vec3 world{
+            (corner & 1) ? res->localMax.x : res->localMin.x,
+            (corner & 2) ? res->localMax.y : res->localMin.y,
+            (corner & 4) ? res->localMax.z : res->localMin.z,
+        };
+        const glm::vec3 v = glm::vec3(view * glm::vec4(world, 1.0f));
+        half = std::max({half, std::abs(v.x), std::abs(v.y)});
+    }
+    half *= 1.08f;
+    const glm::mat4 proj = glm::ortho(-half, half, -half, half, 0.01f, radius * 8.0f);
+    g_renderFrame->renderToTarget(reg, proj * view, static_cast<u32>(w), static_cast<u32>(h));
+}
+
 // Same 0/1/2 contract as renderer_pollSnapshotReadback, for the material preview.
 i32 renderer_pollPreviewReadback() {
     return g_renderFrame ? g_renderFrame->pollPreviewReadback() : 2;

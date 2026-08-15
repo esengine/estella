@@ -727,6 +727,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
     emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
     emscripten::function("renderer_renderMaterialPreview", &esengine::renderer_renderMaterialPreview);
+    emscripten::function("renderer_renderMeshPreview", &esengine::renderer_renderMeshPreview);
     emscripten::function("renderer_pollPreviewReadback", &esengine::renderer_pollPreviewReadback);
     emscripten::function("renderer_getPreviewPtr", &esengine::renderer_getPreviewPtr);
     emscripten::function("renderer_getPreviewSize", &esengine::renderer_getPreviewSize);

@@ -552,6 +552,7 @@ export interface ESEngineModule {
     renderer_getSnapshotWidth(): number;
     renderer_getSnapshotHeight(): number;
     renderer_renderMaterialPreview(materialId: number, w: number, h: number): void;
+    renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
     /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */
     renderer_pollPreviewReadback(): number;
     renderer_getPreviewPtr(): number;

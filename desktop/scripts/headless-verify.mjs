@@ -137,7 +137,8 @@ function finish(result, server) {
   const pickOk = !result.pick || result.pick.hit === result.pick.want;
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
-    (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
+    (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
+    (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     deviceLossOk && meshOk && pickOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
@@ -525,6 +526,34 @@ app.whenReady().then(async () => {
         return { ok: got.every((g, k) => Math.abs(g - cfg.rgb[k]) <= tol), want: cfg.rgb, got, w, h };
       })()`);
     }
+    // Optional offscreen MESH-preview assertion (ESTELLA_VERIFY_MESH_PREVIEW =
+    // {w,h}). The claim is the FRAMING a mesh thumbnail adds over a material ball:
+    // the geometry lands inside the frame and reaches it, at any authored scale.
+    let meshPreview = null;
+    if (process.env.ESTELLA_VERIFY_MESH_PREVIEW) {
+      const cfg = JSON.parse(process.env.ESTELLA_VERIFY_MESH_PREVIEW);
+      meshPreview = await exec(`(async () => {
+        const cfg = ${JSON.stringify(cfg)};
+        const cap = await window.__estellaHeadless.api.renderSceneMeshPreview(cfg.w, cfg.h);
+        if (!cap) return { ok: false, reason: 'no scene mesh' };
+        const { width: w, height: h, rgba } = cap;
+        const lit = (x, y) => { const i = (y * w + x) * 4; return rgba[i] | rgba[i + 1] | rgba[i + 2]; };
+        let border = 0;
+        for (let x = 0; x < w; x++) { if (lit(x, 0)) border++; if (lit(x, h - 1)) border++; }
+        for (let y = 0; y < h; y++) { if (lit(0, y)) border++; if (lit(w - 1, y)) border++; }
+        // Reaching the outer eighth is what "fitted" means, and it holds for any
+        // shape — a fill ratio would only hold for one that is roughly square.
+        const pad = Math.floor(w / 8);
+        let reach = 0;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const outer = x < pad || y < pad || x >= w - pad || y >= h - pad;
+            if (outer && lit(x, y)) reach++;
+          }
+        }
+        return { ok: border === 0 && reach > 0, border, reach, w, h };
+      })()`);
+    }
     // Optional editor-grid assertion (ESTELLA_VERIFY_GRID = minor spacing, world
     // units): flip the grid on (this activates the editor view it draws through),
     // capture, flip it off, and assert the frames differ — proving the custom-draw
@@ -561,7 +590,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
