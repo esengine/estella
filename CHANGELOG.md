@@ -53,6 +53,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mesh is a file.** Mesh was the one asset that was not one: textures,
+  shaders, materials, fonts, clips and prefabs each have a format on disk and a
+  loader, while geometry could only be built at runtime, so a project could not
+  store a mesh or ship one. `.esmesh` is self-describing — the channel table is
+  written out rather than implied by a mask, so adding a channel (normals,
+  tangents, skin weights) is an append to the vocabulary rather than a format
+  version, and a mesh without normals stays a file without normals instead of
+  one carrying zeroes. A channel's semantic is its shader attribute location, so
+  a shader reading normals at 3 reads them from any mesh that has them.
+
 - **Geometry can stay on the GPU.** Every triangle the engine drew had its
   vertices written into the frame's transient pool by the CPU first — the draw
   list resolved both the layout and the buffers from that pool, so there was no
