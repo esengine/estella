@@ -100,13 +100,16 @@ function serveDist() {
 }
 
 function finish(result, server) {
-  // A loss run asserts the whole cycle: the loss is seen and reported, the
-  // browser gives the context back, and the engine rebuilds to Recovering.
+  // Both modes assert the loss was seen and reported and the device ended Live
+  // with nothing left on the placeholder. Only the driven mode asserts the steps
+  // between: the auto mode has none, which is the point of it.
   const dl = result.deviceLoss;
-  const deviceLossOk = !dl || (dl.supported && dl.statusAfterLoss === 1 &&
-    (dl.reportAfterLoss?.length ?? 0) > 0 && dl.glLostAfterRestore === false &&
-    dl.recovered === true && dl.statusAfterRecover === 2 &&
-    dl.fullRecovered === true && dl.statusAfterFull === 0);
+  const lossSeen = !dl || (dl.supported && dl.statusAfterLoss === 1
+    && (dl.reportAfterLoss?.length ?? 0) > 0);
+  const cameBack = !dl || (dl.statusAfterFull === 0 && (dl.awaitingAfterFull?.length ?? 0) === 0);
+  const drivenSteps = !dl || dl.mode === 'auto' || (dl.glLostAfterRestore === false
+    && dl.recovered === true && dl.statusAfterRecover === 2 && dl.fullRecovered === true);
+  const deviceLossOk = lossSeen && cameBack && drivenSteps;
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
@@ -224,6 +227,42 @@ app.whenReady().then(async () => {
       })()`);
     } else {
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
+
+    // ESTELLA_VERIFY_DEVICE_LOSS=auto is the player's case: the GPU goes away,
+    // the browser hands a context back, and NOTHING here asks for a recovery.
+    // Only frames pass. What comes back has to come back on the engine's own.
+    if (process.env.ESTELLA_VERIFY_DEVICE_LOSS === 'auto') {
+      deviceLoss = await exec(`(async () => {
+        const d = window.__estellaHeadless.device;
+        const api = window.__estellaHeadless.api;
+        const out = { supported: d.lose(), mode: 'auto' };
+        if (!out.supported) return out;
+
+        for (let i = 0; i < 30 && d.status() === 0; i++) {
+          await api.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        out.statusAfterLoss = d.status();
+        out.reportAfterLoss = d.report();
+
+        // Standing in for the browser, not for the engine: a page gets its
+        // context back on its own, and there is no such event to wait for here.
+        out.restoreCalled = d.restore();
+        await new Promise((r) => setTimeout(r, 200));
+
+        for (let i = 0; i < 200 && d.status() !== 0; i++) {
+          await api.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 16));
+        }
+        out.statusAfterFull = d.status();
+        out.awaitingAfterFull = d.awaiting();
+        out.recovered = out.statusAfterFull === 0;
+        out.fullRecovered = out.recovered;
+        await api.step(${STEPS}, 1 / 60);
+        out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
+        return out;
+      })()`);
     }
 
     // ESTELLA_VERIFY_DEVICE_LOSS=1 takes the GPU away for real (WEBGL_lose_context)

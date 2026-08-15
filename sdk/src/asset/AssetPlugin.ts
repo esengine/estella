@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
-import { defineResource } from '../ecs/resource';
+import { defineResource, Time } from '../ecs/resource';
+import { Schedule, defineSystem } from '../ecs/system';
+import { DeviceStatus, getDeviceStatus } from '../render/renderer';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
@@ -76,7 +78,59 @@ export class AssetPlugin implements Plugin {
         app.world.onDespawn((entity) => counter.removeAllRefsForEntity(entity));
 
         app.insertResource(Assets, assets);
+        this.driveDeviceRecovery_(app, assets);
+    }
+
+    /**
+     * Recovers the renderer after a device loss, which nothing did: the path
+     * existed end to end with no caller but a test probe, so a shipped game that
+     * lost its GPU stayed lost. Timed off UNSCALED delta — a paused game still
+     * has to come back — and backed off, since each attempt re-fetches content.
+     */
+    private driveDeviceRecovery_(app: App, assets: AssetsClass): void {
+        let inFlight = false;
+        let waited = 0;
+        let backoff = 0;
+        let downtime = 0;
+
+        app.addSystemToSchedule(Schedule.First, defineSystem([], () => {
+            const status = getDeviceStatus();
+            if (status === DeviceStatus.Live || status === DeviceStatus.Dead) {
+                backoff = 0;
+                waited = 0;
+                downtime = 0;
+                return;
+            }
+            const dt = app.getResource(Time)?.unscaledDelta ?? 0;
+            downtime += dt;
+            if (inFlight) return;
+            waited += dt;
+            if (waited < backoff) return;
+
+            waited = 0;
+            inFlight = true;
+            const lostFor = downtime;
+            void assets.recoverFromDeviceLoss()
+                .then((whole) => {
+                    if (whole) {
+                        log.info('asset', `Device recovered after ${lostFor.toFixed(1)}s`);
+                        backoff = 0;
+                        return;
+                    }
+                    backoff = Math.min(backoff ? backoff * 2 : RECOVERY_RETRY_S, RECOVERY_RETRY_MAX_S);
+                })
+                .catch((e) => {
+                    log.warn('asset', 'Device recovery threw; will retry', e);
+                    backoff = Math.min(backoff ? backoff * 2 : RECOVERY_RETRY_S, RECOVERY_RETRY_MAX_S);
+                })
+                .finally(() => { inFlight = false; });
+        }));
     }
 }
+
+/** First wait after a recovery attempt comes back incomplete, in seconds. */
+const RECOVERY_RETRY_S = 0.25;
+/** Ceiling for that wait: a context can take a while, but not minutes. */
+const RECOVERY_RETRY_MAX_S = 5;
 
 export const assetPlugin = new AssetPlugin();
