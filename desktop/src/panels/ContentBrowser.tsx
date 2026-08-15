@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, LayoutGrid, List, Import, FolderOpen, Folder, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff, Plus, Search } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
+import { canRenderThumbnail, thumbnailFor, subscribeThumbnails } from '@/project/assetThumbnails';
 import { EmptyState } from '@/components/EmptyState';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -101,6 +102,22 @@ function useDir(relPath: string | null): { entries: DirEntry[]; loading: boolean
 // on Enter or blur, cancels on Escape, and pre-selects the base name (sans
 // extension). Stops pointer/key events so it doesn't trigger the tile's
 // select/open/drag while editing.
+/**
+ * A tile's picture: an engine-drawn thumbnail where one exists, the type's icon
+ * otherwise. The render is asked for during paint and answered later, so this
+ * subscribes rather than awaits — a folder of fifty meshes mounts fifty tiles,
+ * and each is one shared job keyed by path.
+ */
+function AssetThumb({ path, type }: { path: string; type: AssetType }) {
+  const drawable = canRenderThumbnail(type);
+  const url = useSyncExternalStore(
+    subscribeThumbnails,
+    () => (drawable ? thumbnailFor(path) : null),
+  );
+  if (!url) return <AssetIcon type={type} size={30} />;
+  return <img src={url} alt="" draggable={false} className="th-render" />;
+}
+
 function RenameInput({
   name,
   onCommit,
@@ -1309,7 +1326,9 @@ export function ContentBrowser() {
                           // of image memory for the twenty thumbnails actually on screen.
                           <img src={`estella://project/${path}`} alt="" draggable={false} loading="lazy" decoding="async" />
                         ) : (
-                          <AssetIcon type={type} size={30} />
+                          // A mesh or a material is drawn by the engine; anything else keeps
+                          // its icon, and so does one whose render has not landed yet.
+                          <AssetThumb path={path} type={type} />
                         )}
                         {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
                         {DELIVERY_MODE_META[deliv].badge && (
