@@ -105,6 +105,14 @@ std::string wgslCanonicalVSOut(bool lit) {
     if (lit) {
         src += "    @location(2) v_worldPos : vec2f,\n";
     }
+    // A mesh that HAS normals hands them on, with the full world position a
+    // tangent frame needs. v_worldPos stays vec2 so one fragment stage serves
+    // both vertex sources.
+    src +=
+        "#ifdef MESH_NORMALS\n"
+        "    @location(3) v_worldNormal : vec3f,\n"
+        "    @location(4) v_worldXYZ : vec3f,\n"
+        "#endif\n";
     src += "};\n";
     return src;
 }
@@ -124,12 +132,20 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
         "    @location(2) a_texCoord : vec2f,\n"
+        "#ifdef MESH_NORMALS\n"
+        "    @location(3) a_normal : vec3f,\n"
+        "#endif\n"
         "#ifdef MESH\n"
         "    @location(8)  a_model0 : vec4f,\n"
         "    @location(9)  a_model1 : vec4f,\n"
         "    @location(10) a_model2 : vec4f,\n"
         "    @location(11) a_model3 : vec4f,\n"
         "    @location(12) a_instTint : vec4f,\n"
+        "#endif\n"
+        "#ifdef MESH_NORMALS\n"
+        "    @location(13) a_nrm0 : vec3f,\n"
+        "    @location(14) a_nrm1 : vec3f,\n"
+        "    @location(15) a_nrm2 : vec3f,\n"
         "#endif\n"
         "};\n"
         "\n"
@@ -143,7 +159,11 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "    out.v_color = v.a_color;\n"
         "#endif\n"
         "    out.pos = frame.projection * world;\n"
-        "    out.v_texCoord = v.a_texCoord;\n";
+        "    out.v_texCoord = v.a_texCoord;\n"
+        "#ifdef MESH_NORMALS\n"
+        "    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;\n"
+        "    out.v_worldXYZ = world.xyz;\n"
+        "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
     }
@@ -208,6 +228,9 @@ std::string canonical2DVertexStage(bool lit) {
         "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
         "layout(location = 2) in vec2 a_texCoord;\n"
+        "#ifdef MESH_NORMALS\n"
+        "layout(location = 3) in vec3 a_normal;\n"
+        "#endif\n"
         "#ifdef MESH\n"
         "layout(location = 8)  in vec4 a_model0;\n"
         "layout(location = 9)  in vec4 a_model1;\n"
@@ -215,13 +238,22 @@ std::string canonical2DVertexStage(bool lit) {
         "layout(location = 11) in vec4 a_model3;\n"
         "layout(location = 12) in vec4 a_instTint;\n"
         "#endif\n"
+        "#ifdef MESH_NORMALS\n"
+        "layout(location = 13) in vec3 a_nrm0;\n"
+        "layout(location = 14) in vec3 a_nrm1;\n"
+        "layout(location = 15) in vec3 a_nrm2;\n"
+        "#endif\n"
         "\n"
         "layout(std140) uniform FrameConstants {\n"
         "    mat4 u_projection;\n"
         "};\n"
         "\n"
         "out vec4 v_color;\n"
-        "out vec2 v_texCoord;\n";
+        "out vec2 v_texCoord;\n"
+        "#ifdef MESH_NORMALS\n"
+        "out highp vec3 v_worldNormal;\n"
+        "out highp vec3 v_worldXYZ;\n"
+        "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
     }
@@ -236,7 +268,11 @@ std::string canonical2DVertexStage(bool lit) {
         "    v_color = a_color;\n"
         "#endif\n"
         "    gl_Position = u_projection * world;\n"
-        "    v_texCoord = a_texCoord;\n";
+        "    v_texCoord = a_texCoord;\n"
+        "#ifdef MESH_NORMALS\n"
+        "    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;\n"
+        "    v_worldXYZ = world.xyz;\n"
+        "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";
     }

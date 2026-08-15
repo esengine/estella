@@ -168,9 +168,11 @@ public:
     }
 
     /// The program that draws @p materialId on GPU-RESIDENT geometry, compiled on
-    /// first use and cached. 0 when the material's source was never kept or the
-    /// variant fails — the caller then falls back rather than drawing it wrong.
-    u32 meshProgram(u32 materialId, resource::ResourceManager& resources) const;
+    /// first use and cached. @p withNormals selects the variant for geometry that
+    /// carries them. 0 when the material's source was never kept or the variant
+    /// fails — the caller then falls back rather than drawing it wrong.
+    u32 meshProgram(u32 materialId, resource::ResourceManager& resources,
+                    bool withNormals = false) const;
 
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.
@@ -289,7 +291,7 @@ private:
     /// Handle → the program compiled for the mesh vertex source (0 = tried and
     /// failed). Mutable because compiling it is memoization: the collect path
     /// asks a read-only store, and the answer is the same every time.
-    mutable std::unordered_map<u32, u32> mesh_programs_;
+    mutable std::unordered_map<u64, u32> mesh_programs_;
     GfxDevice* device_ = nullptr;
     resource::ResourceManager* resources_ = nullptr;
     TextureHandle defaultWhite_ = TextureHandle::Invalid;

@@ -44,15 +44,18 @@ void MaterialStore::recreateGpuResources() {
     }
 }
 
-u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources) const {
+u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
+                               bool withNormals) const {
     const MaterialRecord* rec = find(materialId);
     if (!rec || !rec->shaderRef.isValid()) return 0;
-    const u32 key = rec->shaderRef.id();
+    // Keyed by shader AND vertex shape: a layout may not declare an attribute its
+    // shader ignores, so geometry with normals needs its own program.
+    const u64 key = static_cast<u64>(rec->shaderRef.id()) | (withNormals ? (1ull << 32) : 0ull);
 
     auto cached = mesh_programs_.find(key);
     if (cached != mesh_programs_.end()) return cached->second;
 
-    auto src = sources_.find(key);
+    auto src = sources_.find(rec->shaderRef.id());
     if (src == sources_.end()) {
         mesh_programs_[key] = 0;
         return 0;
@@ -64,6 +67,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     resource::ParsedShader parsed = resource::ShaderParser::parse(src->second.source);
     std::vector<std::string> features = resource::ShaderParser::splitFeatures(src->second.features);
     features.push_back("MESH");
+    if (withNormals) features.push_back("MESH_NORMALS");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);

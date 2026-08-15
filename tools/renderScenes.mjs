@@ -136,6 +136,10 @@ export const SCENES = [
   // offset to have reached the child, and the fourth is background only if the
   // child's scale survived — ignore the tree and everything stacks on the origin.
   { id: "mesh-nodes", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/node-tree.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-nodes.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-nodes.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.45,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.7667,\"y\":0.60,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.7667,\"y\":0.5333,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // mesh-lit's geometry and light, shaded by a MATERIAL whose fragment reads the
+  // normals the engine's vertex stage hands it. RED, so the fallback (the mesh
+  // shader, taken when a variant fails) cannot pass for it — that draws white.
+  { id: "mesh-material-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/litmat.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // A normal map over FLAT normals: the quad faces the viewer, so without the map
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.
