@@ -81,9 +81,18 @@ enum class LayoutId : u8 {
     Batch           = 0,
     ParticleInstance = 1,  ///< Instanced: a static unit quad + a per-particle instance stream.
     Shape           = 2,
+    /// Per-object transforms for GPU-resident meshes. Only the stream is the
+    /// pool's; the layout belongs to the mesh, which is the one that knows what
+    /// its own vertices look like.
+    MeshInstance    = 3,
 };
 
-static constexpr u32 LAYOUT_COUNT = 3;
+static constexpr u32 LAYOUT_COUNT = 4;
+
+/// One per-object record for a resident mesh: a model matrix and a tint.
+static constexpr u32 MESH_INSTANCE_STRIDE = 68;
+/// The attributes that record occupies (4 matrix rows + the tint).
+static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
 
 // =============================================================================
 // Data Type (vertex attributes, index type, pixel data type)
@@ -101,7 +110,10 @@ enum class GfxDataType : u8 {
 // Vertex Layout (part of a pipeline's identity; see PipelineDesc)
 // =============================================================================
 
-static constexpr u32 MAX_VERTEX_ATTRIBUTES = 8;
+// 16 because that is what GLES3 and WebGPU both guarantee, and because a mesh
+// carrying its own channels plus a per-instance transform passes 8 as soon as it
+// has normals — the limit was the batch layouts' size, not the hardware's.
+static constexpr u32 MAX_VERTEX_ATTRIBUTES = 16;
 static constexpr u32 MAX_VERTEX_BUFFER_SLOTS = 2;
 
 struct GfxVertexAttribute {

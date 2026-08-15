@@ -472,6 +472,78 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 }
 
 // =============================================================================
+// Mesh Resources
+// =============================================================================
+
+MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                                       ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                                       const glm::vec3& localMin, const glm::vec3& localMax) {
+    if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return MeshHandle();
+
+    // The mesh describes its own vertices; the per-object transform is the
+    // engine's and is appended here, so no caller has to know how a transform
+    // reaches the shader — the reason a mesh is drawn without touching its bytes.
+    VertexLayoutDesc layout;
+    if (channels.size() + MESH_INSTANCE_ATTRIBUTES > MAX_VERTEX_ATTRIBUTES) {
+        ES_LOG_ERROR("createMesh: {} channels exceeds the layout budget", channels.size());
+        return MeshHandle();
+    }
+    for (usize i = 0; i < channels.size(); ++i) {
+        layout.attributes[i] = channels[i];
+        layout.attributes[i].bufferSlot = 0;
+    }
+    layout.strides[0] = vertexStride;
+    layout.strides[1] = MESH_INSTANCE_STRIDE;
+    layout.instanceStep[1] = true;
+    u32 next = static_cast<u32>(channels.size());
+    const u32 firstInstanceLocation = next;
+    for (u32 row = 0; row < 4; ++row) {
+        layout.attributes[next++] = {firstInstanceLocation + row, 4, GfxDataType::Float,
+                                     false, row * 16u, 1};
+    }
+    layout.attributes[next++] = {firstInstanceLocation + 4, 4, GfxDataType::UnsignedByte,
+                                 true, 64, 1};
+    layout.attributeCount = next;
+
+    auto mesh = makeUnique<Mesh>();
+    mesh->vertices = createVertexBuffer(vertexBytes);
+    mesh->indices = createIndexBuffer(indices);
+    if (!mesh->vertices.isValid() || !mesh->indices.isValid()) {
+        releaseVertexBuffer(mesh->vertices);
+        releaseIndexBuffer(mesh->indices);
+        return MeshHandle();
+    }
+
+    const VertexBuffer* vb = getVertexBuffer(mesh->vertices);
+    const IndexBuffer* ib = getIndexBuffer(mesh->indices);
+    mesh->vertexBuffer = vb ? vb->handle() : BufferHandle::Invalid;
+    mesh->indexBuffer = ib ? ib->handle() : BufferHandle::Invalid;
+    mesh->layout = device_->createVertexLayout(layout);
+    mesh->indexCount = static_cast<u32>(indices.size());
+    mesh->localMin = localMin;
+    mesh->localMax = localMax;
+    return meshes_.add(std::move(mesh));
+}
+
+Mesh* ResourceManager::getMesh(MeshHandle handle) {
+    return meshes_.get(handle);
+}
+
+const Mesh* ResourceManager::getMesh(MeshHandle handle) const {
+    return meshes_.get(handle);
+}
+
+void ResourceManager::releaseMesh(MeshHandle handle) {
+    Mesh* mesh = meshes_.get(handle);
+    if (!mesh) return;
+    // The buffers are the mesh's own, so they go with it; the layout is not, since
+    // createVertexLayout caches by description and other meshes share the result.
+    releaseVertexBuffer(mesh->vertices);
+    releaseIndexBuffer(mesh->indices);
+    meshes_.release(handle.id());
+}
+
+// =============================================================================
 // Index Buffer Resources
 // =============================================================================
 

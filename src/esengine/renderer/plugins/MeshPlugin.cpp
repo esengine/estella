@@ -5,10 +5,17 @@
 #include "../store/MaterialStore.hpp"
 #include "../frame/RenderFrame.hpp"
 #include "../rhi/Texture.hpp"
+#include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Mesh2D.hpp"
+#include "../../resource/Mesh.hpp"
+#include "../../resource/ShaderParser.hpp"
+#include "../../core/Log.hpp"
+
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <cmath>
+#include <cstring>
 
 namespace esengine {
 
@@ -23,6 +30,26 @@ u32 mulColor(u32 a, u32 b) {
 }
 }  // namespace
 
+void MeshPlugin::init(RenderFrameContext& ctx) {
+    // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
+    // that reads a model matrix, which is what lets the vertices stay local.
+    const auto target = ctx.resources.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::MESH);
+    resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
+        {}, ctx.resources.preferredShaderLanguage());
+    Shader* shader = ctx.resources.getShader(handle);
+    if (shader && shader->isValid()) {
+        mesh_shader_id_ = shader->getProgramId();
+        if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
+            shader->bind();
+            shader->setUniform("u_texture", 0);
+            shader->unbind();
+        }
+    }
+}
+
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& frustum = collect_ctx.frustum;
@@ -36,21 +63,28 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
     for (auto entity : meshView) {
         const auto& mesh = meshView.get<ecs::Mesh2D>(entity);
-        if (!mesh.enabled || mesh.indices.empty()) continue;
+        // Empty indices no longer mean "nothing to draw": a resident mesh keeps
+        // its geometry on the GPU and its inline payload deliberately empty.
+        if (!mesh.enabled || (mesh.indices.empty() && !mesh.mesh.isValid())) continue;
 
         auto& transform = meshView.get<ecs::Transform>(entity);
         glm::vec3 position = parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
+        // Bounds come from whichever geometry this is: a resident mesh keeps its
+        // own, and the inline payload's are recomputed on upload. Reading the
+        // component's for a resident mesh would cull it against an empty box.
+        const Mesh* resident = mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
+        const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
+        const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
+
         // Cull at the local AABB scaled into world space (rotation ignored — the
         // same approximation the sprite path uses).
-        glm::vec2 localCenter = (mesh.localMin + mesh.localMax) * 0.5f;
-        glm::vec2 localHalf = (mesh.localMax - mesh.localMin) * 0.5f;
-        glm::vec3 aabbCenter = position
-            + glm::vec3(localCenter.x * scale.x, localCenter.y * scale.y, 0.0f);
-        glm::vec3 halfExtents(std::abs(localHalf.x * scale.x),
-                              std::abs(localHalf.y * scale.y), 0.0f);
+        glm::vec3 localCenter = (localMin + localMax) * 0.5f;
+        glm::vec3 localHalf = (localMax - localMin) * 0.5f;
+        glm::vec3 aabbCenter = position + localCenter * scale;
+        glm::vec3 halfExtents = glm::abs(localHalf * scale);
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) continue;
 
         u32 textureId = ctx.white_texture_id;
@@ -87,6 +121,32 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         } else if (mesh.lit && ctx.frame) {
             if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
             if (litProgram != 0) key.shaderId = litProgram;
+        }
+
+        // Resident geometry: only the transform is written for the frame. Its
+        // vertices are local-space and untouched, so the CPU loop below — which
+        // exists to bake world space into every vertex — is skipped entirely.
+        if (resident && mesh_shader_id_ != 0) {
+            if (resident->isDrawable()) {
+                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE);
+                auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), position)
+                                * glm::mat4_cast(rotation)
+                                * glm::scale(glm::mat4(1.0f), scale);
+                std::memcpy(dst, &model[0][0], 64);
+                u32 tintRGBA = packColor(mesh.color);
+                std::memcpy(dst + 64, &tintRGBA, 4);
+
+                key.shaderId = (mesh.material != 0 && key.materialId != 0)
+                    ? key.shaderId : mesh_shader_id_;
+                key.layoutId = LayoutId::MeshInstance;
+                key.instanceCount = 1;
+                key.vertexBuffer = resident->vertexBuffer;
+                key.indexBuffer = resident->indexBuffer;
+                key.vertexLayout = resident->layout;
+                pushBatchDraw(draw_list, clips, instOffset, 0, 0, resident->indexCount, key);
+            }
+            continue;
         }
 
         f32 angle = 2.0f * std::atan2(rotation.z, rotation.w);

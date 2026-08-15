@@ -18,10 +18,12 @@ namespace esengine {
  */
 class MeshPlugin : public RenderTypePlugin {
 public:
+    void init(RenderFrameContext& ctx) override;
     void collect(RenderCollectContext& ctx) override;
 
 private:
     std::vector<BatchVertex> scratch_;  ///< Reused per mesh; amortizes the transform buffer.
+    u32 mesh_shader_id_ = 0;  ///< Draws resident geometry with a per-object transform.
 };
 
 }  // namespace esengine

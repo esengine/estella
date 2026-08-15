@@ -258,7 +258,11 @@ material_define: (materialId: number, shaderHandle: number, blendMode: number, f
 material_setTexture: (materialId: number, name: string, textureHandle: number) => void
 material_setUniform: (materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number) => void
 material_undefine: (materialId: number) => void
+mesh2d_makeAllResident: ((registry: CppRegistry) => number) | undefined
+mesh2d_makeResident: ((registry: CppRegistry, entity: number) => number) | undefined
 mesh2d_setGeometry: ((registry: CppRegistry, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => void) | undefined
+mesh2d_setMesh: ((registry: CppRegistry, entity: number, meshHandle: number) => void) | undefined
+mesh_create: ((posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => number) | undefined
 notifyDeviceLost: ((reason: number, message: string) => void) | undefined
 particle_getAliveCount: ((entity: number) => number) | undefined
 particle_play: ((registry: CppRegistry, entity: number) => void) | undefined

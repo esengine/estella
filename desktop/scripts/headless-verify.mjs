@@ -122,10 +122,13 @@ function finish(result, server) {
       .every((k) => (last.tables[k] - first.tables[k]) <= spans * 6)
   )(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
   const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk;
+  // Freezing nothing would pass every pixel assertion by not having changed the
+  // scene — the shape of a check that cannot fail.
+  const meshOk = !result.meshResident || result.meshResident.frozen > 0;
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    deviceLossOk;
+    deviceLossOk && meshOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {
@@ -158,6 +161,7 @@ app.whenReady().then(async () => {
 
     const exec = (code) => win.webContents.executeJavaScript(code, true);
     let deviceLoss = null;
+    let meshResident = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -239,6 +243,17 @@ app.whenReady().then(async () => {
       })()`);
     } else {
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
+
+    // Freezes the scene's inline geometry onto the GPU, keeping every other
+    // assertion: nothing about the geometry changes, so the frame after must
+    // equal the frame before. That equality IS the claim.
+    if (process.env.ESTELLA_VERIFY_MESH_RESIDENT === '1') {
+      meshResident = await exec(`(async () => {
+        const frozen = window.__estellaHeadless.makeMeshesResident();
+        await window.__estellaHeadless.api.step(2, 1 / 60);
+        return { frozen };
+      })()`);
     }
 
     // ESTELLA_VERIFY_DEVICE_LOSS=auto is the player's case: the GPU goes away,
@@ -454,7 +469,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -200,6 +200,112 @@ void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
     mesh->localMax = mx;
 }
 
+// Geometry that STAYS on the GPU: interleaved f32 [x,y,z,u,v] plus optional RGBA8
+// colors, validated exactly as the inline path is. createMesh appends the
+// per-object transform, so nothing here knows how a mesh reaches the shader.
+u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
+                uintptr_t indicesPtr, u32 indexCount) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm || posUvPtr == 0 || indicesPtr == 0 || vertexCount == 0 || indexCount == 0) return 0;
+    if (indexCount % 3 != 0) {
+        ES_LOG_WARN("mesh_create: indexCount {} is not a triangle list; rejected", indexCount);
+        return 0;
+    }
+
+    const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 5, "mesh_create.posUv");
+    const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "mesh_create.colors") : nullptr;
+    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "mesh_create.indices");
+    if (!posUv || !indices || (colorsPtr && !colors)) return 0;
+
+    for (u32 i = 0; i < indexCount; ++i) {
+        if (indices[i] >= vertexCount) {
+            ES_LOG_WARN("mesh_create: index {} out of range (vertexCount {}); rejected",
+                        indices[i], vertexCount);
+            return 0;
+        }
+    }
+
+    struct MeshVertex { f32 x, y, z, u, v; u32 color; };
+    static_assert(sizeof(MeshVertex) == 24, "vertex stride must match the mesh layout");
+    std::vector<MeshVertex> verts(vertexCount);
+    glm::vec3 mn(posUv[0], posUv[1], posUv[2]);
+    glm::vec3 mx = mn;
+    for (u32 i = 0; i < vertexCount; ++i) {
+        const f32* p = posUv + i * 5;
+        verts[i] = { p[0], p[1], p[2], p[3], p[4], colors ? colors[i] : 0xFFFFFFFFu };
+        mn = glm::min(mn, glm::vec3(p[0], p[1], p[2]));
+        mx = glm::max(mx, glm::vec3(p[0], p[1], p[2]));
+    }
+
+    const GfxVertexAttribute channels[3] = {
+        {0, 3, GfxDataType::Float, false, 0, 0},
+        {1, 2, GfxDataType::Float, false, 12, 0},
+        {2, 4, GfxDataType::UnsignedByte, true, 20, 0},
+    };
+    auto handle = rm->createMesh(
+        ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
+        ConstSpan<u32>(indices, indexCount),
+        ConstSpan<GfxVertexAttribute>(channels, 3), sizeof(MeshVertex), mn, mx);
+    return handle.id();
+}
+
+// Freezes a Mesh2D's inline geometry onto the GPU: the same vertices, uploaded
+// once and drawn with a per-object transform instead of being rewritten into
+// every frame. The inline payload is cleared, so the two can never disagree.
+namespace {
+u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!mesh || !rm || mesh->vertices.empty() || mesh->indices.empty()) return 0;
+
+    struct MeshVertex { f32 x, y, z, u, v; u32 color; };
+    std::vector<MeshVertex> verts(mesh->vertices.size());
+    for (usize i = 0; i < mesh->vertices.size(); ++i) {
+        const auto& in = mesh->vertices[i];
+        verts[i] = { in.position.x, in.position.y, 0.0f, in.uv.x, in.uv.y, in.color };
+    }
+
+    const GfxVertexAttribute channels[3] = {
+        {0, 3, GfxDataType::Float, false, 0, 0},
+        {1, 2, GfxDataType::Float, false, 12, 0},
+        {2, 4, GfxDataType::UnsignedByte, true, 20, 0},
+    };
+    auto handle = rm->createMesh(
+        ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
+        ConstSpan<u32>(mesh->indices.data(), mesh->indices.size()),
+        ConstSpan<GfxVertexAttribute>(channels, 3), sizeof(MeshVertex),
+        glm::vec3(mesh->localMin, 0.0f), glm::vec3(mesh->localMax, 0.0f));
+    if (!handle.isValid()) return 0;
+
+    mesh->mesh = handle;
+    mesh->vertices.clear();
+    mesh->indices.clear();
+    return handle.id();
+}
+}  // namespace
+
+u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity) {
+    return freezeMeshGeometry(registry.tryGet<ecs::Mesh2D>(Entity::fromRaw(entity)));
+}
+
+u32 mesh2d_makeAllResident(ecs::Registry& registry) {
+    u32 frozen = 0;
+    for (auto entity : registry.view<ecs::Mesh2D>()) {
+        if (freezeMeshGeometry(registry.tryGet<ecs::Mesh2D>(entity)) != 0) ++frozen;
+    }
+    return frozen;
+}
+
+/** @brief Points a Mesh2D at resident geometry; 0 returns it to its inline payload. */
+void mesh2d_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle) {
+    const Entity ent = Entity::fromRaw(entity);
+    auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    if (!mesh) {
+        ES_LOG_WARN("mesh2d_setMesh: entity {} has no Mesh2D component", entity);
+        return;
+    }
+    mesh->mesh = resource::MeshHandle(meshHandle);
+}
+
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
     if (!g_initialized || !g_renderFrame) return;
 

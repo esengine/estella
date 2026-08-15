@@ -81,6 +81,15 @@ struct Mesh2D {
     // keep their asserted offsets because these members come last).
     // -------------------------------------------------------------------------
 
+    /**
+     * @brief GPU-resident geometry; when valid it is drawn INSTEAD of the vertices
+     *        below, which then stay empty.
+     * @details The difference is where the vertices live, not what they are. The
+     *          inline payload is rewritten into every frame — right for geometry
+     *          that changes every frame, a re-upload of anything that does not.
+     */
+    resource::MeshHandle mesh;
+
     /** @brief Local-space vertices (triangle list, indexed). */
     std::vector<MeshVertex2D> vertices;
 

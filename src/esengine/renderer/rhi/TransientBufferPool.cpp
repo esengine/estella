@@ -17,7 +17,8 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initial_vertex_bytes_ = initialVertexBytes;
     initial_index_count_ = initialIndexCount;
 
-    for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape}) {
+    for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape,
+                        LayoutId::MeshInstance}) {
         setupStream(layout);
     }
 
@@ -196,6 +197,17 @@ u32 TransientBufferPool::vertexStride(LayoutId layout) const {
 
 void TransientBufferPool::setupStream(LayoutId layout) {
     Stream& s = stream(layout);
+
+    if (layout == LayoutId::MeshInstance) {
+        // Only a stream. The geometry is the mesh's and so is the layout — this
+        // holds the per-object transforms written for the frame, which is the one
+        // part of drawing a resident mesh that is not resident.
+        s.vertex_staging.resize(initial_vertex_bytes_);
+        s.vbo_capacity = initial_vertex_bytes_;
+        s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
+        s.vertex_stride = MESH_INSTANCE_STRIDE;
+        return;
+    }
 
     if (layout == LayoutId::ParticleInstance) {
         // Per-instance (per-particle) stream: dynamic, streamed each frame.

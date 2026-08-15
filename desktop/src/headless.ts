@@ -41,6 +41,8 @@ declare global {
         guard(): { target: string; lostEventsSeen: number };
         restore(): boolean;
       };
+      /** Freezes the scene's inline mesh geometry onto the GPU; returns how many. */
+      makeMeshesResident: () => number;
     };
   }
 }
@@ -143,6 +145,17 @@ window.__estellaHeadless = {
       ext.restoreContext();
       return true;
     },
+  },
+  // Every Mesh2D in the scene, frozen onto the GPU. The point of driving it from
+  // here is that nothing about the geometry changes — same entity, same vertices,
+  // the other path — so the frame afterwards has to be the same frame.
+  makeMeshesResident: () => {
+    const m = EngineHost.module as unknown as {
+      mesh2d_makeAllResident?(registry: unknown): number;
+    } | null;
+    const registry = EngineHost.mutableWorld()?.getCppRegistry();
+    if (!m?.mesh2d_makeAllResident || !registry) return 0;
+    return m.mesh2d_makeAllResident(registry);
   },
 };
 

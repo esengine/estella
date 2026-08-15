@@ -69,6 +69,15 @@ void mesh2d_setGeometry(
     uintptr_t colorsPtr,
     uintptr_t indicesPtr, u32 indexCount
 );
+/** @brief Uploads geometry that stays on the GPU; returns its handle, 0 on failure. */
+u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
+                uintptr_t indicesPtr, u32 indexCount);
+/** @brief Points a Mesh2D at resident geometry; 0 returns it to its inline payload. */
+void mesh2d_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle);
+/** @brief Freezes a Mesh2D's inline geometry onto the GPU; returns its handle. */
+u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity);
+/** @brief Freezes every Mesh2D in the world; returns how many were frozen. */
+u32 mesh2d_makeAllResident(ecs::Registry& registry);
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
 #endif

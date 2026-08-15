@@ -224,6 +224,24 @@ export interface ESEngineModule {
      * restores a context when it is ready, so this is expected to be retried.
      * On success the device is Recovering: drawing, with placeholder textures.
      */
+    /**
+     * Upload geometry that STAYS on the GPU: interleaved f32 [x,y,z,u,v] per
+     * vertex, optional RGBA8 colors, u32 triangle indices. Any number of entities
+     * can draw the result, each with its own transform. Where the inline
+     * `mesh2d_setGeometry` payload is rewritten per frame, this is uploaded once.
+     */
+    mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number,
+                 indicesPtr: number, indexCount: number): number;
+    /** Point a Mesh2D at a resident mesh; 0 returns it to its inline payload. */
+    mesh2d_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
+    /**
+     * Freeze a Mesh2D's inline geometry onto the GPU — the same vertices, uploaded
+     * once and drawn with a per-object transform. Returns the mesh handle, 0 if
+     * the entity had no geometry to freeze.
+     */
+    mesh2d_makeResident?(registry: CppRegistry, entity: number): number;
+    /** The same for every Mesh2D in the world; returns how many were frozen. */
+    mesh2d_makeAllResident?(registry: CppRegistry): number;
     recoverDevice?(): boolean;
     /**
      * Take up the replacement device left on `Module.pendingWebGPUDevice`. A

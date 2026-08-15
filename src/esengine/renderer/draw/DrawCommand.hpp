@@ -109,6 +109,15 @@ struct DrawCommand {
     // with per-instance attributes based at vertex_byte_offset (see LayoutId::ParticleInstance).
     u32 instance_count = 0;
 
+    // Geometry on the GPU rather than in this frame's pool. Set together or not
+    // at all; index_offset/index_count then index INTO these. Sorting, material and
+    // depth state are unchanged — where vertices live is not what is drawn.
+    BufferHandle vertex_buffer = BufferHandle::Invalid;
+    BufferHandle index_buffer = BufferHandle::Invalid;
+    VertexLayoutHandle vertex_layout = VertexLayoutHandle::Invalid;
+
+    bool hasPersistentGeometry() const { return vertex_buffer != BufferHandle::Invalid; }
+
     // Vertices owned by this command (from vertex_byte_offset). Needed so the merge pass
     // can rewrite their texIndex when coalescing into a multi-texture batch.
     u32 vertex_count = 0;
@@ -219,7 +228,9 @@ struct DrawCommand {
      * is what kept them apart. canMergeWith is this, read as a bool.
      */
     BatchBreak mergeBlocker(const DrawCommand& next) const {
-        // Instanced draws are one command per emitter — never coalesce them.
+        // Instanced draws are one command per emitter — never coalesce them. This
+        // covers resident meshes too: their per-object transform IS the instance
+        // stream, so every such draw carries a count.
         if (instance_count != 0 || next.instance_count != 0) return BatchBreak::Instanced;
         if (shader_id != next.shader_id) return BatchBreak::Shader;
         if (blend_mode != next.blend_mode) return BatchBreak::Blend;

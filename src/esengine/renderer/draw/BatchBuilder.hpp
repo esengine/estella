@@ -103,6 +103,12 @@ struct BatchDrawKey {
     // > 0 selects an instanced draw: indexCount indices drawn instanceCount times, with
     // per-instance attributes based at the vertex byte offset (see DrawCommand).
     u32 instanceCount = 0;
+    // Geometry the GPU already holds. Set together with a MeshInstance stream, whose
+    // offset is the draw's vertexByteOffset: the mesh supplies the vertices and the
+    // frame supplies only the transforms.
+    BufferHandle vertexBuffer = BufferHandle::Invalid;
+    BufferHandle indexBuffer = BufferHandle::Invalid;
+    VertexLayoutHandle vertexLayout = VertexLayoutHandle::Invalid;
 };
 
 /**

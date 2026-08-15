@@ -271,6 +271,104 @@ void main() {
 #pragma end
 )esshader";
 
+inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
+#pragma version 300 es
+
+// GPU-resident geometry. Slot 0 is the mesh's own vertices, which are LOCAL
+// space and are never rewritten; slot 1 is the per-object record the frame
+// streams, so the same mesh drawn twice costs one more transform rather than
+// one more copy of its vertices.
+
+#pragma vertex
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec2 a_texCoord;
+layout(location = 2) in vec4 a_color;
+
+layout(location = 3) in vec4 a_model0;
+layout(location = 4) in vec4 a_model1;
+layout(location = 5) in vec4 a_model2;
+layout(location = 6) in vec4 a_model3;
+layout(location = 7) in vec4 a_instTint;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec2 v_texCoord;
+out vec4 v_color;
+
+void main() {
+    mat4 model = mat4(a_model0, a_model1, a_model2, a_model3);
+    gl_Position = u_projection * model * vec4(a_position, 1.0);
+    v_texCoord = a_texCoord;
+    v_color = a_color * a_instTint;
+}
+#pragma end
+
+#pragma fragment
+precision mediump float;
+
+in vec2 v_texCoord;
+in vec4 v_color;
+
+uniform sampler2D u_texture;
+
+out vec4 fragColor;
+
+void main() {
+    vec4 texColor = texture(u_texture, v_texCoord);
+    fragColor = texColor * v_color;
+}
+#pragma end
+
+#pragma vertex wgsl
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn {
+    @location(0) a_position : vec3f,
+    @location(1) a_texCoord : vec2f,
+    @location(2) a_color : vec4f,
+    @location(3) a_model0 : vec4f,
+    @location(4) a_model1 : vec4f,
+    @location(5) a_model2 : vec4f,
+    @location(6) a_model3 : vec4f,
+    @location(7) a_instTint : vec4f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_color : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    let model = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3);
+
+    var out : VSOut;
+    out.pos = frame.projection * model * vec4f(v.a_position, 1.0);
+    out.v_texCoord = v.a_texCoord;
+    out.v_color = v.a_color * v.a_instTint;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_color : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    return texColor * v.v_color;
+}
+#pragma end
+)esshader";
+
 inline constexpr const char* PARTICLE = R"esshader(#pragma shader "ParticleInstance"
 #pragma version 300 es
 

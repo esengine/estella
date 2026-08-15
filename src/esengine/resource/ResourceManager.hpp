@@ -27,6 +27,7 @@
 #include "../renderer/rhi/Shader.hpp"
 #include "../renderer/rhi/Texture.hpp"
 #include "../renderer/rhi/Buffer.hpp"
+#include "Mesh.hpp"
 #include "../text/BitmapFont.hpp"
 
 // Standard library
@@ -448,6 +449,27 @@ public:
     VertexBufferHandle createVertexBuffer(u32 sizeBytes);
 
     /**
+     * @brief Uploads geometry that stays on the GPU, drawn from its own buffers.
+     * @details The frame's transient pool, which every renderable uses today, is
+     *          rewritten by the CPU each frame — a per-frame re-upload of anything
+     *          that does not change. The layout travels with the buffers: one whose
+     *          attribute description lives elsewhere is a rename from garbage.
+     * @param vertexBytes Raw vertex data, laid out as @p layout describes.
+     * @param indices Triangle-list indices into it.
+     * @return Handle to the mesh, or invalid on failure.
+     */
+    MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                          ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                          const glm::vec3& localMin, const glm::vec3& localMax);
+
+    /** @brief The mesh a handle names, or null. */
+    Mesh* getMesh(MeshHandle handle);
+    const Mesh* getMesh(MeshHandle handle) const;
+
+    /** @brief Releases a mesh and the buffers it owns. */
+    void releaseMesh(MeshHandle handle);
+
+    /**
      * @brief Gets a vertex buffer by handle
      * @param handle The buffer handle
      * @return Pointer to the buffer, or nullptr if invalid
@@ -585,6 +607,7 @@ private:
     ResourcePool<Texture> textures_;
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
+    ResourcePool<Mesh> meshes_;
     ResourcePool<text::BitmapFont> fonts_;
     /// Handles whose GPU texture died with the device, still showing the
     /// placeholder. Empty means the content is whole again.

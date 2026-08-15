@@ -137,7 +137,9 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // caches; a one-entry memo skips the lookup for identical consecutive (sorted) commands.
         PipelineDesc desc{};
         desc.program = ShaderHandle{cmd.shader_id};
-        desc.vertexLayout = buffers.layoutHandle(cmd.layout_id);
+        desc.vertexLayout = cmd.hasPersistentGeometry()
+            ? cmd.vertex_layout
+            : buffers.layoutHandle(cmd.layout_id);
         desc.blend = cmd.blend_mode;
         // Opaque is a blend mode, not a second switch beside one: a material that
         // says None is asking for the source to replace the destination, and any
@@ -192,7 +194,19 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             }
         }
 
-        if (cmd.instance_count > 0) {
+        if (cmd.hasPersistentGeometry()) {
+            // The mesh's buffers for geometry, the frame's pool for transforms.
+            // Only the second was written this frame: an unchanged mesh costs no
+            // upload, and drawing it twice costs one more transform.
+            device.setVertexBuffer(0, cmd.vertex_buffer, 0);
+            device.setVertexBuffer(1, buffers.vertexBuffer(LayoutId::MeshInstance),
+                                   cmd.vertex_byte_offset);
+            device.setIndexBuffer(cmd.index_buffer);
+            device.drawElementsInstanced(
+                cmd.index_count, GfxDataType::UnsignedInt,
+                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)),
+                cmd.instance_count);
+        } else if (cmd.instance_count > 0) {
             // Instanced: static geometry (index_count indices from offset 0) drawn
             // instance_count times, instance attributes rebased at vertex_byte_offset.
             buffers.bindInstanceLayout(cmd.layout_id, cmd.vertex_byte_offset);
