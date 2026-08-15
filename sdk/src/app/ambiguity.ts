@@ -60,8 +60,14 @@ export interface Ambiguity {
     over: string[];
 }
 
-/** Everything that must run before each index, transitively. */
-function ancestors(edges: readonly number[][]): Set<number>[] {
+/**
+ * Everything that must run before each index, transitively.
+ *
+ * Exported because the schedule needs it for a second reason: a system may only
+ * start beside an unfinished one if it does not depend on it, and "depends on"
+ * has to include the edge it inherited rather than declared.
+ */
+export function ancestors(edges: readonly number[][]): Set<number>[] {
     const out: Set<number>[] = edges.map(() => new Set<number>());
     const done = new Uint8Array(edges.length);
     const visit = (i: number, stack: Set<number>): void => {
@@ -112,8 +118,11 @@ export function detectAmbiguities(
 /**
  * Systems grouped into batches that could run at the same time: a batch is free
  * of conflicts within itself and its dependencies are met by the batches before
- * it. The schedule still runs them one after another — this measures how much of
- * one is inherently sequential.
+ * it.
+ *
+ * A measurement, not the plan: the schedule starts systems in sorted order and
+ * overlaps by this same rule, which shows on the clock only where a system
+ * awaits — a synchronous one finishes before the next can start.
  */
 export function parallelBatches(
     systems: readonly OrderedSystem[],

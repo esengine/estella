@@ -8871,7 +8871,9 @@ tabIndex: number | undefined
 @internal resolveGetter: (component: AnyComponentDef) => ((entity: Entity) => unknown) | null
 @internal resolveHas: (component: AnyComponentDef) => ((entity: Entity) => boolean) | null
 @internal resolveSetter: (component: AnyComponentDef) => ((entity: Entity, data: unknown) => void) | null
+@internal resumeIteration: (depth: number) => void
 @internal setQueryCostEnabled: (enabled: boolean) => void
+@internal suspendIteration: () => number
 despawn: (entity: Entity) => void
 entityCount: () => number
 findEntityByName: (name: string) => Entity | null

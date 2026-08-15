@@ -35,6 +35,10 @@ function createMockWorld() {
         beginIteration: vi.fn(),
         endIteration: vi.fn(),
         resetIterationDepth: vi.fn(),
+        // A system parked at an await hands its share of the world's iteration
+        // guard back, so whoever runs next is not refused for it.
+        suspendIteration: vi.fn(() => 0),
+        resumeIteration: vi.fn(),
         getWorldTick: vi.fn(() => worldTick.value),
         isAddedSince: vi.fn(() => false),
         isChangedSince: vi.fn(() => false),
@@ -172,7 +176,10 @@ describe('App async systems', () => {
         expect(order).toEqual(['async-start', 'async-end', 'post-update']);
     });
 
-    it('should await async systems in sequence within same schedule', async () => {
+    // Systems that declare nothing they touch declare nothing about their order
+    // either, so their waits may overlap and the shorter one lands first.
+    // Ordering is something you say — see the next test.
+    it('lets unordered async systems overlap, so the shorter one lands first', async () => {
         const app = App.new();
         const order: string[] = [];
 
@@ -192,9 +199,35 @@ describe('App async systems', () => {
 
         await app.tick(1 / 60);
 
+        expect(order).toEqual(['B', 'A']);
+    });
+
+    it('keeps async systems in order when the order was declared', async () => {
+        const app = App.new();
+        const order: string[] = [];
+
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], async () => {
+                await new Promise(r => setTimeout(r, 10));
+                order.push('A');
+            }, { name: 'AsyncA' }
+        ));
+
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [], async () => {
+                await new Promise(r => setTimeout(r, 5));
+                order.push('B');
+            }, { name: 'AsyncB' }
+        ), { runAfter: ['AsyncA'] });
+
+        await app.tick(1 / 60);
+
         expect(order).toEqual(['A', 'B']);
     });
 
+    // The point of overlapping: a synchronous system no longer queues behind an
+    // await it has nothing to do with. `sync-2` runs while `async` is parked, and
+    // every one of them still runs before the tick returns.
     it('should handle mix of sync and async systems', async () => {
         const app = App.new();
         const order: string[] = [];
@@ -216,7 +249,7 @@ describe('App async systems', () => {
 
         await app.tick(1 / 60);
 
-        expect(order).toEqual(['sync-1', 'async', 'sync-2']);
+        expect(order).toEqual(['sync-1', 'sync-2', 'async']);
     });
 
     it('should handle async system with resource access', async () => {

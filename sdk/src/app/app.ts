@@ -18,12 +18,14 @@ import { prefabsPlugin } from '../prefab/prefabServer';
 import { setWasmErrorHandler } from '../wasm/wasmError';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 import {
+    ancestors,
     dependencyEdges,
     detectAmbiguities,
     parallelBatches,
     type Ambiguity,
     type ResolveTargets,
 } from './ambiguity';
+import { accessOf, conflicts, type SystemAccess } from './access';
 import { platformNow } from '../platform';
 import { RenderPipeline } from '../render/renderPipeline';
 import type { SceneConfig } from '../scene/sceneManager';
@@ -70,6 +72,14 @@ export type { RunCondition };
 export interface FrameCosts {
     systems: SystemCost[];
     scopes: ScopeCost[];
+}
+
+/** A system still running, and what decides who may start beside it. */
+interface InflightSystem {
+    /** Its position in the sorted list — how a dependant recognises it. */
+    index: number;
+    access: SystemAccess;
+    done: Promise<void>;
 }
 
 interface SystemEntry {
@@ -152,6 +162,8 @@ export class App {
     private pluginsFinished_ = false;
     private readonly eventRegistry_ = new EventRegistry();
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
+    /** Transitive ordering, per schedule. Invalidated with the sort it follows. */
+    private readonly dependencyCache_ = new Map<Schedule, Set<number>[]>();
     private error_handler_: ((error: unknown, systemName: string) => void) | null = null;
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
     private statsEnabled_ = false;
@@ -342,6 +354,7 @@ export class App {
             domain: this.registeringDomain_(),
         });
         this.sortedSystemsCache_.delete(schedule);
+        this.dependencyCache_.delete(schedule);
         return this;
     }
 
@@ -442,6 +455,7 @@ export class App {
                 live[i].system = { _id: cur._id, _params: defs[i]._params, _fn: defs[i]._fn, _name: cur._name };
             }
             this.sortedSystemsCache_.delete(schedule);
+        this.dependencyCache_.delete(schedule);
         }
         return true;
     }
@@ -486,6 +500,7 @@ export class App {
             });
         }
         this.sortedSystemsCache_.delete(schedule);
+        this.dependencyCache_.delete(schedule);
 
         const existing = this.setMembership_.get(set._name);
         this.setMembership_.set(set._name, existing ? [...existing, ...members] : members);
@@ -505,6 +520,7 @@ export class App {
             if (filtered.length !== entries.length) {
                 this.systems_.set(schedule, filtered);
                 this.sortedSystemsCache_.delete(schedule);
+        this.dependencyCache_.delete(schedule);
                 removed = true;
             }
         }
@@ -927,6 +943,7 @@ export class App {
             entries.length = 0;
         }
         this.sortedSystemsCache_.clear();
+        this.dependencyCache_.clear();
         this.templateToRuntime_.clear();
         this.systemCounter_ = 0;
 
@@ -1152,7 +1169,8 @@ export class App {
 
     /**
      * `schedule` grouped into batches that could run at the same time — how much
-     * of it is inherently sequential. The schedule still runs them in order.
+     * of it is inherently sequential. A measurement: the schedule starts systems
+     * in sorted order, overlapping only what awaits. See {@link parallelBatches}.
      *
      * @beta
      */
@@ -1211,6 +1229,7 @@ export class App {
             await this.runSchedule(Schedule.Startup);
             startup.length = 0;
             this.sortedSystemsCache_.delete(Schedule.Startup);
+            this.dependencyCache_.delete(Schedule.Startup);
         } finally {
             this.flushing_startup_ = false;
         }
@@ -1234,37 +1253,100 @@ export class App {
 
         const t0 = this.phaseTimings_ ? performance.now() : 0;
 
-        for (const entry of systems) {
+        // Systems that returned a promise and have not settled. A synchronous
+        // system runs to completion the moment it starts, so this is empty for a
+        // schedule of synchronous systems and the loop below is the old one.
+        const inflight: InflightSystem[] = [];
+        const settle = async (): Promise<void> => {
+            const waiting = inflight.map((f) => f.done);
+            inflight.length = 0;
+            await Promise.all(waiting);
+        };
+
+        for (let i = 0; i < systems.length; i++) {
+            const entry = systems[i];
+            if (this.frame_paused_) break;
             if (entry.runIf && !entry.runIf()) continue;
+
+            // Where the declarations are spent rather than reported: a system
+            // starts beside an unfinished one only when it neither depends on it
+            // nor touches what it touches — undeclared conflicts with everything.
+            if (inflight.length > 0) {
+                const dependsOn = this.dependenciesFor(schedule, systems)[i];
+                const access = accessOf(entry.system);
+                const blocked = inflight.some(
+                    (f) => dependsOn.has(f.index) || conflicts(access, f.access),
+                );
+                if (blocked) await settle();
+            }
+
             try {
                 this.currentSystem_ = entry.system._name;
                 const result = this.runner_.run(entry.system);
                 if (result instanceof Promise) {
-                    await result;
+                    inflight.push({
+                        index: i,
+                        access: accessOf(entry.system),
+                        done: result.then(
+                            () => { this.markSystemStepped(entry); },
+                            (e) => { this.reportSystemError(e, entry.system._name); },
+                        ),
+                    });
+                } else {
+                    this.markSystemStepped(entry);
                 }
-                // Liveness: a system ran, so its owning subsystem stepped this frame.
-                if (entry.subsystem) this.subsystems_.markStepped(entry.subsystem);
             } catch (e) {
-                const name = entry.system._name;
-                log.error('app', `System "${name}" threw an error`, e);
-                if (this.error_handler_) {
-                    this.error_handler_(e, name);
-                }
-                if (this.system_error_handler_) {
-                    const err = e instanceof Error ? e : new Error(String(e));
-                    const action = this.system_error_handler_(err, name);
-                    if (action === 'pause') {
-                        this.frame_paused_ = true;
-                        return;
-                    }
-                }
+                this.reportSystemError(e, entry.system._name);
             } finally {
+                // Only meaningful for the synchronous stretch: a system parked at
+                // an await has no claim on it while someone else runs.
                 this.currentSystem_ = '';
             }
         }
 
+        await settle();
+
         if (this.phaseTimings_) {
             this.phaseTimings_.set(Schedule[schedule], performance.now() - t0);
+        }
+    }
+
+    /**
+     * What must finish before each system of `systems` may start, transitively.
+     *
+     * Ordering edges are a stronger statement than access: two systems that touch
+     * nothing in common may still have been ordered on purpose, and starting the
+     * second beside the first would silently ignore that.
+     */
+    private dependenciesFor(schedule: Schedule, systems: readonly SystemEntry[]): Set<number>[] {
+        let deps = this.dependencyCache_.get(schedule);
+        if (!deps) {
+            deps = ancestors(dependencyEdges(systems, this.resolverFor(systems)));
+            this.dependencyCache_.set(schedule, deps);
+        }
+        return deps;
+    }
+
+    /** Liveness: a system ran, so its owning subsystem stepped this frame. */
+    private markSystemStepped(entry: SystemEntry): void {
+        if (entry.subsystem) this.subsystems_.markStepped(entry.subsystem);
+    }
+
+    /**
+     * Report one system's failure. Pausing stops the schedule from STARTING
+     * anything else; what is already in flight still has to be waited for, since
+     * a promise cannot be taken back.
+     */
+    private reportSystemError(e: unknown, name: string): void {
+        log.error('app', `System "${name}" threw an error`, e);
+        if (this.error_handler_) {
+            this.error_handler_(e, name);
+        }
+        if (this.system_error_handler_) {
+            const err = e instanceof Error ? e : new Error(String(e));
+            if (this.system_error_handler_(err, name) === 'pause') {
+                this.frame_paused_ = true;
+            }
         }
     }
 

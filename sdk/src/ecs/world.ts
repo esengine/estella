@@ -439,6 +439,25 @@ export class World {
         this.iterationDepth_ = 0;
     }
 
+    /**
+     * @internal Set the guard aside for a system suspended at an `await`, and
+     * give it back when that system resumes.
+     *
+     * The depth is the WORLD's, and a system parked mid-query would otherwise
+     * lend its iteration to whoever runs next: their spawn is refused for an
+     * iteration that is not theirs, and their reset frees a query still walking.
+     */
+    suspendIteration(): number {
+        const depth = this.iterationDepth_;
+        this.iterationDepth_ = 0;
+        return depth;
+    }
+
+    /** @internal Pairs with {@link suspendIteration}. */
+    resumeIteration(depth: number): void {
+        this.iterationDepth_ = depth;
+    }
+
     /** @internal */
     isIterating(): boolean {
         return this.iterationDepth_ > 0;

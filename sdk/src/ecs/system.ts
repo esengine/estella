@@ -517,10 +517,15 @@ export class SystemRunner {
         }
 
         if (result instanceof Promise) {
-            return result.then(() => {
+            // Parked here, another system may run. The iteration guard belongs to
+            // the world, so this one's share of it is set aside until it resumes.
+            const suspended = this.world_.suspendIteration();
+            const resume = (): void => {
+                this.world_.resumeIteration(suspended);
                 this.flushSystem_(system, args, t0);
-            }, (e) => {
-                this.flushSystem_(system, args, t0);
+            };
+            return result.then(resume, (e) => {
+                resume();
                 throw e;
             });
         }
