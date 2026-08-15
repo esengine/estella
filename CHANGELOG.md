@@ -53,6 +53,23 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **glTF geometry becomes meshes a project owns.** `estella import-gltf <file>`
+  writes one `.esmesh` per triangle primitive beside its source. An import, not a
+  cook: a glTF holds many primitives, so it is a source that produces several
+  engine assets rather than one file becoming another — which is all a cook step
+  can model. The products land on disk, where a project can see them, reference
+  them and diff them, and the cook then ships them as the engine format they
+  already are. Byte stride is honoured (an interleaved export read as tightly
+  packed gives wrong vertices rather than an error), normalized integer
+  accessors are scaled per spec, and `.glb` containers are read alongside
+  `.gltf` with external or data-URI buffers.
+
+  Normals are deliberately not imported yet: WebGPU rejects a pipeline whose
+  vertex layout declares an attribute the shader does not consume, and no mesh
+  shader reads normals until there is lighting to read them for. The format
+  already describes them, so enabling them is a change in the importer rather
+  than a migration of every file written before it.
+
 - **A mesh is a reference a scene can hold.** The format alone was not enough —
   nothing could name one, so a scene could not point at geometry the way it
   points at a texture. `Mesh2D` declares the field with `asset = mesh`, the scene
