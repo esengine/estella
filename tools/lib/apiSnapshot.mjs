@@ -62,6 +62,24 @@ export function isAdditiveMembers(before, after) {
 }
 
 /**
+ * A string-literal union that kept every member and gained more. The direction
+ * is the rule: every value that was legal still is, while a union that LOST one
+ * stays a failure. A note rather than a pass, since an exhaustive switch over
+ * the old set does stop compiling — a decision to take knowingly.
+ */
+export function isWidenedUnion(before, after) {
+    // A snapshot body arrives inside a code fence; the union is what is between.
+    const members = (s) => s.split('\n').filter((l) => !l.startsWith('```')).join(' ')
+        .trim().split('|').map((p) => p.trim()).filter(Boolean);
+    const was = members(before);
+    const now = members(after);
+    const literal = (p) => /^'[^']*'$/.test(p);
+    if (was.length < 2 || !was.every(literal) || !now.every(literal)) return false;
+    const set = new Set(now);
+    return now.length > was.length && was.every((p) => set.has(p));
+}
+
+/**
  * Compare one entry against its released self. Only @public carries a promise,
  * so only @public produces a failure; @beta is noted because "may adjust" should
  * still read as a decision someone made rather than a silent edit.
@@ -84,6 +102,9 @@ export function baselineFindings(was, now) {
                 if (before.kind === 'interface'
                     && isAdditiveMembers(promisedBody(before.body), promisedBody(after.body))) {
                     notes.push(`${name} — @public interface gained an optional member`);
+                } else if (before.kind === 'type'
+                    && isWidenedUnion(promisedBody(before.body), promisedBody(after.body))) {
+                    notes.push(`${name} — @public union gained a member`);
                 } else {
                     failures.push(`${name} — @public signature changed`);
                 }

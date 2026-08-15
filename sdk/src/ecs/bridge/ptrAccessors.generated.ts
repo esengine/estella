@@ -557,6 +557,7 @@ export interface Mesh2DPtrData {
     parallax: Vec2;
     material: number;
     enabled: boolean;
+    mesh: number;
 }
 
 export function fillMesh2D(
@@ -570,6 +571,7 @@ export function fillMesh2D(
     const parallax_ = out.parallax; parallax_.x = f32[(ptr + 28) >> 2]; parallax_.y = f32[((ptr + 28) >> 2) + 1];
     out.material = u32[(ptr + 36) >> 2];
     out.enabled = u8[ptr + 40] !== 0;
+    out.mesh = u32[(ptr + 44) >> 2];
 }
 
 export function writeMesh2D(
@@ -583,6 +585,7 @@ export function writeMesh2D(
     f32[(ptr + 28) >> 2] = data.parallax.x; f32[((ptr + 28) >> 2) + 1] = data.parallax.y;
     u32[(ptr + 36) >> 2] = data.material;
     u8[ptr + 40] = data.enabled ? 1 : 0;
+    u32[(ptr + 44) >> 2] = data.mesh;
 }
 
 export function createMesh2DData(): Mesh2DPtrData {
@@ -594,6 +597,7 @@ export function createMesh2DData(): Mesh2DPtrData {
         parallax: { x: 0, y: 0 },
         material: 0,
         enabled: false,
+        mesh: 0,
     };
 }
 

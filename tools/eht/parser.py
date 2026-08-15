@@ -80,7 +80,7 @@ class CppParser:
     #: rather than in the generated file, which nobody may edit.
     STABILITY_TIERS = frozenset({'public', 'beta', 'experimental'})
     VALID_ASSET_TYPES = frozenset({
-        'texture', 'material', 'font', 'audio',
+        'texture', 'material', 'font', 'audio', 'mesh',
         # A skeletal runtime's two halves. Recognised as a PAIR (see
         # metadata.py::_get_skeletal_descriptor), so adding a runtime is these two
         # entries and nothing else.

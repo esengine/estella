@@ -5,7 +5,7 @@ Symbols: 113 public · 60 beta · 1428 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"7b8797b9ae911eeb"
+"310236a4dffb268f"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -629,7 +629,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller'
+'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -4239,6 +4239,7 @@ geometry: Mesh2DGeometry
 layer: number
 lit: boolean
 material: number
+mesh: number
 parallax: Vec2
 texture: number
 ```

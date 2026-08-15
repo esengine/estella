@@ -172,6 +172,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'parallax', type: 'vec2', offset: 28 },
             { name: 'material', type: 'u32', offset: 36 },
             { name: 'enabled', type: 'bool', offset: 40 },
+            { name: 'mesh', type: 'u32', offset: 44 },
         ],
     },
     ParticleEmitter: {

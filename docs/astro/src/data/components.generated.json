@@ -1324,6 +1324,11 @@
           "default": "true"
         },
         {
+          "key": "mesh",
+          "type": "Asset<mesh>",
+          "default": "none"
+        },
+        {
           "key": "geometry",
           "type": "object",
           "default": "{\"positions\":[],\"indices\":[]}"

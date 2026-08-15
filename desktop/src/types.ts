@@ -254,6 +254,7 @@ export type BuiltinAssetType =
   | 'behaviortree'
   | 'locale'
   | 'font'
+  | 'mesh'
   | 'file';
 
 /** A built-in asset type, or one a plugin contributed. */

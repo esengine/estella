@@ -350,6 +350,7 @@ export interface Mesh2D {
     parallax: Vec2;
     material: number;
     enabled: boolean;
+    mesh: number;
 }
 
 export interface Parent {

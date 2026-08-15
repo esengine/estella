@@ -446,6 +446,7 @@ struct Mesh2DJS {
     glm::vec2 parallax;
     u32 material;
     bool enabled;
+    u32 mesh;
 };
 
 void mesh2dApplyJS(esengine::ecs::Mesh2D& c, const Mesh2DJS& js) {
@@ -456,6 +457,7 @@ void mesh2dApplyJS(esengine::ecs::Mesh2D& c, const Mesh2DJS& js) {
     c.parallax = js.parallax;
     c.material = js.material;
     c.enabled = js.enabled;
+    c.mesh = resource::MeshHandle(js.mesh);
 }
 
 esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
@@ -473,6 +475,7 @@ Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
     js.parallax = c.parallax;
     js.material = c.material;
     js.enabled = c.enabled;
+    js.mesh = c.mesh.id();
     return js;
 }
 
@@ -1218,7 +1221,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("lit", &Mesh2DJS::lit)
         .field("parallax", &Mesh2DJS::parallax)
         .field("material", &Mesh2DJS::material)
-        .field("enabled", &Mesh2DJS::enabled);
+        .field("enabled", &Mesh2DJS::enabled)
+        .field("mesh", &Mesh2DJS::mesh);
 
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
@@ -2308,6 +2312,7 @@ static_assert(offsetof(esengine::ecs::Mesh2D, lit) == 24, "ABI offset drift: ese
 static_assert(offsetof(esengine::ecs::Mesh2D, parallax) == 28, "ABI offset drift: esengine::ecs::Mesh2D.parallax (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::Mesh2D, material) == 36, "ABI offset drift: esengine::ecs::Mesh2D.material (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::Mesh2D, enabled) == 40, "ABI offset drift: esengine::ecs::Mesh2D.enabled (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::Mesh2D, mesh) == 44, "ABI offset drift: esengine::ecs::Mesh2D.mesh (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -2512,7 +2517,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7b8797b9ae911eeb";
+static const char* kEsAbiLayoutHash = "310236a4dffb268f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

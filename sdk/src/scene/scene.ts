@@ -122,7 +122,7 @@ export class MissingAssetsError extends Error {
  *
  * @public
  */
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh';
 
 // =============================================================================
 // Component Query Helpers (read from self-describing ComponentDef)

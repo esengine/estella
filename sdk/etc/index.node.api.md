@@ -624,7 +624,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller'
+'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -4221,6 +4221,7 @@ geometry: Mesh2DGeometry
 layer: number
 lit: boolean
 material: number
+mesh: number
 parallax: Vec2
 texture: number
 ```

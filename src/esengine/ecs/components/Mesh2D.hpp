@@ -74,21 +74,21 @@ struct Mesh2D {
     ES_PROPERTY()
     bool enabled{true};
 
+    /**
+     * @brief Geometry from an .esmesh, drawn INSTEAD of the inline vertices.
+     * @details The difference is where the vertices live: the inline payload is
+     *          rewritten into every frame, which is a re-upload of anything that
+     *          does not change every frame.
+     */
+    ES_PROPERTY(asset = mesh)
+    resource::MeshHandle mesh;
+
     // -------------------------------------------------------------------------
     // Geometry payload — set via mesh2d_setGeometry, streamed by MeshPlugin.
     // Deliberately un-annotated: variable-size data has no fixed ABI offset, so it
     // stays out of the EHT reflection/pointer layout (all annotated fields above
     // keep their asserted offsets because these members come last).
     // -------------------------------------------------------------------------
-
-    /**
-     * @brief GPU-resident geometry; when valid it is drawn INSTEAD of the vertices
-     *        below, which then stay empty.
-     * @details The difference is where the vertices live, not what they are. The
-     *          inline payload is rewritten into every frame — right for geometry
-     *          that changes every frame, a re-upload of anything that does not.
-     */
-    resource::MeshHandle mesh;
 
     /** @brief Local-space vertices (triangle list, indexed). */
     std::vector<MeshVertex2D> vertices;

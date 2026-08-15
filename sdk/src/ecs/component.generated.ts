@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '7b8797b9ae911eeb';
+export const ABI_LAYOUT_HASH = '310236a4dffb268f';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -335,9 +335,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             parallax: { x: 1, y: 1 },
             material: 0,
             enabled: true,
+            mesh: 0,
         },
         renderableField: 'enabled',
-        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
+        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }, { field: 'mesh', type: 'mesh' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
@@ -1004,6 +1005,7 @@ export interface Mesh2DData {
     parallax: Vec2;
     material: number;
     enabled: boolean;
+    mesh: number;
 }
 
 /**

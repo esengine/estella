@@ -238,6 +238,7 @@ export interface SceneAssetResult {
     textureHandles: Map<string, number>;
     materialHandles: Map<string, number>;
     fontHandles: Map<string, number>;
+    meshHandles: Map<string, number>;
     releaseCallbacks: ReleaseCallback[];
     missing: MissingAsset[];
 }
@@ -1111,11 +1112,13 @@ export class Assets {
         const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
         const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
         const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
+        const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
         const materialHandles = new Map<string, number>();
         const fontHandles = new Map<string, number>();
+        const meshHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
 
         let loadedCount = 0;
@@ -1175,6 +1178,7 @@ export class Assets {
         );
         pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
         pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
+        pushHandleLoad(meshPaths, p => this.loadTyped<{ handle: number }>('mesh', p), meshHandles, 'mesh');
         // The runtime scene loader owns spine as a two-phase load+apply through the
         // SpineManager (skeletons must bind to spawned entities); it opts out here so
         // spine page textures / virtual-FS writes aren't done twice.
@@ -1208,11 +1212,11 @@ export class Assets {
             onProgress?.(++loadedCount, totalCount);
         });
 
-        return { textureHandles, materialHandles, fontHandles, releaseCallbacks, missing };
+        return { textureHandles, materialHandles, fontHandles, meshHandles, releaseCallbacks, missing };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
-        const { textureHandles, materialHandles, fontHandles } = result;
+        const { textureHandles, materialHandles, fontHandles, meshHandles } = result;
         const counter = this.refCounter_;
 
         for (const entity of sceneData.entities) {
@@ -1280,6 +1284,10 @@ export class Assets {
                             const handle = fontHandles.get(path) ?? 0;
                             comp.data[field] = handle;
                             if (counter && handle) counter.addFontRef(path, entity.id);
+                            break;
+                        }
+                        case 'mesh': {
+                            comp.data[field] = meshHandles.get(path) ?? 0;
                             break;
                         }
                     }
