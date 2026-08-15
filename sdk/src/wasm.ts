@@ -226,6 +226,12 @@ export interface ESEngineModule {
      */
     recoverDevice?(): boolean;
     /**
+     * Take up the replacement device left on `Module.pendingWebGPUDevice`. A
+     * WebGPU device belongs to whoever created it, so the page has to supply
+     * one; the next {@link recoverDevice} adopts it. WebGL2 answers false.
+     */
+    provideReplacementDevice?(): boolean;
+    /**
      * End recovery — the engine decides whether it actually ended. Returns how
      * many textures are still on the placeholder; 0 means the device is Live.
      */

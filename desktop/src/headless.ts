@@ -120,8 +120,21 @@ window.__estellaHeadless = {
     },
     lose: () => {
       const ext = loseContextExtension();
-      if (!ext) return false;
-      ext.loseContext();
+      if (ext) {
+        ext.loseContext();
+        return true;
+      }
+      // WebGPU has no lose-context extension. Destroying the device is the one
+      // loss a page can cause, and it reaches the engine as any other would.
+      const m = EngineHost.module as unknown as {
+        currentWebGPUDevice?: { destroy?(): void };
+        preinitializedWebGPUDevice?: { destroy?(): void };
+      } | null;
+      // The device in use, not the one booted with: after a recovery those differ,
+      // and destroying the dead one again is not a loss.
+      const gpu = m?.currentWebGPUDevice ?? m?.preinitializedWebGPUDevice;
+      if (!gpu?.destroy) return false;
+      gpu.destroy();
       return true;
     },
     restore: () => {

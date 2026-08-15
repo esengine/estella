@@ -79,11 +79,24 @@ public:
 
     bool pollDeviceLost() override;
 
+    /**
+     * @brief Takes over a replacement device, rebuilding everything under it.
+     * @details Only whoever created a WebGPU device can replace it, so recovery
+     *          arrives from outside rather than being something this class can
+     *          perform. Every cached object belonged to the dead device and is
+     *          released; the surface is re-created against the new one.
+     */
+    bool adoptDevice(WGPUDevice device);
+
+    /** @brief Hands a replacement in for the next recovery attempt to take up. */
+    bool provideReplacementDevice(void* nativeDevice) override {
+        pending_device_ = static_cast<WGPUDevice>(nativeDevice);
+        return pending_device_ != nullptr;
+    }
+
 protected:
     void captureDeviceIdentity() override;
-    // recreateDevice is deliberately NOT overridden: only whoever created the
-    // device can replace it, and claiming otherwise would report a recovery that
-    // did not happen. A WebGPU loss stays fatal until that host hands one over.
+    bool recreateDevice() override;
 
 public:
 
@@ -389,6 +402,7 @@ private:
 
     WGPUDevice device_ = nullptr;
     WGPUQueue queue_ = nullptr;
+    WGPUDevice pending_device_ = nullptr;  ///< Replacement a host handed over, not yet adopted.
     WGPUInstance instance_ = nullptr;
     WGPUAdapter adapter_ = nullptr;  ///< Native only, host-owned: surface capability queries.
     bool owns_instance_ = true;  ///< False when a native host injected its instance (don't release it).
@@ -410,6 +424,8 @@ private:
     u32 capture_id_ = 0;
     u32 surface_width_ = 0;
     u32 surface_height_ = 0;
+    /** The canvas the surface was made for, so a replacement device can re-make it. */
+    std::string surface_selector_;
     WGPUTexture surface_depth_texture_ = nullptr;
     WGPUTextureView surface_depth_view_ = nullptr;
 
@@ -427,6 +443,9 @@ private:
                                  void* userdata1, void* userdata2);
     /** @brief Erases + releases a readback record (aborts a still-pending map). */
     void releaseReadback(u32 id);
+
+    /** Frees everything the device owns, keeping the instance and surface shape. */
+    void releaseDeviceObjects();
     /** A staging buffer + record with no copy submitted yet; 0 on failure. */
     u32 allocReadback(u32 w, u32 h);
     void submitReadbackCopy(u32 id, WGPUTexture source);

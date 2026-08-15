@@ -7,6 +7,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { platformOnContextLost } from '../platform';
 import { findWebGL2Context } from '../asset/loaders/TextureLoader';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
+import { acquireWebGPUDevice } from './webgpuBoot';
 
 export enum RenderStage {
     Background = 0,
@@ -228,15 +229,40 @@ export function finishDeviceRecovery(): number {
  * the module lets ONE subscription cover every host, instead of each wiring its own.
  */
 export function watchWebGPUDeviceLoss(wasmModule: ESEngineModule): void {
-    const device = (wasmModule as unknown as {
-        preinitializedWebGPUDevice?: { lost?: Promise<{ reason?: string; message?: string }> };
-    }).preinitializedWebGPUDevice;
-    void device?.lost?.then((info) => {
-        // `destroyed` is us tearing the device down, not a failure.
+    watchOneWebGPUDevice(wasmModule, (wasmModule as unknown as {
+        preinitializedWebGPUDevice?: WatchableGPUDevice;
+    }).preinitializedWebGPUDevice);
+}
+
+interface WatchableGPUDevice { lost?: Promise<{ reason?: string; message?: string }> }
+
+/**
+ * Reports the loss, then acquires the replacement only the page can make.
+ *
+ * The engine cannot create a GPUDevice, so a lost one is fatal until something
+ * hands over another — and left to each host, the second device's feature
+ * negotiation stops matching the first's. Re-armed on the replacement.
+ */
+function watchOneWebGPUDevice(wasmModule: ESEngineModule, device?: WatchableGPUDevice): void {
+    // Which device is live NOW, since the one the page booted with may be several
+    // losses ago and nothing else records the succession.
+    (wasmModule as unknown as { currentWebGPUDevice?: unknown }).currentWebGPUDevice = device;
+    void device?.lost?.then(async (info) => {
         const reason = info?.reason === 'destroyed'
             ? DeviceLostReason.Destroyed
             : DeviceLostReason.Unknown;
         reportDeviceLost(reason, info?.message ?? 'The GPUDevice reported itself lost');
+        // Our own teardown resolves this promise too, and replacing a device
+        // nobody is going to draw with would resurrect a renderer being closed.
+        if (!module) return;
+
+        const { device: next } = await acquireWebGPUDevice('webgpu');
+        if (!next || !module) return;
+        (wasmModule as unknown as { pendingWebGPUDevice?: unknown }).pendingWebGPUDevice = next;
+        // Handed over, not adopted here: the recovery attempt takes it up, so
+        // both backends rebuild through the same one order of operations.
+        wasmModule.provideReplacementDevice?.();
+        watchOneWebGPUDevice(wasmModule, next as WatchableGPUDevice);
     });
 }
 

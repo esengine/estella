@@ -176,6 +176,18 @@ public:
     }
 
     /**
+     * @brief Takes a replacement device from the host, for backends that cannot
+     *        make their own.
+     * @details A WebGPU device is created by the page, so only the page can
+     *          replace a lost one; GL rebuilds itself and has no use for this.
+     *          The next recovery attempt picks up whatever was handed over.
+     */
+    virtual bool provideReplacementDevice(void* nativeDevice) {
+        (void)nativeDevice;
+        return false;
+    }
+
+    /**
      * @brief Pumps backend-native loss detection.
      * @details Backends whose loss arrives as a callback (WebGPU) or a status
      *          query (GL robustness) surface it here. Default: the backend

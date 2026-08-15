@@ -133,7 +133,46 @@ void WebGPUDevice::reportUncapturedError(u32 wgpuErrorType, const char* message)
     }
 }
 
+bool WebGPUDevice::adoptDevice(WGPUDevice device) {
+    if (!device) return false;
+
+    // Everything below the device goes: a WebGPU object belongs to the device
+    // that made it, so none of these caches can be carried over. The instance
+    // stays — it outlives devices, and on native the surface must match it.
+    releaseDeviceObjects();
+
+    device_ = device;
+    queue_ = wgpuDeviceGetQueue(device_);
+    init();
+
+#if defined(__EMSCRIPTEN__)
+    if (surface_selector_.empty()) return true;
+    return configureSurface(surface_selector_.c_str(), surface_width_, surface_height_);
+#else
+    if (!surface_window_) return true;
+    NativeSurface window{};
+    window.handle = surface_window_;
+    return configureSurface(window, surface_width_, surface_height_);
+#endif
+}
+
+bool WebGPUDevice::recreateDevice() {
+    // "Not yet", not "never": only whoever created the device can replace it, so
+    // this waits for a host to hand one over rather than claiming a recovery it
+    // cannot perform. The GL path waits on the browser the same way.
+    if (!pending_device_) return false;
+    WGPUDevice next = pending_device_;
+    pending_device_ = nullptr;
+    return adoptDevice(next);
+}
+
 void WebGPUDevice::shutdown() {
+    releaseDeviceObjects();
+    if (instance_ && owns_instance_) { wgpuInstanceRelease(instance_); }
+    instance_ = nullptr;
+}
+
+void WebGPUDevice::releaseDeviceObjects() {
     for (auto& [id, rec] : buffers_) {
         if (rec.buffer) wgpuBufferRelease(rec.buffer);
     }
@@ -196,8 +235,10 @@ void WebGPUDevice::shutdown() {
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
-    if (instance_ && owns_instance_) { wgpuInstanceRelease(instance_); }
-    instance_ = nullptr;
+    // Sizes are kept: a re-configured surface has to come back the same shape,
+    // and the depth companion is rebuilt against them.
+    surface_depth_width_ = 0;
+    surface_depth_height_ = 0;
 }
 
 // =============================================================================
@@ -217,6 +258,9 @@ bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height)
 
     WGPUSurfaceDescriptor sd{};
     sd.nextInChain = &canvas.chain;
+    // Kept so a replacement device can re-make the surface: the old one belonged
+    // to the device that died, and nothing else records which canvas it was.
+    surface_selector_ = selector;
     surface_ = wgpuInstanceCreateSurface(instance_, &sd);
     if (!surface_) {
         ES_LOG_ERROR("WebGPUDevice::configureSurface: surface creation failed for '{}'", selector);

@@ -293,6 +293,7 @@ postprocess_setScreenUniformVec4: (passName: string, uniform: string, x: number,
 postprocess_setUniformFloat: (passName: string, uniform: string, value: number) => void
 postprocess_setUniformVec4: (passName: string, uniform: string, x: number, y: number, z: number, w: number) => void
 postprocess_shutdown: () => void
+provideReplacementDevice: (() => boolean) | undefined
 recoverDevice: (() => boolean) | undefined
 registry_batchSyncPhysicsTransforms: (registry: CppRegistry, bufferPtr: number, count: number, ppu: number) => void
 registry_getCameraEntities: (registry: CppRegistry) => number[]

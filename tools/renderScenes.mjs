@@ -27,7 +27,7 @@ export const TIERS = ['pr', 'nightly'];
  * Dawn adapter, so nothing here runs it. Where an adapter exists every scene
  * passes — both backends read the frame the same way, off the engine's buffer.
  */
-export const WEBGPU_GAP = 'no adapter on a CI runner; with one, all 52 pass (`--backend webgpu`)';
+export const WEBGPU_GAP = 'no adapter on a CI runner; with one, all 53 pass (`--backend webgpu`)';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
@@ -120,7 +120,10 @@ export const SCENES = [
   // happens FOUR times — backgrounding a tab is not a one-off, a recovery that
   // works once and never again passes any single-round check, and it takes
   // three rounds to measure whether the host's object tables are growing.
-  { id: "device-loss-auto", tier: "pr", env: { ESTELLA_VERIFY_LOSS_ROUNDS: "4", ESTELLA_VERIFY_DEVICE_LOSS: "auto", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
+  // Three on WebGPU, where a loss is a destroyed device and the replacement can
+  // only come from the page: the rounds check that the engine adopts a NEW one
+  // each time. Object tables are a GL notion there and read zero.
+  { id: "device-loss-auto", tier: "pr", webgpu: { ESTELLA_VERIFY_LOSS_ROUNDS: "3" }, env: { ESTELLA_VERIFY_LOSS_ROUNDS: "4", ESTELLA_VERIFY_DEVICE_LOSS: "auto", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
 ];
 
 const rank = (tier) => TIERS.indexOf(tier);

@@ -296,6 +296,38 @@ std::string deviceIdentity() {
     return id.backend + "|" + id.vendor + "|" + id.renderer + "|" + id.version;
 }
 
+#ifdef ES_ENABLE_WEBGPU
+EM_JS_DEPS(estella_webgpu_replacement, "$WebGPU");
+
+// The page's replacement GPUDevice, as a WGPUDevice. Imported rather than read
+// through emscripten_webgpu_get_device, which caches the FIRST device and would
+// hand back the dead one forever.
+EM_JS(uintptr_t, es_takePendingWebGPUDevice, (), {
+    var device = Module['pendingWebGPUDevice'];
+    if (!device) return 0;
+    Module['pendingWebGPUDevice'] = null;
+    return WebGPU.importJsDevice(device);
+});
+#endif
+
+/**
+ * @brief Hands the backend a replacement device the page acquired.
+ * @details WebGPU only: a device belongs to whoever created it, so a lost one
+ *          can only be replaced from the page. Taken up by the next recovery
+ *          attempt, which keeps one order of operations for both backends.
+ */
+bool provideReplacementDevice() {
+#ifdef ES_ENABLE_WEBGPU
+    GfxDevice* device = activeGfxDevice();
+    if (!device) return false;
+    const uintptr_t raw = es_takePendingWebGPUDevice();
+    if (!raw) return false;
+    return device->provideReplacementDevice(reinterpret_cast<void*>(raw));
+#else
+    return false;
+#endif
+}
+
 /**
  * @brief Rebuilds the renderer after a loss; see EstellaContext::recoverDevice.
  * @details Leaves the device Recovering — drawable, but its textures are
@@ -446,6 +478,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("deviceIdentity", &esengine::deviceIdentity);
     emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
     emscripten::function("recoverDevice", &esengine::recoverDevice);
+    emscripten::function("provideReplacementDevice", &esengine::provideReplacementDevice);
     emscripten::function("markDeviceRestored", &esengine::markDeviceRestored);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
