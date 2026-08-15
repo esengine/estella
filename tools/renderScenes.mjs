@@ -145,6 +145,10 @@ export const SCENES = [
   // two triangles, so the frame says which geometry is drawn — and the hit test
   // lands 120 world units out, where only the mesh's own box reaches.
   { id: "mesh-assign", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Mesh2D\",\"key\":\"mesh\",\"value\":\"/scenes/textured-quad.esmesh\"}", ESTELLA_VERIFY_PICK: "{\"x\":0.7,\"y\":0.3833,\"entity\":1}", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40}]" } },
+  // The editor's eye turned 60° about Y. Where the triangles land is arithmetic:
+  // centres at x = ±120 project to 0.40 / 0.60, with 0.30 empty. The hit test at
+  // the new place proves screen→world followed the turn.
+  { id: "view-orbit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_ORBIT: "60,0", ESTELLA_VERIFY_PICK: "{\"x\":0.40,\"y\":0.556,\"entity\":1}", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.60,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // A normal map over FLAT normals: the quad faces the viewer, so without the map
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.

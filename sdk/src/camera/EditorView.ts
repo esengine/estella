@@ -48,6 +48,14 @@ export interface EditorViewData {
    */
   distance: number;
   /**
+   * Where the eye stands relative to the focus (x, y): yaw about world +Y, pitch
+   * above the xz plane, in DEGREES like `fov`. Both zero is the head-on 2D view,
+   * and every 2D projection stays exactly what it was there — orbiting is what a
+   * 3D scene needs to be looked at, not a different camera.
+   */
+  yaw: number;
+  pitch: number;
+  /**
    * Aspect ratio the editor lays UI out against, so the editor previews how UI adapts
    * on a simulated device: `> 0` fits the design resolution into this aspect (the device
    * simulator), `0` uses the authored design aspect — WYSIWYG at the design resolution.
@@ -59,7 +67,7 @@ export interface EditorViewData {
 export const DEFAULT_EDITOR_VIEW: EditorViewData = {
   active: false, x: 0, y: 0, orthoSize: 360, uiPreviewAspect: 0,
   // Off by default: an existing project opens on exactly the view it always had.
-  perspective: false, fov: 60, distance: 1000,
+  perspective: false, fov: 60, distance: 1000, yaw: 0, pitch: 0,
 };
 
 /**
@@ -101,3 +109,12 @@ export function setEditorViewHalfHeight(view: EditorViewData, halfH: number): vo
 }
 
 export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIEW }, 'EditorView');
+
+/**
+ * True when the view is turned away from the head-on 2D one. Absent angles read
+ * as zero: a workspace saved before this existed, or a partial view an embedder
+ * hands in, is the 2D view — not an orbit by NaN.
+ */
+export function editorViewIsOrbited(view: EditorViewData): boolean {
+  return (view.yaw ?? 0) !== 0 || (view.pitch ?? 0) !== 0;
+}

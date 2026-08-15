@@ -840,6 +840,21 @@ export class EditorControlSurfaceImpl {
     return (rt == null ? null : this.s.model.sourceFor(rt)) ?? null;
   }
 
+  /**
+   * Turn the editor's eye off the head-on axis (degrees). What Alt-drag does, as
+   * one call — so a driver can look at a scene from somewhere else and assert
+   * what it sees. Both zero is the 2D view, exactly as it was.
+   */
+  setViewOrbit(yaw: number, pitch: number): void {
+    ViewportController.setOrbit(yaw, pitch);
+  }
+
+  /** Render (and hit-test) through the editor's own eye rather than the scene
+   *  camera — what edit mode does, as one call a driver can make. */
+  useEditorView(on: boolean): void {
+    EngineHost.setEditorViewActive(on);
+  }
+
   /** Screen rect (CSS px rel. canvas) of an entity's selection bounds, or null. */
   entityScreenRect(id: EntityId): { x: number; y: number; w: number; h: number } | null {
     return ViewportController.getEntityScreenRect(id);

@@ -13,7 +13,7 @@ import {
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
-  entityWorldBox, uiNodeWorldBox, meshWorldBox,
+  entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -36,6 +36,8 @@ import {
 // World half-size of the pick/outline box for entities without renderable bounds
 // (cameras, lights, empties) — so they're click-selectable like any sprite.
 const ICON_WORLD_HALF = 24;
+// Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
+const ORBIT_DEG_PER_PX = 0.4;
 // Pick priority for icon-only entities: above any real sprite layer, so a small
 // foreground gizmo (camera/light) wins a tie against a big sprite beneath it.
 const ICON_PICK_LAYER = 1e6;
@@ -454,6 +456,37 @@ export const ViewportController = {
     if (!a || !b) return;
     view.x += a.x - b.x;
     view.y += a.y - b.y;
+  },
+
+  /**
+   * Turn the eye around what it is looking at (Alt-drag). Degrees per pixel is
+   * the rate every DCC uses; pitch stops short of the poles, where the up vector
+   * is parallel to the view and the frame would roll.
+   */
+  orbitByClient(prevX: number, prevY: number, curX: number, curY: number): void {
+    const view = editorView();
+    if (!view) return;
+    view.yaw += (curX - prevX) * ORBIT_DEG_PER_PX;
+    view.pitch = Math.max(-89, Math.min(89, view.pitch + (curY - prevY) * ORBIT_DEG_PER_PX));
+  },
+
+  /** Point the eye at a given yaw/pitch (degrees) — the automation door's orbit. */
+  setOrbit(yaw: number, pitch: number): void {
+    const view = editorView();
+    if (!view) return;
+    view.yaw = yaw;
+    view.pitch = Math.max(-89, Math.min(89, pitch));
+  },
+
+  /** Face the scene head-on again — the 2D view, exactly as it was. */
+  resetOrbit(): void {
+    this.setOrbit(0, 0);
+  },
+
+  /** True while the eye is turned off the head-on axis (drives the reset affordance). */
+  isOrbited(): boolean {
+    const view = editorView();
+    return view ? editorViewIsOrbited(view) : false;
   },
 
   /** Zoom the editor view: factor > 1 zooms out, < 1 zooms in (editor orthoSize). */

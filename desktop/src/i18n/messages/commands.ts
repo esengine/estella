@@ -57,6 +57,7 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleCoordSpace': { en: 'Local Axes', zh: '局部坐标轴' },
     'cmd.view.toggleViewPerspective': { en: 'Perspective View', zh: '透视视图' },
     'cmd.view.togglePivotMode': { en: 'Pivot (vs Center)', zh: '轴心（而非中心）' },
+    'cmd.view.resetOrbit': { en: 'Face Scene Head-On', zh: '恢复正对视角' },
     'cmd.view.toggleSnapping': { en: 'Snapping', zh: '吸附' },
     'cmd.view.toggleMinimap': { en: 'Minimap', zh: '小地图' },
     'cmd.view.toggleStats': { en: 'Stats HUD', zh: '统计信息' },

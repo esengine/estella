@@ -18,14 +18,14 @@ import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
-import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
+import { EditorView, DEFAULT_EDITOR_VIEW, editorViewIsOrbited, type EditorViewData } from './EditorView';
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../render/renderPipeline';
 import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
-import { ortho, perspective, invertViewZ, multiply, IDENTITY } from '../math/mat4';
+import { ortho, perspective, invertViewZ, invertViewOrbit, multiply, IDENTITY } from '../math/mat4';
 
 // =============================================================================
 // Camera Info
@@ -150,6 +150,9 @@ export interface CameraPOV {
     y: number;
     z: number;
     rotation: number; // Z rotation, radians
+    /** Orbit about (x, y, z) in radians — an eye that stands off the -Z axis.
+     *  Absent (the 2D case) keeps the rotation-about-Z view exactly as it was. */
+    orbit?: { yaw: number; pitch: number };
     projection: number; // ProjectionType
     orthoSize: number; // authored ortho half-height
     fov: number;
@@ -248,7 +251,11 @@ export function buildCameraInfo(
         camY = snapToPixelGrid(pov.y, worldPerPixel);
     }
 
-    const view = invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
+    // An orbited camera stands off the axis, so its view comes from the focus it
+    // turns around; without one the 2D path is untouched.
+    const view = pov.orbit
+        ? invertViewOrbit(camX, camY, 0, pov.orbit.yaw, pov.orbit.pitch, pov.z)
+        : invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
     const cam = acquireCameraInfo(pool, index);
     cam.entity = pov.entity;
     cam.viewProjection.set(multiply(projection, view));
@@ -345,8 +352,14 @@ export function editorCameraInfo(
         y: view.y,
         // Perspective needs the camera to stand somewhere: it is the distance that
         // makes content near or far, where orthographically nothing depends on z.
-        z: view.perspective ? view.distance : 0,
+        // Orthographically nothing depends on z — except where the eye stands,
+        // which is what an orbit turns; so an orbited ortho view needs one too.
+        z: view.perspective || editorViewIsOrbited(view) ? view.distance : 0,
         rotation: 0,
+        ...(editorViewIsOrbited(view)
+            ? { orbit: { yaw: (view.yaw ?? 0) * Math.PI / 180,
+                         pitch: (view.pitch ?? 0) * Math.PI / 180 } }
+            : {}),
         projection: view.perspective ? ProjectionType.Perspective : ProjectionType.Orthographic,
         orthoSize: view.orthoSize,
         fov: view.fov,

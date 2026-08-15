@@ -79,6 +79,54 @@ export function invertViewZ(
     return m;
 }
 
+const _orbitM = new Float32Array(16);
+
+/**
+ * The view matrix of a camera ORBITING a focus point: it stands `distance` away
+ * along the direction yaw/pitch name (radians) and looks back at the focus.
+ *
+ * At yaw = pitch = 0 this equals {@link invertViewZ} at θ = 0 for a camera at
+ * (fx, fy, fz + distance) — the 2D view is this one's special case.
+ */
+export function invertViewOrbit(
+    fx: number, fy: number, fz: number,
+    yaw: number, pitch: number, distance: number,
+): Float32Array {
+    const cp = Math.cos(pitch);
+    // The camera's own axis, pointing FROM the focus TOWARD the eye (+z of the
+    // view basis, since a camera looks down its -z).
+    const zx = Math.sin(yaw) * cp;
+    const zy = Math.sin(pitch);
+    const zz = Math.cos(yaw) * cp;
+
+    // World up is +y; at the poles it is parallel to the view axis, so the right
+    // vector is taken from the yaw alone there rather than from a zero cross.
+    let rx = zz, ry = 0, rz = -zx;
+    const rl = Math.hypot(rx, rz);
+    if (rl < 1e-6) { rx = Math.cos(yaw); ry = 0; rz = -Math.sin(yaw); }
+    else { rx /= rl; rz /= rl; }
+
+    // up = z × right (right-handed): the other order flips the world upside down,
+    // which reads as a working camera until anything is compared to the 2D view.
+    const ux = zy * rz - zz * ry;
+    const uy = zz * rx - zx * rz;
+    const uz = zx * ry - zy * rx;
+
+    const ex = fx + zx * distance;
+    const ey = fy + zy * distance;
+    const ez = fz + zz * distance;
+
+    const m = _orbitM;
+    m[0] = rx; m[1] = ux; m[2] = zx; m[3] = 0;
+    m[4] = ry; m[5] = uy; m[6] = zy; m[7] = 0;
+    m[8] = rz; m[9] = uz; m[10] = zz; m[11] = 0;
+    m[12] = -(rx * ex + ry * ey + rz * ez);
+    m[13] = -(ux * ex + uy * ey + uz * ez);
+    m[14] = -(zx * ex + zy * ey + zz * ez);
+    m[15] = 1;
+    return m;
+}
+
 const _mulM = new Float32Array(16);
 
 export function multiply(a: Float32Array, b: Float32Array): Float32Array {

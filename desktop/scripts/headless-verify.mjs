@@ -22,6 +22,7 @@
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
+ *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -285,6 +286,20 @@ app.whenReady().then(async () => {
           await new Promise((r) => setTimeout(r, 16));
         }
         return { wrote: ${JSON.stringify(spec.key)} };
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_ORBIT="<yaw>,<pitch>" turns the editor's eye before the frame
+    // is read — the 3D navigation, driven the way Alt-drag drives it.
+    if (process.env.ESTELLA_VERIFY_ORBIT) {
+      const [yaw, pitch] = process.env.ESTELLA_VERIFY_ORBIT.split(',').map(Number);
+      await exec(`(async () => {
+        const api = window.__estellaHeadless.api;
+        // The orbit belongs to the editor's eye, so the frame has to be drawn
+        // through it rather than through the scene's own camera.
+        api.useEditorView(true);
+        api.setViewOrbit(${yaw || 0}, ${pitch || 0});
+        await api.step(2, 1 / 60);
       })()`);
     }
 

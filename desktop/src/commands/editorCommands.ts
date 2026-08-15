@@ -492,6 +492,16 @@ commands.register({
   run: () => editor().toggleViewPerspective(),
 });
 commands.register({
+  id: 'view.resetOrbit',
+  label: t('cmd.view.resetOrbit'),
+  category: t('cat.view'),
+  isEnabled: () => ViewportController.isOrbited(),
+  run: () => {
+    ViewportController.resetOrbit();
+    editor().setViewOrbited(false);
+  },
+});
+commands.register({
   id: 'view.togglePivotMode',
   label: t('cmd.view.togglePivotMode'),
   category: t('cat.view'),

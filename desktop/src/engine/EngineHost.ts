@@ -292,6 +292,18 @@ class EngineHostImpl {
   }
 
   /**
+   * Look through the editor's own eye, or through the scene's camera. Activating
+   * seeds the view from that camera (see syncEditorViewToScene), so the two show
+   * the same framing until navigation moves one of them.
+   */
+  setEditorViewActive(on: boolean): void {
+    const view = this.getResource(EditorView);
+    if (!view) return;
+    if (on) this.syncEditorViewToScene();
+    else view.active = false;
+  }
+
+  /**
    * Seed the editor camera from the scene's active camera and activate it for
    * edit mode. Called after a scene loads; navigation thereafter is independent
    * of the scene — the editor view never writes back to a scene Camera entity,

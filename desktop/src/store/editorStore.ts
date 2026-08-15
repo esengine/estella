@@ -74,6 +74,9 @@ interface EditorState {
   toggleCoordSpace: () => void;
   /** Editor viewport projection: a perspective eye for authoring 2.5D. */
   viewPerspective: boolean;
+  /** The editor eye is turned off the head-on axis — drives the reset affordance. */
+  viewOrbited: boolean;
+  setViewOrbited: (on: boolean) => void;
   toggleViewPerspective: () => void;
   togglePivotMode: () => void;
   /** Axis of the gizmo handle currently being dragged (null = none) — drives the
@@ -203,6 +206,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleCoordSpace: () => set((s) => ({ coordSpace: s.coordSpace === 'world' ? 'local' : 'world' })),
   viewPerspective: false,
   toggleViewPerspective: () => set((s) => ({ viewPerspective: !s.viewPerspective })),
+  viewOrbited: false,
+  setViewOrbited: (on) => set((s) => (s.viewOrbited === on ? s : { viewOrbited: on })),
   togglePivotMode: () => set((s) => ({ pivotMode: s.pivotMode === 'center' ? 'pivot' : 'center' })),
   activeGizmoAxis: null,
   setActiveGizmoAxis: (activeGizmoAxis) => set({ activeGizmoAxis }),

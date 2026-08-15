@@ -7,7 +7,7 @@ import {
   Camera, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Monitor, Magnet, Axis3d, Hexagon, MapPin, Box, type LucideIcon,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
-  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter, RotateCcw,
 } from 'lucide-react';
 import { t } from '@/i18n';
 import { useEditorStore } from '@/store/editorStore';
@@ -736,6 +736,8 @@ export function Viewport() {
   const coordSpace = useEditorStore((s) => s.coordSpace);
   const pivotMode = useEditorStore((s) => s.pivotMode);
   const viewPerspective = useEditorStore((s) => s.viewPerspective);
+  const viewOrbited = useEditorStore((s) => s.viewOrbited);
+  const setViewOrbited = useEditorStore((s) => s.setViewOrbited);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
   const snapAngle = useEditorStore((s) => s.snapAngle);
@@ -829,6 +831,7 @@ export function Viewport() {
   // Camera pan (middle/right drag, or Space+left drag for trackpad users) is
   // built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
+  const orbitRef = useRef<{ px: number; py: number } | null>(null);
   const spaceHeld = useRef(false);
   const [spacePan, setSpacePan] = useState(false); // drives the grab cursor
   // The tool that owns the in-progress left-button stroke (move/up route to it).
@@ -1869,7 +1872,8 @@ export function Viewport() {
         activeToolRef.current.cancel?.(toolCtx);
         activeToolRef.current = null;
         e.stopImmediatePropagation();
-      } else if (panRef.current) {
+      } else if (orbitRef.current || panRef.current) {
+        orbitRef.current = null;
         panRef.current = null;
         e.stopImmediatePropagation();
       } else if (isTilePaintMode()) {
@@ -1909,6 +1913,16 @@ export function Viewport() {
   const onPointerDown = (e: ReactPointerEvent) => {
     if (engine.status !== 'ready') return;
 
+    // Alt + left drag = orbit the eye (the DCC convention). Checked before pan so
+    // it wins over the tools, and available in both projections: an orthographic
+    // view turned off-axis is the isometric one.
+    if (e.button === 0 && e.altKey) {
+      e.preventDefault();
+      orbitRef.current = { px: e.clientX, py: e.clientY };
+      stageRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
     // Middle / right drag, or Space + left drag = pan the view (camera navigation,
     // always available regardless of the active tool; Space-drag is the trackpad path).
     if (e.button === 1 || e.button === 2 || (e.button === 0 && spaceHeld.current)) {
@@ -1933,6 +1947,13 @@ export function Viewport() {
   const onPointerMove = (e: ReactPointerEvent) => {
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
     if (wp) StatsStore.setCursor(wp.x, wp.y);
+
+    if (orbitRef.current) {
+      ViewportController.orbitByClient(orbitRef.current.px, orbitRef.current.py, e.clientX, e.clientY);
+      orbitRef.current = { px: e.clientX, py: e.clientY };
+      setViewOrbited(ViewportController.isOrbited());
+      return;
+    }
 
     if (panRef.current) {
       ViewportController.panByClient(panRef.current.px, panRef.current.py, e.clientX, e.clientY);
@@ -1960,6 +1981,11 @@ export function Viewport() {
   };
 
   const endDrag = (e: ReactPointerEvent) => {
+    if (orbitRef.current) {
+      stageRef.current?.releasePointerCapture(e.pointerId);
+      orbitRef.current = null;
+      return;
+    }
     if (panRef.current) {
       stageRef.current?.releasePointerCapture(e.pointerId);
       panRef.current = null;
@@ -1974,6 +2000,11 @@ export function Viewport() {
   // pointercancel (OS/gesture interruption) aborts the stroke instead of committing —
   // the tool rolls back its live edits, matching Esc.
   const cancelDrag = (e: ReactPointerEvent) => {
+    if (orbitRef.current) {
+      stageRef.current?.releasePointerCapture(e.pointerId);
+      orbitRef.current = null;
+      return;
+    }
     if (panRef.current) {
       stageRef.current?.releasePointerCapture(e.pointerId);
       panRef.current = null;
@@ -2120,6 +2151,18 @@ export function Viewport() {
             <Box size={13} strokeWidth={1.9} />
             <span className="val">{viewPerspective ? t('vp.proj.perspective') : t('vp.proj.ortho')}</span>
           </button>
+          {/* Only while the eye is turned: a 2D project never sees it, and a user
+              who turned the view by accident has the way back in front of them. */}
+          {viewOrbited && (
+            <button
+              type="button"
+              className="ovbtn"
+              title={t('vp.resetOrbitTitle')}
+              onClick={() => commands.run('view.resetOrbit')}
+            >
+              <RotateCcw size={13} strokeWidth={1.9} />
+            </button>
+          )}
           {/* Screen controls — available in EVERY editor mode. Design resolution edits
               the scene Canvas when present, else the project reference resolution; the
               device dropdown simulates a real screen regardless of any UI layer. */}
