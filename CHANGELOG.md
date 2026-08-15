@@ -53,6 +53,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **One material, two vertex sources.** A material could not draw GPU-resident
+  geometry: its program is built for the batch stream, whose vertices are already
+  world-space, so it would place the mesh at its local origin and leave the
+  per-object attributes unconsumed. For any material that writes only a fragment
+  the engine already owns the vertex stage, so the answer is a second vertex
+  SOURCE rather than a second shader — `MESH` selects the branch that reads a
+  model matrix, and everything the author wrote is untouched. The variant
+  compiles on first use and is cached from the material's own source, which the
+  store now keeps beside its handle.
+
+  A shader that writes its own vertex stage is refused rather than retargeted:
+  adding the feature to one compiles a program that still ignores the per-object
+  transform, which is exactly the failure this prevents.
+
 - **One attribute vocabulary for both vertex sources.** The 2D batch reads
   `0=position, 1=color, 2=texCoord`; the mesh channels were written
   `0=Position, 1=TexCoord0, 2=Color`. Neither was wrong alone, which is the
