@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
+#include <array>
 #include "../RenderTypePlugin.hpp"
 #include "../draw/BatchVertex.hpp"
 
@@ -23,9 +24,12 @@ public:
 
 private:
     std::vector<BatchVertex> scratch_;  ///< Reused per mesh; amortizes the transform buffer.
-    u32 mesh_shader_id_ = 0;      ///< Resident geometry with a per-object transform.
-    u32 mesh_lit_shader_id_ = 0;  ///< The same for geometry carrying normals.
-    u32 mesh_normalmap_shader_id_ = 0;  ///< Those normals, perturbed by a normal map.
+    /// Resident-geometry programs, indexed by {has normals, lit, normal-mapped}:
+    /// what the geometry carries and what the draw asked for are separate
+    /// questions. Compiled on first use — a scene draws one or two of the five.
+    std::array<u32, 8> mesh_programs_{};
+    std::array<bool, 8> mesh_compiled_{};
+    u32 meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped);
     bool warned_material_ = false;  ///< A material on resident geometry is said once.
 };
 

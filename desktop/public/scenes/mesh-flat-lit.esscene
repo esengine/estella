@@ -1,6 +1,6 @@
 {
  "version": 1,
- "name": "MeshLit",
+ "name": "MeshFlatLit",
  "entities": [
   {
    "id": 0,
@@ -52,8 +52,8 @@
       "type": 1,
       "color": {
        "r": 1,
-       "g": 1,
-       "b": 1,
+       "g": 0,
+       "b": 0,
        "a": 1
       },
       "intensity": 1,
@@ -69,7 +69,7 @@
   },
   {
    "id": 2,
-   "name": "LitTriangles",
+   "name": "FlatTriangles",
    "parent": null,
    "children": [],
    "components": [
@@ -95,7 +95,7 @@
       "layer": 0,
       "enabled": true,
       "lit": true,
-      "mesh": "/scenes/lit-triangles.esmesh"
+      "mesh": "/scenes/two-triangles.esmesh"
      }
     }
    ],

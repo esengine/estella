@@ -18,6 +18,7 @@
           "type": "Mesh2D",
           "data": {
             "mesh": "scenes/lit-triangles.esmesh",
+            "lit": true,
             "enabled": true
           }
         }

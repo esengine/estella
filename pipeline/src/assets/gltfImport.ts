@@ -945,6 +945,10 @@ function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
     const color = mesh.material?.baseColor;
     return { type: 'Mesh2D', data: {
         mesh: `${prefix}${mesh.name}.esmesh`,
+        // Geometry that carries normals was authored to be shaded, so the product
+        // says so. Written rather than assumed: `lit` is a field a user can turn
+        // off, and an import that left it out would be one the engine had to guess.
+        ...(hasNormals ? { lit: true } : {}),
         ...(texture ? { texture } : {}),
         ...(normalMap ? { normalMap } : {}),
         ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),

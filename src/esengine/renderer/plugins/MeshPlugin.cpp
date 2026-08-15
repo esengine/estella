@@ -33,16 +33,45 @@ u32 mulColor(u32 a, u32 b) {
     u32 al = (((a >> 24) & 0xFF) * ((b >> 24) & 0xFF)) / 255u;
     return r | (g << 8) | (bl << 16) | (al << 24);
 }
+/// Which program a draw needs: what the GEOMETRY carries and what the DRAW asked
+/// for are separate questions, so they are separate bits.
+u32 meshVariant(bool normals, bool lit, bool normalMapped) {
+    return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u);
+}
 }  // namespace
 
 void MeshPlugin::init(RenderFrameContext& ctx) {
+    // A rebuild after a lost device runs this again, and every program minted
+    // against the dead context is gone — so the cache empties here rather than
+    // handing out ids that name nothing.
+    mesh_compiled_.fill(false);
+    mesh_programs_.fill(0);
+    // The base variant now, so a broken shader is a boot-time failure rather than
+    // one that waits for the first mesh; the rest compile when a draw asks.
+    meshProgram(ctx, false, false, false);
+}
+
+/**
+ * One permutation of the resident-mesh program, compiled on demand.
+ *
+ * A vertex layout may only declare attributes its shader consumes, so the
+ * geometry's own channels pick half of it; the draw's `lit` picks the other half,
+ * and unlit geometry carrying normals still has to declare them.
+ */
+u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped) {
+    const u32 variant = meshVariant(normals, lit, normalMapped);
+    if (mesh_compiled_[variant]) return mesh_programs_[variant];
+    mesh_compiled_[variant] = true;
+
+    std::vector<std::string> features;
+    if (normals) features.emplace_back("MESH_NORMALS");
+    if (lit) features.emplace_back("LIT");
+    if (normalMapped) features.emplace_back("NORMAL_MAP");
+
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
     // that reads a model matrix, which is what lets the vertices stay local.
     const auto target = ctx.resources.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::MESH);
-    // Two permutations, because a vertex layout may only declare attributes its
-    // shader consumes: geometry without normals must not be drawn by a program
-    // that reads them, and the reverse leaves the normals unlit.
     auto compile = [&](std::vector<std::string> features) -> u32 {
         const bool normalMapped = std::find(features.begin(), features.end(), "NORMAL_MAP")
                                 != features.end();
@@ -61,9 +90,8 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
         }
         return shader->getProgramId();
     };
-    mesh_shader_id_ = compile({});
-    mesh_lit_shader_id_ = compile({"LIT"});
-    mesh_normalmap_shader_id_ = compile({"LIT", "NORMAL_MAP"});
+    mesh_programs_[variant] = compile(features);
+    return mesh_programs_[variant];
 }
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -109,9 +137,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 textureId = tex->getId();
             }
         }
-        // Only meaningful with normals to perturb, so it is read where that is known.
+        // Only meaningful with normals to perturb AND a draw that takes light.
         u32 normalTextureId = 0;
-        if (mesh.normalMap.isValid() && resident && resident->hasNormals) {
+        if (mesh.normalMap.isValid() && mesh.lit && resident && resident->hasNormals) {
             if (Texture* tex = ctx.resources.getTexture(mesh.normalMap)) {
                 normalTextureId = tex->getId();
             }
@@ -161,10 +189,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // Resident geometry: only the transform is written for the frame. Its
         // vertices are local-space and untouched, so the CPU loop below — which
         // exists to bake world space into every vertex — is skipped entirely.
-        if (resident && mesh_shader_id_ != 0) {
-            const u32 residentShader = normalTextureId != 0 && mesh_normalmap_shader_id_ != 0
-                ? mesh_normalmap_shader_id_
-                : (resident->hasNormals ? mesh_lit_shader_id_ : mesh_shader_id_);
+        if (resident && mesh_programs_[0] != 0) {
+            // `lit` is the draw's own word and is honoured either way: geometry
+            // with normals can be drawn unlit, and geometry without them takes
+            // light off the constant normal a 2D surface has.
+            const u32 residentShader =
+                meshProgram(ctx, resident->hasNormals, mesh.lit, normalTextureId != 0);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = resident->hasNormals
                     ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;

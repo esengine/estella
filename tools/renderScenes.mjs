@@ -127,7 +127,7 @@ export const SCENES = [
   // What a normal is FOR: two coplanar triangles, one white colour, normals
   // facing the viewer and +X, under a head-on directional light. Only a shader
   // reading them can tell the halves apart — which is what the two probes are.
-  { id: "mesh-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  { id: "mesh-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // A whole glTF import on screen, through the prefab it produced: geometry, the
   // inline image, and the baseColor factor as the tint. The probes sit at the
   // texel centres of a 2x2 image, so a flipped V swaps colours between them.
@@ -139,15 +139,24 @@ export const SCENES = [
   // mesh-lit's geometry and light, shaded by a MATERIAL whose fragment reads the
   // normals the engine's vertex stage hands it. RED, so the fallback (the mesh
   // shader, taken when a variant fails) cannot pass for it — that draws white.
-  { id: "mesh-material-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/litmat.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  { id: "mesh-material-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/litmat.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // The STOCK lit template on the same geometry: a flat normal there would light
   // an imported model like a sprite — a wrong picture, not a missing one. Red
   // tint, so the engine's own mesh shader (white) cannot pass for it.
-  { id: "mesh-builtin-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/builtinlit.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  { id: "mesh-builtin-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/builtinlit.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // `lit` is the DRAW's word, honoured whatever the geometry carries: a mesh with
+  // NO normal channel, under a red light. Lit, its green half goes black off the
+  // constant normal a 2D surface has; unlit, both halves are their vertex colours.
+  { id: "mesh-flat-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-flat-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-flat-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  { id: "mesh-flat-lit-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Mesh2D\",\"key\":\"lit\",\"value\":false}", ESTELLA_VERIFY_SCENE: "/scenes/mesh-flat-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-flat-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40}]" } },
+  // The other half of that word: geometry that DOES carry normals, told not to
+  // take light. Its layout still declares the channel — the permutation a backend
+  // is strictest about — and both halves come back their own colour.
+  { id: "mesh-lit-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Mesh2D\",\"key\":\"lit\",\"value\":false}", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40}]" } },
   // A thumbnail of the geometry itself, offscreen through the viewport's own
   // path. What it adds over a material ball is the FRAMING: the gate asks for a
   // clear border (nothing escaped) and an outer eighth reached (nothing shrank).
-  { id: "mesh-preview", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_PREVIEW: "{\"w\":128,\"h\":128}", ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4" } },
+  { id: "mesh-preview", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_PREVIEW: "{\"w\":128,\"h\":128}", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4" } },
   // A SCENE camera that looks from somewhere else. Two sprites on the camera's
   // own axis project to ONE point for a 2D camera; pitched 20 deg they land at
   // 0.329 and 0.158 down the frame — arithmetic — and the centre is empty.

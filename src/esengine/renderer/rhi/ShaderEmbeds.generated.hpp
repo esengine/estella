@@ -280,9 +280,14 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 // copied, and the std140 block stays the engine's to own.
 #pragma domain Lit2D
 
-// The variant a mesh WITH normals is drawn by. A layout may not declare an
-// attribute its shader does not consume, so normals and the normal matrix are
-// inside the switch on both sides.
+// What the GEOMETRY carries. A layout may not declare an attribute its shader
+// does not consume, so the normal channel and the per-object normal matrix are
+// inside this switch on both sides — whether or not the draw asks to be lit.
+#pragma feature MESH_NORMALS
+
+// What the DRAW asks for. Orthogonal to the above on purpose: geometry with
+// normals can be drawn unlit, and geometry without them can still take light
+// (off a constant normal, which is what a 2D surface has).
 #pragma feature LIT
 
 // A normal map on top of those normals. Its tangent frame comes from the shared
@@ -299,7 +304,7 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
-#ifdef LIT
+#ifdef MESH_NORMALS
 layout(location = 3) in vec3 a_normal;
 #endif
 
@@ -310,7 +315,7 @@ layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
 layout(location = 11) in vec4 a_model3;
 layout(location = 12) in vec4 a_instTint;
-#ifdef LIT
+#ifdef MESH_NORMALS
 // The normal matrix (inverse transpose of the model's 3x3), per object: under a
 // non-uniform scale the model matrix skews a normal, and inverting one per
 // vertex is the alternative.
@@ -339,7 +344,12 @@ void main() {
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
 #ifdef LIT
+#ifdef MESH_NORMALS
     v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
+#else
+    // A surface with no normal channel faces the viewer, exactly as a sprite does.
+    v_worldNormal = vec3(0.0, 0.0, 1.0);
+#endif
     v_worldPos = world.xyz;
 #endif
 }
@@ -384,7 +394,7 @@ struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_color : vec4f,
     @location(2) a_texCoord : vec2f,
-#ifdef LIT
+#ifdef MESH_NORMALS
     @location(3) a_normal : vec3f,
 #endif
     @location(8)  a_model0 : vec4f,
@@ -392,7 +402,7 @@ struct VSIn {
     @location(10) a_model2 : vec4f,
     @location(11) a_model3 : vec4f,
     @location(12) a_instTint : vec4f,
-#ifdef LIT
+#ifdef MESH_NORMALS
     @location(13) a_nrm0 : vec3f,
     @location(14) a_nrm1 : vec3f,
     @location(15) a_nrm2 : vec3f,
@@ -417,7 +427,12 @@ struct VSOut {
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
 #ifdef LIT
+#ifdef MESH_NORMALS
     out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
+#else
+    // A surface with no normal channel faces the viewer, exactly as a sprite does.
+    out.v_worldNormal = vec3f(0.0, 0.0, 1.0);
+#endif
     out.v_worldPos = world.xyz;
 #endif
     return out;

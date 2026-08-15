@@ -18,6 +18,7 @@
           "type": "Mesh2D",
           "data": {
             "mesh": "scenes/normalmap-quad.esmesh",
+            "lit": true,
             "normalMap": "scenes/normalmap-quad_0.png",
             "color": {
               "r": 1,
