@@ -165,6 +165,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mesh you can tell apart from another mesh.** An import writes one `.esmesh`
+  per primitive, so a model arrives as several files that look identical in the
+  content browser and the inspector — the same icon, differing only in a generated
+  name. A mesh asset now renders a thumbnail offscreen through the very path the
+  viewport draws with, so what it shows is what a scene would show. The eye stands
+  off-axis (a model seen head-on is a silhouette) and the frame is fitted to the
+  mesh's own bounds measured after that turn — measured before it, a flat model
+  draws as a stamp in the middle of an empty thumbnail.
+
 - **A Draco model is still a model.** The other compression a glTF can arrive in,
   and the only one Blender's exporter offers — so it is what an independent artist
   ships when they turn compression on. Unlike meshopt, Draco holds a whole
