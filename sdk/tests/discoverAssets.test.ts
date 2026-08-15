@@ -13,6 +13,7 @@ const SPRITE_NAME = 'DiscoverTest_Sprite';
 const AUDIO_NAME = 'DiscoverTest_Audio';
 const SPINE_NAME = 'DiscoverTest_Spine';
 const SM_NAME = 'DiscoverTest_StateMachine';
+const MESH_NAME = 'DiscoverTest_Mesh';
 
 beforeEach(() => {
     clearUserComponents();
@@ -26,6 +27,10 @@ beforeEach(() => {
             { field: 'texture', type: 'texture' },
             { field: 'material', type: 'material' },
         ],
+    });
+
+    defineComponent(MESH_NAME, { mesh: '' }, {
+        assetFields: [{ field: 'mesh', type: 'mesh' }],
     });
 
     defineComponent(AUDIO_NAME, {
@@ -77,6 +82,19 @@ describe('discoverSceneAssets', () => {
 
         expect(getAssetPathsByType(refs, 'texture')).toEqual(new Set(['player.png']));
         expect(getAssetPathsByType(refs, 'material')).toEqual(new Set(['default.mat']));
+    });
+
+    // The whole point of an asset type: a scene naming geometry has to reach the
+    // preload, or the cook culls the .esmesh and the frame draws nothing.
+    it('discovers a mesh reference', () => {
+        const scene = makeScene([{
+            id: 1, name: 'e1', parent: null, children: [],
+            components: [{ type: MESH_NAME, data: { mesh: 'ship.esmesh' } }],
+        }]);
+
+        const refs = discoverSceneAssets(scene);
+
+        expect(getAssetPathsByType(refs, 'mesh')).toEqual(new Set(['ship.esmesh']));
     });
 
     it('discovers spine paired fields', () => {

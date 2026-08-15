@@ -5,6 +5,7 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog, type CatalogData } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { AssetLoader, LoadContext } from '../src/asset/AssetLoader';
+import type { SceneData } from '../src/scene/scene';
 
 const mockModule = {
     _malloc: vi.fn(() => 0),
@@ -144,5 +145,36 @@ describe('Assets', () => {
             const result = await assets.fetchJson<{ key: string }>('config.json');
             expect(result.key).toBe('value');
         });
+    });
+});
+
+// A scene naming geometry has to reach a handle the same way it reaches a
+// texture. Asserted end to end through the real preload + bind, because the
+// gap this closes was one layer knowing about mesh and the next not.
+describe('Assets: mesh references in a scene', () => {
+    it('preloads an .esmesh and binds its handle onto the component', async () => {
+        const backend = createMockBackend();
+        const assets = Assets.create({ backend, module: mockModule });
+
+        assets.register({
+            type: 'mesh',
+            extensions: ['.esmesh'],
+            load: async () => ({ handle: 77 }),
+            unload: () => {},
+        } as unknown as AssetLoader<{ handle: number }>);
+
+        const scene = {
+            version: '1.0', name: 'meshscene',
+            entities: [{
+                id: 1, name: 'e1', parent: null, children: [],
+                components: [{ type: 'Mesh2D', data: { mesh: 'ship.esmesh' } }],
+            }],
+        } as unknown as SceneData;
+
+        const result = await assets.preloadSceneAssets(scene);
+        expect(result.meshHandles.get('ship.esmesh')).toBe(77);
+
+        assets.resolveSceneAssetPaths(scene, result);
+        expect(scene.entities[0]!.components[0]!.data.mesh).toBe(77);
     });
 });
