@@ -19,6 +19,7 @@ import {
   criteriaProblem, evaluate, failureReport, markBaseline,
   type Acceptance, type Criterion, type DeclaredCriterion,
 } from './acceptance';
+import { isWireToolName } from '../../src/agent/toolName';
 // Plain .mjs, shared with the MCP fronts — esbuild bundles it into main.
 // @ts-expect-error untyped shared module
 import { TOOLS, runTool, mutates, irreversible, journaled } from '../../shared/toolCatalog.mjs';
@@ -57,6 +58,10 @@ export function agentTools(contributed: readonly ContributedTool[] = []): readon
     // did not choose is a tool whose own docs are wrong, and shadowing a
     // built-in would let a plugin quietly redefine `delete_entity`.
     if (taken.has(tool.name)) continue;
+    // An endpoint answers an illegal NAME by refusing the whole request, so one
+    // such tool leaves the agent unusable. Registration refuses them too; a
+    // plugin installed before that rule still reaches here.
+    if (!isWireToolName(tool.name)) continue;
     taken.add(tool.name);
     out.push({
       name: tool.name,

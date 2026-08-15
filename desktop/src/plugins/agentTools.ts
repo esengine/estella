@@ -22,6 +22,7 @@
  * is the CONFIRM GATE working correctly for an honest plugin.
  */
 import { ContributionRegistry, type Owner, type Disposable } from '@/contrib/ContributionRegistry';
+import { isWireToolName, toolNamespace } from '@/agent/toolName';
 import type { AgentToolContribution } from './types';
 
 /** The registry keys by `id`; a tool's id IS its name — the model addresses it
@@ -40,12 +41,13 @@ const registry = new ContributionRegistry<RegisteredTool>('agent tool');
  */
 export function agentToolProblem(pluginId: string, tool: AgentToolContribution): string | null {
     if (!tool.name) return 'an agent tool needs a `name`';
-    if (!tool.name.startsWith(`${pluginId}.`)) {
-        return `\`name\` must start with "${pluginId}." — an un-namespaced tool can shadow a built-in one`;
+    const prefix = `${toolNamespace(pluginId)}_`;
+    if (!tool.name.startsWith(prefix)) {
+        return `\`name\` must start with "${prefix}" — an un-namespaced tool can shadow a built-in one`;
     }
-    // The model addresses tools by name on the wire; the API's own constraint.
-    if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(tool.name)) {
-        return '`name` may contain only letters, digits, `_`, `.` and `-`';
+    if (!isWireToolName(tool.name)) {
+        return '`name` may contain only letters, digits, `_` and `-`, up to 64 of them — '
+            + 'a name outside that makes the endpoint refuse every request of the conversation';
     }
     if (!tool.description) {
         return 'an agent tool needs a `description` — it is the only thing the model reads to decide whether to call it';

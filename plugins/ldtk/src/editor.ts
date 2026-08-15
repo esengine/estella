@@ -24,7 +24,7 @@ export default definePlugin({
     });
 
     ctx.agentTools.register({
-      name: 'estella.ldtk.import',
+      name: 'estella_ldtk_import',
       description: 'Convert an LDtk project (.ldtk) into Tiled maps the engine loads. '
         + 'Use after adding or editing a .ldtk file; the maps land in a folder named after it.',
       schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },

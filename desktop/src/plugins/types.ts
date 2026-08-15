@@ -413,7 +413,12 @@ export interface ContextMenuTarget {
  * for it, in a sentence.
  */
 export interface AgentToolContribution {
-    /** Namespaced with your plugin id, e.g. `acme.bake-occlusion`. */
+    /**
+     * Namespaced with your plugin id, with every dot in it as `_` — plugin
+     * `acme.tools` offers `acme_tools_bake-occlusion`. Letters, digits, `_` and
+     * `-` only: this is what the model addresses on the wire, and an endpoint
+     * answers a name outside that by refusing the whole conversation.
+     */
     name: string;
     /** What it does and when to use it — written for the model, not for a menu. */
     description: string;
