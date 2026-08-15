@@ -38,10 +38,31 @@ function harnessTargets() {
     return block[1].split(/\s+/).filter(Boolean);
 }
 
+/** Every harness the test tree declares — the set CI's list has to cover. */
+function declaredHarnesses() {
+    const cmake = readFileSync(path.join(ROOT, 'tests', 'CMakeLists.txt'), 'utf8');
+    return [...cmake.matchAll(/add_test\(NAME\s+(\w+)/g)].map((m) => m[1]);
+}
+
 /** Targets that link the engine library, which does not build off emscripten. */
 function enginelinked() {
     const cmake = readFileSync(path.join(ROOT, 'tests', 'CMakeLists.txt'), 'utf8');
     return new Set([...cmake.matchAll(/target_link_libraries\((\w+)\s+PRIVATE\s+esengine\)/g)].map((m) => m[1]));
+}
+
+const targets = harnessTargets();
+
+// The other direction, and the one that actually bit: CI's list is treated as
+// authoritative everywhere, so a harness the test tree declares but the list
+// omits is built by nobody and run by nobody — the exact failure the list was
+// introduced to end, arriving from the side it does not look at.
+// `test_device_loss` sat there. This half needs no compiler, so unlike the
+// build below it runs on every machine.
+const uncovered = declaredHarnesses().filter((t) => !targets.includes(t));
+if (uncovered.length) {
+    console.error(`check-cpp-tests: tests/CMakeLists.txt declares ${uncovered.join(', ')},`
+        + " which build.yml's CPP_TESTS does not name — CI builds and runs neither.");
+    process.exit(1);
 }
 
 const has = (cmd) => spawnSync(cmd, ['--version'], { stdio: 'ignore' }).status === 0;
@@ -50,7 +71,6 @@ if (!has('cmake')) {
     process.exit(0);
 }
 
-const targets = harnessTargets();
 const skip = enginelinked();
 const buildable = targets.filter((t) => !skip.has(t));
 
