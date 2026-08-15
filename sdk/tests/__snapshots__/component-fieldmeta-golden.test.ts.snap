@@ -841,7 +841,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Local position in world units, relative to the parent.",
     },
     "rotation": {
-      "tooltip": "Rotation about the Z axis, in degrees.",
+      "tooltip": "Local rotation in degrees, applied X then Y then Z. 2D content turns about Z alone.",
     },
     "scale": {
       "tooltip": "Local scale per axis (1 = original size; negative flips).",

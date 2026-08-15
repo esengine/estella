@@ -43,7 +43,7 @@ struct Transform {
     ES_PROPERTY(animatable, anim_override, replicated, tooltip="Local position in world units, relative to the parent.")
     glm::vec3 position{0.0f, 0.0f, 0.0f};
 
-    ES_PROPERTY(animatable, anim_override, replicated, tooltip="Rotation about the Z axis, in degrees.")
+    ES_PROPERTY(animatable, anim_override, replicated, tooltip="Local rotation in degrees, applied X then Y then Z. 2D content turns about Z alone.")
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 
     ES_PROPERTY(animatable, anim_override, replicated, tooltip="Local scale per axis (1 = original size; negative flips).")

@@ -175,16 +175,55 @@ export const prettyLabel = (key: string) =>
     .replace(/^./, (c) => c.toUpperCase())
     .trim();
 
-// 2D rotation lives in a quaternion's z/w; surface it as a Z angle in degrees.
-const quatToAngleZ = (q: { z: number; w: number }) =>
-  Math.round(Math.atan2(q.z, q.w) * 2 * RAD2DEG * 100) / 100;
-export const angleZToQuat = (deg: number) => {
-  const h = (deg * DEG2RAD) / 2;
+type Quat = { x: number; y: number; z: number; w: number };
+
+/**
+ * A rotation as three degrees, applied X then Y then Z about fixed axes — the
+ * order every DCC's inspector shows. A rotation purely about Z reads back as
+ * (0, 0, angle) and rebuilds exactly, so 2D content is untouched by this
+ * existing; what it adds is the two axes a 2D control silently zeroed.
+ */
+export const quatToEuler = (q: Quat): [number, number, number] => {
+  const { x, y, z, w } = q;
+  const r00 = 1 - 2 * (y * y + z * z);
+  const r10 = 2 * (x * y + w * z);
+  const r20 = 2 * (x * z - w * y);
+  const r21 = 2 * (y * z + w * x);
+  const r22 = 1 - 2 * (x * x + y * y);
+  // `+ 0` normalizes a negative zero, which an inspector would show as "-0".
+  const round = (rad: number) => Math.round(rad * RAD2DEG * 100) / 100 + 0;
+  const pitch = Math.asin(Math.max(-1, Math.min(1, -r20)));
+  // At a pole the outer two axes name the same turn; charge it all to Z, so the
+  // one a 2D scene uses is the one that survives a round trip through the pole.
+  if (Math.abs(r20) > 0.999999) {
+    const r01 = 2 * (x * y - w * z);
+    const r11 = 1 - 2 * (x * x + z * z);
+    return [0, round(pitch), round(Math.atan2(-r01, r11))];
+  }
+  return [round(Math.atan2(r21, r22)), round(pitch), round(Math.atan2(r10, r00))];
+};
+
+export const eulerToQuat = (deg: readonly number[]): Quat => {
+  const [hx, hy, hz] = [0, 1, 2].map((i) => ((deg[i] ?? 0) * DEG2RAD) / 2);
+  const [cx, cy, cz] = [Math.cos(hx!), Math.cos(hy!), Math.cos(hz!)];
+  const [sx, sy, sz] = [Math.sin(hx!), Math.sin(hy!), Math.sin(hz!)];
   // w-FIRST key order on purpose: the quaternion discriminator treats a w-first
   // layout as a rotation, so a USER component's quaternion field (not named
-  // rotation/worldRotation) keeps its angle control after an edit instead of
+  // rotation/worldRotation) keeps its rotation control after an edit instead of
   // flipping to four vec4 boxes. The engine reads x/y/z/w by name — order is free.
-  return { w: Math.cos(h), x: 0, y: 0, z: Math.sin(h) };
+  return {
+    w: cx * cy * cz + sx * sy * sz,
+    x: sx * cy * cz - cx * sy * sz,
+    y: cx * sy * cz + sx * cy * sz,
+    z: cx * cy * sz - sx * sy * cz,
+  };
+};
+
+/** Set the Z turn of a rotation, keeping whatever the other two axes say. What
+ *  the viewport's rotate gizmo writes, so a drag cannot flatten a 3D pose. */
+export const setAngleZ = (q: Quat | undefined, deg: number): Quat => {
+  const e = q ? quatToEuler(q) : [0, 0, 0];
+  return eulerToQuat([e[0], e[1], deg]);
 };
 
 // A rotation quaternion and a vec4 (Camera viewport rect, a 9-slice border) share the
@@ -228,7 +267,7 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
     const o = v as Record<string, number>;
     if ('w' in o && 'z' in o && 'x' in o) {
       return isQuaternion(key, o)
-        ? { key, label, type: 'angle', value: quatToAngleZ(o as { z: number; w: number }) }
+        ? { key, label, type: 'euler', value: quatToEuler(o as unknown as Quat) }
         : { key, label, type: 'vec4', value: [o.x, o.y ?? 0, o.z, o.w] };
     }
     if ('z' in o && 'x' in o && 'y' in o) return { key, label, type: 'vec3', value: [o.x, o.y, o.z] };

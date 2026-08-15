@@ -6,7 +6,7 @@
  *        the JSON-first rewrite (REARCH_SERIALIZATION.md) will lean on.
  */
 import { describe, it, expect } from 'vitest';
-import { prettyLabel, hexToRgba, angleZToQuat, inferField, assetFieldType, spineSlotType, isRenderComponent } from '@/engine/schema';
+import { prettyLabel, hexToRgba, eulerToQuat, quatToEuler, setAngleZ, inferField, assetFieldType, spineSlotType, isRenderComponent } from '@/engine/schema';
 
 describe('prettyLabel', () => {
     it('splits camelCase and capitalizes', () => {
@@ -38,18 +38,40 @@ describe('hexToRgba', () => {
     });
 });
 
-describe('angleZToQuat', () => {
-    it('round-trips 0° to identity', () => {
-        const q = angleZToQuat(0);
-        expect(q.x).toBe(0);
-        expect(q.y).toBe(0);
-        expect(q.z).toBeCloseTo(0, 6);
-        expect(q.w).toBeCloseTo(1, 6);
+describe('a rotation as three degrees', () => {
+    it('is the 2D quaternion exactly when only Z turns', () => {
+        // The 2D case has to come out of the general one unchanged, or every
+        // existing scene shifts the day the other two axes become editable.
+        const q = eulerToQuat([0, 0, 90]);
+        expect(q.x).toBeCloseTo(0, 12);
+        expect(q.y).toBeCloseTo(0, 12);
+        expect(q.z).toBeCloseTo(Math.SQRT1_2, 12);
+        expect(q.w).toBeCloseTo(Math.SQRT1_2, 12);
+        expect(quatToEuler(q)).toEqual([0, 0, 90]);
     });
-    it('encodes 90° into z/w', () => {
-        const q = angleZToQuat(90);
-        expect(q.z).toBeCloseTo(Math.SQRT1_2, 6);
-        expect(q.w).toBeCloseTo(Math.SQRT1_2, 6);
+
+    it('round-trips a pose that turns about all three', () => {
+        for (const e of [[0, 0, 0], [30, -45, 60], [-12.5, 80, 175], [0, 45, 0]]) {
+            const back = quatToEuler(eulerToQuat(e));
+            back.forEach((v, i) => expect(v).toBeCloseTo(e[i]!, 2));
+        }
+    });
+
+    it('keeps the other two axes when only the Z turn is set', () => {
+        // What the viewport's rotate gizmo writes. Zeroing X and Y here is how a
+        // model imported with a 3D pose got flattened by a drag.
+        const posed = eulerToQuat([30, -45, 10]);
+        const turned = quatToEuler(setAngleZ(posed, 90));
+        expect(turned[0]).toBeCloseTo(30, 2);
+        expect(turned[1]).toBeCloseTo(-45, 2);
+        expect(turned[2]).toBeCloseTo(90, 2);
+    });
+
+    it('charges a pole to Z, so a 2D turn survives one', () => {
+        const [x, y, z] = quatToEuler(eulerToQuat([0, 90, 35]));
+        expect(x).toBe(0);
+        expect(y).toBeCloseTo(90, 2);
+        expect(z).toBeCloseTo(35, 2);
     });
 });
 

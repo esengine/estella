@@ -15,7 +15,8 @@ import {
   componentDefaults,
   defaultDataFor,
   userSchema,
-  angleZToQuat,
+  eulerToQuat,
+  setAngleZ,
   hexToRgba,
   prettyLabel,
   clampFieldValue,
@@ -153,8 +154,12 @@ export function toModelValue(
       // A whole Vec2[] replacement (polygon vertices / chain points) — normalized to
       // plain {x,y} so a dragged vertex writes clean data; coalesced to one undo step.
       return (value as Array<{ x: number; y: number }>).map((p) => ({ x: p.x, y: p.y }));
+    case 'euler':
+      return eulerToQuat(value as number[]);
+    // Only the Z turn, keeping the other two axes: the rotate gizmo and any
+    // caller that thinks in 2D degrees must not flatten a 3D pose.
     case 'angle':
-      return angleZToQuat(Number(value));
+      return setAngleZ(cur[key] as { x: number; y: number; z: number; w: number } | undefined, Number(value));
     case 'color':
       // The hex carries alpha (#rrggbbaa), so it fully describes RGBA.
       return { ...(cur[key] as object), ...hexToRgba(String(value)) };

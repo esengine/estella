@@ -7,19 +7,19 @@
  *        (atan2(z=1, w=1)·2 = 90°).
  */
 import { describe, it, expect } from 'vitest';
-import { inferField, inspectorFields, angleZToQuat } from '@/engine/schema';
+import { inferField, inspectorFields, eulerToQuat } from '@/engine/schema';
 
 describe('quaternion vs vec4 inference', () => {
-  it('a rotation quaternion (w-first) reads as an angle', () => {
-    expect(inferField('rotation', { w: 1, x: 0, y: 0, z: 0 }, false)!.type).toBe('angle');
+  it('a rotation quaternion (w-first) reads as three degrees', () => {
+    expect(inferField('rotation', { w: 1, x: 0, y: 0, z: 0 }, false)!.type).toBe('euler');
     // A user component quaternion (w-first layout) is caught even without the name.
-    expect(inferField('orient', { w: 1, x: 0, y: 0, z: 0 }, false)!.type).toBe('angle');
+    expect(inferField('orient', { w: 1, x: 0, y: 0, z: 0 }, false)!.type).toBe('euler');
   });
 
   it('a vec4 (x-first) reads as four numbers, not an angle', () => {
     const viewport = inferField('viewport', { x: 0, y: 0, z: 1, w: 1 }, false)!;
     expect(viewport.type).toBe('vec4');
-    expect(viewport.value).toEqual([0, 0, 1, 1]); // NOT quatToAngleZ → 90
+    expect(viewport.value).toEqual([0, 0, 1, 1]); // NOT a rotation → not degrees
     const border = inferField('sliceBorder', { x: 4, y: 4, z: 4, w: 4 }, false)!;
     expect(border.type).toBe('vec4');
     expect(border.value).toEqual([4, 4, 4, 4]);
@@ -32,17 +32,18 @@ describe('quaternion vs vec4 inference', () => {
     expect(viewport!.value).toEqual([0, 0, 1, 1]);
   });
 
-  it('a user quaternion stays an angle after an angle EDIT (angleZToQuat is w-first)', () => {
-    // Editing the angle rewrites the field via angleZToQuat; if it emitted x-first,
-    // the next inference would mis-classify the field as a vec4 and drop the control.
-    const edited = angleZToQuat(45);
+  it('a user quaternion keeps its control after an EDIT (eulerToQuat is w-first)', () => {
+    // Editing rewrites the field via eulerToQuat; if it emitted x-first, the next
+    // inference would mis-classify the field as a vec4 and drop the control.
+    const edited = eulerToQuat([0, 0, 45]);
     expect(Object.keys(edited)[0]).toBe('w'); // w-first layout preserved
-    expect(inferField('orient', edited, false)!.type).toBe('angle');
+    expect(inferField('orient', edited, false)!.type).toBe('euler');
   });
 
-  it("end-to-end: the Transform's rotation stays an angle", () => {
+  it("end-to-end: the Transform's rotation is three degrees", () => {
     const data = { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
     const rot = inspectorFields('Transform', data).find((f) => f.key === 'rotation')!;
-    expect(rot.type).toBe('angle');
+    expect(rot.type).toBe('euler');
+    expect(rot.value).toEqual([0, 0, 0]);
   });
 });

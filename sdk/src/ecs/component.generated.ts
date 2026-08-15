@@ -737,7 +737,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         readonlyFields: ['worldPosition', 'worldRotation', 'worldScale'],
         fields: {
             position: { tooltip: "Local position in world units, relative to the parent." },
-            rotation: { tooltip: "Rotation about the Z axis, in degrees." },
+            rotation: { tooltip: "Local rotation in degrees, applied X then Y then Z. 2D content turns about Z alone." },
             scale: { tooltip: "Local scale per axis (1 = original size; negative flips)." },
         },
     },

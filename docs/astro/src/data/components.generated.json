@@ -3403,7 +3403,7 @@
           "key": "rotation",
           "type": "Quat",
           "default": "(0, 0, 0, 1)",
-          "doc": "Rotation about the Z axis, in degrees.",
+          "doc": "Local rotation in degrees, applied X then Y then Z. 2D content turns about Z alone.",
           "replicated": true
         },
         {

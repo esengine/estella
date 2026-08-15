@@ -464,6 +464,7 @@ function FieldRow({ entities, comp, field: rawField, write, extra }: { entities:
     case 'angle':
       control = <NumField value={field.value as number} suffix="°" mixed={mixed} step={field.step} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />;
       break;
+    case 'euler':
     case 'vec2':
     case 'vec3':
     case 'vec4':

@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { toModelValue } from '@/engine/SceneCommands';
 import { coerceFieldValue, splitFieldMember, patchFieldMember } from '@/engine/EditorControlSurface';
-import { coerceEnumInput } from '@/engine/schema';
+import { coerceEnumInput, eulerToQuat, quatToEuler } from '@/engine/schema';
 import type { InspectorFieldValue } from '@/types';
 
 describe('toModelValue', () => {
@@ -213,5 +213,25 @@ describe('coerceEnumInput (what an enum field may be handed)', () => {
     it('refuses an empty input — that is a cleared box, not a value', () => {
         expect(coerceEnumInput('   ', LAYERS, true)).toBeNull();
         expect(coerceEnumInput('', ANIMS, true)).toBeNull();
+    });
+});
+
+describe('a rotation written through the field door', () => {
+    it('takes three degrees and stores a quaternion', () => {
+        const q = toModelValue({ rotation: eulerToQuat([0, 0, 0]) }, 'euler', 'rotation', [25, -40, 15]);
+        quatToEuler(q as { x: number; y: number; z: number; w: number })
+            .forEach((v, i) => expect(v).toBeCloseTo([25, -40, 15][i]!, 2));
+    });
+
+    it('keeps the other two axes when only the Z turn is written', () => {
+        // The viewport's rotate gizmo writes degrees about Z. Building a whole
+        // quaternion from that angle alone would flatten the pose of anything
+        // imported with one — a model turned by a drag would lose its tilt.
+        const cur = { rotation: eulerToQuat([30, -45, 10]) };
+        const turned = quatToEuler(toModelValue(cur, 'angle', 'rotation', 90) as
+            { x: number; y: number; z: number; w: number });
+        expect(turned[0]).toBeCloseTo(30, 2);
+        expect(turned[1]).toBeCloseTo(-45, 2);
+        expect(turned[2]).toBeCloseTo(90, 2);
     });
 });

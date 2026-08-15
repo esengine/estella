@@ -41,7 +41,8 @@ export type InspectorFieldType =
   | 'vec3'
   | 'vec4' // four editable numbers (Camera viewport rect, a 9-slice border) — NOT a rotation quaternion (see 'angle')
   | 'vec2list' // a whole Vec2[] written at once (polygon vertices / chain points) — viewport vertex drag
-  | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
+  | 'angle' // a quaternion's Z turn in degrees, written WITHOUT disturbing the other two
+  | 'euler' // a rotation quaternion shown/edited as three degrees (X, Y, Z)
   | 'color'
   | 'enum' // an int field with named options, shown as a dropdown
   | 'select' // a string field with a fixed choice set, shown as a dropdown

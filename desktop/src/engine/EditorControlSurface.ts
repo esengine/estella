@@ -254,6 +254,7 @@ export function coerceFieldValue(
       const n = Number(value);
       return Number.isFinite(n) ? n : fail('degrees as a number');
     }
+
     case 'bool':
       // String forms arrive from text transports; "false"/"0" must not read truthy.
       return typeof value === 'string' ? !['false', '0', ''].includes(value.trim().toLowerCase()) : Boolean(value);
@@ -261,10 +262,11 @@ export function coerceFieldValue(
     case 'select':
     case 'asset':
       return typeof value === 'string' ? value : String(value);
+    case 'euler':
     case 'vec2':
     case 'vec3':
     case 'vec4': {
-      const n = declared === 'vec2' ? 2 : declared === 'vec3' ? 3 : 4;
+      const n = declared === 'vec2' ? 2 : declared === 'vec4' ? 4 : 3;
       let v: unknown = value;
       if (typeof v === 'string') v = parseJsonText(v);
       if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
@@ -272,7 +274,9 @@ export function coerceFieldValue(
         v = n === 2 ? [o.x, o.y] : n === 3 ? [o.x, o.y, o.z] : [o.x, o.y, o.z, o.w];
       }
       if (!Array.isArray(v) || v.length < n || v.slice(0, n).some((c) => typeof c !== 'number' || !Number.isFinite(c))) {
-        const example = n === 2 ? '[16, 16]' : n === 3 ? '[0, 0, 0]' : '[0, 0, 1, 1]';
+        const example = n === 2 ? '[16, 16]'
+          : declared === 'euler' ? '[0, 45, 0] (degrees)'
+          : n === 3 ? '[0, 0, 0]' : '[0, 0, 1, 1]';
         return fail(`${n} numbers (e.g. ${example})`);
       }
       return v.slice(0, n) as InspectorFieldValue;
