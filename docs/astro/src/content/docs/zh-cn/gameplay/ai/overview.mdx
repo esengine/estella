@@ -70,6 +70,27 @@ registerAction('chase', (ctx) => {
   agent 开始 tick 之前就已存在。注册表是进程级的,在多个 `App` 实例间共享。
 </Aside>
 
+### 声明一个叶子碰什么
+
+跑你的状态机的那个系统,够到的东西就是它的**叶子**够到的东西——而这只有在图加载之后才
+知道。在注册时声明出来,调度器就能把这个系统和「可能碰任何东西」的系统区分开:
+
+```typescript
+registerAction('chase', {
+  run: (ctx) => { /* ... */ },
+  touches: { reads: ['Perception'], writes: ['NavAgent'] },
+});
+
+registerCondition('seesPlayer', {
+  check: (ctx) => ctx.has(Perception) && ctx.get(Perception).visible,
+  touches: { reads: ['Perception'] },
+});
+```
+
+可选,但值得知道不写的代价:**只要有一个叶子没声明,整个系统就退回「碰一切」**——因为
+一份悄悄丢掉了读不懂那部分的并集,是一个调度器会信、而帧会推翻的声明。参见
+[系统碰什么](/docs/zh-cn/core-concepts/systems/#系统碰什么)。
+
 ### 动作的返回值
 
 **条件**总是返回 `boolean`。**动作**可以返回一个 `Status`,也可以什么都不返回:

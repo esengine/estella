@@ -364,7 +364,9 @@ agent — so if your plugin can bake occlusion, teach the agent to ask for it:
 
 ```typescript
 ctx.agentTools.register({
-  name: 'acme.bake-occlusion',        // must start with your plugin id
+  // Your plugin id with its dots as `_` — plugin `acme.level-tools` prefixes
+  // its tools with `acme_level_tools_`.
+  name: 'acme_level_tools_bake-occlusion',
   description: 'Bake occlusion for the open scene. Use after moving walls.',
   schema: { type: 'object', properties: { quality: { type: 'number' } } },
   effect: 'undoable',
@@ -391,10 +393,17 @@ the confirm gate behaving correctly for an honest plugin, so declare it
 honestly: a tool that calls itself `journaled` while writing outside `ctx.fs`
 claims a safety net that is not holding it.
 
-The name must be namespaced with your plugin id. An un-namespaced tool could
-shadow a built-in, and a model calling `delete_entity` believes it knows what
-happens next. A tool that breaks any of these rules is refused with the reason
-in the Output Log, rather than dropped silently.
+The name must be namespaced with your plugin id, and may contain only letters,
+digits, `_` and `-` — up to 64 of them. Both halves of that matter. An
+un-namespaced tool could shadow a built-in, and a model calling `delete_entity`
+believes it knows what happens next; a name outside the character set is one the
+model's endpoint refuses, and it refuses the whole request rather than the tool,
+which takes every conversation down with it.
+
+Plugin ids are dotted by convention and tool names cannot be, so the prefix is
+your id with its dots folded to `_`: plugin `acme.level-tools` owns the
+`acme_level_tools_` prefix. A tool that breaks any of these rules is refused
+with the reason in the Output Log, rather than dropped silently.
 
 Whatever `run` returns is JSON-encoded for the model; throwing reports the
 message as a failed call, which the model can read and act on. A tool that

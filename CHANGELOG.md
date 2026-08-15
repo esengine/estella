@@ -54,6 +54,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Post-processing is a declared graph, not two framebuffers.** The chain was a
+  fixed ping-pong — every pass at full resolution, each reading the one before it
+  plus the scene wired to a hard-coded unit — and the per-camera and screen-level
+  chains were two copies of that loop. A pass now declares what it reads, what it
+  writes and at what fraction of the frame; the graph culls what the image does
+  not depend on, hands out targets from a pool keyed by shape, and takes one back
+  the moment its last reader has run. A bloom chain of seven links still costs
+  two targets, because that is what the allocator does on its own for a linear
+  chain. What it unlocks is what could not be expressed before: a link at half
+  size, and a pass reading something other than its predecessor.
+
 - **A shipped web build can ask for WebGPU.** Project Settings → Rendering
   carries the request into `game.config.json`, and the exported host falls back
   to WebGL2 wherever the browser has none — which is what makes opting in free.
@@ -68,13 +79,44 @@ published separately; it ships inside the editor.
 
   `app.scheduleAmbiguities(schedule)` names those pairs and what they disagree
   over; `app.scheduleBatches(schedule)` shows how much of a schedule is
-  inherently sequential. Execution is unchanged.
+  inherently sequential.
 
   A system that reaches through `GetWorld()` can now say what for
-  (`touches: { reads, writes }`) instead of being assumed to touch everything —
-  and every engine system that cannot yet says why in one line, which is the
-  standing account of what separates the engine from running any of them at the
-  same time.
+  (`touches: { reads, writes }`) instead of being assumed to touch everything.
+
+- **Every gameplay system says what it touches, and the answer is used.** All of
+  them took the World and declared nothing, so the analysis above reported nine
+  ambiguous pairs in the engine's own schedules — every one of them "the World
+  itself", a finding with no action attached that hid the one real collision.
+  Four of those systems could always have said (perception, nav follow, the
+  character controller, the stats overlay, which touches no component at all).
+
+  The three that genuinely run authored data — the state machine, the behaviour
+  tree, `defineBehavior` — got a way to answer rather than an excuse. A
+  registered action or condition declares its reach; `property.set` derives it
+  from the path the graph carries, since the component it writes is unknowable at
+  registration and plain in the data. A system's own `touches` may therefore be a
+  **function**, answering from the graphs actually loaded. One leaf that never
+  declared makes the whole claim `opaque` — a union that silently dropped it
+  would be a claim the scheduler trusts and the frame disproves.
+
+  Nine ambiguous pairs became one: `VelocitySystem` and `NavAgentSystem` both
+  writing Transform with nothing deciding the order. That one is now declared
+  (the order registration already produced, so nothing moves), and a test holds
+  the engine's schedules to zero.
+
+- **A system that waits no longer holds the ones it has nothing to do with.**
+  The schedule awaited each system before starting the next, so one parked on an
+  `await` stopped everything behind it. A system now starts beside an unfinished
+  one when it neither depends on it nor touches what it touches — which is the
+  declarations above being spent rather than reported.
+
+  This is concurrency, not threads: a synchronous system runs to completion the
+  moment it starts, so what overlaps is the *waiting*. Nothing in the engine is
+  async, so its own frame is unchanged; two of your async systems loading
+  different things now wait at the same time. Ordering edges still hold — a
+  `runAfter` is a stronger statement than access, and overlap requires
+  independence in the dependency graph as well.
 
 ### Fixed
 
@@ -96,6 +138,23 @@ published separately; it ships inside the editor.
   prefabs already mint theirs.
 
 ### Changed
+
+- **A plugin's agent tool is named the way the wire can address it.** Enabling
+  the LDtk plugin made every message to the built-in agent fail with
+  `400 tools[101].name: string does not match pattern '^[a-zA-Z0-9_-]+$'`, and
+  nothing in that pointed at plugins: the built-in catalog is exactly 101 tools,
+  so index 101 is whatever a plugin contributed first. Two rules, each right on
+  its own — registration REQUIRED the name to start with `${pluginId}.`, plugin
+  ids are dotted, and no model endpoint accepts a dot in a tool name. They refuse
+  the whole request rather than the tool, so one plugin took the agent down with
+  it.
+
+  **Plugin authors:** a tool's name is now your plugin id with its dots folded to
+  `_`, followed by your own — plugin `acme.level-tools` registers
+  `acme_level_tools_bake-occlusion`. Letters, digits, `_` and `-` only, up to 64.
+  A tool named the old way is refused with the reason in the Output Log, and the
+  agent drops any that reach it regardless, so an old plugin can no longer take a
+  conversation with it.
 
 - **A project packages without the editor.** Cooking a project and packaging it —
   the asset database, the textures, atlases, audio and video, the addressable

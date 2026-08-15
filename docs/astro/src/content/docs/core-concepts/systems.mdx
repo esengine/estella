@@ -45,10 +45,10 @@ in order:
 - **`EventReader(E)`** / **`EventWriter(E)`** — read or send a typed event stream.
 
 <Aside type="caution">
-  Only wrap a component in `Mut` when you actually write it — read-only queries
-  let the engine skip needless change-detection. (Systems run sequentially in
-  schedule order; marking reads correctly is about change-tracking, not
-  parallelism.)
+  Only wrap a component in `Mut` when you actually write it. Read-only queries
+  let the engine skip needless change-detection, and the parameter list is also
+  what the schedule reads to tell whether two systems can be reordered — see
+  [What a system touches](#what-a-system-touches).
 </Aside>
 
 ## Running order
@@ -198,6 +198,68 @@ A query result also has convenience methods beyond `for…of`:
 | `query.count()` / `query.isEmpty()` | Match count / whether empty. |
 | `query.toArray()` | All results as an array. |
 | `query.forEach((e, ...c) => …)` | Callback per match. |
+
+## What a system touches
+
+A system's parameter list is also its **declaration**: `Query(Mut(Transform))`
+says "I write Transform", `Res(Time)` says "I read Time". The schedule reads that
+to answer two questions — whether two systems could ever run at the same time,
+and whether the order they *do* run in was decided by anyone.
+
+`GetWorld()` is the escape hatch, and it answers neither: a system holding the
+World may touch anything, so it conflicts with everything. Where you need it,
+say what you reach for and get the answer back:
+
+```typescript
+defineSystem([GetWorld()], (world) => { /* ... */ }, {
+  name: 'Perception',
+  touches: {
+    reads: ['Perceiver', 'Transform'],
+    writes: ['Perception'],
+  },
+});
+```
+
+Components are named by string here, because the reason to reach through the
+World is usually a type registered later than the system. Three things this
+supports:
+
+- `opaque: true` — you genuinely cannot say. Different from leaving `touches`
+  out (both mean "assume everything"), but only this one says so on purpose.
+- A **function** instead of an object, re-read every time the access is. That is
+  how a system running authored data answers from what is actually loaded: the
+  state-machine system's reach is the union over the leaves the loaded `.esfsm`
+  graphs name.
+- `defineBehavior({ touches })`, for the same reason — a behaviour's body is
+  your code, and undeclared it is assumed to touch anything.
+
+### Two systems that wait
+
+Systems start in schedule order, and a synchronous one runs to completion before
+the next starts — nothing overlaps there. An **async** system is different: while
+it is parked on an `await`, the schedule may start the next system, provided that
+one neither depends on it nor touches what it touches.
+
+So two async systems loading different things wait at the same time instead of
+one after another. If you need a particular order between them, that is an
+ordering edge (`runAfter`), not something to infer from registration order.
+
+### Finding the pairs nobody ordered
+
+Two systems in one phase that touch the same data with no edge between them run
+in whatever order registration produced — so adding a third system, or moving a
+plugin in the build list, can change what your game does with nothing to point
+at. Ask:
+
+```typescript
+app.scheduleAmbiguities(Schedule.Update);
+// [{ a: 'Move', b: 'Cull', over: ['Transform'] }]
+
+app.scheduleBatches(Schedule.Update);
+// [['Move', 'Spin'], ['Cull']] — how much of the phase is inherently sequential
+```
+
+Fix one by deciding the order (`runAfter`) or by making the overlap not exist.
 
 ## Events
 

@@ -79,6 +79,30 @@ is the same programming model as a [`defineBehavior`](/docs/scripting/overview/)
   registry is process-wide and shared across `App` instances.
 </Aside>
 
+### Saying what a leaf touches
+
+The system that ticks your state machines reaches for whatever its leaves reach
+for, which is knowable only once the graphs are loaded. Declare it on the
+registration and the schedule can tell that system apart from one that might
+touch anything:
+
+```typescript
+registerAction('chase', {
+  run: (ctx) => { /* ... */ },
+  touches: { reads: ['Perception'], writes: ['NavAgent'] },
+});
+
+registerCondition('seesPlayer', {
+  check: (ctx) => ctx.has(Perception) && ctx.get(Perception).visible,
+  touches: { reads: ['Perception'] },
+});
+```
+
+Optional, and worth knowing what leaving it out costs: one undeclared leaf makes
+the whole system opaque, because a union that quietly dropped it would be a
+claim the scheduler trusts and the frame disproves. See
+[What a system touches](/docs/core-concepts/systems/#what-a-system-touches).
+
 ### Action return values
 
 A **condition** always returns a `boolean`. An **action** may return a `Status`
