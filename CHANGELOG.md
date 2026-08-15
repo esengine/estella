@@ -143,6 +143,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mesh can hide another one.** Nothing an imported model carried said it was
+  solid, so two of them resolved by paint order — which cannot draw two surfaces
+  that pass through each other, however their z is sorted. `Mesh2D.opaque` says
+  it: no blending, depth written and tested, and the draw sorts into the opaque
+  stage (ahead of blended ones in its layer, so 2D content still lands on top).
+  `Mesh2D.cullBackfaces` skips the inside of a closed model.
+
+  A glTF states both — `alphaMode` and `doubleSided` — and both were being
+  reported as unimportable. They are the two the import now carries, on their own
+  defaults (OPAQUE, single-sided), so a model arrives occluding itself the way it
+  was authored. The layer-wide depth setting is unchanged and still does what it
+  did; this is the same decision made by one draw about itself.
+
 - **The editor's eye can turn.** A model imported from a glTF could only be
   looked at head-on: the editor view stood on the -Z axis with no way off it,
   which is fine for 2D and useless for anything with a back. Alt-drag now orbits
