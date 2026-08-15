@@ -92,17 +92,68 @@ describe('importing a model', () => {
     expect(existsSync(path.join(root, 'assets/elsewhere/tree.esmesh'))).toBe(false);
   });
 
-  it('brings an outside image in, named for the model', async () => {
-    writeFileSync(path.join(outside, 'skin.png'), 'PNG');
+  it('brings an outside image in at the path the model names it by', async () => {
+    mkdirSync(path.join(outside, 'textures'), { recursive: true });
+    writeFileSync(path.join(outside, 'textures/skin.png'), 'PNG');
     const src = path.join(outside, 'robot.gltf');
-    writeFileSync(src, gltf('skin.png'));
+    writeFileSync(src, gltf('textures/skin.png'));
     await importAssets(root, 'assets/models', [src]);
 
-    const copied = path.join(root, 'assets/models/robot_skin.png');
+    // The same relative path, so the copied .gltf still points at its own image.
+    const copied = path.join(root, 'assets/models/textures/skin.png');
     expect(existsSync(copied)).toBe(true);
     expect(meta(copied).type).toBe('texture');
     const prefab = prefabOf(path.join(root, 'assets/models/robot.esprefab'));
-    expect(prefab.entities[0]!.components[1]!.data.texture).toBe('assets/models/robot_skin.png');
+    expect(prefab.entities[0]!.components[1]!.data.texture)
+      .toBe('assets/models/textures/skin.png');
+  });
+
+  it('brings the .bin with it, so the copy can be imported again', async () => {
+    const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+    const uvs = new Float32Array([0, 0, 1, 0, 0, 1]);
+    const indices = new Uint16Array([0, 1, 2]);
+    const bin = Buffer.concat([
+      Buffer.from(positions.buffer), Buffer.from(uvs.buffer), Buffer.from(indices.buffer),
+    ]);
+    writeFileSync(path.join(outside, 'robot.bin'), bin);
+    const doc = JSON.parse(gltf()) as { buffers: { uri: string; byteLength: number }[] };
+    doc.buffers = [{ uri: 'robot.bin', byteLength: bin.length }];
+    const src = path.join(outside, 'robot.gltf');
+    writeFileSync(src, JSON.stringify(doc));
+
+    const first = await importAssets(root, 'assets/models', [src]);
+    expect(first.imported).toContain('assets/models/robot.bin');
+    expect(first.warnings ?? []).toEqual([]);
+
+    // The copy, imported on its own terms: the geometry has to come out again.
+    rmSync(outside, { recursive: true, force: true });
+    const again = await importAssets(root, 'assets/models',
+                                     [path.join(root, 'assets/models/robot.gltf')]);
+    expect(again.imported).toContain('assets/models/robot.esmesh');
+    expect(again.warnings ?? []).toEqual([]);
+  });
+
+  it('says so when a dependency cannot keep its shape inside the project', async () => {
+    mkdirSync(path.join(outside, 'model'), { recursive: true });
+    writeFileSync(path.join(outside, 'shared.png'), 'PNG');
+    const src = path.join(outside, 'model/robot.gltf');
+    writeFileSync(src, gltf('../shared.png'));
+    const res = await importAssets(root, 'assets/models', [src]);
+
+    expect(existsSync(path.join(root, 'assets/models/shared.png'))).toBe(true);
+    expect(res.warnings?.join('\n')).toContain("outside the model's folder");
+  });
+
+  it('never writes a dependency outside the project', async () => {
+    mkdirSync(path.join(outside, 'model'), { recursive: true });
+    writeFileSync(path.join(outside, 'evil.png'), 'PNG');
+    const src = path.join(outside, 'model/robot.gltf');
+    // Escapes without starting with "..", which is what a hand-rolled check misses.
+    writeFileSync(src, gltf('sub/../../evil.png'));
+    await importAssets(root, 'assets/models', [src]);
+
+    expect(existsSync(path.join(root, 'assets/models/evil.png'))).toBe(true);
+    expect(existsSync(path.join(root, '../evil.png'))).toBe(false);
   });
 
   it('leaves an image that is already in the project where it lies', async () => {

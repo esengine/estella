@@ -76,6 +76,9 @@ export interface GltfImportResult {
     meshes: ImportedMesh[];
     /** Images extracted from the file itself; external ones stay where they are. */
     textures: ImportedTexture[];
+    /** Every uri the source points OUT to (buffers and images), in file order.
+     *  Bringing a model into a project means bringing these with it. */
+    externalFiles: string[];
     /** The scene's node roots. Empty for a file with no nodes, whose meshes then sit flat. */
     nodes: ImportedNode[];
     /** What was skipped and why — a silent drop is how half a model goes missing. */
@@ -95,15 +98,24 @@ const TYPE_COMPONENTS: Record<string, number> = {
 
 interface GltfTextureRef { index: number; texCoord?: number }
 
+/** Per-spec sparse storage: a base of zeroes (or a view) with some values replaced. */
+interface GltfSparse {
+    count: number;
+    indices: { bufferView: number; byteOffset?: number; componentType: number };
+    values: { bufferView: number; byteOffset?: number };
+}
+
 interface GltfJson {
     accessors?: {
         bufferView?: number; byteOffset?: number; componentType: number; count: number;
         type: string; normalized?: boolean; min?: number[]; max?: number[];
+        sparse?: GltfSparse;
     }[];
     bufferViews?: { buffer: number; byteOffset?: number; byteLength: number; byteStride?: number }[];
     buffers?: { byteLength: number; uri?: string }[];
     meshes?: { name?: string; primitives: {
         attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
+        extensions?: Record<string, unknown>;
     }[] }[];
     materials?: {
         name?: string;
@@ -127,6 +139,16 @@ interface GltfJson {
     scenes?: { nodes?: number[] }[];
     scene?: number;
 }
+
+/**
+ * Extensions that hold a primitive's geometry themselves, so its accessors point
+ * at nothing this importer can read. Left undetected they decode as zeroes — a
+ * mesh whose every vertex sits on the origin, with nothing said about it.
+ */
+const COMPRESSED_GEOMETRY: Record<string, string> = {
+    KHR_draco_mesh_compression: 'Draco',
+    EXT_meshopt_compression: 'meshopt',
+};
 
 const MIME_EXTENSION: Record<string, string> = {
     'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/ktx2': '.ktx2',
@@ -173,26 +195,53 @@ function readAccessor(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Arr
     if (!compBytes) throw new Error(`accessor ${index} has unsupported componentType ${acc.componentType}`);
 
     const out = new Float32Array(acc.count * comps);
-    if (acc.bufferView === undefined) return out;  // spec: absent view ⇒ zeroes
-
-    const view = json.bufferViews?.[acc.bufferView];
-    if (!view) throw new Error(`bufferView ${acc.bufferView} is missing`);
-    const source = view.buffer === 0 && bin ? bin : buffers[view.buffer];
-    if (!source) throw new Error(`buffer ${view.buffer} has no bytes (external .bin not loaded?)`);
-
-    const base = (view.byteOffset ?? 0) + (acc.byteOffset ?? 0);
-    const stride = view.byteStride && view.byteStride > 0 ? view.byteStride : comps * compBytes;
-    const dv = new DataView(source.buffer, source.byteOffset, source.byteLength);
     const scale = acc.normalized ? normalizedScale(acc.componentType) : 0;
+    const read = (dv: DataView, at: number): number => {
+        const raw = readComponent(dv, at, acc.componentType);
+        return acc.normalized ? raw * scale : raw;
+    };
 
-    for (let i = 0; i < acc.count; i++) {
-        for (let c = 0; c < comps; c++) {
-            const at = base + i * stride + c * compBytes;
-            const raw = readComponent(dv, at, acc.componentType);
-            out[i * comps + c] = acc.normalized ? raw * scale : raw;
+    if (acc.bufferView !== undefined) {
+        const view = json.bufferViews?.[acc.bufferView];
+        if (!view) throw new Error(`bufferView ${acc.bufferView} is missing`);
+        const source = view.buffer === 0 && bin ? bin : buffers[view.buffer];
+        if (!source) throw new Error(`buffer ${view.buffer} has no bytes (external .bin not loaded?)`);
+
+        const base = (view.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+        const stride = view.byteStride && view.byteStride > 0 ? view.byteStride : comps * compBytes;
+        const dv = new DataView(source.buffer, source.byteOffset, source.byteLength);
+        for (let i = 0; i < acc.count; i++) {
+            for (let c = 0; c < comps; c++) {
+                out[i * comps + c] = read(dv, base + i * stride + c * compBytes);
+            }
         }
     }
+    // A sparse accessor overrides some of that — or all of it, since the base
+    // view is optional. Ignoring it reads a mesh in its pre-morph state, which
+    // is wrong geometry rather than a failure.
+    if (acc.sparse) applySparse(json, bin, buffers, acc.sparse, comps, compBytes, read, out);
     return out;
+}
+
+function applySparse(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Array | null)[],
+                     sparse: GltfSparse, comps: number, compBytes: number,
+                     read: (dv: DataView, at: number) => number, out: Float32Array): void {
+    const indexBytes = COMPONENT_BYTES[sparse.indices.componentType];
+    if (!indexBytes) throw new Error(`sparse indices use componentType ${sparse.indices.componentType}`);
+    const indexView = sliceBufferView(json, bin, buffers, sparse.indices.bufferView);
+    const valueView = sliceBufferView(json, bin, buffers, sparse.values.bufferView);
+    if (!indexView || !valueView) throw new Error('sparse accessor has no bytes');
+
+    const iv = new DataView(indexView.buffer, indexView.byteOffset, indexView.byteLength);
+    const vv = new DataView(valueView.buffer, valueView.byteOffset, valueView.byteLength);
+    const indexBase = sparse.indices.byteOffset ?? 0;
+    const valueBase = sparse.values.byteOffset ?? 0;
+    for (let i = 0; i < sparse.count; i++) {
+        const target = readComponent(iv, indexBase + i * indexBytes, sparse.indices.componentType);
+        for (let c = 0; c < comps; c++) {
+            out[target * comps + c] = read(vv, valueBase + (i * comps + c) * compBytes);
+        }
+    }
 }
 
 function normalizedScale(componentType: number): number {
@@ -441,14 +490,24 @@ export function importGltfMeshes(
         json = JSON.parse(new TextDecoder().decode(bytes)) as GltfJson;
     }
 
+    const externalFiles: string[] = [];
+    const noteExternal = (uri: string): void => {
+        const decoded = decodeURIComponent(uri);
+        if (!externalFiles.includes(decoded)) externalFiles.push(decoded);
+    };
+
     const buffers: (Uint8Array | null)[] = (json.buffers ?? []).map((b, i) => {
         if (!b.uri) return i === 0 ? bin : null;
         const inline = decodeDataUri(b.uri);
         if (inline) return inline;
+        noteExternal(b.uri);
         const external = externalBuffers?.(b.uri) ?? null;
         if (!external) warnings.push(`buffer ${i}: ${b.uri} could not be read`);
         return external;
     });
+    for (const image of json.images ?? []) {
+        if (image.uri && !image.uri.startsWith('data:')) noteExternal(image.uri);
+    }
 
     const meshes: ImportedMesh[] = [];
     const textures: ImportedTexture[] = [];
@@ -475,9 +534,26 @@ export function importGltfMeshes(
                 warnings.push(`${label}: mode ${mode} is not TRIANGLES — skipped`);
                 return;
             }
+            const compressed = Object.keys(prim.extensions ?? {})
+                .find(name => name in COMPRESSED_GEOMETRY);
+            if (compressed) {
+                warnings.push(`${label}: geometry is ${COMPRESSED_GEOMETRY[compressed]}-compressed`
+                    + ' — skipped (re-export without compression)');
+                return;
+            }
+            for (const name of Object.keys(prim.extensions ?? {})) {
+                if (!(name in COMPRESSED_GEOMETRY)) warnings.push(`${label}: ${name} not imported`);
+            }
             const posIndex = prim.attributes.POSITION;
             if (posIndex === undefined) {
                 warnings.push(`${label}: no POSITION — skipped`);
+                return;
+            }
+            // Zeroes are a legal accessor per spec, and for POSITION they are a
+            // heap of vertices on the origin. Say so instead of writing one.
+            const posAccessor = json.accessors?.[posIndex];
+            if (posAccessor && posAccessor.bufferView === undefined && !posAccessor.sparse) {
+                warnings.push(`${label}: POSITION has no data — skipped`);
                 return;
             }
 
@@ -561,7 +637,10 @@ export function importGltfMeshes(
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }
-    return { meshes, textures, nodes: readNodes(json, meshIndexOf, warnings), warnings };
+    return {
+        meshes, textures, externalFiles,
+        nodes: readNodes(json, meshIndexOf, warnings), warnings,
+    };
 }
 
 /** The bytes to write for an imported mesh. */

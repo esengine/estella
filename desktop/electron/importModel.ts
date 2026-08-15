@@ -49,7 +49,7 @@ export async function importModel(root: string, destDir: string, absSource: stri
   const projectRef = (abs: string): string =>
     path.relative(path.resolve(root), abs).split(path.sep).join('/');
 
-  const { meshes, textures, nodes, warnings } = importGltfMeshes(
+  const { meshes, textures, nodes, externalFiles, warnings } = importGltfMeshes(
     new Uint8Array(readFileSync(absSource)), stem,
     (uri) => {
       const abs = path.join(sourceDir, decodeURIComponent(uri));
@@ -67,28 +67,34 @@ export async function importModel(root: string, destDir: string, absSource: stri
     return rel;
   };
 
-  // An image the source points at is left where it lies when that is already in
-  // the project; one from outside is copied in, named for the model so a second
-  // import of a different model cannot land on it.
+  // A file already in the project is left where it lies; one from outside comes
+  // WITH the model, at the same relative path. That is what keeps the copied
+  // .gltf pointing at its own .bin, so re-importing it still works.
   const externalRefs = new Map<string, string>();
   const external = (uri: string): string => externalRefs.get(uri) ?? uri;
-  const sourceImages = meshes.flatMap((mesh) =>
-    [mesh.material?.baseColorTexture, mesh.material?.normalTexture]);
-  for (const image of sourceImages) {
-    if (!image?.external || externalRefs.has(image.file)) continue;
-    const abs = path.join(sourceDir, decodeURIComponent(image.file));
+  for (const uri of externalFiles) {
+    const abs = path.join(sourceDir, uri);
     if (!existsSync(abs)) continue;
     if (isInsideRoot(root, abs)) {
-      externalRefs.set(image.file, projectRef(abs));
+      externalRefs.set(uri, projectRef(abs));
       continue;
     }
-    const name = `${stem}_${path.basename(abs)}`;
+    // A uri that reaches outside the model's own folder cannot keep its shape in
+    // the project: it lands beside the model, and the source's link to it stays
+    // broken — said out loud rather than silently rewritten.
+    const keepsShape = isInsideRoot(absDir, path.resolve(absDir, uri));
+    if (!keepsShape) {
+      warnings.push(`${uri} came from outside the model's folder; the copy is beside it`);
+    }
+    const name = keepsShape ? uri : path.basename(uri);
     const rel = destDir ? `${destDir}/${name}` : name;
+    const absDest = path.join(absDir, name);
     await capture(rel, 'write');
-    await copyFile(abs, path.join(absDir, name));
-    await adoptOrphan(path.join(absDir, name));
+    await mkdir(path.dirname(absDest), { recursive: true });
+    await copyFile(abs, absDest);
+    await adoptOrphan(absDest);
     products.push(rel);
-    externalRefs.set(image.file, rel);
+    externalRefs.set(uri, rel);
   }
 
   for (const mesh of meshes) await write(`${mesh.name}.esmesh`, encodeImportedMesh(mesh));

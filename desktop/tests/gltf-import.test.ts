@@ -181,6 +181,73 @@ describe('glTF material import', () => {
       .toEqual({ file: 'bump.png', external: true });
   });
 
+  it('skips a Draco-compressed primitive rather than reading zeroes', () => {
+    const doc = {
+      ...withInlineImage(),
+      // Draco holds the geometry itself, so the accessors point at nothing.
+      accessors: [
+        { componentType: 5126, count: 3, type: 'VEC3' },
+        { componentType: 5126, count: 3, type: 'VEC2' },
+        { componentType: 5123, count: 3, type: 'SCALAR' },
+      ],
+    };
+    const { meshes, warnings } = importGltfMeshes(gltf(doc, [{
+      attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4,
+      extensions: { KHR_draco_mesh_compression: { bufferView: 0, attributes: {} } },
+    }]), 'model');
+    expect(meshes).toEqual([]);
+    expect(warnings.join('\n')).toContain('Draco-compressed');
+    expect(warnings.join('\n')).toContain('re-export without compression');
+  });
+
+  it('skips a primitive whose POSITION carries no data', () => {
+    const doc = {
+      ...withInlineImage(),
+      accessors: [
+        { componentType: 5126, count: 3, type: 'VEC3' },
+        { bufferView: 1, componentType: 5126, count: 3, type: 'VEC2' },
+        { bufferView: 2, componentType: 5123, count: 3, type: 'SCALAR' },
+      ],
+    };
+    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    expect(meshes).toEqual([]);
+    expect(warnings.join('\n')).toContain('POSITION has no data');
+  });
+
+  it('applies a sparse accessor, which is the geometry it actually has', () => {
+    // Replaces vertex 1's position; the base view is the ordinary one.
+    const target = Buffer.alloc(2);
+    target.writeUInt16LE(1, 0);
+    const value = Buffer.from(new Float32Array([9, 9, 9]).buffer);
+    const extra = Buffer.concat([target, value]);
+    const geo = geometryBuffer();
+    const base = Buffer.from(geo.uri.split(',')[1]!, 'base64');
+    const bytes = Buffer.concat([base, extra]);
+    const doc = {
+      ...withInlineImage(),
+      buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+      bufferViews: [
+        ...(geo.views as unknown[]),
+        { buffer: 0, byteOffset: 66, byteLength: 2 },
+        { buffer: 0, byteOffset: 68, byteLength: 12 },
+      ],
+      accessors: [
+        {
+          bufferView: 0, componentType: 5126, count: 3, type: 'VEC3',
+          sparse: {
+            count: 1,
+            indices: { bufferView: 3, componentType: 5123 },
+            values: { bufferView: 4 },
+          },
+        },
+        { bufferView: 1, componentType: 5126, count: 3, type: 'VEC2' },
+        { bufferView: 2, componentType: 5123, count: 3, type: 'SCALAR' },
+      ],
+    };
+    const { meshes } = importGltfMeshes(gltf(doc), 'model');
+    expect(meshes[0]!.data.aabbMax).toEqual([9, 9, 9]);
+  });
+
   it("flips V, because glTF's uv origin is the image's top-left", () => {
     const { meshes } = importGltfMeshes(gltf(withInlineImage()), 'model');
     expect(texCoords(meshes[0]!)).toEqual([0, 1, 1, 1, 0, 0]);
