@@ -140,6 +140,10 @@ export const SCENES = [
   // normals the engine's vertex stage hands it. RED, so the fallback (the mesh
   // shader, taken when a variant fails) cannot pass for it — that draws white.
   { id: "mesh-material-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/litmat.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // A mesh assigned IN THE EDITOR: a cold ref reaches the World only through the
+  // live loader + re-projection. The quad covers the gap between the scene's own
+  // two triangles, so the frame says which geometry is drawn.
+  { id: "mesh-assign", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Mesh2D\",\"key\":\"mesh\",\"value\":\"/scenes/textured-quad.esmesh\"}", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40}]" } },
   // A normal map over FLAT normals: the quad faces the viewer, so without the map
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { ASSET_SLOTS, metaTypeToSlot } from '../src/project/assetSlots';
+import { getComponentRegistry, getComponentAssetFieldDescriptors } from 'esengine';
 
 describe('ASSET_SLOTS', () => {
   it('metaTypeToSlot only ever returns a slot that exists in the table', () => {
@@ -39,6 +40,7 @@ describe('ASSET_SLOTS', () => {
     expect(metaTypeToSlot('statemachine')).toBe('statemachine');
     expect(metaTypeToSlot('animatorcontroller')).toBe('animatorcontroller');
     expect(metaTypeToSlot('behaviortree')).toBe('behaviortree');
+    expect(metaTypeToSlot('mesh')).toBe('mesh');
   });
 
   it('returns null for types with no component slot', () => {
@@ -49,8 +51,23 @@ describe('ASSET_SLOTS', () => {
     expect(metaTypeToSlot('unknown-type')).toBeNull();
   });
 
-  it('only material/font capture a handle (the slots with no live cache getter)', () => {
+  it('the handle slots are the ones with no live cache getter', () => {
     const recorded = Object.entries(ASSET_SLOTS).filter(([, d]) => d.record).map(([s]) => s).sort();
-    expect(recorded).toEqual(['font', 'material']);
+    expect(recorded).toEqual(['font', 'material', 'mesh']);
+  });
+
+  it('every asset field a component declares has a slot to load it from', () => {
+    // A field the Inspector offers but nothing can load resolves to handle 0 —
+    // the asset silently missing, which is how mesh shipped before this entry.
+    const declared = new Set<string>();
+    for (const name of getComponentRegistry().keys()) {
+      for (const f of getComponentAssetFieldDescriptors(name)) declared.add(f.type);
+    }
+    // Spine halves load through their own two-phase manager, not a slot.
+    declared.delete('spine-skeleton');
+    declared.delete('spine-atlas');
+    for (const type of declared) {
+      expect(ASSET_SLOTS[type], `no slot for asset field type "${type}"`).toBeDefined();
+    }
   });
 });

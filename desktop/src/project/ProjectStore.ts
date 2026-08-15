@@ -4,7 +4,7 @@ import { createStore } from 'zustand/vanilla';
 import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { applyImporterEdit } from './assetImporter';
 import { importerDefaults } from '../../../pipeline/src/project/importSettings';
-import { AssetRegistry, UUID_PREFIX, refUuid, type AssetEntryLite } from './AssetRegistry';
+import { AssetRegistry, UUID_PREFIX, type AssetEntryLite } from './AssetRegistry';
 import { imageSize } from './imageSize';
 import { PrefabCache } from './PrefabCache';
 import {
@@ -12,7 +12,7 @@ import {
   type RuntimeProjectConfig,
 } from '../../../pipeline/src/project/runtimeConfig';
 import type { ParsedTextureImportSettings } from 'esengine';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -37,7 +37,6 @@ import { installLocaleKeyEnumSource } from './localeKeys';
 import { setProjectActions, type ProjectActionSchema } from '@/ai/actionCatalog';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSkeletalSync, type SkeletalTransport } from '@/engine/skeletalSync';
-import { SceneStore } from '@/engine/SceneStore';
 import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { Toasts } from '@/store/Toasts';
@@ -45,7 +44,8 @@ import { confirmDiscard } from './discardGuard';
 import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
-import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
+import { metaTypeToSlot } from '@/project/assetSlots';
+import { AssetBinding } from '@/engine/AssetBinding';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, resolveScripts, DEFAULT_SCRIPTS, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, SORTING_LAYER_COUNT, trimSortingLayers, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type SteamPackaging, type ProjectScripts, type WorkspaceState, type DesignResolution, type ScreenPreset, type ScreenOrientation, type CameraScaleMode, type ExportPlatform, type AcceptanceCriterion } from '../../../pipeline/src/project/format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -72,13 +72,6 @@ function toDocumentEntity(e: ProcessedEntity): DocumentEntity {
  * project files), and preloads EVERY referenced asset type — not just textures.
  * The lossless model keeps `@uuid:` refs verbatim, so save stays portable.
  */
-
-/** The subset of the engine's SceneAssetResult the Reconciler resolver reads. */
-interface PreloadResult {
-  textureHandles: Map<string, number>;
-  materialHandles: Map<string, number>;
-  fontHandles: Map<string, number>;
-}
 
 const NO_SCREEN_PRESETS: ScreenPreset[] = [];
 
@@ -181,7 +174,6 @@ class ProjectStoreImpl {
   private projectGeneration = 0;
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
-  private lastAssetResult: PreloadResult | null = null;
   /**
    * What the open scene acquired, so the NEXT open can give it back.
    *
@@ -541,7 +533,7 @@ class ProjectStoreImpl {
       const result = await bootProfiler.phase('preloadSceneAssets', () => assets.preloadSceneAssets(expandedRaw));
       resolved = JSON.parse(JSON.stringify(expandedRaw)) as SceneData; // resolveSceneAssetPaths mutates
       assets.resolveSceneAssetPaths(resolved, result);
-      this.lastAssetResult = result; // narrowed to the handle maps the resolver reads
+      AssetBinding.adopt(result);
     }
 
     // A scene is a session document: replacing it clears the SCENE's history
@@ -556,11 +548,9 @@ class ProjectStoreImpl {
     // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
     // from the same preload result — for all types, not just textures. Spine
     // slots resolve to project paths instead (they stay strings in the World).
-    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
-    // A projection that resolves COLD (assigned after the scene-open preload)
-    // hands its ref here: async load through the engine loaders, re-project.
-    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
+    // One binding for both scene doors: the resolver, the path resolver and the
+    // cold-ref loader are the realm's, not this transport's.
+    AssetBinding.install();
     // Skeletal bindings (skeleton/atlas/pages → the runtime's manager) are a live
     // projection of the model, driven by model events: adopt's `reset` performs the
     // initial bind, and later ref/field edits keep the viewport true (see
@@ -610,9 +600,7 @@ class ProjectStoreImpl {
     await this.buildAssetRegistry(); // keep the uuid→path registry current for new refs
     EditorHistory.clearScene();
     useSelection.getState().select(null);
-    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
-    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
+    AssetBinding.install();
     installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
@@ -890,69 +878,6 @@ class ProjectStoreImpl {
     };
   }
 
-  /** The live GL handle for a uuid. Textures read the engine's live cache (so a
-   *  just-assigned texture resolves); material/font fall back to the scene preload. */
-  private handleForRef(ref: string): number {
-    const tex = EngineHost.getResource(Assets)?.getTexture(ref);
-    if (tex) return tex.handle;
-    const uuid = refUuid(ref);
-    const path = uuid !== null ? AssetRegistry.pathForUuid(uuid) : ref;
-    const r = this.lastAssetResult;
-    if (!path || !r) return 0;
-    return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
-  }
-
-  /**
-   * The async half of live asset resolution (the Reconciler's touch listener).
-   * A projection just resolved `ref` COLD — the scene-open preload never saw it
-   * (assigned after load: surface setField, the picker popover, a hot-created
-   * asset). Load it through the engine's own loader for its slot type, then
-   * re-project the components that reference it; failures are LOUD and recorded
-   * for diagnostics. Deduped per registry generation so a broken ref can't
-   * re-fetch forever.
-   */
-  private hotLoadAsset(ref: string, fieldType: string): void {
-    const path = AssetRegistry.refPath(ref);
-    if (path === null) return; // unknown uuid — diagnostics reports it; nothing to load
-    const key = `${fieldType}:${path}`;
-    if (AssetRegistry.hotLoadStartedFor(key)) return;
-    AssetRegistry.markHotLoadStarted(key);
-    const assets = EngineHost.getResource(Assets);
-    if (!assets) return;
-    void this.loadForSlot(assets, fieldType, ref, path)
-      .then(() => {
-        AssetRegistry.clearLoadFailure(path);
-        Reconciler.reprojectRefs((r) => AssetRegistry.refPath(r) === path);
-        SceneStore.poke();
-      })
-      .catch((err) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        AssetRegistry.noteLoadFailure(path, msg);
-        console.error(`[assets] live load of ${fieldType} "${path}" failed: ${msg}`);
-      });
-  }
-
-  /** Load `ref` through the loader its slot type names — the same loaders the
-   *  scene-open preload dispatches to (one loading truth, two trigger times). */
-  private loadForSlot(assets: AssetsData, fieldType: string, ref: string, path: string): Promise<unknown> {
-    const def = ASSET_SLOTS[fieldType];
-    if (!def) return Promise.reject(new Error(`no live loader for asset slot type "${fieldType}"`));
-    const loaded = def.load(assets, ref, path);
-    if (!def.record) return loaded;
-    const kind = def.record;
-    return loaded.then((r) => this.recordHandle(kind, path, (r as { handle: number }).handle));
-  }
-
-  /** Record a hot-loaded material/font handle where the incremental resolver
-   *  looks them up (they have no live engine-side cache getter like textures). */
-  private recordHandle(kind: 'material' | 'font', path: string, handle: number): void {
-    if (!this.lastAssetResult) {
-      this.lastAssetResult = { textureHandles: new Map(), materialHandles: new Map(), fontHandles: new Map() };
-    }
-    const maps = this.lastAssetResult;
-    (kind === 'material' ? maps.materialHandles : maps.fontHandles).set(path, handle);
-  }
-
   /**
    * Content changed ON DISK (fs watcher) — keep the live realm coherent: drop
    * every stale cache entry for the changed assets and, when something in the
@@ -975,7 +900,7 @@ class ProjectStoreImpl {
       // through the same slot-typed path a cold projection uses.
       AssetRegistry.forgetHotLoadsFor(rel);
       const slot = metaTypeToSlot(AssetRegistry.typeForUuid(uuid));
-      if (slot) this.hotLoadAsset(UUID_PREFIX + uuid, slot);
+      if (slot) AssetBinding.hotLoad(UUID_PREFIX + uuid, slot);
     }
   }
 
@@ -989,7 +914,7 @@ class ProjectStoreImpl {
    *  preload), or 0 if the material isn't loaded in the current scene. The Material Editor
    *  uses it to push live edits onto the running material so the viewport reflects them. */
   materialHandle(path: string): number {
-    return this.lastAssetResult?.materialHandles.get(path) ?? 0;
+    return AssetBinding.materialHandle(path);
   }
 
   /** Load a `.esprefab` asset (PrefabData) by ref, cached. The scene load-expand
@@ -2359,14 +2284,12 @@ class ProjectStoreImpl {
       const result = await assets.preloadSceneAssets(raw);
       resolved = JSON.parse(JSON.stringify(raw)) as SceneData;
       assets.resolveSceneAssetPaths(resolved, result);
-      this.lastAssetResult = result;
+      AssetBinding.adopt(result);
     }
     EditorHistory.clearScene();
     useSelection.getState().select(null);
     usePrefabConflicts.getState().clear(); // a prefab document has no scene instances
-    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
-    Reconciler.setRefPathResolver((ref) => AssetRegistry.refPath(ref));
-    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
+    AssetBinding.install();
     installSkeletalSync(this.skeletalTransport());
     Reconciler.adopt(raw, resolved);
     EngineHost.syncEditorViewToScene();

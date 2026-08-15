@@ -3,7 +3,7 @@
 import { loadSceneData, Assets } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import { SceneModel } from './SceneModel';
-import { Reconciler } from './Reconciler';
+import { AssetBinding } from './AssetBinding';
 import { EditorHistory } from './EditorHistory';
 import { PerfMonitor } from './PerfMonitor';
 import { loadEditorSpine } from './spineLoad';
@@ -45,9 +45,11 @@ export const SceneLoader = {
       const result = await assets.preloadSceneAssets(raw);
       resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
       assets.resolveSceneAssetPaths(resolved, result);
-      // Incremental recreate (duplicate / undo) re-resolves textures from the
-      // engine's live cache (just loaded above).
-      Reconciler.setAssetResolver((ref) => assets.getTexture(ref)?.handle ?? 0);
+      // The realm's own binding, the same one the project transport installs:
+      // resolving a ref is not this door's business to define, and defining it
+      // here is how this path came to resolve textures and nothing else.
+      AssetBinding.adopt(result);
+      AssetBinding.install();
     }
 
     const map = PerfMonitor.measure('scene.load', () => loadSceneData(app.world, resolved as SceneDataArg));

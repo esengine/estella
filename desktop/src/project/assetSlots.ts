@@ -12,8 +12,8 @@
 import type { AssetsData } from 'esengine';
 
 /** Slots whose resolved `{handle}` must be recorded where the incremental resolver
- *  looks it up — material/font have no live engine-side cache getter like textures. */
-export type SlotRecord = 'material' | 'font';
+ *  looks it up — these have no live engine-side cache getter like textures. */
+export type SlotRecord = 'material' | 'font' | 'mesh';
 
 export interface AssetSlotDef {
   /** `.meta` type vocabulary values that resolve to this slot. `font` folds both
@@ -32,6 +32,9 @@ export const ASSET_SLOTS: Record<string, AssetSlotDef> = {
   texture: { metaTypes: ['texture'], load: (a, ref) => a.loadTexture(ref) },
   material: { metaTypes: ['material'], load: (a, ref) => a.loadMaterial(ref), record: 'material' },
   font: { metaTypes: ['font', 'bitmapFont'], load: (a, ref) => a.loadFont(ref), record: 'font' },
+  // GPU geometry: a handle like a material's, so a mesh assigned after the
+  // scene-open preload (or re-imported on disk) reaches the World the same way.
+  mesh: { metaTypes: ['mesh'], load: (a, _ref, path) => a.load('mesh', path), record: 'mesh' },
   audio: { metaTypes: ['audio'], load: (a, ref) => a.loadAudio(ref) },
   // Video streams at runtime (play-mode only) — no edit-mode handle to preload.
   video: { metaTypes: ['video'], load: () => Promise.resolve() },

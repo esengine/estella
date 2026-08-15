@@ -20,6 +20,7 @@
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
+ *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -169,6 +170,7 @@ app.whenReady().then(async () => {
     let meshAsset = null;
     let meshMaterial = null;
     let meshPrefab = null;
+    let setField = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -261,6 +263,23 @@ app.whenReady().then(async () => {
           ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_ASSET)});
         await window.__estellaHeadless.api.step(2, 1 / 60);
         return { pointed };
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_SET_FIELD={"entity","component","key","value"} writes one
+    // inspector field the way the editor's own door does, then waits: an asset
+    // assigned after load is COLD, and reaching the World is an async load away.
+    if (process.env.ESTELLA_VERIFY_SET_FIELD) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_SET_FIELD);
+      setField = await exec(`(async () => {
+        const api = window.__estellaHeadless.api;
+        api.setField(${JSON.stringify(spec.entity)}, ${JSON.stringify(spec.component)},
+                     ${JSON.stringify(spec.key)}, "asset", ${JSON.stringify(spec.value)});
+        for (let i = 0; i < 40; i++) {
+          await api.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 16));
+        }
+        return { wrote: ${JSON.stringify(spec.key)} };
       })()`);
     }
 
@@ -511,7 +530,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
