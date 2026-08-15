@@ -53,6 +53,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **An imported model stands where it was built.** The import read the mesh list
+  and nothing else, so every primitive of a model landed on the origin, stacked.
+  It now walks the source's node tree: each node becomes an entity carrying its
+  own translation, rotation and scale (a node given as a matrix is decomposed,
+  since a Transform holds TRS), children hang off parents, and one mesh drawn by
+  several nodes is one product referenced from each. A node's further primitives
+  become its children, because a `Mesh2D` draws one mesh.
+
+  `--scale` sizes the model on its root. A glTF is authored in metres and a world
+  unit is a design pixel, so a real-world model arrives a few pixels across; the
+  import says so when it produces one rather than guessing a factor, since
+  nothing in the file says which it is.
+
 - **A glTF arrives with its images and its colours.** The import now reads the
   materials too, and what it produces for each is not an `.esmaterial`: the
   engine's mesh path is `texture(uv) * vertexColor * tint`, which is what glTF
