@@ -13,6 +13,7 @@ const PIPELINE = path.join(HERE, '..');
 const REPO = path.join(PIPELINE, '..');
 
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
+       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -30,7 +31,11 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
 The result is printed as JSON: errors, warnings, and what the package weighs
 against the limits in force. The size report rides the result rather than being a
 second file — \`result.size\` carries the verdicts the build dialog draws, so CI
-and the editor cannot disagree about whether a build fits.`;
+and the editor cannot disagree about whether a build fits.
+
+import-gltf writes one \`.esmesh\` per triangle primitive next to the source (or
+into outDir). A glTF holds many, so it is a source that PRODUCES assets rather
+than one the engine loads — the products are what a scene references.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -41,6 +46,13 @@ function parseArgs(argv) {
   if (command === '--help' || command === '-h' || command === 'help') {
     console.log(USAGE);
     process.exit(0);
+  }
+  if (command === 'import-gltf') {
+    if (!projectDir) {
+      console.error(USAGE);
+      process.exit(2);
+    }
+    return { command, source: path.resolve(projectDir), out: rest[0] ? path.resolve(rest[0]) : null };
   }
   if (command !== 'export' || !projectDir) {
     console.error(USAGE);
@@ -127,6 +139,33 @@ function engineRuntimeDir(platform) {
 }
 
 const opts = parseArgs(process.argv.slice(2));
+
+if (opts.command === 'import-gltf') {
+  const { mod: importer, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'gltfImport.ts'), 'gltfImport.mjs');
+  try {
+    const dir = opts.out ?? path.dirname(opts.source);
+    const stem = path.basename(opts.source).replace(/\.(gltf|glb)$/i, '');
+    const { meshes, warnings } = importer.importGltfMeshes(
+      new Uint8Array(readFileSync(opts.source)), stem,
+      (uri) => {
+        const abs = path.join(path.dirname(opts.source), uri);
+        return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
+      },
+    );
+    for (const w of warnings) console.warn(`  ! ${w}`);
+    for (const mesh of meshes) {
+      const outFile = path.join(dir, `${mesh.name}.esmesh`);
+      writeFileSync(outFile, importer.encodeImportedMesh(mesh));
+      console.log(`${path.relative(process.cwd(), outFile)}: `
+        + `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
+    }
+    process.exit(meshes.length > 0 ? 0 : 1);
+  } finally {
+    cleanup();
+  }
+}
+
 const project = projectSettings(opts.projectDir);
 const platform = opts.platform;
 

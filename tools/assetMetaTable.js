@@ -61,6 +61,10 @@ export const EXT_TO_TYPE = Object.freeze({
     // only be made by the Content Browser's own button) and a graph written by
     // any other hand is never adopted by the scan, which types orphans by name.
     '.esmatgraph': 'materialgraph',
+    // Import-only sources: `estella import-gltf` writes .esmesh products beside
+    // them, and those are what a scene references.
+    '.gltf': 'mesh',
+    '.glb': 'mesh',
     '.esmesh': 'mesh',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',
