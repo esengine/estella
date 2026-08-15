@@ -502,8 +502,9 @@ const IOS_SLICES = {
 const XCFRAMEWORK = path.join('build/cmake/native-ios', 'Estella.xcframework');
 
 /** Where each desktop OS's host build tree lives — one per OS, as the iOS slices
- *  are one per sysroot, because they are different binaries. */
-const DESKTOP_BUILD_DIR = {
+ *  are one per sysroot, because they are different binaries. Exported so the
+ *  native-build gate compiles the same tree instead of naming one of its own. */
+export const DESKTOP_BUILD_DIR = {
     macos: 'build/cmake/native-macos',
     windows: 'build/cmake/native-windows',
     linux: 'build/cmake/native-linux',

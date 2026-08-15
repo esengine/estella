@@ -83,6 +83,12 @@ export const GATES = [
     where: 'local',
     why: 'it configures and builds a native cmake tree; CI compiles and RUNS those harnesses in its own C++ jobs',
   },
+  {
+    id: 'native-build',
+    run: 'node tools/check-native-build.mjs',
+    where: 'local',
+    why: 'it builds the engine out of the tree `cli native` configured; CI builds every native target from scratch',
+  },
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
