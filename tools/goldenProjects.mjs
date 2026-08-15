@@ -52,6 +52,7 @@ export const CAPABILITIES = [
   'ecs', 'particles', 'audio',
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
+  'model-import',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -86,6 +87,9 @@ export const EVIDENCE = {
   localization: /\b(Localization|i18nKey|setLocale)\b/,
   spine: /\bSpine(Animation)?\b/,
   material: /\b(Material|material)\b/,
+  // The products, not the source: a .gltf in the project proves an import ran,
+  // and a scene referencing an .esmesh proves the products are what it draws.
+  'model-import': /\.esmesh\b/,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
   'tile-collision': /\b(collision|Collider|tileCollision)\b/,
@@ -169,6 +173,15 @@ export const GOLDEN = [
     // into one page and the package samples frames the editor never sees. The
     // count is the claim: packing that quietly stops still passes parity.
     atlas: { packed: 7 },
+  },
+  {
+    id: 'model-import',
+    certifies: ['model-import'],
+    targets: ['web'],
+    tier: 'pr',
+    // Nothing in it responds to input: the scene is a placed model, and the
+    // chain it certifies is the import's — products, refs, prefab, package.
+    interactGap: 'a placed model has nothing to drive; the import chain is what this certifies',
   },
   {
     id: 'ui-controls',

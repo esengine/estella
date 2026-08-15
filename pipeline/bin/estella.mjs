@@ -165,6 +165,11 @@ const opts = parseArgs(process.argv.slice(2));
 if (opts.command === 'import-gltf') {
   const { mod: importer, cleanup } = await loadPipeline(
     path.join(PIPELINE, 'src', 'assets', 'gltfImport.ts'), 'gltfImport.mjs');
+  // The products are project assets, so they get their `.meta` here rather than
+  // waiting for a scan — which is also the only moment the source's own import
+  // settings (a sampler's filter and wrap) are still in hand.
+  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
   let imported = 0;
   try {
     const sourceDir = path.dirname(opts.source);
@@ -193,21 +198,32 @@ if (opts.command === 'import-gltf') {
     }
     const report = (file, what) =>
       console.log(`${path.relative(process.cwd(), file)}: ${what}`);
+    // Settings the source asked for, by product name; only ever the FIRST mint.
+    const settings = new Map();
+    for (const mesh of meshes) {
+      for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture]) {
+        if (image?.settings) settings.set(image.file, image.settings);
+      }
+    }
+    const adopt = (file) => meta.adoptOrphan(file, settings.get(path.basename(file)));
 
     for (const mesh of meshes) {
       const outFile = path.join(dir, `${mesh.name}.esmesh`);
       writeFileSync(outFile, importer.encodeImportedMesh(mesh));
+      await adopt(outFile);
       report(outFile, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
     }
     for (const texture of textures) {
       const outFile = path.join(dir, texture.name);
       writeFileSync(outFile, texture.bytes);
+      await adopt(outFile);
       report(outFile, `${texture.bytes.length} bytes`);
     }
     if (meshes.length > 0) {
       const outFile = path.join(dir, `${stem}.esprefab`);
       const prefab = importer.assembleGltfPrefab(stem, meshes, { refs, nodes, scale: opts.scale });
       writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
+      await adopt(outFile);
       report(outFile, `${prefab.entities.length} entit${prefab.entities.length === 1 ? 'y' : 'ies'}`);
 
       // A glTF is authored in metres and a world unit is a design pixel, so a
@@ -222,6 +238,7 @@ if (opts.command === 'import-gltf') {
     imported = meshes.length;
   } finally {
     cleanup();
+    cleanupMeta();
   }
   process.exit(imported > 0 ? 0 : 1);
 }

@@ -20,18 +20,21 @@ import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
 class PrefabCacheImpl {
-  /** ref (`@uuid:`) → the loaded `.esprefab`. */
+  /** ref (`@uuid:` or a project path) → the loaded `.esprefab`. */
   private readonly byRef = new Map<string, PrefabData>();
 
   /**
    * Load a `.esprefab` by ref, cached, warming its base and every nested
    * reference so {@link resolveSync} can answer for all of them.
+   *
+   * A ref is a uuid OR a project path — the two spellings every asset ref takes,
+   * and what the runtime loader accepts. Refusing the path form here dropped the
+   * instance from the editor while the package still had it.
    */
   async load(ref: string): Promise<PrefabData | null> {
-    if (!ref.startsWith(UUID_PREFIX)) return null;
     const cached = this.byRef.get(ref);
     if (cached) return cached;
-    const path = AssetRegistry.pathForUuid(ref.slice(UUID_PREFIX.length).toLowerCase());
+    const path = AssetRegistry.refPath(ref);
     if (!path) return null;
     try {
       const prefab = migratePrefabData(JSON.parse(await window.estella.fs.read(path))).data as PrefabData;
