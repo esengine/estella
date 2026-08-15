@@ -12,6 +12,82 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Fixed
+
+- **A device that came back drew the placeholder, and said it was fine.** Losing
+  the GPU parks every texture on the white placeholder and lists it as awaiting
+  re-upload. The re-upload asked the asset layer to load the texture again — and
+  the load answered out of the residency cache, whose entry for that path was the
+  placeholder it was about to replace. The handle was retargeted onto it, the
+  list emptied, and the device reported itself Live with the screen white. Every
+  count agreed; only the pixels disagreed.
+
+  A texture awaiting re-upload is no longer a residency hit, since it does not
+  hold its path's content until something puts it back. And ending recovery is no
+  longer the caller's to assert: the criterion is the engine's list, so
+  `markDeviceRestored` answers how many textures are still missing instead of
+  declaring the device whole on request.
+
+- **The second loss never recovered.** Measured over four rounds, only the first
+  worked; from the second the device stayed Recovering forever, with one more
+  texture stranded each round — all of them the same atlas, at different handles.
+  Getting bytes onto the GPU creates a second pool record, and that record stayed
+  findable under the path it had claimed, so the next loss swept it up as a
+  texture nobody could re-upload.
+
+  A re-upload no longer claims the path (the identity belongs to the handle being
+  recovered) and the GPU object now MOVES onto that handle rather than being
+  borrowed from a record left behind. The sweep is driven by the engine's list
+  instead of this layer's cache, which is the subset that hid the difference.
+
+- **A lost context stopped leaving its objects behind.** Across five losses the
+  host's object tables only grew — buffers by 18 a round, textures by 4, programs
+  by 7 then 9 then 11. Those tables are global to the page, so nothing about a
+  dead context frees what it minted. The releases now happen at the LOSS, the one
+  moment they are both safe and free: on a lost context each is a silent no-op
+  that still frees the host's wrapper, while after the rebuild the same call
+  hands a new context an old one's object. Per round it is now +2 programs and +1
+  buffer, with textures, VAOs and framebuffers flat.
+
+### Added
+
+- **A game that loses its GPU comes back on its own.** Every piece of a recovery
+  was in place and nothing called it: the only caller outside the engine was a
+  test probe, so a shipped game that lost its device stayed on the placeholder
+  until someone closed the tab — and the path could pass a gate, driven by hand,
+  while never running for a player. The driver lives with the asset layer, retries
+  with a backoff because a browser returns a context when it is ready, and is
+  timed off unscaled delta so a paused game still recovers.
+
+- **A lost WebGPU device is replaced.** The second backend had no recovery at
+  all: a WebGPU device belongs to whoever created it, so the backend declined to
+  rebuild one — correctly — and nothing ever handed a replacement over. Since
+  0.53 lets a shipped build ask for WebGPU, that was a path a player could reach
+  and never come back from. The replacement is acquired through the same boot
+  helper as the first, so it negotiates the same features, and is taken up by the
+  next recovery attempt — one order of operations for both backends.
+
+- **Losing the GPU is a pixel gate, on both backends.** The whole harness for
+  this existed — a probe that takes the context away for real, a driver for the
+  full cycle, assertions on each step — and nothing declared it, so of 52 pixel
+  gates none was a device loss. It now runs on every PR: once driven by hand, and
+  once as the player's case, where nothing asks for a recovery and only frames
+  pass. The scene samples an atlas, so the probes fail unless the content
+  actually came back; the first attempt reused a vertex-coloured scene and passed
+  with the re-upload deleted. Four rounds on WebGL2 (three on WebGPU) hold that a
+  recovery works more than once, and the object tables are checked for slope
+  rather than for a number nobody has a baseline for.
+
+- **The C++ harness list is checked from the side that let two through.**
+  `CPP_TESTS` calls itself the single source of truth so a harness cannot be
+  compiled-but-never-run, and the gate over it read that list to decide what to
+  build — so it could only confirm the list's own contents. `test_device_loss`
+  and `test_physics_interpolation` were declared with `add_test`, built by nobody
+  and run by nobody. The gate now reads the other direction too, and that half
+  needs no compiler.
+
 ## [0.53.0] - 2026-08-14
 
 ### Fixed
