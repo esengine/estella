@@ -75,6 +75,25 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A normal map, with no tangent channel to import.** A mesh can now carry one
+  (`Mesh2D.normalMap`), and its tangent frame is derived per pixel from the
+  screen-space derivatives of position and uv — the surface the shader is already
+  shading. The alternative was a TANGENT vertex channel, which most exported
+  models do not have (Blender writes one only when asked), so the geometry would
+  have decided whether the feature worked at all.
+
+  The frame math lives in the lighting the `Lit2D` domain injects, beside the
+  `sampleNormal` that unpacks the texel — one `perturbNormal` for every lit
+  surface rather than a copy per shader, so a sprite material can light itself
+  the same way a mesh does. The map rides the `LIT` variant (it needs normals to
+  perturb) and binds to sampler slot 1, which a draw owns for itself; the batch
+  stream's other slots are a merge product, chosen per vertex.
+
+  Caught by the second backend only: WGSL's `dpdy` has the opposite sign to
+  GLSL's `dFdy`, which flips the tangent and bitangent and lights the wrong half
+  of the surface. The importer carries `normalTexture` across now, and leaves it
+  out for geometry with no normals — there it would be a reference nothing reads.
+
 - **An imported model stands where it was built.** The import read the mesh list
   and nothing else, so every primitive of a model landed on the origin, stacked.
   It now walks the source's node tree: each node becomes an entity carrying its
