@@ -15,16 +15,25 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
-import { Schedule } from '../src/ecs/system';
+import { Schedule, defineSystem, GetWorld } from '../src/ecs/system';
 import { simulationBasePlugins } from '../src/app/pluginSets';
+import { StatsPlugin } from '../src/stats';
+import { registerCharacterControllerSystem } from '../src/physics/CharacterController';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';
 
 const SCHEDULES = Object.entries(Schedule).filter(([, v]) => typeof v === 'number') as [string, Schedule][];
 
+/**
+ * The base stack plus the two systems that declare but are not in it: the stats
+ * overlay is opt-in, and the character controller is registered by hand next to
+ * physics. Left out, their claims were the only ones nothing was holding.
+ */
 const build = (): App => {
     const app = App.new();
     for (const plugin of simulationBasePlugins()) app.addPlugin(plugin);
+    app.addPlugin(new StatsPlugin({ overlay: false }));
+    registerCharacterControllerSystem(app);
     return app;
 };
 
@@ -38,17 +47,15 @@ describe('the engine stack', () => {
         expect(found.map((f) => `${f.a} <-> ${f.b} over ${f.over.join(', ')}`)).toEqual([]);
     });
 
-    // The escape hatch is still there and still costs everything: a system that
-    // takes the World without declaring conflicts with every other system, so a
-    // regression shows up as a schedule that cannot be batched at all.
-    it('has no system that conflicts with everything', () => {
+    // An undeclared system conflicts with EVERYTHING, so a probe touching
+    // nothing still collides with it — which is how a schedule holding a single
+    // system (FixedUpdate: the character controller, alone) gets judged at all.
+    it.each(SCHEDULES)('has nobody holding the World silently in %s', (_name, schedule) => {
         const app = build();
-        for (const [, schedule] of SCHEDULES) {
-            const systems = app.scheduleBatches(schedule).flat();
-            if (systems.length < 2) continue;
-            const found = app.scheduleAmbiguities(schedule);
-            expect(found.filter((f) => f.over.includes('the World itself'))).toEqual([]);
-        }
+        app.addSystemToSchedule(schedule,
+            defineSystem([GetWorld()], () => { }, { name: 'DeclarationProbe', touches: {} }));
+        const found = app.scheduleAmbiguities(schedule);
+        expect(found.filter((f) => f.over.includes('the World itself'))).toEqual([]);
     });
 
     // What the declarations bought, in the one number that shows it: before
