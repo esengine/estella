@@ -13,6 +13,10 @@
 #include "../../core/Log.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+
+#include <string>
+#include <vector>
 
 #include <cmath>
 #include <cstring>
@@ -35,19 +39,25 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     // that reads a model matrix, which is what lets the vertices stay local.
     const auto target = ctx.resources.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::MESH);
-    resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
-        {}, ctx.resources.preferredShaderLanguage());
-    Shader* shader = ctx.resources.getShader(handle);
-    if (shader && shader->isValid()) {
-        mesh_shader_id_ = shader->getProgramId();
+    // Two permutations, because a vertex layout may only declare attributes its
+    // shader consumes: geometry without normals must not be drawn by a program
+    // that reads them, and the reverse leaves the normals unlit.
+    auto compile = [&](std::vector<std::string> features) -> u32 {
+        resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
+            {}, ctx.resources.preferredShaderLanguage());
+        Shader* shader = ctx.resources.getShader(handle);
+        if (!shader || !shader->isValid()) return 0;
         if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
             shader->bind();
             shader->setUniform("u_texture", 0);
             shader->unbind();
         }
-    }
+        return shader->getProgramId();
+    };
+    mesh_shader_id_ = compile({});
+    mesh_lit_shader_id_ = compile({"LIT"});
 }
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -127,8 +137,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // vertices are local-space and untouched, so the CPU loop below — which
         // exists to bake world space into every vertex — is skipped entirely.
         if (resident && mesh_shader_id_ != 0) {
-            if (resident->isDrawable()) {
-                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE);
+            const u32 residentShader = resident->hasNormals ? mesh_lit_shader_id_ : mesh_shader_id_;
+            if (resident->isDrawable() && residentShader != 0) {
+                const u32 stride = resident->hasNormals
+                    ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
+                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, stride);
                 auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), position)
                                 * glm::mat4_cast(rotation)
@@ -136,9 +149,17 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 std::memcpy(dst, &model[0][0], 64);
                 u32 tintRGBA = packColor(mesh.color);
                 std::memcpy(dst + 64, &tintRGBA, 4);
+                if (resident->hasNormals) {
+                    // Written per object rather than derived per vertex: this is
+                    // the transform a normal takes under a non-uniform scale.
+                    const glm::mat3 nrm = glm::transpose(glm::inverse(glm::mat3(model)));
+                    for (u32 row = 0; row < 3; ++row) {
+                        std::memcpy(dst + 68 + row * 12, &nrm[row][0], 12);
+                    }
+                }
 
                 key.shaderId = (mesh.material != 0 && key.materialId != 0)
-                    ? key.shaderId : mesh_shader_id_;
+                    ? key.shaderId : residentShader;
                 key.layoutId = LayoutId::MeshInstance;
                 key.instanceCount = 1;
                 key.vertexBuffer = resident->vertexBuffer;

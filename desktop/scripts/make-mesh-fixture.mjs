@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Imports public/scenes/two-triangles.gltf into the `.esmesh` behind the
- *        `mesh-asset` pixel gate.
+ * @file  Imports the glTF fixtures behind the `mesh-asset` and `mesh-lit` gates.
  *
  * Through the shipped importer (`estella import-gltf`), not a copy of it: the
  * fixture is then a product of the path a user takes, so the gate that asserts
@@ -17,11 +16,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const source = path.join(HERE, '..', 'public', 'scenes', 'two-triangles.gltf');
+const scenes = path.join(HERE, '..', 'public', 'scenes');
 const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 
-const run = spawnSync(process.execPath, [cli, 'import-gltf', source], {
-  stdio: 'inherit',
-  cwd: path.join(HERE, '..', '..'),
-});
-process.exit(run.status ?? 1);
+// two-triangles: the mesh2d geometry, so a file drawing what the scene draws is
+// the claim. lit-triangles: the same shape with per-face NORMALS and one white
+// colour, so on screen only the lighting can separate its halves.
+for (const name of ['two-triangles.gltf', 'lit-triangles.gltf']) {
+  const run = spawnSync(process.execPath, [cli, 'import-gltf', path.join(scenes, name)], {
+    stdio: 'inherit',
+    cwd: path.join(HERE, '..', '..'),
+  });
+  if (run.status !== 0) process.exit(run.status ?? 1);
+}

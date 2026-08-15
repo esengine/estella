@@ -120,6 +120,10 @@ export const SCENES = [
   // engine's own encoder from this scene's vertices, so the assertions hold.
   { id: "mesh-asset", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/two-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "mesh-resident", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_RESIDENT: "1", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  // What a normal is FOR: two coplanar triangles, one white colour, normals
+  // facing the viewer and +X, under a head-on directional light. Only a shader
+  // reading them can tell the halves apart — which is what the two probes are.
+  { id: "mesh-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

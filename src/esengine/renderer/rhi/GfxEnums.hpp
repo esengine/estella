@@ -91,6 +91,10 @@ static constexpr u32 LAYOUT_COUNT = 4;
 
 /// One per-object record for a resident mesh: a model matrix and a tint.
 static constexpr u32 MESH_INSTANCE_STRIDE = 68;
+/// The same plus a normal matrix (three vec3 rows), for geometry with normals.
+/// Carried per object because a non-uniform scale makes the model matrix the
+/// wrong transform for a normal, and inverting one per vertex is the alternative.
+static constexpr u32 MESH_INSTANCE_STRIDE_LIT = 104;
 /// The attributes that record occupies (4 matrix rows + the tint).
 static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
 /// Where those attributes start. FIXED, not "after the mesh's channels": a mesh

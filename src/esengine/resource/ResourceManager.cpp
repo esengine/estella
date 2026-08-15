@@ -492,8 +492,13 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
         layout.attributes[i] = channels[i];
         layout.attributes[i].bufferSlot = 0;
     }
+    bool hasNormals = false;
+    for (const GfxVertexAttribute& c : channels) {
+        if (c.location == static_cast<u32>(MeshChannel::Normal)) hasNormals = true;
+    }
+
     layout.strides[0] = vertexStride;
-    layout.strides[1] = MESH_INSTANCE_STRIDE;
+    layout.strides[1] = hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
     layout.instanceStep[1] = true;
     u32 next = static_cast<u32>(channels.size());
     for (u32 row = 0; row < 4; ++row) {
@@ -502,6 +507,14 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     }
     layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 4, 4, GfxDataType::UnsignedByte,
                                  true, 64, 1};
+    // Only where the shader will read them: a layout may not declare an attribute
+    // its pipeline's shader does not consume, which WebGPU rejects outright.
+    if (hasNormals) {
+        for (u32 row = 0; row < 3; ++row) {
+            layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 5 + row, 3,
+                                         GfxDataType::Float, false, 68 + row * 12u, 1};
+        }
+    }
     layout.attributeCount = next;
 
     auto mesh = makeUnique<Mesh>();
@@ -519,6 +532,7 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     mesh->indexBuffer = ib ? ib->handle() : BufferHandle::Invalid;
     mesh->layout = device_->createVertexLayout(layout);
     mesh->indexCount = static_cast<u32>(indices.size());
+    mesh->hasNormals = hasNormals;
     mesh->localMin = localMin;
     mesh->localMax = localMax;
     return meshes_.add(std::move(mesh));

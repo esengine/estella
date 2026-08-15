@@ -32,6 +32,10 @@ public:
 
     u32 indexCount = 0;
 
+    /** Whether the vertices carry normals — decides the per-object record's shape
+     *  and which shader variant draws it. */
+    bool hasNormals = false;
+
     /** Local-space bounds of the vertices, for the frustum cull. */
     glm::vec3 localMin{0.0f, 0.0f, 0.0f};
     glm::vec3 localMax{0.0f, 0.0f, 0.0f};

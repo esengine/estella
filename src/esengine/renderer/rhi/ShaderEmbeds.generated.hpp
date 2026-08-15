@@ -273,6 +273,17 @@ void main() {
 
 inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 #pragma version 300 es
+// Lit2D domain for the LIGHTING it injects (LightConstants + applyLighting2D),
+// not for its canonical vertex stage — that is only supplied to a shader which
+// writes none, and this one writes its own to place local vertices by a model
+// matrix. So the light math is shared with every 2D lit surface rather than
+// copied, and the std140 block stays the engine's to own.
+#pragma domain Lit2D
+
+// The variant a mesh WITH normals is drawn by. A layout may not declare an
+// attribute its shader does not consume, so normals and the normal matrix are
+// inside the switch on both sides.
+#pragma feature LIT
 
 // GPU-resident geometry. Slot 0 is the mesh's own vertices, which are LOCAL
 // space and are never rewritten; slot 1 is the per-object record the frame
@@ -283,6 +294,9 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec4 a_color;
+#ifdef LIT
+layout(location = 3) in vec3 a_normal;
+#endif
 
 // 8.. and not 3..: a channel's semantic IS its location, so adding normals to a
 // mesh must not move the per-object record (see MESH_INSTANCE_FIRST_LOCATION).
@@ -291,6 +305,14 @@ layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
 layout(location = 11) in vec4 a_model3;
 layout(location = 12) in vec4 a_instTint;
+#ifdef LIT
+// The normal matrix (inverse transpose of the model's 3x3), per object: under a
+// non-uniform scale the model matrix skews a normal, and inverting one per
+// vertex is the alternative.
+layout(location = 13) in vec3 a_nrm0;
+layout(location = 14) in vec3 a_nrm1;
+layout(location = 15) in vec3 a_nrm2;
+#endif
 
 layout(std140) uniform FrameConstants {
     mat4 u_projection;
@@ -298,12 +320,21 @@ layout(std140) uniform FrameConstants {
 
 out vec2 v_texCoord;
 out vec4 v_color;
+#ifdef LIT
+out highp vec3 v_worldNormal;
+out highp vec2 v_worldPos;
+#endif
 
 void main() {
     mat4 model = mat4(a_model0, a_model1, a_model2, a_model3);
-    gl_Position = u_projection * model * vec4(a_position, 1.0);
+    vec4 world = model * vec4(a_position, 1.0);
+    gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
+#ifdef LIT
+    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
+    v_worldPos = world.xy;
+#endif
 }
 #pragma end
 
@@ -312,14 +343,22 @@ precision mediump float;
 
 in vec2 v_texCoord;
 in vec4 v_color;
+#ifdef LIT
+in highp vec3 v_worldNormal;
+in highp vec2 v_worldPos;
+#endif
 
 uniform sampler2D u_texture;
 
 out vec4 fragColor;
 
 void main() {
-    vec4 texColor = texture(u_texture, v_texCoord);
-    fragColor = texColor * v_color;
+    vec4 base = texture(u_texture, v_texCoord) * v_color;
+#ifdef LIT
+    fragColor = vec4(applyLighting2D(base.rgb, normalize(v_worldNormal), v_worldPos), base.a);
+#else
+    fragColor = base;
+#endif
 }
 #pragma end
 
@@ -331,25 +370,42 @@ struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_texCoord : vec2f,
     @location(2) a_color : vec4f,
+#ifdef LIT
+    @location(3) a_normal : vec3f,
+#endif
     @location(8)  a_model0 : vec4f,
     @location(9)  a_model1 : vec4f,
     @location(10) a_model2 : vec4f,
     @location(11) a_model3 : vec4f,
     @location(12) a_instTint : vec4f,
+#ifdef LIT
+    @location(13) a_nrm0 : vec3f,
+    @location(14) a_nrm1 : vec3f,
+    @location(15) a_nrm2 : vec3f,
+#endif
 };
 struct VSOut {
     @builtin(position) pos : vec4f,
     @location(0) v_texCoord : vec2f,
     @location(1) v_color : vec4f,
+#ifdef LIT
+    @location(2) v_worldNormal : vec3f,
+    @location(3) v_worldPos : vec2f,
+#endif
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
     let model = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3);
+    let world = model * vec4f(v.a_position, 1.0);
 
     var out : VSOut;
-    out.pos = frame.projection * model * vec4f(v.a_position, 1.0);
+    out.pos = frame.projection * world;
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
+#ifdef LIT
+    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
+    out.v_worldPos = world.xy;
+#endif
     return out;
 }
 #pragma end
@@ -362,11 +418,19 @@ struct VSOut {
     @builtin(position) pos : vec4f,
     @location(0) v_texCoord : vec2f,
     @location(1) v_color : vec4f,
+#ifdef LIT
+    @location(2) v_worldNormal : vec3f,
+    @location(3) v_worldPos : vec2f,
+#endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    return texColor * v.v_color;
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+#ifdef LIT
+    return vec4f(applyLighting2D(base.rgb, normalize(v.v_worldNormal), v.v_worldPos), base.a);
+#else
+    return base;
+#endif
 }
 #pragma end
 )esshader";

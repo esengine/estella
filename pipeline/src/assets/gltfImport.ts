@@ -134,10 +134,10 @@ function readComponent(dv: DataView, at: number, componentType: number): number 
 }
 
 /**
- * A glTF's triangle geometry as `.esmesh` payloads. NORMALS ARE DELIBERATELY
- * SKIPPED: WebGPU rejects a pipeline whose vertex layout declares an attribute
- * the shader does not consume, and none reads normals until there is lighting.
- * The format already describes them, so enabling them is a change here.
+ * A glTF's triangle geometry as `.esmesh` payloads. NORMAL is carried when the
+ * source has it: the engine then draws the mesh with its lit variant, and the
+ * layout declares the channel only where a shader reads it — which is the rule
+ * WebGPU enforces and the reason this is not written unconditionally.
  *
  * @param bytes The `.gltf` (JSON) or `.glb` (container) file.
  * @param stem  Base name for the products.
@@ -191,6 +191,9 @@ export function importGltfMeshes(
                 const uvIndex = prim.attributes.TEXCOORD_0;
                 const colorIndex = prim.attributes.COLOR_0;
                 const uvs = uvIndex !== undefined ? readAccessor(json, bin, buffers, uvIndex) : null;
+                const normalIndex = prim.attributes.NORMAL;
+                const normals = normalIndex !== undefined
+                    ? readAccessor(json, bin, buffers, normalIndex) : null;
                 const colorsRaw = colorIndex !== undefined
                     ? readAccessor(json, bin, buffers, colorIndex) : null;
                 const colorComps = colorIndex !== undefined
@@ -208,6 +211,8 @@ export function importGltfMeshes(
                     { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
                     { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
                     { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
+                    ...(normals ? [{ semantic: MeshChannel.Normal, components: 3,
+                                     type: MeshChannelType.Float32 }] : []),
                 ]);
 
                 const vertices = new Uint8Array(vertexCount * vertexStride);
@@ -231,6 +236,11 @@ export function importGltfMeshes(
                             ? (c < colorComps ? colorsRaw[i * colorComps + c] ?? 1 : 1)
                             : 1;
                         dv.setUint8(at + channels[2]!.offset + c, Math.max(0, Math.min(255, Math.round(v * 255))));
+                    }
+                    if (normals && channels[3]) {
+                        for (let c = 0; c < 3; c++) {
+                            dv.setFloat32(at + channels[3].offset + c * 4, normals[i * 3 + c] ?? 0, true);
+                        }
                     }
                 }
 
