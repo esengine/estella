@@ -148,6 +148,10 @@ export const SCENES = [
   // path. What it adds over a material ball is the FRAMING: the gate asks for a
   // clear border (nothing escaped) and an outer eighth reached (nothing shrank).
   { id: "mesh-preview", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_PREVIEW: "{\"w\":128,\"h\":128}", ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4" } },
+  // A SCENE camera that looks from somewhere else. Two sprites on the camera's
+  // own axis project to ONE point for a 2D camera; pitched 20 deg they land at
+  // 0.329 and 0.158 down the frame — arithmetic — and the centre is empty.
+  { id: "camera-tilt", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/camera-tilt.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/camera-tilt.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.329,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.5,\"y\":0.158,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // A mesh assigned IN THE EDITOR: a cold ref reaches the World only through the
   // live loader + re-projection. The quad covers the gap between the scene's own
   // two triangles, so the frame says which geometry is drawn — and the hit test

@@ -1529,6 +1529,7 @@ pixelPerfect: boolean
 priority: number
 projection: number
 rotation: number
+tilt: { x: number; y: number; z: number; w: number; } | undefined
 viewport: { x: number; y: number; z: number; w: number; }
 x: number
 y: number

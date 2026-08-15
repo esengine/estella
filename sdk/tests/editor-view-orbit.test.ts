@@ -8,8 +8,8 @@
  * turned one against where a point lands.
  */
 import { describe, expect, it } from 'vitest';
-import { invertViewZ, invertViewOrbit, multiply, perspective, ortho } from '../src/math/mat4';
-import { editorCameraInfo } from '../src/camera/CameraPlugin';
+import { invertViewZ, invertViewOrbit, invertViewQuat, multiply, perspective, ortho } from '../src/math/mat4';
+import { editorCameraInfo, buildCameraInfo } from '../src/camera/CameraPlugin';
 import {
     DEFAULT_EDITOR_VIEW, editorViewIsOrbited, editorViewAxes, editorViewAxisAngles, editorViewHalfHeight,
 } from '../src/camera/EditorView';
@@ -134,5 +134,48 @@ describe('where the world axes point on screen', () => {
                 }
             }
         }
+    });
+});
+
+describe('a scene camera that looks from somewhere else', () => {
+    const cells = (m: Float32Array) => Array.from(m, v => v + 0);
+
+    it.each([0, 0.7, -2.1])('is the 2D view exactly, for a Z rotation of %s rad', (angle) => {
+        // A camera's view IS its own transform inverted; the 2D path builds that
+        // from an angle. If the two ever differ, giving cameras a full orientation
+        // moves every 2D scene — so this is asserted cell for cell.
+        const q = { x: 0, y: 0, z: Math.sin(angle / 2), w: Math.cos(angle / 2) };
+        expect(cells(invertViewQuat(30, -40, 500, q.x, q.y, q.z, q.w)))
+            .toEqual(cells(invertViewZ(30, -40, 500, Math.cos(angle), Math.sin(angle))));
+    });
+
+    it('sees depth once it is tilted, where the 2D camera cannot', () => {
+        // Pitched down 30°: content further along +Y is nearer the horizon, which
+        // is the whole reason a game camera needs an orientation at all.
+        const half = (15 * Math.PI) / 180;
+        const view = invertViewQuat(0, 0, 500, -Math.sin(half), 0, 0, Math.cos(half));
+        const vp = multiply(ortho(-400, 400, -400, 400, -2000, 2000), view);
+        const near = project(vp, 0, -200, 0);
+        const far = project(vp, 0, 200, 0);
+        expect(far.y).toBeGreaterThan(near.y);
+        // ...and the same points are FLAT under the 2D camera, which is the contrast.
+        const flat = multiply(ortho(-400, 400, -400, 400, -2000, 2000), invertViewZ(0, 0, 500, 1, 0));
+        expect(project(flat, 0, 200, 0).y - project(flat, 0, -200, 0).y)
+            .toBeGreaterThan(far.y - near.y);
+    });
+
+    it('carries a tilted camera through the POV the renderer reads', () => {
+        const half = (20 * Math.PI) / 180;
+        const pov = {
+            entity: 1, isActive: true, x: 0, y: 0, z: 500, rotation: 0,
+            tilt: { x: -Math.sin(half), y: 0, z: 0, w: Math.cos(half) },
+            projection: 1, orthoSize: 400, fov: 60, near: 0.1, far: 2000,
+            viewport: { x: 0, y: 0, z: 1, w: 1 }, clearFlags: 0, priority: 0,
+            pixelPerfect: false, cullingMask: 0xFFFFFFFF,
+        };
+        const cam = buildCameraInfo(pov, 256, 256, null, [], 0);
+        // Ground that is further away rides UP the screen, exactly as the matrix says.
+        expect(project(cam.viewProjection, 0, 200, 0).y)
+            .toBeGreaterThan(project(cam.viewProjection, 0, -200, 0).y);
     });
 });

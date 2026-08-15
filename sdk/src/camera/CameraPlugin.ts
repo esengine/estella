@@ -25,7 +25,7 @@ import { RenderPipeline } from '../render/renderPipeline';
 import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
-import { ortho, perspective, invertViewZ, invertViewOrbit, multiply, IDENTITY } from '../math/mat4';
+import { ortho, perspective, invertViewZ, invertViewOrbit, invertViewQuat, multiply, IDENTITY } from '../math/mat4';
 
 // =============================================================================
 // Camera Info
@@ -150,6 +150,12 @@ export interface CameraPOV {
     y: number;
     z: number;
     rotation: number; // Z rotation, radians
+    /**
+     * The camera's full orientation, when it is turned off the 2D plane. Absent
+     * for a rotation purely about Z — which every 2D camera is, and which the
+     * scalar above already says — so turning this on cannot move a 2D scene.
+     */
+    tilt?: { x: number; y: number; z: number; w: number };
     /** Orbit about (x, y, z) in radians — an eye that stands off the -Z axis.
      *  Absent (the 2D case) keeps the rotation-about-Z view exactly as it was. */
     orbit?: { yaw: number; pitch: number };
@@ -189,6 +195,9 @@ function readCameraPOV(
         y: transform.position.y,
         z: transform.position.z,
         rotation: 2 * Math.atan2(q.z, q.w), // quaternion → Z angle (2D convention)
+        // Kept whole only when it says something the Z angle cannot: a camera
+        // that looks at 3D content from anywhere but straight down -Z.
+        tilt: (q.x !== 0 || q.y !== 0) ? { x: q.x, y: q.y, z: q.z, w: q.w } : undefined,
         projection: camera.projectionType,
         orthoSize: camera.orthoSize,
         fov: camera.fov,
@@ -251,11 +260,14 @@ export function buildCameraInfo(
         camY = snapToPixelGrid(pov.y, worldPerPixel);
     }
 
-    // An orbited camera stands off the axis, so its view comes from the focus it
-    // turns around; without one the 2D path is untouched.
+    // Three ways to say where the eye is, one view: an orbit turns around a focus
+    // (editor navigation), a tilt is the camera's own transform inverted (a scene
+    // camera on 3D content), and 2D is the rotation-about-Z, untouched.
     const view = pov.orbit
         ? invertViewOrbit(camX, camY, 0, pov.orbit.yaw, pov.orbit.pitch, pov.z)
-        : invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
+        : pov.tilt
+            ? invertViewQuat(camX, camY, pov.z, pov.tilt.x, pov.tilt.y, pov.tilt.z, pov.tilt.w)
+            : invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
     const cam = acquireCameraInfo(pool, index);
     cam.entity = pov.entity;
     cam.viewProjection.set(multiply(projection, view));

@@ -79,6 +79,38 @@ export function invertViewZ(
     return m;
 }
 
+const _viewQM = new Float32Array(16);
+
+/**
+ * The view matrix of a camera at (x, y, z) turned by a quaternion — the inverse
+ * of its own transform, which is what a camera's view IS.
+ *
+ * A rotation purely about Z reproduces {@link invertViewZ} cell for cell, so the
+ * 2D camera is this one's special case rather than a different path.
+ */
+export function invertViewQuat(
+    x: number, y: number, z: number,
+    qx: number, qy: number, qz: number, qw: number,
+): Float32Array {
+    const xx = qx * qx, yy = qy * qy, zz = qz * qz;
+    const xy = qx * qy, xz = qx * qz, yz = qy * qz;
+    const wx = qw * qx, wy = qw * qy, wz = qw * qz;
+    // The rotation's own basis; the view takes its transpose (an inverse rotation).
+    const r00 = 1 - 2 * (yy + zz), r01 = 2 * (xy - wz), r02 = 2 * (xz + wy);
+    const r10 = 2 * (xy + wz), r11 = 1 - 2 * (xx + zz), r12 = 2 * (yz - wx);
+    const r20 = 2 * (xz - wy), r21 = 2 * (yz + wx), r22 = 1 - 2 * (xx + yy);
+
+    const m = _viewQM;
+    m[0] = r00; m[1] = r01; m[2] = r02; m[3] = 0;
+    m[4] = r10; m[5] = r11; m[6] = r12; m[7] = 0;
+    m[8] = r20; m[9] = r21; m[10] = r22; m[11] = 0;
+    m[12] = -(r00 * x + r10 * y + r20 * z);
+    m[13] = -(r01 * x + r11 * y + r21 * z);
+    m[14] = -(r02 * x + r12 * y + r22 * z);
+    m[15] = 1;
+    return m;
+}
+
 const _orbitM = new Float32Array(16);
 
 /**
