@@ -9,6 +9,7 @@
  *        disk, where a project can see them, reference them and diff them, and
  *        the cook then ships them as the engine format they already are.
  */
+/// <reference path="./draco3dgltf.d.ts" />
 import {
     MeshChannel, MeshChannelType, packChannels, encodeMesh, PREFAB_FORMAT_VERSION,
     type MeshData, type PrefabData, type PrefabEntityData,
@@ -144,7 +145,7 @@ interface GltfJson {
     }[];
     meshes?: { name?: string; primitives: {
         attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
-        extensions?: Record<string, unknown>;
+        extensions?: { KHR_draco_mesh_compression?: DracoPrimitive } & Record<string, unknown>;
         /** Morph targets — shapes the runtime blends between; not imported. */
         targets?: unknown[];
     }[] }[];
@@ -175,16 +176,15 @@ interface GltfJson {
 }
 
 /**
- * Extensions that hold a primitive's geometry themselves, so its accessors point
- * at nothing this importer can read. Left undetected they decode as zeroes — a
- * mesh whose every vertex sits on the origin, with nothing said about it.
- *
- * meshopt is not among them: it compresses bufferVIEWS, which decode back into
- * the bytes the accessors already describe (see {@link viewBytes}).
+ * `KHR_draco_mesh_compression` on a primitive: the geometry is one compressed
+ * blob holding every attribute, so unlike meshopt this is NOT a bufferView that
+ * decodes in place — the accessors keep their count and type and lose their data.
  */
-const COMPRESSED_GEOMETRY: Record<string, string> = {
-    KHR_draco_mesh_compression: 'Draco',
-};
+interface DracoPrimitive {
+    bufferView: number;
+    /** Attribute semantic → the id Draco knows it by (not an accessor index). */
+    attributes: Record<string, number>;
+}
 
 const MIME_EXTENSION: Record<string, string> = {
     'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/ktx2': '.ktx2',
@@ -265,6 +265,110 @@ function decodeMeshopt(src: GltfBytes, packed: MeshoptView): Uint8Array | null {
         source.subarray(at, at + packed.byteLength), packed.mode, packed.filter,
     );
     return out;
+}
+
+let dracoModule: Promise<DracoModule | null> | null = null;
+
+/** The decoder, instantiated once per process — a wasm module per file would be
+ *  most of the cost of importing one. */
+function loadDraco(warnings: string[]): Promise<DracoModule | null> {
+    dracoModule ??= import('draco3dgltf')
+        .then(m => (m as unknown as { createDecoderModule(): Promise<DracoModule> }).createDecoderModule())
+        .catch(() => null);
+    return dracoModule.then((m) => {
+        if (!m) warnings.push('the Draco decoder could not be loaded');
+        return m;
+    });
+}
+
+/**
+ * The slice of the Draco decoder this import uses, typed here because the package
+ * ships none. Loaded by dynamic import and kept OUT of the Electron-main bundle
+ * (see its externals): it locates its wasm beside itself on disk, which bundling
+ * breaks — the same shape as the KTX2 encoder the cook loads.
+ */
+interface DracoModule {
+    Decoder: new () => DracoDecoder;
+    DecoderBuffer: new () => { Init(bytes: Uint8Array, length: number): void };
+    Mesh: new () => DracoMesh;
+    TRIANGULAR_MESH: number;
+    DT_FLOAT32: number;
+    HEAPF32: { buffer: ArrayBuffer };
+    _malloc(bytes: number): number;
+    _free(ptr: number): void;
+    destroy(object: unknown): void;
+}
+interface DracoMesh { num_points(): number; num_faces(): number }
+interface DracoAttribute { num_components(): number }
+interface DracoDecoder {
+    GetEncodedGeometryType(buffer: unknown): number;
+    DecodeBufferToMesh(buffer: unknown, mesh: DracoMesh): { ok(): boolean; error_msg(): string };
+    GetAttributeByUniqueId(mesh: DracoMesh, id: number): DracoAttribute | null;
+    GetAttributeDataArrayForAllPoints(
+        mesh: DracoMesh, attribute: DracoAttribute, type: number, byteLength: number, ptr: number): boolean;
+    GetTrianglesUInt32Array(mesh: DracoMesh, byteLength: number, ptr: number): boolean;
+}
+
+/** One primitive's decoded geometry: every attribute Draco held, and its faces. */
+interface DracoGeometry {
+    attributes: Map<string, Float32Array>;
+    indices: Uint32Array;
+}
+
+/**
+ * Draco's blob for one primitive, expanded. Values come back as floats without
+ * the glTF `normalized` scale applied — that stays the accessor's word, as it is
+ * for uncompressed data, so a u8 COLOR_0 does not arrive 255× too bright.
+ */
+function decodeDraco(draco: DracoModule, bytes: Uint8Array, ext: DracoPrimitive): DracoGeometry {
+    const decoder = new draco.Decoder();
+    const buffer = new draco.DecoderBuffer();
+    const mesh = new draco.Mesh();
+    try {
+        buffer.Init(bytes, bytes.byteLength);
+        if (decoder.GetEncodedGeometryType(buffer) !== draco.TRIANGULAR_MESH) {
+            throw new Error('the Draco blob is not a triangle mesh');
+        }
+        const status = decoder.DecodeBufferToMesh(buffer, mesh);
+        if (!status.ok()) throw new Error(status.error_msg());
+
+        const attributes = new Map<string, Float32Array>();
+        for (const [semantic, id] of Object.entries(ext.attributes)) {
+            const attribute = decoder.GetAttributeByUniqueId(mesh, id);
+            if (!attribute) continue;
+            attributes.set(semantic, readDracoArray(draco, decoder, mesh, attribute));
+        }
+        return { attributes, indices: readDracoIndices(draco, decoder, mesh) };
+    } finally {
+        // Every handle is wasm memory this side has to hand back, on the error
+        // path too — an import that reports a bad file must not also leak it.
+        draco.destroy(mesh);
+        draco.destroy(buffer);
+        draco.destroy(decoder);
+    }
+}
+
+function readDracoArray(draco: DracoModule, decoder: DracoDecoder,
+                        mesh: DracoMesh, attribute: DracoAttribute): Float32Array {
+    const values = mesh.num_points() * attribute.num_components();
+    const ptr = draco._malloc(values * 4);
+    try {
+        decoder.GetAttributeDataArrayForAllPoints(mesh, attribute, draco.DT_FLOAT32, values * 4, ptr);
+        return new Float32Array(draco.HEAPF32.buffer, ptr, values).slice();
+    } finally {
+        draco._free(ptr);
+    }
+}
+
+function readDracoIndices(draco: DracoModule, decoder: DracoDecoder, mesh: DracoMesh): Uint32Array {
+    const count = mesh.num_faces() * 3;
+    const ptr = draco._malloc(count * 4);
+    try {
+        decoder.GetTrianglesUInt32Array(mesh, count * 4, ptr);
+        return new Uint32Array(draco.HEAPF32.buffer, ptr, count).slice();
+    } finally {
+        draco._free(ptr);
+    }
 }
 
 /**
@@ -633,6 +737,13 @@ export async function importGltfMeshes(
     const meshIndexOf = new Map<string, number>();
     const single = (json.meshes ?? []).reduce((n, m) => n + m.primitives.length, 0) === 1;
 
+    // ~800KB of decoder, loaded only for a file that carries Draco — the same
+    // lazy dynamic import the cook uses for its KTX2 encoder, and the reason the
+    // import is async in the first place.
+    const draco = (json.meshes ?? []).some(m => m.primitives.some(p => p.extensions?.KHR_draco_mesh_compression))
+        ? await loadDraco(warnings)
+        : null;
+
     const src: GltfBytes = { json, bin, buffers, decoded: new Map() };
     const materialCtx: MaterialContext = { src, json, stem, textures, warnings };
     const textureCache = new Map<number, ImportedImageRef | null>();
@@ -654,15 +765,23 @@ export async function importGltfMeshes(
                 warnings.push(`${label}: mode ${mode} is not TRIANGLES — skipped`);
                 return;
             }
-            const compressed = Object.keys(prim.extensions ?? {})
-                .find(name => name in COMPRESSED_GEOMETRY);
-            if (compressed) {
-                warnings.push(`${label}: geometry is ${COMPRESSED_GEOMETRY[compressed]}-compressed`
-                    + ' — skipped (re-export without compression)');
-                return;
+            const packed = prim.extensions?.KHR_draco_mesh_compression;
+            let geometry: DracoGeometry | null = null;
+            if (packed) {
+                const blob = viewBytes(src, packed.bufferView);
+                if (!blob || !draco) {
+                    warnings.push(`${label}: Draco geometry could not be read — skipped`);
+                    return;
+                }
+                try {
+                    geometry = decodeDraco(draco, blob, packed);
+                } catch (err) {
+                    warnings.push(`${label}: Draco decode failed (${(err as Error).message}) — skipped`);
+                    return;
+                }
             }
             for (const name of Object.keys(prim.extensions ?? {})) {
-                if (!(name in COMPRESSED_GEOMETRY)) warnings.push(`${label}: ${name} not imported`);
+                if (name !== 'KHR_draco_mesh_compression') warnings.push(`${label}: ${name} not imported`);
             }
             // Deformation is the difference between a model that moves and one
             // that does not, so it is never dropped in silence.
@@ -678,30 +797,44 @@ export async function importGltfMeshes(
                 return;
             }
             // Zeroes are a legal accessor per spec, and for POSITION they are a
-            // heap of vertices on the origin. Say so instead of writing one.
+            // heap of vertices on the origin. Say so instead of writing one. A
+            // Draco accessor has no view BY spec — its data is in the blob.
             const posAccessor = json.accessors?.[posIndex];
-            if (posAccessor && posAccessor.bufferView === undefined && !posAccessor.sparse) {
+            if (!geometry && posAccessor
+                && posAccessor.bufferView === undefined && !posAccessor.sparse) {
                 warnings.push(`${label}: POSITION has no data — skipped`);
                 return;
             }
 
             try {
-                const positions = readAccessor(src, posIndex);
+                // One reader for both storages. Draco hands over whole attribute
+                // arrays, leaving each accessor to say what it MEANS — its type,
+                // and whether its integers are normalized — as it always does.
+                const attribute = (semantic: string, index: number | undefined): Float32Array | null => {
+                    if (index === undefined) return null;
+                    if (!geometry) return readAccessor(src, index);
+                    const values = geometry.attributes.get(semantic);
+                    if (!values) throw new Error(`${semantic} is missing from the Draco blob`);
+                    const acc = json.accessors?.[index];
+                    if (!acc?.normalized) return values;
+                    const scale = normalizedScale(acc.componentType);
+                    return values.map(v => v * scale);
+                };
+                const positions = attribute('POSITION', posIndex)!;
                 const vertexCount = positions.length / 3;
                 const uvIndex = prim.attributes.TEXCOORD_0;
                 const colorIndex = prim.attributes.COLOR_0;
-                const uvs = uvIndex !== undefined ? readAccessor(src, uvIndex) : null;
+                const uvs = attribute('TEXCOORD_0', uvIndex);
                 const normalIndex = prim.attributes.NORMAL;
-                const normals = normalIndex !== undefined
-                    ? readAccessor(src, normalIndex) : null;
-                const colorsRaw = colorIndex !== undefined
-                    ? readAccessor(src, colorIndex) : null;
+                const normals = attribute('NORMAL', normalIndex);
+                const colorsRaw = attribute('COLOR_0', colorIndex);
                 const colorComps = colorIndex !== undefined
                     ? TYPE_COMPONENTS[json.accessors?.[colorIndex]?.type ?? 'VEC4'] ?? 4 : 4;
 
-                const indices = prim.indices !== undefined
-                    ? Uint32Array.from(readAccessor(src, prim.indices))
-                    : Uint32Array.from({ length: vertexCount }, (_, i) => i);
+                const indices = geometry ? geometry.indices
+                    : prim.indices !== undefined
+                        ? Uint32Array.from(readAccessor(src, prim.indices))
+                        : Uint32Array.from({ length: vertexCount }, (_, i) => i);
                 if (indices.length % 3 !== 0) {
                     warnings.push(`${label}: ${indices.length} indices is not a triangle list — skipped`);
                     return;

@@ -77,6 +77,7 @@
     "@anthropic-ai/sdk": "^0.115.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dockview": "^6.6.1",
+    "draco3dgltf": "^1.5.7",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.27.0",
     "esengine": "workspace:*",

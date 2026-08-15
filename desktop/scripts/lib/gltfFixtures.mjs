@@ -83,3 +83,48 @@ export async function meshoptTriangle() {
     meshes: MESHES,
   });
 }
+
+/**
+ * The same triangle Draco-compressed — what Blender writes when its glTF export
+ * has compression on, and the only compression Blender offers.
+ *
+ * Draco reorders vertices to compress them, so a product built from this is
+ * geometrically the same triangle rather than the same bytes.
+ */
+export async function dracoTriangle() {
+  const { createEncoderModule } = await import('draco3dgltf');
+  const draco = await createEncoderModule();
+  const mesh = new draco.Mesh();
+  const builder = new draco.MeshBuilder();
+  builder.AddFacesToMesh(mesh, 1, new Uint32Array(INDICES));
+  const position = builder.AddFloatAttributeToMesh(mesh, draco.POSITION, 3, 3, POSITIONS);
+  const texCoord = builder.AddFloatAttributeToMesh(mesh, draco.TEX_COORD, 3, 2, UVS);
+
+  const encoder = new draco.Encoder();
+  const encoded = new draco.DracoInt8Array();
+  const length = encoder.EncodeMeshToDracoBuffer(mesh, encoded);
+  const blob = new Uint8Array(length);
+  for (let i = 0; i < length; i++) blob[i] = encoded.GetValue(i) & 0xff;
+  for (const handle of [encoded, encoder, mesh, builder]) draco.destroy(handle);
+
+  return encode({
+    asset: { version: '2.0' },
+    extensionsRequired: ['KHR_draco_mesh_compression'],
+    buffers: [{ byteLength: blob.length, uri: `data:application/octet-stream;base64,${Buffer.from(blob).toString('base64')}` }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: blob.length }],
+    // The accessors keep saying what the data MEANS — count and type — while
+    // Draco holds the data itself. That is the shape the spec asks for.
+    accessors: ACCESSORS.map(a => ({ ...a, bufferView: undefined })),
+    meshes: [{
+      name: 'Tri',
+      primitives: [{
+        attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, mode: 4,
+        extensions: {
+          KHR_draco_mesh_compression: {
+            bufferView: 0, attributes: { POSITION: position, TEXCOORD_0: texCoord },
+          },
+        },
+      }],
+    }],
+  });
+}

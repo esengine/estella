@@ -111,7 +111,7 @@ async function loadPipeline(entry, outName) {
     format: 'esm',
     platform: 'node',
     target: 'node20',
-    external: ['esbuild', 'electron', 'sharp', '../../../build-tools/basis/encoder.mjs'],
+    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf', '../../../build-tools/basis/encoder.mjs'],
     logLevel: 'error',
     banner: {
       js: "import { createRequire as __esCreateRequire } from 'node:module';\n"

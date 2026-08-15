@@ -12,7 +12,7 @@ import {
   importGltfMeshes, assembleGltfPrefab, type ImportedMesh, type PrefabAssembly,
 } from '../../pipeline/src/assets/gltfImport';
 import { MeshChannel } from 'esengine';
-import { plainTriangle, meshoptTriangle } from '../scripts/lib/gltfFixtures.mjs';
+import { plainTriangle, meshoptTriangle, dracoTriangle } from '../scripts/lib/gltfFixtures.mjs';
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -194,10 +194,12 @@ describe('glTF material import', () => {
       .toEqual({ file: 'bump.png', external: true });
   });
 
-  it('skips a Draco-compressed primitive rather than reading zeroes', async () => {
+  it('says so when a Draco blob will not decode, rather than reading zeroes', async () => {
+    // The accessors of a Draco primitive point at nothing by design, so a blob
+    // that fails to decode has to be reported: read as ordinary accessors, the
+    // very same file is a mesh of vertices on the origin.
     const doc = {
       ...withInlineImage(),
-      // Draco holds the geometry itself, so the accessors point at nothing.
       accessors: [
         { componentType: 5126, count: 3, type: 'VEC3' },
         { componentType: 5126, count: 3, type: 'VEC2' },
@@ -209,8 +211,7 @@ describe('glTF material import', () => {
       extensions: { KHR_draco_mesh_compression: { bufferView: 0, attributes: {} } },
     }]), 'model');
     expect(meshes).toEqual([]);
-    expect(warnings.join('\n')).toContain('Draco-compressed');
-    expect(warnings.join('\n')).toContain('re-export without compression');
+    expect(warnings.join('\n')).toContain('Draco decode failed');
   });
 
   it('skips a primitive whose POSITION carries no data', async () => {
@@ -447,5 +448,39 @@ describe('meshopt-compressed geometry', () => {
     // send a user looking for a file that is not supposed to exist.
     const { warnings } = await importGltfMeshes(await meshoptTriangle(), 'model');
     expect(warnings).toEqual([]);
+  });
+});
+
+describe('Draco-compressed geometry', () => {
+  /** Every vertex as one "x,y,z/u,v" string, sorted — Draco reorders vertices to
+   *  compress them, so what survives is the set of them, not their order. */
+  const vertexSet = (mesh: ImportedMesh): string[] => {
+    const view = new DataView(mesh.data.vertices.buffer, mesh.data.vertices.byteOffset);
+    const at = (semantic: number): number =>
+      mesh.data.channels.find(c => c.semantic === semantic)!.offset;
+    const out: string[] = [];
+    for (let i = 0; i < mesh.vertexCount; i++) {
+      const base = i * mesh.data.vertexStride;
+      const read = (offset: number, n: number): string => Array.from({ length: n },
+        (_, c) => view.getFloat32(base + offset + c * 4, true).toFixed(3)).join(',');
+      out.push(`${read(at(MeshChannel.Position), 3)}/${read(at(MeshChannel.TexCoord0), 2)}`);
+    }
+    return out.sort();
+  };
+
+  it('imports to the same triangle the uncompressed file does', async () => {
+    const plain = (await importGltfMeshes(plainTriangle(), 'model')).meshes[0]!;
+    const packed = (await importGltfMeshes(await dracoTriangle(), 'model')).meshes[0]!;
+    expect(packed.vertexCount).toBe(plain.vertexCount);
+    expect(packed.triangleCount).toBe(plain.triangleCount);
+    expect(vertexSet(packed)).toEqual(vertexSet(plain));
+  });
+
+  it('reads it without complaint, accessors and all', async () => {
+    // A Draco accessor has no bufferView by spec. Read as an ordinary one it is
+    // "no data" — the check that catches a genuinely empty POSITION.
+    const { warnings, meshes } = await importGltfMeshes(await dracoTriangle(), 'model');
+    expect(warnings).toEqual([]);
+    expect(meshes).toHaveLength(1);
   });
 });

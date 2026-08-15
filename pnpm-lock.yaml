@@ -36,6 +36,9 @@ importers:
       dockview:
         specifier: ^6.6.1
         version: 6.6.1(react@19.2.7)
+      draco3dgltf:
+        specifier: ^1.5.7
+        version: 1.5.7
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9
@@ -118,6 +121,9 @@ importers:
 
   pipeline:
     dependencies:
+      draco3dgltf:
+        specifier: ^1.5.7
+        version: 1.5.7
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
@@ -1828,6 +1834,9 @@ packages:
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
+
+  draco3dgltf@1.5.7:
+    resolution: {integrity: sha512-LeqcpmoHIyYUi0z70/H3tMkGj8QhqVxq6FJGPjlzR24BNkQ6jyMheMvFKJBI0dzGZrEOUyQEmZ8axM1xRrbRiw==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -5190,6 +5199,8 @@ snapshots:
       dotenv: 16.6.1
 
   dotenv@16.6.1: {}
+
+  draco3dgltf@1.5.7: {}
 
   dunder-proto@1.0.1:
     dependencies:
