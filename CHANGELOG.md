@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The stock Lit material ignored a mesh's own normals.** A material could draw
+  geometry that carries normals, but the built-in Lit template — what a user
+  reaches for first, and the only lit material needing no shader file — still
+  sampled the flat normal a sprite has. An imported model wearing it was lit as
+  if it were a billboard: not a missing picture but a wrong one, and smooth enough
+  to look deliberate. It now branches on `MESH_NORMALS` like any hand-written
+  material, with the normal map perturbing that frame rather than replacing it. A
+  sprite compiles the other branch and is untouched.
+
 - **The zoom readout lied about a turned view.** It measured the scale by
   projecting the world x axis onto the screen, so an eye looking down that axis
   read as 1% — nothing about the zoom had moved. It now divides the canvas height
