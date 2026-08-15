@@ -62,6 +62,17 @@ struct Mesh2D {
     ES_PROPERTY(step=1, enum_source=sortingLayers, tooltip="Sorting layer — controls draw order across renderables.")
     i32 layer{0};
 
+    /** @brief Drawn as an opaque surface: no blending, and it takes part in depth —
+     *         which is what lets one mesh hide another wherever it is nearer, rather
+     *         than whichever was submitted last. A glTF's OPAQUE alpha mode. */
+    ES_PROPERTY(tooltip="Opaque: no blending; writes and tests depth, so meshes occlude each other.")
+    bool opaque{false};
+
+    /** @brief Skip triangles facing away from the camera — a closed model's inside.
+     *         A glTF says this with `doubleSided: false`, which is its default. */
+    ES_PROPERTY(tooltip="Cull back faces: triangles facing away from the camera are skipped.")
+    bool cullBackfaces{false};
+
     /** @brief Lit by the scene's 2D lights (Light2D). A custom material overrides this. */
     ES_PROPERTY(tooltip="Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this.")
     bool lit{false};

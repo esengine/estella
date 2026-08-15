@@ -5,7 +5,7 @@ Symbols: 113 public · 55 beta · 1411 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"96f79850bd2b098b"
+"bcac84b6e9bb2019"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4224,6 +4224,7 @@ static prototype: Mesh2DAPI
 ## Mesh2DData — interface @experimental
 ```
 color: Color
+cullBackfaces: boolean
 enabled: boolean
 geometry: Mesh2DGeometry
 layer: number
@@ -4231,6 +4232,7 @@ lit: boolean
 material: number
 mesh: number
 normalMap: number
+opaque: boolean
 parallax: Vec2
 texture: number
 ```

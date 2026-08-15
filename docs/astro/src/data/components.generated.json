@@ -1306,6 +1306,18 @@
           "range": "step 1"
         },
         {
+          "key": "opaque",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Opaque: no blending; writes and tests depth, so meshes occlude each other."
+        },
+        {
+          "key": "cullBackfaces",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Cull back faces: triangles facing away from the camera are skipped."
+        },
+        {
           "key": "lit",
           "type": "boolean",
           "default": "false",

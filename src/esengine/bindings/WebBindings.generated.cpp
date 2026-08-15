@@ -443,6 +443,8 @@ struct Mesh2DJS {
     u32 normalMap;
     glm::vec4 color;
     i32 layer;
+    bool opaque;
+    bool cullBackfaces;
     bool lit;
     glm::vec2 parallax;
     u32 material;
@@ -455,6 +457,8 @@ void mesh2dApplyJS(esengine::ecs::Mesh2D& c, const Mesh2DJS& js) {
     c.normalMap = resource::TextureHandle(js.normalMap);
     c.color = js.color;
     c.layer = js.layer;
+    c.opaque = js.opaque;
+    c.cullBackfaces = js.cullBackfaces;
     c.lit = js.lit;
     c.parallax = js.parallax;
     c.material = js.material;
@@ -474,6 +478,8 @@ Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
     js.normalMap = c.normalMap.id();
     js.color = c.color;
     js.layer = c.layer;
+    js.opaque = c.opaque;
+    js.cullBackfaces = c.cullBackfaces;
     js.lit = c.lit;
     js.parallax = c.parallax;
     js.material = c.material;
@@ -1222,6 +1228,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("normalMap", &Mesh2DJS::normalMap)
         .field("color", &Mesh2DJS::color)
         .field("layer", &Mesh2DJS::layer)
+        .field("opaque", &Mesh2DJS::opaque)
+        .field("cullBackfaces", &Mesh2DJS::cullBackfaces)
         .field("lit", &Mesh2DJS::lit)
         .field("parallax", &Mesh2DJS::parallax)
         .field("material", &Mesh2DJS::material)
@@ -2313,7 +2321,9 @@ static_assert(offsetof(esengine::ecs::Mesh2D, texture) == 0, "ABI offset drift: 
 static_assert(offsetof(esengine::ecs::Mesh2D, normalMap) == 4, "ABI offset drift: esengine::ecs::Mesh2D.normalMap (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Mesh2D, color) == 8, "ABI offset drift: esengine::ecs::Mesh2D.color (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::Mesh2D, layer) == 24, "ABI offset drift: esengine::ecs::Mesh2D.layer (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::Mesh2D, lit) == 28, "ABI offset drift: esengine::ecs::Mesh2D.lit (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::Mesh2D, opaque) == 28, "ABI offset drift: esengine::ecs::Mesh2D.opaque (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::Mesh2D, cullBackfaces) == 29, "ABI offset drift: esengine::ecs::Mesh2D.cullBackfaces (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::Mesh2D, lit) == 30, "ABI offset drift: esengine::ecs::Mesh2D.lit (EHT expected 30)");
 static_assert(offsetof(esengine::ecs::Mesh2D, parallax) == 32, "ABI offset drift: esengine::ecs::Mesh2D.parallax (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::Mesh2D, material) == 40, "ABI offset drift: esengine::ecs::Mesh2D.material (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::Mesh2D, enabled) == 44, "ABI offset drift: esengine::ecs::Mesh2D.enabled (EHT expected 44)");
@@ -2522,7 +2532,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "96f79850bd2b098b";
+static const char* kEsAbiLayoutHash = "bcac84b6e9bb2019";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

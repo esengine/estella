@@ -347,6 +347,8 @@ export interface Mesh2D {
     normalMap: number;
     color: Vec4;
     layer: number;
+    opaque: boolean;
+    cullBackfaces: boolean;
     lit: boolean;
     parallax: Vec2;
     material: number;

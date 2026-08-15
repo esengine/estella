@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '96f79850bd2b098b';
+export const ABI_LAYOUT_HASH = 'bcac84b6e9bb2019';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -332,6 +332,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             normalMap: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
             layer: 0,
+            opaque: false,
+            cullBackfaces: false,
             lit: false,
             parallax: { x: 1, y: 1 },
             material: 0,
@@ -347,6 +349,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             normalMap: { tooltip: "Normal map (tangent space). Needs a mesh with normals." },
             color: { tooltip: "Tint multiplied into the vertex colors (white = unchanged)." },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across renderables.", enumSource: "sortingLayers" },
+            opaque: { tooltip: "Opaque: no blending; writes and tests depth, so meshes occlude each other." },
+            cullBackfaces: { tooltip: "Cull back faces: triangles facing away from the camera are skipped." },
             lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
@@ -1004,6 +1008,8 @@ export interface Mesh2DData {
     normalMap: number;
     color: Color;
     layer: number;
+    opaque: boolean;
+    cullBackfaces: boolean;
     lit: boolean;
     parallax: Vec2;
     material: number;

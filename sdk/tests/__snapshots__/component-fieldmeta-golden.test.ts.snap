@@ -219,6 +219,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "color": {
       "tooltip": "Tint multiplied into the vertex colors (white = unchanged).",
     },
+    "cullBackfaces": {
+      "tooltip": "Cull back faces: triangles facing away from the camera are skipped.",
+    },
     "layer": {
       "enumSource": "sortingLayers",
       "step": 1,
@@ -232,6 +235,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "normalMap": {
       "tooltip": "Normal map (tangent space). Needs a mesh with normals.",
+    },
+    "opaque": {
+      "tooltip": "Opaque: no blending; writes and tests depth, so meshes occlude each other.",
     },
     "parallax": {
       "advanced": true,

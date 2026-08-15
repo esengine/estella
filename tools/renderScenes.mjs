@@ -149,6 +149,11 @@ export const SCENES = [
   // centres at x = ±120 project to 0.40 / 0.60, with 0.30 empty. The hit test at
   // the new place proves screen→world followed the turn.
   { id: "view-orbit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_ORBIT: "60,0", ESTELLA_VERIFY_PICK: "{\"x\":0.40,\"y\":0.556,\"entity\":1}", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.60,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // Two quads crossing: one flat, one turned 60° about Y, so each is nearer on
+  // one side. Painter's order cannot draw that — with `opaque` the halves resolve
+  // by depth (left green, right red), and without it the later draw takes both.
+  { id: "mesh-opaque", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.58,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  { id: "mesh-opaque-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Mesh2D\",\"key\":\"opaque\",\"value\":false}", ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.58,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   // A normal map over FLAT normals: the quad faces the viewer, so without the map
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.

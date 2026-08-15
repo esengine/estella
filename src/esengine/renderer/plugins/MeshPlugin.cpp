@@ -130,6 +130,17 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             .type = RenderType::Mesh,
         };
 
+        // An opaque surface says so itself rather than waiting for a depth layer:
+        // no blending, depth written AND tested — the only way one mesh hides
+        // another. Opaque sorts ahead of blended within a layer, so 2D stays on top.
+        if (mesh.opaque) {
+            key.stage = RenderStage::Opaque;
+            key.blend = BlendMode::None;
+            key.depthTest = true;
+            key.depthWrite = true;
+        }
+        if (mesh.cullBackfaces) key.cull = static_cast<u8>(CullMode::Back);
+
         // Material resolve mirrors SpritePlugin: an unregistered handle falls back to
         // the default batch shader; a material owns shading fully, so it takes
         // precedence over the lit toggle.

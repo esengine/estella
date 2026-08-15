@@ -163,8 +163,20 @@ describe('glTF material import', () => {
     expect(line).toContain('normal-map scale 0.4');
     expect(line).toContain('emissive');
     expect(line).toContain('alpha cutoff 0.4');
-    expect(line).toContain('backfaces are not culled');
     expect(line).toContain('KHR_materials_clearcoat');
+  });
+
+  it('is opaque and single-sided unless the source says otherwise', () => {
+    // Both are the glTF's own defaults, so a model arrives occluding itself the
+    // way it was authored rather than as a stack of blended planes.
+    const plain = importGltfMeshes(gltf(withInlineImage()), 'model').meshes[0]!;
+    expect(plain.material).toMatchObject({ opaque: true, cullBackfaces: true });
+
+    const doc = withInlineImage();
+    (doc.materials as Record<string, unknown>[])[0]!.alphaMode = 'BLEND';
+    (doc.materials as Record<string, unknown>[])[0]!.doubleSided = true;
+    const blended = importGltfMeshes(gltf(doc), 'model').meshes[0]!;
+    expect(blended.material).toMatchObject({ opaque: false, cullBackfaces: false });
   });
 
   it('carries a normal map, extracting its image like any other', () => {
@@ -316,6 +328,8 @@ describe('glTF prefab assembly', () => {
         mesh: 'assets/models/model.esmesh',
         texture: 'assets/models/model_0.png',
         color: { r: 0.25, g: 0.5, b: 0.75, a: 1 },
+        opaque: true,
+        cullBackfaces: true,
         enabled: true,
       },
     });
@@ -333,7 +347,7 @@ describe('glTF prefab assembly', () => {
     // The second primitive names no material: no texture, no tint, engine defaults.
     expect(prefab.entities[2]!.components[1]!.data).toEqual({
       mesh: 'model_0_1.esmesh', enabled: true,
-    });
+    });  // no material named: engine defaults, blended and two-sided
   });
 
   it('places each node where the source puts it, parents included', () => {

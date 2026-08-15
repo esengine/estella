@@ -25,6 +25,8 @@
               "b": 1,
               "a": 1
             },
+            "opaque": true,
+            "cullBackfaces": true,
             "enabled": true
           }
         }

@@ -49,6 +49,10 @@ export interface ImportedMaterial {
     baseColorTexture?: ImportedImageRef;
     /** Tangent-space normal map; the engine derives its tangent frame per pixel. */
     normalTexture?: ImportedImageRef;
+    /** Not BLEND: drawn without blending, and taking part in depth. */
+    opaque: boolean;
+    /** `doubleSided: false` (the glTF default): back faces are not drawn. */
+    cullBackfaces: boolean;
 }
 
 /** An image the glTF carries inline (GLB chunk or data uri), to be written beside the meshes. */
@@ -401,15 +405,14 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     if (pbr.metallicRoughnessTexture || (pbr.metallicFactor ?? 1) !== 0 || (pbr.roughnessFactor ?? 1) !== 1) {
         unused.push('metallic-roughness');
     }
-    // The engine has no strength on a normal map; a scaled one would be imported
-    // at full strength, which is a different surface than the author saw.
+    // Alpha coverage beyond opaque/blended has no equivalent: the engine draws a
+    // masked material as opaque, which is the closer of the two.
     if (src.normalTexture?.scale !== undefined && src.normalTexture.scale !== 1) {
         unused.push(`normal-map scale ${src.normalTexture.scale}`);
     }
     if (src.occlusionTexture) unused.push('occlusion');
     if (src.emissiveTexture || (src.emissiveFactor ?? [0, 0, 0]).some(v => v !== 0)) unused.push('emissive');
     if (src.alphaMode === 'MASK') unused.push(`alpha cutoff ${src.alphaCutoff ?? 0.5}`);
-    if (src.doubleSided === false) unused.push('single-sided (backfaces are not culled)');
     for (const name of Object.keys(src.extensions ?? {})) unused.push(name);
     if (unused.length > 0) ctx.warnings.push(`${label}: ${unused.join(', ')} not imported`);
 
@@ -420,6 +423,10 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     return {
         name: src.name ?? `material_${index}`,
         baseColor: [factor[0] ?? 1, factor[1] ?? 1, factor[2] ?? 1, factor[3] ?? 1],
+        // A glTF is OPAQUE and single-sided unless it says otherwise, so a model
+        // arrives occluding itself the way it was authored to.
+        opaque: (src.alphaMode ?? 'OPAQUE') !== 'BLEND',
+        cullBackfaces: src.doubleSided !== true,
         ...(texture ? { baseColorTexture: texture } : {}),
         ...(normal ? { normalTexture: normal } : {}),
     };
@@ -743,6 +750,8 @@ function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
         ...(texture ? { texture } : {}),
         ...(normalMap ? { normalMap } : {}),
         ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
+        ...(mesh.material?.opaque ? { opaque: true } : {}),
+        ...(mesh.material?.cullBackfaces ? { cullBackfaces: true } : {}),
         enabled: true,
     } };
 }

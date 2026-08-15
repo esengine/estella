@@ -4219,6 +4219,7 @@ static prototype: Mesh2DAPI
 ## Mesh2DData — interface @experimental
 ```
 color: Color
+cullBackfaces: boolean
 enabled: boolean
 geometry: Mesh2DGeometry
 layer: number
@@ -4226,6 +4227,7 @@ lit: boolean
 material: number
 mesh: number
 normalMap: number
+opaque: boolean
 parallax: Vec2
 texture: number
 ```
