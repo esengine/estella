@@ -38,6 +38,20 @@ published separately; it ships inside the editor.
   that every asset field a component declares has a slot to load it from, so the
   next such field cannot ship half-connected.
 
+- **A rigged model imported as a still one, without saying so.** Skins, morph
+  targets and animations are what separate a model that moves from one that does
+  not, and the import carried none of them and mentioned none of them — the
+  result looked like a working import of a broken file. Each is reported now,
+  per primitive and per file. So is a `KHR_texture_transform` on a texture
+  reference, whose uv rewrite the import does not apply.
+
+- **An imported texture ignored the sampler the model asked for.** A glTF names
+  its filter and wrap per texture; the products were minted with the engine's
+  defaults, so pixel art came in smoothed and a clamped atlas came in repeating.
+  Those settings now seed the product's `.meta` — on the FIRST mint only, since
+  after that they are the file's own. A source that addresses u and v
+  differently says which one it kept.
+
 - **A compressed model imported as a heap of vertices on the origin.** Draco and
   meshopt hold a primitive's geometry inside an extension, so its accessors point
   at nothing — and an accessor with no view reads as zeroes, which the spec allows
