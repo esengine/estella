@@ -184,7 +184,7 @@ if (opts.command === 'import-gltf') {
           external: (uri) => projectRef(path.resolve(sourceDir, uri)) }
       : {};
 
-    const { meshes, textures, nodes, warnings } = importer.importGltfMeshes(
+    const { meshes, textures, nodes, warnings } = await importer.importGltfMeshes(
       new Uint8Array(readFileSync(opts.source)), stem,
       (uri) => {
         const abs = path.join(sourceDir, uri);

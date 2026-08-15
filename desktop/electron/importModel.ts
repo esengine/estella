@@ -49,7 +49,7 @@ export async function importModel(root: string, destDir: string, absSource: stri
   const projectRef = (abs: string): string =>
     path.relative(path.resolve(root), abs).split(path.sep).join('/');
 
-  const { meshes, textures, nodes, externalFiles, warnings } = importGltfMeshes(
+  const { meshes, textures, nodes, externalFiles, warnings } = await importGltfMeshes(
     new Uint8Array(readFileSync(absSource)), stem,
     (uri) => {
       const abs = path.join(sourceDir, decodeURIComponent(uri));

@@ -12,6 +12,7 @@ import {
   importGltfMeshes, assembleGltfPrefab, type ImportedMesh, type PrefabAssembly,
 } from '../../pipeline/src/assets/gltfImport';
 import { MeshChannel } from 'esengine';
+import { plainTriangle, meshoptTriangle } from '../scripts/lib/gltfFixtures.mjs';
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -83,8 +84,8 @@ function texCoords(mesh: ImportedMesh): number[] {
 }
 
 describe('glTF material import', () => {
-  it('extracts an inline image and names it in the material', () => {
-    const { meshes, textures, warnings } = importGltfMeshes(gltf(withInlineImage()), 'model');
+  it('extracts an inline image and names it in the material', async () => {
+    const { meshes, textures, warnings } = await importGltfMeshes(gltf(withInlineImage()), 'model');
     expect(warnings).toEqual([]);
     expect(textures).toHaveLength(1);
     expect(textures[0]!.name).toBe('model_0.png');
@@ -95,16 +96,16 @@ describe('glTF material import', () => {
     });
   });
 
-  it('references an image already on disk instead of copying it', () => {
+  it('references an image already on disk instead of copying it', async () => {
     const doc = withInlineImage();
     doc.images = [{ uri: 'textures/diffuse%20map.png' }];
-    const { meshes, textures } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes, textures } = await importGltfMeshes(gltf(doc), 'model');
     expect(textures).toEqual([]);
     expect(meshes[0]!.material?.baseColorTexture)
       .toEqual({ file: 'textures/diffuse map.png', external: true });
   });
 
-  it('reads an image out of a GLB binary chunk', () => {
+  it('reads an image out of a GLB binary chunk', async () => {
     const png = Buffer.from(PNG_1PX, 'base64');
     const geo = geometryBuffer();
     const bin = Buffer.concat([Buffer.from(geo.uri.split(',')[1]!, 'base64'), png]);
@@ -141,14 +142,14 @@ describe('glTF material import', () => {
       header, chunk(jsonChunk, 0x4e4f534a), chunk(binChunk, 0x004e4942),
     ]);
 
-    const { meshes, textures } = importGltfMeshes(new Uint8Array(glb), 'robot');
+    const { meshes, textures } = await importGltfMeshes(new Uint8Array(glb), 'robot');
     expect(textures).toHaveLength(1);
     expect(textures[0]!.name).toBe('robot_0.png');
     expect(Buffer.from(textures[0]!.bytes).equals(png)).toBe(true);
     expect(meshes[0]!.material?.baseColorTexture?.file).toBe('robot_0.png');
   });
 
-  it('reports the PBR channels it cannot draw rather than dropping them', () => {
+  it('reports the PBR channels it cannot draw rather than dropping them', async () => {
     const doc = withInlineImage();
     doc.materials = [{
       name: 'Metal',
@@ -157,7 +158,7 @@ describe('glTF material import', () => {
       alphaMode: 'MASK', alphaCutoff: 0.4, doubleSided: false,
       extensions: { KHR_materials_clearcoat: {} },
     }];
-    const { warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { warnings } = await importGltfMeshes(gltf(doc), 'model');
     const line = warnings.join('\n');
     expect(line).toContain('metallic-roughness');
     expect(line).toContain('normal-map scale 0.4');
@@ -166,20 +167,20 @@ describe('glTF material import', () => {
     expect(line).toContain('KHR_materials_clearcoat');
   });
 
-  it('is opaque and single-sided unless the source says otherwise', () => {
+  it('is opaque and single-sided unless the source says otherwise', async () => {
     // Both are the glTF's own defaults, so a model arrives occluding itself the
     // way it was authored rather than as a stack of blended planes.
-    const plain = importGltfMeshes(gltf(withInlineImage()), 'model').meshes[0]!;
+    const plain = (await importGltfMeshes(gltf(withInlineImage()), 'model')).meshes[0]!;
     expect(plain.material).toMatchObject({ opaque: true, cullBackfaces: true });
 
     const doc = withInlineImage();
     (doc.materials as Record<string, unknown>[])[0]!.alphaMode = 'BLEND';
     (doc.materials as Record<string, unknown>[])[0]!.doubleSided = true;
-    const blended = importGltfMeshes(gltf(doc), 'model').meshes[0]!;
+    const blended = (await importGltfMeshes(gltf(doc), 'model')).meshes[0]!;
     expect(blended.material).toMatchObject({ opaque: false, cullBackfaces: false });
   });
 
-  it('carries a normal map, extracting its image like any other', () => {
+  it('carries a normal map, extracting its image like any other', async () => {
     const doc = withInlineImage();
     doc.images = [
       { mimeType: 'image/png', uri: `data:image/png;base64,${PNG_1PX}` },
@@ -187,13 +188,13 @@ describe('glTF material import', () => {
     ];
     doc.textures = [{ source: 0 }, { source: 1 }];
     (doc.materials as { normalTexture?: unknown }[])[0]!.normalTexture = { index: 1 };
-    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(warnings).toEqual([]);
     expect(meshes[0]!.material?.normalTexture)
       .toEqual({ file: 'bump.png', external: true });
   });
 
-  it('skips a Draco-compressed primitive rather than reading zeroes', () => {
+  it('skips a Draco-compressed primitive rather than reading zeroes', async () => {
     const doc = {
       ...withInlineImage(),
       // Draco holds the geometry itself, so the accessors point at nothing.
@@ -203,7 +204,7 @@ describe('glTF material import', () => {
         { componentType: 5123, count: 3, type: 'SCALAR' },
       ],
     };
-    const { meshes, warnings } = importGltfMeshes(gltf(doc, [{
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc, [{
       attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4,
       extensions: { KHR_draco_mesh_compression: { bufferView: 0, attributes: {} } },
     }]), 'model');
@@ -212,7 +213,7 @@ describe('glTF material import', () => {
     expect(warnings.join('\n')).toContain('re-export without compression');
   });
 
-  it('skips a primitive whose POSITION carries no data', () => {
+  it('skips a primitive whose POSITION carries no data', async () => {
     const doc = {
       ...withInlineImage(),
       accessors: [
@@ -221,12 +222,12 @@ describe('glTF material import', () => {
         { bufferView: 2, componentType: 5123, count: 3, type: 'SCALAR' },
       ],
     };
-    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(meshes).toEqual([]);
     expect(warnings.join('\n')).toContain('POSITION has no data');
   });
 
-  it('applies a sparse accessor, which is the geometry it actually has', () => {
+  it('applies a sparse accessor, which is the geometry it actually has', async () => {
     // Replaces vertex 1's position; the base view is the ordinary one.
     const target = Buffer.alloc(2);
     target.writeUInt16LE(1, 0);
@@ -256,36 +257,36 @@ describe('glTF material import', () => {
         { bufferView: 2, componentType: 5123, count: 3, type: 'SCALAR' },
       ],
     };
-    const { meshes } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes } = await importGltfMeshes(gltf(doc), 'model');
     expect(meshes[0]!.data.aabbMax).toEqual([9, 9, 9]);
   });
 
-  it("carries a sampler's filter and wrap as import settings", () => {
+  it("carries a sampler's filter and wrap as import settings", async () => {
     const doc = withInlineImage();
     doc.samplers = [{ magFilter: 9728, wrapS: 33071, wrapT: 33071 }];
     (doc.textures as { sampler?: number }[])[0]!.sampler = 0;
-    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(warnings).toEqual([]);
     expect(meshes[0]!.material?.baseColorTexture?.settings)
       .toEqual({ filterMode: 'nearest', wrapMode: 'clamp' });
   });
 
-  it('says which wrap it kept when the source addresses u and v differently', () => {
+  it('says which wrap it kept when the source addresses u and v differently', async () => {
     const doc = withInlineImage();
     doc.samplers = [{ wrapS: 33071, wrapT: 10497 }];
     (doc.textures as { sampler?: number }[])[0]!.sampler = 0;
-    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(warnings.join('\n')).toContain('wrapS and wrapT differ');
     expect(meshes[0]!.material?.baseColorTexture?.settings?.wrapMode).toBe('clamp');
   });
 
-  it('reports deformation it cannot carry: skins, morph targets, animations', () => {
+  it('reports deformation it cannot carry: skins, morph targets, animations', async () => {
     const doc = {
       ...withInlineImage(),
       skins: [{}], animations: [{}],
       nodes: [{ mesh: 0, skin: 0 }], scenes: [{ nodes: [0] }], scene: 0,
     };
-    const { warnings } = importGltfMeshes(gltf(doc, [{
+    const { warnings } = await importGltfMeshes(gltf(doc, [{
       attributes: { POSITION: 0, TEXCOORD_0: 1, JOINTS_0: 1 }, indices: 2, material: 0, mode: 4,
       targets: [{}, {}],
     }]), 'model');
@@ -296,29 +297,29 @@ describe('glTF material import', () => {
     expect(line).toContain('1 animation(s) not imported');
   });
 
-  it('reports a uv rewrite it does not apply', () => {
+  it('reports a uv rewrite it does not apply', async () => {
     const doc = withInlineImage();
     (doc.materials as { pbrMetallicRoughness: { baseColorTexture: Record<string, unknown> } }[])[0]!
       .pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { scale: [2, 2] } };
-    const { warnings } = importGltfMeshes(gltf(doc), 'model');
+    const { warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(warnings.join('\n')).toContain('KHR_texture_transform not imported');
   });
 
-  it("flips V, because glTF's uv origin is the image's top-left", () => {
-    const { meshes } = importGltfMeshes(gltf(withInlineImage()), 'model');
+  it("flips V, because glTF's uv origin is the image's top-left", async () => {
+    const { meshes } = await importGltfMeshes(gltf(withInlineImage()), 'model');
     expect(texCoords(meshes[0]!)).toEqual([0, 1, 1, 1, 0, 0]);
   });
 });
 
 describe('glTF prefab assembly', () => {
-  const assemble = (bytes: Uint8Array, options: Partial<PrefabAssembly> = {}) => {
-    const { meshes, nodes } = importGltfMeshes(bytes, 'model');
+  const assemble = async (bytes: Uint8Array, options: Partial<PrefabAssembly> = {}) => {
+    const { meshes, nodes } = await importGltfMeshes(bytes, 'model');
     return assembleGltfPrefab('model', meshes, { nodes, ...options });
   };
   const oneNode = { nodes: [{ mesh: 0 }], scenes: [{ nodes: [0] }], scene: 0 };
 
-  it('draws a single-primitive node from the node itself', () => {
-    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }),
+  it('draws a single-primitive node from the node itself', async () => {
+    const prefab = await assemble(gltf({ ...withInlineImage(), ...oneNode }),
                             { refs: { prefix: 'assets/models/' } });
     expect(prefab.entities).toHaveLength(1);
     expect(prefab.rootEntityId).toBe('n0');
@@ -335,12 +336,12 @@ describe('glTF prefab assembly', () => {
     });
   });
 
-  it('hangs a node’s further primitives off it', () => {
+  it('hangs a node’s further primitives off it', async () => {
     const two = [
       { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4 },
       { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, mode: 4 },
     ];
-    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }, two));
+    const prefab = await assemble(gltf({ ...withInlineImage(), ...oneNode }, two));
     expect(prefab.entities.map(e => e.prefabEntityId)).toEqual(['n0', 'n0_p0', 'n0_p1']);
     expect(prefab.entities[0]!.children).toEqual(['n0_p0', 'n0_p1']);
     expect(prefab.entities[1]!.parent).toBe('n0');
@@ -350,7 +351,7 @@ describe('glTF prefab assembly', () => {
     });  // no material named: engine defaults, blended and two-sided
   });
 
-  it('places each node where the source puts it, parents included', () => {
+  it('places each node where the source puts it, parents included', async () => {
     const doc = {
       ...withInlineImage(),
       nodes: [
@@ -360,7 +361,7 @@ describe('glTF prefab assembly', () => {
       ],
       scenes: [{ nodes: [0] }], scene: 0,
     };
-    const prefab = assemble(gltf(doc));
+    const prefab = await assemble(gltf(doc));
     expect(prefab.entities.map(e => e.name)).toEqual(['Model', 'Left', 'Right']);
     expect(prefab.entities[0]!.components[0]!.data)
       .toEqual({ position: { x: 40, y: 0, z: 0 } });
@@ -373,14 +374,14 @@ describe('glTF prefab assembly', () => {
       .toBe(prefab.entities[2]!.components[1]!.data.mesh);
   });
 
-  it('decomposes a node given as a matrix', () => {
+  it('decomposes a node given as a matrix', async () => {
     const doc = {
       ...withInlineImage(),
       // 90° about Z, scaled 2, moved to (10, 20, 30) — column-major.
       nodes: [{ mesh: 0, matrix: [0, 2, 0, 0, -2, 0, 0, 0, 0, 0, 2, 0, 10, 20, 30, 1] }],
       scenes: [{ nodes: [0] }], scene: 0,
     };
-    const data = assemble(gltf(doc)).entities[0]!.components[0]!.data as {
+    const data = (await assemble(gltf(doc))).entities[0]!.components[0]!.data as {
       position: { x: number }; rotation: { z: number; w: number }; scale: { x: number };
     };
     expect(data.position).toEqual({ x: 10, y: 20, z: 30 });
@@ -389,7 +390,7 @@ describe('glTF prefab assembly', () => {
     expect(data.rotation.w).toBeCloseTo(Math.SQRT1_2);
   });
 
-  it('leaves out a normal map the geometry has no normals for', () => {
+  it('leaves out a normal map the geometry has no normals for', async () => {
     const doc = withInlineImage();
     doc.images = [
       { mimeType: 'image/png', uri: `data:image/png;base64,${PNG_1PX}` },
@@ -399,31 +400,52 @@ describe('glTF prefab assembly', () => {
     (doc.materials as { normalTexture?: unknown }[])[0]!.normalTexture = { index: 1 };
     // The fixture's primitive declares no NORMAL, so the engine draws it unlit —
     // a normal map there would be a ref to something nothing reads.
-    const prefab = assemble(gltf({ ...doc, ...oneNode }));
+    const prefab = await assemble(gltf({ ...doc, ...oneNode }));
     expect(prefab.entities[0]!.components[1]!.data.normalMap).toBeUndefined();
   });
 
-  it('scales the root, since a glTF is in metres', () => {
-    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }), { scale: 32 });
+  it('scales the root, since a glTF is in metres', async () => {
+    const prefab = await assemble(gltf({ ...withInlineImage(), ...oneNode }), { scale: 32 });
     expect(prefab.entities[0]!.components[0]!.data)
       .toEqual({ scale: { x: 32, y: 32, z: 32 } });
   });
 
-  it('lays the meshes under a holder when the file has no nodes', () => {
-    const prefab = assemble(gltf(withInlineImage()));
+  it('lays the meshes under a holder when the file has no nodes', async () => {
+    const prefab = await assemble(gltf(withInlineImage()));
     expect(prefab.entities.map(e => e.prefabEntityId)).toEqual(['root', 'm0']);
     expect(prefab.entities[1]!.parent).toBe('root');
   });
 
-  it('spells an external image through the project resolver', () => {
+  it('spells an external image through the project resolver', async () => {
     const doc = withInlineImage();
     doc.images = [{ uri: '../textures/skin.png' }];
-    const prefab = assemble(gltf({ ...doc, ...oneNode }), {
+    const prefab = await assemble(gltf({ ...doc, ...oneNode }), {
       refs: {
         prefix: 'assets/models/',
         external: uri => `assets/${uri.replace('../', '')}`,
       },
     });
     expect(prefab.entities[0]!.components[1]!.data.texture).toBe('assets/textures/skin.png');
+  });
+});
+
+describe('meshopt-compressed geometry', () => {
+  it('imports to the very same mesh the uncompressed file does', async () => {
+    // The claim is not what the codec does — it is that compression is invisible
+    // above the bufferView, which is the whole reason it can be decoded there.
+    const plain = (await importGltfMeshes(plainTriangle(), 'model')).meshes[0]!;
+    const packed = (await importGltfMeshes(await meshoptTriangle(), 'model')).meshes[0]!;
+    expect(packed.vertexCount).toBe(plain.vertexCount);
+    expect(packed.triangleCount).toBe(plain.triangleCount);
+    expect([...packed.data.vertices]).toEqual([...plain.data.vertices]);
+    expect([...packed.data.indices]).toEqual([...plain.data.indices]);
+    expect(packed.data.channels).toEqual(plain.data.channels);
+  });
+
+  it('says nothing about it — a fallback buffer is not a missing one', async () => {
+    // It declares a length and no uri by design; reporting it as unreadable would
+    // send a user looking for a file that is not supposed to exist.
+    const { warnings } = await importGltfMeshes(await meshoptTriangle(), 'model');
+    expect(warnings).toEqual([]);
   });
 });

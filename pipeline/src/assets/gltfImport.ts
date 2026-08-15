@@ -14,6 +14,7 @@ import {
     type MeshData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
 } from 'esengine';
+import { MeshoptDecoder } from 'meshoptimizer/decoder';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
 export interface ImportedMesh {
@@ -109,6 +110,16 @@ interface GltfTextureRef {
     extensions?: Record<string, unknown>;
 }
 
+/**
+ * `EXT_meshopt_compression` on a bufferView: the view's bytes live compressed in
+ * another buffer, and decoding one yields exactly the bytes the view declares —
+ * so accessors, strides and every reader above are untouched by it.
+ */
+interface MeshoptView {
+    buffer: number; byteOffset?: number; byteLength: number;
+    byteStride: number; count: number; mode: string; filter?: string;
+}
+
 /** Per-spec sparse storage: a base of zeroes (or a view) with some values replaced. */
 interface GltfSparse {
     count: number;
@@ -122,8 +133,15 @@ interface GltfJson {
         type: string; normalized?: boolean; min?: number[]; max?: number[];
         sparse?: GltfSparse;
     }[];
-    bufferViews?: { buffer: number; byteOffset?: number; byteLength: number; byteStride?: number }[];
-    buffers?: { byteLength: number; uri?: string }[];
+    bufferViews?: {
+        buffer: number; byteOffset?: number; byteLength: number; byteStride?: number;
+        extensions?: { EXT_meshopt_compression?: MeshoptView };
+    }[];
+    buffers?: {
+        byteLength: number; uri?: string;
+        /** A meshopt fallback buffer has no uri: nothing reads it once the views decode. */
+        extensions?: { EXT_meshopt_compression?: { fallback?: boolean } };
+    }[];
     meshes?: { name?: string; primitives: {
         attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
         extensions?: Record<string, unknown>;
@@ -160,10 +178,12 @@ interface GltfJson {
  * Extensions that hold a primitive's geometry themselves, so its accessors point
  * at nothing this importer can read. Left undetected they decode as zeroes — a
  * mesh whose every vertex sits on the origin, with nothing said about it.
+ *
+ * meshopt is not among them: it compresses bufferVIEWS, which decode back into
+ * the bytes the accessors already describe (see {@link viewBytes}).
  */
 const COMPRESSED_GEOMETRY: Record<string, string> = {
     KHR_draco_mesh_compression: 'Draco',
-    EXT_meshopt_compression: 'meshopt',
 };
 
 const MIME_EXTENSION: Record<string, string> = {
@@ -196,13 +216,65 @@ function decodeDataUri(uri: string): Uint8Array | null {
 }
 
 /**
+ * Where a glTF's bytes live. Every reader goes through {@link viewBytes}, so a
+ * view holding compressed bytes is decoded in one place and nothing above knows.
+ */
+interface GltfBytes {
+    json: GltfJson;
+    bin: Uint8Array | null;
+    buffers: (Uint8Array | null)[];
+    decoded: Map<number, Uint8Array | null>;
+}
+
+/** A whole buffer's bytes — the GLB chunk for buffer 0, else what was loaded. */
+function bufferBytes(src: GltfBytes, index: number): Uint8Array | null {
+    return (index === 0 && src.bin) ? src.bin : (src.buffers[index] ?? null);
+}
+
+/**
+ * One bufferView's bytes, decompressed if it holds them that way. Offsets above
+ * here are relative to what this returns, so a decoded view — which is its own
+ * buffer starting at zero — needs no special case anywhere else.
+ */
+function viewBytes(src: GltfBytes, index: number): Uint8Array | null {
+    const view = src.json.bufferViews?.[index];
+    if (!view) return null;
+    const packed = view.extensions?.EXT_meshopt_compression;
+    if (packed) {
+        if (!src.decoded.has(index)) src.decoded.set(index, decodeMeshopt(src, packed));
+        return src.decoded.get(index) ?? null;
+    }
+    const source = bufferBytes(src, view.buffer);
+    if (!source) return null;
+    const at = view.byteOffset ?? 0;
+    return source.subarray(at, at + view.byteLength);
+}
+
+/**
+ * A meshopt-compressed view, expanded. `MeshoptDecoder.ready` is awaited before
+ * any of this runs; the decoder itself is the upstream implementation rather
+ * than a second reading of the format, which would decode wrong and say nothing.
+ */
+function decodeMeshopt(src: GltfBytes, packed: MeshoptView): Uint8Array | null {
+    const source = bufferBytes(src, packed.buffer);
+    if (!source) return null;
+    const at = packed.byteOffset ?? 0;
+    const out = new Uint8Array(packed.count * packed.byteStride);
+    MeshoptDecoder.decodeGltfBuffer(
+        out, packed.count, packed.byteStride,
+        source.subarray(at, at + packed.byteLength), packed.mode, packed.filter,
+    );
+    return out;
+}
+
+/**
  * Reads one accessor as floats. Byte stride is honoured — an interleaved glTF is
  * the common export, and reading it as tightly packed yields wrong vertices
  * rather than an error. Normalized integers are scaled per spec, so a COLOR_0
  * stored as u8 arrives as 0..1 like a float one.
  */
-function readAccessor(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Array | null)[],
-                      index: number): Float32Array {
+function readAccessor(src: GltfBytes, index: number): Float32Array {
+    const json = src.json;
     const acc = json.accessors?.[index];
     if (!acc) throw new Error(`accessor ${index} is missing`);
     const comps = TYPE_COMPONENTS[acc.type];
@@ -220,10 +292,10 @@ function readAccessor(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Arr
     if (acc.bufferView !== undefined) {
         const view = json.bufferViews?.[acc.bufferView];
         if (!view) throw new Error(`bufferView ${acc.bufferView} is missing`);
-        const source = view.buffer === 0 && bin ? bin : buffers[view.buffer];
+        const source = viewBytes(src, acc.bufferView);
         if (!source) throw new Error(`buffer ${view.buffer} has no bytes (external .bin not loaded?)`);
 
-        const base = (view.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+        const base = acc.byteOffset ?? 0;
         const stride = view.byteStride && view.byteStride > 0 ? view.byteStride : comps * compBytes;
         const dv = new DataView(source.buffer, source.byteOffset, source.byteLength);
         for (let i = 0; i < acc.count; i++) {
@@ -235,17 +307,16 @@ function readAccessor(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Arr
     // A sparse accessor overrides some of that — or all of it, since the base
     // view is optional. Ignoring it reads a mesh in its pre-morph state, which
     // is wrong geometry rather than a failure.
-    if (acc.sparse) applySparse(json, bin, buffers, acc.sparse, comps, compBytes, read, out);
+    if (acc.sparse) applySparse(src, acc.sparse, comps, compBytes, read, out);
     return out;
 }
 
-function applySparse(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Array | null)[],
-                     sparse: GltfSparse, comps: number, compBytes: number,
+function applySparse(src: GltfBytes, sparse: GltfSparse, comps: number, compBytes: number,
                      read: (dv: DataView, at: number) => number, out: Float32Array): void {
     const indexBytes = COMPONENT_BYTES[sparse.indices.componentType];
     if (!indexBytes) throw new Error(`sparse indices use componentType ${sparse.indices.componentType}`);
-    const indexView = sliceBufferView(json, bin, buffers, sparse.indices.bufferView);
-    const valueView = sliceBufferView(json, bin, buffers, sparse.values.bufferView);
+    const indexView = viewBytes(src, sparse.indices.bufferView);
+    const valueView = viewBytes(src, sparse.values.bufferView);
     if (!indexView || !valueView) throw new Error('sparse accessor has no bytes');
 
     const iv = new DataView(indexView.buffer, indexView.byteOffset, indexView.byteLength);
@@ -281,17 +352,6 @@ function readComponent(dv: DataView, at: number, componentType: number): number 
     }
 }
 
-/** A bufferView's bytes as they lie — an image chunk, not an attribute stream. */
-function sliceBufferView(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Array | null)[],
-                         index: number): Uint8Array | null {
-    const view = json.bufferViews?.[index];
-    if (!view) return null;
-    const source = view.buffer === 0 && bin ? bin : buffers[view.buffer];
-    if (!source) return null;
-    const at = view.byteOffset ?? 0;
-    return source.subarray(at, at + view.byteLength);
-}
-
 function dataUriMime(uri: string): string {
     const semi = uri.indexOf(';');
     const comma = uri.indexOf(',');
@@ -300,9 +360,8 @@ function dataUriMime(uri: string): string {
 }
 
 interface MaterialContext {
+    src: GltfBytes;
     json: GltfJson;
-    bin: Uint8Array | null;
-    buffers: (Uint8Array | null)[];
     stem: string;
     textures: ImportedTexture[];
     warnings: string[];
@@ -366,7 +425,7 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
         const bytes = image.uri
             ? decodeDataUri(image.uri)
             : image.bufferView !== undefined
-                ? sliceBufferView(ctx.json, ctx.bin, ctx.buffers, image.bufferView)
+                ? viewBytes(ctx.src, image.bufferView)
                 : null;
         if (!bytes) {
             ctx.warnings.push(`${label}: image ${source} could not be read — skipped`);
@@ -529,10 +588,13 @@ function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
  * @param stem  Base name for the products.
  * @param externalBuffers Resolver for `buffers[].uri` that are not data URIs.
  */
-export function importGltfMeshes(
+export async function importGltfMeshes(
     bytes: Uint8Array, stem: string,
     externalBuffers?: (uri: string) => Uint8Array | null,
-): GltfImportResult {
+): Promise<GltfImportResult> {
+    // Compressed views decode synchronously once this resolves; awaiting it
+    // unconditionally keeps "is the decoder up" from being a per-file question.
+    await MeshoptDecoder.ready;
     const warnings: string[] = [];
     let json: GltfJson;
     let bin: Uint8Array | null = null;
@@ -552,7 +614,9 @@ export function importGltfMeshes(
     };
 
     const buffers: (Uint8Array | null)[] = (json.buffers ?? []).map((b, i) => {
-        if (!b.uri) return i === 0 ? bin : null;
+        // A meshopt fallback buffer declares a length and no uri on purpose: the
+        // views that name it decode from the compressed one instead.
+        if (!b.uri) return i === 0 && !b.extensions?.EXT_meshopt_compression?.fallback ? bin : null;
         const inline = decodeDataUri(b.uri);
         if (inline) return inline;
         noteExternal(b.uri);
@@ -569,7 +633,8 @@ export function importGltfMeshes(
     const meshIndexOf = new Map<string, number>();
     const single = (json.meshes ?? []).reduce((n, m) => n + m.primitives.length, 0) === 1;
 
-    const materialCtx: MaterialContext = { json, bin, buffers, stem, textures, warnings };
+    const src: GltfBytes = { json, bin, buffers, decoded: new Map() };
+    const materialCtx: MaterialContext = { src, json, stem, textures, warnings };
     const textureCache = new Map<number, ImportedImageRef | null>();
     const materialCache = new Map<number, ImportedMaterial>();
     const materialFor = (index: number): ImportedMaterial => {
@@ -621,21 +686,21 @@ export function importGltfMeshes(
             }
 
             try {
-                const positions = readAccessor(json, bin, buffers, posIndex);
+                const positions = readAccessor(src, posIndex);
                 const vertexCount = positions.length / 3;
                 const uvIndex = prim.attributes.TEXCOORD_0;
                 const colorIndex = prim.attributes.COLOR_0;
-                const uvs = uvIndex !== undefined ? readAccessor(json, bin, buffers, uvIndex) : null;
+                const uvs = uvIndex !== undefined ? readAccessor(src, uvIndex) : null;
                 const normalIndex = prim.attributes.NORMAL;
                 const normals = normalIndex !== undefined
-                    ? readAccessor(json, bin, buffers, normalIndex) : null;
+                    ? readAccessor(src, normalIndex) : null;
                 const colorsRaw = colorIndex !== undefined
-                    ? readAccessor(json, bin, buffers, colorIndex) : null;
+                    ? readAccessor(src, colorIndex) : null;
                 const colorComps = colorIndex !== undefined
                     ? TYPE_COMPONENTS[json.accessors?.[colorIndex]?.type ?? 'VEC4'] ?? 4 : 4;
 
                 const indices = prim.indices !== undefined
-                    ? Uint32Array.from(readAccessor(json, bin, buffers, prim.indices))
+                    ? Uint32Array.from(readAccessor(src, prim.indices))
                     : Uint32Array.from({ length: vertexCount }, (_, i) => i);
                 if (indices.length % 3 !== 0) {
                     warnings.push(`${label}: ${indices.length} indices is not a triangle list — skipped`);
