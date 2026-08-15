@@ -26,8 +26,8 @@ published separately; it ships inside the editor.
   The engine now returns its own pixels on both backends (`captureFramePixels`),
   and on the web that copy rides the surface pass's own encoder, because the
   browser presents the swapchain image with that submit. Measured that way,
-  **51 of the 52 pixel gates pass on WebGPU**, and the registry declares them
-  instead of ten.
+  **both backends pass all 52 pixel gates**, and the registry declares every one
+  of them instead of ten.
 
 - **A compressed texture reaches the WebGPU backend.** KTX2 was WebGL2-only: the
   loader probed WebGL extensions, which answer for one backend and answer "none"
@@ -36,10 +36,28 @@ published separately; it ships inside the editor.
   asked for the feature), the engine publishes the features a host must request,
   and the upload goes through the ResourceManager both backends implement.
 
-  Remaining: a shader with a `#pragma switch` has no WGSL for its permutations,
-  so such a material does not compile on WebGPU.
+- **A shader with switches runs on WebGPU.** Twin generation skipped any shader
+  carrying a `#pragma switch`, so a material with a static switch compiled on one
+  backend and not the other. WGSL has no preprocessor, but the engine already
+  resolves `#ifdef` over a twin body at assembly time — the generator emits every
+  combination and nests them behind it, which is the GLSL side's own variant
+  logic in the shape the other target reads. Three toggles is the ceiling: each
+  one doubles the emitted programs.
+
+- **A web boot no longer logs a Dawn error, and no longer copies every frame.**
+  The initialisation clear ended its render pass but not its frame, so the first
+  real frame reused a swapchain image the browser had already expired — one
+  "Destroyed texture used in a submit" per boot. And the web surface was
+  configured RGBA8 while the canvas preferred `bgra8unorm`, which costs a
+  full-frame copy on every present; the host now passes the canvas' preference
+  in, and the capture path normalises byte order so consumers are unaffected.
 
 ### Added
+
+- **A shipped web build can ask for WebGPU.** Project Settings → Rendering
+  carries the request into `game.config.json`, and the exported host falls back
+  to WebGL2 wherever the browser has none — which is what makes opting in free.
+  Mini-games and playables always run WebGL2; their hosts offer nothing else.
 
 - **The schedule can say which systems' order nobody decided.** A system's
   parameters already declare what it touches, and the schedule only ever used
