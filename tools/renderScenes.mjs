@@ -140,6 +140,10 @@ export const SCENES = [
   // normals the engine's vertex stage hands it. RED, so the fallback (the mesh
   // shader, taken when a variant fails) cannot pass for it — that draws white.
   { id: "mesh-material-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/litmat.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // The STOCK lit template on the same geometry: a flat normal there would light
+  // an imported model like a sprite — a wrong picture, not a missing one. Red
+  // tint, so the engine's own mesh shader (white) cannot pass for it.
+  { id: "mesh-builtin-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material-lit/builtinlit.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // A mesh assigned IN THE EDITOR: a cold ref reaches the World only through the
   // live loader + re-projection. The quad covers the gap between the scene's own
   // two triangles, so the frame says which geometry is drawn — and the hit test

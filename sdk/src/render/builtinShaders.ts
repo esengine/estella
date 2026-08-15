@@ -87,15 +87,26 @@ precision mediump float;
 in vec4 v_color;
 in vec2 v_texCoord;
 in highp vec2 v_worldPos;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
 
 uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
 // Unset u_normalMap = flat normal, so lighting works with no normal map assigned.
+// Geometry that CARRIES normals is lit by them, and the map then perturbs that
+// frame instead of replacing it with the flat one a sprite has.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+#ifdef MESH_NORMALS
+    highp vec3 N = perturbNormal(normalize(v_worldNormal), v_worldXYZ, v_texCoord,
+                                 sampleNormal(u_normalMap, v_texCoord));
+#else
     vec3 N = sampleNormal(u_normalMap, v_texCoord);
+#endif
     fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
 }
 #pragma end
@@ -103,7 +114,12 @@ void main() {
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+#ifdef MESH_NORMALS
+    let N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
+                          sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+#else
     let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
+#endif
     return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
 }
 #pragma end
