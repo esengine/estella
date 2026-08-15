@@ -156,6 +156,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A Draco model is still a model.** The other compression a glTF can arrive in,
+  and the only one Blender's exporter offers — so it is what an independent artist
+  ships when they turn compression on. Unlike meshopt, Draco holds a whole
+  primitive's geometry in one blob and leaves the accessors saying only what the
+  data means, so the importer now takes an attribute from either storage and draws
+  every conclusion above it — vertex count, colour components, the `normalized`
+  scale — from the accessor exactly as before. The ~800KB decoder loads only for a
+  file that carries Draco.
+
 - **A compressed model is still a model.** Geometry arriving meshopt-compressed
   was reported as unimportable and skipped — an honest answer, but it left the
   common case of a model off the internet as a file nothing could open, since
