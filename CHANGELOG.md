@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **`NavAgent.arriveRadius` did nothing.** The field says "stop distance from the
+  final goal" and is editable, but arrival was the end of the waypoint list — so an
+  agent walked onto the thing it was chasing whatever the field was set to. Arrival
+  is a distance now. Found by a new gate: every field a component declares is
+  checked for a reader somewhere that can change what happens (reflection and the
+  scene codec name every field by construction, so they do not count). Three fields
+  remain readerless and are listed as gaps, each saying what is missing.
+
 - **`Mesh2D.lit` did nothing on an imported mesh.** The component declares the
   field and the inspector offers it, but resident geometry picked its shader from
   whether the mesh carried normals — so imported geometry could not be drawn unlit,
