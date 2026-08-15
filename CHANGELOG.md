@@ -165,6 +165,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A game camera can look from somewhere else.** The editor's eye learned to turn
+  and the game's did not, so a model could be looked at from any angle while
+  authoring and only ever head-on once you pressed Play. A camera's view is its own
+  transform inverted, and a camera entity already carries a quaternion — the engine
+  read the Z angle off it and dropped any other orientation. It now keeps the whole
+  rotation when it says something that angle cannot. A rotation purely about Z
+  reproduces the matrix the 2D path always built cell for cell, so this cannot move
+  a 2D scene.
+
 - **A mesh you can tell apart from another mesh.** An import writes one `.esmesh`
   per primitive, so a model arrives as several files that look identical in the
   content browser and the inspector — the same icon, differing only in a generated
