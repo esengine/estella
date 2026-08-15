@@ -204,6 +204,15 @@ published separately; it ships inside the editor.
   reproduces the matrix the 2D path always built cell for cell, so this cannot move
   a 2D scene.
 
+- **A mesh and a material look like themselves in the content browser.** A texture
+  got its own picture and everything else an icon by type, so a folder of imported
+  meshes was a row of identical tiles differing by a generated name — and a folder
+  of materials the same, which is why this is one mechanism rather than a
+  mesh-shaped one. Both are drawn by the engine offscreen through the path the
+  viewport uses. A tile renders its icon, subscribes, and swaps in the picture when
+  it lands; the cache's version is the disk's, so a re-imported mesh cannot keep
+  the picture of the file it replaced.
+
 - **A mesh you can tell apart from another mesh.** An import writes one `.esmesh`
   per primitive, so a model arrives as several files that look identical in the
   content browser and the inspector — the same icon, differing only in a generated
