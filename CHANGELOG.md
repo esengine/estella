@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mesh could not be clicked in the viewport.** The editor's box for an entity
+  came from its Sprite size, and anything else fell back to the square it draws
+  for a camera or a light — 24 world units. So an imported model, however large,
+  was selectable only near its own origin, and marquee-select, Frame and the
+  minimap all boxed it wrong. A mesh has no size field: its extent is in its
+  vertices, and for GPU-resident geometry not in the component at all. The engine
+  answers with the box it culls by (`meshWorldBox`), since only it knows which of
+  the two is the live geometry. With the answer withheld, the gate's hit test
+  120 units out comes back with nothing — which is what it did before.
+
 - **A mesh assigned in the editor did not appear.** The edit realm resolved a
   ref to a live handle in two places — one per scene-opening door — and they had
   drifted: the automation door resolved textures and nothing else, while the
