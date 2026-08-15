@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The rotate gizmo could only turn about Z.** The inspector shows all three axes
+  now, but the way anyone actually poses something — grab it and drag — was still
+  the 2D one, so a model imported with a tilt had no on-canvas way to be turned off
+  the plane. There are three rings now, each drawn where its axis's plane really
+  projects (an ellipse once the eye is off-axis). A ring seen edge-on is a line
+  where a cursor names no angle, so it is neither drawn nor aimed at — which leaves
+  a head-on gizmo the single Z ring it always had. The drag reads the ring's own
+  parameter rather than the cursor's screen angle; the two agree only where the ring
+  faces the eye. The Z ring now takes the blue the axis language uses elsewhere.
+
 - **A rotation could only be edited on one axis, and editing it destroyed the
   other two.** `Transform.rotation` is a quaternion and the inspector showed one
   number for it — the Z turn, the 2D convention. Writing that control rebuilt the
