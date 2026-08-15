@@ -75,6 +75,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A material can draw geometry that carries normals.** Since materials learned
+  the mesh vertex source, one could only be used on geometry WITHOUT normals: a
+  vertex layout may not declare an attribute its shader ignores, and the engine's
+  canonical vertex stage read none. It reads them under `MESH_NORMALS` now and
+  hands the fragment `v_worldNormal` and `v_worldXYZ`, so a material can light
+  itself on a mesh exactly as it does on a sprite — the same `applyLighting2D`,
+  the same `perturbNormal`. A material that does not ask for normals is
+  unchanged; the store keys its compiled variants by shader AND vertex shape.
+
 - **A normal map, with no tangent channel to import.** A mesh can now carry one
   (`Mesh2D.normalMap`), and its tangent frame is derived per pixel from the
   screen-space derivatives of position and uv — the surface the shader is already
