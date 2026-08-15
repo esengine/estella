@@ -109,6 +109,7 @@ export const viewportMessages = defineMessages({
       en: 'Face the scene head-on again (Alt-drag turns the editor eye)',
       zh: '恢复正对场景（Alt+拖拽可转动编辑器视角）',
     },
+    'vp.axisLook': { en: 'Look along {axis}', zh: '沿 {axis} 轴观察' },
 
     // — Design-resolution + device-preview dropdowns (UI mode) —
     'vp.designResTitle': {

@@ -27,6 +27,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController, type JointGizmoType, type ColliderPointHandle, type MinimapBounds, type MinimapBox } from '@/engine/ViewportController';
 import { minimapFit, minimapBox, minimapCamRect, minimapToWorld } from '@/engine/minimapFit';
+import { axisIndicatorEnds, axisEndKey } from '@/engine/viewportMath';
 import { ProjectStore } from '@/project/ProjectStore';
 import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
@@ -715,6 +716,86 @@ const ViewportMinimap = memo(function ViewportMinimap(
   );
 });
 
+// The navigation gizmo a DCC puts in a viewport corner: it answers the two questions
+// a turned eye raises and a reset button cannot — which way am I facing, and how do I
+// get square-on. Clicking an end stands the eye on that axis.
+const AXIS_BOX = 46;
+const AXIS_LEN = 30;
+const AXIS_ENDS = [
+  { axis: 'x', sign: 1, label: 'X' }, { axis: 'x', sign: -1, label: '' },
+  { axis: 'y', sign: 1, label: 'Y' }, { axis: 'y', sign: -1, label: '' },
+  { axis: 'z', sign: 1, label: 'Z' }, { axis: 'z', sign: -1, label: '' },
+] as const;
+
+const ViewAxisGizmo = memo(function ViewAxisGizmo() {
+  const win = usePanelWindow();
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Its own rAF, like the minimap's camera rect: the axes track an Alt-drag live,
+  // and re-rendering the gizmo-heavy viewport for it would be the wrong cost.
+  useEffect(() => {
+    let raf = 0;
+    let order = '';
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const svg = svgRef.current;
+      if (!svg) return;
+      const axes = ViewportController.viewAxes();
+      if (!axes) return;
+      const ends = axisIndicatorEnds(axes, AXIS_LEN);
+      for (const end of ends) {
+        const g = svg.querySelector<SVGGElement>(`[data-end="${end.key}"]`);
+        if (!g) continue;
+        g.querySelector('line')?.setAttribute('x2', String(end.x));
+        g.querySelector('line')?.setAttribute('y2', String(end.y));
+        const knob = g.querySelector('circle');
+        knob?.setAttribute('cx', String(end.x));
+        knob?.setAttribute('cy', String(end.y));
+        const text = g.querySelector('text');
+        text?.setAttribute('x', String(end.x));
+        text?.setAttribute('y', String(end.y));
+        // An end pointing away is dimmed: a solid knob reads nearer than a faint
+        // one, the only depth cue a flat overlay has.
+        g.style.opacity = String(0.45 + 0.55 * (end.depth + 1) / 2);
+      }
+      // The ends come back in painter order; reinsert only when it actually changed.
+      const key = ends.map((e) => e.key).join('');
+      if (key !== order) {
+        order = key;
+        for (const end of ends) {
+          const g = svg.querySelector<SVGGElement>(`[data-end="${end.key}"]`);
+          if (g) svg.appendChild(g);
+        }
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [win]);
+
+  return (
+    <div className="vp-axes">
+      <svg ref={svgRef} viewBox={`${-AXIS_BOX} ${-AXIS_BOX} ${AXIS_BOX * 2} ${AXIS_BOX * 2}`}>
+        {AXIS_ENDS.map((end) => (
+          <g
+            key={axisEndKey(end.axis, end.sign)}
+            data-end={axisEndKey(end.axis, end.sign)}
+            className={`va-end va-${end.axis}${end.sign > 0 ? ' va-pos' : ''}`}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              ViewportController.lookAlongAxis(end.axis, end.sign);
+            }}
+          >
+            <title>{t('vp.axisLook', { axis: `${end.sign > 0 ? '+' : '-'}${end.axis.toUpperCase()}` })}</title>
+            {end.sign > 0 && <line x1="0" y1="0" x2="0" y2="0" />}
+            <circle cx="0" cy="0" r={end.sign > 0 ? 9 : 7} />
+            {end.label && <text x="0" y="0">{end.label}</text>}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+});
+
 export function Viewport() {
   // The window this viewport currently lives in — main, or its own OS window once
   // popped out. Drives resize re-binding and any window-scoped listeners below.
@@ -737,7 +818,6 @@ export function Viewport() {
   const pivotMode = useEditorStore((s) => s.pivotMode);
   const viewPerspective = useEditorStore((s) => s.viewPerspective);
   const viewOrbited = useEditorStore((s) => s.viewOrbited);
-  const setViewOrbited = useEditorStore((s) => s.setViewOrbited);
   const snapping = useEditorStore((s) => s.snapping);
   const snapStep = useEditorStore((s) => s.snapStep);
   const snapAngle = useEditorStore((s) => s.snapAngle);
@@ -1076,15 +1156,18 @@ export function Viewport() {
       // (pixels per world unit ×100). Frame Selected, the minimap, and device presets
       // all change orthoSize without any wheel event, so a tracked counter drifts.
       if (ready) {
-        const a = ViewportController.worldToClient(0, 0);
-        const b = ViewportController.worldToClient(1, 0);
-        if (a && b) {
-          const pct = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * 100));
+        const scale = ViewportController.zoomScale();
+        if (scale != null) {
+          const pct = Math.max(1, Math.round(scale * 100));
           if (pct !== zoomPctRef.current) {
             zoomPctRef.current = pct;
             setZoomPct(pct);
           }
         }
+        // Same reason for the turned eye: an Alt-drag, a command and the automation
+        // door all move it, so a flag each of them must remember to set is a mirror
+        // that drifts. The setter no-ops on an unchanged value, so this costs a call.
+        useEditorStore.getState().setViewOrbited(ViewportController.isOrbited());
       }
 
       // Selection outlines. Below the merge threshold: one div per selected source
@@ -1951,7 +2034,6 @@ export function Viewport() {
     if (orbitRef.current) {
       ViewportController.orbitByClient(orbitRef.current.px, orbitRef.current.py, e.clientX, e.clientY);
       orbitRef.current = { px: e.clientX, py: e.clientY };
-      setViewOrbited(ViewportController.isOrbited());
       return;
     }
 
@@ -2729,6 +2811,10 @@ export function Viewport() {
         tool={tool}
         paintHint={inTilePaint && paintTool ? TILE_HINT[paintTool] : null}
       />
+      {/* Only once the eye can see depth: a square-on orthographic view IS the 2D
+          editor, and an axis ball over it would be decoration for an X and a Y that
+          never move. Alt-drag or the projection toggle brings it in. */}
+      {engine.status === 'ready' && (viewPerspective || viewOrbited) && <ViewAxisGizmo />}
       {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} selected={selectedIds} />}
       {/* Contributed gizmos. Gated on `showGizmos` with the built-in ones — a plugin
           overlay is a gizmo, so the same toggle has to silence it. */}

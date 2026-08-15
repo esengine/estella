@@ -17,6 +17,7 @@
  * the camera *configuration* (full-frame, raw orthoSize) differs.
  */
 import { defineResource } from '../ecs/resource';
+import { invertViewOrbit } from '../math/mat4';
 
 export interface EditorViewData {
   /** When true, the framebuffer + screen<->world use this view, not scene cameras. */
@@ -117,4 +118,36 @@ export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIE
  */
 export function editorViewIsOrbited(view: EditorViewData): boolean {
   return (view.yaw ?? 0) !== 0 || (view.pitch ?? 0) !== 0;
+}
+
+/** A world axis as it points on screen: a unit direction (y down, as screens are)
+ *  plus how far it leans toward the eye — `1` straight at it, `-1` straight away. */
+export interface ScreenAxis {
+  dx: number;
+  dy: number;
+  depth: number;
+}
+
+/**
+ * Where the world axes point on screen for this view. Read off the very basis the
+ * camera is built from, so an indicator drawn from it cannot disagree with what is
+ * rendered — a second copy of the rotation is exactly how those two drift apart.
+ */
+export function editorViewAxes(view: EditorViewData): { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } {
+  const rad = Math.PI / 180;
+  const m = invertViewOrbit(0, 0, 0, (view.yaw ?? 0) * rad, (view.pitch ?? 0) * rad, 0);
+  // Column c of the view matrix is a world axis expressed in view space.
+  const axis = (c: number): ScreenAxis => ({ dx: m[c], dy: -m[c + 1], depth: m[c + 2] });
+  return { x: axis(0), y: axis(4), z: axis(8) };
+}
+
+/**
+ * Yaw/pitch that put the eye on a world axis, looking back down it — the standard
+ * views (front, side, top) every DCC offers. `sign` picks which end of the axis the
+ * eye stands on.
+ */
+export function editorViewAxisAngles(axis: 'x' | 'y' | 'z', sign: 1 | -1): { yaw: number; pitch: number } {
+  if (axis === 'y') return { yaw: 0, pitch: 90 * sign };
+  if (axis === 'x') return { yaw: 90 * sign, pitch: 0 };
+  return { yaw: sign > 0 ? 0 : 180, pitch: 0 };
 }

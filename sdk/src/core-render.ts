@@ -40,8 +40,8 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // =============================================================================
 
 export { CameraView, CameraViewAPI } from './camera/Camera';
-export { EditorView, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, editorViewIsOrbited } from './camera/EditorView';
-export type { EditorViewData } from './camera/EditorView';
+export { EditorView, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, editorViewIsOrbited, editorViewAxes, editorViewAxisAngles } from './camera/EditorView';
+export type { EditorViewData, ScreenAxis } from './camera/EditorView';
 export { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './camera/ScreenScaling';
 export type { ScreenScalingData } from './camera/ScreenScaling';
 export { EditorGrid, DEFAULT_EDITOR_GRID } from './camera/EditorGrid';

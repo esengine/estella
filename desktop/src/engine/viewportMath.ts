@@ -8,7 +8,7 @@
  *        The one import is the SDK's pure mirror of the renderer's layer rules,
  *        which picking has to rank by rather than restate.
  */
-import { compareDrawRank, type DrawRank } from 'esengine';
+import { compareDrawRank, type DrawRank, type ScreenAxis } from 'esengine';
 
 /** Oriented bounding box in world space: center, half-extents, Z rotation (radians). */
 export interface OBB {
@@ -138,4 +138,44 @@ export function scaleVecBy(
   factor: { x: number; y: number },
 ): { x: number; y: number; z: number } {
   return { x: (s?.x ?? 1) * factor.x, y: (s?.y ?? 1) * factor.y, z: s?.z ?? 1 };
+}
+
+/** One end of the view-axis indicator, placed in its SVG's local pixels. */
+export interface AxisIndicatorEnd {
+  key: string;
+  x: number;
+  y: number;
+  depth: number;
+}
+
+/** The identity of one indicator end — the key its DOM node carries. */
+export function axisEndKey(axis: 'x' | 'y' | 'z', sign: 1 | -1): string {
+  return `${axis}${sign > 0 ? '+' : '-'}`;
+}
+
+/**
+ * The six ends of the view-axis indicator, ordered far to near.
+ *
+ * Screen offsets are the axis direction UNNORMALIZED: an axis leaning toward the
+ * eye draws short, which is the foreshortening that tells a user how far the view
+ * has turned. The order is the painter's — the caller reinserts the elements in
+ * it, so a near knob covers a far one.
+ */
+export function axisIndicatorEnds(
+  axes: { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis },
+  length: number,
+): AxisIndicatorEnd[] {
+  const ends: AxisIndicatorEnd[] = [];
+  for (const axis of ['x', 'y', 'z'] as const) {
+    for (const sign of [1, -1] as const) {
+      const a = axes[axis];
+      ends.push({
+        key: axisEndKey(axis, sign),
+        x: a.dx * sign * length,
+        y: a.dy * sign * length,
+        depth: a.depth * sign,
+      });
+    }
+  }
+  return ends.sort((a, b) => a.depth - b.depth);
 }

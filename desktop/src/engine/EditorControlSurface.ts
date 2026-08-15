@@ -849,6 +849,12 @@ export class EditorControlSurfaceImpl {
     ViewportController.setOrbit(yaw, pitch);
   }
 
+  /** Where the eye stands now (degrees) — the read half of {@link setViewOrbit}.
+   *  Without it a driver can turn the view but can only judge the result by eye. */
+  viewOrbit(): { yaw: number; pitch: number } {
+    return ViewportController.orbitAngles();
+  }
+
   /** Render (and hit-test) through the editor's own eye rather than the scene
    *  camera — what edit mode does, as one call a driver can make. */
   useEditorView(on: boolean): void {

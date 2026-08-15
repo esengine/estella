@@ -17,6 +17,7 @@ import {
   clamp,
   worldToLocal2D,
   rankPickCandidates,
+  axisIndicatorEnds,
   type PickCandidate,
 } from '@/engine/viewportMath';
 import { LayerOrder, layerOrderOf } from 'esengine';
@@ -182,5 +183,38 @@ describe('rankPickCandidates', () => {
   it('leaves an empty hit list empty', () => {
     expect(rankPickCandidates([])).toEqual([]);
     expect(LayerOrder.Painter).toBe(0);
+  });
+});
+
+describe('the view-axis indicator', () => {
+  // Head-on: +Z is straight at the eye and every other end lies flat on screen.
+  const headOn = {
+    x: { dx: 1, dy: 0, depth: 0 },
+    y: { dx: 0, dy: -1, depth: 0 },
+    z: { dx: 0, dy: 0, depth: 1 },
+  };
+
+  it('places every end on its axis, both ways from the centre', () => {
+    const at = Object.fromEntries(axisIndicatorEnds(headOn, 30).map((e) => [e.key, e]));
+    expect([at['x+'].x, at['x+'].y]).toEqual([30, 0]);
+    expect([at['x-'].x, at['x-'].y]).toEqual([-30, -0]);
+    expect([at['y+'].x, at['y+'].y]).toEqual([0, -30]);
+    expect([at['z+'].x, at['z+'].y]).toEqual([0, 0]);   // pointing at the eye, so no offset
+    expect(at['z+'].depth).toBe(1);
+    expect(at['z-'].depth).toBe(-1);
+  });
+
+  it('draws an axis leaning toward the eye shorter', () => {
+    // A 60° turn: the same axis, foreshortened by cos — the cue that says how far
+    // the view has turned. Normalizing the direction would erase it.
+    const turned = { ...headOn, x: { dx: Math.cos(Math.PI / 3), dy: 0, depth: Math.sin(Math.PI / 3) } };
+    const end = axisIndicatorEnds(turned, 30).find((e) => e.key === 'x+')!;
+    expect(end.x).toBeCloseTo(15, 6);
+  });
+
+  it('orders the ends far to near, so a near knob covers a far one', () => {
+    const keys = axisIndicatorEnds(headOn, 30).map((e) => e.key);
+    expect(keys[0]).toBe('z-');
+    expect(keys[keys.length - 1]).toBe('z+');
   });
 });

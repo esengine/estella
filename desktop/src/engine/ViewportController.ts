@@ -14,6 +14,7 @@ import {
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
+  editorViewAxes, editorViewAxisAngles, type ScreenAxis,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -470,12 +471,51 @@ export const ViewportController = {
     view.pitch = Math.max(-89, Math.min(89, view.pitch + (curY - prevY) * ORBIT_DEG_PER_PX));
   },
 
-  /** Point the eye at a given yaw/pitch (degrees) — the automation door's orbit. */
+  /**
+   * Point the eye at a given yaw/pitch (degrees) — the automation door's orbit.
+   * The poles are allowed here, unlike a drag: looking straight down IS a standard
+   * view, and the view basis has its own pole branch for it. What a drag must not
+   * do is cross a pole, which is why the clamp lives in {@link orbitByClient}.
+   */
   setOrbit(yaw: number, pitch: number): void {
     const view = editorView();
     if (!view) return;
     view.yaw = yaw;
-    view.pitch = Math.max(-89, Math.min(89, pitch));
+    view.pitch = Math.max(-90, Math.min(90, pitch));
+  },
+
+  /** Stand the eye on a world axis and look back down it (front / side / top). */
+  lookAlongAxis(axis: 'x' | 'y' | 'z', sign: 1 | -1): void {
+    const a = editorViewAxisAngles(axis, sign);
+    this.setOrbit(a.yaw, a.pitch);
+  },
+
+  /**
+   * CSS pixels per world unit at the focus plane — the zoom readout.
+   *
+   * Measured from what the view sees, not by projecting two world points: the
+   * world x axis projects to nothing once the eye looks down it, which read as
+   * 1% on a turned view although the zoom had not moved.
+   */
+  zoomScale(): number | null {
+    const view = editorView();
+    const canvas = EngineHost.canvas;
+    if (!view || !canvas) return null;
+    const seen = zoomAmount(view) * 2;
+    const dpr = window.devicePixelRatio || 1;
+    return seen > 0 ? canvas.height / dpr / seen : null;
+  },
+
+  /** Where the eye stands, in degrees (0/0 = head-on). */
+  orbitAngles(): { yaw: number; pitch: number } {
+    const view = editorView();
+    return { yaw: view?.yaw ?? 0, pitch: view?.pitch ?? 0 };
+  },
+
+  /** Where the world axes point on screen right now — what the axis indicator draws. */
+  viewAxes(): { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } | null {
+    const view = editorView();
+    return view ? editorViewAxes(view) : null;
   },
 
   /** Face the scene head-on again — the 2D view, exactly as it was. */

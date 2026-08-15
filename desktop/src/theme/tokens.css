@@ -96,6 +96,9 @@
   --gizmo-particle: #ffb454;
   --gizmo-tile: #58b6e6;
   --gizmo-joint: #c58cff;
+  /* Depth, joining the transform gizmo's red X and green Y — the axis language is
+     the DCC one, so a third axis had to be its blue. */
+  --gizmo-axis-z: #4a90e2;
 
   /* — Category identity: component header bars / icons read by domain. — */
   --cat-transform: #4a8fd6;

@@ -189,6 +189,48 @@
 /* Design-resolution readout pinned to the frame's top-left corner (rAF-positioned). */
 .viewport__design-label { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; padding: 1px 5px; font-size: var(--fs-2xs); font-variant-numeric: tabular-nums; color: var(--on-accent); background: var(--acc); border-radius: var(--r-sm); white-space: nowrap; }
 
+/* View axis indicator (top-right, below the docked toolbar) — the world axes as they
+   point on screen, each end a click that stands the eye on that axis. Present only
+   while the eye can be turned, so a 2D project never sees it. */
+.vp-axes {
+  position: absolute;
+  top: 44px;
+  right: 10px;
+  z-index: 4;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(var(--glass-rgb), 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-line);
+}
+.vp-axes svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.vp-axes .va-end { cursor: pointer; }
+.vp-axes .va-end line { stroke-width: 2.5; }
+.vp-axes .va-end circle { stroke-width: 1.5; }
+/* A negative end is the hollow twin of its axis: same colour, no stalk, no letter —
+   Blender's convention, and the only way six knobs stay readable at 84px. */
+.vp-axes .va-end:not(.va-pos) circle { fill: var(--srf-1); }
+.vp-axes .va-end text {
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: var(--on-accent);
+  pointer-events: none;
+}
+.vp-axes .va-x line, .vp-axes .va-x circle { stroke: var(--error); }
+.vp-axes .va-x.va-pos circle { fill: var(--error); }
+.vp-axes .va-y line, .vp-axes .va-y circle { stroke: var(--run); }
+.vp-axes .va-y.va-pos circle { fill: var(--run); }
+.vp-axes .va-z line, .vp-axes .va-z circle { stroke: var(--gizmo-axis-z); }
+.vp-axes .va-z.va-pos circle { fill: var(--gizmo-axis-z); }
+.vp-axes .va-end:hover circle { stroke: var(--text); stroke-width: 2.5; }
+/* The gizmo owns the top-right corner while it is up; the perf readout drops below
+   it rather than under it. */
+.viewport:has(.vp-axes) .vp-perf { top: 138px; }
+
 /* perf widget (top-right, below the docked toolbar — the bottom-right is the minimap) */
 .vp-perf {
   position: absolute;
