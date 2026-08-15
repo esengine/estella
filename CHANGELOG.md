@@ -16,6 +16,28 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A model dropped into the editor produced nothing.** Importing a `.gltf`/`.glb`
+  copied the file in and stopped there — the engine loads no model format, so the
+  user was left with a file nothing could draw and no way to reach the importer
+  except a terminal. The import now runs at the moment the file arrives, writing
+  the meshes, images and prefab beside the source (beside it, not in the folder
+  the browser happens to show, so re-importing lands on the same files and keeps
+  their identity). An image the model points at is copied in with it when it came
+  from outside the project, since a copied model no longer sits beside its
+  textures. What the source says and this engine cannot draw is reported where
+  the import happened, not swallowed.
+
+- **A model source could be picked where a mesh was asked for.** `.gltf` and
+  `.glb` were typed as `mesh`, so the Inspector offered them for `Mesh2D.mesh` —
+  a reference that can never resolve, failing at load with nothing on screen to
+  say why. They are their own type now: the source a mesh was imported FROM,
+  never one of the products.
+
+- **`.esmesh` was missing from the asset registry the runtime ships by.** The
+  format had a loader, a `.meta` type and an editor slot, but no entry in the
+  SDK's own table — which is what a WeChat build reads to know a file must be
+  packed. A mesh reached that platform as a missing asset.
+
 - **A device that came back drew the placeholder, and said it was fine.** Losing
   the GPU parks every texture on the white placeholder and lists it as awaiting
   re-upload. The re-upload asked the asset layer to load the texture again — and
