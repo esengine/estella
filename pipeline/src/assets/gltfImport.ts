@@ -32,6 +32,9 @@ export interface ImportedImageRef {
     file: string;
     /** True for a uri the glTF points at — an existing file is referenced, never copied. */
     external: boolean;
+    /** Import settings the source's sampler asks for, in the engine's own words.
+     *  Absent where the glTF names no sampler (its defaults are the engine's). */
+    settings?: { filterMode?: 'nearest' | 'linear'; wrapMode?: 'repeat' | 'clamp' | 'mirror' };
 }
 
 /**
@@ -96,7 +99,11 @@ const TYPE_COMPONENTS: Record<string, number> = {
     SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16,
 };
 
-interface GltfTextureRef { index: number; texCoord?: number }
+interface GltfTextureRef {
+    index: number; texCoord?: number;
+    /** KHR_texture_transform and friends: a uv rewrite this importer does not do. */
+    extensions?: Record<string, unknown>;
+}
 
 /** Per-spec sparse storage: a base of zeroes (or a view) with some values replaced. */
 interface GltfSparse {
@@ -116,6 +123,8 @@ interface GltfJson {
     meshes?: { name?: string; primitives: {
         attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
         extensions?: Record<string, unknown>;
+        /** Morph targets — shapes the runtime blends between; not imported. */
+        targets?: unknown[];
     }[] }[];
     materials?: {
         name?: string;
@@ -131,11 +140,14 @@ interface GltfJson {
         extensions?: Record<string, unknown>;
     }[];
     textures?: { source?: number; sampler?: number }[];
+    samplers?: { magFilter?: number; minFilter?: number; wrapS?: number; wrapT?: number }[];
     images?: { uri?: string; bufferView?: number; mimeType?: string; name?: string }[];
     nodes?: {
-        name?: string; children?: number[]; mesh?: number;
+        name?: string; children?: number[]; mesh?: number; skin?: number;
         matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
     }[];
+    skins?: unknown[];
+    animations?: unknown[];
     scenes?: { nodes?: number[] }[];
     scene?: number;
 }
@@ -292,15 +304,51 @@ interface MaterialContext {
     warnings: string[];
 }
 
+const GL_NEAREST = 9728;
+const WRAP_MODE: Record<number, 'repeat' | 'clamp' | 'mirror'> = {
+    10497: 'repeat', 33071: 'clamp', 33648: 'mirror',
+};
+
+/**
+ * A glTF sampler as the engine's own import settings. Only what it states is
+ * carried: an absent field means the glTF asked for nothing, and the engine's
+ * default is as good an answer as any.
+ */
+function readSampler(ctx: MaterialContext, index: number | undefined,
+                     label: string): ImportedImageRef['settings'] {
+    const sampler = index !== undefined ? ctx.json.samplers?.[index] : undefined;
+    if (!sampler) return undefined;
+    const out: NonNullable<ImportedImageRef['settings']> = {};
+    if (sampler.magFilter !== undefined) {
+        out.filterMode = sampler.magFilter === GL_NEAREST ? 'nearest' : 'linear';
+    }
+    // One wrap mode per texture here; a source that addresses u and v differently
+    // has to lose one of them, so it says which rather than picking silently.
+    if (sampler.wrapS !== undefined && sampler.wrapT !== undefined
+        && sampler.wrapS !== sampler.wrapT) {
+        ctx.warnings.push(`${label}: wrapS and wrapT differ; using wrapS`);
+    }
+    const wrap = WRAP_MODE[sampler.wrapS ?? sampler.wrapT ?? 0];
+    if (wrap) out.wrapMode = wrap;
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Resolves a glTF texture index to the file a Mesh2D will sample, extracting inline images. */
 function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef | null>,
                      ref: GltfTextureRef, label: string): ImportedImageRef | null {
     if (ref.texCoord) ctx.warnings.push(`${label}: TEXCOORD_${ref.texCoord} is not imported (one UV set)`);
+    for (const name of Object.keys(ref.extensions ?? {})) {
+        ctx.warnings.push(`${label}: ${name} not imported (uvs are used as authored)`);
+    }
     const cached = cache.get(ref.index);
     if (cached !== undefined) return cached;
 
     const resolve = (): ImportedImageRef | null => {
-        const source = ctx.json.textures?.[ref.index]?.source;
+        const texture = ctx.json.textures?.[ref.index];
+        const settings = readSampler(ctx, texture?.sampler, label);
+        const withSettings = (r: ImportedImageRef): ImportedImageRef =>
+            settings ? { ...r, settings } : r;
+        const source = texture?.source;
         const image = source !== undefined ? ctx.json.images?.[source] : undefined;
         if (!image || source === undefined) {
             ctx.warnings.push(`${label}: texture ${ref.index} has no image — skipped`);
@@ -309,7 +357,7 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
         // An image already on disk is REFERENCED, never copied: a second copy is
         // a second thing to keep in sync with the file the artist edits.
         if (image.uri && !image.uri.startsWith('data:')) {
-            return { file: decodeURIComponent(image.uri), external: true };
+            return withSettings({ file: decodeURIComponent(image.uri), external: true });
         }
         const bytes = image.uri
             ? decodeDataUri(image.uri)
@@ -328,7 +376,7 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
         }
         const name = `${ctx.stem}_${source}${ext}`;
         if (!ctx.textures.some(t => t.name === name)) ctx.textures.push({ name, bytes });
-        return { file: name, external: false };
+        return withSettings({ file: name, external: false });
     };
 
     const resolved = resolve();
@@ -544,6 +592,14 @@ export function importGltfMeshes(
             for (const name of Object.keys(prim.extensions ?? {})) {
                 if (!(name in COMPRESSED_GEOMETRY)) warnings.push(`${label}: ${name} not imported`);
             }
+            // Deformation is the difference between a model that moves and one
+            // that does not, so it is never dropped in silence.
+            if (prim.targets?.length) {
+                warnings.push(`${label}: ${prim.targets.length} morph target(s) not imported`);
+            }
+            if (prim.attributes.JOINTS_0 !== undefined) {
+                warnings.push(`${label}: skinning is not imported — the mesh comes in static`);
+            }
             const posIndex = prim.attributes.POSITION;
             if (posIndex === undefined) {
                 warnings.push(`${label}: no POSITION — skipped`);
@@ -634,6 +690,12 @@ export function importGltfMeshes(
         });
     });
 
+    // A rigged, animated source arrives as still geometry; that is a property of
+    // the import worth stating once for the file rather than per primitive.
+    if (json.skins?.length) warnings.push(`${json.skins.length} skin(s) not imported`);
+    if (json.animations?.length) {
+        warnings.push(`${json.animations.length} animation(s) not imported`);
+    }
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }

@@ -57,12 +57,22 @@ export async function importModel(root: string, destDir: string, absSource: stri
     },
   );
 
+  // What each image's sampler asked for, by product name — applied when its
+  // `.meta` is first minted and never after: the file's settings are the user's.
+  const imageSettings = new Map<string, Record<string, unknown>>();
+  for (const mesh of meshes) {
+    for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture]) {
+      if (image?.settings) imageSettings.set(image.file, { ...image.settings });
+    }
+  }
+
   const products: string[] = [];
   const write = async (name: string, bytes: Uint8Array | string): Promise<string> => {
     const rel = destDir ? `${destDir}/${name}` : name;
     await capture(rel, 'write');
     await writeFile(path.join(absDir, name), bytes);
-    await adoptOrphan(path.join(absDir, name));  // keeps the uuid a re-import must not change
+    // keeps the uuid a re-import must not change
+    await adoptOrphan(path.join(absDir, name), imageSettings.get(name));
     products.push(rel);
     return rel;
   };
@@ -92,7 +102,7 @@ export async function importModel(root: string, destDir: string, absSource: stri
     await capture(rel, 'write');
     await mkdir(path.dirname(absDest), { recursive: true });
     await copyFile(abs, absDest);
-    await adoptOrphan(absDest);
+    await adoptOrphan(absDest, imageSettings.get(uri));
     products.push(rel);
     externalRefs.set(uri, rel);
   }

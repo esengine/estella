@@ -57,15 +57,22 @@ export async function metaTypeForFile(absFile: string): Promise<string | null> {
   return metaTypeForContent(absFile, await readHead(absFile, CONTENT_SNIFF_BYTES));
 }
 
-/** A fresh `.meta` document for an asset of `type`. */
-export function mintMeta(type: string): Record<string, unknown> {
-  return { uuid: randomUUID(), version: META_VERSION, type, importer: importerDefaults(type) };
+/** A fresh `.meta` document for an asset of `type`. `importer` overrides the
+ *  type's defaults — what an importing SOURCE asked for (a glTF sampler's filter
+ *  and wrap), which is only ever the initial value; the file owns it after that. */
+export function mintMeta(type: string, importer?: Record<string, unknown>): Record<string, unknown> {
+  return {
+    uuid: randomUUID(), version: META_VERSION, type,
+    importer: { ...importerDefaults(type), ...importer },
+  };
 }
 
 /** Write `<absFile>.meta` for @p absFile. Pass `type` to override the
  *  extension-derived one (the create door knows its type explicitly). */
-export async function writeMeta(absFile: string, type: string): Promise<void> {
-  await writeFile(absFile + META_EXT, JSON.stringify(mintMeta(type), null, 2) + '\n', 'utf8');
+export async function writeMeta(absFile: string, type: string,
+                                importer?: Record<string, unknown>): Promise<void> {
+  await writeFile(absFile + META_EXT,
+                  JSON.stringify(mintMeta(type, importer), null, 2) + '\n', 'utf8');
 }
 
 /**
@@ -73,10 +80,11 @@ export async function writeMeta(absFile: string, type: string): Promise<void> {
  * to a known asset type. Returns what happened, so callers can count adoptions /
  * skip unknowns without re-deriving the checks.
  */
-export async function adoptOrphan(absFile: string): Promise<'adopted' | 'has-meta' | 'unknown-type'> {
+export async function adoptOrphan(absFile: string,
+                                  importer?: Record<string, unknown>): Promise<'adopted' | 'has-meta' | 'unknown-type'> {
   if (existsSync(absFile + META_EXT)) return 'has-meta';
   const type = await metaTypeForFile(absFile);
   if (!type) return 'unknown-type';
-  await writeMeta(absFile, type);
+  await writeMeta(absFile, type, importer);
   return 'adopted';
 }

@@ -169,6 +169,24 @@ describe('importing a model', () => {
     expect(existsSync(path.join(root, 'assets/models/robot_skin.png'))).toBe(false);
   });
 
+  it("mints an image's .meta with the settings its sampler asked for", async () => {
+    writeFileSync(path.join(outside, 'skin.png'), 'PNG');
+    const doc = JSON.parse(gltf('skin.png')) as Record<string, unknown>;
+    doc.samplers = [{ magFilter: 9728, wrapS: 33071, wrapT: 33071 }];
+    doc.textures = [{ source: 0, sampler: 0 }];
+    const src = path.join(outside, 'robot.gltf');
+    writeFileSync(src, JSON.stringify(doc));
+    await importAssets(root, 'assets/models', [src]);
+
+    const meta = JSON.parse(
+      readFileSync(path.join(root, 'assets/models/skin.png.meta'), 'utf8'),
+    ) as { importer: { filterMode: string; wrapMode: string; maxSize: number } };
+    expect(meta.importer.filterMode).toBe('nearest');
+    expect(meta.importer.wrapMode).toBe('clamp');
+    // The rest of the type's defaults survive — this overrides, it does not replace.
+    expect(meta.importer.maxSize).toBe(2048);
+  });
+
   it('keeps a product’s identity across a re-import', async () => {
     const abs = path.join(root, 'assets/models/robot.gltf');
     mkdirSync(path.dirname(abs), { recursive: true });

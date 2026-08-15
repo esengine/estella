@@ -248,6 +248,50 @@ describe('glTF material import', () => {
     expect(meshes[0]!.data.aabbMax).toEqual([9, 9, 9]);
   });
 
+  it("carries a sampler's filter and wrap as import settings", () => {
+    const doc = withInlineImage();
+    doc.samplers = [{ magFilter: 9728, wrapS: 33071, wrapT: 33071 }];
+    (doc.textures as { sampler?: number }[])[0]!.sampler = 0;
+    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    expect(warnings).toEqual([]);
+    expect(meshes[0]!.material?.baseColorTexture?.settings)
+      .toEqual({ filterMode: 'nearest', wrapMode: 'clamp' });
+  });
+
+  it('says which wrap it kept when the source addresses u and v differently', () => {
+    const doc = withInlineImage();
+    doc.samplers = [{ wrapS: 33071, wrapT: 10497 }];
+    (doc.textures as { sampler?: number }[])[0]!.sampler = 0;
+    const { meshes, warnings } = importGltfMeshes(gltf(doc), 'model');
+    expect(warnings.join('\n')).toContain('wrapS and wrapT differ');
+    expect(meshes[0]!.material?.baseColorTexture?.settings?.wrapMode).toBe('clamp');
+  });
+
+  it('reports deformation it cannot carry: skins, morph targets, animations', () => {
+    const doc = {
+      ...withInlineImage(),
+      skins: [{}], animations: [{}],
+      nodes: [{ mesh: 0, skin: 0 }], scenes: [{ nodes: [0] }], scene: 0,
+    };
+    const { warnings } = importGltfMeshes(gltf(doc, [{
+      attributes: { POSITION: 0, TEXCOORD_0: 1, JOINTS_0: 1 }, indices: 2, material: 0, mode: 4,
+      targets: [{}, {}],
+    }]), 'model');
+    const line = warnings.join('\n');
+    expect(line).toContain('2 morph target(s) not imported');
+    expect(line).toContain('skinning is not imported');
+    expect(line).toContain('1 skin(s) not imported');
+    expect(line).toContain('1 animation(s) not imported');
+  });
+
+  it('reports a uv rewrite it does not apply', () => {
+    const doc = withInlineImage();
+    (doc.materials as { pbrMetallicRoughness: { baseColorTexture: Record<string, unknown> } }[])[0]!
+      .pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { scale: [2, 2] } };
+    const { warnings } = importGltfMeshes(gltf(doc), 'model');
+    expect(warnings.join('\n')).toContain('KHR_texture_transform not imported');
+  });
+
   it("flips V, because glTF's uv origin is the image's top-left", () => {
     const { meshes } = importGltfMeshes(gltf(withInlineImage()), 'model');
     expect(texCoords(meshes[0]!)).toEqual([0, 1, 1, 1, 0, 0]);
