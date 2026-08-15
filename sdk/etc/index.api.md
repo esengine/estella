@@ -4251,7 +4251,7 @@ static prototype: Mesh2DPlugin
 
 ## MeshChannel — const @experimental
 ```
-{ readonly Position: 0; readonly TexCoord0: 1; readonly Color: 2; readonly Normal: 3; readonly Tangent: 4; }
+{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; }
 ```
 
 ## MeshChannelDesc — interface @experimental

@@ -54,6 +54,17 @@ static EstellaContext& ctx() { return activeCtx(); }
 #endif
 #define g_trailSystem (ctx().tryGet<trail::TrailSystem>())
 
+namespace {
+// The channels the engine's own mesh uploads use, named by semantic so a change
+// to the vocabulary moves them rather than leaving two literal 1s behind.
+// Byte offsets follow the packed {x,y,z,u,v,rgba8} vertex both callers build.
+constexpr GfxVertexAttribute kStandardMeshChannels[3] = {
+    {static_cast<u32>(MeshChannel::Position),  3, GfxDataType::Float,        false,  0, 0},
+    {static_cast<u32>(MeshChannel::Color),     4, GfxDataType::UnsignedByte, true,  20, 0},
+    {static_cast<u32>(MeshChannel::TexCoord0), 2, GfxDataType::Float,        false, 12, 0},
+};
+}  // namespace
+
 static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
     u32 errorCount = 0;
@@ -237,15 +248,10 @@ u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
         mx = glm::max(mx, glm::vec3(p[0], p[1], p[2]));
     }
 
-    const GfxVertexAttribute channels[3] = {
-        {0, 3, GfxDataType::Float, false, 0, 0},
-        {1, 2, GfxDataType::Float, false, 12, 0},
-        {2, 4, GfxDataType::UnsignedByte, true, 20, 0},
-    };
     auto handle = rm->createMesh(
         ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
         ConstSpan<u32>(indices, indexCount),
-        ConstSpan<GfxVertexAttribute>(channels, 3), sizeof(MeshVertex), mn, mx);
+        ConstSpan<GfxVertexAttribute>(kStandardMeshChannels, 3), sizeof(MeshVertex), mn, mx);
     return handle.id();
 }
 
@@ -323,15 +329,10 @@ u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
         verts[i] = { in.position.x, in.position.y, 0.0f, in.uv.x, in.uv.y, in.color };
     }
 
-    const GfxVertexAttribute channels[3] = {
-        {0, 3, GfxDataType::Float, false, 0, 0},
-        {1, 2, GfxDataType::Float, false, 12, 0},
-        {2, 4, GfxDataType::UnsignedByte, true, 20, 0},
-    };
     auto handle = rm->createMesh(
         ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
         ConstSpan<u32>(mesh->indices.data(), mesh->indices.size()),
-        ConstSpan<GfxVertexAttribute>(channels, 3), sizeof(MeshVertex),
+        ConstSpan<GfxVertexAttribute>(kStandardMeshChannels, 3), sizeof(MeshVertex),
         glm::vec3(mesh->localMin, 0.0f), glm::vec3(mesh->localMax, 0.0f));
     if (!handle.isValid()) return 0;
 

@@ -17,14 +17,14 @@ const HEADER_BYTES = 44;
 const CHANNEL_BYTES = 8;
 
 /**
- * What a channel means. The value IS the shader attribute location, so a shader
- * reading normals at 3 reads them from any mesh that has them. Append only:
- * these numbers are serialized.
+ * What a channel means. The value IS the shader attribute location, and the first
+ * three match the 2D batch layout, so one attribute vocabulary serves both vertex
+ * sources. Append only: these numbers are serialized.
  */
 export const MeshChannel = {
     Position: 0,
-    TexCoord0: 1,
-    Color: 2,
+    Color: 1,
+    TexCoord0: 2,
     Normal: 3,
     Tangent: 4,
 } as const;

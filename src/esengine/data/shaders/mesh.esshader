@@ -19,8 +19,8 @@
 
 #pragma vertex
 layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec2 a_texCoord;
-layout(location = 2) in vec4 a_color;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_texCoord;
 #ifdef LIT
 layout(location = 3) in vec3 a_normal;
 #endif
@@ -95,8 +95,8 @@ struct FrameConstants { projection : mat4x4f };
 
 struct VSIn {
     @location(0) a_position : vec3f,
-    @location(1) a_texCoord : vec2f,
-    @location(2) a_color : vec4f,
+    @location(1) a_color : vec4f,
+    @location(2) a_texCoord : vec2f,
 #ifdef LIT
     @location(3) a_normal : vec3f,
 #endif

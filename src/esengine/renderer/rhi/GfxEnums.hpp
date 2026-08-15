@@ -104,14 +104,14 @@ static constexpr u32 MESH_INSTANCE_FIRST_LOCATION = 8;
 /**
  * @brief What a mesh vertex channel MEANS, and the attribute location it binds to.
  * @details One vocabulary for the file format, the layout and the shaders: a
- *          channel's semantic IS its location, so a shader declaring a_normal at 3
- *          reads normals from any mesh that has them and never sees the ones that
- *          do not. Values are serialized in .esmesh — append only.
+ *          channel's semantic IS its location. The first three match the 2D batch
+ *          layout exactly, so one attribute vocabulary serves both vertex sources.
+ *          Values are serialized in .esmesh — append only.
  */
 enum class MeshChannel : u8 {
     Position  = 0,
-    TexCoord0 = 1,
-    Color     = 2,
+    Color     = 1,
+    TexCoord0 = 2,
     Normal    = 3,
     Tangent   = 4,
 };
