@@ -11,7 +11,7 @@
  */
 import type { Entity } from '../types';
 import type { World } from './world';
-import { Transform, Sprite } from './component';
+import { Transform, Sprite, Mesh2D } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { quaternionToAngle2D } from '../ui/util/math';
 import { worldEngineApi } from './bridge/engineApi';
@@ -125,6 +125,47 @@ export function uiNodeWorldBox(world: LayoutWorld, entity: Entity): EntityBox | 
         hw: Math.abs(w) / 2,
         hh: Math.abs(h) / 2,
         rot: quaternionToAngle2D(r.z, r.w),
+    };
+}
+
+interface LocalBounds { minX: number; minY: number; maxX: number; maxY: number }
+
+/**
+ * The world box of a Mesh2D's geometry — {@link entityWorldBox} for a mesh,
+ * whose extent is in its vertices rather than in a size field. The engine
+ * answers: only it knows whether the live geometry is the resident one or the
+ * inline payload. Null for anything else, and for a mesh that draws nothing.
+ *
+ * @experimental
+ */
+export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | null {
+    if (!world.valid(entity) || !world.has(entity, Mesh2D) || !world.has(entity, Transform)) return null;
+    if (world.has(entity, UINode)) return null;
+    // The wasm module, not the shared engine api: this answer is a small object,
+    // which is a shape only that binding surface carries.
+    const module = world.getWasmModule() as {
+        mesh2d_localBounds?(registry: unknown, entity: number): LocalBounds | null;
+    } | null;
+    const registry = world.getCppRegistry();
+    if (!registry || !module?.mesh2d_localBounds) return null;
+    const b = module.mesh2d_localBounds(registry, entity);
+    if (!b) return null;
+
+    const t = world.get(entity, Transform);
+    const rot = quaternionToAngle2D((t.worldRotation as { z: number }).z,
+                                    (t.worldRotation as { w: number }).w);
+    // The geometry's centre is its own, not the transform's: a mesh authored
+    // off-origin is drawn off-origin, and its box has to follow.
+    const ox = (b.minX + b.maxX) / 2 * t.worldScale.x;
+    const oy = (b.minY + b.maxY) / 2 * t.worldScale.y;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    return {
+        cx: t.worldPosition.x + ox * c - oy * s,
+        cy: t.worldPosition.y + ox * s + oy * c,
+        hw: Math.abs((b.maxX - b.minX) * t.worldScale.x) / 2,
+        hh: Math.abs((b.maxY - b.minY) * t.worldScale.y) / 2,
+        rot,
     };
 }
 

@@ -117,6 +117,9 @@ u32 renderer_getDrawCalls();
 /// GPU objects the device has not destroyed, for the resource census. Null when
 /// no device is initialized — absent counters, not zeroed ones.
 emscripten::val renderer_getLiveObjects();
+/// Local XY bounds of what a Mesh2D draws (resident geometry, else the inline
+/// payload). Null when it draws nothing — an editor boxes it by its icon then.
+emscripten::val mesh2d_localBounds(ecs::Registry& registry, u32 entity);
 #endif
 u32 renderer_getTriangles();
 u32 renderer_getSprites();

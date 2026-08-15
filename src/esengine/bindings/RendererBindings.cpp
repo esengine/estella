@@ -692,6 +692,37 @@ u32 renderer_getDrawCalls() {
 }
 
 #ifdef __EMSCRIPTEN__
+/**
+ * The local-space XY box of what a Mesh2D DRAWS — resident geometry when it has
+ * some, else the inline payload. Which of the two is live is the engine's to
+ * know: an editor asking the component alone boxes a resident mesh at zero, and
+ * then it cannot be clicked.
+ */
+emscripten::val mesh2d_localBounds(ecs::Registry& registry, u32 entity) {
+    const Entity ent = Entity::fromRaw(entity);
+    const auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    if (!mesh) return emscripten::val::null();
+
+    glm::vec2 mn = mesh->localMin;
+    glm::vec2 mx = mesh->localMax;
+    if (mesh->mesh.isValid()) {
+        if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+            if (const Mesh* res = rm->getMesh(mesh->mesh)) {
+                mn = glm::vec2(res->localMin);
+                mx = glm::vec2(res->localMax);
+            }
+        }
+    }
+    if (!(mx.x > mn.x) && !(mx.y > mn.y)) return emscripten::val::null();
+
+    auto out = emscripten::val::object();
+    out.set("minX", mn.x);
+    out.set("minY", mn.y);
+    out.set("maxX", mx.x);
+    out.set("maxY", mx.y);
+    return out;
+}
+
 emscripten::val renderer_getLiveObjects() {
     auto* device = g_device;
     // Null rather than zeros: with no device there is nothing to report, and a

@@ -8,8 +8,8 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it } from 'vitest';
-import { entityWorldBox, entityBoxCorners, uiNodeWorldBox } from '../src/ecs/entityBox';
-import { Transform, Sprite } from '../src/ecs/component';
+import { entityWorldBox, entityBoxCorners, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
+import { Transform, Sprite, Mesh2D } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
 
@@ -29,6 +29,12 @@ const T = (x: number, y: number, sx = 1, sy = 1, angle = 0) => ({
     worldPosition: { x, y, z: 0 },
     worldScale: { x: sx, y: sy, z: 1 },
     worldRotation: { x: 0, y: 0, z: Math.sin(angle / 2), w: Math.cos(angle / 2) },
+});
+
+/** The engine side of a mesh box: the bounds of whichever geometry is live. */
+const meshBounds = (b: { minX: number; minY: number; maxX: number; maxY: number } | null) => ({
+    getCppRegistry: () => ({}),
+    getWasmModule: () => ({ mesh2d_localBounds: () => b }),
 });
 
 /** The engine side of a UI box: a resolved layout size, in the core's own tables. */
@@ -112,5 +118,38 @@ describe('an entity world box', () => {
             { x: 2, y: 1 },
             { x: -2, y: 1 },
         ]);
+    });
+});
+
+describe('a mesh world box', () => {
+    it('is the geometry the engine reports, through the world scale', () => {
+        // A Mesh2D has no size field: the extent lives in its vertices, and for
+        // resident geometry not even in the component. Only the engine can say.
+        const world = {
+            ...fakeWorld({ 1: { [name(Transform)]: T(10, 20, 2, 3), [name(Mesh2D)]: {} } }),
+            ...meshBounds({ minX: -50, minY: -10, maxX: 50, maxY: 10 }),
+        } as never;
+        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 10, cy: 20, hw: 100, hh: 30, rot: 0 });
+    });
+
+    it('follows geometry authored off the origin', () => {
+        const world = {
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...meshBounds({ minX: 100, minY: 0, maxX: 300, maxY: 40 }),
+        } as never;
+        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 200, cy: 20, hw: 100, hh: 20, rot: 0 });
+    });
+
+    it('has none when the mesh draws nothing, and none for a non-mesh', () => {
+        const empty = {
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...meshBounds(null),
+        } as never;
+        expect(meshWorldBox(empty, ent(1))).toBeNull();
+        const sprite = {
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Sprite)]: { size: { x: 4, y: 4 } } } }),
+            ...meshBounds({ minX: -1, minY: -1, maxX: 1, maxY: 1 }),
+        } as never;
+        expect(meshWorldBox(sprite, ent(1))).toBeNull();
     });
 });

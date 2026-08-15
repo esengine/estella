@@ -260,6 +260,10 @@ export interface ESEngineModule {
      * inline payloads. Returns how many were pointed.
      */
     mesh2d_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
+    /** Local XY bounds of what a Mesh2D draws — resident geometry, else its
+     *  inline payload. Null when it draws nothing. */
+    mesh2d_localBounds?(registry: CppRegistry, entity: number):
+        { minX: number; minY: number; maxX: number; maxY: number } | null;
     /** Point every Mesh2D in the world at one material; returns how many. */
     mesh2d_setMaterialAll?(registry: CppRegistry, materialId: number): number;
     recoverDevice?(): boolean;

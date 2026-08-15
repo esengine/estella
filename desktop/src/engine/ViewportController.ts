@@ -13,7 +13,7 @@ import {
   readColliderShapes, colliderShapeOutline, shapeCenter,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
-  entityWorldBox, uiNodeWorldBox,
+  entityWorldBox, uiNodeWorldBox, meshWorldBox,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -237,6 +237,10 @@ export const ViewportController = {
   entityBounds(id: EntityId): OBB | null {
     const world = EngineHost.world;
     if (!world) return null;
+    // A mesh's extent is in its vertices, so it is asked for before the icon
+    // fallback below would answer with a box the size of a camera gizmo.
+    const mesh = meshWorldBox(world, id);
+    if (mesh) return mesh;
     // The icon half-size is the editor's own: it is the size of the thing the
     // editor drew for an entity that draws nothing, so a camera is still
     // clickable. The running world has no icons and asks for no box.

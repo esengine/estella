@@ -61,7 +61,7 @@ export {
 
 export { setEntityVisible, isEntityVisible, hasVisibility, setEntityActive, isEntityActive } from './ecs/entityUtils';
 
-export { entityWorldBox, uiNodeWorldBox, entityBoxCorners, type EntityBox, type EntityBoxOptions, type ReadableWorld, type LayoutWorld } from './ecs/entityBox';
+export { entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, type EntityBox, type EntityBoxOptions, type ReadableWorld, type LayoutWorld } from './ecs/entityBox';
 export { CacheBitmap, type BitmapCache } from './render/cacheBitmap';
 export {
     CacheAsBitmap,

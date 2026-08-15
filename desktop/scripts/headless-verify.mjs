@@ -21,6 +21,7 @@
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
+ *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -130,10 +131,13 @@ function finish(result, server) {
     && (!result.meshAsset || result.meshAsset.pointed > 0)
     && (!result.meshMaterial || result.meshMaterial.applied > 0)
     && (!result.meshPrefab || result.meshPrefab.spawned > 0);
+  // A hit test answering the wrong entity (or nothing) is the box being wrong,
+  // which no pixel in the frame can show.
+  const pickOk = !result.pick || result.pick.hit === result.pick.want;
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    deviceLossOk && meshOk;
+    deviceLossOk && meshOk && pickOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {
@@ -171,6 +175,7 @@ app.whenReady().then(async () => {
     let meshMaterial = null;
     let meshPrefab = null;
     let setField = null;
+    let pick = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -281,6 +286,17 @@ app.whenReady().then(async () => {
         }
         return { wrote: ${JSON.stringify(spec.key)} };
       })()`);
+    }
+
+    // ESTELLA_VERIFY_PICK={"x","y","entity"} clicks a point (viewport fractions)
+    // and asserts which entity answers — the editor's own hit test, whose box for
+    // a mesh is its geometry rather than the icon square a shapeless entity gets.
+    if (process.env.ESTELLA_VERIFY_PICK) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_PICK);
+      pick = await exec(`(() => ({
+        hit: window.__estellaHeadless.api.pick(${spec.x * W}, ${spec.y * H}),
+        want: ${JSON.stringify(spec.entity)},
+      }))()`);
     }
 
     // ESTELLA_VERIFY_PREFAB=<path> instantiates a prefab into the scene. For an
@@ -530,7 +546,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
