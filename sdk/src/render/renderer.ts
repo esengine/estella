@@ -211,9 +211,16 @@ export function recoverDevice(): boolean {
     return module?.recoverDevice?.() ?? false;
 }
 
-/** Ends recovery: call once the asset layer has re-uploaded the textures. */
-export function finishDeviceRecovery(): void {
-    module?.markDeviceRestored?.();
+/**
+ * Ends recovery — the engine decides whether it actually ended.
+ *
+ * Returns the number of textures still on the placeholder. Anything above zero
+ * leaves the device Recovering, because a device that reports Live while half
+ * its content is a white placeholder is the hardest failure to read: the status
+ * says healthy and the screen disagrees.
+ */
+export function finishDeviceRecovery(): number {
+    return module?.markDeviceRestored?.() ?? 0;
 }
 
 /**

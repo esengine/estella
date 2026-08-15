@@ -38,6 +38,9 @@ u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
 bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
                                 u32 glTextureId, u32 width, u32 height);
 
+/** @brief The textures still parked on the placeholder, as `handle|path` lines. */
+std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm);
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes);
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);

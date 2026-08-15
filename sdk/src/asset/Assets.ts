@@ -367,6 +367,29 @@ export class Assets {
     }
 
     /**
+     * The textures the engine says are still the placeholder, with the path each
+     * was registered under.
+     *
+     * This list is the engine's, not a mirror of this cache: a loss sweeps EVERY
+     * texture onto the placeholder, including the ones another subsystem
+     * uploaded, and recovering only the ones this layer happens to remember is
+     * how a device reports itself whole while half the screen is white. An empty
+     * path is a texture the asset layer never loaded — a render target, a glyph
+     * atlas — and belongs to whoever created it.
+     */
+    texturesAwaitingReupload(): { handle: number; path: string }[] {
+        const raw = requireResourceManager().texturesAwaitingReupload?.() ?? '';
+        if (!raw) return [];
+        return raw.split('\n').map((line) => {
+            const cut = line.indexOf('|');
+            return {
+                handle: Number(cut < 0 ? line : line.slice(0, cut)),
+                path: cut < 0 ? '' : line.slice(cut + 1),
+            };
+        });
+    }
+
+    /**
      * Re-uploads every cached texture behind the handle it already has.
      *
      * The GPU objects died with the device; the handles did not. The load path
@@ -415,7 +438,12 @@ export class Assets {
     async recoverFromDeviceLoss(): Promise<boolean> {
         if (!recoverDevice()) return false;
         await this.reuploadTexturesAfterDeviceLoss();
-        finishDeviceRecovery();
+        const pending = finishDeviceRecovery();
+        if (pending > 0) {
+            log.warn('assets',
+                     `Device recovery: ${pending} texture(s) are still the placeholder`);
+            return false;
+        }
         return true;
     }
 

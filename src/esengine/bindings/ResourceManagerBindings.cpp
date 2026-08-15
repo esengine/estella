@@ -131,6 +131,22 @@ bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
     return rm.retargetExternalTexture(resource::TextureHandle(handle), glTextureId, width, height);
 }
 
+std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm) {
+    // One crossing, because a loss parks EVERY texture at once — asking per
+    // handle would be a call per texture on the frame after a loss. An empty
+    // path names a texture no asset layer can bring back (a render target, a
+    // glyph atlas); it belongs to whoever created it, and saying so is what
+    // lets the caller tell "not mine" from "mine and I failed".
+    std::string out;
+    for (resource::TextureHandle handle : rm.texturesAwaitingReupload()) {
+        if (!out.empty()) out += '\n';
+        out += std::to_string(handle.id());
+        out += '|';
+        out += rm.getTexturePath(handle);
+    }
+    return out;
+}
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes) {
     auto handle = rm.registerExternalTexture(glTextureId, width, height,

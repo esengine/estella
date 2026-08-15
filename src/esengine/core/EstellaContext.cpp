@@ -142,6 +142,16 @@ bool EstellaContext::recoverDevice() {
     return true;
 }
 
+u32 EstellaContext::finishDeviceRecovery() {
+    auto* resources = services_.getService<resource::ResourceManager>();
+    const u32 pending = resources
+        ? static_cast<u32>(resources->texturesAwaitingReupload().size())
+        : 0;
+    if (pending > 0) return pending;
+    if (auto* device = services_.getService<GfxDevice>()) device->markDeviceRestored();
+    return 0;
+}
+
 void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // The device arrives first: ResourceManager (the GPU-resource factory) and
     // every other renderer subsystem borrow this single device. Which backend

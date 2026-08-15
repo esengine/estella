@@ -306,9 +306,16 @@ bool recoverDevice() {
     return g_activeContext ? g_activeContext->recoverDevice() : false;
 }
 
-/** @brief Ends recovery: the content is back and the device is fully itself. */
-void markDeviceRestored() {
-    if (GfxDevice* device = activeGfxDevice()) device->markDeviceRestored();
+/**
+ * @brief Ends recovery, and answers whether it actually ended.
+ * @details Routed through the context rather than straight to the device: the
+ *          device cannot see the textures still parked on the placeholder, and
+ *          the context is the one layer that knows both. Reaching for the
+ *          device here is the shorter path that skips the only criterion.
+ * @return Textures still awaiting re-upload; 0 means the device is Live.
+ */
+u32 markDeviceRestored() {
+    return g_activeContext ? g_activeContext->finishDeviceRecovery() : 0;
 }
 
 /**
@@ -450,6 +457,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
         .function("retargetExternalTexture", &esengine::rm_retargetExternalTexture)
+        .function("texturesAwaitingReupload", &esengine::rm_texturesAwaitingReupload)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("getTextureRefCount", &esengine::rm_getTextureRefCount)
         .function("releaseShader", &esengine::rm_releaseShader)

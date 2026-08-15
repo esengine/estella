@@ -75,6 +75,13 @@ export interface CppResourceManager {
      * Optional: absent on an older wasm build.
      */
     retargetExternalTexture?(handle: number, glTextureId: number, width: number, height: number): boolean;
+    /**
+     * The textures still parked on the placeholder after a loss, one
+     * `handle|path` per line. A blank path is a texture the asset layer never
+     * loaded — a render target, a glyph atlas — so it is not one to fetch.
+     * Optional: absent on an older wasm build.
+     */
+    texturesAwaitingReupload?(): string;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;
@@ -212,8 +219,11 @@ export interface ESEngineModule {
      * On success the device is Recovering: drawing, with placeholder textures.
      */
     recoverDevice?(): boolean;
-    /** End recovery once the textures are back. */
-    markDeviceRestored?(): void;
+    /**
+     * End recovery — the engine decides whether it actually ended. Returns how
+     * many textures are still on the placeholder; 0 means the device is Live.
+     */
+    markDeviceRestored?(): number;
     /**
      * UI draw order of an entity (its UIVisual.uiOrder, assigned by the UI
      * render-order pass), so SDF text quads interleave with UI quads. -1 if the
