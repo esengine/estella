@@ -61,6 +61,13 @@ const DECLARED_GAPS = {
     editor: 'boot-fixed — shaders compile against it, so the settings page asks '
       + 'for a reload rather than applying live (EngineHost.resolveColorSpace)',
   },
+  renderBackend: {
+    editor: 'the viewport runs the developer\'s own `renderer.backend` setting: which '
+      + 'GPU a machine can drive is not the project\'s to decide, and a canvas cannot '
+      + 'change context type once one is acquired',
+    play: 'the play realm boots on the editor\'s own context; the two backends are held '
+      + 'equal by the pixel gates (`verify-render --backend webgpu`) rather than by Play',
+  },
   screenFit: {
     editor: 'the device preview reads it through projectSeams, not by applying it '
       + 'to the edit camera (the editor view is a free zoom by design)',
@@ -82,6 +89,7 @@ const PARSE_KEY = {
   ySortLayers: 'r.ySortLayers',
   depthLayers: 'r.depthLayers',
   colorSpace: 'r.colorSpace',
+  renderBackend: 'r.backend',
   screenFit: 'r.cameraScaleMode',
 };
 

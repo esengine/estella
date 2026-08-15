@@ -16,8 +16,9 @@ import {
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
+  acquireWebGPUDevice,
 } from 'esengine';
-import type { SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
+import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -59,26 +60,45 @@ async function boot(): Promise<void> {
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
     default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
   };
+  // The device has to exist before the module reads it, and the fallback IS the
+  // contract. `?headless` pins WebGL2: a driver reads the frame back through the
+  // GL context, which is what the capture hook below has.
+  const wantsWebGPU = cfg.renderBackend === 'webgpu' && !headless;
+  const gpu = await acquireWebGPUDevice(wantsWebGPU ? 'webgpu' : 'webgl2',
+    (m) => console.error(m));
+  if (wantsWebGPU && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
+
   const module = await createModule({
     canvas,
     locateFile: (p: string) => `${wasmBase}${p}`,
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
+    ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),
   });
 
-  const gl = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: true,
-    depth: true,
-    stencil: true,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: headless,
-  }) as WebGL2RenderingContext | null;
-  if (!gl) throw new Error('WebGL2 is not available.');
-  const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
+  let gl: WebGL2RenderingContext | null = null;
+  let renderSurface: RenderSurfaceSource;
+  if (gpu.device) {
+    canvas.id ||= 'canvas';
+    renderSurface = { kind: 'webgpu', canvasSelector: `#${canvas.id}` };
+  } else {
+    gl = canvas.getContext('webgl2', {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      stencil: true,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: headless,
+    }) as WebGL2RenderingContext | null;
+    if (!gl) throw new Error('WebGL2 is not available.');
+    renderSurface = {
+      kind: 'gl-context',
+      handle: module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true }),
+    };
+  }
 
   const app = createWebApp(module, {
-    renderSurface: { kind: 'gl-context', handle: glHandle },
+    renderSurface,
     // Everything the config says an App must be BUILT with (see packagedAppOptions).
     ...packagedAppOptions(cfg),
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
@@ -91,7 +111,8 @@ async function boot(): Promise<void> {
       capture(): { width: number; height: number; rgba: Uint8Array } {
         const w = canvas.width, h = canvas.height;
         const rgba = new Uint8Array(w * h * 4);
-        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+        // `?headless` pins WebGL2 above, so this is the context that drew.
+        gl!.readPixels(0, 0, w, h, gl!.RGBA, gl!.UNSIGNED_BYTE, rgba);
         return { width: w, height: h, rgba };
       },
       /**

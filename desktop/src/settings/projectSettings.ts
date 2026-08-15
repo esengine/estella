@@ -195,6 +195,28 @@ settingsRegistry.register({
 });
 
 settingsRegistry.register({
+  id: 'project.rendering.backend',
+  type: 'enum',
+  scope: 'project',
+  section: 'rendering',
+  group: t('set.group.colorSpace'),
+  label: t('set.project.rendering.backend'),
+  description: t('set.project.rendering.backend.desc'),
+  default: 'webgl2',
+  segmented: true,
+  options: [
+    { value: 'webgl2', label: t('set.project.rendering.backend.webgl2') },
+    { value: 'webgpu', label: t('set.project.rendering.backend.webgpu') },
+  ],
+  bind: {
+    get: () => ProjectStore.renderingFeature().backend,
+    // Shipped builds only: the viewport runs the developer's own renderer
+    // setting, so there is nothing live to reload here.
+    set: (v) => void ProjectStore.setRendering({ backend: v as 'webgl2' | 'webgpu' }),
+  },
+});
+
+settingsRegistry.register({
   id: 'project.rendering.colorSpace',
   type: 'enum',
   scope: 'project',

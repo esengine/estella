@@ -198,6 +198,18 @@ export {
     type WebGPUAdapterLike,
 } from './render/webgpuFeatures';
 
+/**
+ * Acquiring the device a WebGPU boot needs, before the module that reads it
+ * exists — one answer for every host rather than one each.
+ *
+ * @beta
+ */
+export {
+    acquireWebGPUDevice,
+    type RenderBackendRequest,
+    type WebGPUBootResult,
+} from './render/webgpuBoot';
+
 export {
     captureFramePixels,
     canCaptureFramePixels,

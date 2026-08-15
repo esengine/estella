@@ -316,7 +316,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // having to remember that this template exists. Theme colours are the one that
   // is not a plain value — the runtime takes parsed overrides, so a call is
   // emitted for them instead.
-  const packaged = packagedRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG);
+  // Every mini-game vendor gives the runtime a GL context and nothing else, so
+  // a WebGPU request cannot be honoured here — carrying it would be a config
+  // field the runtime is guaranteed to ignore.
+  const { renderBackend: _webgpuNotHere, ...packaged } =
+    packagedRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG);
   const themeColors = packaged.uiThemeColors;
   const runtimeArgs = Object.entries(packaged)
     .map(([k, v]) => (k === 'uiThemeColors'

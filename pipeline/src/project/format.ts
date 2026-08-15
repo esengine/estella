@@ -136,6 +136,11 @@ export interface ProjectFeatures {
      *  sample, linear blending, OETF at the final blit). Fixed at engine boot —
      *  shaders compile against it. Absent ⇒ 'gamma'. */
     colorSpace?: 'linear';
+    /** GPU backend a shipped build asks for. 'webgpu' takes it where the machine
+     *  serves one and falls back to WebGL2 where it does not, so a project can
+     *  opt in without giving up the browsers that have neither. Absent ⇒ WebGL2,
+     *  which is also what a mini-game and a playable always get. */
+    backend?: 'webgpu';
     /** How the MAIN camera fits the design resolution, INDEPENDENT of any UI Canvas
      *  (the runtime's ScreenScaling). Absent/'none' ⇒ the camera keeps its raw
      *  orthoSize (Canvas fit when present) — the zero-regression default. */
@@ -546,6 +551,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
       }
       // Only 'linear' persists; 'gamma' (the default) is expressed by absence.
       if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';
+      // Same shape: only the opt-in persists, WebGL2 is absence.
+      if (r.backend === 'webgpu') rendering.backend = 'webgpu';
       // Camera fit — 'none' (off) is the default, expressed by absence.
       if (r.cameraScaleMode === 'fixed-width' || r.cameraScaleMode === 'fixed-height' ||
           r.cameraScaleMode === 'expand' || r.cameraScaleMode === 'shrink' || r.cameraScaleMode === 'match') {

@@ -14,7 +14,7 @@ import {
   installEditorGrid,
   setEditorMode,
   setPlayMode,
-  engineWebGPUFeatures,
+  acquireWebGPUDevice,
 } from 'esengine';
 import type { App, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource, FrameCosts } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -591,33 +591,12 @@ class EngineHostImpl {
     };
     if (backend === 'webgpu') {
       // The device must exist BEFORE the module instantiates — the wasm side
-      // reads it synchronously (Module.preinitializedWebGPUDevice).
-      const gpu = (navigator as unknown as {
-        gpu?: {
-          requestAdapter(): Promise<{
-            features?: { has(name: string): boolean };
-            requestDevice(descriptor?: { requiredFeatures?: string[] }): Promise<unknown>;
-          } | null>;
-        };
-      }).gpu;
-      if (!gpu) throw new Error('WebGPU is not available in this renderer.');
-      const adapter = await gpu.requestAdapter();
-      if (!adapter) throw new Error('No WebGPU adapter available.');
-      // The engine says which optional features it uses; a device created without
-      // them refuses the work later, as a texture that never loaded.
-      const requiredFeatures = engineWebGPUFeatures(adapter);
-      console.info(`[engine] webgpu features: ${requiredFeatures.join(', ') || '(none available)'}`);
-      moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice(
-        requiredFeatures.length ? { requiredFeatures } : undefined);
-      // Surface Dawn validation failures: without a listener an invalid draw is
-      // silently dropped — a black pass with no trace (exactly how the WGSL
-      // bloom-chain regression hid). console.error passes the shot/verify
-      // console filters, so headless runs carry the evidence.
-      (moduleArg.preinitializedWebGPUDevice as {
-        addEventListener?: (t: string, cb: (e: { error?: { message?: string } }) => void) => void;
-      }).addEventListener?.('uncapturederror', (e) => {
-        console.error('[webgpu] uncaptured error:', e.error?.message ?? e);
-      });
+      // reads it synchronously (Module.preinitializedWebGPUDevice). The listener
+      // it installs is what makes an invalid draw visible: without one Dawn drops
+      // it in silence, which reads as a black pass with nothing wrong.
+      const gpu = await acquireWebGPUDevice('webgpu', (m) => console.error(m));
+      if (!gpu.device) throw new Error(`WebGPU is not available: ${gpu.reason}`);
+      moduleArg.preinitializedWebGPUDevice = gpu.device;
       // The swapchain glue resolves the canvas by document.querySelector, so
       // it must be connected (the headless host never attaches it to a view).
       // Pin it at the page origin at its backing size: a hidden window never

@@ -307,6 +307,13 @@ export const settingsMessages = defineMessages({
     },
     'set.project.rendering.colorSpace.gamma': { en: 'Gamma', zh: '伽马' },
     'set.project.rendering.colorSpace.linear': { en: 'Linear', zh: '线性' },
+    'set.project.rendering.backend': { en: 'GPU backend', zh: 'GPU 后端' },
+    'set.project.rendering.backend.desc': {
+        en: 'Which GPU API a shipped web or desktop build asks for. WebGPU is the modern one; a browser without it falls back to WebGL2 on its own, so opting in never costs you a player. Mini-games and playables always run WebGL2 — their hosts offer nothing else. The editor viewport follows your own Editor \u2192 Renderer setting instead of this one.',
+        zh: '发布的 Web / 桌面版向哪套 GPU API 申请渲染。WebGPU 是现代后端；不支持的浏览器会自行回退到 WebGL2，所以开启它不会失去任何玩家。小游戏与 playable 始终使用 WebGL2 —— 其宿主只提供这一种。编辑器视口跟随你自己的「编辑器 → 渲染器」设置，而非此项。',
+    },
+    'set.project.rendering.backend.webgl2': { en: 'WebGL2', zh: 'WebGL2' },
+    'set.project.rendering.backend.webgpu': { en: 'WebGPU', zh: 'WebGPU' },
     'set.project.rendering.ySortLayers': { en: 'Y-sorted layers', zh: 'Y 轴排序层' },
     'set.project.rendering.ySortLayers.desc': {
         en: 'Entities on a checked layer draw in world-Y order (lower on screen on top) — top-down occlusion. Within a y-sorted layer, paint order wins over material batching.',

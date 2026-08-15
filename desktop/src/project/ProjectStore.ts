@@ -1683,13 +1683,14 @@ class ProjectStoreImpl {
   }
 
   /** Named render sorting layers (z-order = slot index). Default empty list. */
-  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; depthLayers: number[]; colorSpace: 'gamma' | 'linear'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
+  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; depthLayers: number[]; colorSpace: 'gamma' | 'linear'; backend: 'webgl2' | 'webgpu'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
     const r = this.state?.features?.rendering;
     return {
       sortingLayers: Array.from({ length: SORTING_LAYER_COUNT }, (_, i) => r?.sortingLayers?.[i] ?? ''),
       ySortLayers: r?.ySortLayers ?? [],
       depthLayers: r?.depthLayers ?? [],
       colorSpace: r?.colorSpace === 'linear' ? 'linear' : 'gamma',
+      backend: r?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
       cameraScaleMode: r?.cameraScaleMode ?? 'none',
       cameraMatch: r?.cameraMatch ?? 0.5,
     };
@@ -1764,7 +1765,7 @@ class ProjectStoreImpl {
   /** Set rendering-feature config (sorting layers, y-sort, color space) and persist
    *  to the manifest. Sorting/y-sort live-apply; colorSpace is boot-fixed (shaders
    *  compile against it) — the settings page prompts for a reload, like the backend. */
-  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; depthLayers?: number[]; colorSpace?: 'gamma' | 'linear'; cameraScaleMode?: CameraScaleMode; cameraMatch?: number }): Promise<void> {
+  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; depthLayers?: number[]; colorSpace?: 'gamma' | 'linear'; backend?: 'webgl2' | 'webgpu'; cameraScaleMode?: CameraScaleMode; cameraMatch?: number }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering };
@@ -1779,6 +1780,9 @@ class ProjectStoreImpl {
     // 'gamma' is the default — expressed by ABSENCE so untouched manifests stay untouched.
     if (patch.colorSpace === 'linear') rendering.colorSpace = 'linear';
     else if (patch.colorSpace === 'gamma') delete rendering.colorSpace;
+    // Same shape: WebGL2 is the default and persists as absence.
+    if (patch.backend === 'webgpu') rendering.backend = 'webgpu';
+    else if (patch.backend === 'webgl2') delete rendering.backend;
     // 'none' (off) is the default — expressed by ABSENCE, like colorSpace 'gamma'.
     if (patch.cameraScaleMode === 'none') delete rendering.cameraScaleMode;
     else if (patch.cameraScaleMode !== undefined) rendering.cameraScaleMode = patch.cameraScaleMode;

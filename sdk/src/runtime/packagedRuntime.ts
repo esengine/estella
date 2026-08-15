@@ -44,6 +44,9 @@ export interface PackagedGameConfig {
     depthLayers?: number;
     /** Project color space — 'linear' boots the linear-light pipeline. */
     colorSpace?: 'gamma' | 'linear';
+    /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
+     *  'webgpu' falls back where the machine cannot serve one. */
+    renderBackend?: 'webgl2' | 'webgpu';
     /** Project camera fit (design resolution + scale mode) — letterboxes the main
      *  camera without a UI Canvas; absent = no fit. */
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
@@ -142,6 +145,9 @@ export function packagedAppOptions(
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
+    /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
+     *  'webgpu' falls back where the machine cannot serve one. */
+    renderBackend?: 'webgl2' | 'webgpu';
     screenFit?: PackagedGameConfig['screenFit'];
 } {
     return {

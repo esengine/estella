@@ -172,6 +172,12 @@ async function collectSideModules(
  * engine runtime (esengine.js glue + esengine.wasm) inlined — no separate
  * SINGLE_FILE build. `playableHostEntry` is the host source; `wasmDir` the web wasm dir.
  */
+/** The packaged fields minus what a playable's host cannot serve. */
+function playableRuntimeFields(rc: Parameters<typeof packagedRuntimeFields>[0]) {
+    const { renderBackend: _glOnly, ...rest } = packagedRuntimeFields(rc);
+    return rest;
+}
+
 export async function exportPlayable(opts: {
   root: string;
   entryScene: string;
@@ -319,7 +325,9 @@ export async function exportPlayable(opts: {
     // ONE global for the project's settings, in the same shape game.config.json
     // carries them. Five separate globals meant the host and the export had to
     // agree on five names, and a sixth setting simply never got a global.
-    `window.__GAME_RUNTIME__=${JSON.stringify(packagedRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG))};`;
+    // A playable is one file on an ad network's page: it takes the GL context
+    // its host hands over, so a WebGPU request has nowhere to land.
+    `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG))};`;
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');
