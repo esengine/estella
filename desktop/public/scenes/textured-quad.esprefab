@@ -1,11 +1,11 @@
 {
   "version": "2",
   "name": "textured-quad",
-  "rootEntityId": "0",
+  "rootEntityId": "n0",
   "entities": [
     {
-      "prefabEntityId": "0",
-      "name": "textured-quad",
+      "prefabEntityId": "n0",
+      "name": "node_0",
       "parent": null,
       "children": [],
       "visible": true,

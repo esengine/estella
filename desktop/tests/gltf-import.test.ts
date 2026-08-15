@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  glTF material/image import: what the products say about each other.
+ * @file  glTF material/image/node import: what the products say about each other.
  *
- * The pixels a gate asserts prove the chain end to end, but only for one file.
- * These cover the shapes that file is not: an image in a GLB chunk, an image
- * already on disk, a primitive with no material, several primitives at once.
+ * The pixel gates prove the chain end to end, but only for the files they draw.
+ * These cover the shapes those are not: an image in a GLB chunk, an image
+ * already on disk, a node given as a matrix, a file with no node tree at all.
  */
 import { describe, it, expect } from 'vitest';
 import {
-  importGltfMeshes, assembleGltfPrefab, type ImportedMesh,
+  importGltfMeshes, assembleGltfPrefab, type ImportedMesh, type PrefabAssembly,
 } from '../../pipeline/src/assets/gltfImport';
 import { MeshChannel } from 'esengine';
 
@@ -174,13 +174,17 @@ describe('glTF material import', () => {
 });
 
 describe('glTF prefab assembly', () => {
-  const meshesOf = (bytes: Uint8Array) => importGltfMeshes(bytes, 'model').meshes;
+  const assemble = (bytes: Uint8Array, options: Partial<PrefabAssembly> = {}) => {
+    const { meshes, nodes } = importGltfMeshes(bytes, 'model');
+    return assembleGltfPrefab('model', meshes, { nodes, ...options });
+  };
+  const oneNode = { nodes: [{ mesh: 0 }], scenes: [{ nodes: [0] }], scene: 0 };
 
-  it('makes the single primitive the root itself', () => {
-    const prefab = assembleGltfPrefab('model', meshesOf(gltf(withInlineImage())),
-                                      { prefix: 'assets/models/' });
+  it('draws a single-primitive node from the node itself', () => {
+    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }),
+                            { refs: { prefix: 'assets/models/' } });
     expect(prefab.entities).toHaveLength(1);
-    expect(prefab.rootEntityId).toBe('0');
+    expect(prefab.rootEntityId).toBe('n0');
     expect(prefab.entities[0]!.components[1]).toEqual({
       type: 'Mesh2D',
       data: {
@@ -192,27 +196,80 @@ describe('glTF prefab assembly', () => {
     });
   });
 
-  it('holds several primitives under one root', () => {
+  it('hangs a node’s further primitives off it', () => {
     const two = [
       { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4 },
       { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, mode: 4 },
     ];
-    const prefab = assembleGltfPrefab('model', meshesOf(gltf(withInlineImage(), two)));
-    expect(prefab.entities.map(e => e.prefabEntityId)).toEqual(['0', '1', '2']);
-    expect(prefab.entities[0]!.children).toEqual(['1', '2']);
-    expect(prefab.entities[1]!.parent).toBe('0');
+    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }, two));
+    expect(prefab.entities.map(e => e.prefabEntityId)).toEqual(['n0', 'n0_p0', 'n0_p1']);
+    expect(prefab.entities[0]!.children).toEqual(['n0_p0', 'n0_p1']);
+    expect(prefab.entities[1]!.parent).toBe('n0');
     // The second primitive names no material: no texture, no tint, engine defaults.
     expect(prefab.entities[2]!.components[1]!.data).toEqual({
       mesh: 'model_0_1.esmesh', enabled: true,
     });
   });
 
+  it('places each node where the source puts it, parents included', () => {
+    const doc = {
+      ...withInlineImage(),
+      nodes: [
+        { name: 'Model', translation: [40, 0, 0], children: [1, 2] },
+        { name: 'Left', mesh: 0, translation: [-120, 60, 0] },
+        { name: 'Right', mesh: 0, scale: [0.5, 0.5, 1] },
+      ],
+      scenes: [{ nodes: [0] }], scene: 0,
+    };
+    const prefab = assemble(gltf(doc));
+    expect(prefab.entities.map(e => e.name)).toEqual(['Model', 'Left', 'Right']);
+    expect(prefab.entities[0]!.components[0]!.data)
+      .toEqual({ position: { x: 40, y: 0, z: 0 } });
+    expect(prefab.entities[1]!.components[0]!.data)
+      .toEqual({ position: { x: -120, y: 60, z: 0 } });
+    expect(prefab.entities[2]!.components[0]!.data)
+      .toEqual({ scale: { x: 0.5, y: 0.5, z: 1 } });
+    // One mesh drawn by two nodes is one product referenced twice.
+    expect(prefab.entities[1]!.components[1]!.data.mesh)
+      .toBe(prefab.entities[2]!.components[1]!.data.mesh);
+  });
+
+  it('decomposes a node given as a matrix', () => {
+    const doc = {
+      ...withInlineImage(),
+      // 90° about Z, scaled 2, moved to (10, 20, 30) — column-major.
+      nodes: [{ mesh: 0, matrix: [0, 2, 0, 0, -2, 0, 0, 0, 0, 0, 2, 0, 10, 20, 30, 1] }],
+      scenes: [{ nodes: [0] }], scene: 0,
+    };
+    const data = assemble(gltf(doc)).entities[0]!.components[0]!.data as {
+      position: { x: number }; rotation: { z: number; w: number }; scale: { x: number };
+    };
+    expect(data.position).toEqual({ x: 10, y: 20, z: 30 });
+    expect(data.scale.x).toBeCloseTo(2);
+    expect(data.rotation.z).toBeCloseTo(Math.SQRT1_2);
+    expect(data.rotation.w).toBeCloseTo(Math.SQRT1_2);
+  });
+
+  it('scales the root, since a glTF is in metres', () => {
+    const prefab = assemble(gltf({ ...withInlineImage(), ...oneNode }), { scale: 32 });
+    expect(prefab.entities[0]!.components[0]!.data)
+      .toEqual({ scale: { x: 32, y: 32, z: 32 } });
+  });
+
+  it('lays the meshes under a holder when the file has no nodes', () => {
+    const prefab = assemble(gltf(withInlineImage()));
+    expect(prefab.entities.map(e => e.prefabEntityId)).toEqual(['root', 'm0']);
+    expect(prefab.entities[1]!.parent).toBe('root');
+  });
+
   it('spells an external image through the project resolver', () => {
     const doc = withInlineImage();
     doc.images = [{ uri: '../textures/skin.png' }];
-    const prefab = assembleGltfPrefab('model', meshesOf(gltf(doc)), {
-      prefix: 'assets/models/',
-      external: uri => `assets/${uri.replace('../', '')}`,
+    const prefab = assemble(gltf({ ...doc, ...oneNode }), {
+      refs: {
+        prefix: 'assets/models/',
+        external: uri => `assets/${uri.replace('../', '')}`,
+      },
     });
     expect(prefab.entities[0]!.components[1]!.data.texture).toBe('assets/textures/skin.png');
   });

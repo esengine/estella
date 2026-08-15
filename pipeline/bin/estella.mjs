@@ -13,7 +13,8 @@ const PIPELINE = path.join(HERE, '..');
 const REPO = path.join(PIPELINE, '..');
 
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
-       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir] [--project <dir>]
+       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
+                                     [--project <dir>] [--scale <n>]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -34,11 +35,12 @@ second file — \`result.size\` carries the verdicts the build dialog draws, so 
 and the editor cannot disagree about whether a build fits.
 
 import-gltf writes one \`.esmesh\` per triangle primitive next to the source (or
-into outDir), the images the file carries inline, and one \`.esprefab\` naming
-which geometry is drawn with which image and tint. A glTF holds many primitives,
-so it is a source that PRODUCES assets rather than one the engine loads — the
-products are what a scene references. Asset refs are project-relative, so the
-project is found above the source unless --project says otherwise.`;
+into outDir), the images the file carries inline, and one \`.esprefab\` placing
+each piece where the source's node tree puts it, with its image and tint. A glTF
+holds many primitives, so it is a source that PRODUCES assets rather than one the
+engine loads — the products are what a scene references. Asset refs are
+project-relative, so the project is found above the source unless --project says
+otherwise; --scale sizes the model, whose metres are world units otherwise.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -56,10 +58,12 @@ function parseArgs(argv) {
       process.exit(2);
     }
     const flag = rest.indexOf('--project');
+    const scale = rest.indexOf('--scale');
     const out = rest[0] && !rest[0].startsWith('--') ? path.resolve(rest[0]) : null;
     return {
       command, out, source: path.resolve(projectDir),
       project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
+      scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
     };
   }
   if (command !== 'export' || !projectDir) {
@@ -175,7 +179,7 @@ if (opts.command === 'import-gltf') {
           external: (uri) => projectRef(path.resolve(sourceDir, uri)) }
       : {};
 
-    const { meshes, textures, warnings } = importer.importGltfMeshes(
+    const { meshes, textures, nodes, warnings } = importer.importGltfMeshes(
       new Uint8Array(readFileSync(opts.source)), stem,
       (uri) => {
         const abs = path.join(sourceDir, uri);
@@ -202,9 +206,18 @@ if (opts.command === 'import-gltf') {
     }
     if (meshes.length > 0) {
       const outFile = path.join(dir, `${stem}.esprefab`);
-      const prefab = importer.assembleGltfPrefab(stem, meshes, refs);
+      const prefab = importer.assembleGltfPrefab(stem, meshes, { refs, nodes, scale: opts.scale });
       writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
-      report(outFile, `${meshes.length} mesh entit${meshes.length === 1 ? 'y' : 'ies'}`);
+      report(outFile, `${prefab.entities.length} entit${prefab.entities.length === 1 ? 'y' : 'ies'}`);
+
+      // A glTF is authored in metres and a world unit is a design pixel, so a
+      // real-world model arrives a few pixels across unless --scale says otherwise.
+      const extent = Math.max(...meshes.flatMap(
+        (m) => m.data.aabbMax.map((v, i) => v - m.data.aabbMin[i])));
+      if (opts.scale === 1 && extent < 8) {
+        console.warn(`  ! the model is ${extent.toFixed(2)} units across — a glTF is in metres`
+          + ' and a world unit is a design pixel; pass --scale if it should be bigger');
+      }
     }
     imported = meshes.length;
   } finally {

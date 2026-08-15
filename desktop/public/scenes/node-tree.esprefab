@@ -1,0 +1,98 @@
+{
+  "version": "2",
+  "name": "node-tree",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Model",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 40,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "Left",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -120,
+              "y": 60,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/node-tree_0_0.esmesh",
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "Right",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 120,
+              "y": -60,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/node-tree_1_0.esmesh",
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -132,6 +132,10 @@ export const SCENES = [
   // inline image, and the baseColor factor as the tint. The probes sit at the
   // texel centres of a 2x2 image, so a flipped V swaps colours between them.
   { id: "mesh-textured", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/textured-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-textured.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-textured.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3333,\"y\":0.4167,\"rgb\":[128,0,0],\"tol\":40},{\"x\":0.6667,\"y\":0.4167,\"rgb\":[0,128,0],\"tol\":40},{\"x\":0.3333,\"y\":0.5833,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.6667,\"y\":0.5833,\"rgb\":[128,128,0],\"tol\":40}]" } },
+  // The source's own hierarchy, placing the pieces. Two probes need the parent's
+  // offset to have reached the child, and the fourth is background only if the
+  // child's scale survived — ignore the tree and everything stacks on the origin.
+  { id: "mesh-nodes", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/node-tree.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-nodes.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-nodes.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.45,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.7667,\"y\":0.60,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.7667,\"y\":0.5333,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

@@ -12,6 +12,7 @@
 import {
     MeshChannel, MeshChannelType, packChannels, encodeMesh, PREFAB_FORMAT_VERSION,
     type MeshData, type PrefabData, type PrefabEntityData,
+    type PrefabComponentData as ComponentData,
 } from 'esengine';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
@@ -52,10 +53,29 @@ export interface ImportedTexture {
     bytes: Uint8Array;
 }
 
+/**
+ * A node of the source's own hierarchy: where its geometry sits, and what hangs
+ * off it. Without this every primitive of a model lands on the origin.
+ */
+export interface ImportedNode {
+    /** The node's own index in the source, so a re-import addresses the same entity. */
+    index: number;
+    name: string;
+    translation: [number, number, number];
+    /** Quaternion, glTF's (x, y, z, w) order — the same components a Transform holds. */
+    rotation: [number, number, number, number];
+    scale: [number, number, number];
+    /** Indices into @ref GltfImportResult.meshes; one node can draw several primitives. */
+    meshes: number[];
+    children: ImportedNode[];
+}
+
 export interface GltfImportResult {
     meshes: ImportedMesh[];
     /** Images extracted from the file itself; external ones stay where they are. */
     textures: ImportedTexture[];
+    /** The scene's node roots. Empty for a file with no nodes, whose meshes then sit flat. */
+    nodes: ImportedNode[];
     /** What was skipped and why — a silent drop is how half a model goes missing. */
     warnings: string[];
 }
@@ -97,6 +117,12 @@ interface GltfJson {
     }[];
     textures?: { source?: number; sampler?: number }[];
     images?: { uri?: string; bufferView?: number; mimeType?: string; name?: string }[];
+    nodes?: {
+        name?: string; children?: number[]; mesh?: number;
+        matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
+    }[];
+    scenes?: { nodes?: number[] }[];
+    scene?: number;
 }
 
 const MIME_EXTENSION: Record<string, string> = {
@@ -292,6 +318,93 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     };
 }
 
+type Trs = Pick<ImportedNode, 'translation' | 'rotation' | 'scale'>;
+
+/**
+ * A node's local transform. A glTF gives either TRS or a column-major matrix,
+ * and the engine's Transform holds TRS — so a matrix is decomposed here rather
+ * than a whole second placement path existing downstream.
+ */
+function nodeTrs(node: NonNullable<GltfJson['nodes']>[number]): Trs {
+    if (!node.matrix || node.matrix.length !== 16) {
+        const r = node.rotation ?? [0, 0, 0, 1];
+        const t = node.translation ?? [0, 0, 0];
+        const s = node.scale ?? [1, 1, 1];
+        return {
+            translation: [t[0] ?? 0, t[1] ?? 0, t[2] ?? 0],
+            rotation: [r[0] ?? 0, r[1] ?? 0, r[2] ?? 0, r[3] ?? 1],
+            scale: [s[0] ?? 1, s[1] ?? 1, s[2] ?? 1],
+        };
+    }
+    const m = node.matrix as number[];
+    const at = (i: number): number => m[i] ?? 0;
+    const column = (c: number): [number, number, number] => [at(c * 4), at(c * 4 + 1), at(c * 4 + 2)];
+    const length = (v: [number, number, number]): number => Math.hypot(v[0], v[1], v[2]) || 1;
+    const cols = [column(0), column(1), column(2)];
+    const scale: [number, number, number] = [length(cols[0]!), length(cols[1]!), length(cols[2]!)];
+    // A mirrored matrix has a negative determinant, which no rotation can carry;
+    // the convention is to give the sign to the first axis.
+    const det = cols[0]![0] * (cols[1]![1] * cols[2]![2] - cols[1]![2] * cols[2]![1])
+        - cols[1]![0] * (cols[0]![1] * cols[2]![2] - cols[0]![2] * cols[2]![1])
+        + cols[2]![0] * (cols[0]![1] * cols[1]![2] - cols[0]![2] * cols[1]![1]);
+    if (det < 0) scale[0] = -scale[0];
+
+    const r = cols.map((c, i) => c.map(v => v / scale[i]!) as [number, number, number]);
+    const [x0, y0, z0] = r[0]!, [x1, y1, z1] = r[1]!, [x2, y2, z2] = r[2]!;
+    const trace = x0 + y1 + z2;
+    let q: [number, number, number, number];
+    if (trace > 0) {
+        const s = Math.sqrt(trace + 1) * 2;
+        q = [(z1 - y2) / s, (x2 - z0) / s, (y0 - x1) / s, s / 4];
+    } else if (x0 > y1 && x0 > z2) {
+        const s = Math.sqrt(1 + x0 - y1 - z2) * 2;
+        q = [s / 4, (x1 + y0) / s, (x2 + z0) / s, (z1 - y2) / s];
+    } else if (y1 > z2) {
+        const s = Math.sqrt(1 + y1 - x0 - z2) * 2;
+        q = [(x1 + y0) / s, s / 4, (y2 + z1) / s, (x2 - z0) / s];
+    } else {
+        const s = Math.sqrt(1 + z2 - x0 - y1) * 2;
+        q = [(x2 + z0) / s, (y2 + z1) / s, s / 4, (y0 - x1) / s];
+    }
+    return { translation: [at(12), at(13), at(14)], rotation: q, scale };
+}
+
+/**
+ * The scene's node tree, carrying only what survives: a node whose primitives
+ * were all skipped keeps its place, because its children hang off it.
+ */
+function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
+                   warnings: string[]): ImportedNode[] {
+    const source = json.nodes;
+    if (!source || source.length === 0) return [];
+
+    const roots = json.scenes?.[json.scene ?? 0]?.nodes
+        ?? source.map((_, i) => i).filter(i => !source.some(n => n.children?.includes(i)));
+
+    const visiting = new Set<number>();
+    const build = (index: number): ImportedNode | null => {
+        const node = source[index];
+        if (!node || visiting.has(index)) {
+            if (node) warnings.push(`node ${index} is its own ancestor — subtree skipped`);
+            return null;
+        }
+        visiting.add(index);
+        const meshes: number[] = [];
+        if (node.mesh !== undefined) {
+            const primitives = json.meshes?.[node.mesh]?.primitives ?? [];
+            primitives.forEach((_, primIndex) => {
+                const product = meshIndexOf.get(`${node.mesh}_${primIndex}`);
+                if (product !== undefined) meshes.push(product);
+            });
+        }
+        const children = (node.children ?? []).map(build).filter((n): n is ImportedNode => n !== null);
+        visiting.delete(index);
+        return { index, name: node.name ?? `node_${index}`, ...nodeTrs(node), meshes, children };
+    };
+
+    return roots.map(build).filter((n): n is ImportedNode => n !== null);
+}
+
 /**
  * A glTF's triangle geometry as `.esmesh` payloads. NORMAL is carried when the
  * source has it: the engine then draws the mesh with its lit variant, and the
@@ -329,6 +442,7 @@ export function importGltfMeshes(
 
     const meshes: ImportedMesh[] = [];
     const textures: ImportedTexture[] = [];
+    const meshIndexOf = new Map<string, number>();
     const single = (json.meshes ?? []).reduce((n, m) => n + m.primitives.length, 0) === 1;
 
     const materialCtx: MaterialContext = { json, bin, buffers, stem, textures, warnings };
@@ -420,6 +534,7 @@ export function importGltfMeshes(
                     }
                 }
 
+                meshIndexOf.set(`${meshIndex}_${primIndex}`, meshes.length);
                 meshes.push({
                     name: single ? stem : `${stem}_${meshIndex}_${primIndex}`,
                     data: { channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max },
@@ -436,7 +551,7 @@ export function importGltfMeshes(
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }
-    return { meshes, textures, warnings };
+    return { meshes, textures, nodes: readNodes(json, meshIndexOf, warnings), warnings };
 }
 
 /** The bytes to write for an imported mesh. */
@@ -452,50 +567,103 @@ export interface ProductRefs {
     external?: (uri: string) => string;
 }
 
-function meshEntity(id: string, mesh: ImportedMesh, refs: ProductRefs,
-                    parent: string | null): PrefabEntityData {
+/** How the products go together. */
+export interface PrefabAssembly {
+    refs?: ProductRefs;
+    /** The source's hierarchy; without it every mesh sits at the origin. */
+    nodes?: ImportedNode[];
+    /** Uniform scale on the root: a glTF is in metres, a world unit is a design pixel. */
+    scale?: number;
+}
+
+function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
     const prefix = refs.prefix ?? '';
     const image = mesh.material?.baseColorTexture;
     const texture = image
         ? (image.external ? refs.external?.(image.file) ?? image.file : prefix + image.file)
         : null;
     const color = mesh.material?.baseColor;
-    return {
-        prefabEntityId: id,
-        name: mesh.name,
-        parent,
-        children: [],
-        visible: true,
-        components: [
-            { type: 'Transform', data: {} },
-            { type: 'Mesh2D', data: {
-                mesh: `${prefix}${mesh.name}.esmesh`,
-                ...(texture ? { texture } : {}),
-                ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
-                enabled: true,
-            } },
-        ],
-    };
+    return { type: 'Mesh2D', data: {
+        mesh: `${prefix}${mesh.name}.esmesh`,
+        ...(texture ? { texture } : {}),
+        ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
+        enabled: true,
+    } };
+}
+
+/** Only what differs from a Transform's defaults, so a diff shows the placement. */
+function transformComponent(trs?: Trs, scale?: number): ComponentData {
+    const s = trs?.scale ?? [1, 1, 1];
+    const k = scale ?? 1;
+    const [x, y, z] = trs?.translation ?? [0, 0, 0];
+    const [rx, ry, rz, rw] = trs?.rotation ?? [0, 0, 0, 1];
+    return { type: 'Transform', data: {
+        ...(x || y || z ? { position: { x, y, z } } : {}),
+        ...(rx || ry || rz || rw !== 1 ? { rotation: { w: rw, x: rx, y: ry, z: rz } } : {}),
+        ...(s[0] * k !== 1 || s[1] * k !== 1 || s[2] * k !== 1
+            ? { scale: { x: s[0] * k, y: s[1] * k, z: s[2] * k } } : {}),
+    } };
+}
+
+function entity(id: string, name: string, parent: string | null,
+                components: ComponentData[]): PrefabEntityData {
+    return { prefabEntityId: id, name, parent, children: [], visible: true, components };
 }
 
 /**
- * The import's assembly: which geometry is drawn with which image and tint. The
- * products are separate files and nothing else records how they go together, so
- * without this a model arrives as a pile of parts to be re-connected by hand.
+ * The import's assembly: where each piece of geometry sits, and which image and
+ * tint it is drawn with. The products are separate files and nothing else
+ * records how they go together, so without this a model arrives as a pile of
+ * parts to be re-connected by hand.
  */
 export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
-                                   refs: ProductRefs = {}): PrefabData {
-    // A single primitive needs no holder: the root IS the mesh, which is what a
-    // scene wants to place. Several get one, since they are one model.
-    const entities: PrefabEntityData[] = meshes.length === 1 && meshes[0]
-        ? [meshEntity('0', meshes[0], refs, null)]
-        : [
-            {
-                prefabEntityId: '0', name, parent: null, visible: true,
-                children: meshes.map((_, i) => String(i + 1)),
-                components: [{ type: 'Transform', data: {} }],
-            },
-            ...meshes.map((mesh, i) => meshEntity(String(i + 1), mesh, refs, '0')),
-        ];
-    return { version: PREFAB_FORMAT_VERSION, name, rootEntityId: '0', entities };
+                                   options: PrefabAssembly = {}): PrefabData {
+    const refs = options.refs ?? {};
+    const entities: PrefabEntityData[] = [];
+    const nodes = options.nodes ?? [];
+
+    const emitNode = (node: ImportedNode, parent: string | null, rootScale?: number): string => {
+        const id = `n${node.index}`;
+        const drawn = node.meshes.map(i => meshes[i]).filter((m): m is ImportedMesh => !!m);
+        // One primitive rides the node itself; several cannot, since a Mesh2D
+        // draws one mesh — they become its children, at its own origin.
+        const own = drawn.length === 1 && drawn[0] ? [meshComponent(drawn[0], refs)] : [];
+        const self = entity(id, node.name, parent,
+                            [transformComponent(node, rootScale), ...own]);
+        entities.push(self);
+        if (own.length === 0) {
+            drawn.forEach((mesh, i) => {
+                const childId = `${id}_p${i}`;
+                self.children.push(childId);
+                entities.push(entity(childId, mesh.name, id,
+                                     [transformComponent(), meshComponent(mesh, refs)]));
+            });
+        }
+        for (const child of node.children) self.children.push(emitNode(child, id));
+        return id;
+    };
+
+    if (nodes.length === 1 && nodes[0]) {
+        emitNode(nodes[0], null, options.scale);
+    } else if (nodes.length > 1) {
+        // Several roots are one model all the same, so they get a holder to be
+        // placed by — and it is where the import's own scale belongs.
+        const root = entity('root', name, null, [transformComponent(undefined, options.scale)]);
+        entities.push(root);
+        for (const node of nodes) root.children.push(emitNode(node, 'root'));
+    } else {
+        // No node tree: the meshes are all there is to place.
+        const root = entity('root', name, null, [transformComponent(undefined, options.scale)]);
+        entities.push(root);
+        meshes.forEach((mesh, i) => {
+            const id = `m${i}`;
+            root.children.push(id);
+            entities.push(entity(id, mesh.name, 'root',
+                                 [transformComponent(), meshComponent(mesh, refs)]));
+        });
+    }
+    return {
+        version: PREFAB_FORMAT_VERSION, name,
+        rootEntityId: entities[0]!.prefabEntityId, entities,
+    };
 }
