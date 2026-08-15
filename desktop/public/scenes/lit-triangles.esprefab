@@ -1,0 +1,27 @@
+{
+  "version": "2",
+  "name": "lit-triangles",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "lit-triangles",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/lit-triangles.esmesh",
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

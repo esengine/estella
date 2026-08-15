@@ -1,0 +1,34 @@
+{
+  "version": "2",
+  "name": "textured-quad",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "textured-quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/textured-quad.esmesh",
+            "texture": "scenes/textured-quad_0.png",
+            "color": {
+              "r": 0.5,
+              "g": 0.5,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

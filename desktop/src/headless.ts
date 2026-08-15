@@ -13,7 +13,7 @@
 import { EngineHost } from './engine/EngineHost';
 import {
   DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice, finishDeviceRecovery,
-  getContextLossGuardInfo, Assets,
+  getContextLossGuardInfo, Assets, instantiatePrefab, type PrefabData,
 } from 'esengine';
 // From EditorSession: importing it constructs the default session (which wires the
 // Reconciler + SceneStore to the model) before the engine boots below.
@@ -47,6 +47,8 @@ declare global {
       loadMeshAsset: (path: string) => Promise<number>;
       /** Loads an .esmaterial and points every Mesh2D at it; returns how many. */
       loadMaterialAsset: (path: string) => Promise<number>;
+      /** Instantiates an .esprefab into the scene; returns how many entities it brought. */
+      loadPrefabAsset: (path: string) => Promise<number>;
     };
   }
 }
@@ -189,6 +191,18 @@ window.__estellaHeadless = {
     const material = await assets.load<{ handle: number }>('material', path);
     if (!material?.handle) return 0;
     return m.mesh2d_setMaterialAll(registry, material.handle);
+  },
+  // A prefab brings its own asset refs, so this door hands the file to the
+  // engine's own instantiation and asserts nothing about what it names: the
+  // claim is about an import's products, not a scene written to match them.
+  loadPrefabAsset: async (path: string) => {
+    const assets = EngineHost.getResource(Assets);
+    const world = EngineHost.mutableWorld();
+    if (!assets || !world) return 0;
+
+    const prefab = await assets.loadPrefab(path);
+    const result = await instantiatePrefab(world, prefab.data as PrefabData, { assets });
+    return result.entities.size;
   },
 };
 

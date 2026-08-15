@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  glTF geometry → `.esmesh`.
+ * @file  glTF geometry and baseColor → `.esmesh`, images, and one `.esprefab`.
  *
  *        An import, not a cook. A glTF holds MANY primitives, so it is a source
  *        that produces several engine assets rather than one file becoming
@@ -9,7 +9,10 @@
  *        disk, where a project can see them, reference them and diff them, and
  *        the cook then ships them as the engine format they already are.
  */
-import { MeshChannel, MeshChannelType, packChannels, encodeMesh, type MeshData } from 'esengine';
+import {
+    MeshChannel, MeshChannelType, packChannels, encodeMesh, PREFAB_FORMAT_VERSION,
+    type MeshData, type PrefabData, type PrefabEntityData,
+} from 'esengine';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
 export interface ImportedMesh {
@@ -18,10 +21,41 @@ export interface ImportedMesh {
     data: MeshData;
     vertexCount: number;
     triangleCount: number;
+    /** The primitive's baseColor, absent when it names no material. */
+    material?: ImportedMaterial;
+}
+
+/** Where a material's image comes from: a product this import writes, or a file already on disk. */
+export interface ImportedImageRef {
+    /** Product name (no directory) when written, else the glTF's own uri. */
+    file: string;
+    /** True for a uri the glTF points at — an existing file is referenced, never copied. */
+    external: boolean;
+}
+
+/**
+ * A glTF material in the terms a Mesh2D carries: the engine's mesh path is
+ * `texture(uv) * vertexColor * tint`, which is what glTF calls baseColor. The
+ * PBR channels around it have no consumer here and are reported, not dropped.
+ */
+export interface ImportedMaterial {
+    name: string;
+    /** baseColorFactor — the tint multiplied into the vertex colors. */
+    baseColor: [number, number, number, number];
+    baseColorTexture?: ImportedImageRef;
+}
+
+/** An image the glTF carries inline (GLB chunk or data uri), to be written beside the meshes. */
+export interface ImportedTexture {
+    /** `<stem>_<image index>.<ext>` — named for the source, since an inline image has no name. */
+    name: string;
+    bytes: Uint8Array;
 }
 
 export interface GltfImportResult {
     meshes: ImportedMesh[];
+    /** Images extracted from the file itself; external ones stay where they are. */
+    textures: ImportedTexture[];
     /** What was skipped and why — a silent drop is how half a model goes missing. */
     warnings: string[];
 }
@@ -37,6 +71,8 @@ const TYPE_COMPONENTS: Record<string, number> = {
     SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16,
 };
 
+interface GltfTextureRef { index: number; texCoord?: number }
+
 interface GltfJson {
     accessors?: {
         bufferView?: number; byteOffset?: number; componentType: number; count: number;
@@ -45,9 +81,27 @@ interface GltfJson {
     bufferViews?: { buffer: number; byteOffset?: number; byteLength: number; byteStride?: number }[];
     buffers?: { byteLength: number; uri?: string }[];
     meshes?: { name?: string; primitives: {
-        attributes: Record<string, number>; indices?: number; mode?: number;
+        attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
     }[] }[];
+    materials?: {
+        name?: string;
+        pbrMetallicRoughness?: {
+            baseColorFactor?: number[]; baseColorTexture?: GltfTextureRef;
+            metallicFactor?: number; roughnessFactor?: number;
+            metallicRoughnessTexture?: GltfTextureRef;
+        };
+        normalTexture?: GltfTextureRef; occlusionTexture?: GltfTextureRef;
+        emissiveTexture?: GltfTextureRef; emissiveFactor?: number[];
+        alphaMode?: string; alphaCutoff?: number; doubleSided?: boolean;
+        extensions?: Record<string, unknown>;
+    }[];
+    textures?: { source?: number; sampler?: number }[];
+    images?: { uri?: string; bufferView?: number; mimeType?: string; name?: string }[];
 }
+
+const MIME_EXTENSION: Record<string, string> = {
+    'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/ktx2': '.ktx2',
+};
 
 /** Splits a `.glb` container into its JSON and binary chunks. */
 function parseGlb(bytes: Uint8Array): { json: GltfJson; bin: Uint8Array | null } {
@@ -133,6 +187,111 @@ function readComponent(dv: DataView, at: number, componentType: number): number 
     }
 }
 
+/** A bufferView's bytes as they lie — an image chunk, not an attribute stream. */
+function sliceBufferView(json: GltfJson, bin: Uint8Array | null, buffers: (Uint8Array | null)[],
+                         index: number): Uint8Array | null {
+    const view = json.bufferViews?.[index];
+    if (!view) return null;
+    const source = view.buffer === 0 && bin ? bin : buffers[view.buffer];
+    if (!source) return null;
+    const at = view.byteOffset ?? 0;
+    return source.subarray(at, at + view.byteLength);
+}
+
+function dataUriMime(uri: string): string {
+    const semi = uri.indexOf(';');
+    const comma = uri.indexOf(',');
+    const end = semi >= 0 && semi < comma ? semi : comma;
+    return end > 5 ? uri.slice(5, end) : '';
+}
+
+interface MaterialContext {
+    json: GltfJson;
+    bin: Uint8Array | null;
+    buffers: (Uint8Array | null)[];
+    stem: string;
+    textures: ImportedTexture[];
+    warnings: string[];
+}
+
+/** Resolves a glTF texture index to the file a Mesh2D will sample, extracting inline images. */
+function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef | null>,
+                     ref: GltfTextureRef, label: string): ImportedImageRef | null {
+    if (ref.texCoord) ctx.warnings.push(`${label}: TEXCOORD_${ref.texCoord} is not imported (one UV set)`);
+    const cached = cache.get(ref.index);
+    if (cached !== undefined) return cached;
+
+    const resolve = (): ImportedImageRef | null => {
+        const source = ctx.json.textures?.[ref.index]?.source;
+        const image = source !== undefined ? ctx.json.images?.[source] : undefined;
+        if (!image || source === undefined) {
+            ctx.warnings.push(`${label}: texture ${ref.index} has no image — skipped`);
+            return null;
+        }
+        // An image already on disk is REFERENCED, never copied: a second copy is
+        // a second thing to keep in sync with the file the artist edits.
+        if (image.uri && !image.uri.startsWith('data:')) {
+            return { file: decodeURIComponent(image.uri), external: true };
+        }
+        const bytes = image.uri
+            ? decodeDataUri(image.uri)
+            : image.bufferView !== undefined
+                ? sliceBufferView(ctx.json, ctx.bin, ctx.buffers, image.bufferView)
+                : null;
+        if (!bytes) {
+            ctx.warnings.push(`${label}: image ${source} could not be read — skipped`);
+            return null;
+        }
+        const mime = image.mimeType ?? (image.uri ? dataUriMime(image.uri) : '');
+        const ext = MIME_EXTENSION[mime];
+        if (!ext) {
+            ctx.warnings.push(`${label}: image ${source} has unsupported type ${mime || '(none)'} — skipped`);
+            return null;
+        }
+        const name = `${ctx.stem}_${source}${ext}`;
+        if (!ctx.textures.some(t => t.name === name)) ctx.textures.push({ name, bytes });
+        return { file: name, external: false };
+    };
+
+    const resolved = resolve();
+    cache.set(ref.index, resolved);
+    return resolved;
+}
+
+/**
+ * One glTF material as the baseColor a Mesh2D can carry. Everything a PBR
+ * material says beyond that — metal, roughness, emission, a normal map, an alpha
+ * cutoff — has no consumer in this engine yet, so it is reported rather than
+ * quietly lost.
+ */
+function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedImageRef | null>,
+                      index: number): ImportedMaterial {
+    const src = ctx.json.materials?.[index] ?? {};
+    const label = src.name ? `material "${src.name}"` : `material ${index}`;
+    const pbr = src.pbrMetallicRoughness ?? {};
+    const factor = pbr.baseColorFactor ?? [1, 1, 1, 1];
+
+    const unused: string[] = [];
+    if (pbr.metallicRoughnessTexture || (pbr.metallicFactor ?? 1) !== 0 || (pbr.roughnessFactor ?? 1) !== 1) {
+        unused.push('metallic-roughness');
+    }
+    if (src.normalTexture) unused.push('normal map');
+    if (src.occlusionTexture) unused.push('occlusion');
+    if (src.emissiveTexture || (src.emissiveFactor ?? [0, 0, 0]).some(v => v !== 0)) unused.push('emissive');
+    if (src.alphaMode === 'MASK') unused.push(`alpha cutoff ${src.alphaCutoff ?? 0.5}`);
+    if (src.doubleSided === false) unused.push('single-sided (backfaces are not culled)');
+    for (const name of Object.keys(src.extensions ?? {})) unused.push(name);
+    if (unused.length > 0) ctx.warnings.push(`${label}: ${unused.join(', ')} not imported`);
+
+    const texture = pbr.baseColorTexture
+        ? readTexture(ctx, textureCache, pbr.baseColorTexture, label) : null;
+    return {
+        name: src.name ?? `material_${index}`,
+        baseColor: [factor[0] ?? 1, factor[1] ?? 1, factor[2] ?? 1, factor[3] ?? 1],
+        ...(texture ? { baseColorTexture: texture } : {}),
+    };
+}
+
 /**
  * A glTF's triangle geometry as `.esmesh` payloads. NORMAL is carried when the
  * source has it: the engine then draws the mesh with its lit variant, and the
@@ -169,7 +328,20 @@ export function importGltfMeshes(
     });
 
     const meshes: ImportedMesh[] = [];
+    const textures: ImportedTexture[] = [];
     const single = (json.meshes ?? []).reduce((n, m) => n + m.primitives.length, 0) === 1;
+
+    const materialCtx: MaterialContext = { json, bin, buffers, stem, textures, warnings };
+    const textureCache = new Map<number, ImportedImageRef | null>();
+    const materialCache = new Map<number, ImportedMaterial>();
+    const materialFor = (index: number): ImportedMaterial => {
+        let material = materialCache.get(index);
+        if (!material) {
+            material = readMaterial(materialCtx, textureCache, index);
+            materialCache.set(index, material);
+        }
+        return material;
+    };
 
     (json.meshes ?? []).forEach((mesh, meshIndex) => {
         mesh.primitives.forEach((prim, primIndex) => {
@@ -230,7 +402,11 @@ export function importGltfMeshes(
                         if (v > max[c]) max[c] = v;
                     }
                     dv.setFloat32(at + channels[1]!.offset, uvs ? uvs[i * 2] ?? 0 : 0, true);
-                    dv.setFloat32(at + channels[1]!.offset + 4, uvs ? uvs[i * 2 + 1] ?? 0 : 0, true);
+                    // V is flipped at this boundary: glTF puts uv (0,0) at the
+                    // image's top-left, the engine's textures are uploaded
+                    // bottom-up, and the two conventions each look right alone.
+                    dv.setFloat32(at + channels[1]!.offset + 4,
+                                  uvs ? 1 - (uvs[i * 2 + 1] ?? 0) : 0, true);
                     for (let c = 0; c < 4; c++) {
                         const v = colorsRaw
                             ? (c < colorComps ? colorsRaw[i * colorComps + c] ?? 1 : 1)
@@ -249,6 +425,7 @@ export function importGltfMeshes(
                     data: { channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max },
                     vertexCount,
                     triangleCount: indices.length / 3,
+                    ...(prim.material !== undefined ? { material: materialFor(prim.material) } : {}),
                 });
             } catch (err) {
                 warnings.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
@@ -259,10 +436,66 @@ export function importGltfMeshes(
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }
-    return { meshes, warnings };
+    return { meshes, textures, warnings };
 }
 
 /** The bytes to write for an imported mesh. */
 export function encodeImportedMesh(mesh: ImportedMesh): Uint8Array {
     return encodeMesh(mesh.data);
+}
+
+/** How a product is spelled where a component refers to it. */
+export interface ProductRefs {
+    /** Prepended to every product name, e.g. `assets/models/` — the project-relative dir. */
+    prefix?: string;
+    /** An external image uri (relative to the glTF) → the ref a component carries. */
+    external?: (uri: string) => string;
+}
+
+function meshEntity(id: string, mesh: ImportedMesh, refs: ProductRefs,
+                    parent: string | null): PrefabEntityData {
+    const prefix = refs.prefix ?? '';
+    const image = mesh.material?.baseColorTexture;
+    const texture = image
+        ? (image.external ? refs.external?.(image.file) ?? image.file : prefix + image.file)
+        : null;
+    const color = mesh.material?.baseColor;
+    return {
+        prefabEntityId: id,
+        name: mesh.name,
+        parent,
+        children: [],
+        visible: true,
+        components: [
+            { type: 'Transform', data: {} },
+            { type: 'Mesh2D', data: {
+                mesh: `${prefix}${mesh.name}.esmesh`,
+                ...(texture ? { texture } : {}),
+                ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
+                enabled: true,
+            } },
+        ],
+    };
+}
+
+/**
+ * The import's assembly: which geometry is drawn with which image and tint. The
+ * products are separate files and nothing else records how they go together, so
+ * without this a model arrives as a pile of parts to be re-connected by hand.
+ */
+export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
+                                   refs: ProductRefs = {}): PrefabData {
+    // A single primitive needs no holder: the root IS the mesh, which is what a
+    // scene wants to place. Several get one, since they are one model.
+    const entities: PrefabEntityData[] = meshes.length === 1 && meshes[0]
+        ? [meshEntity('0', meshes[0], refs, null)]
+        : [
+            {
+                prefabEntityId: '0', name, parent: null, visible: true,
+                children: meshes.map((_, i) => String(i + 1)),
+                components: [{ type: 'Transform', data: {} }],
+            },
+            ...meshes.map((mesh, i) => meshEntity(String(i + 1), mesh, refs, '0')),
+        ];
+    return { version: PREFAB_FORMAT_VERSION, name, rootEntityId: '0', entities };
 }

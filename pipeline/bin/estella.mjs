@@ -13,7 +13,7 @@ const PIPELINE = path.join(HERE, '..');
 const REPO = path.join(PIPELINE, '..');
 
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
-       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
+       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir] [--project <dir>]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -34,8 +34,11 @@ second file — \`result.size\` carries the verdicts the build dialog draws, so 
 and the editor cannot disagree about whether a build fits.
 
 import-gltf writes one \`.esmesh\` per triangle primitive next to the source (or
-into outDir). A glTF holds many, so it is a source that PRODUCES assets rather
-than one the engine loads — the products are what a scene references.`;
+into outDir), the images the file carries inline, and one \`.esprefab\` naming
+which geometry is drawn with which image and tint. A glTF holds many primitives,
+so it is a source that PRODUCES assets rather than one the engine loads — the
+products are what a scene references. Asset refs are project-relative, so the
+project is found above the source unless --project says otherwise.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -52,7 +55,12 @@ function parseArgs(argv) {
       console.error(USAGE);
       process.exit(2);
     }
-    return { command, source: path.resolve(projectDir), out: rest[0] ? path.resolve(rest[0]) : null };
+    const flag = rest.indexOf('--project');
+    const out = rest[0] && !rest[0].startsWith('--') ? path.resolve(rest[0]) : null;
+    return {
+      command, out, source: path.resolve(projectDir),
+      project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
+    };
   }
   if (command !== 'export' || !projectDir) {
     console.error(USAGE);
@@ -110,9 +118,19 @@ async function loadPipeline(entry, outName) {
   return { mod, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
+const PROJECT_FILES = ['project.esproject', 'project.esproj', 'project.json'];
+
+/** The project directory a path sits in, walking up; null when it is outside one. */
+function findProjectRoot(from) {
+  for (let dir = from, prev = ''; dir !== prev; prev = dir, dir = path.dirname(dir)) {
+    if (PROJECT_FILES.some((name) => existsSync(path.join(dir, name)))) return dir;
+  }
+  return null;
+}
+
 /** The project's raw settings file, for the fields read before the parser runs. */
 function projectSettings(projectDir) {
-  for (const name of ['project.esproject', 'project.esproj', 'project.json']) {
+  for (const name of PROJECT_FILES) {
     const file = path.join(projectDir, name);
     if (existsSync(file)) {
       try {
@@ -143,27 +161,56 @@ const opts = parseArgs(process.argv.slice(2));
 if (opts.command === 'import-gltf') {
   const { mod: importer, cleanup } = await loadPipeline(
     path.join(PIPELINE, 'src', 'assets', 'gltfImport.ts'), 'gltfImport.mjs');
+  let imported = 0;
   try {
-    const dir = opts.out ?? path.dirname(opts.source);
+    const sourceDir = path.dirname(opts.source);
+    const dir = opts.out ?? sourceDir;
     const stem = path.basename(opts.source).replace(/\.(gltf|glb)$/i, '');
-    const { meshes, warnings } = importer.importGltfMeshes(
+    // A component's asset ref is project-relative, so the products can only be
+    // named once the project root is known; without one they are bare names.
+    const root = opts.project ?? findProjectRoot(sourceDir);
+    const projectRef = (abs) => path.relative(root, abs).split(path.sep).join('/');
+    const refs = root
+      ? { prefix: projectRef(dir) ? `${projectRef(dir)}/` : '',
+          external: (uri) => projectRef(path.resolve(sourceDir, uri)) }
+      : {};
+
+    const { meshes, textures, warnings } = importer.importGltfMeshes(
       new Uint8Array(readFileSync(opts.source)), stem,
       (uri) => {
-        const abs = path.join(path.dirname(opts.source), uri);
+        const abs = path.join(sourceDir, uri);
         return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
       },
     );
     for (const w of warnings) console.warn(`  ! ${w}`);
+    if (!root && meshes.length > 0) {
+      console.warn('  ! no project found above the source — refs are bare file names'
+        + ' (pass --project <dir>)');
+    }
+    const report = (file, what) =>
+      console.log(`${path.relative(process.cwd(), file)}: ${what}`);
+
     for (const mesh of meshes) {
       const outFile = path.join(dir, `${mesh.name}.esmesh`);
       writeFileSync(outFile, importer.encodeImportedMesh(mesh));
-      console.log(`${path.relative(process.cwd(), outFile)}: `
-        + `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
+      report(outFile, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
     }
-    process.exit(meshes.length > 0 ? 0 : 1);
+    for (const texture of textures) {
+      const outFile = path.join(dir, texture.name);
+      writeFileSync(outFile, texture.bytes);
+      report(outFile, `${texture.bytes.length} bytes`);
+    }
+    if (meshes.length > 0) {
+      const outFile = path.join(dir, `${stem}.esprefab`);
+      const prefab = importer.assembleGltfPrefab(stem, meshes, refs);
+      writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
+      report(outFile, `${meshes.length} mesh entit${meshes.length === 1 ? 'y' : 'ies'}`);
+    }
+    imported = meshes.length;
   } finally {
     cleanup();
   }
+  process.exit(imported > 0 ? 0 : 1);
 }
 
 const project = projectSettings(opts.projectDir);

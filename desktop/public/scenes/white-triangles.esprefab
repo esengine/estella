@@ -1,0 +1,27 @@
+{
+  "version": "2",
+  "name": "white-triangles",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "white-triangles",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/white-triangles.esmesh",
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

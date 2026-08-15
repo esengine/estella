@@ -27,7 +27,7 @@ export const TIERS = ['pr', 'nightly'];
  * Dawn adapter, so nothing here runs it. Where an adapter exists every scene
  * passes — both backends read the frame the same way, off the engine's buffer.
  */
-export const WEBGPU_GAP = 'no adapter on a CI runner; with one, all 53 pass (`--backend webgpu`)';
+export const WEBGPU_GAP = 'no adapter on a CI runner; with one they all pass (`--backend webgpu`)';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
@@ -128,6 +128,10 @@ export const SCENES = [
   // facing the viewer and +X, under a head-on directional light. Only a shader
   // reading them can tell the halves apart — which is what the two probes are.
   { id: "mesh-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/lit-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // A whole glTF import on screen, through the prefab it produced: geometry, the
+  // inline image, and the baseColor factor as the tint. The probes sit at the
+  // texel centres of a 2x2 image, so a flipped V swaps colours between them.
+  { id: "mesh-textured", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/textured-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-textured.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-textured.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3333,\"y\":0.4167,\"rgb\":[128,0,0],\"tol\":40},{\"x\":0.6667,\"y\":0.4167,\"rgb\":[0,128,0],\"tol\":40},{\"x\":0.3333,\"y\":0.5833,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.6667,\"y\":0.5833,\"rgb\":[128,128,0],\"tol\":40}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

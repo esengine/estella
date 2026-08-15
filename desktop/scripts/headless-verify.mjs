@@ -19,6 +19,7 @@
  *   ESTELLA_VERIFY_STEPS     fixed-dt frames to advance before capture (default 30)
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
+ *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -126,7 +127,8 @@ function finish(result, server) {
   // scene — the shape of a check that cannot fail.
   const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
     && (!result.meshAsset || result.meshAsset.pointed > 0)
-    && (!result.meshMaterial || result.meshMaterial.applied > 0);
+    && (!result.meshMaterial || result.meshMaterial.applied > 0)
+    && (!result.meshPrefab || result.meshPrefab.spawned > 0);
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
@@ -166,6 +168,7 @@ app.whenReady().then(async () => {
     let meshResident = null;
     let meshAsset = null;
     let meshMaterial = null;
+    let meshPrefab = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -258,6 +261,18 @@ app.whenReady().then(async () => {
           ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_ASSET)});
         await window.__estellaHeadless.api.step(2, 1 / 60);
         return { pointed };
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_PREFAB=<path> instantiates a prefab into the scene. For an
+    // import's products this is the whole chain: the prefab names the geometry,
+    // the image and the tint, and nothing here repeats what it should say.
+    if (process.env.ESTELLA_VERIFY_PREFAB) {
+      meshPrefab = await exec(`(async () => {
+        const spawned = await window.__estellaHeadless.loadPrefabAsset(
+          ${JSON.stringify(process.env.ESTELLA_VERIFY_PREFAB)});
+        await window.__estellaHeadless.api.step(2, 1 / 60);
+        return { spawned };
       })()`);
     }
 
@@ -496,7 +511,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
