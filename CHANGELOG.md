@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A rotation could only be edited on one axis, and editing it destroyed the
+  other two.** `Transform.rotation` is a quaternion and the inspector showed one
+  number for it — the Z turn, the 2D convention. Writing that control rebuilt the
+  whole quaternion from the angle alone, so a model that arrived from a glTF with a
+  3D pose was flattened the moment anyone touched its rotation, in the inspector or
+  with the rotate gizmo. It is now three degrees (X then Y then Z about fixed axes),
+  laid out like position and scale, and the Z-only write the gizmo uses sets that
+  turn while keeping the other two. A rotation purely about Z reads back as
+  `(0, 0, angle)` and rebuilds exactly, so 2D content is unchanged.
+
 - **The stock Lit material ignored a mesh's own normals.** A material could draw
   geometry that carries normals, but the built-in Lit template — what a user
   reaches for first, and the only lit material needing no shader file — still
