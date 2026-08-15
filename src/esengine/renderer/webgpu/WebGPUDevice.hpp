@@ -220,6 +220,8 @@ public:
      *         endRenderPass. No-op until a surface is configured. */
     void present();
 
+#endif
+
     /**
      * @brief Whether bytes read back from the DEFAULT framebuffer are BGRA rather
      *        than RGBA.
@@ -228,7 +230,17 @@ public:
      * anyone writing an image has to ask rather than assume.
      */
     bool surfaceBytesAreBGRA() const;
-#endif
+
+    bool frameCaptureIsBGRA() const override { return surfaceBytesAreBGRA(); }
+
+    /**
+     * @brief The surface format the host says its canvas prefers.
+     *
+     * Only the page can answer it (`navigator.gpu.getPreferredCanvasFormat()`),
+     * and configuring anything else costs a full-frame copy per present. Must be
+     * set BEFORE the surface is configured.
+     */
+    void setPreferredSurfaceBGRA(bool bgra) { prefer_surface_bgra_ = bgra; }
 
     /**
      * @brief Configure the swapchain with CopySrc, so {@link captureNextFrame}
@@ -386,6 +398,8 @@ private:
     // masks and depth-tested draws target the backbuffer and expect them.
     WGPUSurface surface_ = nullptr;
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_RGBA8Unorm;
+    /** Whether the host's canvas prefers BGRA8 (see setPreferredSurfaceBGRA). */
+    bool prefer_surface_bgra_ = false;
     /** Whether the surface was configured with CopySrc — see setSurfaceReadback. */
     bool surface_readback_ = false;
     /** The pass being recorded draws to the surface, so a capture rides its encoder. */

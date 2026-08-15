@@ -191,7 +191,8 @@ bool initRendererInternal(const char* canvasSelector) {
 // hands it over via Module.preinitializedWebGPUDevice; the wasm side stays
 // fully synchronous. @p width/@p height size the canvas swapchain (the SDK
 // passes the canvas backing size it already manages).
-bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height, bool readback) {
+bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height,
+                        bool readback, bool preferBGRA) {
 #ifdef ES_ENABLE_WEBGPU
     if (g_initialized) return true;
 
@@ -206,6 +207,9 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
     // that will ask what was drawn (the editor's viewport capture, a pixel gate)
     // has to say so now.
     device->setSurfaceReadback(readback);
+    // navigator.gpu.getPreferredCanvasFormat(), as the page reported it: any other
+    // format makes the browser copy the whole frame on every present.
+    device->setPreferredSurfaceBGRA(preferBGRA);
     if (!device->configureSurface(canvasSelector.c_str(), width, height)) {
         ES_LOG_ERROR("initRendererWebGPU: surface configuration failed for '{}'", canvasSelector);
         return false;
@@ -217,7 +221,7 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
     g_activeContext = &legacyCtx().context();
     return g_activeContext->init(std::move(device));
 #else
-    (void)canvasSelector; (void)width; (void)height; (void)readback;
+    (void)canvasSelector; (void)width; (void)height; (void)readback; (void)preferBGRA;
     ES_LOG_ERROR("initRendererWebGPU: this build carries no WebGPU backend (ES_ENABLE_WEBGPU off)");
     return false;
 #endif

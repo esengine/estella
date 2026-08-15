@@ -156,7 +156,8 @@ export interface ESEngineModule {
      * instantiation; '#canvas' resolves to the module's canvas. Returns false
      * when the build carries no WebGPU backend or no device was provided.
      */
-    initRendererWebGPU(canvasSelector: string, width: number, height: number, readback: boolean): boolean;
+    initRendererWebGPU(canvasSelector: string, width: number, height: number,
+                       readback: boolean, preferBGRA: boolean): boolean;
     shutdownRenderer(): void;
     /**
      * Select which EstellaContext the bindings route through. Pass null to clear.

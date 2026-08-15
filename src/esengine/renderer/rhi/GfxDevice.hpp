@@ -547,6 +547,10 @@ public:
         return requestReadback(FramebufferHandle::Default, w, h);
     }
 
+    /** @brief Whether a captured frame's bytes are BGRA rather than RGBA — the
+     *         surface's choice on a backend that has one, and never GL's. */
+    virtual bool frameCaptureIsBGRA() const { return false; }
+
     // =========================================================================
     // GPU Timing (optional; EXT_disjoint_timer_query on WebGL2)
     // =========================================================================

@@ -36,6 +36,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <utility>
 
 namespace esengine {
 
@@ -880,12 +881,25 @@ i32 renderer_pollFrameCapture(u32 handle) {
     }
 }
 
-/** Copies a ready capture into @p dest (w*h*4 bytes, bottom-up RGBA) and releases it. */
+/**
+ * Copies a ready capture into @p dest (w*h*4 bytes, bottom-up RGBA) and releases it.
+ *
+ * Always RGBA: a surface may be BGRA (which is what a canvas usually prefers, and
+ * configuring anything else costs a copy per present), and every consumer of this
+ * reads channels by index.
+ */
 bool renderer_takeFrameCapture(u32 handle, uintptr_t dest, u32 destSize) {
     auto* device = g_device;
     if (!device || !handle || !dest) return false;
-    return device->takeReadback(static_cast<ReadbackHandle>(handle),
-                                reinterpret_cast<void*>(dest), static_cast<usize>(destSize));
+    if (!device->takeReadback(static_cast<ReadbackHandle>(handle),
+                              reinterpret_cast<void*>(dest), static_cast<usize>(destSize))) {
+        return false;
+    }
+    if (device->frameCaptureIsBGRA()) {
+        auto* px = reinterpret_cast<u8*>(dest);
+        for (u32 i = 0; i + 3 < destSize; i += 4) std::swap(px[i], px[i + 2]);
+    }
+    return true;
 }
 
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {

@@ -1378,8 +1378,14 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     switch (surface.kind) {
         case 'webgpu': {
             const size = options?.getViewportSize?.() ?? { width: 800, height: 600 };
+            // The canvas' own preference: configuring anything else makes the
+            // browser copy the whole frame on every present.
+            const preferBGRA = (navigator as unknown as {
+                gpu?: { getPreferredCanvasFormat?(): string };
+            }).gpu?.getPreferredCanvasFormat?.() === 'bgra8unorm';
             if (!module.initRendererWebGPU(
-                surface.canvasSelector ?? '#canvas', size.width, size.height, surface.readback === true)) {
+                surface.canvasSelector ?? '#canvas', size.width, size.height,
+                surface.readback === true, preferBGRA)) {
                 throw new Error(
                     'WebGPU renderer initialization failed — the module needs a ' +
                     'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');

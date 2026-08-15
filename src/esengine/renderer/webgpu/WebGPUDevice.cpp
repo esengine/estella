@@ -334,11 +334,6 @@ static bool isSrgbFormat(WGPUTextureFormat f) {
     return f == WGPUTextureFormat_BGRA8UnormSrgb || f == WGPUTextureFormat_RGBA8UnormSrgb;
 }
 
-bool WebGPUDevice::surfaceBytesAreBGRA() const {
-    return surface_format_ == WGPUTextureFormat_BGRA8Unorm
-        || surface_format_ == WGPUTextureFormat_BGRA8UnormSrgb;
-}
-
 void WebGPUDevice::present() {
     if (!surface_) return;
     wgpuSurfacePresent(surface_);
@@ -349,9 +344,19 @@ void WebGPUDevice::present() {
 }
 #endif  // !__EMSCRIPTEN__
 
+// Not native-only: a web surface can be BGRA too, and a capture consumer has to
+// know which order the bytes came back in.
+bool WebGPUDevice::surfaceBytesAreBGRA() const {
+    return surface_format_ == WGPUTextureFormat_BGRA8Unorm
+        || surface_format_ == WGPUTextureFormat_BGRA8UnormSrgb;
+}
+
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
-    // RGBA8 is universally valid for emscripten surfaces and keeps readback simple.
-    surface_format_ = WGPUTextureFormat_RGBA8Unorm;
+    // Anything but the canvas' preferred format costs a full-frame copy per
+    // present, and only the page can name it (setPreferredSurfaceBGRA). Readback
+    // asks frameCaptureIsBGRA which order it got.
+    surface_format_ = prefer_surface_bgra_ ? WGPUTextureFormat_BGRA8Unorm
+                                           : WGPUTextureFormat_RGBA8Unorm;
 #if !defined(__EMSCRIPTEN__)
     // A native surface may accept nothing of the sort — a CAMetalLayer offers only
     // BGRA8Unorm, while Vulkan happens to take RGBA8 — and configuring a format the
