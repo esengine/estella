@@ -154,12 +154,10 @@ export function axisEndKey(axis: 'x' | 'y' | 'z', sign: 1 | -1): string {
 }
 
 /**
- * The six ends of the view-axis indicator, ordered far to near.
- *
- * Screen offsets are the axis direction UNNORMALIZED: an axis leaning toward the
- * eye draws short, which is the foreshortening that tells a user how far the view
- * has turned. The order is the painter's — the caller reinserts the elements in
- * it, so a near knob covers a far one.
+ * The six ends of the view-axis indicator, in painter order (far first, so a near
+ * knob covers a far one). Offsets are the axis direction UNNORMALIZED: an axis
+ * leaning at the eye draws short, and that foreshortening is what tells a user
+ * how far the view has turned.
  */
 export function axisIndicatorEnds(
   axes: { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis },

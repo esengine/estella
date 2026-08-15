@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The zoom readout lied about a turned view.** It measured the scale by
+  projecting the world x axis onto the screen, so an eye looking down that axis
+  read as 1% — nothing about the zoom had moved. It now divides the canvas height
+  by the extent the view sees, which is what zoom means in either projection.
+
+- **The reset affordance only appeared after a drag.** Whether the eye was turned
+  was a flag every path had to remember to set, and only Alt-drag did: turning the
+  view from a command or from the automation door left the way back hidden. The
+  viewport polls the view itself, alongside the zoom readout that already
+  reconciles the same way. The automation door also grew the read half of
+  `setViewOrbit` — without it a driver can turn the view but can only judge the
+  result by eye.
+
 - **A mesh could not be clicked in the viewport.** The editor's box for an entity
   came from its Sprite size, and anything else fell back to the square it draws
   for a camera or a light — 24 world units. So an imported model, however large,
@@ -142,6 +155,22 @@ published separately; it ships inside the editor.
   buffer, with textures, VAOs and framebuffers flat.
 
 ### Added
+
+- **The viewport says which way it faces.** Alt-drag turns the editor's eye, and
+  nothing said where it had ended up — a reset button was the whole vocabulary,
+  so "which way am I looking" and "put me square-on to that side" had no answer.
+  The indicator is the navigation gizmo a DCC puts in a viewport corner: the world
+  axes as they point on screen, each end a click that stands the eye on that axis
+  and looks back down it. An axis leaning toward the eye draws short, which is the
+  cue that says how far the view has turned.
+
+  Where they point is read off the very basis the camera is built from, not from a
+  second copy of the rotation, and the gate holds that against where the camera
+  actually projects those axes — one scale factor for all three, so direction and
+  foreshortening are both asserted. The eye is allowed onto the poles here, unlike
+  a drag: looking straight down IS a standard view, and the view basis has its own
+  pole branch for it. The indicator appears only once the eye can see depth, since
+  a square-on orthographic view is the 2D editor.
 
 - **A mesh can hide another one.** Nothing an imported model carried said it was
   solid, so two of them resolved by paint order — which cannot draw two surfaces
