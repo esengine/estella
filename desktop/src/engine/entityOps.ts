@@ -20,7 +20,8 @@ import { PlayInspect } from './PlayInspect';
 import { PlayRealm } from './PlayRealm';
 import { srcIdOf, type EntityRef } from './entityRef';
 import { SceneQuery } from './SceneQuery';
-import { turnQuat2D, scaleVecBy } from './viewportMath';
+import { scaleVecBy } from './viewportMath';
+import { eulerToQuat } from './schema';
 import { PlayEdits } from './playEdits';
 
 /** The value vocabulary every inspector control commits in. */
@@ -117,8 +118,11 @@ export const EntityOps = {
     }
     const src = srcIdOf(ref);
     if (src == null) return null;
-    const q = SceneQuery.getFieldValue(src, 'Transform', 'rotation') as { z?: number; w?: number } | null;
-    SceneCommands.setFieldValue(src, 'Transform', 'rotation', turnQuat2D(q ?? undefined, radians));
+    // The field reads as three degrees; this op turns about Z, so it adds to that
+    // one and leaves the other two — a 3D pose must survive an agent's nudge.
+    const e = (SceneQuery.getFieldValue(src, 'Transform', 'rotation') as number[] | null) ?? [0, 0, 0];
+    const turned = [e[0] ?? 0, e[1] ?? 0, (e[2] ?? 0) + radians * (180 / Math.PI)];
+    SceneCommands.setFieldValue(src, 'Transform', 'rotation', eulerToQuat(turned));
     return 'document';
   },
 

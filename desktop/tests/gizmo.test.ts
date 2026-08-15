@@ -13,6 +13,12 @@ import {
   groupPivot,
   rotateAround,
   scaleAround,
+  rotateRings,
+  ringPoint,
+  ringAngleAt,
+  hitTestRings,
+  axisQuat,
+  quatMul,
   distToSegment,
 } from '@/tools/gizmo';
 
@@ -43,15 +49,6 @@ describe('hitTestGizmo — scale', () => {
   });
   it('the X end box hits scale.x', () => {
     expect(hitTestGizmo('scale', pivot, { x: pivot.x + GIZMO.axisLen, y: pivot.y })?.id).toBe('scale.x');
-  });
-});
-
-describe('hitTestGizmo — rotate', () => {
-  it('a point on the ring hits the ring', () => {
-    expect(hitTestGizmo('rotate', pivot, { x: pivot.x + GIZMO.ringRadius, y: pivot.y })?.id).toBe('rotate.ring');
-  });
-  it('inside the ring misses', () => {
-    expect(hitTestGizmo('rotate', pivot, pivot)).toBeNull();
   });
 });
 
@@ -116,4 +113,60 @@ describe('colliderHandleClass', () => {
     expect(cls).toContain('is-live');
     expect(cls).not.toContain('gizmo-owns-centre');
   });
+});
+
+describe('the rotate gizmo\'s rings', () => {
+    // Head-on: +X right, +Y up (screen y is down), +Z straight at the eye.
+    const HEAD_ON = { x: { dx: 1, dy: 0 }, y: { dx: 0, dy: -1 }, z: { dx: 0, dy: 0 } };
+    // Orbited 35/22, from the view basis — the same numbers editorViewAxes gives.
+    const TURNED = {
+        x: { dx: 0.8189, dy: 0.2148 },
+        y: { dx: 0, dy: -0.9266 },
+        z: { dx: -0.5733, dy: 0.3068 },
+    };
+
+    it('leaves a head-on gizmo the single Z ring it always had', () => {
+        // The other two are edge-on there — a line, where a cursor names no angle.
+        // So turning three rings on cannot change what a 2D user aims at.
+        expect(rotateRings(HEAD_ON).map((r) => r.axis)).toEqual(['z']);
+    });
+
+    it('offers all three once the eye has turned', () => {
+        expect(rotateRings(TURNED).map((r) => r.axis).sort()).toEqual(['x', 'y', 'z']);
+    });
+
+    it('reads a cursor on a ring back as the parameter that put it there', () => {
+        const ring = rotateRings(TURNED).find((r) => r.axis === 'x')!;
+        for (const t of [0, 0.9, -2.4, 3.0]) {
+            const p = ringPoint(ring, t, GIZMO.ringRadius);
+            expect(ringAngleAt(ring, p, GIZMO.ringRadius)).toBeCloseTo(t, 6);
+        }
+    });
+
+    it('picks the ring the cursor is on, and nothing off them', () => {
+        const rings = rotateRings(TURNED);
+        for (const want of ['x', 'y', 'z'] as const) {
+            const ring = rings.find((r) => r.axis === want)!;
+            const on = ringPoint(ring, 0.6, GIZMO.ringRadius);
+            expect(hitTestRings(rings, { x: 0, y: 0 }, on)?.axis).toBe(want);
+        }
+        expect(hitTestRings(rings, { x: 0, y: 0 }, { x: 0, y: 0 })).toBeNull();
+    });
+
+    it('turns positively from u toward v, so the ring names its own sign', () => {
+        // A quarter turn about +X takes +Y to +Z, which is what the ring's own
+        // parameter runs through — the reason no per-axis sign table exists.
+        const q = axisQuat('x', Math.PI / 2);
+        const rotated = quatMul(quatMul(q, { x: 0, y: 1, z: 0, w: 0 }),
+                                { x: -q.x, y: -q.y, z: -q.z, w: q.w });
+        expect(rotated.x).toBeCloseTo(0, 6);
+        expect(rotated.y).toBeCloseTo(0, 6);
+        expect(rotated.z).toBeCloseTo(1, 6);
+    });
+
+    it('composes a world turn on the LEFT of the pose it is applied to', () => {
+        const pose = axisQuat('z', 0.4);
+        const turned = quatMul(axisQuat('z', 0.3), pose);
+        expect(2 * Math.atan2(turned.z, turned.w)).toBeCloseTo(0.7, 6);
+    });
 });

@@ -189,6 +189,14 @@
 /* Design-resolution readout pinned to the frame's top-left corner (rAF-positioned). */
 .viewport__design-label { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; padding: 1px 5px; font-size: var(--fs-2xs); font-variant-numeric: tabular-nums; color: var(--on-accent); background: var(--acc); border-radius: var(--r-sm); white-space: nowrap; }
 
+/* The rotate gizmo's rings, one per world axis, in the same colour language the
+   move/scale arrows use. An edge-on ring is not drawn at all (see rotateRings),
+   so a head-on 2D gizmo is the single green Z circle it has always been. */
+.gz-ring { stroke-linejoin: round; }
+.gz-x { stroke: var(--error); }
+.gz-y { stroke: var(--run); }
+.gz-z { stroke: var(--gizmo-axis-z); }
+
 /* View axis indicator (top-right, below the docked toolbar) — the world axes as they
    point on screen, each end a click that stands the eye on that axis. Present only
    while the eye can be turned, so a 2D project never sees it. */

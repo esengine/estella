@@ -19,18 +19,24 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { snapTo } from '@/engine/viewportMath';
+import { eulerToQuat, quatToEuler } from '@/engine/schema';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import type { ToolMode, EntityId } from '@/types';
 import {
   type GizmoAxis,
-  type GizmoMode,
   type Pt,
   GIZMO,
   hitTestGizmo,
   constrainLocalDelta,
   groupPivot,
-  rotateAround,
+  rotateRings,
+  ringAngleAt,
+  hitTestRings,
+  axisQuat,
+  quatMul,
+  type Quat,
+  type RotateRing,
   scaleAround,
 } from './gizmo';
 import { Marquee } from './marquee';
@@ -43,7 +49,12 @@ type Kind = 'move' | 'rotate' | 'scale';
 /** Captured start transform of one drag target (in inspector units: degrees, scale factor). */
 interface Target {
   sourceId: EntityId;
-  start: { x: number; y: number; rotDeg: number; sx: number; sy: number; sz: number };
+  start: {
+    x: number; y: number; z: number;
+    /** The whole pose, so a turn about ANY axis composes onto what was there. */
+    rot: Quat;
+    sx: number; sy: number; sz: number;
+  };
 }
 
 interface Drag {
@@ -65,7 +76,11 @@ interface Drag {
   downWorld: Pt;
   /** Where the press landed, in window-client px — what the slop is measured from. */
   downClient: Pt;
-  startAngle: number; // rotate: cursor screen-angle around the pivot
+  /** rotate: where the press landed — the ring's own parameter, or the screen
+   *  angle around the pivot when no ring took the press. */
+  startAngle: number;
+  /** rotate: which ring was grabbed. Absent = the 2D screen-angle drag. */
+  ring: RotateRing | null;
   startDist: number; // scale: cursor screen-distance from the pivot
   /** Local-frame angle (world radians) for axis-constrained move; 0 = world axes. */
   angleRad: number;
@@ -104,9 +119,18 @@ function readTarget(sourceId: EntityId): Target | null {
   if (rtId == null) return null;
   const pos = ViewportController.getEntityWorldXY(rtId);
   if (!pos) return null;
-  const rotDeg = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number) ?? 0;
+  // The rotation field reads as three degrees; a drag composes onto the pose they
+  // describe, which is why the whole quaternion is captured and not just its Z.
+  const rot = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number[]) ?? [0, 0, 0];
+  const p = (SceneQuery.getFieldValue(sourceId, 'Transform', 'position') as number[]) ?? [0, 0, 0];
   const sc = (SceneQuery.getFieldValue(sourceId, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
-  return { sourceId, start: { x: pos.x, y: pos.y, rotDeg, sx: sc[0] ?? 1, sy: sc[1] ?? 1, sz: sc[2] ?? 1 } };
+  return {
+    sourceId,
+    start: {
+      x: pos.x, y: pos.y, z: p[2] ?? 0, rot: eulerToQuat(rot),
+      sx: sc[0] ?? 1, sy: sc[1] ?? 1, sz: sc[2] ?? 1,
+    },
+  };
 }
 
 /**
@@ -287,6 +311,7 @@ function beginDrag(
   cur: Pt,
   angleRad = 0,
   armed = true,
+  ring: RotateRing | null = null,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
   // The active target is the one the gizmo sits on, so it is the plane the user
@@ -308,7 +333,12 @@ function beginDrag(
     planeZ,
     downWorld,
     downClient: { x: p.clientX, y: p.clientY },
-    startAngle: Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
+    ring,
+    // A grabbed ring measures in its own parameter; without one this is the
+    // screen angle around the pivot, which is what the 2D drag always used.
+    startAngle: ring
+      ? (ringAngleAt(ring, { x: cur.x - pivotClient.x, y: cur.y - pivotClient.y }, GIZMO.ringRadius) ?? 0)
+      : Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
     // The grab point's screen distance from the pivot. Scale is now delta-based off
     // this (not a ratio), so it needs no floor and can't blow up when you grab near
     // the pivot (the center box / an entity's body).
@@ -337,22 +367,54 @@ function applyMove(d: Drag, curWorld: Pt): void {
 }
 
 function applyRotate(d: Drag, cur: Pt): void {
-  const ang = Math.atan2(cur.y - d.pivotClient.y, cur.x - d.pivotClient.x);
-  // Screen y is down, so a clockwise screen drag is a negative world rotation.
-  let worldDeltaDeg = (-(ang - d.startAngle) * 180) / Math.PI;
+  const offset = { x: cur.x - d.pivotClient.x, y: cur.y - d.pivotClient.y };
+  // The ring's OWN parameter, not the screen angle: the two agree only where the
+  // ring faces the eye, and everywhere else the projection is an ellipse.
+  const now = d.ring ? ringAngleAt(d.ring, offset, GIZMO.ringRadius) : null;
+  let deltaRad = d.ring
+    ? (now === null ? 0 : wrapPi(now - d.startAngle))
+    // Screen y is down, so a clockwise screen drag is a negative world rotation.
+    : -(Math.atan2(offset.y, offset.x) - d.startAngle);
+
   const ed = useEditorStore.getState();
   if (ed.snapping) {
     // Snap the primary's RESULTING absolute angle to the grid, then apply that delta
     // to all (like move-snap) — so a 7°-rotated object lands on 15/30/45, not 22/37.
-    const r0 = d.targets[0].start.rotDeg;
-    worldDeltaDeg = snapTo(r0 + worldDeltaDeg, ed.snapAngle) - r0;
+    const r0 = axisAngleOf(d.targets[0].start.rot, d.ring?.axis ?? 'z');
+    const deg = snapTo(r0 + (deltaRad * 180) / Math.PI, ed.snapAngle) - r0;
+    deltaRad = (deg * Math.PI) / 180;
   }
-  const rad = (worldDeltaDeg * Math.PI) / 180;
+  const turn = axisQuat(d.ring?.axis ?? 'z', deltaRad);
   for (const t of d.targets) {
-    const np = rotateAround({ x: t.start.x, y: t.start.y }, d.pivotWorld, rad);
-    SceneCommands.setEntityXY(t.sourceId, np.x, np.y);
-    SceneCommands.setField(t.sourceId, 'Transform', 'rotation', 'angle', t.start.rotDeg + worldDeltaDeg);
+    // The whole offset from the pivot turns, not just its x/y: about X or Y a
+    // group rotation moves its members through depth.
+    const rel = rotateVecByQuat(
+      { x: t.start.x - d.pivotWorld.x, y: t.start.y - d.pivotWorld.y, z: 0 }, turn);
+    SceneCommands.setField(t.sourceId, 'Transform', 'position', 'vec3',
+      [d.pivotWorld.x + rel.x, d.pivotWorld.y + rel.y, t.start.z + rel.z]);
+    SceneCommands.setField(t.sourceId, 'Transform', 'rotation', 'euler',
+      quatToEuler(quatMul(turn, t.start.rot)));
   }
+}
+
+/** An angle folded into (-pi, pi] — a drag past the seam is a small turn, not a full one. */
+function wrapPi(a: number): number {
+  return a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI));
+}
+
+/** How far a pose already turns about one axis, in degrees — what snapping rounds. */
+function axisAngleOf(q: Quat, axis: 'x' | 'y' | 'z'): number {
+  return quatToEuler(q)[axis === 'x' ? 0 : axis === 'y' ? 1 : 2];
+}
+
+/** A vector turned by a quaternion (q·v·q⁻¹, expanded). */
+function rotateVecByQuat(v: { x: number; y: number; z: number }, q: Quat): { x: number; y: number; z: number } {
+  const t = { x: 2 * (q.y * v.z - q.z * v.y), y: 2 * (q.z * v.x - q.x * v.z), z: 2 * (q.x * v.y - q.y * v.x) };
+  return {
+    x: v.x + q.w * t.x + q.y * t.z - q.z * t.y,
+    y: v.y + q.w * t.y + q.z * t.x - q.x * t.z,
+    z: v.z + q.w * t.z + q.x * t.y - q.y * t.x,
+  };
 }
 
 function applyScale(d: Drag, cur: Pt): void {
@@ -438,9 +500,15 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         const pc = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
         if (pivotWorld && pc) {
           const localAngle = ed.coordSpace === 'local' ? primaryRotationRad(ids) : 0;
-          const handle = hitTestGizmo(mode as GizmoMode, pc, cur, -localAngle);
+          // Rotate aims at rings, which are where the world axes actually project;
+          // a head-on view leaves only the Z one, so a 2D aim is unchanged.
+          const axes = ViewportController.viewAxes();
+          const ring = mode === 'rotate' && axes ? hitTestRings(rotateRings(axes), pc, cur) : null;
+          const handle = mode === 'rotate'
+            ? (ring && { id: `rotate.${ring.axis}`, mode, axis: (ring.axis === 'z' ? 'xy' : ring.axis) as GizmoAxis })
+            : hitTestGizmo(mode as 'move' | 'scale', pc, cur, -localAngle);
           if (handle) {
-            drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, localAngle);
+            drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, localAngle, true, ring);
             ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
             // Alt-duplicate rides the handle too, now that the body no longer
             // transforms — otherwise Alt+drag would have nowhere to happen in the

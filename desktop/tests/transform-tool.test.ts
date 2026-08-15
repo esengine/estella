@@ -23,6 +23,8 @@ vi.mock('@/engine/EngineHost', () => ({
 vi.mock('@/engine/ViewportController', () => ({
   ViewportController: {
     canvasToWorld: (x: number, y: number) => ({ x, y }), // identity: world == client px
+    // Head-on: the rings the rotate tool aims at reduce to the single Z one.
+    viewAxes: () => ({ x: { dx: 1, dy: 0, depth: 0 }, y: { dx: 0, dy: -1, depth: 0 }, z: { dx: 0, dy: 0, depth: 1 } }),
     // Flat scene: every plane is z = 0, which is what the orthographic editor
     // answers anyway — the drag plane must not change these expectations.
     entityPlaneZ: () => 0,

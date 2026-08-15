@@ -24,6 +24,7 @@ vi.mock('@/engine/PlayRealm', () => ({
 }));
 
 import { EntityOps } from '@/engine/entityOps';
+import { quatToEuler } from '@/engine/schema';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -118,13 +119,25 @@ describe('while playing', () => {
 
 describe('turning and resizing', () => {
   it('composes onto what the document already has', () => {
-    const q = Math.SQRT1_2; // a quarter turn
-    vi.spyOn(SceneQuery, 'getFieldValue').mockReturnValue({ z: q, w: q } as never);
+    // The field reads as three degrees (X, Y, Z), so a quarter turn adds to the Z.
+    vi.spyOn(SceneQuery, 'getFieldValue').mockReturnValue([0, 0, 90] as never);
     expect(EntityOps.turnBy(authoredRef(3), Math.PI / 2)).toBe('document');
     const [, , , value] = vi.mocked(SceneCommands.setFieldValue).mock.calls[0];
     // Quarter + quarter = half: z 1, w 0.
     expect((value as { z: number }).z).toBeCloseTo(1);
     expect((value as { w: number }).w).toBeCloseTo(0);
+  });
+
+  it('keeps a 3D pose while turning about Z', () => {
+    // A model imported with a tilt must survive a nudge — the turn is about Z,
+    // not a fresh rotation built from a Z angle alone.
+    vi.spyOn(SceneQuery, 'getFieldValue').mockReturnValue([30, -45, 10] as never);
+    EntityOps.turnBy(authoredRef(3), Math.PI / 4);
+    const [, , , value] = vi.mocked(SceneCommands.setFieldValue).mock.calls[0];
+    const back = quatToEuler(value as { x: number; y: number; z: number; w: number });
+    expect(back[0]).toBeCloseTo(30, 2);
+    expect(back[1]).toBeCloseTo(-45, 2);
+    expect(back[2]).toBeCloseTo(55, 2);
   });
 
   it('multiplies a resize rather than replacing it', () => {

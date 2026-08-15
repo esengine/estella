@@ -21,7 +21,7 @@ export const viewportMessages = defineMessages({
         en: 'Drag a gizmo axis or its center · Alt-drag duplicates · arrows nudge',
         zh: '拖动 Gizmo 轴或中心方块 · Alt 拖动创建副本 · 方向键微移',
     },
-    'vp.hint.rotate': { en: 'Drag the ring to rotate the selection', zh: '拖动圆环旋转所选' },
+    'vp.hint.rotate': { en: 'Drag a ring to turn the selection about that axis', zh: '拖动圆环绕该轴旋转所选' },
     'vp.hint.scale': {
         en: 'Drag a handle for per-axis scale · center for uniform',
         zh: '拖动手柄按轴缩放 · 拖动中心等比缩放',

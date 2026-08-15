@@ -13,6 +13,10 @@
  * applies the world-space delta the cursor traveled, constrained to the axis.
  */
 
+import { axisQuat, quatMul, type Quat } from '@/engine/viewportMath';
+
+export { axisQuat, quatMul, type Quat };
+
 export type GizmoMode = 'move' | 'rotate' | 'scale';
 /** Which world axes a handle drag affects. */
 export type GizmoAxis = 'x' | 'y' | 'xy';
@@ -69,7 +73,7 @@ function rotDir(dir: Pt, a: number): Pt {
  * gizmo's on-screen orientation (0 = world-aligned; non-zero in local space, and it
  * must match the gizmo's render rotation so the handle you aim at is the one hit).
  */
-export function hitTestGizmo(mode: GizmoMode, pivot: Pt, cursor: Pt, axisAngleRad = 0): GizmoHandle | null {
+export function hitTestGizmo(mode: 'move' | 'scale', pivot: Pt, cursor: Pt, axisAngleRad = 0): GizmoHandle | null {
   const xEnd = along(pivot, rotDir(X_DIR, axisAngleRad), GIZMO.axisLen);
   const yEnd = along(pivot, rotDir(Y_DIR, axisAngleRad), GIZMO.axisLen);
 
@@ -87,9 +91,7 @@ export function hitTestGizmo(mode: GizmoMode, pivot: Pt, cursor: Pt, axisAngleRa
       return { id: 'scale.y', mode, axis: 'y' };
     return null;
   }
-  // rotate: a ring of radius ringRadius around the pivot.
-  const d = Math.hypot(cursor.x - pivot.x, cursor.y - pivot.y);
-  if (Math.abs(d - GIZMO.ringRadius) <= GIZMO.hitTol) return { id: 'rotate.ring', mode, axis: 'xy' };
+  // rotate aims at rings, which need the view's axes — see hitTestRings.
   return null;
 }
 
@@ -183,4 +185,73 @@ export function scaleAround(p: Pt, c: Pt, fx: number, fy: number): Pt {
  */
 export function colliderHandleClass(selected: boolean, mode: GizmoMode | 'select'): string {
   return (selected ? ' is-live' : '') + (mode === 'select' ? '' : ' gizmo-owns-centre');
+}
+
+/** One rotation ring, as it projects: the two screen vectors its plane spans (each
+ *  a unit world axis, so each already carries its own foreshortening). */
+export interface RotateRing {
+  axis: 'x' | 'y' | 'z';
+  u: Pt;
+  v: Pt;
+}
+
+/**
+ * How flat a ring may be projected and still be worth drawing or aiming at. Below
+ * it the circle is edge-on — a line, where a cursor names no angle. It is also
+ * what leaves the head-on 2D gizmo with the single Z ring it always had.
+ */
+const RING_MIN_DET = 0.12;
+
+/**
+ * The rotate gizmo's three rings, from where the world axes point on screen.
+ *
+ * Each ring spans the plane its axis is normal to, in that axis's own right-handed
+ * order (Y×Z = X, Z×X = Y, X×Y = Z) — so a drag from `u` toward `v` is a POSITIVE
+ * turn about the axis, and the sign needs no separate table.
+ */
+export function rotateRings(axes: {
+  x: { dx: number; dy: number }; y: { dx: number; dy: number }; z: { dx: number; dy: number };
+}): RotateRing[] {
+  const pt = (a: { dx: number; dy: number }): Pt => ({ x: a.dx, y: a.dy });
+  return ([
+    { axis: 'x', u: pt(axes.y), v: pt(axes.z) },
+    { axis: 'y', u: pt(axes.z), v: pt(axes.x) },
+    { axis: 'z', u: pt(axes.x), v: pt(axes.y) },
+  ] as const).filter((r) => Math.abs(r.u.x * r.v.y - r.u.y * r.v.x) >= RING_MIN_DET);
+}
+
+/** A point on `ring` at parameter `t`, in screen offsets from the pivot. */
+export function ringPoint(ring: RotateRing, t: number, radius: number): Pt {
+  const c = Math.cos(t);
+  const s = Math.sin(t);
+  return { x: radius * (ring.u.x * c + ring.v.x * s), y: radius * (ring.u.y * c + ring.v.y * s) };
+}
+
+/**
+ * Where on `ring` a cursor points, as the ring's own parameter — solved from the
+ * two spanning vectors rather than from the screen angle, which an ellipse and a
+ * circle only agree on when the ring faces the eye.
+ */
+export function ringAngleAt(ring: RotateRing, offset: Pt, radius: number): number | null {
+  const det = ring.u.x * ring.v.y - ring.u.y * ring.v.x;
+  if (Math.abs(det) < RING_MIN_DET || radius <= 0) return null;
+  const a = (offset.x * ring.v.y - offset.y * ring.v.x) / (radius * det);
+  const b = (ring.u.x * offset.y - ring.u.y * offset.x) / (radius * det);
+  return Math.atan2(b, a);
+}
+
+/** The ring under `cursor`, or null — the nearest one within the hit tolerance. */
+export function hitTestRings(rings: readonly RotateRing[], pivot: Pt, cursor: Pt,
+                             radius = GIZMO.ringRadius): RotateRing | null {
+  const offset = { x: cursor.x - pivot.x, y: cursor.y - pivot.y };
+  let best: RotateRing | null = null;
+  let bestDist: number = GIZMO.hitTol;
+  for (const ring of rings) {
+    const t = ringAngleAt(ring, offset, radius);
+    if (t === null) continue;
+    const on = ringPoint(ring, t, radius);
+    const d = Math.hypot(offset.x - on.x, offset.y - on.y);
+    if (d < bestDist) { bestDist = d; best = ring; }
+  }
+  return best;
 }

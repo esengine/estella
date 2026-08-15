@@ -121,10 +121,37 @@ export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>
     .map((c) => c.entity);
 }
 
-/** A 2D rotation quaternion turned by `radians`. */
-export function turnQuat2D(q: { z?: number; w?: number } | undefined, radians: number): { x: number; y: number; z: number; w: number } {
-  const angle = quatAngleZ2D(q) + radians;
-  return { x: 0, y: 0, z: Math.sin(angle / 2), w: Math.cos(angle / 2) };
+export interface Quat { x: number; y: number; z: number; w: number }
+
+/** Quaternion for a turn of `rad` about a world axis. */
+export function axisQuat(axis: 'x' | 'y' | 'z', rad: number): Quat {
+  const s = Math.sin(rad / 2);
+  return {
+    x: axis === 'x' ? s : 0,
+    y: axis === 'y' ? s : 0,
+    z: axis === 'z' ? s : 0,
+    w: Math.cos(rad / 2),
+  };
+}
+
+/** `a` applied after `b` (a·b) — a WORLD-space turn composes on the left. */
+export function quatMul(a: Quat, b: Quat): Quat {
+  return {
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  };
+}
+
+/**
+ * A rotation turned by `radians` about Z. Composed as an increment rather than
+ * rebuilt from a Z angle, so whatever the other two axes say survives it — a
+ * model imported with a 3D pose keeps that pose through a nudge.
+ */
+export function turnQuat2D(q: { x?: number; y?: number; z?: number; w?: number } | undefined, radians: number): Quat {
+  const cur: Quat = { x: q?.x ?? 0, y: q?.y ?? 0, z: q?.z ?? 0, w: q?.w ?? 1 };
+  return quatMul(axisQuat('z', radians), cur);
 }
 
 /** The Z angle of a 2D rotation quaternion; 0 for one that isn't there. */

@@ -20,7 +20,7 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { screenPresetById, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { alignSelection, distributeSelection } from '@/tools/alignTools';
-import { TilemapAPI, tileIdOf, isNonOrthogonal, isCollisionPaletteRef, buildCollisionPaletteModel, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
+import { TilemapAPI, tileIdOf, isNonOrthogonal, isCollisionPaletteRef, buildCollisionPaletteModel, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel, type ScreenAxis } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
@@ -50,7 +50,7 @@ import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
-import { GIZMO, colliderHandleClass, pivotDrag, type GizmoAxis } from '@/tools/gizmo';
+import { GIZMO, colliderHandleClass, pivotDrag, rotateRings, ringPoint, type GizmoAxis, type RotateRing } from '@/tools/gizmo';
 import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { TilePaintPreview } from '@/tools/tilePreview';
@@ -425,7 +425,28 @@ const gizmoViewBox = `${-GIZMO_SVG / 2} ${-GIZMO_SVG / 2} ${GIZMO_SVG} ${GIZMO_S
 // and thrash layout at N divs/frame. Below it the per-entity path is untouched.
 const SELECTION_OUTLINE_MERGE_THRESHOLD = 200;
 
-function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | null }) {
+// Head-on world axes, for the moment before the engine can answer: +X right,
+// +Y up (screen y is down), +Z straight at the eye.
+const HEAD_ON_AXES = {
+  x: { dx: 1, dy: 0, depth: 0 }, y: { dx: 0, dy: -1, depth: 0 }, z: { dx: 0, dy: 0, depth: 1 },
+};
+
+/** A ring as an SVG path, sampled around its own parameter. */
+function ringPath(ring: RotateRing, radius: number): string {
+  const steps = 48;
+  let d = '';
+  for (let i = 0; i < steps; i++) {
+    const p = ringPoint(ring, (i / steps) * Math.PI * 2, radius);
+    d += `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+  }
+  return `${d}Z`;
+}
+
+function GizmoOverlay({ tool, active, axes }: {
+  tool: ToolMode;
+  active: GizmoAxis | null;
+  axes: { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } | null;
+}) {
   const L = GIZMO.axisLen;
   const B = GIZMO.boxSize;
   const P = GIZMO.planeSize;
@@ -438,9 +459,22 @@ function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | nu
   const axW = (on: boolean) => (on ? 4 : 2.5);
   const planeOp = (on: boolean) => (on ? 1 : 0.85);
   if (tool === 'rotate') {
+    // One ring per world axis, drawn where that axis's plane actually projects —
+    // an ellipse once the eye is off-axis. Edge-on rings are dropped by
+    // rotateRings, which is what leaves a head-on gizmo the single Z circle.
+    const rings = rotateRings(axes ?? HEAD_ON_AXES);
+    const hot: Record<string, boolean> = { x: active === 'x', y: active === 'y', z: active === 'xy' };
     return (
       <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
-        <circle cx="0" cy="0" r={GIZMO.ringRadius} fill="none" stroke="var(--run)" strokeWidth={active ? 3.5 : 2} />
+        {rings.map((ring) => (
+          <path
+            key={ring.axis}
+            className={`gz-ring gz-${ring.axis}`}
+            d={ringPath(ring, GIZMO.ringRadius)}
+            fill="none"
+            strokeWidth={hot[ring.axis] ? 3.5 : 2}
+          />
+        ))}
         <circle cx="0" cy="0" r="2.5" fill="var(--star)" />
       </svg>
     );
@@ -922,6 +956,11 @@ export function Viewport() {
     release: (id) => stageRef.current?.releasePointerCapture(id),
   }), []);
   const [zoomPct, setZoomPct] = useState(100);
+  // Where the world axes project, for the rotate gizmo's rings. Polled (like the
+  // zoom readout) rather than mirrored, and only while that tool is up: it changes
+  // when the eye turns, and re-rendering the viewport per orbit frame is not free.
+  const [viewAxes, setViewAxes] = useState<{ x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } | null>(null);
+  const viewAxesKey = useRef('');
   // Last-published zoom %, so the rAF only re-renders the HUD when it actually changes.
   const zoomPctRef = useRef(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
@@ -1168,6 +1207,12 @@ export function Viewport() {
         // door all move it, so a flag each of them must remember to set is a mirror
         // that drifts. The setter no-ops on an unchanged value, so this costs a call.
         useEditorStore.getState().setViewOrbited(ViewportController.isOrbited());
+
+        if (toolMode === 'rotate') {
+          const a = ViewportController.viewAxes();
+          const k = a ? [a.x, a.y, a.z].map((v) => `${v.dx.toFixed(3)},${v.dy.toFixed(3)}`).join('|') : '';
+          if (k !== viewAxesKey.current) { viewAxesKey.current = k; setViewAxes(a); }
+        }
       }
 
       // Selection outlines. Below the merge threshold: one div per selected source
@@ -2779,7 +2824,7 @@ export function Viewport() {
         ))}
       </div>
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
-        <GizmoOverlay tool={tool} active={activeGizmoAxis} />
+        <GizmoOverlay tool={tool} active={activeGizmoAxis} axes={viewAxes} />
       </div>
 
       {engine.status !== 'ready' && (
