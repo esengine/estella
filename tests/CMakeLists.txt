@@ -297,6 +297,7 @@ if(ES_ENABLE_BOX2D)
         ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsShapes.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsJoints.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsQueries.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/modules/physics/PhysicsTaskPool.cpp
     )
     target_link_libraries(test_physics_interpolation PRIVATE box2d)
     target_include_directories(test_physics_interpolation PRIVATE

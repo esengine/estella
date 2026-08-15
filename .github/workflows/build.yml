@@ -70,7 +70,7 @@ jobs:
 
     - name: Build C++ test harnesses
       run: |
-        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON
+        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_ENABLE_BOX2D=ON
         # webgpu_engine_bringup is compiled (a link-time smoke) but not run below.
         cmake --build build/wasm/web-tests -j "$(nproc)" --target $CPP_TESTS webgpu_engine_bringup
 
@@ -123,7 +123,7 @@ jobs:
     - name: Configure (ASan + UBSan)
       run: |
         emcmake cmake -S . -B build/wasm/asan -DCMAKE_BUILD_TYPE=Debug \
-          -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_SANITIZE=ON
+          -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_SANITIZE=ON -DES_ENABLE_BOX2D=ON
 
     - name: Build C++ test harnesses
       run: cmake --build build/wasm/asan -j "$(nproc)" --target $CPP_TESTS
