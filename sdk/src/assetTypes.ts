@@ -10,7 +10,7 @@ export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
     | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
-    | 'tilemap' | 'tileset' | 'timeline'
+    | 'tilemap' | 'tileset' | 'timeline' | 'mesh'
     | 'unknown';
 
 export type AssetBuildTransform = (content: string, context: unknown) => string;
@@ -69,6 +69,10 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['ttf', 'otf', 'woff', 'woff2'], contentType: 'binary', editorType: 'font', addressableType: 'font', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esprefab'], contentType: 'json', editorType: 'prefab', addressableType: 'prefab', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esscene'], contentType: 'json', editorType: 'scene', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
+    // GPU geometry (MeshAssetLoader). Its own channel table makes it
+    // self-describing, so it names no other asset; the source it was imported
+    // from (.gltf/.glb) is not shipped and is deliberately absent here.
+    { extensions: ['esmesh'], contentType: 'binary', editorType: 'mesh', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     // Tileset palette (TilesetAssetLoader). Fs-read as JSON at runtime — so it
@@ -114,6 +118,7 @@ const MIME_MAP: Record<string, string> = {
     esmaterial: 'application/json',
     esshader: 'text/plain',
     esprefab: 'application/json',
+    esmesh: 'application/octet-stream',
     esanim: 'application/json',
     estimeline: 'application/json',
     estileset: 'application/json',

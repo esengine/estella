@@ -783,7 +783,9 @@ export function ContentBrowser() {
 
   // Shared post-import handling (dialog import + OS drag-drop): refresh, select the
   // last new asset, and report imported / skipped counts.
-  const applyImportResult = (res: { imported: string[]; skipped: string[] } | null) => {
+  const applyImportResult = (
+    res: { imported: string[]; skipped: string[]; warnings?: string[] } | null,
+  ) => {
     if (!res) return;
     refreshFs();
     if (res.imported.length) {
@@ -794,6 +796,13 @@ export function ContentBrowser() {
     if (res.skipped.length) {
       const n = res.skipped.length;
       Toasts.push(t(n > 1 ? 'cb.skippedMany' : 'cb.skippedOne', { count: n }), 'warn');
+    }
+    // What an import could not carry across (a model's PBR channels, a skipped
+    // primitive). Silence here is how half a model goes missing unnoticed.
+    const notes = res.warnings ?? [];
+    if (notes.length) {
+      Toasts.push(notes.length === 1 ? notes[0]!
+        : t('cb.importNotes', { first: notes[0]!, rest: notes.length - 1 }), 'warn');
     }
   };
 

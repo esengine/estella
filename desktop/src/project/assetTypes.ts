@@ -18,7 +18,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Box, Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug, Type,
+  Box, Boxes, Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug, Type,
   type LucideIcon,
 } from 'lucide-react';
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
@@ -71,7 +71,11 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   // different asset — a baked page + metrics for BitmapText — and stay separate.
   font: { extensions: ['ttf', 'otf', 'woff', 'woff2'], badge: 'FNT', icon: Type, tint: '#9a9fc4' },
   // Geometry that lives on the GPU rather than in a component (.esmesh).
-  mesh: { extensions: ['esmesh', 'gltf', 'glb'], badge: 'MSH', icon: Box, tint: '#8fa9b5' },
+  mesh: { extensions: ['esmesh'], badge: 'MSH', icon: Box, tint: '#8fa9b5' },
+  // The model a mesh was imported FROM. Its own type, because the engine loads
+  // none of these — offering one where a mesh is asked for is offering a ref
+  // that cannot resolve.
+  model: { extensions: ['gltf', 'glb'], badge: 'MDL', icon: Boxes, tint: '#8fa9b5' },
   video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);

@@ -2624,7 +2624,7 @@ readonly ["texture-compression-astc", "texture-compression-bc", "texture-compres
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
     | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
-    | 'tilemap' | 'tileset' | 'timeline'
+    | 'tilemap' | 'tileset' | 'timeline' | 'mesh'
     | 'unknown'
 ```
 

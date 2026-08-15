@@ -15,6 +15,7 @@ import { resolveInRoot, META_EXT } from './projectFs';
 import { capture } from './fileJournal';
 import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
+import { importModel, isModelSource } from './importModel';
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter.
  *  The content-typed ones are offered too: a Spine JSON skeleton is a `.json`, and a
@@ -96,6 +97,8 @@ export interface ImportResult {
   imported: string[];
   /** Base names skipped (unknown / unsupported extension). */
   skipped: string[];
+  /** What a model import could not carry across — reported, never dropped. */
+  warnings?: string[];
 }
 
 /**
@@ -112,6 +115,16 @@ export async function importAssets(root: string, destDir: string, sources: strin
   await mkdir(absDir, { recursive: true });
   const imported: string[] = [];
   const skipped: string[] = [];
+  const warnings: string[] = [];
+  // A model produces the assets a scene references; the source itself is not one
+  // of them, so importing one without this leaves a file nothing can draw.
+  const produce = async (abs: string, dir: string, originDir?: string): Promise<void> => {
+    if (!isModelSource(abs)) return;
+    const result = await importModel(root, dir, abs, originDir);
+    imported.push(...result.products);
+    warnings.push(...result.warnings.map((w) => `${path.basename(abs)}: ${w}`));
+  };
+
   for (const src of sources) {
     const type = await metaTypeForFile(src);
     if (!type) {
@@ -126,6 +139,10 @@ export async function importAssets(root: string, destDir: string, sources: strin
       await capture(inside, 'write');
       await adoptOrphan(path.resolve(root, inside)); // 'has-meta' = already registered, keep its uuid
       imported.push(inside);
+      // Beside the source, not in the browser's folder: a model's products
+      // belong with it, and re-importing it must land on the same files.
+      await produce(path.resolve(root, inside), path.posix.dirname(inside) === '.'
+        ? '' : path.posix.dirname(inside));
       continue;
     }
     const name = uniqueName(absDir, path.basename(src));
@@ -135,6 +152,7 @@ export async function importAssets(root: string, destDir: string, sources: strin
     await copyFile(src, absDest);
     await writeMeta(absDest, type);
     imported.push(rel);
+    await produce(absDest, destDir, path.dirname(src));
   }
-  return { imported, skipped };
+  return { imported, skipped, ...(warnings.length > 0 ? { warnings } : {}) };
 }

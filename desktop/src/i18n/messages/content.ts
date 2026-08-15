@@ -153,6 +153,7 @@ export const contentMessages = defineMessages({
     'cb.skippedOne': { en: 'Skipped {count} unsupported file', zh: '已跳过 {count} 个不支持的文件' },
     'cb.skippedMany': { en: 'Skipped {count} unsupported files', zh: '已跳过 {count} 个不支持的文件' },
     'cb.importFailed': { en: 'Import failed: {error}', zh: '导入失败：{error}' },
+    'cb.importNotes': { en: '{first} (+{rest} more)', zh: '{first}（另有 {rest} 条）' },
 
     // — Create-entity picker (CreatePopover) —
     'cb.createEntity': { en: 'Create entity', zh: '创建实体' },

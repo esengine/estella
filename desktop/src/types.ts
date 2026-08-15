@@ -255,6 +255,7 @@ export type BuiltinAssetType =
   | 'locale'
   | 'font'
   | 'mesh'
+  | 'model'
   | 'file';
 
 /** A built-in asset type, or one a plugin contributed. */
