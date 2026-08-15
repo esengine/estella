@@ -38,6 +38,18 @@ published separately; it ships inside the editor.
   that every asset field a component declares has a slot to load it from, so the
   next such field cannot ship half-connected.
 
+- **A prefab named by path was missing from the editor and present in the
+  package.** The editor's prefab cache took `@uuid:` refs and nothing else, so a
+  scene whose instance names its prefab the other legal way — a project path,
+  which the runtime loader accepts — opened with that instance simply absent. The
+  same scene shipped with it. Refs resolve by one rule now, the registry's.
+
+  Found by carrying a project through the whole chain rather than by a unit: the
+  new `model-import` example (a glTF imported to mesh + image + prefab, placed by
+  a prefab instance) came back with an empty editor frame and a correct packaged
+  one. It certifies `model-import` in the golden corpus, so the import chain is
+  now part of what a release argues from.
+
 - **A rigged model imported as a still one, without saying so.** Skins, morph
   targets and animations are what separate a model that moves from one that does
   not, and the import carried none of them and mentioned none of them — the
