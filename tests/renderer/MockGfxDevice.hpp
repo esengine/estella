@@ -46,6 +46,12 @@ struct MockGfxDevice final : GfxDevice {
     int setTextureParamsCalls = 0;
     int generateMipmapsCalls = 0;
     int createFramebufferCalls = 0;
+    // Ordered call logs, for harnesses asserting on a SEQUENCE rather than a
+    // count: which target each pass opened, and what was bound where.
+    struct Viewport { i32 x, y; u32 w, h; };
+    std::vector<RenderPassDesc> passLog;
+    std::vector<std::pair<u32, TextureHandle>> bindLog;
+    std::vector<Viewport> viewportLog;
     int deleteFramebufferCalls = 0;
     int createBufferCalls = 0;
     int deleteBufferCalls = 0;
@@ -105,7 +111,7 @@ struct MockGfxDevice final : GfxDevice {
     void init() override {}
     void shutdown() override {}
 
-    void setViewport(i32, i32, u32, u32) override {}
+    void setViewport(i32 x, i32 y, u32 w, u32 h) override { viewportLog.push_back({x, y, w, h}); }
     void clearStencil(i32) override {}
 
     void setScissorTest(bool) override {}
@@ -164,7 +170,10 @@ struct MockGfxDevice final : GfxDevice {
         ++setTextureParamsCalls;
     }
     void generateMipmaps(TextureHandle) override { ++generateMipmapsCalls; }
-    void bindTexture(u32, TextureHandle) override { ++bindTextureCalls; }
+    void bindTexture(u32 unit, TextureHandle texture) override {
+        ++bindTextureCalls;
+        bindLog.push_back({unit, texture});
+    }
     bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
     bool supportsFloatTargets() override { return true; }
 
@@ -220,7 +229,11 @@ struct MockGfxDevice final : GfxDevice {
         return FramebufferHandle{nextFramebufferId++};
     }
     void deleteFramebuffer(FramebufferHandle) override { ++deleteFramebufferCalls; }
-    void beginRenderPass(const RenderPassDesc& desc) override { ++beginRenderPassCalls; lastPassDesc = desc; }
+    void beginRenderPass(const RenderPassDesc& desc) override {
+        ++beginRenderPassCalls;
+        lastPassDesc = desc;
+        passLog.push_back(desc);
+    }
     void endRenderPass() override { ++endRenderPassCalls; }
 
     // Async readback seam: every request is immediately Ready (the GL shape);

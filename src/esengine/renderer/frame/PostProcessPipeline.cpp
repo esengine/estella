@@ -78,6 +78,7 @@ GfxPixelFormat PostProcessPipeline::interFormat() const {
 
 void PostProcessPipeline::ensureFBOs() {
     const GfxPixelFormat interFmt = interFormat();
+    if (!graph_) graph_ = makeUnique<rg::RenderGraph>(device_);
     if (!fboOriginalCreated_) {
         FramebufferSpec origSpec;
         origSpec.width = width_;
@@ -105,24 +106,6 @@ void PostProcessPipeline::ensureFBOs() {
         }
     }
 
-    if (fbosCreated_) return;
-
-    FramebufferSpec spec;
-    spec.width = width_;
-    spec.height = height_;
-    spec.depthStencil = false;
-    spec.colorFormat = interFmt;
-    spec.linearFilter = true;  // see origSpec above — the blur chain needs bilinear taps
-
-    fboA_ = Framebuffer::create(device_, spec);
-    fboB_ = Framebuffer::create(device_, spec);
-
-    if (!fboA_ || !fboB_) {
-        ES_LOG_ERROR("PostProcessPipeline: Failed to create framebuffers");
-        return;
-    }
-
-    fbosCreated_ = true;
 }
 
 void PostProcessPipeline::shutdown() {
@@ -143,11 +126,9 @@ void PostProcessPipeline::shutdown() {
         screen_quad_layout_ = VertexLayoutHandle::Invalid;
     }
 
-    fboA_.reset();
-    fboB_.reset();
+    graph_.reset();
     fboOriginal_.reset();
     screenFBO_.reset();
-    fbosCreated_ = false;
     fboOriginalCreated_ = false;
     screenCaptureActive_ = false;
     screenFBOCreated_ = false;
@@ -172,11 +153,9 @@ void PostProcessPipeline::recreateGpuResources() {
     for (auto& pass : passes_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
     for (auto& pass : screenPasses_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
 
-    fboA_.reset();
-    fboB_.reset();
+    if (graph_) graph_->releasePool();
     fboOriginal_.reset();
     screenFBO_.reset();
-    fbosCreated_ = false;
     fboOriginalCreated_ = false;
     screenFBOCreated_ = false;
     screenCaptureActive_ = false;
@@ -194,12 +173,9 @@ void PostProcessPipeline::resize(u32 width, u32 height) {
         fboOriginal_.reset();
         fboOriginalCreated_ = false;
     }
-
-    if (fbosCreated_) {
-        fboA_.reset();
-        fboB_.reset();
-        fbosCreated_ = false;
-    }
+    // The pool is keyed by shape, so targets at the old size would never be
+    // handed out again — they would just sit there holding memory.
+    if (graph_) graph_->releasePool();
 
     ensureFBOs();
 
@@ -368,18 +344,12 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     device_.setViewport(0, 0, width_, height_);
 
     inFrame_ = true;
-    currentFBO_ = 0;
 }
 
 void PostProcessPipeline::end() {
     if (!initialized_ || !inFrame_ || (bypass_ && !linear_output_)) return;
 
     auto* device = &device_;
-
-    u32 enabledCount = 0;
-    for (const auto& pass : passes_) {
-        if (pass.enabled) enabledCount++;
-    }
 
     // Blend/depth/stencil/color-mask come from the fullscreen pass pipeline;
     // scissor is dynamic state and must be dropped explicitly.
@@ -389,46 +359,18 @@ void PostProcessPipeline::end() {
     sceneTexture_ = fboOriginal_->getColorAttachment();
     fboOriginal_->unbind();
 
-    if (enabledCount == 0) {
-        blitToOutput(sceneTexture_);
-    } else {
-        TextureHandle inputTexture = sceneTexture_;
-        currentFBO_ = 0;
-
-        device->bindTexture(1, sceneTexture_);
-        device->bindTexture(0, TextureHandle::Invalid);
-
-        for (auto& pass : passes_) {
-            if (!pass.enabled) continue;
-
-            Framebuffer* targetFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
-            targetFBO->bind();
-            device->setViewport(0, 0, width_, height_);
-
-            renderPass(pass, inputTexture);
-
-            inputTexture = targetFBO->getColorAttachment();
-            currentFBO_ = 1 - currentFBO_;
-        }
-
-        Framebuffer* lastFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
-        lastFBO->unbind();
-
-        blitToOutput(inputTexture);
-    }
+    runChain(passes_, sceneTexture_);
 
     device->invalidatePipelineCache();
     inFrame_ = false;
     output_target_fbo_ = FramebufferHandle::Default;
 }
 
-void PostProcessPipeline::renderPass(PostProcessPass& pass, TextureHandle inputTexture) {
+void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContext& ctx) {
     Shader* shader = resourceManager_.getShader(pass.shader);
     if (!shader) return;
 
     auto* device = &device_;
-    device->bindTexture(0, inputTexture);
-
     applyPassPipeline(*shader);
     const bool glsl = shader->language() == GfxShaderLanguage::GLSL_ES300;
     if (glsl) {
@@ -488,8 +430,10 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, TextureHandle inputT
         // Legacy loose-uniform path for raw-GLSL passes (addPass with a
         // hand-created shader): resolution, in-order extra textures, and the
         // DrawParams block lifted at creation.
+        // The pass's own size, not the screen's: a chain link that runs at a
+        // fraction of the reference size must sample by ITS texel grid.
         if (shader->hasUniform("u_resolution")) {
-            shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+            shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)));
         }
         u32 extraUnit = 2;
         for (const auto& [name, glId] : pass.textureUniforms) {
@@ -527,18 +471,16 @@ void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
     output_vp_h_ = h;
 }
 
-void PostProcessPipeline::blitToOutput(TextureHandle texture) {
+void PostProcessPipeline::blitPass() {
     Shader* shader = resourceManager_.getShader(blitShader_);
     if (!shader) return;
 
-    auto* device = &device_;
-    device->beginRenderPass({output_target_fbo_});
-
+    // The output rect is the one thing a pass does not get from its target: the
+    // graph sized the viewport to the whole target, and a camera writing into a
+    // shared surface owns only part of it.
     if (output_vp_w_ > 0 && output_vp_h_ > 0) {
-        device->setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
+        device_.setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
     }
-
-    device->bindTexture(0, texture);
 
     applyPassPipeline(*shader);
     shader->setUniform("u_texture", 0);
@@ -547,14 +489,43 @@ void PostProcessPipeline::blitToOutput(TextureHandle texture) {
     drawScreenQuad();
 }
 
-u32 PostProcessPipeline::getSourceTexture() const {
-    return fboOriginal_ ? static_cast<u32>(fboOriginal_->getColorAttachment()) : 0;
-}
+void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, TextureHandle sceneTexture) {
+    if (!graph_) return;
 
-u32 PostProcessPipeline::getOutputTexture() const {
-    if (!fboA_ || !fboB_) return 0;
-    return static_cast<u32>((currentFBO_ == 0) ? fboA_->getColorAttachment()
-                                               : fboB_->getColorAttachment());
+    graph_->begin(width_, height_);
+    const rg::ResourceId scene = graph_->importTexture(sceneTexture, width_, height_);
+    const rg::ResourceId out = graph_->importTarget(output_target_fbo_, width_, height_);
+
+    rg::TargetDesc desc;
+    desc.format = interFormat();
+    // Bilinear intermediates: fullscreen passes sample at texel centers (where
+    // LINEAR == NEAREST), but Kawase blur samples at half-texel offsets, whose
+    // NEAREST rounding is backend-dependent (GL and Dawn diverged visibly).
+    desc.linearFilter = true;
+
+    rg::ResourceId input = scene;
+    for (auto& pass : passes) {
+        if (!pass.enabled) continue;
+        rg::PassDesc node;
+        node.name = pass.name;
+        // The scene rides along as a second read for every pass because a
+        // composite (bloom's last link) needs the un-blurred image, and the
+        // shaders address it as unit 1 — the declaration IS that wiring.
+        node.reads = {input, scene};
+        node.write = graph_->createTarget(desc);
+        node.execute = [this, &pass](const rg::PassContext& ctx) { renderPass(pass, ctx); };
+        input = node.write;
+        graph_->addPass(std::move(node));
+    }
+
+    rg::PassDesc blit;
+    blit.name = "blit";
+    blit.reads = {input};
+    blit.write = out;
+    blit.execute = [this](const rg::PassContext&) { blitPass(); };
+    graph_->addPass(std::move(blit));
+
+    graph_->execute();
 }
 
 void PostProcessPipeline::ensureScreenFBO() {
@@ -602,51 +573,15 @@ void PostProcessPipeline::executeScreenPasses() {
     if (!initialized_ || !screenFBOCreated_) return;
 
     auto* device = &device_;
-
-    u32 enabledCount = 0;
-    for (const auto& pass : screenPasses_) {
-        if (pass.enabled) enabledCount++;
-    }
-
-    if (enabledCount == 0) {
-        device->invalidatePipelineCache();
-        blitToOutput(screenFBO_->getColorAttachment());
-        return;
-    }
-
     device->invalidatePipelineCache();
     device->setScissorTest(false);
 
     ensureFBOs();
-    if (!fbosCreated_) return;
 
     sceneTexture_ = screenFBO_->getColorAttachment();
     screenFBO_->unbind();
-    TextureHandle inputTexture = sceneTexture_;
-    u32 pingPong = 0;
 
-    device->bindTexture(1, sceneTexture_);
-    device->bindTexture(0, TextureHandle::Invalid);
-
-    for (auto& pass : screenPasses_) {
-        if (!pass.enabled) continue;
-
-        Framebuffer* targetFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
-        targetFBO->bind();
-        device->setViewport(0, 0, width_, height_);
-
-        renderPass(pass, inputTexture);
-
-        inputTexture = targetFBO->getColorAttachment();
-        pingPong = 1 - pingPong;
-    }
-
-    Framebuffer* lastFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
-    lastFBO->unbind();
-
-    device->endRenderPass();
-    device->setViewport(0, 0, width_, height_);
-    blitToOutput(inputTexture);
+    runChain(screenPasses_, sceneTexture_);
 
     device->invalidatePipelineCache();
 }

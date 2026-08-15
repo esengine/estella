@@ -93,7 +93,10 @@ if(ES_ENABLE_WEBGPU)
 endif()
 
 if(ES_ENABLE_POSTPROCESS)
-    list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp)
+    list(APPEND ESENGINE_SOURCES
+        ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp
+        ${ESENGINE_ROOT}/src/esengine/renderer/graph/RenderGraph.cpp
+    )
 endif()
 
 if(ES_ENABLE_TILEMAP)

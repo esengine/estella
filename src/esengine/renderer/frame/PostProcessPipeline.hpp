@@ -16,6 +16,7 @@
 #include "../../resource/Handle.hpp"
 #include "../../math/Math.hpp"
 #include "../rhi/Framebuffer.hpp"
+#include "../graph/RenderGraph.hpp"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -58,8 +59,10 @@ struct PostProcessPass {
 /**
  * @brief Post-processing effects pipeline
  *
- * @details Manages a chain of full-screen post-processing effects using
- *          ping-pong framebuffers. Effects are applied in order.
+ * @details Owns the scene capture and the effect chains; the chains themselves
+ *          are declared to a RenderGraph, which decides what physical targets
+ *          they cost. The per-camera and screen-level chains are the same shape
+ *          and go through the same builder.
  */
 class PostProcessPipeline {
 public:
@@ -155,16 +158,6 @@ public:
      * @details Applies all enabled passes and outputs to screen.
      */
     void end();
-
-    /**
-     * @brief Gets the source framebuffer texture
-     */
-    u32 getSourceTexture() const;
-
-    /**
-     * @brief Gets the output framebuffer texture
-     */
-    u32 getOutputTexture() const;
 
     /**
      * @brief Checks if pipeline is initialized
@@ -282,8 +275,11 @@ private:
     void ensureScreenQuad();
     void drawScreenQuad();
     void applyPassPipeline(const Shader& shader);
-    void renderPass(PostProcessPass& pass, TextureHandle inputTexture);
-    void blitToOutput(TextureHandle texture);
+    void renderPass(PostProcessPass& pass, const rg::PassContext& ctx);
+    /// Declares one chain to the graph and runs it, ending in the output target.
+    void runChain(std::vector<PostProcessPass>& passes, TextureHandle sceneTexture);
+    /// The chain's last pass: the copy into the output target's viewport.
+    void blitPass();
     /// Frees a pass's GPU-side param UBO (removePass/clearPasses/shutdown).
     void releasePassResources(PostProcessPass& pass);
 
@@ -291,8 +287,7 @@ private:
     RenderContext& context_;
     resource::ResourceManager& resourceManager_;
 
-    Unique<Framebuffer> fboA_;
-    Unique<Framebuffer> fboB_;
+    Unique<rg::RenderGraph> graph_;
     Unique<Framebuffer> fboOriginal_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
@@ -302,13 +297,11 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
     bool initialized_ = false;
-    bool fbosCreated_ = false;
     bool fboOriginalCreated_ = false;
     bool inFrame_ = false;
     bool bypass_ = false;
     bool linear_output_ = false;
     bool scene_needs_depth_ = false;
-    u32 currentFBO_ = 0;
     TextureHandle sceneTexture_ = TextureHandle::Invalid;
 
     FramebufferHandle output_target_fbo_ = FramebufferHandle::Default;

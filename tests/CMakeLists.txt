@@ -106,6 +106,22 @@ target_include_directories(test_texture_fb PRIVATE
 )
 add_test(NAME test_texture_fb COMMAND test_texture_fb)
 
+# RenderGraph: compiles the graph against a MockGfxDevice and asserts on the
+# SEQUENCE of device calls — which target each pass opened, what it bound, and
+# how many physical targets a chain actually costs.
+add_executable(test_render_graph
+    renderer/test_render_graph.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/graph/RenderGraph.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Framebuffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_render_graph PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/stb
+)
+add_test(NAME test_render_graph COMMAND test_render_graph)
+
 # Buffer + CustomGeometry decoupling: compiles the converted classes against a
 # MockGfxDevice. Linking proves they contain no GL; asserts confirm create/
 # upload/attribute-setup/bind/delete route through GfxDevice.
