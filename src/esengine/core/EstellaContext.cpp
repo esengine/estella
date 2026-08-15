@@ -255,6 +255,10 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     initPass.clearColorValue[3] = state_.clear_color.a;
     gfxDevicePtr->beginRenderPass(initPass);
     gfxDevicePtr->endRenderPass();  // a pass never outlives its task (WebGPU submits here)
+    // ...and neither does the image it drew to. A browser expires the swapchain
+    // texture at the end of the task that acquired it, so a frame that found this
+    // one still held would reuse it and submit a destroyed texture.
+    gfxDevicePtr->endFrame();
 
     ES_LOG_INFO("EstellaContext initialized");
 }
