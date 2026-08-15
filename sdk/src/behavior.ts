@@ -18,7 +18,7 @@ import {
     type ComponentDef,
     type ComponentMetadata,
 } from './ecs/component';
-import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from './ecs/system';
+import { Schedule, defineSystem, addSystemToSchedule, GetWorld, type SystemTouches } from './ecs/system';
 import { Query, Mut } from './ecs/query';
 import { Res, Time, type TimeData } from './ecs/resource';
 import { Commands, type CommandsInstance } from './ecs/commands';
@@ -66,6 +66,12 @@ export interface BehaviorDef<S extends object> {
     schedule?: Schedule;
     /** Field-presentation metadata for `state` (ranges, enums, …), forwarded to the component. */
     metadata?: ComponentMetadata;
+    /**
+     * The components this behaviour reaches for through `ctx.get`/`ctx.set`, by
+     * name — its own state component is already declared. Undeclared, the
+     * schedule assumes anything, and this conflicts with every other system.
+     */
+    touches?: SystemTouches;
     /** Run once, the frame the behavior's component first appears on an entity. */
     start?(ctx: BehaviorContext<S>): void;
     /** Run every frame for each entity carrying the behavior. `dt` == `ctx.time.delta`. */
@@ -133,8 +139,6 @@ export function defineBehavior<S extends object>(name: string, def: BehaviorDef<
 
     const { start, update, destroy } = def;
 
-    // system-access: runs a behaviour a project wrote, which may read or write
-    // any component it names.
     const system = defineSystem(
         [Query(Mut(Comp)), Res(Time), Res(Input), Commands(), GetWorld()],
         (q, time, input, commands, world) => {
@@ -169,7 +173,13 @@ export function defineBehavior<S extends object>(name: string, def: BehaviorDef<
                 }
             }
         },
-        { name: `Behavior:${name}` },
+        {
+            name: `Behavior:${name}`,
+            // Undeclared is opaque ON PURPOSE, and said rather than left out: the
+            // body is a project's code, and the schedule must not assume that
+            // silence means it touches nothing.
+            touches: def.touches ?? { opaque: true },
+        },
     );
 
     addSystemToSchedule(schedule, system);

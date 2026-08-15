@@ -51,6 +51,12 @@ export function getBt(key: string): BtDefinition | undefined {
     return btStore.get(key);
 }
 
+/** Every registered tree. What the schedule reads to learn what the BT system
+ *  reaches for — that answer lives in the loaded trees, not in the system. */
+export function allBts(): Iterable<BtDefinition> {
+    return btStore.values();
+}
+
 /** Drop all registered trees (tests / hot-reload). */
 export function clearBtStore(): void {
     btStore.clear();

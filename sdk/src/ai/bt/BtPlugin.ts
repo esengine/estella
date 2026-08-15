@@ -14,7 +14,7 @@
 import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
-import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
+import { defineSystem, Schedule, GetWorld, type SystemTouches } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
@@ -25,7 +25,9 @@ import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from '../fsm/Blackboard';
 import { aiRegistry, type AiContext } from '../fsm/AiContext';
 import { tickBt, createBtRunState, type BtRunState } from './BtRunner';
-import { BehaviorTreeAgent, getBt } from './BehaviorTreeAgent';
+import { BehaviorTreeAgent, getBt, allBts } from './BehaviorTreeAgent';
+import type { BtNode } from './types';
+import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../worldView';
 import { ensureBuiltinAiRegistrations } from '../builtins';
 
 interface BtAgentState {
@@ -122,6 +124,22 @@ export class BehaviorTrees {
     }
 }
 
+/** Every leaf in a tree, root first. Orphans are not walked — the interpreter
+ *  ticks only `root`, so an unwired subtree reaches nothing. */
+export function* btLeaves(node: BtNode): Iterable<LeafRef> {
+    if (node.name && (node.type === 'action' || node.type === 'condition')) {
+        yield { kind: node.type, name: node.name, input: { arg: node.arg, params: node.params } };
+    }
+    for (const child of node.children ?? []) yield* btLeaves(child);
+}
+
+/** What the BT system reaches for: the union over every loaded tree. */
+export function btTouches(): SystemTouches {
+    const builder = new TouchesBuilder().writing(BehaviorTreeAgent._name);
+    for (const tree of allBts()) touchesOfLeaves(aiRegistry, btLeaves(tree.root), builder);
+    return builder.build();
+}
+
 export const AiBt = defineResource<BehaviorTrees>(null!, 'AiBt');
 
 export class BtPlugin implements Plugin {
@@ -138,14 +156,14 @@ export class BtPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
-            // system-access: steps a project's behaviour tree, whose nodes read and
-            // write whatever that project's tree names.
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
                     stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveKey);
                 },
-                { name: 'BehaviorTreeSystem' },
+                // See fsmTouches: the reach is the union over the loaded trees,
+                // which is why it is asked for rather than stated.
+                { name: 'BehaviorTreeSystem', touches: btTouches },
             ),
             { runIf: playModeOnly },
         );

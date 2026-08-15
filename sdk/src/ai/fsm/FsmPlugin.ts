@@ -14,7 +14,7 @@
 import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
-import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
+import { defineSystem, Schedule, GetWorld, type SystemTouches } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
@@ -23,9 +23,11 @@ import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Assets } from '../../asset/AssetPlugin';
 import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from './Blackboard';
-import { createFsmRunState, stepFsm, type FsmRunState } from './FsmRunner';
+import { createFsmRunState, stepFsm, type CompiledFsm, type FsmRunState } from './FsmRunner';
 import { aiRegistry, type AiContext } from './AiContext';
-import { StateMachineAgent, getFsm } from './StateMachineAgent';
+import { StateMachineAgent, getFsm, allFsms } from './StateMachineAgent';
+import { actionRefName, actionRefArg, actionRefParams } from './types';
+import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../worldView';
 import { ensureBuiltinAiRegistrations } from '../builtins';
 
 /** Per-entity FSM runtime: blackboard persists; run rebuilds when the FSM key changes. */
@@ -110,6 +112,32 @@ export function stepStateMachines(
     }
 }
 
+/** Every leaf a compiled FSM names: the three state hooks and the transition
+ *  conditions. Blackboard guards reach no component, so they are not leaves. */
+export function* fsmLeaves(fsm: CompiledFsm): Iterable<LeafRef> {
+    for (const state of fsm.states.values()) {
+        for (const hook of [state.onEnter, state.onUpdate, state.onExit]) {
+            const name = actionRefName(hook);
+            if (!name) continue;
+            yield {
+                kind: 'action',
+                name,
+                input: { arg: actionRefArg(hook), params: actionRefParams(hook) },
+            };
+        }
+        for (const t of state.transitions ?? []) {
+            if (t.condition) yield { kind: 'condition', name: t.condition };
+        }
+    }
+}
+
+/** What the FSM system reaches for: the union over every loaded graph. */
+export function fsmTouches(): SystemTouches {
+    const builder = new TouchesBuilder().writing(StateMachineAgent._name);
+    for (const fsm of allFsms()) touchesOfLeaves(aiRegistry, fsmLeaves(fsm), builder);
+    return builder.build();
+}
+
 /** Resource for game code to reach an agent's blackboard / current state. */
 export class StateMachines {
     constructor(private states: Map<Entity, AgentState>) {}
@@ -145,14 +173,15 @@ export class FsmPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
-            // system-access: steps a project's state machine, whose states read and
-            // write whatever that project's graph names.
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
                     stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveKey);
                 },
-                { name: 'StateMachineSystem' },
+                // Asked per analysis, not once: a graph loaded later changes the
+                // answer, and no graph at all means this system touches only the
+                // agent component.
+                { name: 'StateMachineSystem', touches: fsmTouches },
             ),
             { runIf: playModeOnly },
         );

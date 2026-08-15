@@ -45,7 +45,8 @@ const isMut = (arg: QueryArg): boolean => (arg as MutWrapper)._type === 'mut';
 /** A resource's declared name — what `defineResource` stamped on it. */
 const resourceName = (r: unknown): string => (r as { _name?: string })?._name ?? String(r);
 
-/** Read a system's declared access. Cheap and pure — the caller may cache it. */
+/** Read a system's declared access. Cheap, and re-read rather than cached: a
+ *  system may answer for the data currently loaded (see `touches`). */
 export function accessOf(system: SystemDef): SystemAccess {
     const readsComponents = new Set<string>();
     const writesComponents = new Set<string>();
@@ -90,11 +91,14 @@ export function accessOf(system: SystemDef): SystemAccess {
     // A system that says what it reaches for through the World is no longer
     // opaque: its claim IS the declaration, and it is named by component name
     // because the reason to use the hatch is usually a type registered later.
-    const touches = system._touches;
+    // A function is asked now rather than at definition: a system running
+    // authored data answers from what is loaded.
+    const declared = system._touches;
+    const touches = typeof declared === 'function' ? declared() : declared;
     if (touches) {
         for (const name of touches.reads ?? []) readsComponents.add(name);
         for (const name of touches.writes ?? []) writesComponents.add(name);
-        if (opaque) opaque = false;
+        opaque = touches.opaque === true;
     }
 
     return { readsComponents, writesComponents, readsResources, writesResources, opaque };

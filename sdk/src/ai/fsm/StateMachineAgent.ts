@@ -55,6 +55,12 @@ export function getFsm(key: string): CompiledFsm | undefined {
     return fsmStore.get(key);
 }
 
+/** Every registered FSM. What the schedule reads to learn what the FSM system
+ *  reaches for — that answer lives in the loaded graphs, not in the system. */
+export function allFsms(): Iterable<CompiledFsm> {
+    return fsmStore.values();
+}
+
 /** Drop all registered FSMs (tests / hot-reload). */
 export function clearFsmStore(): void {
     fsmStore.clear();

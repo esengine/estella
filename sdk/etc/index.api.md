@@ -170,6 +170,7 @@ params: Readonly<Record<string, AiParamValue>> | undefined
 params: readonly AiParamDef[] | undefined
 run: AiAction<Ctx>
 separator: string | undefined
+touches: AiTouchesSource | undefined
 ```
 
 ## AiBt — const @experimental
@@ -225,8 +226,10 @@ Readonly<Record<string, AiParamValue>>
 ## AiRegistry — class @experimental
 ```
 actionNames: () => string[]
+actionTouches: (name: string, input?: AiActionInput) => AiTouches | undefined
 clear: () => void
 conditionNames: () => string[]
+conditionTouches: (name: string) => AiTouches | undefined
 getAction: (name: string) => AiAction<Ctx> | undefined
 getActionParams: (name: string) => readonly AiParamDef[]
 getActionSeparator: (name: string) => string
@@ -234,7 +237,7 @@ getCondition: (name: string) => AiCondition<Ctx> | undefined
 hasAction: (name: string) => boolean
 hasCondition: (name: string) => boolean
 registerAction: (name: string, fn: AiAction<Ctx> | AiActionSpec<Ctx>) => void
-registerCondition: (name: string, fn: AiCondition<Ctx>) => void
+registerCondition: (name: string, fn: AiCondition<Ctx> | AiConditionSpec<Ctx>) => void
 static new <Ctx = unknown>(): AiRegistry<Ctx>
 static prototype: AiRegistry<any>
 ```
@@ -1117,6 +1120,7 @@ metadata: ComponentMetadata | undefined
 schedule: Schedule | undefined
 start: ((ctx: BehaviorContext<S>) => void) | undefined
 state: S | undefined
+touches: SystemTouches | undefined
 update: ((ctx: BehaviorContext<S>, dt: number) => void) | undefined
 ```
 
@@ -7025,7 +7029,7 @@ query: QueryCost | undefined
 @internal _params: readonly SystemParam[]
 @internal _runAfter: readonly string[] | undefined
 @internal _runBefore: readonly string[] | undefined
-@internal _touches: SystemTouches | undefined
+@internal _touches: SystemTouches | (() => SystemTouches) | undefined
 ```
 
 ## SystemOptions — interface @public
@@ -7033,7 +7037,7 @@ query: QueryCost | undefined
 name: string | undefined
 runAfter: string[] | undefined
 runBefore: string[] | undefined
-touches: SystemTouches | undefined
+touches: SystemTouches | (() => SystemTouches) | undefined
 ```
 
 ## SystemParam — type @public
@@ -7081,6 +7085,7 @@ systems: SystemDef[]
 
 ## SystemTouches — interface @public
 ```
+opaque: boolean | undefined
 reads: readonly string[] | undefined
 writes: readonly string[] | undefined
 ```

@@ -116,14 +116,19 @@ export class NavPlugin implements Plugin {
 
         app.addSystemToSchedule(
             Schedule.Update,
-            // system-access: moves agents whose components are registered by the
-            // project, through the same World view the editor steps.
             defineSystem(
                 [Res(Nav), Res(Time), GetWorld()],
                 (nav: Navigation, time: TimeData, world) => {
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
-                { name: 'NavAgentSystem' },
+                {
+                    name: 'NavAgentSystem',
+                    touches: { writes: [NavAgent._name, Transform._name] },
+                    // Both move an entity; for one carrying both, the path is the
+                    // intent and the drift is not, so the follow lands last. The
+                    // order registration already produced — declared, not changed.
+                    runAfter: ['VelocitySystem'],
+                },
             ),
             { runIf: playModeOnly },
         );

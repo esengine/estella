@@ -97,14 +97,21 @@ export class PerceptionPlugin implements Plugin {
     build(app: App): void {
         app.addSystemToSchedule(
             Schedule.PreUpdate,
-            // system-access: senses whatever a project's perception graph names.
             defineSystem(
                 [GetWorld()],
                 world => {
                     const physics = app.hasResource(Physics) ? app.getResource<PhysicsAPI>(Physics) : null;
                     stepPerception(world as PerceptionWorldView, physics ? makeLosCheck(physics) : undefined);
                 },
-                { name: 'PerceptionSystem' },
+                {
+                    name: 'PerceptionSystem',
+                    // The World is for the cross-entity sweep (every target against
+                    // every perceiver), not for reach beyond these four.
+                    touches: {
+                        reads: [Perceiver._name, PerceptionTarget._name, Transform._name],
+                        writes: [Perception._name],
+                    },
+                },
             ),
             { runIf: playModeOnly },
         );

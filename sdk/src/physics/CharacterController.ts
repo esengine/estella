@@ -309,8 +309,6 @@ export function registerCharacterControllerSystem(app: App): void {
     warnedNonFiniteMove = false;
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
-        // system-access: reads and writes the Transform of whatever a character is
-        // standing on, which the solver decides per contact.
         defineSystem(
             [Query(Mut(CharacterController)), Res(Time), Res(Physics), GetWorld()],
             (
@@ -372,7 +370,17 @@ export function registerCharacterControllerSystem(app: App): void {
                     cc.realVelocity.y = r.dy * invDt;
                 }
             },
-            { name: 'CharacterControllerSystem', runBefore: ['PhysicsStepSystem'] },
+            {
+                name: 'CharacterControllerSystem',
+                runBefore: ['PhysicsStepSystem'],
+                // The World is how it reaches the collider (whichever of the three
+                // a character has) and the pose it resolves; the solver's contacts
+                // are physics-side state, not components.
+                touches: {
+                    reads: [BoxCollider._name, CircleCollider._name, CapsuleCollider._name],
+                    writes: [Transform._name],
+                },
+            },
         ),
         { runIf: playModeOnly },
     );

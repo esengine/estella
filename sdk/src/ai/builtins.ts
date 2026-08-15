@@ -14,10 +14,13 @@
  */
 
 import { aiRegistry, type AiContext } from './fsm/AiContext';
-import type { AiAction, AiCondition, AiParamValue } from './fsm/registry';
+import type { AiAction, AiActionInput, AiCondition, AiParamValue, AiTouches } from './fsm/registry';
 import { TimelinePlayer } from '../timeline/TimelinePlugin';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import { setEntityProperty } from '../ecs/propertyPath';
+
+const TIMELINE: AiTouches = { reads: [TimelinePlayer._name], writes: [TimelinePlayer._name] };
+const SPRITE_ANIM: AiTouches = { reads: [SpriteAnimator._name], writes: [SpriteAnimator._name] };
 
 /**
  * Register the engine's built-in actions/conditions. Idempotent (and safe after
@@ -32,7 +35,7 @@ export function ensureBuiltinAiRegistrations(): void {
         // TimelinePlayer flag contract (see TimelineDrive.applyPlayerFlags).
         player.playing = true;
         ctx.set(TimelinePlayer, player);
-    });
+    }, TIMELINE);
 
     action('timeline.pause', ctx => {
         if (!ctx.has(TimelinePlayer)) return;
@@ -40,7 +43,7 @@ export function ensureBuiltinAiRegistrations(): void {
         if (!player.playing) return;
         player.playing = false;
         ctx.set(TimelinePlayer, player);
-    });
+    }, TIMELINE);
 
     // Latched only when a Once clip completes — false before and while playing,
     // so `onEnter: timeline.play` + a `timeline.finished` transition is a
@@ -51,7 +54,7 @@ export function ensureBuiltinAiRegistrations(): void {
         if (!ctx.has(TimelinePlayer)) return false;
         const player = ctx.get(TimelinePlayer);
         return player.finished && !player.playing;
-    });
+    }, { reads: [TimelinePlayer._name] });
 
     // `arg` is the clip to play (a `.esanim` ref/path); without it the action
     // resumes/replays the animator's current clip. Same-clip play while already
@@ -71,7 +74,7 @@ export function ensureBuiltinAiRegistrations(): void {
         // the SpriteAnimator flag contract (mirrors TimelinePlayer's).
         sp.playing = true;
         ctx.set(SpriteAnimator, sp);
-    });
+    }, SPRITE_ANIM);
 
     // Unconditional rewind + play (re-trigger a one-shot mid-flight), with the
     // same optional clip arg.
@@ -84,7 +87,7 @@ export function ensureBuiltinAiRegistrations(): void {
         sp.finished = false;
         sp.playing = true;
         ctx.set(SpriteAnimator, sp);
-    });
+    }, SPRITE_ANIM);
 
     action('spriteAnim.stop', ctx => {
         if (!ctx.has(SpriteAnimator)) return;
@@ -92,7 +95,7 @@ export function ensureBuiltinAiRegistrations(): void {
         if (!sp.playing) return;
         sp.playing = false;
         ctx.set(SpriteAnimator, sp);
-    });
+    }, SPRITE_ANIM);
 
     // Latched only when a one-shot clip completes (same shape as
     // timeline.finished): false before and while playing, so
@@ -102,7 +105,7 @@ export function ensureBuiltinAiRegistrations(): void {
         if (!ctx.has(SpriteAnimator)) return false;
         const sp = ctx.get(SpriteAnimator);
         return sp.finished && !sp.playing;
-    });
+    }, { reads: [SpriteAnimator._name] });
 
     // The general-purpose write, through the engine's reflection writer — the
     // same addressing a UIGear binding and a Timeline track use ("Component" +
@@ -124,8 +127,24 @@ export function ensureBuiltinAiRegistrations(): void {
                 if (!path || raw === undefined) return;
                 setEntityProperty(ctx.world, ctx.entity, path, parseValue(raw));
             },
+            // The component it writes is the first segment of the authored path,
+            // so the reach is unknowable when this registers and plain in the
+            // graph. A reference with no readable path admits it instead.
+            touches: input => {
+                const path = pathOf(input);
+                const component = path.split('.')[0];
+                return component ? { writes: [component] } : { opaque: true };
+            },
         });
     }
+}
+
+/** `property.set`'s target path, from whichever form the reference carries: the
+ *  named parameter, or the canonical `path=value` string. */
+function pathOf(input: AiActionInput): string {
+    const named = input.params?.path;
+    if (typeof named === 'string') return named.trim();
+    return (input.arg ?? '').split('=')[0].trim();
 }
 
 /** A parameter's JSON reading when it has one; otherwise the value itself. */
@@ -138,10 +157,10 @@ function parseValue(raw: AiParamValue): unknown {
     }
 }
 
-function action(name: string, fn: AiAction<AiContext>): void {
-    if (!aiRegistry.hasAction(name)) aiRegistry.registerAction(name, fn);
+function action(name: string, fn: AiAction<AiContext>, touches?: AiTouches): void {
+    if (!aiRegistry.hasAction(name)) aiRegistry.registerAction(name, { run: fn, touches });
 }
 
-function condition(name: string, fn: AiCondition<AiContext>): void {
-    if (!aiRegistry.hasCondition(name)) aiRegistry.registerCondition(name, fn);
+function condition(name: string, fn: AiCondition<AiContext>, touches?: AiTouches): void {
+    if (!aiRegistry.hasCondition(name)) aiRegistry.registerCondition(name, { check: fn, touches });
 }

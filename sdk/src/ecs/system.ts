@@ -156,7 +156,7 @@ export interface SystemDef {
     /** @internal */
     readonly _runAfter?: readonly string[];
     /** @internal */
-    readonly _touches?: SystemTouches;
+    readonly _touches?: SystemTouches | (() => SystemTouches);
 }
 
 let templateCounter_ = 0;
@@ -175,8 +175,14 @@ export interface SystemOptions {
     runBefore?: string[];
     /** This system runs after each of these names (a system or a set). */
     runAfter?: string[];
-    /** What the system reaches for through {@link GetWorld}. See {@link SystemTouches}. */
-    touches?: SystemTouches;
+    /**
+     * What the system reaches for through {@link GetWorld}. See {@link SystemTouches}.
+     *
+     * A function is re-read every time the access is, which is what lets a system
+     * running authored data (an FSM, a behaviour tree) answer from the data
+     * actually loaded rather than from everything it could ever be handed.
+     */
+    touches?: SystemTouches | (() => SystemTouches);
 }
 
 /**
@@ -190,6 +196,13 @@ export interface SystemOptions {
 export interface SystemTouches {
     reads?: readonly string[];
     writes?: readonly string[];
+    /**
+     * Some of the reach genuinely cannot be named — a system running data a
+     * project authored, where one of the leaves does not say what it writes.
+     * Declared rather than left out: an omitted `touches` and a known-incomplete
+     * one are both "assume everything", but only this one says so on purpose.
+     */
+    opaque?: boolean;
 }
 
 /**

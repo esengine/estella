@@ -67,11 +67,32 @@ export interface AiParamDef {
     step?: number;
 }
 
+/**
+ * What a leaf reaches for on the world, by component name.
+ *
+ * The system running a graph is only as knowable as its leaves. `opaque` is a
+ * leaf admitting it cannot say — different from one that never declared.
+ */
+export interface AiTouches {
+    reads?: readonly string[];
+    writes?: readonly string[];
+    opaque?: boolean;
+}
+
+/**
+ * A leaf's reach, either fixed or derived from the input the authored data
+ * carries — `property.set` writes the component its `path` names, which is
+ * unknowable at registration and plain in the data.
+ */
+export type AiTouchesSource = AiTouches | ((input: AiActionInput) => AiTouches);
+
 /** An action registered with metadata rather than as a bare function. */
 export interface AiActionSpec<Ctx> {
     run: AiAction<Ctx>;
     /** Declared parameters, in canonical string order. */
     params?: readonly AiParamDef[];
+    /** What it reaches for. Undeclared means unknown, not nothing. */
+    touches?: AiTouchesSource;
     /**
      * Separator joining the parameters in the canonical string form. Default
      * `':'` — the convention authored data already uses (`"tabs:settings"`).
@@ -85,11 +106,24 @@ interface ActionEntry<Ctx> {
     fn: AiAction<Ctx>;
     params: readonly AiParamDef[];
     separator: string;
+    touches?: AiTouchesSource;
+}
+
+/** A condition registered with metadata rather than as a bare predicate. */
+export interface AiConditionSpec<Ctx> {
+    check: AiCondition<Ctx>;
+    /** What it reads. Undeclared means unknown, not nothing. */
+    touches?: AiTouches;
+}
+
+interface ConditionEntry<Ctx> {
+    fn: AiCondition<Ctx>;
+    touches?: AiTouches;
 }
 
 export class AiRegistry<Ctx = unknown> {
     private actions = new Map<string, ActionEntry<Ctx>>();
-    private conditions = new Map<string, AiCondition<Ctx>>();
+    private conditions = new Map<string, ConditionEntry<Ctx>>();
 
     /**
      * Register `name`, either as a bare function (input is the raw `arg` string,
@@ -113,15 +147,32 @@ export class AiRegistry<Ctx = unknown> {
                     : parseActionArg(arg, params, separator);
                 return run(ctx, bb, arg ?? formatActionArg(named, params, separator), named);
             };
-        this.actions.set(name, { fn: wrapped, params, separator });
+        this.actions.set(name, { fn: wrapped, params, separator, touches: spec.touches });
     }
 
-    registerCondition(name: string, fn: AiCondition<Ctx>): void {
-        this.conditions.set(name, fn);
+    registerCondition(name: string, fn: AiCondition<Ctx> | AiConditionSpec<Ctx>): void {
+        const spec = typeof fn === 'function' ? { check: fn } : fn;
+        this.conditions.set(name, { fn: spec.check, touches: spec.touches });
     }
 
     getAction(name: string): AiAction<Ctx> | undefined {
         return this.actions.get(name)?.fn;
+    }
+
+    /**
+     * What running `name` reaches for, given the input an authored reference
+     * carries. `undefined` for an unregistered name or one that never declared —
+     * the caller has to decide what an unknown leaf means, and treating it as
+     * "touches nothing" would be the one wrong answer.
+     */
+    actionTouches(name: string, input: AiActionInput = {}): AiTouches | undefined {
+        const declared = this.actions.get(name)?.touches;
+        if (!declared) return undefined;
+        return typeof declared === 'function' ? declared(input) : declared;
+    }
+
+    conditionTouches(name: string): AiTouches | undefined {
+        return this.conditions.get(name)?.touches;
     }
 
     /** The declared parameters of `name` (empty when it takes a bare string). */
@@ -135,7 +186,7 @@ export class AiRegistry<Ctx = unknown> {
     }
 
     getCondition(name: string): AiCondition<Ctx> | undefined {
-        return this.conditions.get(name);
+        return this.conditions.get(name)?.fn;
     }
 
     hasAction(name: string): boolean {

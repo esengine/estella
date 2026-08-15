@@ -179,7 +179,6 @@ export class StatsPlugin implements Plugin {
         const collector = this.collector_;
         const overlay = this.overlay_;
 
-        // system-access: counts what the world holds, whatever that is.
         const statsCollectSystem = defineSystem(
             [Res(Time), GetWorld()],
             (time, world) => {
@@ -213,7 +212,10 @@ export class StatsPlugin implements Plugin {
 
                 overlay?.update(stats);
             },
-            { name: STATS_COLLECT_SYSTEM_NAME }
+            // It holds the World to count entities, which is not component access
+            // at all: an empty claim is the honest one, and it keeps the overlay
+            // out of every other system's conflict set.
+            { name: STATS_COLLECT_SYSTEM_NAME, touches: {} }
         );
 
         app.addSystemToSchedule(Schedule.Last, statsCollectSystem);
