@@ -53,6 +53,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mesh is a reference a scene can hold.** The format alone was not enough —
+  nothing could name one, so a scene could not point at geometry the way it
+  points at a texture. `Mesh2D` declares the field with `asset = mesh`, the scene
+  loader resolves the ref and binds the handle beside the texture and material it
+  already binds, and the content browser shows `.esmesh` with a type of its own.
+
+  `AssetFieldType` gained `'mesh'`. The api-surface baseline reports that as a
+  note: widening a released `@public` union keeps every value that was already
+  legal, but an exhaustive `switch` over the old set stops compiling, so it is
+  called out rather than passing silently. A union that LOSES a member is still
+  a broken promise, and a test pins that direction.
+
 - **A mesh is a file.** Mesh was the one asset that was not one: textures,
   shaders, materials, fonts, clips and prefabs each have a format on disk and a
   loader, while geometry could only be built at runtime, so a project could not
