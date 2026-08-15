@@ -93,6 +93,24 @@ static constexpr u32 LAYOUT_COUNT = 4;
 static constexpr u32 MESH_INSTANCE_STRIDE = 68;
 /// The attributes that record occupies (4 matrix rows + the tint).
 static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
+/// Where those attributes start. FIXED, not "after the mesh's channels": a mesh
+/// that gains normals would otherwise move them, and every mesh shader with it.
+static constexpr u32 MESH_INSTANCE_FIRST_LOCATION = 8;
+
+/**
+ * @brief What a mesh vertex channel MEANS, and the attribute location it binds to.
+ * @details One vocabulary for the file format, the layout and the shaders: a
+ *          channel's semantic IS its location, so a shader declaring a_normal at 3
+ *          reads normals from any mesh that has them and never sees the ones that
+ *          do not. Values are serialized in .esmesh — append only.
+ */
+enum class MeshChannel : u8 {
+    Position  = 0,
+    TexCoord0 = 1,
+    Color     = 2,
+    Normal    = 3,
+    Tangent   = 4,
+};
 
 // =============================================================================
 // Data Type (vertex attributes, index type, pixel data type)

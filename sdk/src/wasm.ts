@@ -232,6 +232,19 @@ export interface ESEngineModule {
      */
     mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number,
                  indicesPtr: number, indexCount: number): number;
+    /**
+     * Upload geometry described by an .esmesh channel table — 8 bytes per channel
+     * (semantic, components, type, normalized, offset) in the file's own layout,
+     * so the format stays the asset layer's and the vertex layout stays the
+     * engine's. A channel's semantic is its shader attribute location.
+     */
+    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number,
+                             vertexPtr: number, vertexBytes: number,
+                             indexPtr: number, indexCount: number,
+                             minX: number, minY: number, minZ: number,
+                             maxX: number, maxY: number, maxZ: number): number;
+    /** Release a mesh and the buffers it owns. */
+    mesh_release?(meshHandle: number): void;
     /** Point a Mesh2D at a resident mesh; 0 returns it to its inline payload. */
     mesh2d_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
     /**
@@ -242,6 +255,11 @@ export interface ESEngineModule {
     mesh2d_makeResident?(registry: CppRegistry, entity: number): number;
     /** The same for every Mesh2D in the world; returns how many were frozen. */
     mesh2d_makeAllResident?(registry: CppRegistry): number;
+    /**
+     * Point every Mesh2D in the world at one resident mesh, clearing their
+     * inline payloads. Returns how many were pointed.
+     */
+    mesh2d_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
     recoverDevice?(): boolean;
     /**
      * Take up the replacement device left on `Module.pendingWebGPUDevice`. A

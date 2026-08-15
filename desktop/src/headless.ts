@@ -43,6 +43,8 @@ declare global {
       };
       /** Freezes the scene's inline mesh geometry onto the GPU; returns how many. */
       makeMeshesResident: () => number;
+      /** Loads an .esmesh and points every Mesh2D at it; returns how many. */
+      loadMeshAsset: (path: string) => Promise<number>;
     };
   }
 }
@@ -156,6 +158,21 @@ window.__estellaHeadless = {
     const registry = EngineHost.mutableWorld()?.getCppRegistry();
     if (!m?.mesh2d_makeAllResident || !registry) return 0;
     return m.mesh2d_makeAllResident(registry);
+  },
+  // Through the asset layer, not a side door: the file goes through the same
+  // load() every other asset type does, so what this proves is the format
+  // reaching the screen rather than a decoder wired straight to the engine.
+  loadMeshAsset: async (path: string) => {
+    const assets = EngineHost.getResource(Assets);
+    const m = EngineHost.module as unknown as {
+      mesh2d_setMeshAll?(registry: unknown, handle: number): number;
+    } | null;
+    const registry = EngineHost.mutableWorld()?.getCppRegistry();
+    if (!assets || !m?.mesh2d_setMeshAll || !registry) return 0;
+
+    const mesh = await assets.load<{ handle: number }>('mesh', path);
+    if (!mesh?.handle) return 0;
+    return m.mesh2d_setMeshAll(registry, mesh.handle);
   },
 };
 

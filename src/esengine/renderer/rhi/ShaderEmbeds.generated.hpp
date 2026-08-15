@@ -284,11 +284,13 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec4 a_color;
 
-layout(location = 3) in vec4 a_model0;
-layout(location = 4) in vec4 a_model1;
-layout(location = 5) in vec4 a_model2;
-layout(location = 6) in vec4 a_model3;
-layout(location = 7) in vec4 a_instTint;
+// 8.. and not 3..: a channel's semantic IS its location, so adding normals to a
+// mesh must not move the per-object record (see MESH_INSTANCE_FIRST_LOCATION).
+layout(location = 8)  in vec4 a_model0;
+layout(location = 9)  in vec4 a_model1;
+layout(location = 10) in vec4 a_model2;
+layout(location = 11) in vec4 a_model3;
+layout(location = 12) in vec4 a_instTint;
 
 layout(std140) uniform FrameConstants {
     mat4 u_projection;
@@ -329,11 +331,11 @@ struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_texCoord : vec2f,
     @location(2) a_color : vec4f,
-    @location(3) a_model0 : vec4f,
-    @location(4) a_model1 : vec4f,
-    @location(5) a_model2 : vec4f,
-    @location(6) a_model3 : vec4f,
-    @location(7) a_instTint : vec4f,
+    @location(8)  a_model0 : vec4f,
+    @location(9)  a_model1 : vec4f,
+    @location(10) a_model2 : vec4f,
+    @location(11) a_model3 : vec4f,
+    @location(12) a_instTint : vec4f,
 };
 struct VSOut {
     @builtin(position) pos : vec4f,

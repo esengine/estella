@@ -124,7 +124,8 @@ function finish(result, server) {
   const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk;
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.
-  const meshOk = !result.meshResident || result.meshResident.frozen > 0;
+  const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
+    && (!result.meshAsset || result.meshAsset.pointed > 0);
   const renderedOk = result.capture?.rendered ?? false;
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true) &&
@@ -162,6 +163,7 @@ app.whenReady().then(async () => {
     const exec = (code) => win.webContents.executeJavaScript(code, true);
     let deviceLoss = null;
     let meshResident = null;
+    let meshAsset = null;
     await exec('window.__estellaHeadless.ready');
     const entityCount = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
@@ -243,6 +245,18 @@ app.whenReady().then(async () => {
       })()`);
     } else {
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
+
+    // Loads an .esmesh through the asset layer and points the scene's meshes at
+    // it, replacing their inline geometry. The fixture holds the SAME vertices,
+    // so the assertions stand: a file drawing what the scene draws is the claim.
+    if (process.env.ESTELLA_VERIFY_MESH_ASSET) {
+      meshAsset = await exec(`(async () => {
+        const pointed = await window.__estellaHeadless.loadMeshAsset(
+          ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_ASSET)});
+        await window.__estellaHeadless.api.step(2, 1 / 60);
+        return { pointed };
+      })()`);
     }
 
     // Freezes the scene's inline geometry onto the GPU, keeping every other
@@ -469,7 +483,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid, deviceLoss, meshResident, meshAsset }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

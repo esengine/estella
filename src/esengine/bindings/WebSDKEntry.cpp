@@ -524,9 +524,12 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
     emscripten::function("mesh_create", &esengine::mesh_create);
+    emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
+    emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("mesh2d_setMesh", &esengine::mesh2d_setMesh);
     emscripten::function("mesh2d_makeResident", &esengine::mesh2d_makeResident);
     emscripten::function("mesh2d_makeAllResident", &esengine::mesh2d_makeAllResident);
+    emscripten::function("mesh2d_setMeshAll", &esengine::mesh2d_setMeshAll);
 
     emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);

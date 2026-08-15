@@ -106,6 +106,18 @@ export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStat
 /** A texture whose content is a canvas SOMETHING ELSE draws on, re-taken on
  *  demand — the seam a service outside the engine needs to put another
  *  runtime's pixels (an open data context, a host overlay) on a quad. */
+/**
+ * The `.esmesh` read/write door. Public because writing one is what an importer
+ * does — a glTF cook, a plugin's own format — and reading one has to agree with
+ * it exactly. `@beta`.
+ *
+ * @beta
+ */
+export {
+    MeshChannel, MeshChannelType, packChannels, encodeMesh, decodeMesh, encodeChannelTable,
+    type MeshChannelDesc, type MeshData,
+} from './asset/meshFormat';
+export type { MeshResult } from './asset/loaders/MeshAssetLoader';
 export { createCanvasTexture, type CanvasTexture } from './asset/canvasTexture';
 export type { GlImageSource } from './asset/glTextureUpload';
 

@@ -496,12 +496,11 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     layout.strides[1] = MESH_INSTANCE_STRIDE;
     layout.instanceStep[1] = true;
     u32 next = static_cast<u32>(channels.size());
-    const u32 firstInstanceLocation = next;
     for (u32 row = 0; row < 4; ++row) {
-        layout.attributes[next++] = {firstInstanceLocation + row, 4, GfxDataType::Float,
+        layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + row, 4, GfxDataType::Float,
                                      false, row * 16u, 1};
     }
-    layout.attributes[next++] = {firstInstanceLocation + 4, 4, GfxDataType::UnsignedByte,
+    layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 4, 4, GfxDataType::UnsignedByte,
                                  true, 64, 1};
     layout.attributeCount = next;
 

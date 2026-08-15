@@ -249,10 +249,69 @@ u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
     return handle.id();
 }
 
-// Freezes a Mesh2D's inline geometry onto the GPU: the same vertices, uploaded
-// once and drawn with a per-object transform instead of being rewritten into
-// every frame. The inline payload is cleared, so the two can never disagree.
+// Geometry from an .esmesh. The channel table arrives in the file's own layout
+// (8 bytes each), so the asset layer owns the FORMAT and the engine owns the
+// vertex layout it becomes. A channel's semantic is its attribute location.
+u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
+                            uintptr_t vertexPtr, u32 vertexBytes,
+                            uintptr_t indexPtr, u32 indexCount,
+                            f32 minX, f32 minY, f32 minZ,
+                            f32 maxX, f32 maxY, f32 maxZ) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm || channelCount == 0 || vertexStride == 0 || vertexBytes == 0 || indexCount == 0) return 0;
+    if (indexCount % 3 != 0) {
+        ES_LOG_WARN("mesh_createFromChannels: indexCount {} is not a triangle list", indexCount);
+        return 0;
+    }
+
+    const u8* table = boundarySpan<u8>(channelsPtr, static_cast<u64>(channelCount) * 8,
+                                       "mesh_createFromChannels.channels");
+    const u8* verts = boundarySpan<u8>(vertexPtr, vertexBytes, "mesh_createFromChannels.vertices");
+    const u32* indices = boundarySpan<u32>(indexPtr, indexCount, "mesh_createFromChannels.indices");
+    if (!table || !verts || !indices) return 0;
+
+    const u32 vertexCount = vertexBytes / vertexStride;
+    for (u32 i = 0; i < indexCount; ++i) {
+        if (indices[i] >= vertexCount) {
+            ES_LOG_WARN("mesh_createFromChannels: index {} out of range ({} vertices)",
+                        indices[i], vertexCount);
+            return 0;
+        }
+    }
+
+    GfxVertexAttribute channels[MAX_VERTEX_ATTRIBUTES];
+    if (channelCount > MAX_VERTEX_ATTRIBUTES) return 0;
+    for (u32 i = 0; i < channelCount; ++i) {
+        const u8* c = table + i * 8;
+        channels[i] = GfxVertexAttribute{
+            .location = c[0],
+            .components = c[1],
+            .type = c[2] == 1 ? GfxDataType::UnsignedByte : GfxDataType::Float,
+            .normalized = c[3] != 0,
+            .offset = static_cast<u32>(c[4]) | (static_cast<u32>(c[5]) << 8)
+                    | (static_cast<u32>(c[6]) << 16) | (static_cast<u32>(c[7]) << 24),
+            .bufferSlot = 0,
+        };
+    }
+
+    auto handle = rm->createMesh(ConstSpan<u8>(verts, vertexBytes),
+                                 ConstSpan<u32>(indices, indexCount),
+                                 ConstSpan<GfxVertexAttribute>(channels, channelCount), vertexStride,
+                                 glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ));
+    return handle.id();
+}
+
+/** @brief Releases a mesh and the buffers it owns. */
+void mesh_release(u32 meshHandle) {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+        rm->releaseMesh(resource::MeshHandle(meshHandle));
+    }
+}
+
 namespace {
+// Freezes a Mesh2D's inline geometry onto the GPU: the same vertices, uploaded
+// once and drawn with a per-object transform. The inline payload is cleared, so
+// the two can never disagree.
 u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     if (!mesh || !rm || mesh->vertices.empty() || mesh->indices.empty()) return 0;
@@ -285,6 +344,21 @@ u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
 
 u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity) {
     return freezeMeshGeometry(registry.tryGet<ecs::Mesh2D>(Entity::fromRaw(entity)));
+}
+
+u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
+    u32 pointed = 0;
+    for (auto entity : registry.view<ecs::Mesh2D>()) {
+        auto* mesh = registry.tryGet<ecs::Mesh2D>(entity);
+        if (!mesh) continue;
+        mesh->mesh = resource::MeshHandle(meshHandle);
+        // Cleared: an entity carrying both draws the resident geometry, so a
+        // leftover payload would hide a mesh that never arrived.
+        mesh->vertices.clear();
+        mesh->indices.clear();
+        ++pointed;
+    }
+    return pointed;
 }
 
 u32 mesh2d_makeAllResident(ecs::Registry& registry) {

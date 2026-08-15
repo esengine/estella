@@ -21,6 +21,7 @@ import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger } from './AssetRefLedger';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
+import { MeshAssetLoader } from './loaders/MeshAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
@@ -1679,6 +1680,7 @@ export class Assets {
         this.materialLoader_ = new MaterialAssetLoader();
         this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
+        this.register(new MeshAssetLoader(() => this.module_));
         // The audio loader needs the AudioAPI outside load() too (unload /
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));
