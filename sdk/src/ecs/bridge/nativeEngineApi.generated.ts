@@ -45,6 +45,7 @@ export interface NativeEngineApi {
     engine_getCpuScopes?(): string;
     engine_getGpuScopes?(): string;
     engine_setCpuProfiling?(on: boolean): void;
+    engine_setRandomSeed?(seed: number): void;
     geometry_create?(): number;
     geometry_init?(handle: number, verticesPtr: number, vertexCount: number, layoutPtr: number, layoutCount: number, dynamic: boolean): void;
     geometry_isValid?(handle: number): boolean;
@@ -105,6 +106,7 @@ export interface NativeEngineApi {
     renderFrameWithMatrix?(registry: unknown, viewportWidth: number, viewportHeight: number, matrixPtr: number): void;
     renderer_begin?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_beginFrame?(elapsedSec: number): void;
+    renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
     renderer_clearAllClipRects?(): void;
     renderer_clearAllStencilMasks?(): void;
@@ -136,6 +138,7 @@ export interface NativeEngineApi {
     renderer_getTriangles?(): number;
     renderer_hasCapturedData?(): boolean;
     renderer_init?(width: number, height: number): void;
+    renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
     renderer_pollSnapshotReadback?(): number;
     renderer_releaseTarget?(handle: number): void;
@@ -164,8 +167,10 @@ export interface NativeEngineApi {
     renderer_submitSprites?(registry: unknown): void;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
     renderer_submitUIElements?(registry: unknown): void;
+    renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
+    rm_createCompressedTexture?(rm: unknown, width: number, height: number, format: number, dataPtr: number, dataLen: number, mipLevels: number): number;
     rm_createLabelAtlasFont?(rm: unknown, textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
     rm_createShader?(rm: unknown, vertSrc: string, fragSrc: string): number;
     rm_createTexture?(rm: unknown, width: number, height: number, pixelsPtr: number, pixelsLen: number, format: number, flipY: boolean): number;
@@ -185,6 +190,7 @@ export interface NativeEngineApi {
     rm_retargetExternalTexture?(rm: unknown, handle: number, glTextureId: number, width: number, height: number): boolean;
     rm_setTextureBudget?(rm: unknown, bytes: number): void;
     rm_setTextureMetadata?(rm: unknown, handleId: number, left: number, right: number, top: number, bottom: number): void;
+    rm_supportsCompressedFormat?(rm: unknown, format: number): boolean;
     rm_trimTextureCache?(rm: unknown): number;
     rm_updateTextureSubregion?(rm: unknown, handleId: number, x: number, y: number, width: number, height: number, pixelsPtr: number, pixelsLen: number): void;
     tilemap_advanceAnimations?(entity: number, dtMs: number): void;
@@ -278,6 +284,7 @@ export function createNativeEngineApi(
     bind('engine_getCpuScopes', 'es_engine_getCpuScopes', false);
     bind('engine_getGpuScopes', 'es_engine_getGpuScopes', false);
     bind('engine_setCpuProfiling', 'es_engine_setCpuProfiling', false);
+    bind('engine_setRandomSeed', 'es_engine_setRandomSeed', false);
     bind('geometry_create', 'es_geometry_create', false);
     bind('geometry_init', 'es_geometry_init', false);
     bind('geometry_isValid', 'es_geometry_isValid', false);
@@ -338,6 +345,7 @@ export function createNativeEngineApi(
     bind('renderFrameWithMatrix', 'es_renderFrameWithMatrix', true);
     bind('renderer_begin', 'es_renderer_begin', false);
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);
+    bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
     bind('renderer_clearAllClipRects', 'es_renderer_clearAllClipRects', false);
     bind('renderer_clearAllStencilMasks', 'es_renderer_clearAllStencilMasks', false);
@@ -369,6 +377,7 @@ export function createNativeEngineApi(
     bind('renderer_getTriangles', 'es_renderer_getTriangles', false);
     bind('renderer_hasCapturedData', 'es_renderer_hasCapturedData', false);
     bind('renderer_init', 'es_renderer_init', false);
+    bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
     bind('renderer_pollSnapshotReadback', 'es_renderer_pollSnapshotReadback', false);
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
@@ -397,8 +406,10 @@ export function createNativeEngineApi(
     bind('renderer_submitSprites', 'es_renderer_submitSprites', true);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_submitUIElements', 'es_renderer_submitUIElements', true);
+    bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
     bind('rm_acquireTextureByPath', 'es_rm_acquireTextureByPath', true);
+    bind('rm_createCompressedTexture', 'es_rm_createCompressedTexture', true);
     bind('rm_createLabelAtlasFont', 'es_rm_createLabelAtlasFont', true);
     bind('rm_createShader', 'es_rm_createShader', true);
     bind('rm_createTexture', 'es_rm_createTexture', true);
@@ -418,6 +429,7 @@ export function createNativeEngineApi(
     bind('rm_retargetExternalTexture', 'es_rm_retargetExternalTexture', true);
     bind('rm_setTextureBudget', 'es_rm_setTextureBudget', true);
     bind('rm_setTextureMetadata', 'es_rm_setTextureMetadata', true);
+    bind('rm_supportsCompressedFormat', 'es_rm_supportsCompressedFormat', true);
     bind('rm_trimTextureCache', 'es_rm_trimTextureCache', true);
     bind('rm_updateTextureSubregion', 'es_rm_updateTextureSubregion', true);
     bind('tilemap_advanceAnimations', 'es_tilemap_advanceAnimations', false);

@@ -9,9 +9,13 @@
 #include "../core/Types.hpp"
 #include "../core/Log.hpp"
 
+// Not under the emscripten guard below: this TU compiles for native too, and the
+// device is what `rm_supportsCompressedFormat` asks — a forward declaration
+// reaches its members on neither target.
+#include "../renderer/rhi/GfxDevice.hpp"
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
-#include "../renderer/rhi/GfxDevice.hpp"
 #endif
 
 namespace esengine {
