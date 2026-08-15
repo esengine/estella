@@ -53,6 +53,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **One attribute vocabulary for both vertex sources.** The 2D batch reads
+  `0=position, 1=color, 2=texCoord`; the mesh channels were written
+  `0=Position, 1=TexCoord0, 2=Color`. Neither was wrong alone, which is the
+  problem — a shader written against one samples the other's colour as a UV, and
+  only the frame says so. `MeshChannel` now matches the batch for its first
+  three, and the engine's own uploads name their channels by semantic rather
+  than repeating literal locations.
+
+  This also closes something the resident path opened: a material's shader is
+  built for the batch vertex source, so drawing GPU-resident geometry with one
+  would place it at its local origin and leave the instance attributes
+  unconsumed. Until a material can be compiled FOR this vertex source, the mesh
+  program wins and the material is reported once rather than silently obeyed.
+
 - **A mesh's normals light it.** `applyLighting2D` has always taken a normal —
   the 2D path passes it the constant (0,0,1), because a sprite has no other — and
   Light2D already carried Point, Directional, Ambient and Spot with a position
