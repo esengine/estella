@@ -117,6 +117,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The editor's eye can turn.** A model imported from a glTF could only be
+  looked at head-on: the editor view stood on the -Z axis with no way off it,
+  which is fine for 2D and useless for anything with a back. Alt-drag now orbits
+  it (the DCC gesture), in both projections — an orthographic view turned
+  off-axis is the isometric one. Pitch stops short of the poles, where the up
+  vector is parallel to the view and the frame would roll.
+
+  The orbit is the general case and the 2D view its yaw = pitch = 0 special case:
+  the matrix built there is asserted to be, cell for cell, the one that path
+  always built, so turning the feature on cannot move a 2D scene. Screen→world
+  was already a ray against the z-plane rather than an axis-aligned inverse, so
+  picking, dragging and framing follow the turn — the gate hit-tests through the
+  orbited view to hold that. A turned view offers the way back in the viewport's
+  own toolbar.
+
 - **A material can draw geometry that carries normals.** Since materials learned
   the mesh vertex source, one could only be used on geometry WITHOUT normals: a
   vertex layout may not declare an attribute its shader ignores, and the engine's
