@@ -156,6 +156,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A compressed model is still a model.** Geometry arriving meshopt-compressed
+  was reported as unimportable and skipped — an honest answer, but it left the
+  common case of a model off the internet as a file nothing could open, since
+  gltfpack and glTF-Transform write it by default. `EXT_meshopt_compression`
+  compresses bufferVIEWS, and a decoded view is exactly the bytes the view already
+  declares, so accessors, strides, sparse overrides and images are untouched by
+  the decode. Import is async now: that await is also what lets a Draco decoder be
+  loaded only when a Draco file turns up. A meshopt fallback buffer — a length and
+  no uri, by design — is no longer reported as a file that could not be read.
+
 - **The viewport says which way it faces.** Alt-drag turns the editor's eye, and
   nothing said where it had ended up — a reset button was the whole vocabulary,
   so "which way am I looking" and "put me square-on to that side" had no answer.
