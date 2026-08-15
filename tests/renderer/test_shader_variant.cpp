@@ -240,9 +240,10 @@ static void testWGSLEmission() {
 
     ParsedShader lit = ShaderParser::parse(WGSL_TWIN_LIT);
     const std::string litVs = wgsl(lit, ShaderStage::Vertex);
-    // .xy, not the whole position: the batch vertex carries a z now, and the
-    // lighting varying is a vec2 because 2D lighting works in the XY plane.
-    CHECK(litVs.find("out.v_worldPos = v.a_position.xy;") != std::string::npos,
+    // From `world`, not from the attribute: the same stage serves two vertex
+    // sources, and under MESH the position is local until the model matrix has
+    // been applied. .xy because 2D lighting works in that plane.
+    CHECK(litVs.find("out.v_worldPos = world.xy;") != std::string::npos,
           "Lit2D canonical WGSL vertex forwards world position");
     const std::string litFs = wgsl(lit, ShaderStage::Fragment);
     CHECK(litFs.find("@location(2) v_worldPos : vec2f,") != std::string::npos,
@@ -360,7 +361,8 @@ static void testFragmentOnly() {
     ParsedShader lit = ShaderParser::parse(FRAG_ONLY_LIT);
     CHECK(lit.valid, "fragment-only Lit2D shader parses");
     const std::string lv = ShaderParser::assembleStage(lit, ShaderStage::Vertex);
-    CHECK(lv.find("v_worldPos = a_position") != std::string::npos, "Lit2D canonical vertex forwards world position");
+    CHECK(lv.find("v_worldPos = world.xy;") != std::string::npos,
+          "Lit2D canonical vertex forwards world position");
     const std::string lf = ShaderParser::assembleStage(lit, ShaderStage::Fragment);
     CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
 

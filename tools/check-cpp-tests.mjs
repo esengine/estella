@@ -147,12 +147,37 @@ try {
     process.exit(0);
 }
 
+/** Where a built harness landed — the layout differs by generator. */
+function harnessBinary(target) {
+    const candidates = [
+        path.join(BUILD, 'bin', target),
+        path.join(BUILD, 'bin', `${target}.exe`),
+        path.join(BUILD, 'bin', 'Release', `${target}.exe`),
+    ];
+    return candidates.find((c) => existsSync(c)) ?? null;
+}
+
 const built = [];
 const absent = [];
 for (const target of buildable) {
     const run = spawnSync('cmake', ['--build', BUILD, '-j', '8', '--target', target], { encoding: 'utf8' });
     const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-    if (run.status === 0) { built.push(target); continue; }
+    if (run.status === 0) {
+        // Compiling is half the claim. A harness that builds and then fails its
+        // assertions is a red CI job this gate would otherwise call green — which
+        // is how two stale shader-variant assertions sat behind a broken build.
+        const binary = harnessBinary(target);
+        const ran = binary ? spawnSync(binary, [], { encoding: 'utf8' }) : null;
+        if (ran && ran.status !== 0) {
+            console.error(`check-cpp-tests: ${target} builds but does not pass.\n`);
+            console.error(`${ran.stdout ?? ''}${ran.stderr ?? ''}`.split('\n')
+                .filter((l) => /FAIL|error|assert/i.test(l)).slice(0, 12).join('\n'));
+            console.error(`\nReproduce: ${path.relative(ROOT, binary)}`);
+            process.exit(1);
+        }
+        built.push(target);
+        continue;
+    }
     // A target the native configure never produced is not a broken one: some are
     // declared behind an option this tree does not set. Saying which is the
     // difference between a gate and a green light. MSB1009 is matched by code
@@ -165,6 +190,6 @@ for (const target of buildable) {
     process.exit(1);
 }
 
-console.log(`check-cpp-tests: ${built.length} harness(es) build`
+console.log(`check-cpp-tests: ${built.length} harness(es) build and pass`
     + `${absent.length ? `; ${absent.length} not configured here (${absent.join(', ')})` : ''}`
     + `; ${skip.size} link the engine and are CI's to judge (${[...skip].join(', ')}).`);
