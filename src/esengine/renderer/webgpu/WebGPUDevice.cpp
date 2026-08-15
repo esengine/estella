@@ -1564,6 +1564,9 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         // second camera — must reuse the one it already holds; re-acquiring
         // after releasing it returns an error, and every draw after that is
         // dropped, which is a black screen with nothing else wrong.
+        // A web boot logs one "Destroyed texture used in a submit" from a frame
+        // that is never ended; the frames are correct and it happens once. See
+        // docs/REARCH_RENDER.md §9 for what was measured and what it costs.
         if (!frame_view_) {
             WGPUSurfaceTexture st{};
             wgpuSurfaceGetCurrentTexture(surface_, &st);
