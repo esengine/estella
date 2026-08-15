@@ -170,6 +170,7 @@ retargetExternalTexture: ((handle: number, glTextureId: number, width: number, h
 setTextureBudget: (bytes: number) => void
 setTextureMetadata: (handle: number, left: number, right: number, top: number, bottom: number) => void
 supportsCompressedFormat: ((format: number) => boolean) | undefined
+texturesAwaitingReupload: (() => string) | undefined
 trimTextureCache: () => number
 updateTextureSubregion: (handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number) => void
 updateTextureSubregionFromBytes: ((handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array) => void) | undefined
@@ -250,7 +251,7 @@ initRenderer: () => void
 initRendererWebGPU: (canvasSelector: string, width: number, height: number, readback: boolean, preferBGRA: boolean) => boolean
 initRendererWithCanvas: (canvasSelector: string) => boolean
 initRendererWithContext: (contextHandle: number) => boolean
-markDeviceRestored: (() => void) | undefined
+markDeviceRestored: (() => number) | undefined
 material_compileEsshader: (source: string, featuresCsv: string) => number
 material_define: (materialId: number, shaderHandle: number, blendMode: number, flags: number) => void
 material_setTexture: (materialId: number, name: string, textureHandle: number) => void

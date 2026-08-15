@@ -59,12 +59,10 @@ public:
 
     /**
      * @brief Ends recovery — if the content is actually back.
-     * @details The engine holds this criterion, so declaring the device whole
-     *          is not the caller's to assert: a loss parks every texture on the
-     *          placeholder and lists it until something re-uploads it. A caller
-     *          that restored half of them would otherwise report Live and draw
-     *          the other half white, which is the state hardest to diagnose —
-     *          the report says healthy and the screen disagrees.
+     * @details The engine holds the criterion, so declaring the device whole is
+     *          not the caller's to assert: one that restored half its textures
+     *          would report Live and draw the rest white, the hardest state to
+     *          read — the report says healthy and the screen disagrees.
      * @return Textures still on the placeholder; 0 means the device is Live.
      */
     u32 finishDeviceRecovery();

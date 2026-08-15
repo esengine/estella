@@ -367,15 +367,10 @@ export class Assets {
     }
 
     /**
-     * The textures the engine says are still the placeholder, with the path each
-     * was registered under.
-     *
-     * This list is the engine's, not a mirror of this cache: a loss sweeps EVERY
-     * texture onto the placeholder, including the ones another subsystem
-     * uploaded, and recovering only the ones this layer happens to remember is
-     * how a device reports itself whole while half the screen is white. An empty
-     * path is a texture the asset layer never loaded — a render target, a glyph
-     * atlas — and belongs to whoever created it.
+     * The textures still on the placeholder, and the path each was registered
+     * under — the engine's list, not a mirror of this cache. A loss sweeps every
+     * texture, so restoring only what this layer remembers reports a whole
+     * device with half the screen white. A blank path is not the asset layer's.
      */
     texturesAwaitingReupload(): { handle: number; path: string }[] {
         const raw = requireResourceManager().texturesAwaitingReupload?.() ?? '';

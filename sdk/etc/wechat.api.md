@@ -782,6 +782,7 @@ setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
 setSpineController: (controller: SpineModuleController) => void
 setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
+texturesAwaitingReupload: () => { handle: number; path: string; }[]
 static create: (options: AssetsOptions) => AssetsClass
 static new (options: AssetsOptions): AssetsClass
 static prototype: AssetsClass
@@ -9671,7 +9672,7 @@ EventBindingPlugin
 
 ## finishDeviceRecovery — function @experimental
 ```
-(): void
+(): number
 ```
 
 ## flattenPrefab — function @experimental

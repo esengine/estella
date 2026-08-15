@@ -334,12 +334,9 @@ void ResourceManager::setTextureBudget(usize bytes) {
 TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
     auto handle = textures_.findByPath(path);
     if (!handle.isValid()) return handle;
-    // A texture parked on the placeholder no longer holds this path's content,
-    // so answering a load with it hands back the very thing the load exists to
-    // replace. The re-upload after a device loss is exactly such a load: it
-    // would revive the placeholder, retarget the handle onto it, and report the
-    // content restored — a recovery that confirms itself and draws white.
-    // Linear because this list is empty except inside a recovery window.
+    // A texture on the placeholder no longer holds this path's content, so a
+    // residency hit answers the re-upload with the very thing it replaces — a
+    // recovery that confirms itself and draws white. Linear: empty at rest.
     for (TextureHandle awaiting : awaitingReupload_) {
         if (awaiting == handle) return TextureHandle{};
     }

@@ -132,11 +132,9 @@ bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
 }
 
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm) {
-    // One crossing, because a loss parks EVERY texture at once — asking per
-    // handle would be a call per texture on the frame after a loss. An empty
-    // path names a texture no asset layer can bring back (a render target, a
-    // glyph atlas); it belongs to whoever created it, and saying so is what
-    // lets the caller tell "not mine" from "mine and I failed".
+    // One crossing: a loss parks every texture at once, so a call per handle is
+    // a call per texture. A blank path is one no asset layer can bring back —
+    // it lets the caller tell "not mine" from "mine and I failed".
     std::string out;
     for (resource::TextureHandle handle : rm.texturesAwaitingReupload()) {
         if (!out.empty()) out += '\n';

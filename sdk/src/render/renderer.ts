@@ -212,12 +212,9 @@ export function recoverDevice(): boolean {
 }
 
 /**
- * Ends recovery — the engine decides whether it actually ended.
- *
- * Returns the number of textures still on the placeholder. Anything above zero
- * leaves the device Recovering, because a device that reports Live while half
- * its content is a white placeholder is the hardest failure to read: the status
- * says healthy and the screen disagrees.
+ * Ends recovery — the engine decides whether it actually ended, and answers how
+ * many textures are still the placeholder. Above zero it stays Recovering: a
+ * device reporting Live with white content is the hardest failure to read.
  */
 export function finishDeviceRecovery(): number {
     return module?.markDeviceRestored?.() ?? 0;

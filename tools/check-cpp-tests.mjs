@@ -52,12 +52,9 @@ function enginelinked() {
 
 const targets = harnessTargets();
 
-// The other direction, and the one that actually bit: CI's list is treated as
-// authoritative everywhere, so a harness the test tree declares but the list
-// omits is built by nobody and run by nobody — the exact failure the list was
-// introduced to end, arriving from the side it does not look at.
-// `test_device_loss` sat there. This half needs no compiler, so unlike the
-// build below it runs on every machine.
+// The other direction: a harness the test tree declares and CI's list omits is
+// built by nobody and run by nobody — the failure that list exists to end,
+// from the side it never looks at. No compiler needed, so this half always runs.
 const uncovered = declaredHarnesses().filter((t) => !targets.includes(t));
 if (uncovered.length) {
     console.error(`check-cpp-tests: tests/CMakeLists.txt declares ${uncovered.join(', ')},`
