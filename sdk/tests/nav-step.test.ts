@@ -94,7 +94,31 @@ describe('stepNavigation', () => {
             frames++;
         }
         expect(world.agent(e).arrived).toBe(true);
-        expect(world.pos(e).x).toBeCloseTo(90, 1);
+        // Within the agent's arrive radius of the goal, not standing on it.
+        const at = world.pos(e);
+        expect(Math.hypot(at.x - 90, at.y - 0)).toBeLessThanOrEqual(6);
+    });
+
+    it('stops at arriveRadius, so an agent can be told to keep its distance', () => {
+        // The field is the whole point: an agent chasing something must be able
+        // to stop short of it rather than walk onto it.
+        const nav = new Navigation();
+        nav.setGrid(new NavGrid({ width: 20, height: 3, cellSize: 10 }));
+        const world = new FakeWorld();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        const e = world.spawnAgent(0, 0, {
+            speed: 150, repathInterval: 0, hasTarget: true, targetX: 150, targetY: 0, arriveRadius: 40,
+        });
+
+        let frames = 0;
+        while (!world.agent(e).arrived && frames < 200) {
+            stepNavigation(world, nav, 0.05, runtimes);
+            frames++;
+        }
+        expect(world.agent(e).arrived).toBe(true);
+        const stopped = world.pos(e);
+        expect(150 - stopped.x).toBeLessThanOrEqual(40);
+        expect(150 - stopped.x).toBeGreaterThan(20);
     });
 
     it('does not move an agent toward an unreachable target', () => {

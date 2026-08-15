@@ -96,7 +96,13 @@ export function stepNavigation(
         tf.position.y = pos.y;
         world.set(entity, Transform, tf);
 
-        if (rt.index >= rt.waypoints.length) {
+        // Arrival is a DISTANCE, not the end of the list: an agent that has to
+        // stop short of what it is chasing never reaches the last waypoint, and
+        // one that walks the path exactly stands on top of its target.
+        const goal = rt.waypoints[rt.waypoints.length - 1];
+        const withinGoal = goal !== undefined && agent.arriveRadius > 0
+            && Math.hypot(goal.x - pos.x, goal.y - pos.y) <= agent.arriveRadius;
+        if (rt.index >= rt.waypoints.length || withinGoal) {
             agent.arrived = true;
             agent.hasTarget = false;
             world.set(entity, NavAgent, agent);
