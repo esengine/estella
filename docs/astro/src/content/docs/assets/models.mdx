@@ -109,12 +109,21 @@ so a track cannot drive the wrong one; that name is what the prefab shows.
 
 `LINEAR`, `STEP` and `CUBICSPLINE` all carry across, tangents included.
 
-<Aside type="caution" title="A skinned character will not deform">
-Node animation moves the nodes — which for a rigged model means the joints move and the
-mesh bound to them does not follow, because skinning is not implemented. The import says so
-when it happens. Models whose parts are separate nodes (machines, doors, props, camera
-moves) animate exactly as authored.
-</Aside>
+## Skinning
+
+A rigged model comes in rigged: the mesh carries its joint indices, weights and bind pose,
+and the prefab gives the entity a `MeshSkin` naming the joint entities in the order those
+matrices are in. Moving a joint — by hand, or by the animation above — deforms the mesh.
+
+A skinned mesh's **own** transform is ignored, which glTF requires: its joints are already
+placed in the world, so moving the mesh entity does nothing. Move the rig's root, or the
+joints.
+
+| Limit | Why |
+|---|---|
+| 64 joints per mesh | The pose is a uniform block, which is 4KB at that size — inside what a WebGL2 block is guaranteed. A mesh wanting more draws undeformed. |
+| A material is not applied to a skinned mesh | Its program is compiled for a vertex source that reads a model matrix, and a skinned one does not have one. |
+| Joint count must match the bind pose | A mesh whose `MeshSkin` names a different number of joints draws undeformed rather than with vertices resolved against the wrong matrices. |
 
 ## Compressed geometry
 
@@ -130,7 +139,6 @@ when it runs.
 | Not imported | Why |
 |---|---|
 | `metallicFactor`, `roughnessFactor`, `metallicRoughnessTexture` | Shading metal needs a view direction, and these lights are 2D. A factor nothing reads would be a knob that lies. |
-| Skinning (`JOINTS_0`/`WEIGHTS_0`), skins | A rigged model comes in as static geometry, and a clip driving its joints says so. |
 | Morph targets, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
 | A second UV set (`TEXCOORD_1`), `KHR_texture_transform` | UVs are used as authored. |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
