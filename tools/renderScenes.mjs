@@ -44,6 +44,10 @@ export const SCENES = [
   // cell here, so the whole grid steps right by one and the left column empties.
   // It rides the per-frame origin, not the cached chunk vertices.
   { id: "tilemap-origin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"TilemapLayer\",\"key\":\"originOffset\",\"value\":[16,0]}", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.60,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.80,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.60,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.40,\"y\":0.36,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A glTF animation, through the shipped importer. The scene puts the quad at
+  // x=150 and the clip runs -120 to 120 over a second, so 30 fixed steps is its
+  // midpoint: the model is at the origin and where the SCENE put it is empty.
+  { id: "model-animation", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/model-animation.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "30", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.875,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.2,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // Cells the atlas does not hold, both ways one can be asked for: an id past a
   // 2x2 tileset, and four declared columns over a two-column atlas. The in-range
   // cells still draw — a layer that stopped drawing satisfies empty probes alone.

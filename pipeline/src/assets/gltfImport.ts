@@ -12,6 +12,7 @@
 /// <reference path="./draco3dgltf.d.ts" />
 import {
     MeshChannel, MeshChannelType, packChannels, encodeMesh, PREFAB_FORMAT_VERSION,
+    TIMELINE_FORMAT_VERSION,
     MATERIAL_FORMAT_VERSION, BlendMode, CullMode,
     type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
@@ -103,6 +104,13 @@ export interface ImportedNode {
     children: ImportedNode[];
 }
 
+/** One glTF animation as the `.estimeline` document it will be written to. */
+export interface ImportedAnimation {
+    /** `<stem>_<animation name>` — named for the file it will be written to. */
+    name: string;
+    document: Record<string, unknown>;
+}
+
 export interface GltfImportResult {
     meshes: ImportedMesh[];
     /** Images extracted from the file itself; external ones stay where they are. */
@@ -112,6 +120,8 @@ export interface GltfImportResult {
     externalFiles: string[];
     /** The scene's node roots. Empty for a file with no nodes, whose meshes then sit flat. */
     nodes: ImportedNode[];
+    /** The file's animations, each addressing nodes by their path under the prefab. */
+    animations: ImportedAnimation[];
     /** What was skipped and why — a silent drop is how half a model goes missing. */
     warnings: string[];
 }
@@ -194,7 +204,11 @@ interface GltfJson {
         matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
     }[];
     skins?: unknown[];
-    animations?: unknown[];
+    animations?: {
+        name?: string;
+        channels: { sampler: number; target: { node?: number; path: string } }[];
+        samplers: { input: number; output: number; interpolation?: string }[];
+    }[];
     scenes?: { nodes?: number[] }[];
     scene?: number;
 }
@@ -714,7 +728,194 @@ function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
         return { index, name: node.name ?? `node_${index}`, ...nodeTrs(node), meshes, children };
     };
 
-    return roots.map(build).filter((n): n is ImportedNode => n !== null);
+    const built = roots.map(build).filter((n): n is ImportedNode => n !== null);
+    disambiguate(built);
+    return built;
+}
+
+/**
+ * Make sibling names unique. An animation channel addresses its node by the path
+ * of names from the root, so two siblings called "Arm" would leave a track
+ * driving whichever the walk reached first — the wrong half of the model. glTF
+ * allows the duplicate, so the import settles it and the products agree.
+ */
+function disambiguate(nodes: ImportedNode[]): void {
+    const used = new Set<string>();
+    for (const node of nodes) {
+        if (used.has(node.name)) node.name = `${node.name}_${node.index}`;
+        used.add(node.name);
+        disambiguate(node.children);
+    }
+}
+
+/**
+ * Each node's path of names from the prefab root, matching what
+ * {@link assembleGltfPrefab} builds: a lone root node IS the prefab root (empty
+ * path), while several roots hang under a holder and so carry their own name.
+ */
+export function nodeChildPaths(nodes: ImportedNode[]): Map<number, string> {
+    const paths = new Map<number, string>();
+    const walk = (node: ImportedNode, prefix: string): void => {
+        const path = prefix ? `${prefix}/${node.name}` : node.name;
+        paths.set(node.index, path);
+        for (const child of node.children) walk(child, path);
+    };
+    if (nodes.length === 1 && nodes[0]) {
+        paths.set(nodes[0].index, '');
+        for (const child of nodes[0].children) walk(child, '');
+    } else {
+        for (const node of nodes) walk(node, '');
+    }
+    return paths;
+}
+
+/** glTF's sampler interpolation → the engine's, which spells the same curves. */
+const INTERPOLATION: Record<string, string> = {
+    LINEAR: 'linear', STEP: 'step', CUBICSPLINE: 'hermite',
+};
+
+/** Which Transform channels a glTF animation path writes, in component order. */
+const ANIMATED_PATHS: Record<string, { property: string; channels: string[] }> = {
+    translation: { property: 'position', channels: ['position.x', 'position.y', 'position.z'] },
+    scale: { property: 'scale', channels: ['scale.x', 'scale.y', 'scale.z'] },
+    // glTF stores a rotation as (x, y, z, w) — the components, in that order.
+    rotation: { property: 'rotation', channels: ['rotation.x', 'rotation.y', 'rotation.z', 'rotation.w'] },
+};
+
+interface OutKeyframe { time: number; value: number; inTangent: number; outTangent: number; interpolation: string }
+
+/**
+ * A quaternion and its negation are the same rotation, and interpolating the
+ * four numbers takes the LONG way round whenever consecutive keyframes point
+ * apart. Flipping the sign here means the products already describe the short
+ * arc, so nothing downstream has to decide it per frame.
+ */
+function alignQuaternionSigns(frames: OutKeyframe[][]): void {
+    if (frames.length !== 4) return;
+    for (let k = 1; k < (frames[0]?.length ?? 0); k++) {
+        let dot = 0;
+        for (let c = 0; c < 4; c++) dot += frames[c]![k]!.value * frames[c]![k - 1]!.value;
+        if (dot >= 0) continue;
+        for (let c = 0; c < 4; c++) {
+            const kf = frames[c]![k]!;
+            kf.value = -kf.value;
+            kf.inTangent = -kf.inTangent;
+            kf.outTangent = -kf.outTangent;
+        }
+    }
+}
+
+/**
+ * One sampler's keyframes, split into one list per component. CUBICSPLINE stores
+ * each key as `[inTangent, value, outTangent]`, and its tangents are already per
+ * second — the units the evaluator multiplies by the segment length — so the
+ * three land in the three fields a keyframe has with no conversion.
+ */
+function samplerKeyframes(times: Float32Array, values: Float32Array,
+                          comps: number, interpolation: string): OutKeyframe[][] {
+    const cubic = interpolation === 'CUBICSPLINE';
+    const interp = INTERPOLATION[interpolation] ?? 'linear';
+    const out: OutKeyframe[][] = Array.from({ length: comps }, () => []);
+    for (let k = 0; k < times.length; k++) {
+        for (let c = 0; c < comps; c++) {
+            const at = cubic ? (3 * k + 1) * comps + c : k * comps + c;
+            out[c]!.push({
+                time: times[k] ?? 0,
+                value: values[at] ?? 0,
+                inTangent: cubic ? (values[3 * k * comps + c] ?? 0) : 0,
+                outTangent: cubic ? (values[(3 * k + 2) * comps + c] ?? 0) : 0,
+                interpolation: interp,
+            });
+        }
+    }
+    return out;
+}
+
+/**
+ * A glTF animation as an `.estimeline` document. Channels are grouped per target
+ * node, since a track drives one component on one entity and the runtime reads
+ * and writes that component once per track.
+ */
+function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
+                        stem: string, warnings: string[]): ImportedAnimation[] {
+    const animations = json.animations ?? [];
+    if (animations.length === 0) return [];
+    const paths = nodeChildPaths(nodes);
+    const skinned = new Set<number>();
+    for (const [i, node] of (json.nodes ?? []).entries()) if (node.skin !== undefined) skinned.add(i);
+
+    const out: ImportedAnimation[] = [];
+    for (const [index, animation] of animations.entries()) {
+        const name = animation.name || `animation_${index}`;
+        // childPath -> property -> keyframes, so one node's channels form one track.
+        const byNode = new Map<string, { node: string; channels: Map<string, OutKeyframe[]> }>();
+        let duration = 0;
+        let drivesSkin = false;
+
+        for (const channel of animation.channels ?? []) {
+            const target = channel.target?.node;
+            const spec = ANIMATED_PATHS[channel.target?.path ?? ''];
+            if (target === undefined || !paths.has(target)) continue;
+            if (!spec) {
+                warnings.push(`${name}: "${channel.target?.path}" channels are not imported`
+                    + ' (morph target weights need blend shapes)');
+                continue;
+            }
+            const sampler = animation.samplers?.[channel.sampler];
+            if (!sampler) continue;
+            const times = readAccessor(src, sampler.input);
+            const values = readAccessor(src, sampler.output);
+            if (times.length === 0 || values.length === 0) continue;
+            if (skinned.has(target)) drivesSkin = true;
+
+            const comps = spec.channels.length;
+            const frames = samplerKeyframes(times, values, comps, sampler.interpolation ?? 'LINEAR');
+            if (spec.property === 'rotation') alignQuaternionSigns(frames);
+            duration = Math.max(duration, times[times.length - 1] ?? 0);
+
+            const path = paths.get(target)!;
+            const entry = byNode.get(path)
+                ?? { node: nodeNameFor(nodes, target), channels: new Map<string, OutKeyframe[]>() };
+            spec.channels.forEach((property, c) => entry.channels.set(property, frames[c]!));
+            byNode.set(path, entry);
+        }
+
+        if (byNode.size === 0) {
+            warnings.push(`${name}: no channel targets a node this import produced`);
+            continue;
+        }
+        if (drivesSkin) {
+            warnings.push(`${name}: drives skinned nodes — the joints move, but the mesh bound to`
+                + ' them does not deform (skinning is not implemented)');
+        }
+        out.push({
+            // A source's animation name is whatever the tool wrote (spaces, dots,
+            // a slash), and it becomes a file name here.
+            name: `${stem}_${name.replace(/[^\w.-]+/g, '_')}`,
+            document: {
+                version: TIMELINE_FORMAT_VERSION,
+                type: 'timeline',
+                duration,
+                // glTF says nothing about looping, and the import does not guess.
+                wrapMode: 'once',
+                tracks: [...byNode].map(([childPath, entry]) => ({
+                    type: 'property', name: entry.node, childPath, component: 'Transform',
+                    channels: [...entry.channels].map(([property, keyframes]) => ({ property, keyframes })),
+                })),
+            },
+        });
+    }
+    return out;
+}
+
+/** A node's own name, for the track label. */
+function nodeNameFor(nodes: ImportedNode[], index: number): string {
+    for (const node of nodes) {
+        if (node.index === index) return node.name;
+        const hit = nodeNameFor(node.children, index);
+        if (hit) return hit;
+    }
+    return '';
 }
 
 /**
@@ -930,18 +1131,16 @@ export async function importGltfMeshes(
         });
     });
 
-    // A rigged, animated source arrives as still geometry; that is a property of
-    // the import worth stating once for the file rather than per primitive.
+    // A rigged source arrives as still geometry; that is a property of the import
+    // worth stating once for the file rather than per primitive.
     if (json.skins?.length) warnings.push(`${json.skins.length} skin(s) not imported`);
-    if (json.animations?.length) {
-        warnings.push(`${json.animations.length} animation(s) not imported`);
-    }
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }
+    const nodes = readNodes(json, meshIndexOf, warnings);
     return {
-        meshes, textures, externalFiles,
-        nodes: readNodes(json, meshIndexOf, warnings), warnings,
+        meshes, textures, externalFiles, nodes, warnings,
+        animations: readAnimations(json, src, nodes, stem, warnings),
     };
 }
 
@@ -965,6 +1164,9 @@ export interface PrefabAssembly {
     nodes?: ImportedNode[];
     /** Uniform scale on the root: a glTF is in metres, a world unit is a design pixel. */
     scale?: number;
+    /** The clip the root's player points at — the products say what they have,
+     *  and it is left stopped because what to play is the scene's decision. */
+    timeline?: string;
 }
 
 /** How a component spells a reference to an image: a project-relative path. */
@@ -1159,6 +1361,13 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
             entities.push(entity(id, mesh.name, 'root',
                                  [transformComponent(), meshComponent(mesh, name, refs)]));
         });
+    }
+    // The player rides the root, which is the entity a clip's childPaths are
+    // resolved from — the same root the tracks were addressed against.
+    if (options.timeline && entities[0]) {
+        entities[0].components.push({ type: 'TimelinePlayer', data: {
+            timeline: options.timeline, playing: false,
+        } });
     }
     return {
         version: PREFAB_FORMAT_VERSION, name,

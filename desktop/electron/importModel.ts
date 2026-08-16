@@ -49,7 +49,7 @@ export async function importModel(root: string, destDir: string, absSource: stri
   const projectRef = (abs: string): string =>
     path.relative(path.resolve(root), abs).split(path.sep).join('/');
 
-  const { meshes, textures, nodes, externalFiles, warnings } = await importGltfMeshes(
+  const { meshes, textures, nodes, animations, externalFiles, warnings } = await importGltfMeshes(
     new Uint8Array(readFileSync(absSource)), stem,
     (uri) => {
       const abs = path.join(sourceDir, decodeURIComponent(uri));
@@ -118,8 +118,14 @@ export async function importModel(root: string, destDir: string, absSource: stri
   for (const material of materialProducts(meshes, stem, refs)) {
     await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`);
   }
+  let firstClip: string | undefined;
+  for (const animation of animations) {
+    const rel = await write(`${animation.name}.estimeline`,
+                            `${JSON.stringify(animation.document, null, 2)}\n`);
+    firstClip ??= rel;
+  }
   if (meshes.length > 0) {
-    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes, scale });
+    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes, scale, timeline: firstClip });
     await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
     // A glTF is in metres and a world unit is a design pixel, so a real-world
     // model arrives a few pixels across. Said, not guessed at: the scale is the

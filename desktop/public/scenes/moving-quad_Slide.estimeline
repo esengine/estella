@@ -1,0 +1,73 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 1,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Mover",
+      "childPath": "",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -120,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 120,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

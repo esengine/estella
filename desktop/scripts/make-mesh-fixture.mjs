@@ -29,9 +29,11 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 // — the spelling a component carries, resolved from the served root.
 // model-material: the three channels only a material can carry — emission,
 // occlusion, an alpha cutoff — one quad each.
+// moving-quad: one node with a translation clip, which is what a node animation
+// is once nothing is skinned — the products include its `.estimeline`.
 for (const name of ['two-triangles.gltf', 'lit-triangles.gltf', 'white-triangles.gltf',
                     'textured-quad.gltf', 'node-tree.gltf', 'normalmap-quad.gltf',
-                    'model-material.gltf']) {
+                    'model-material.gltf', 'moving-quad.gltf']) {
   const run = spawnSync(process.execPath,
     [cli, 'import-gltf', path.join(scenes, name), '--project', path.join(HERE, '..', 'public')], {
       stdio: 'inherit',

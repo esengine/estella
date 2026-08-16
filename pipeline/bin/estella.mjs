@@ -184,7 +184,7 @@ if (opts.command === 'import-gltf') {
           external: (uri) => projectRef(path.resolve(sourceDir, uri)) }
       : {};
 
-    const { meshes, textures, nodes, warnings } = await importer.importGltfMeshes(
+    const { meshes, textures, nodes, animations, warnings } = await importer.importGltfMeshes(
       new Uint8Array(readFileSync(opts.source)), stem,
       (uri) => {
         const abs = path.join(sourceDir, uri);
@@ -226,9 +226,19 @@ if (opts.command === 'import-gltf') {
       await adopt(outFile);
       report(outFile, Object.keys(material.data.properties).join(', '));
     }
+    let firstClip;
+    for (const animation of animations) {
+      const outFile = path.join(dir, `${animation.name}.estimeline`);
+      writeFileSync(outFile, `${JSON.stringify(animation.document, null, 2)}\n`);
+      await adopt(outFile);
+      const tracks = animation.document.tracks.length;
+      report(outFile, `${animation.document.duration}s, ${tracks} track${tracks === 1 ? '' : 's'}`);
+      firstClip ??= `${refs.prefix ?? ''}${animation.name}.estimeline`;
+    }
     if (meshes.length > 0) {
       const outFile = path.join(dir, `${stem}.esprefab`);
-      const prefab = importer.assembleGltfPrefab(stem, meshes, { refs, nodes, scale: opts.scale });
+      const prefab = importer.assembleGltfPrefab(
+        stem, meshes, { refs, nodes, scale: opts.scale, timeline: firstClip });
       writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
       await adopt(outFile);
       report(outFile, `${prefab.entities.length} entit${prefab.entities.length === 1 ? 'y' : 'ies'}`);

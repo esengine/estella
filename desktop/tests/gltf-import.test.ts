@@ -284,10 +284,10 @@ describe('glTF material import', () => {
     expect(meshes[0]!.material?.baseColorTexture?.settings?.wrapMode).toBe('clamp');
   });
 
-  it('reports deformation it cannot carry: skins, morph targets, animations', async () => {
+  it('reports deformation it cannot carry: skins and morph targets', async () => {
     const doc = {
       ...withInlineImage(),
-      skins: [{}], animations: [{}],
+      skins: [{}],
       nodes: [{ mesh: 0, skin: 0 }], scenes: [{ nodes: [0] }], scene: 0,
     };
     const { warnings } = await importGltfMeshes(gltf(doc, [{
@@ -298,7 +298,6 @@ describe('glTF material import', () => {
     expect(line).toContain('2 morph target(s) not imported');
     expect(line).toContain('skinning is not imported');
     expect(line).toContain('1 skin(s) not imported');
-    expect(line).toContain('1 animation(s) not imported');
   });
 
   it('reports a uv rewrite it does not apply', async () => {
@@ -435,6 +434,16 @@ describe('glTF prefab assembly', () => {
     });
   });
 
+  it('points the root at a clip, stopped', async () => {
+    const prefab = await assemble(gltf({ ...withInlineImage(), ...oneNode }),
+                                  { timeline: 'assets/models/model_Spin.estimeline' });
+    // Stopped: the products say what the model HAS. Playing it is the scene's.
+    expect(prefab.entities[0]!.components.at(-1)).toEqual({
+      type: 'TimelinePlayer',
+      data: { timeline: 'assets/models/model_Spin.estimeline', playing: false },
+    });
+  });
+
   it('hangs a node’s further primitives off it', async () => {
     const two = [
       { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4 },
@@ -525,6 +534,141 @@ describe('glTF prefab assembly', () => {
       },
     });
     expect(prefab.entities[0]!.components[1]!.data.texture).toBe('assets/textures/skin.png');
+  });
+});
+
+/**
+ * A glTF whose animation sampler data is appended to the geometry buffer.
+ * Accessors 0-2 are the triangle; 3 is the sampler input, 4 its output.
+ */
+function animatedGltf(opts: {
+  times: number[]; values: number[]; components: number;
+  path?: string; interpolation?: string;
+  nodes?: unknown[]; targetNode?: number; skins?: unknown[];
+}): Uint8Array {
+  const geo = geometryBuffer();
+  const geoBytes = Buffer.from(geo.uri.split(',')[1]!, 'base64');
+  const pad = Buffer.alloc((4 - (geoBytes.length % 4)) % 4);
+  const times = Buffer.from(new Float32Array(opts.times).buffer);
+  const values = Buffer.from(new Float32Array(opts.values).buffer);
+  const bytes = Buffer.concat([geoBytes, pad, times, values]);
+  const timesAt = geoBytes.length + pad.length;
+  const type = ['SCALAR', '', 'VEC2', 'VEC3', 'VEC4'][opts.components]!;
+
+  const doc = {
+    asset: { version: '2.0' },
+    buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+    bufferViews: [
+      ...(geo.views as Record<string, unknown>[]),
+      { buffer: 0, byteOffset: timesAt, byteLength: times.length },
+      { buffer: 0, byteOffset: timesAt + times.length, byteLength: values.length },
+    ],
+    accessors: [
+      ...(geo.accessors as Record<string, unknown>[]),
+      { bufferView: 3, componentType: 5126, count: opts.times.length, type: 'SCALAR' },
+      { bufferView: 4, componentType: 5126, count: opts.values.length / opts.components, type },
+    ],
+    meshes: [{ name: 'Tri', primitives: [{ attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, mode: 4 }] }],
+    nodes: opts.nodes ?? [{ name: 'Root', children: [1] }, { name: 'Spinner', mesh: 0 }],
+    scenes: [{ nodes: [0] }],
+    scene: 0,
+    ...(opts.skins ? { skins: opts.skins } : {}),
+    animations: [{
+      name: 'Spin',
+      channels: [{ sampler: 0, target: { node: opts.targetNode ?? 1, path: opts.path ?? 'rotation' } }],
+      samplers: [{ input: 3, output: 4, interpolation: opts.interpolation ?? 'LINEAR' }],
+    }],
+  };
+  return new TextEncoder().encode(JSON.stringify(doc));
+}
+
+describe('glTF animation import', () => {
+  const HALF = Math.SQRT1_2;
+
+  it('turns a rotation channel into four component channels on the target node', async () => {
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0, 1], values: [0, 0, 0, 1, 0, HALF, 0, HALF], components: 4,
+    }), 'robot');
+
+    expect(result.animations).toHaveLength(1);
+    const doc = result.animations[0]!.document as any;
+    expect(result.animations[0]!.name).toBe('robot_Spin');
+    expect(doc.duration).toBe(1);
+    expect(doc.tracks).toHaveLength(1);
+    // The lone root IS the prefab root, so its child is addressed by its name.
+    expect(doc.tracks[0].childPath).toBe('Spinner');
+    expect(doc.tracks[0].component).toBe('Transform');
+    expect(doc.tracks[0].channels.map((c: any) => c.property))
+      .toEqual(['rotation.x', 'rotation.y', 'rotation.z', 'rotation.w']);
+    const y = doc.tracks[0].channels[1].keyframes;
+    expect(y[0]).toMatchObject({ time: 0, value: 0, interpolation: 'linear' });
+    expect(y[1].value).toBeCloseTo(HALF, 6);
+  });
+
+  it('carries a CUBICSPLINE tangent into the keyframe it belongs to', async () => {
+    // Per key: [inTangent, value, outTangent] — one scalar-per-component triple.
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0, 1], components: 3, path: 'translation', interpolation: 'CUBICSPLINE',
+      values: [
+        0, 0, 0, /* v0 */ 0, 0, 0, /* out */ 2, 0, 0,
+        3, 0, 0, /* v1 */ 10, 0, 0, /* out */ 0, 0, 0,
+      ],
+    }), 'robot');
+
+    const x = (result.animations[0]!.document as any).tracks[0].channels[0].keyframes;
+    expect(x[0]).toMatchObject({ value: 0, inTangent: 0, outTangent: 2, interpolation: 'hermite' });
+    expect(x[1]).toMatchObject({ value: 10, inTangent: 3, outTangent: 0 });
+  });
+
+  it('flips a quaternion keyframe that would interpolate the long way round', async () => {
+    // 170° about Y, then the SAME rotation written negated: component-wise that
+    // is a 190° turn backwards unless the sign is aligned.
+    const s = Math.sin((170 * Math.PI) / 180 / 2);
+    const c = Math.cos((170 * Math.PI) / 180 / 2);
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0, 1], components: 4, values: [0, s, 0, c, -0, -s, -0, -c],
+    }), 'robot');
+
+    const ch = (result.animations[0]!.document as any).tracks[0].channels;
+    const yEnd = ch[1].keyframes[1].value;
+    const wEnd = ch[3].keyframes[1].value;
+    expect(yEnd).toBeCloseTo(s, 6);
+    expect(wEnd).toBeCloseTo(c, 6);
+  });
+
+  it('gives two siblings of the same name distinct paths', async () => {
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0], components: 3, path: 'translation', values: [1, 2, 3], targetNode: 2,
+      nodes: [
+        { name: 'Root', children: [1, 2] },
+        { name: 'Arm', mesh: 0 },
+        { name: 'Arm' },
+      ],
+    }), 'robot');
+
+    const paths = result.nodes[0]!.children.map(n => n.name);
+    expect(paths).toEqual(['Arm', 'Arm_2']);
+    expect((result.animations[0]!.document as any).tracks[0].childPath).toBe('Arm_2');
+  });
+
+  it('says a skinned node moves joints the mesh will not follow', async () => {
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0, 1], components: 4, values: [0, 0, 0, 1, 0, HALF, 0, HALF],
+      skins: [{ joints: [1] }],
+      nodes: [{ name: 'Root', children: [1] }, { name: 'Spinner', mesh: 0, skin: 0 }],
+    }), 'robot');
+
+    expect(result.animations).toHaveLength(1);
+    expect(result.warnings.some(w => /joints move/.test(w))).toBe(true);
+  });
+
+  it('reports a morph-weight channel rather than dropping it', async () => {
+    const result = await importGltfMeshes(animatedGltf({
+      times: [0, 1], components: 1, path: 'weights', values: [0, 1],
+    }), 'robot');
+
+    expect(result.animations).toHaveLength(0);
+    expect(result.warnings.some(w => /weights/.test(w))).toBe(true);
   });
 });
 

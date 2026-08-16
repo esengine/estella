@@ -1,0 +1,125 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "estella test fixture"
+  },
+  "buffers": [
+    {
+      "byteLength": 92,
+      "uri": "data:application/octet-stream;base64,AABwwgAAcMIAAAAAAABwQgAAcMIAAAAAAABwwgAAcEIAAAAAAABwQgAAcEIAAAAAAAACAAEAAQACAAMAAAAAAAAAgD8AAPDCAAAAAAAAAAAAAPBCAAAAAAAAAAA="
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 48
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 48,
+      "byteLength": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 60,
+      "byteLength": 8
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 68,
+      "byteLength": 24
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3",
+      "min": [
+        -60,
+        -60,
+        0
+      ],
+      "max": [
+        60,
+        60,
+        0
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 6,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 2,
+      "type": "SCALAR",
+      "min": [
+        0
+      ],
+      "max": [
+        1
+      ]
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 2,
+      "type": "VEC3"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Quad",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "Mover",
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0,
+  "animations": [
+    {
+      "name": "Slide",
+      "channels": [
+        {
+          "sampler": 0,
+          "target": {
+            "node": 0,
+            "path": "translation"
+          }
+        }
+      ],
+      "samplers": [
+        {
+          "input": 2,
+          "output": 3,
+          "interpolation": "LINEAR"
+        }
+      ]
+    }
+  ]
+}
