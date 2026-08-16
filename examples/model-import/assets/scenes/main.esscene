@@ -9,8 +9,25 @@
       "children": [],
       "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 110, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 110,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ]
     },
     {
@@ -20,15 +37,49 @@
       "children": [],
       "visible": true,
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Light2D", "data": { "type": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "direction": { "x": 0, "y": 0 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "direction": {
+              "x": 0,
+              "y": 0
+            },
+            "enabled": true
+          }
+        }
       ]
     },
     {
       "id": 2,
       "parent": null,
       "prefab": "assets/models/robot.esprefab",
-      "overrides": [],
+      "overrides": [
+        {
+          "prefabEntityId": "n0",
+          "type": "property",
+          "componentType": "TimelinePlayer",
+          "propertyName": "playing",
+          "value": true
+        }
+      ],
       "added": [],
       "removed": []
     }

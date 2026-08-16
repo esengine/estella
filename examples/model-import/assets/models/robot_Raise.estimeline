@@ -1,0 +1,73 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 0.25,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Banner",
+      "childPath": "Banner",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 110,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "value": 160,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

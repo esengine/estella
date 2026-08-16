@@ -52,7 +52,7 @@ export const CAPABILITIES = [
   'ecs', 'particles', 'audio',
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
-  'model-import',
+  'model-import', 'model-animation',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -90,6 +90,8 @@ export const EVIDENCE = {
   // The products, not the source: a .gltf in the project proves an import ran,
   // and a scene referencing an .esmesh proves the products are what it draws.
   'model-import': /\.esmesh\b/,
+  // The clip the import wrote, referenced by the prefab the scene places.
+  'model-animation': /\.estimeline\b/,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
   'tile-collision': /\b(collision|Collider|tileCollision)\b/,
@@ -176,7 +178,7 @@ export const GOLDEN = [
   },
   {
     id: 'model-import',
-    certifies: ['model-import'],
+    certifies: ['model-import', 'model-animation'],
     targets: ['web'],
     tier: 'pr',
     // Nothing in it responds to input: the scene is a placed model, and the

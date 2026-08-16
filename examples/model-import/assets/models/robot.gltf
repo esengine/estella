@@ -5,8 +5,8 @@
   },
   "buffers": [
     {
-      "byteLength": 280,
-      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAA=="
+      "byteLength": 312,
+      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAAAAAAAAAIA+AAAAAAAA3EIAAAAAAAAAAAAAIEMAAAAA"
     }
   ],
   "bufferViews": [
@@ -49,6 +49,16 @@
       "buffer": 0,
       "byteOffset": 268,
       "byteLength": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 280,
+      "byteLength": 8
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 24
     }
   ],
   "accessors": [
@@ -119,6 +129,24 @@
       "componentType": 5123,
       "count": 6,
       "type": "SCALAR"
+    },
+    {
+      "bufferView": 8,
+      "componentType": 5126,
+      "count": 2,
+      "type": "SCALAR",
+      "min": [
+        0
+      ],
+      "max": [
+        0.25
+      ]
+    },
+    {
+      "bufferView": 9,
+      "componentType": 5126,
+      "count": 2,
+      "type": "VEC3"
     }
   ],
   "images": [
@@ -247,5 +275,26 @@
       ]
     }
   ],
-  "scene": 0
+  "scene": 0,
+  "animations": [
+    {
+      "name": "Raise",
+      "channels": [
+        {
+          "sampler": 0,
+          "target": {
+            "node": 2,
+            "path": "translation"
+          }
+        }
+      ],
+      "samplers": [
+        {
+          "input": 8,
+          "output": 9,
+          "interpolation": "LINEAR"
+        }
+      ]
+    }
+  ]
 }
