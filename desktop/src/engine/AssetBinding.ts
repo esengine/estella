@@ -53,7 +53,7 @@ class AssetBindingImpl {
     const r = this.preload;
     if (!path || !r) return 0;
     return r.materialHandles.get(path) ?? r.fontHandles.get(path)
-        ?? r.meshHandles.get(path) ?? 0;
+        ?? r.meshHandles.get(path) ?? r.environmentHandles.get(path) ?? 0;
   }
 
   /** The live material handle for @p path, or 0 — the Material Editor pushes
