@@ -1,0 +1,116 @@
+---
+title: 模型
+description: glTF/GLB 导入 —— 导入写出什么、模型怎么进场景、Scale 设置、重新导入、哪些材质通道会变成 .esmaterial、Draco 与 meshopt、以及哪些东西只报告不导入。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+引擎画 mesh，而它只加载一种 mesh 格式：`.esmesh`。`.gltf` / `.glb` 是**源文件**，不是资源
+——把它带进项目会跑一次导入，写出场景真正能引用的那些资源。
+
+本页讲的就是这次导入。画出结果的那个组件见[组件参考](/docs/zh-cn/reference/components/graphics/)；
+材质整体见[材质](/docs/zh-cn/graphics/materials/)。
+
+## 导入一个模型
+
+三个入口，同一次导入：
+
+| 方式 | 会发生什么 |
+|---|---|
+| 把 `.gltf`/`.glb` 拖进内容浏览器 | 源文件（连同它引用的文件）被拷进项目并导入。 |
+| 直接放进项目目录 | 编辑器会发现并导入它 —— `git checkout`、访达里拷贝、Blender 重新导出，都算。 |
+| `estella import-gltf <file> [outDir] --project <dir>` | 命令行里的同一次导入。`--scale <n>` 决定大小。 |
+
+产物落在**源文件旁边**，而不是内容浏览器当前显示的目录：重新导入必须覆盖同一批文件。
+
+## 导入写出什么
+
+以带两个 primitive、一张内嵌图的 `robot.gltf` 为例：
+
+| 产物 | 是什么 |
+|---|---|
+| `robot_0_0.esmesh`、`robot_1_0.esmesh` | 每个 primitive 一个几何文件，命名 `<stem>_<mesh>_<primitive>`（只有一个时就是 `<stem>`）。 |
+| `robot_0.png` | 文件内嵌的图片。已经在磁盘上的图片只被引用，不会复制。 |
+| `robot_m0.esmaterial` | **仅当**源材质说了 `Mesh2D` 装不下的东西时才写 —— 见[材质](#材质)。 |
+| `robot.esprefab` | 各部分怎么组装：节点层级，每个 `Mesh2D` 带上自己的 mesh、贴图、tint 和开关。 |
+
+把 **prefab** 拖进场景。单个 `.esmesh` 也是资源（`Mesh2D.mesh` 字段可以直接引用），
+但 prefab 才是作者组装好的那个模型。
+
+<Aside type="caution" title="产物会被重写">
+重新导入会替换每一个产物。手工改过的 `.esprefab` 会丢失；正确做法是在场景里放一个实例、改那个实例。
+</Aside>
+
+## Scale
+
+glTF 以**米**为单位。一个世界单位是一个**设计像素**。所以一个 1.7 米高的角色进来只有
+1.7 个单位高 —— 几个像素 —— 除非你另行指定。
+
+导入器不猜这个系数。模型进来很小的时候它会说出来，而修正它的那个数字就是源文件导入设置里的
+`Scale`（在内容浏览器里选中 `.gltf`）。保存它会重新导入这个模型。
+
+`Scale` 落在 prefab 根节点的 `Transform` 上，**不会烘进几何** —— `.esmesh` 保持与源一致，
+而那个数字始终看得见、改得动。
+
+## 重新导入
+
+以下情况会重新跑一次导入：
+
+- 源文件变了（重新导出覆盖了旧的）；
+- 在内容浏览器里对它选择 **Reimport**；
+- 保存了一项导入设置。
+
+资源 uuid 会保留，所以引用这些产物的场景和 prefab 继续有效。
+
+## 材质
+
+一个 glTF 材质按「谁装得下」拆开。
+
+**落在 `Mesh2D` 组件上** —— base color，因为引擎的 mesh 通路本来就是
+`texture(uv) × 顶点色 × tint`：
+
+| glTF | 组件字段 |
+|---|---|
+| `baseColorTexture` | `texture` |
+| `baseColorFactor` | `color` |
+| `alphaMode` 不是 `BLEND` | `opaque` |
+| `doubleSided: false` | `cullBackfaces` |
+| 带 `NORMAL` 属性 | `lit: true` |
+
+**落在 `.esmaterial` 里** —— 着色，那是逐材质的常量和采样器，组件没有地方放。
+只在源文件用到它们时才写，基于内建的 **Model** shader：
+
+| glTF | 材质参数 |
+|---|---|
+| `normalTexture` | `u_normalMap` |
+| `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
+| `occlusionTexture`（含 `strength`） | `u_occlusionMap` / `u_occlusionStrength` |
+| `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+
+材质还会把这次 draw 的混合、深度和剔除重述一遍 —— 因为材质会**替换**它们，
+这样一个被要求自我遮挡的模型，在有了材质之后仍然自我遮挡。
+
+## 压缩几何
+
+`EXT_meshopt_compression` 与 `KHR_draco_mesh_compression` 在导入时解码，所以压缩过的导出件
+产出与未压缩件相同的 `.esmesh`。运行时什么都不变：压缩是源文件的属性，不是产物的属性。
+
+## 只报告、不导入的东西
+
+导入器不会无声丢弃任何东西 —— 它带不过来的，都会在导入时作为提示出现。
+
+| 不导入 | 为什么 |
+|---|---|
+| `metallicFactor`、`roughnessFactor`、`metallicRoughnessTexture` | 算金属高光要 view 方向，而这里的灯光是 2D 的。写进产物却没人读，那就是个会撒谎的旋钮。 |
+| 蒙皮（`JOINTS_0`/`WEIGHTS_0`）、skin | 绑定好的模型会以静态几何进来。 |
+| 动画、morph target | 不导入；几何就是绑定姿势。 |
+| 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform` | UV 按作者写的原样使用。 |
+| 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
+| `normalTexture.scale` | 法线贴图按全强度应用。 |
+
+## 值得知道的限制
+
+- 点光的距离在 XY 平面上算（2D 光照模型固有）；**方向光是精确的**，而那通常正是着色一个模型需要的。
+- 自己写了 vertex stage 的材质**不会**被重定向到 mesh 几何上 —— 那样它会无视 per-object transform。
+  只写 fragment 的材质两边都能用。
+- 没有 `NORMAL` 属性的几何仍然会受光，落在 2D 表面那个常量法线上 —— 平，但不是黑的。

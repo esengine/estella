@@ -1,0 +1,126 @@
+---
+title: Models
+description: Importing glTF/GLB — what the import writes, how a model reaches a scene, the Scale setting, re-importing, which material channels become an .esmaterial, Draco and meshopt, and what is reported rather than imported.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The engine draws meshes, and it loads exactly one mesh format: `.esmesh`. A `.gltf` or
+`.glb` is a **source**, not an asset — bringing one into a project runs an import that
+writes the assets a scene can actually reference.
+
+That import is the subject of this page. For the component that draws the result see
+[the component reference](/docs/reference/components/graphics/); for materials in general see
+[Materials](/docs/graphics/materials/).
+
+## Importing a model
+
+Three doors, one import:
+
+| How | What happens |
+|---|---|
+| Drag a `.gltf`/`.glb` onto the Content Browser | The source is copied in (with the files it points at) and imported. |
+| Put one in the project folder | The editor notices and imports it — a `git checkout`, a copy in Finder, a re-export from Blender. |
+| `estella import-gltf <file> [outDir] --project <dir>` | The same import, on the command line. `--scale <n>` sizes it. |
+
+Products land **beside the source**, not in whatever folder the browser is showing:
+re-importing has to overwrite the same files.
+
+## What the import writes
+
+For `robot.gltf` with two primitives and one image:
+
+| Product | What it is |
+|---|---|
+| `robot_0_0.esmesh`, `robot_1_0.esmesh` | One per primitive — geometry, named `<stem>_<mesh>_<primitive>` (just `<stem>` for a single one). |
+| `robot_0.png` | Images the file carries inline. An image already on disk is referenced, never copied. |
+| `robot_m0.esmaterial` | Only when the source's material says something a `Mesh2D` cannot — see [Materials](#materials). |
+| `robot.esprefab` | How the pieces go together: the node hierarchy, each `Mesh2D` with its mesh, texture, tint and flags. |
+
+Drag the **prefab** into a scene. The individual `.esmesh` files are assets too — a
+`Mesh2D.mesh` field takes one directly — but the prefab is the model as authored.
+
+<Aside type="caution" title="Products are rewritten">
+Re-importing replaces every product. Edits made to a generated `.esprefab` are lost;
+place an instance in a scene and edit that instead.
+</Aside>
+
+## Scale
+
+A glTF is authored in **metres**. A world unit is a **design pixel**. A 1.7 m character
+therefore arrives 1.7 units tall — a couple of pixels — unless you say otherwise.
+
+The import does not guess a factor. It tells you when a model came in small, and the
+number that fixes it is `Scale` in the source's Import Settings (select the `.gltf` in the
+Content Browser). Saving it re-imports the model.
+
+`Scale` lands on the prefab root's `Transform`, never baked into the geometry — the
+`.esmesh` stays faithful to the source, and the number stays visible and editable.
+
+## Re-importing
+
+An import runs again when:
+
+- the source file changes (re-exported over the top of the old one);
+- **Reimport** is chosen on it in the Content Browser;
+- an import setting is saved.
+
+Asset uuids survive, so scenes and prefabs that reference the products keep working.
+
+## Materials
+
+A glTF material is split by what can carry it.
+
+**On the `Mesh2D` component** — base colour, because that is what the engine's mesh path
+already is (`texture(uv) × vertexColor × tint`):
+
+| glTF | Component field |
+|---|---|
+| `baseColorTexture` | `texture` |
+| `baseColorFactor` | `color` |
+| `alphaMode` ≠ `BLEND` | `opaque` |
+| `doubleSided: false` | `cullBackfaces` |
+| a `NORMAL` attribute | `lit: true` |
+
+**In an `.esmaterial`** — shading, which is per-material constants and samplers a
+component has no room for. Written only when the source uses one of them, on the built-in
+**Model** shader:
+
+| glTF | Material parameter |
+|---|---|
+| `normalTexture` | `u_normalMap` |
+| `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
+| `occlusionTexture` (+ `strength`) | `u_occlusionMap` / `u_occlusionStrength` |
+| `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+
+The material also restates the draw's blending, depth and culling, because a material
+replaces them — a model told to occlude itself keeps doing so through its material.
+
+## Compressed geometry
+
+`EXT_meshopt_compression` and `KHR_draco_mesh_compression` are decoded during import, so a
+compressed export produces the same `.esmesh` as an uncompressed one. Nothing about the
+runtime changes: compression is a property of the source file, not of the product.
+
+## What is reported, not imported
+
+The import never drops anything in silence — whatever it cannot carry appears as a note
+when it runs.
+
+| Not imported | Why |
+|---|---|
+| `metallicFactor`, `roughnessFactor`, `metallicRoughnessTexture` | Shading metal needs a view direction, and these lights are 2D. A factor nothing reads would be a knob that lies. |
+| Skinning (`JOINTS_0`/`WEIGHTS_0`), skins | A rigged model comes in as static geometry. |
+| Animations, morph targets | Not imported; the geometry is the bind pose. |
+| A second UV set (`TEXCOORD_1`), `KHR_texture_transform` | UVs are used as authored. |
+| Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
+| `normalTexture.scale` | The map is applied at full strength. |
+
+## Limits worth knowing
+
+- Point lights measure distance in the XY plane (the 2D lighting model); **directional
+  lights are exact**, which is what a shaded model usually wants.
+- A material that writes its own vertex stage is not redirected onto mesh geometry — it
+  would ignore the per-object transform. Fragment-only materials work on both.
+- Geometry with no `NORMAL` attribute still takes light, off the constant normal a 2D
+  surface has — flat, but not black.
