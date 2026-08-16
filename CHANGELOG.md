@@ -101,6 +101,32 @@ published separately; it ships inside the editor.
   Documents written before this keep their meaning: `rotation.z` migrates to
   `rotation.angle`, asserted by sampling the clip rather than by comparing names.
 
+- **The lighting model, in its general form.** A Lit-2D shader can now call
+  `applyLightingPBR(albedo, N, worldPos, V, metallic, roughness, specular, ao)`
+  — the same lights, taken through a microfacet BRDF (GGX distribution, Smith
+  geometry, Schlick fresnel). It is not a second lighting path beside the old
+  one: `applyLighting2D` is defined as this call with `metallic = 0`,
+  `roughness = 1` and `specular = 0`, which leaves `albedo * NdotL` — pixel for
+  pixel, byte for byte, what a lit sprite has always drawn. Both backends'
+  injected headers carry it, so the two agree by construction.
+
+  Two choices made that identity reachable rather than approximate. The pi that
+  separates a Lambert `albedo · NdotL` from a physical `albedo/π · NdotL` is
+  cancelled against the engine's light intensity instead of being applied to
+  one side, so the diffuse expression is unchanged term for term. And
+  `specular` is glTF's specularFactor, scaling the whole lobe rather than only
+  F0 — at zero, Schlick's grazing-angle rim would otherwise survive and tint
+  every existing sprite's edges.
+
+- **A frame knows where it is seen from.** The camera's world position now rides
+  in the frame block, which a specular term needs and no material can know. It
+  is recovered from the view-projection itself rather than passed alongside it:
+  every path into the renderer — viewport, play, preview, replay, immediate —
+  already hands over exactly one matrix, and `inverse(VP)` applied to the clip
+  z axis answers with the eye point under perspective and with the direction
+  the camera looks along under orthographic, which has no eye point. So one
+  function serves both projections and no call site changed.
+
 ### Changed
 
 - **The frame block is declared once, by the engine.** Every shader used to
