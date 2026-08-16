@@ -171,6 +171,9 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec2 parallax;
         resource::TextureHandle singleTileset;  // single-tileset fallback source
         u32 singleColumns;
+        // Where this layer's grid starts. A layer whose tiles are drawn from a
+        // LayerData has no component to author it on, so it starts at the origin.
+        glm::vec2 originOffset{0.0f, 0.0f};
         if (comp) {
             visible = comp->visible;
             sortLayer = comp->renderLayer;
@@ -180,6 +183,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             parallax = comp->parallaxFactor;
             singleTileset = comp->tileset;
             singleColumns = static_cast<u32>(comp->tilesetColumns);
+            originOffset = comp->originOffset;
         } else {
             visible = layer.visible;
             sortLayer = layer.sort_layer;
@@ -247,8 +251,11 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
         f32 parallaxOffsetX = cam.center.x * (1.0f - parallax.x);
         f32 parallaxOffsetY = cam.center.y * (1.0f - parallax.y);
-        f32 adjOriginX = originX + parallaxOffsetX;
-        f32 adjOriginY = originY + parallaxOffsetY;
+        // The layer's own offset rides here rather than in the chunk vertices:
+        // those are cached, and this is read every frame, so moving the grid is
+        // live in the editor and costs no rebuild.
+        f32 adjOriginX = originX + parallaxOffsetX + originOffset.x;
+        f32 adjOriginY = originY + parallaxOffsetY + originOffset.y;
 
         // Visible chunk window. A chunk's screen position is only cx*CHUNK*tw /
         // cy*CHUNK*th for an orthogonal grid; iso couples cx and cy, and

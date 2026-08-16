@@ -27,8 +27,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * says which, so the list reads as work rather than as permission.
  */
 const DECLARED_GAPS = {
-    'TilemapLayer.originOffset': "Tiled's per-tileset tileoffset, which the loader does not read either",
-    'TilemapLayer.tilesetRows': 'written by the Tiled loader; nothing bounds-checks a tile id against it yet',
+    'TilemapLayer.tilesetRows': 'written by the Tiled loader; a bounds check against it would read'
+        + ' its default of 1 as a one-row tileset and cut every layer that never set it',
 };
 
 const components = JSON.parse(
