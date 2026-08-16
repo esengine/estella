@@ -12,9 +12,7 @@
  * reads `raw.animFrames` into the in-memory `frames`).
  */
 
-import { wrapModeToName, TrackType, type TimelineAsset, type Track } from './TimelineTypes';
-
-const CURRENT_VERSION = '1.1';
+import { wrapModeToName, TrackType, TIMELINE_FORMAT_VERSION, type TimelineAsset, type Track } from './TimelineTypes';
 
 function serializeTrack(track: Track): Record<string, unknown> {
     const base = { type: track.type, name: track.name, childPath: track.childPath };
@@ -58,7 +56,7 @@ function serializeTrack(track: Track): Record<string, unknown> {
 /** Serialize to a plain JSON-ready object (the `.estimeline` document shape). */
 export function serializeTimelineAsset(asset: TimelineAsset): Record<string, unknown> {
     return {
-        version: CURRENT_VERSION,
+        version: TIMELINE_FORMAT_VERSION,
         type: 'timeline',
         duration: asset.duration,
         wrapMode: wrapModeToName(asset.wrapMode),

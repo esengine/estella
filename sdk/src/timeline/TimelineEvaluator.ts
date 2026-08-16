@@ -23,8 +23,11 @@
 import { TrackType, InterpType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
+import { q } from '../math/quat';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
+
+const RAD2DEG = 180 / Math.PI;
 
 // ---------------------------------------------------------------------------
 // Core math — 1:1 port of TimelineSystem.cpp (keep in lock-step)
@@ -118,18 +121,35 @@ type FieldWriter = (data: any, value: number) => void;
 
 /**
  * Per-field writers for animatable paths whose JS shape differs from the raw
- * dot-path (so a generic `setNestedProperty` would corrupt them). This is the
- * TS seed of L1's generated reflection writer table; for now the only such case
- * is Transform rotation. Mirrors animTargets.generated.hpp exactly (value is the
- * full Z angle in radians; the quaternion uses the half-angle) so editor preview
- * matches the C++ runtime bit-for-bit.
+ * dot-path, so a generic `setNestedProperty` would corrupt them.
+ *
+ * `rotation.angle` is the Z turn in radians, and it COMPOSES: the other two axes
+ * survive it, so a clip turning a model about Z cannot flatten its pose. The
+ * four components are written raw, normalized in {@link finishQuaternions}.
  */
 const WRITER_OVERRIDES: Record<string, FieldWriter> = {
-    'Transform.rotation.z': (data, v) => {
-        const h = v * 0.5;
-        data.rotation = { w: Math.cos(h), x: 0, y: 0, z: Math.sin(h) };
+    'Transform.rotation.angle': (data, v) => {
+        data.rotation = q.setAngleZ(data.rotation, v * RAD2DEG);
     },
 };
+
+/** Component fields written component-wise that must end up unit length. */
+const QUATERNION_FIELDS: Record<string, readonly string[]> = {
+    Transform: ['rotation'],
+};
+
+/**
+ * Renormalize any quaternion a track wrote component-wise. Interpolating the
+ * four numbers independently lands INSIDE the unit sphere — about 0.92 halfway
+ * between two rotations 90° apart — and writing that scales the object.
+ * Normalized it traces the arc slerp would, differing only in angular speed.
+ */
+function finishQuaternions(data: any, component: string, touched: Set<string>): void {
+    for (const field of QUATERNION_FIELDS[component] ?? []) {
+        if (!touched.has(field)) continue;
+        data[field] = q.normalize(data[field]);
+    }
+}
 
 function applyField(data: any, component: string, property: string, value: number): boolean {
     const override = WRITER_OVERRIDES[`${component}.${property}`];
@@ -182,13 +202,20 @@ export function sampleTimeline(
 
         const data = deps.world.get(entity, def);
         let changed = false;
+        const touched = new Set<string>();
         for (const ch of track.channels) {
             if (!ch.keyframes || ch.keyframes.length === 0) continue;
             if (opts?.skipChannel?.(track.childPath, track.component, ch.property)) continue;
             const v = evaluateChannel(ch, time);
-            if (applyField(data, track.component, ch.property, v)) changed = true;
+            if (applyField(data, track.component, ch.property, v)) {
+                changed = true;
+                touched.add(ch.property.split('.')[0]!);
+            }
         }
-        if (changed) deps.world.set(entity, def, data);
+        if (changed) {
+            finishQuaternions(data, track.component, touched);
+            deps.world.set(entity, def, data);
+        }
     }
 }
 

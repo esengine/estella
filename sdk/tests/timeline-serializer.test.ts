@@ -3,10 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import { serializeTimelineAsset, serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
-import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
+import { WrapMode, TrackType, InterpType, TIMELINE_FORMAT_VERSION, type TimelineAsset } from '../src/timeline/TimelineTypes';
 
 const ASSET: TimelineAsset = {
-    version: '1.1',
+    version: '1.2',
     type: 'timeline',
     duration: 5,
     wrapMode: WrapMode.Loop,
@@ -42,7 +42,7 @@ const ASSET: TimelineAsset = {
 describe('TimelineSerializer', () => {
     it('encodes wrapMode as a string and AnimFrames under the on-disk key', () => {
         const doc = serializeTimelineAsset(ASSET) as any;
-        expect(doc.version).toBe('1.1');
+        expect(doc.version).toBe(TIMELINE_FORMAT_VERSION);
         expect(doc.wrapMode).toBe('loop');
         const frames = doc.tracks.find((t: any) => t.type === 'animFrames');
         expect(frames.animFrames).toHaveLength(2);

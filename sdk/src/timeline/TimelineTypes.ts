@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * The `.estimeline` format version. What the serializer stamps and what the
+ * loader migrates up to: two constants would let a document be written at a
+ * version its own reader thinks needs migrating.
+ */
+export const TIMELINE_FORMAT_VERSION = '1.2';
+
 export const WrapMode = {
     Once: 0,
     Loop: 1,

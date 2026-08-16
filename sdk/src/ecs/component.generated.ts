@@ -730,7 +730,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         assetFields: [],
         entityFields: [],
         colorFields: [],
-        animatableFields: ['position.x', 'position.y', 'position.z', 'rotation.z', 'scale.x', 'scale.y', 'scale.z'],
+        animatableFields: ['position.x', 'position.y', 'position.z', 'rotation.x', 'rotation.y', 'rotation.z', 'rotation.w', 'rotation.angle', 'scale.x', 'scale.y', 'scale.z'],
         replicatedFields: ['position', 'rotation', 'scale'],
         readonlyFields: ['worldPosition', 'worldRotation', 'worldScale'],
         fields: {

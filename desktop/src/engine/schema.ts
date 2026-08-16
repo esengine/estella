@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSkeletalFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
+import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSkeletalFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation, q } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, EntityId, InspectorField, InspectorFieldValue, EnumOption, GradientValue, CurveValue } from '@/types';
 import { t } from '@/i18n';
@@ -161,8 +161,6 @@ export function componentCategory(name: string, isUser = false): string {
 
 // — Field value inference (matches the JS data shape world.get/set use) —
 
-const RAD2DEG = 180 / Math.PI;
-const DEG2RAD = Math.PI / 180;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Word-split identifiers with acronym + digit-suffix awareness, so 'UIVisual'
@@ -183,48 +181,24 @@ type Quat = { x: number; y: number; z: number; w: number };
  * (0, 0, angle) and rebuilds exactly, so 2D content is untouched by this
  * existing; what it adds is the two axes a 2D control silently zeroed.
  */
-export const quatToEuler = (q: Quat): [number, number, number] => {
-  const { x, y, z, w } = q;
-  const r00 = 1 - 2 * (y * y + z * z);
-  const r10 = 2 * (x * y + w * z);
-  const r20 = 2 * (x * z - w * y);
-  const r21 = 2 * (y * z + w * x);
-  const r22 = 1 - 2 * (x * x + y * y);
-  // `+ 0` normalizes a negative zero, which an inspector would show as "-0".
-  const round = (rad: number) => Math.round(rad * RAD2DEG * 100) / 100 + 0;
-  const pitch = Math.asin(Math.max(-1, Math.min(1, -r20)));
-  // At a pole the outer two axes name the same turn; charge it all to Z, so the
-  // one a 2D scene uses is the one that survives a round trip through the pole.
-  if (Math.abs(r20) > 0.999999) {
-    const r01 = 2 * (x * y - w * z);
-    const r11 = 1 - 2 * (x * x + z * z);
-    return [0, round(pitch), round(Math.atan2(-r01, r11))];
-  }
-  return [round(Math.atan2(r21, r22)), round(pitch), round(Math.atan2(r10, r00))];
+/**
+ * The engine's euler conversion, rounded for display: two decimals, `+ 0` for a
+ * negative zero shown as "-0". Presentation, which is why it is not in the maths.
+ */
+export const quatToEuler = (rot: Quat): [number, number, number] => {
+  const round = (deg: number) => Math.round(deg * 100) / 100 + 0;
+  const [x, y, z] = q.toEuler(rot);
+  return [round(x), round(y), round(z)];
 };
 
-export const eulerToQuat = (deg: readonly number[]): Quat => {
-  const [hx, hy, hz] = [0, 1, 2].map((i) => ((deg[i] ?? 0) * DEG2RAD) / 2);
-  const [cx, cy, cz] = [Math.cos(hx!), Math.cos(hy!), Math.cos(hz!)];
-  const [sx, sy, sz] = [Math.sin(hx!), Math.sin(hy!), Math.sin(hz!)];
-  // w-FIRST key order on purpose: the quaternion discriminator treats a w-first
-  // layout as a rotation, so a USER component's quaternion field (not named
-  // rotation/worldRotation) keeps its rotation control after an edit instead of
-  // flipping to four vec4 boxes. The engine reads x/y/z/w by name — order is free.
-  return {
-    w: cx * cy * cz + sx * sy * sz,
-    x: sx * cy * cz - cx * sy * sz,
-    y: cx * sy * cz + sx * cy * sz,
-    z: cx * cy * sz - sx * sy * cz,
-  };
-};
+// The engine's Quat is w-FIRST, which is what `isQuaternion` keys on: a user
+// component's rotation field keeps its rotation control after an edit rather
+// than flipping to four vec4 boxes.
+export const eulerToQuat = (deg: readonly number[]): Quat => q.fromEuler(deg);
 
 /** Set the Z turn of a rotation, keeping whatever the other two axes say. What
  *  the viewport's rotate gizmo writes, so a drag cannot flatten a 3D pose. */
-export const setAngleZ = (q: Quat | undefined, deg: number): Quat => {
-  const e = q ? quatToEuler(q) : [0, 0, 0];
-  return eulerToQuat([e[0], e[1], deg]);
-};
+export const setAngleZ = (rot: Quat | undefined, deg: number): Quat => q.setAngleZ(rot, deg);
 
 // A rotation quaternion and a vec4 (Camera viewport rect, a 9-slice border) share the
 // exact {x,y,z,w} shape, so value-shape alone can't tell them apart — the engine's only

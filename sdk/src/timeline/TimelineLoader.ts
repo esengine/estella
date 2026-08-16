@@ -3,6 +3,7 @@
 import {
     wrapModeFromName,
     TrackType,
+    TIMELINE_FORMAT_VERSION,
     type TimelineAsset,
     type Track,
     type PropertyTrack,
@@ -15,8 +16,6 @@ import {
     type AnimFramesTrack,
 } from './TimelineTypes';
 import { log } from '../util/logger';
-
-const CURRENT_VERSION = '1.1';
 
 const STEP_TANGENT_THRESHOLD = 1e5;
 
@@ -38,6 +37,17 @@ const MIGRATIONS: [string, string, MigrationFn][] = [
             }
         }
     }],
+    // `rotation.z` named the Z EULER angle, not the quaternion's z component —
+    // the name a 3D rotation channel needs. The angle keeps its meaning under
+    // the name that says so, and a document written before this reads the same.
+    ['1.1', '1.2', (raw: any) => {
+        for (const track of raw.tracks ?? []) {
+            if (track.type !== TrackType.Property) continue;
+            for (const ch of track.channels ?? []) {
+                if (ch.property === 'rotation.z') ch.property = 'rotation.angle';
+            }
+        }
+    }],
 ];
 
 function migrateAsset(raw: any): void {
@@ -50,7 +60,7 @@ function migrateAsset(raw: any): void {
         }
     }
 
-    raw.version = CURRENT_VERSION;
+    raw.version = TIMELINE_FORMAT_VERSION;
 }
 
 function parseTrack(raw: any): Track {
@@ -147,7 +157,7 @@ export function parseTimelineAsset(rawJson: unknown): TimelineAsset {
     migrateAsset(raw);
 
     return {
-        version: CURRENT_VERSION,
+        version: TIMELINE_FORMAT_VERSION,
         type: 'timeline',
         duration: raw.duration ?? 0,
         wrapMode: wrapModeFromName(raw.wrapMode),

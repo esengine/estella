@@ -2,7 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../src/timeline/TimelineLoader';
+import { sampleTimeline } from '../src/timeline/TimelineEvaluator';
 import { WrapMode, TrackType, type TimelineAsset } from '../src/timeline/TimelineTypes';
+import type { Entity } from '../src/types';
 
 const MINIMAL_TIMELINE = {
     version: '1.0',
@@ -133,6 +135,43 @@ describe('TimelineLoader', () => {
             expect(track.clips).toHaveLength(2);
             expect(track.clips[0].animation).toBe('attack');
             expect(track.blendIn).toBe(0.2);
+        });
+    });
+
+    describe('migration', () => {
+        // A clip carrying the old channel name must still turn the same way, so
+        // this SAMPLES it rather than comparing the two names.
+        it('renames the Z euler channel and leaves the rotation it produces alone', () => {
+            const legacy = {
+                version: '1.1', type: 'timeline', duration: 1, wrapMode: 'once',
+                tracks: [{
+                    type: 'property', name: 'Spin', childPath: '', component: 'Transform',
+                    channels: [{
+                        property: 'rotation.z',
+                        keyframes: [{ time: 0, value: Math.PI / 2, inTangent: 0, outTangent: 0 }],
+                    }],
+                }],
+            };
+
+            const asset = parseTimelineAsset(legacy);
+            const track = asset.tracks[0];
+            if (track.type !== TrackType.Property) throw new Error('Expected property track');
+            expect(track.channels[0].property).toBe('rotation.angle');
+
+            const store = new Map<string, any>([['Transform', { rotation: { w: 1, x: 0, y: 0, z: 0 } }]]);
+            const defs: Record<string, any> = { Transform: { __name: 'Transform' } };
+            sampleTimeline(asset, 0, 1 as Entity, {
+                world: {
+                    has: () => true,
+                    get: (_e, d) => store.get((d as any).__name),
+                    set: (_e, d, data) => { store.set((d as any).__name, data); },
+                },
+                getComponent: (name) => defs[name],
+                resolveChild: (root) => root,
+            });
+            const rot = store.get('Transform').rotation;
+            expect(rot.w).toBeCloseTo(Math.cos(Math.PI / 4), 5);
+            expect(rot.z).toBeCloseTo(Math.sin(Math.PI / 4), 5);
         });
     });
 

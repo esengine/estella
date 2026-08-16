@@ -14,6 +14,7 @@ import {
     type PropertyChannel,
     type TimelineAsset,
 } from '../src/timeline/TimelineTypes';
+import { q } from '../src/math/quat';
 
 function ch(keyframes: PropertyChannel['keyframes'], property = 'value'): PropertyChannel {
     return { property, keyframes };
@@ -144,31 +145,64 @@ describe('sampleTimeline', () => {
     expect(store.get('Transform').position.y).toBe(0); // muted → untouched
   });
 
-  it('rotation.z writes a half-angle quaternion (matches the C++ runtime)', () => {
+  /** A one-track clip on Transform, its channels given by the caller. */
+  const rotationClip = (channels: PropertyChannel[]): TimelineAsset => ({
+      version: '1.2',
+      type: 'timeline',
+      duration: 1,
+      wrapMode: WrapMode.Once,
+      tracks: [{
+          type: TrackType.Property, name: 'Spin', childPath: '', component: 'Transform', channels,
+      }],
+  });
+
+  it('rotation.angle writes a half-angle quaternion (matches the C++ runtime)', () => {
         const defs = { Transform: { __name: 'Transform' } };
         const store = new Map<string, any>([
             ['Transform', { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 } }],
         ]);
         const angle = Math.PI / 2; // 90°
-        const asset: TimelineAsset = {
-            version: '1.1',
-            type: 'timeline',
-            duration: 1,
-            wrapMode: WrapMode.Once,
-            tracks: [{
-                type: TrackType.Property,
-                name: 'Spin',
-                childPath: '',
-                component: 'Transform',
-                channels: [ch([{ time: 0, value: angle, inTangent: 0, outTangent: 0 }], 'rotation.z')],
-            }],
-        };
+        const asset = rotationClip([ch([{ time: 0, value: angle, inTangent: 0, outTangent: 0 }], 'rotation.angle')]);
 
         sampleTimeline(asset, 0, 1 as Entity, mockDeps(store, defs));
-        const q = store.get('Transform').rotation;
-        expect(q.w).toBeCloseTo(Math.cos(angle / 2), 5);
-        expect(q.z).toBeCloseTo(Math.sin(angle / 2), 5);
-        expect(q.x).toBe(0);
-        expect(q.y).toBe(0);
+        const rot = store.get('Transform').rotation;
+        expect(rot.w).toBeCloseTo(Math.cos(angle / 2), 5);
+        expect(rot.z).toBeCloseTo(Math.sin(angle / 2), 5);
+        expect(rot.x).toBeCloseTo(0, 5);
+        expect(rot.y).toBeCloseTo(0, 5);
+    });
+
+  it('rotation.angle keeps the other two axes — a clip cannot flatten a pose', () => {
+        const defs = { Transform: { __name: 'Transform' } };
+        // Pitched 30° about X, the pose an imported model arrives with.
+        const pitch = { w: Math.cos(Math.PI / 12), x: Math.sin(Math.PI / 12), y: 0, z: 0 };
+        const store = new Map<string, any>([['Transform', { rotation: { ...pitch } }]]);
+        const asset = rotationClip([ch([{ time: 0, value: Math.PI / 2, inTangent: 0, outTangent: 0 }], 'rotation.angle')]);
+
+        sampleTimeline(asset, 0, 1 as Entity, mockDeps(store, defs));
+        const [ex, ey, ez] = q.toEuler(store.get('Transform').rotation);
+        expect(ex).toBeCloseTo(30, 4);
+        expect(ey).toBeCloseTo(0, 4);
+        expect(ez).toBeCloseTo(90, 4);
+    });
+
+  it('the four components interpolate to a unit quaternion', () => {
+        const defs = { Transform: { __name: 'Transform' } };
+        const store = new Map<string, any>([['Transform', { rotation: { w: 1, x: 0, y: 0, z: 0 } }]]);
+        // Identity → 90° about Y, sampled at the midpoint. Component-wise that
+        // lands at length ~0.924; normalized it is the 45° turn slerp gives.
+        const kf = (time: number, value: number) => ({ time, value, inTangent: 0, outTangent: 0, interpolation: InterpType.Linear });
+        const half = Math.SQRT1_2;
+        const asset = rotationClip([
+            ch([kf(0, 0), kf(1, 0)], 'rotation.x'),
+            ch([kf(0, 0), kf(1, half)], 'rotation.y'),
+            ch([kf(0, 0), kf(1, 0)], 'rotation.z'),
+            ch([kf(0, 1), kf(1, half)], 'rotation.w'),
+        ]);
+
+        sampleTimeline(asset, 0.5, 1 as Entity, mockDeps(store, defs));
+        const rot = store.get('Transform').rotation;
+        expect(Math.hypot(rot.w, rot.x, rot.y, rot.z)).toBeCloseTo(1, 6);
+        expect(q.toEuler(rot)[1]).toBeCloseTo(45, 1);
     });
 });

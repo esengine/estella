@@ -189,7 +189,13 @@ class MetadataGenerator:
                 else:
                     fields.extend([f'{prop.name}.x', f'{prop.name}.y', f'{prop.name}.z', f'{prop.name}.w'])
             elif t == 'glm::quat':
-                fields.append(f'{prop.name}.z')
+                # The components, plus `.angle` for the Z turn a 2D scene thinks
+                # in. `.angle` is a way IN (it keeps the other two axes), not a
+                # second representation — a channel named `.z` for the Z EULER
+                # angle would take the name the z COMPONENT needs, and a 3D
+                # rotation could then only be animated by flattening it.
+                fields.extend([f'{prop.name}.x', f'{prop.name}.y', f'{prop.name}.z',
+                               f'{prop.name}.w', f'{prop.name}.angle'])
             else:
                 fields.append(prop.name)
         return fields

@@ -4,6 +4,7 @@
 // undoes; re-exported here because this module is where the UI already reaches
 // for it.
 import { invertMatrix4 } from '../../math/mat4';
+import { q } from '../../math/quat';
 
 export { invertMatrix4 };
 
@@ -91,7 +92,7 @@ export function pointInWorldRect(
 }
 
 export function quaternionToAngle2D(rz: number, rw: number): number {
-    return 2 * Math.atan2(rz, rw);
+    return q.angleZ({ z: rz, w: rw });
 }
 
 /**
