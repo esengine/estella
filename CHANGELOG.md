@@ -118,6 +118,27 @@ published separately; it ships inside the editor.
   F0 — at zero, Schlick's grazing-angle rim would otherwise survive and tint
   every existing sprite's edges.
 
+- **A mesh casts a shadow on a mesh.** A model could be imported, animated,
+  skinned and shaded and still not throw one: the engine's only shadows were
+  `ShadowCaster2D`'s boxes in the XY plane, which for geometry with height is
+  the wrong plane. A `Directional` light with `meshShadows` now renders the
+  scene's meshes once from itself, and the lighting model reads the result as
+  the visibility factor its loop already had a place for. Coverage follows the
+  camera unless `shadowExtent` fixes it to a radius. One light per frame casts a
+  map, and a scene where none asks pays nothing.
+
+  Two of the four decisions behind it are about the two backends disagreeing.
+  Depth is written and compared through the same matrix and the same
+  expression, because GL's clip z and WebGPU's are not the same number and a
+  shader that branched on which one it was would be wrong on one of them. And
+  the light's projection is written out zero-to-one rather than reusing the
+  shared `ortho()`, which is the GL convention — WebGPU clips everything below
+  0 of it. The other two: the depth pass is a feature of the mesh shader rather
+  than a second shader (the vertex stage is what has to be identical, and a
+  skinned occluder must land where its skinned self lands), and the map rides
+  the draw's third texture slot behind a feature only the mesh vertex sources
+  set, since the batch stream owns those slots as a per-vertex merge product.
+
 - **A metal reflects the environment it is in.** A metal has no diffuse term,
   so the metallic parameter above would otherwise leave one black everywhere no
   light happened to point at it — reflecting is all a metal does, and there was
