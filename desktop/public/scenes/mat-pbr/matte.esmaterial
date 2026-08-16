@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "pbr.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "properties": {
+    "u_metallic": 0,
+    "u_roughness": 0.25,
+    "u_specular": 0
+  }
+}

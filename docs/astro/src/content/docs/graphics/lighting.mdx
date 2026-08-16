@@ -146,6 +146,40 @@ The `N` you pass to `applyLighting2D` is the surface normal. Passing a constant
 catches highlights and shadow from each light's direction. Add the normal texture as a
 `#pragma param … texture` on your lit material (see [Materials & Shaders](/docs/graphics/materials/)).
 
+### Metal, roughness and highlights
+
+`applyLighting2D` is the shorthand for a surface that reflects nothing. The general
+form takes the same lights through a microfacet BRDF, and a Lit-2D shader can call
+it directly:
+
+```glsl
+highp vec3 P = vec3(v_worldPos, 0.0);
+highp vec3 lit = applyLightingPBR(
+  base.rgb,                 // albedo
+  N,                        // surface normal
+  P,                        // world position
+  viewDirection(P),         // toward the camera, from the frame block
+  u_metallic,               // 0 = dielectric, 1 = metal
+  u_roughness,              // 0 = mirror, 1 = fully diffuse
+  u_specular,               // glTF's specularFactor: 0 removes the highlight
+  1.0                       // ambient occlusion
+);
+```
+
+`applyLighting2D(albedo, N, worldPos)` is exactly this call with `metallic = 0`,
+`roughness = 1` and `specular = 0` — so a lit sprite keeps drawing the pixels it
+always did, and a surface that wants a highlight asks for one.
+
+`viewDirection(worldPos)` answers with the unit vector pointing at the camera; it
+reads the eye position the engine puts in the frame block each frame, so an
+orthographic camera returns a constant and a perspective one varies per pixel.
+
+<Aside>
+  Lights are still placed in the plane: a `Light2D` has no third coordinate, so
+  distance is measured in xy and a point light's height comes from its radius. The
+  normal and the view vector are the three-dimensional part of the model.
+</Aside>
+
 ## Casting shadows
 
 Add a **`ShadowCaster2D`** to an entity to make it block light and cast a shadow:

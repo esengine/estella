@@ -624,8 +624,12 @@ const char* wgslTypeName(ShaderPropertyType t) {
 // kTimeHeader's twin. Injected into every WGSL stage; the device's explicit
 // layouts make a declared-but-unused block legal, same as GL.
 const char* kFrameHeaderWGSL =
-    "struct FrameConstants { projection : mat4x4f };\n"
-    "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n";
+    "struct FrameConstants { projection : mat4x4f, camera : vec4f };\n"
+    "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n"
+    "fn viewDirection(worldPos : vec3f) -> vec3f {\n"
+    "    if (frame.camera.w > 0.5) { return normalize(frame.camera.xyz - worldPos); }\n"
+    "    return frame.camera.xyz;\n"
+    "}\n";
 
 const char* kTimeHeaderWGSL =
     "struct TimeConstants { u_time : vec4f, u_viewport : vec4f };\n"
@@ -751,8 +755,25 @@ fn shadowFactor2D(worldPos : vec2f, aim : vec2f, softness : f32) -> f32 {
     }
     return 1.0 - blocked / 5.0;
 }
-fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
+fn distributionGGX(NdotH : f32, a : f32) -> f32 {
+    let a2 = a * a;
+    let d = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    return a2 / max(3.14159265 * d * d, 1e-7);
+}
+fn geometrySmith(NdotV : f32, NdotL : f32, roughness : f32) -> f32 {
+    let k = (roughness + 1.0) * (roughness + 1.0) * 0.125;
+    return (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
+}
+fn fresnelSchlick(VdotH : f32, F0 : vec3f) -> vec3f {
+    return F0 + (vec3f(1.0) - F0) * pow(1.0 - VdotH, 5.0);
+}
+fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
+                    roughness : f32, specular : f32, ao : f32) -> vec3f {
+    let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
+    let a = max(roughness * roughness, 1e-3);
+    let NdotV = max(dot(N, V), 1e-4);
     var lit = lc.u_ambient.rgb * ao;
+    var gloss = vec3f(0.0);
     for (var i = 0; i < 16; i++) {
         let pd = lc.u_lights[i].posDir;
         let col = lc.u_lights[i].color;
@@ -762,7 +783,7 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
         var aim = pd.xy;
         var castShadow = true;
         if (pd.z < 0.5) {
-            let d = pd.xy - worldPos;
+            let d = pd.xy - worldPos.xy;
             let dist = length(d);
             atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
             L = normalize(vec3f(d, max(pd.w, 1.0)));
@@ -772,10 +793,10 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
             var toLight = vec2f(0.0, 0.0);
             if (dot(pd.xy, pd.xy) > 1e-8) { toLight = normalize(-pd.xy); }
             castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;
-            aim = worldPos + toLight * sh.y;
+            aim = worldPos.xy + toLight * sh.y;
         } else {
             let sp = lc.u_lights[i].spot;
-            let d = pd.xy - worldPos;
+            let d = pd.xy - worldPos.xy;
             let dist = length(d);
             atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
             L = normalize(vec3f(d, max(pd.w, 1.0)));
@@ -784,12 +805,25 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
             atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
-            atten *= shadowFactor2D(worldPos, aim, sh.x);
+            atten *= shadowFactor2D(worldPos.xy, aim, sh.x);
         }
         let ndotl = max(dot(N, L), 0.0);
-        lit += col.rgb * (col.a * ndotl * atten);
+        let radiance = col.rgb * (col.a * ndotl * atten);
+        lit += radiance;
+        if (specular > 0.0) {
+            let H = normalize(L + V);
+            let brdf = distributionGGX(max(dot(N, H), 0.0), a)
+                     * geometrySmith(NdotV, ndotl, roughness)
+                     / max(4.0 * NdotV * ndotl, 1e-4);
+            gloss += radiance * fresnelSchlick(max(dot(V, H), 0.0), F0)
+                   * (brdf * 3.14159265 * specular);
+        }
     }
-    return albedo * lit;
+    return albedo * (1.0 - metallic) * lit + gloss;
+}
+fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
+    let P = vec3f(worldPos, 0.0);
+    return applyLightingPBR(albedo, N, P, viewDirection(P), 0.0, 1.0, 0.0, ao);
 }
 fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
     return applyLighting2DAO(albedo, N, worldPos, 1.0);
@@ -1030,7 +1064,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     static const char* kFrameHeader =
         "layout(std140) uniform FrameConstants {\n"
         "    highp mat4 u_projection;\n"
-        "};\n";
+        "    highp vec4 u_camera;\n"  // xyz = eye (w=1) or direction toward it (w=0)
+        "};\n"
+        "highp vec3 viewDirection(in highp vec3 worldPos) {\n"
+        "    return u_camera.w > 0.5 ? normalize(u_camera.xyz - worldPos) : u_camera.xyz;\n"
+        "}\n";
     assembled << kFrameHeader;
     headerLines += countNewlines(kFrameHeader);
 
@@ -1168,11 +1206,40 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    }\n"
             "    return 1.0 - blocked / float(K);\n"
             "}\n"
-            // Ambient occlusion darkens the light that arrives from everywhere, which is
-            // the ambient term; a lit surface's own lights are unobstructed by it.
-            "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
-            "                             highp float ao) {\n"
+            // The microfacet terms: GGX distribution, Smith geometry (the direct-light k,
+            // off perceptual roughness), Schlick fresnel. Guarded denominators, because a
+            // specular weight of zero must multiply a finite number to reach exactly zero.
+            "highp float distributionGGX(in highp float NdotH, in highp float a) {\n"
+            "    highp float a2 = a * a;\n"
+            "    highp float d = NdotH * NdotH * (a2 - 1.0) + 1.0;\n"
+            "    return a2 / max(3.14159265 * d * d, 1e-7);\n"
+            "}\n"
+            "highp float geometrySmith(in highp float NdotV, in highp float NdotL,\n"
+            "                          in highp float roughness) {\n"
+            "    highp float k = (roughness + 1.0) * (roughness + 1.0) * 0.125;\n"
+            "    return (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));\n"
+            "}\n"
+            "highp vec3 fresnelSchlick(in highp float VdotH, in highp vec3 F0) {\n"
+            "    return F0 + (vec3(1.0) - F0) * pow(1.0 - VdotH, 5.0);\n"
+            "}\n"
+            // The lighting model in its general form; a lit 2D surface is its zero
+            // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
+            // what this engine has always drawn), so there is one model and not two.
+            "highp vec3 applyLightingPBR(in highp vec3 albedo, in highp vec3 N, in highp vec3 worldPos,\n"
+            "                            in highp vec3 V, in highp float metallic,\n"
+            "                            in highp float roughness, in highp float specular,\n"
+            "                            in highp float ao) {\n"
+            // glTF's specularFactor scales the whole lobe, so 0 removes it rather than
+            // leaving Schlick's grazing-angle rim behind.
+            "    highp vec3 F0 = mix(vec3(0.04), albedo, metallic);\n"
+            "    highp float a = max(roughness * roughness, 1e-3);\n"
+            "    highp float NdotV = max(dot(N, V), 1e-4);\n"
+            // Occlusion darkens the light that arrives from everywhere, which is the
+            // ambient term; a surface's own lights are unobstructed by it.
             "    highp vec3 lit = u_ambient.rgb * ao;\n"
+            "    highp vec3 gloss = vec3(0.0);\n"
+            // A Light2D has no third coordinate, so distance stays in the plane and a
+            // point light's height is its radius. Normal and view are the 3D part.
             "    for (int i = 0; i < 16; ++i) {\n"
             "        highp vec4 pd = u_lights[i].posDir;\n"
             "        highp vec4 col = u_lights[i].color;\n"
@@ -1182,7 +1249,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp vec2 target = pd.xy;\n"           // shadow-ray aim point (light position by default)
             "        bool castShadow = true;\n"
             "        if (pd.z < 0.5) {\n"
-            "            highp vec2 d = pd.xy - worldPos;\n"
+            "            highp vec2 d = pd.xy - worldPos.xy;\n"
             "            highp float dist = length(d);\n"
             "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
             "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
@@ -1193,10 +1260,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // a positive march distance, and require a real direction (a zeroed one casts nothing).
             "            highp vec2 toLight = (dot(pd.xy, pd.xy) > 1e-8) ? normalize(-pd.xy) : vec2(0.0);\n"
             "            castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;\n"
-            "            target = worldPos + toLight * sh.y;\n"
+            "            target = worldPos.xy + toLight * sh.y;\n"
             "        } else {\n"
             "            highp vec4 sp = u_lights[i].spot;\n"
-            "            highp vec2 d = pd.xy - worldPos;\n"
+            "            highp vec2 d = pd.xy - worldPos.xy;\n"
             "            highp float dist = length(d);\n"
             "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
             "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
@@ -1206,12 +1273,29 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Only pay for the shadow test when the light actually reaches this fragment (skips the
             // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor2D(worldPos, target, sh.x);\n"
+            "            atten *= shadowFactor2D(worldPos.xy, target, sh.x);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
-            "        lit += col.rgb * (col.a * ndotl * atten);\n"
+            "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"
+            "        lit += radiance;\n"
+            // A uniform branch: a surface that reflects nothing does not pay for the lobe.
+            // The pi turns the engine's light intensity into the irradiance the BRDF wants,
+            // which the diffuse side cancels against albedo/pi and never has to spell out.
+            "        if (specular > 0.0) {\n"
+            "            highp vec3 H = normalize(L + V);\n"
+            "            highp float brdf = distributionGGX(max(dot(N, H), 0.0), a)\n"
+            "                             * geometrySmith(NdotV, ndotl, roughness)\n"
+            "                             / max(4.0 * NdotV * ndotl, 1e-4);\n"
+            "            gloss += radiance * fresnelSchlick(max(dot(V, H), 0.0), F0)\n"
+            "                   * (brdf * 3.14159265 * specular);\n"
+            "        }\n"
             "    }\n"
-            "    return albedo * lit;\n"
+            "    return albedo * (1.0 - metallic) * lit + gloss;\n"
+            "}\n"
+            "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
+            "                             highp float ao) {\n"
+            "    highp vec3 P = vec3(worldPos, 0.0);\n"
+            "    return applyLightingPBR(albedo, N, P, viewDirection(P), 0.0, 1.0, 0.0, ao);\n"
             "}\n"
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"

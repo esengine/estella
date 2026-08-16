@@ -18,6 +18,7 @@
 #include "../store/SkinConstants.hpp"
 #include "../../core/Log.hpp"
 
+#include <cmath>
 #include <vector>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -154,9 +155,21 @@ void RenderContext::initFrameUbo() {
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
 
+// Where the frame is seen from, read out of the matrix that projects it — every
+// path in hands over a view-projection and nothing else. inverse(VP) on the clip
+// z axis: perspective divides down to the eye, else negate to face the viewer.
+static glm::vec4 cameraFromViewProjection(const glm::mat4& viewProjection) {
+    const glm::vec4 axis = glm::inverse(viewProjection)[2];
+    if (std::abs(axis.w) > 1e-6f) return glm::vec4(glm::vec3(axis) / axis.w, 1.0f);
+    const f32 len = glm::length(glm::vec3(axis));
+    if (len < 1e-12f) return glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+    return glm::vec4(-glm::vec3(axis) / len, 0.0f);
+}
+
 void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
     viewProjection_ = viewProjection;
-    device_.updateBuffer(frameUbo_, 0, glm::value_ptr(viewProjection), sizeof(glm::mat4));
+    const FrameConstants frame{viewProjection, cameraFromViewProjection(viewProjection)};
+    device_.updateBuffer(frameUbo_, 0, &frame, sizeof(FrameConstants));
     // Re-arm the params fallback for this pass: a post-process or custom-draw
     // commit from the previous pass left its own (differently sized) buffer on
     // the shared slot.

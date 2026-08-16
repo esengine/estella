@@ -1,0 +1,39 @@
+#pragma shader "PBRTest"
+#pragma version 300 es
+#pragma domain Lit2D
+#pragma param u_metallic float default(0) range(0,1)
+#pragma param u_roughness float default(1) range(0,1)
+#pragma param u_specular float default(0) range(0,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+// The general lighting form, called directly with the parameters a lit sprite
+// leaves at their zero. Same lights, same surface, same fixture — only the
+// microfacet lobe differs, so the two materials over this shader isolate it.
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    highp vec3 P = vec3(v_worldPos, 0.0);
+    highp vec3 lit = applyLightingPBR(base.rgb, vec3(0.0, 0.0, 1.0), P, viewDirection(P),
+                                      u_metallic, u_roughness, u_specular, 1.0);
+    fragColor = vec4(lit, base.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    let P = vec3f(v.v_worldPos, 0.0);
+    let lit = applyLightingPBR(base.rgb, vec3f(0.0, 0.0, 1.0), P, viewDirection(P),
+                               mc.u_metallic, mc.u_roughness, mc.u_specular, 1.0);
+    return vec4f(lit, base.a);
+}
+#pragma end

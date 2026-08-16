@@ -1,0 +1,28 @@
+#pragma shader "ViewVectorTest"
+#pragma version 300 es
+#pragma domain Lit2D
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+
+out vec4 fragColor;
+
+// The view vector itself, encoded as a color. An orthographic camera looking
+// down -z answers (0,0,1) -> (128,128,255); a frame block that never received
+// the camera answers (0,0,0) -> (128,128,128), which no probe can mistake.
+void main() {
+    highp vec3 V = viewDirection(vec3(v_worldPos, 0.0));
+    fragColor = vec4(V * 0.5 + 0.5, 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let V = viewDirection(vec3f(v.v_worldPos, 0.0));
+    return vec4f(V * 0.5 + 0.5, 1.0);
+}
+#pragma end

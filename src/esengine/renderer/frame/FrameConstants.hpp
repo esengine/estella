@@ -26,12 +26,14 @@ namespace esengine {
 
 /**
  * @brief CPU mirror of the GLSL FrameConstants block (std140).
- * @details A lone mat4 occupies 64 bytes at offset 0 with 16-byte alignment, so the
- *          std140 layout needs no padding. Append future per-frame fields here and in
- *          the shader block in the same order (std140 keeps prior offsets stable).
+ * @details A mat4 at offset 0 and a vec4 at 64 need no std140 padding. Append future
+ *          fields here and in ShaderParser's injected block in the same order.
+ *          camera: w = 1 means xyz is the eye's world position (perspective), w = 0
+ *          that xyz points at the viewer (orthographic has no eye point).
  */
 struct FrameConstants {
     glm::mat4 viewProjection{1.0f};
+    glm::vec4 camera{0.0f, 0.0f, 1.0f, 0.0f};
 };
 
 /** @brief Indexed uniform binding point the FrameConstants block is bound to. */

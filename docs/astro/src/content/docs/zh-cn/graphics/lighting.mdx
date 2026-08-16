@@ -142,6 +142,36 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 灯的方向产生高光和阴影。把法线纹理作为一个 `#pragma param … texture` 加到你的受光材质上
 (见[材质与着色器](/docs/zh-cn/graphics/materials/))。
 
+### 金属度、粗糙度与高光
+
+`applyLighting2D` 是"这个表面什么都不反射"的简写。它的一般形式让同样的灯走一遍微表面
+BRDF,Lit2D 着色器可以直接调用:
+
+```glsl
+highp vec3 P = vec3(v_worldPos, 0.0);
+highp vec3 lit = applyLightingPBR(
+  base.rgb,                 // albedo
+  N,                        // 表面法线
+  P,                        // 世界位置
+  viewDirection(P),         // 指向相机,来自 frame 块
+  u_metallic,               // 0 = 电介质,1 = 金属
+  u_roughness,              // 0 = 镜面,1 = 完全漫反射
+  u_specular,               // glTF 的 specularFactor:0 让高光消失
+  1.0                       // 环境光遮蔽
+);
+```
+
+`applyLighting2D(albedo, N, worldPos)` 就是这个调用取 `metallic = 0`、`roughness = 1`、
+`specular = 0` —— 所以受光精灵画出的像素一个都没变,而想要高光的表面自己开口要。
+
+`viewDirection(worldPos)` 返回指向相机的单位向量;它读引擎每帧写进 frame 块的相机位置,
+所以正交相机返回一个常量,透视相机逐像素变化。
+
+<Aside>
+  灯仍然摆在平面上:`Light2D` 没有第三个坐标,所以距离在 xy 内度量,点光的高度来自它的
+  半径。法线与视线才是这个模型里三维的部分。
+</Aside>
+
 ## 投射阴影
 
 给一个实体加 **`ShadowCaster2D`**,让它遮挡光并投出阴影:
