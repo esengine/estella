@@ -118,6 +118,17 @@ published separately; it ships inside the editor.
   F0 — at zero, Schlick's grazing-angle rim would otherwise survive and tint
   every existing sprite's edges.
 
+- **A metal arrives as a metal.** `metallicFactor`, `roughnessFactor` and
+  `metallicRoughnessTexture` were reported as not-imported on every import
+  since the first one: the lighting model had no view direction, so a factor in
+  a product would have been a knob nothing read. It has one now, so they are
+  parameters of the built-in Model shader like every other channel a glTF
+  material carries. Both factors are written even when they match the engine's
+  own defaults — glTF defaults them to 1 and 1, a fully rough metal, while the
+  shader's metal default is 0, so a product that left them out would describe a
+  surface the source did not. Most materials therefore get a product now, where
+  before only a normal map, emission, occlusion or a cutoff earned one.
+
 - **A skinned model can say what it is made of.** A material's program is
   compiled for the vertex source it draws, and there was no skinned one — so a
   rigged character was refused the material outright and fell back to the
