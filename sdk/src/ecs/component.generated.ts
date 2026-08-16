@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '65f6ac377586cd75';
+export const ABI_LAYOUT_HASH = 'fb8d63de6b3e9865';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -129,6 +129,23 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
+    BoxCollider3D: {
+        defaults: {
+            halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
+        },
+    },
     Camera: {
         defaults: {
             projectionType: 0,
@@ -204,6 +221,26 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    CapsuleCollider3D: {
+        defaults: {
+            radius: 0.3,
+            halfHeight: 0.5,
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            radius: { min: 0 },
+            halfHeight: { min: 0 },
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
+        },
     },
     Children: {
         defaults: {
@@ -548,6 +585,26 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             bodyType: { enum: [{ label: 'Static', value: 0 }, { label: 'Kinematic', value: 1 }, { label: 'Dynamic', value: 2 }] },
         },
     },
+    RigidBody3D: {
+        defaults: {
+            bodyType: 2,
+            gravityScale: 1,
+            linearDamping: 0.05,
+            angularDamping: 0.05,
+            fixedRotation: false,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            bodyType: { enum: [{ label: 'Static', value: 0 }, { label: 'Kinematic', value: 1 }, { label: 'Dynamic', value: 2 }] },
+            gravityScale: { min: 0 },
+            linearDamping: { min: 0 },
+            angularDamping: { min: 0 },
+        },
+    },
     SegmentCollider: {
         defaults: {
             point1: { x: -0.5, y: 0 },
@@ -599,6 +656,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             cornerRadius: { min: 0 },
             layer: { step: 1, enumSource: "sortingLayers" },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
+        },
+    },
+    SphereCollider3D: {
+        defaults: {
+            radius: 0.5,
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            radius: { min: 0 },
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
         },
     },
     SpineAnimation: {
@@ -913,6 +988,14 @@ export interface BoxColliderData {
     maskBits: number;
 }
 
+export interface BoxCollider3DData {
+    halfExtents: Vec3;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
 export interface CameraData {
     projectionType: number;
     fov: number;
@@ -948,6 +1031,15 @@ export interface CapsuleColliderData {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+export interface CapsuleCollider3DData {
+    radius: number;
+    halfHeight: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
 }
 
 /**
@@ -1130,6 +1222,15 @@ export interface RigidBodyData {
     enabled: boolean;
 }
 
+export interface RigidBody3DData {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    enabled: boolean;
+}
+
 export interface SegmentColliderData {
     point1: Vec2;
     point2: Vec2;
@@ -1154,6 +1255,14 @@ export interface ShapeRendererData {
     cornerRadius: number;
     layer: number;
     parallax: Vec2;
+    enabled: boolean;
+}
+
+export interface SphereCollider3DData {
+    radius: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
     enabled: boolean;
 }
 

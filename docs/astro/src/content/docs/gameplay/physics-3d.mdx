@@ -1,0 +1,55 @@
+---
+title: 3D Physics
+description: The 3D rigid-body world — Jolt-backed bodies, box/sphere/capsule shapes, and how it sits beside the 2D physics rather than replacing it.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A 3D model can be imported, animated, skinned and lit. This is what makes it stand
+somewhere: a rigid-body world powered by **Jolt Physics**, running in its own
+WebAssembly module.
+
+It sits **beside** the [2D physics](/docs/gameplay/physics/), not on top of it. A 2D
+scene keeps the solver, the units and the feel it already has, and a project that
+never asks for a 3D world never loads it.
+
+## Bodies
+
+An entity is in the world when it carries a `RigidBody3D` **and** a shape. A body
+with no shape has no extent to collide with, so it is left out entirely rather than
+falling forever as an invisible point.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(CapsuleCollider3D, { radius: 30, halfHeight: 50 });
+```
+
+| Field | What it does |
+|---|---|
+| `bodyType` | `Static` never moves, `Kinematic` is moved by hand, `Dynamic` is solved. |
+| `gravityScale` | This body's share of world gravity. `0` is weightlessness, not slow falling. |
+| `linearDamping` / `angularDamping` | How quickly motion bleeds off. |
+| `fixedRotation` | Freezes the orientation the body was given — what keeps a character from toppling. It does not right a body that starts tilted. |
+
+## Shapes
+
+| Component | Extent |
+|---|---|
+| `BoxCollider3D` | `halfExtents` on each axis. |
+| `SphereCollider3D` | `radius`. |
+| `CapsuleCollider3D` | An upright capsule: `halfHeight` is the cylinder's half, with a cap of `radius` on each end, so the total height is `2 * (halfHeight + radius)`. |
+
+<Aside>
+  Sizes are authored in **world units** and reach the solver in metres, at the same
+  `pixelsPerUnit` the 2D world uses (100 by default). A solver tuned for metres
+  behaves nothing like itself when a character is 180 units tall, so the conversion
+  is not optional — it is why a capsule 60 units wide falls the way a person does.
+</Aside>
+
+## Which world a scene is in
+
+Nothing stops an entity carrying both sets, but nothing merges them either: the two
+worlds do not see each other, and a 2D collider will never stop a 3D body. Pick one
+per scene.

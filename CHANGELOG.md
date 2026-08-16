@@ -16,6 +16,23 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A 3D physics world, beside the 2D one rather than over it.** Jolt Physics
+  ships as a second side module, so a project that never asks for a 3D world
+  never pays the 1.2MB it weighs — and a 2D scene keeps the solver, the units
+  and the feel it already has. `RigidBody3D` with a `BoxCollider3D`,
+  `SphereCollider3D` or `CapsuleCollider3D` puts an entity under it, and what
+  the solver moves is written back to its `Transform`.
+
+  Sizes are authored in world units and reach the solver in metres, at the same
+  `pixelsPerUnit` the 2D world uses: a solver tuned for metres behaves nothing
+  like itself when a character is 180 units tall.
+
+  Two things emscripten does not give for free, both of which present as
+  something other than themselves. Jolt DECLARES that it uses SSE4.1 under wasm
+  SIMD, so those intrinsics have to be asked for or the library will not compile
+  at all; and its solver needs far more stack than the 64KB default, which a
+  short stack reports as an out-of-bounds access inside the step.
+
 - **A panorama becomes an environment, and an ambient light casts it.** An
   equirectangular `.hdr` in a project now bakes into the two things a renderer
   asks an environment for, and an `Ambient` `Light2D` can point at the result:

@@ -20,6 +20,9 @@ const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 
 const STATIC = 0, KINEMATIC = 1, DYNAMIC = 2;
 const IDENTITY = [0, 0, 0, 1];
+// motion, gravityScale, linearDamping, angularDamping, fixedRotation — what a body
+// is beyond its shape.
+const FREE = (motion) => [motion, 1, 0, 0, 0];
 
 /** The position of `entity` in the step's transform readback, or null. */
 function bodyPos(entity) {
@@ -59,8 +62,8 @@ check('the world reports itself ready', m._physics3d_isReady() === 1);
 // Floor spans y in [-1, 0]; a sphere of radius 0.5 dropped from y=4 comes to rest
 // with its CENTRE at 0.5 — the one number that says contact resolution ran.
 const FLOOR = 1, BALL = 2;
-m._physics3d_addBox(FLOOR, 50, 0.5, 50, 0, -0.5, 0, ...IDENTITY, STATIC, 0.5, 0, 0);
-const ballId = m._physics3d_addSphere(BALL, 0.5, 0, 4, 0, ...IDENTITY, DYNAMIC, 0.5, 0, 0);
+m._physics3d_addBox(FLOOR, 50, 0.5, 50, 0, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+const ballId = m._physics3d_addSphere(BALL, 0.5, 0, 4, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
 m._physics3d_optimize();
 
 check('a body id is handed back', ballId !== 0, `id=${ballId}`);
@@ -94,7 +97,7 @@ check('a ray into empty space misses', raycast(0, 10, 0, 0, 20, 0) === null);
 // ── 3) Static bodies stay put, kinematic ones are moved by hand ─────────────
 const PLATFORM = 3;
 const platformId = m._physics3d_addBox(PLATFORM, 1, 0.25, 1, 5, 2, 0, ...IDENTITY,
-                                       KINEMATIC, 0.5, 0, 0);
+                                       ...FREE(KINEMATIC), 0.5, 0, 0);
 step(60);
 const platform = bodyState(platformId);
 check('a kinematic body ignores gravity', platform && near(platform.y, 2, 1e-3),
@@ -106,7 +109,7 @@ check('and goes where it is put', near(bodyState(platformId).y, 3, 1e-3));
 // Radius 0.3 + half-height 0.5 puts the bottom cap 0.8 below the centre, so a
 // resting capsule sits at 0.8.
 const CAP = 4;
-const capId = m._physics3d_addCapsule(CAP, 0.3, 0.5, 3, 5, 0, ...IDENTITY, DYNAMIC, 0.5, 0, 0);
+const capId = m._physics3d_addCapsule(CAP, 0.3, 0.5, 3, 5, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
 step(240);
 const cap = bodyState(capId);
 check('a capsule rests on its own half-height', cap && near(cap.y, 0.8, 0.05),
@@ -119,7 +122,29 @@ const side = raycast(10, 0.8, 0, -20, 0, 0);
 check('and on its own radius', side && side.entity === CAP && near(side.fraction, 0.335, 0.01),
       `entity=${side?.entity} fraction=${side?.fraction.toFixed(4)} want 0.335`);
 
-// ── 5) A removed body is gone from both the sweep and the getter ────────────
+// ── 5) What a body is beyond its shape ─────────────────────────────────────
+// gravityScale 0 is weightlessness, not slow falling: a body that never reads it
+// drops 4.9m in the same second.
+const FLOAT = 5;
+const floatId = m._physics3d_addSphere(FLOAT, 0.5, -3, 5, 0, ...IDENTITY,
+                                       DYNAMIC, 0, 0, 0, 0, 0.5, 0, 0);
+step(60);
+check('gravityScale 0 leaves a body where it was', near(bodyState(floatId).y, 5, 0.01),
+      `y=${bodyState(floatId).y.toFixed(4)} want 5`);
+
+// fixedRotation freezes the orientation a body was given — it does not right it.
+// This capsule starts tilted and lands on the floor; free to turn it would topple
+// flat, so the tilt it KEEPS is what says the solver may not turn it.
+const UPRIGHT = 6;
+const uprightId = m._physics3d_addCapsule(UPRIGHT, 0.3, 0.5, -6, 3, 0,
+                                          0.3, 0, 0, 0.954, DYNAMIC, 1, 0, 0, 1, 0.5, 0, 0);
+step(180);
+const uprightBase = m._physics3d_getBodyState(uprightId) ? m._physics3d_queryResult() >> 2 : 0;
+const qx = m.HEAPF32[uprightBase + 3];
+check('fixedRotation keeps a body from turning', near(qx, 0.3, 0.01),
+      `qx=${qx?.toFixed(4)} want the 0.3 it was given`);
+
+// ── 6) A removed body is gone from both the sweep and the getter ────────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

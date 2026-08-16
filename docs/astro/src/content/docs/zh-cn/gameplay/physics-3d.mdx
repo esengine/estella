@@ -1,0 +1,50 @@
+---
+title: 3D 物理
+description: 3D 刚体世界——基于 Jolt 的刚体、盒/球/胶囊形状,以及它为什么是与 2D 物理并存而不是取代它。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+一个 3D 模型已经能导入、能动、能变形、能被照亮。这一页讲的是让它**站在某处**:
+一个由 **Jolt Physics** 驱动的刚体世界,跑在它自己的 WebAssembly 模块里。
+
+它与 [2D 物理](/docs/zh-cn/gameplay/physics/)**并存**,不是取代:2D 场景保留它已经有的
+求解器、单位和手感,而一个从不索取 3D 世界的项目也从不加载它。
+
+## 刚体
+
+一个实体同时带着 `RigidBody3D` **和**一个形状时才在世界里。没有形状的刚体没有任何
+广延可供碰撞,所以它干脆不被注册——而不是变成一个永远下落的隐形点。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(CapsuleCollider3D, { radius: 30, halfHeight: 50 });
+```
+
+| 字段 | 作用 |
+|---|---|
+| `bodyType` | `Static` 从不移动,`Kinematic` 由你搬动,`Dynamic` 由求解器解。 |
+| `gravityScale` | 这个刚体分担的重力比例。`0` 是失重,不是「掉得慢」。 |
+| `linearDamping` / `angularDamping` | 运动衰减的快慢。 |
+| `fixedRotation` | 冻结刚体被给定的朝向——让角色不会倒下的那个开关。它不会把一个一开始就歪的刚体扶正。 |
+
+## 形状
+
+| 组件 | 广延 |
+|---|---|
+| `BoxCollider3D` | 每个轴上的 `halfExtents`。 |
+| `SphereCollider3D` | `radius`。 |
+| `CapsuleCollider3D` | 一个直立胶囊:`halfHeight` 是圆柱段的一半,两端各扣一个 `radius` 的半球,所以总高是 `2 * (halfHeight + radius)`。 |
+
+<Aside>
+  尺寸按**世界单位**书写,以米为单位抵达求解器,用的是 2D 世界同一个 `pixelsPerUnit`
+  (默认 100)。一个按米调好的求解器在角色高 180 单位时完全不是它自己,所以这次换算
+  不是可选项——它正是一个 60 单位宽的胶囊会像人一样倒下的原因。
+</Aside>
+
+## 一个场景在哪个世界里
+
+没有东西阻止一个实体同时带两套组件,但也没有东西会把它们合并:两个世界互相看不见,
+一个 2D 碰撞体永远拦不住一个 3D 刚体。**一个场景选一套。**

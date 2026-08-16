@@ -117,6 +117,46 @@ export function createBoxColliderData(): BoxColliderPtrData {
     };
 }
 
+export interface BoxCollider3DPtrData {
+    halfExtents: Vec3;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export function fillBoxCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: BoxCollider3DPtrData,
+): void {
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1]; halfExtents_.z = f32[(ptr >> 2) + 2];
+    out.friction = f32[(ptr + 12) >> 2];
+    out.restitution = f32[(ptr + 16) >> 2];
+    out.isSensor = u8[ptr + 20] !== 0;
+    out.enabled = u8[ptr + 21] !== 0;
+}
+
+export function writeBoxCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: BoxCollider3DPtrData,
+): void {
+    f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y; f32[(ptr >> 2) + 2] = data.halfExtents.z;
+    f32[(ptr + 12) >> 2] = data.friction;
+    f32[(ptr + 16) >> 2] = data.restitution;
+    u8[ptr + 20] = data.isSensor ? 1 : 0;
+    u8[ptr + 21] = data.enabled ? 1 : 0;
+}
+
+export function createBoxCollider3DData(): BoxCollider3DPtrData {
+    return {
+        halfExtents: { x: 0, y: 0, z: 0 },
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
+        enabled: false,
+    };
+}
+
 export interface CameraPtrData {
     projectionType: number;
     fov: number;
@@ -286,6 +326,50 @@ export function createCapsuleColliderData(): CapsuleColliderPtrData {
         enabled: false,
         categoryBits: 0,
         maskBits: 0,
+    };
+}
+
+export interface CapsuleCollider3DPtrData {
+    radius: number;
+    halfHeight: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export function fillCapsuleCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: CapsuleCollider3DPtrData,
+): void {
+    out.radius = f32[ptr >> 2];
+    out.halfHeight = f32[(ptr + 4) >> 2];
+    out.friction = f32[(ptr + 8) >> 2];
+    out.restitution = f32[(ptr + 12) >> 2];
+    out.isSensor = u8[ptr + 16] !== 0;
+    out.enabled = u8[ptr + 17] !== 0;
+}
+
+export function writeCapsuleCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: CapsuleCollider3DPtrData,
+): void {
+    f32[ptr >> 2] = data.radius;
+    f32[(ptr + 4) >> 2] = data.halfHeight;
+    f32[(ptr + 8) >> 2] = data.friction;
+    f32[(ptr + 12) >> 2] = data.restitution;
+    u8[ptr + 16] = data.isSensor ? 1 : 0;
+    u8[ptr + 17] = data.enabled ? 1 : 0;
+}
+
+export function createCapsuleCollider3DData(): CapsuleCollider3DPtrData {
+    return {
+        radius: 0,
+        halfHeight: 0,
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
+        enabled: false,
     };
 }
 
@@ -969,6 +1053,50 @@ export function createRigidBodyData(): RigidBodyPtrData {
     };
 }
 
+export interface RigidBody3DPtrData {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    enabled: boolean;
+}
+
+export function fillRigidBody3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: RigidBody3DPtrData,
+): void {
+    out.bodyType = u8[ptr];
+    out.gravityScale = f32[(ptr + 4) >> 2];
+    out.linearDamping = f32[(ptr + 8) >> 2];
+    out.angularDamping = f32[(ptr + 12) >> 2];
+    out.fixedRotation = u8[ptr + 16] !== 0;
+    out.enabled = u8[ptr + 17] !== 0;
+}
+
+export function writeRigidBody3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: RigidBody3DPtrData,
+): void {
+    u8[ptr] = data.bodyType;
+    f32[(ptr + 4) >> 2] = data.gravityScale;
+    f32[(ptr + 8) >> 2] = data.linearDamping;
+    f32[(ptr + 12) >> 2] = data.angularDamping;
+    u8[ptr + 16] = data.fixedRotation ? 1 : 0;
+    u8[ptr + 17] = data.enabled ? 1 : 0;
+}
+
+export function createRigidBody3DData(): RigidBody3DPtrData {
+    return {
+        bodyType: 0,
+        gravityScale: 0,
+        linearDamping: 0,
+        angularDamping: 0,
+        fixedRotation: false,
+        enabled: false,
+    };
+}
+
 export interface SegmentColliderPtrData {
     point1: Vec2;
     point2: Vec2;
@@ -1097,6 +1225,46 @@ export function createShapeRendererData(): ShapeRendererPtrData {
         cornerRadius: 0,
         layer: 0,
         parallax: { x: 0, y: 0 },
+        enabled: false,
+    };
+}
+
+export interface SphereCollider3DPtrData {
+    radius: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export function fillSphereCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: SphereCollider3DPtrData,
+): void {
+    out.radius = f32[ptr >> 2];
+    out.friction = f32[(ptr + 4) >> 2];
+    out.restitution = f32[(ptr + 8) >> 2];
+    out.isSensor = u8[ptr + 12] !== 0;
+    out.enabled = u8[ptr + 13] !== 0;
+}
+
+export function writeSphereCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: SphereCollider3DPtrData,
+): void {
+    f32[ptr >> 2] = data.radius;
+    f32[(ptr + 4) >> 2] = data.friction;
+    f32[(ptr + 8) >> 2] = data.restitution;
+    u8[ptr + 12] = data.isSensor ? 1 : 0;
+    u8[ptr + 13] = data.enabled ? 1 : 0;
+}
+
+export function createSphereCollider3DData(): SphereCollider3DPtrData {
+    return {
+        radius: 0,
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
         enabled: false,
     };
 }
@@ -1762,9 +1930,11 @@ export interface PtrAccessor<T> {
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
     BoxCollider: { fill: fillBoxCollider, write: writeBoxCollider, create: createBoxColliderData },
+    BoxCollider3D: { fill: fillBoxCollider3D, write: writeBoxCollider3D, create: createBoxCollider3DData },
     Camera: { fill: fillCamera, write: writeCamera, create: createCameraData },
     Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
+    CapsuleCollider3D: { fill: fillCapsuleCollider3D, write: writeCapsuleCollider3D, create: createCapsuleCollider3DData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
@@ -1774,9 +1944,11 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
+    RigidBody3D: { fill: fillRigidBody3D, write: writeRigidBody3D, create: createRigidBody3DData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
     ShadowCaster2D: { fill: fillShadowCaster2D, write: writeShadowCaster2D, create: createShadowCaster2DData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
+    SphereCollider3D: { fill: fillSphereCollider3D, write: writeSphereCollider3D, create: createSphereCollider3DData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },

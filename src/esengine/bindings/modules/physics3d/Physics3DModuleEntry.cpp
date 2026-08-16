@@ -57,17 +57,36 @@ ObjectLayer layerOf(EMotionType motion) {
     return motion == EMotionType::Static ? Layers::STATIC : Layers::MOVING;
 }
 
+/// What a body is beyond its shape: how it answers to gravity, how it slows, and
+/// whether the solver may turn it. Passed as one record because every add takes
+/// the same set and a fourth positional float each would be unreadable.
+struct BodyMotion {
+    int motion = 0;
+    float gravityScale = 1.0f;
+    float linearDamping = 0.0f;
+    float angularDamping = 0.0f;
+    int fixedRotation = 0;
+};
+
 /// Register a shape as a body, and remember which entity it speaks for.
 uint32_t addBody(uint32_t entity, Shape* shape, float px, float py, float pz,
-                 float qx, float qy, float qz, float qw, int motion,
+                 float qx, float qy, float qz, float qw, const BodyMotion& how,
                  float friction, float restitution, int isSensor) {
     if (!g().isValid()) return 0;
-    const EMotionType motionType = motionTypeOf(motion);
+    const EMotionType motionType = motionTypeOf(how.motion);
     BodyCreationSettings settings(shape, RVec3(px, py, pz), Quat(qx, qy, qz, qw).Normalized(),
                                   motionType, layerOf(motionType));
     settings.mFriction = friction;
     settings.mRestitution = restitution;
     settings.mIsSensor = isSensor != 0;
+    settings.mGravityFactor = how.gravityScale;
+    settings.mLinearDamping = how.linearDamping;
+    settings.mAngularDamping = how.angularDamping;
+    // What keeps a character upright: the solver may move it and never turn it.
+    if (how.fixedRotation != 0) {
+        settings.mAllowedDOFs = EAllowedDOFs::TranslationX | EAllowedDOFs::TranslationY
+                              | EAllowedDOFs::TranslationZ;
+    }
     BodyInterface& bodies = g().system->GetBodyInterface();
     const BodyID id = bodies.CreateAndAddBody(
         settings, motionType == EMotionType::Static ? EActivation::DontActivate
@@ -164,18 +183,24 @@ EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float px, float py, float pz,
                           float qx, float qy, float qz, float qw,
-                          int motion, float friction, float restitution, int isSensor) {
+                          int motion, float gravityScale, float linearDamping,
+                          float angularDamping, int fixedRotation,
+                          float friction, float restitution, int isSensor) {
     return addBody(entity, new BoxShape(Vec3(hx, hy, hz)), px, py, pz, qx, qy, qz, qw,
-                   motion, friction, restitution, isSensor);
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   friction, restitution, isSensor);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addSphere(uint32_t entity, float radius,
                              float px, float py, float pz,
                              float qx, float qy, float qz, float qw,
-                             int motion, float friction, float restitution, int isSensor) {
+                             int motion, float gravityScale, float linearDamping,
+                             float angularDamping, int fixedRotation,
+                             float friction, float restitution, int isSensor) {
     return addBody(entity, new SphereShape(radius), px, py, pz, qx, qy, qz, qw,
-                   motion, friction, restitution, isSensor);
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   friction, restitution, isSensor);
 }
 
 /// `halfHeight` is the cylinder half-height, so the capsule is `2*halfHeight + 2*radius`
@@ -184,9 +209,12 @@ EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float px, float py, float pz,
                               float qx, float qy, float qz, float qw,
-                              int motion, float friction, float restitution, int isSensor) {
+                              int motion, float gravityScale, float linearDamping,
+                              float angularDamping, int fixedRotation,
+                              float friction, float restitution, int isSensor) {
     return addBody(entity, new CapsuleShape(halfHeight, radius), px, py, pz, qx, qy, qz, qw,
-                   motion, friction, restitution, isSensor);
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   friction, restitution, isSensor);
 }
 
 EMSCRIPTEN_KEEPALIVE

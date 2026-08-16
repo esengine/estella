@@ -257,6 +257,39 @@
       ]
     },
     {
+      "name": "BoxCollider3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(0.5, 0.5, 0.5)"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "CacheAsBitmap",
       "source": "ts",
       "fields": [
@@ -518,6 +551,46 @@
           "type": "number",
           "default": "65535",
           "advanced": true
+        }
+      ]
+    },
+    {
+      "name": "CapsuleCollider3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "halfHeight",
+          "type": "number",
+          "default": "0.5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
         }
       ]
     },
@@ -2424,6 +2497,50 @@
       ]
     },
     {
+      "name": "RigidBody3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "bodyType",
+          "type": "enum",
+          "default": "Dynamic",
+          "values": [
+            "Static",
+            "Kinematic",
+            "Dynamic"
+          ]
+        },
+        {
+          "key": "gravityScale",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0"
+        },
+        {
+          "key": "linearDamping",
+          "type": "number",
+          "default": "0.05",
+          "range": "≥ 0"
+        },
+        {
+          "key": "angularDamping",
+          "type": "number",
+          "default": "0.05",
+          "range": "≥ 0"
+        },
+        {
+          "key": "fixedRotation",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "RuntimeOnly",
       "source": "ts",
       "fields": [],
@@ -2588,6 +2705,40 @@
           "default": "(1, 1)",
           "doc": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
           "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "SphereCollider3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
         },
         {
           "key": "enabled",

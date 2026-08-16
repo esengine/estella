@@ -54,6 +54,16 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 36 },
         ],
     },
+    BoxCollider3D: {
+        ptrFn: 'getBoxCollider3DPtr',
+        fields: [
+            { name: 'halfExtents', type: 'vec3', offset: 0 },
+            { name: 'friction', type: 'f32', offset: 12 },
+            { name: 'restitution', type: 'f32', offset: 16 },
+            { name: 'isSensor', type: 'bool', offset: 20 },
+            { name: 'enabled', type: 'bool', offset: 21 },
+        ],
+    },
     Camera: {
         ptrFn: 'getCameraPtr',
         fields: [
@@ -95,6 +105,17 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 29 },
             { name: 'categoryBits', type: 'u32', offset: 32 },
             { name: 'maskBits', type: 'u32', offset: 36 },
+        ],
+    },
+    CapsuleCollider3D: {
+        ptrFn: 'getCapsuleCollider3DPtr',
+        fields: [
+            { name: 'radius', type: 'f32', offset: 0 },
+            { name: 'halfHeight', type: 'f32', offset: 4 },
+            { name: 'friction', type: 'f32', offset: 8 },
+            { name: 'restitution', type: 'f32', offset: 12 },
+            { name: 'isSensor', type: 'bool', offset: 16 },
+            { name: 'enabled', type: 'bool', offset: 17 },
         ],
     },
     CircleCollider: {
@@ -267,6 +288,17 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 18 },
         ],
     },
+    RigidBody3D: {
+        ptrFn: 'getRigidBody3DPtr',
+        fields: [
+            { name: 'bodyType', type: 'u8', offset: 0 },
+            { name: 'gravityScale', type: 'f32', offset: 4 },
+            { name: 'linearDamping', type: 'f32', offset: 8 },
+            { name: 'angularDamping', type: 'f32', offset: 12 },
+            { name: 'fixedRotation', type: 'bool', offset: 16 },
+            { name: 'enabled', type: 'bool', offset: 17 },
+        ],
+    },
     SegmentCollider: {
         ptrFn: 'getSegmentColliderPtr',
         fields: [
@@ -298,6 +330,16 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'layer', type: 'i32', offset: 32 },
             { name: 'parallax', type: 'vec2', offset: 36 },
             { name: 'enabled', type: 'bool', offset: 44 },
+        ],
+    },
+    SphereCollider3D: {
+        ptrFn: 'getSphereCollider3DPtr',
+        fields: [
+            { name: 'radius', type: 'f32', offset: 0 },
+            { name: 'friction', type: 'f32', offset: 4 },
+            { name: 'restitution', type: 'f32', offset: 8 },
+            { name: 'isSensor', type: 'bool', offset: 12 },
+            { name: 'enabled', type: 'bool', offset: 13 },
         ],
     },
     SpineAnimation: {

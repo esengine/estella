@@ -242,6 +242,14 @@ export interface BoxCollider {
     maskBits: number;
 }
 
+export interface BoxCollider3D {
+    halfExtents: Vec3;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
 export interface Camera {
     projectionType: number;
     fov: number;
@@ -277,6 +285,15 @@ export interface CapsuleCollider {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+export interface CapsuleCollider3D {
+    radius: number;
+    halfHeight: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
 }
 
 export interface Children {
@@ -447,6 +464,15 @@ export interface RigidBody {
     enabled: boolean;
 }
 
+export interface RigidBody3D {
+    bodyType: number;
+    gravityScale: number;
+    linearDamping: number;
+    angularDamping: number;
+    fixedRotation: boolean;
+    enabled: boolean;
+}
+
 export interface SegmentCollider {
     point1: Vec2;
     point2: Vec2;
@@ -471,6 +497,14 @@ export interface ShapeRenderer {
     cornerRadius: number;
     layer: number;
     parallax: Vec2;
+    enabled: boolean;
+}
+
+export interface SphereCollider3D {
+    radius: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
     enabled: boolean;
 }
 
@@ -634,6 +668,10 @@ export interface Registry {
     getBoxCollider(entity: Entity): BoxCollider;
     addBoxCollider(entity: Entity, component: BoxCollider): void;
     removeBoxCollider(entity: Entity): void;
+    hasBoxCollider3D(entity: Entity): boolean;
+    getBoxCollider3D(entity: Entity): BoxCollider3D;
+    addBoxCollider3D(entity: Entity, component: BoxCollider3D): void;
+    removeBoxCollider3D(entity: Entity): void;
     hasCamera(entity: Entity): boolean;
     getCamera(entity: Entity): Camera;
     addCamera(entity: Entity, component: Camera): void;
@@ -646,6 +684,10 @@ export interface Registry {
     getCapsuleCollider(entity: Entity): CapsuleCollider;
     addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
     removeCapsuleCollider(entity: Entity): void;
+    hasCapsuleCollider3D(entity: Entity): boolean;
+    getCapsuleCollider3D(entity: Entity): CapsuleCollider3D;
+    addCapsuleCollider3D(entity: Entity, component: CapsuleCollider3D): void;
+    removeCapsuleCollider3D(entity: Entity): void;
     hasChildren(entity: Entity): boolean;
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
@@ -694,6 +736,10 @@ export interface Registry {
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
     removeRigidBody(entity: Entity): void;
+    hasRigidBody3D(entity: Entity): boolean;
+    getRigidBody3D(entity: Entity): RigidBody3D;
+    addRigidBody3D(entity: Entity, component: RigidBody3D): void;
+    removeRigidBody3D(entity: Entity): void;
     hasSegmentCollider(entity: Entity): boolean;
     getSegmentCollider(entity: Entity): SegmentCollider;
     addSegmentCollider(entity: Entity, component: SegmentCollider): void;
@@ -706,6 +752,10 @@ export interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasSphereCollider3D(entity: Entity): boolean;
+    getSphereCollider3D(entity: Entity): SphereCollider3D;
+    addSphereCollider3D(entity: Entity, component: SphereCollider3D): void;
+    removeSphereCollider3D(entity: Entity): void;
     hasSpineAnimation(entity: Entity): boolean;
     getSpineAnimation(entity: Entity): SpineAnimation;
     addSpineAnimation(entity: Entity, component: SpineAnimation): void;
@@ -766,9 +816,11 @@ export interface ESEngineModule {
     getBuiltinComponentNames(): string[];
     BitmapText: new () => BitmapText;
     BoxCollider: new () => BoxCollider;
+    BoxCollider3D: new () => BoxCollider3D;
     Camera: new () => Camera;
     Canvas: new () => Canvas;
     CapsuleCollider: new () => CapsuleCollider;
+    CapsuleCollider3D: new () => CapsuleCollider3D;
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
     DragonBonesAnimation: new () => DragonBonesAnimation;
@@ -781,9 +833,11 @@ export interface ESEngineModule {
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;
     RigidBody: new () => RigidBody;
+    RigidBody3D: new () => RigidBody3D;
     SegmentCollider: new () => SegmentCollider;
     ShadowCaster2D: new () => ShadowCaster2D;
     ShapeRenderer: new () => ShapeRenderer;
+    SphereCollider3D: new () => SphereCollider3D;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;
     TilemapLayer: new () => TilemapLayer;

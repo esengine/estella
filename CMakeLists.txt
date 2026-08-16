@@ -177,6 +177,7 @@ endif()
 list(APPEND ESENGINE_HEADERS
     src/esengine/ecs/components/RigidBody.hpp
     src/esengine/ecs/components/Collider.hpp
+    src/esengine/ecs/components/RigidBody3D.hpp
 )
 
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
