@@ -5,7 +5,7 @@ Symbols: 113 public · 63 beta · 1437 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"97f0a1d90b227b76"
+"9b942024c64872cd"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4292,7 +4292,7 @@ static prototype: Mesh2DPlugin
 
 ## MeshChannel — const @experimental
 ```
-{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; }
+{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; readonly Joints: 5; readonly Weights: 6; }
 ```
 
 ## MeshChannelDesc — interface @experimental
@@ -4305,7 +4305,7 @@ type: number
 
 ## MeshChannelType — const @experimental
 ```
-{ readonly Float32: 0; readonly UNorm8: 1; }
+{ readonly Float32: 0; readonly UNorm8: 1; readonly UInt16: 2; }
 ```
 
 ## MeshData — interface @experimental
@@ -4314,6 +4314,7 @@ aabbMax: [number, number, number]
 aabbMin: [number, number, number]
 channels: MeshChannelDesc[]
 indices: Uint32Array<ArrayBufferLike>
+inverseBindMatrices: Float32Array<ArrayBufferLike> | undefined
 vertexCount: number
 vertexStride: number
 vertices: Uint8Array<ArrayBufferLike>

@@ -120,4 +120,25 @@ struct Mesh2D {
     Mesh2D() = default;
 };
 
+// =============================================================================
+// MeshSkin Component
+// =============================================================================
+
+/**
+ * @brief What deforms a @ref Mesh2D: the entities its Joints channel indexes.
+ *
+ * @details Its own component because Mesh2D says WHAT is drawn and this says
+ *          what moves it; entry i drives joint i of the mesh's own bind
+ *          matrices. A skinned mesh's own transform is ignored (glTF requires
+ *          it) — the joints are placed in the world, so the vertices are too.
+ */
+ES_COMPONENT()
+struct MeshSkin {
+    /** @brief Joint entities, in the order the mesh's bind matrices are stored. */
+    ES_PROPERTY(entity_ref, tooltip="Joint entities, in the order the mesh's bind matrices are in.")
+    std::vector<Entity> joints;
+
+    MeshSkin() = default;
+};
+
 }  // namespace esengine::ecs

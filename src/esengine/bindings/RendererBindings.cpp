@@ -285,6 +285,16 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
         }
     }
 
+    // The file's channel TYPE code (0 float, 1 unorm8, 2 uint16), in the asset
+    // layer's vocabulary — the boundary the format crosses as bytes.
+    auto channelType = [](u8 code) {
+        switch (code) {
+        case 1:  return GfxDataType::UnsignedByte;
+        case 2:  return GfxDataType::UnsignedShort;
+        default: return GfxDataType::Float;
+        }
+    };
+
     GfxVertexAttribute channels[MAX_VERTEX_ATTRIBUTES];
     if (channelCount > MAX_VERTEX_ATTRIBUTES) return 0;
     for (u32 i = 0; i < channelCount; ++i) {
@@ -292,7 +302,7 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
         channels[i] = GfxVertexAttribute{
             .location = c[0],
             .components = c[1],
-            .type = c[2] == 1 ? GfxDataType::UnsignedByte : GfxDataType::Float,
+            .type = channelType(c[2]),
             .normalized = c[3] != 0,
             .offset = static_cast<u32>(c[4]) | (static_cast<u32>(c[5]) << 8)
                     | (static_cast<u32>(c[6]) << 16) | (static_cast<u32>(c[7]) << 24),

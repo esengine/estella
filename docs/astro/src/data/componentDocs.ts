@@ -74,6 +74,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   ShadowCaster2D: { category: 'graphics', summary: 'Marks a renderer as an occluder, so 2D lights cast shadows from its silhouette.', doc: 'graphics/lighting', anchor: 'casting-shadows', anchorZh: '投射阴影' },
   PostProcessVolume: { category: 'graphics', summary: 'A stack of full-screen effects (bloom, vignette, colour grading) applied after the scene is drawn.', doc: 'graphics/post-processing', anchor: 'using-a-postprocessvolume', anchorZh: '使用-postprocessvolume' },
   Mesh2D: { category: 'graphics', summary: 'Arbitrary 2D geometry — your own vertices, indices and material — drawn like any other renderer.', doc: 'graphics/drawing', anchor: 'custom-meshes-mesh2d', anchorZh: '自定义网格mesh2d' },
+  MeshSkin: { category: 'graphics', summary: 'The joint entities that deform a Mesh2D — an imported skin, in the order its bind matrices are in.', doc: 'assets/models', anchor: 'skinning', anchorZh: '蒙皮' },
   Video: { category: 'graphics', summary: 'Plays a video stream onto a surface in the world or the UI.', doc: 'graphics/video', anchor: 'the-video-component', anchorZh: 'video-组件' },
 
   // ── UI ─────────────────────────────────────────────────────────────────────

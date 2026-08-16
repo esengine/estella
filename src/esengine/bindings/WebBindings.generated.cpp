@@ -488,6 +488,28 @@ Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
     return js;
 }
 
+struct MeshSkinJS {
+    std::vector<u32> joints;
+};
+
+void meshskinApplyJS(esengine::ecs::MeshSkin& c, const MeshSkinJS& js) {
+    c.joints.reserve(js.joints.size());
+    for (auto v : js.joints) c.joints.push_back(Entity(v));
+}
+
+esengine::ecs::MeshSkin meshskinFromJS(const MeshSkinJS& js) {
+    esengine::ecs::MeshSkin c;
+    meshskinApplyJS(c, js);
+    return c;
+}
+
+MeshSkinJS meshskinToJS(const esengine::ecs::MeshSkin& c) {
+    MeshSkinJS js;
+    js.joints.reserve(c.joints.size());
+    for (auto e : c.joints) js.joints.push_back(static_cast<u32>(e));
+    return js;
+}
+
 struct ParentJS {
     u32 entity;
 };
@@ -1233,6 +1255,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("enabled", &Mesh2DJS::enabled)
         .field("mesh", &Mesh2DJS::mesh);
 
+    value_object<MeshSkinJS>("MeshSkin")
+        .field("joints", &MeshSkinJS::joints);
+
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
 
@@ -1762,6 +1787,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Mesh2D>(entity);
         }))
 
+        // MeshSkin
+        .function("hasMeshSkin", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::MeshSkin>(static_cast<Entity>(e));
+        }))
+        .function("getMeshSkin", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshSkin>(entity)) return MeshSkinJS{};
+            return meshskinToJS(r.get<esengine::ecs::MeshSkin>(entity));
+        }))
+        .function("addMeshSkin", optional_override([](Registry& r, u32 e, const MeshSkinJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::MeshSkin>(entity)) {
+                meshskinApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::MeshSkin>(entity, meshskinFromJS(js));
+        }))
+        .function("removeMeshSkin", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshSkin>(entity)) return;
+            r.remove<esengine::ecs::MeshSkin>(entity);
+        }))
+
         // Parent
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
@@ -2196,6 +2245,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("Light2D")));
     arr.set(i++, val(std::string("Mesh2D")));
+    arr.set(i++, val(std::string("MeshSkin")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("ParticleForceField")));
@@ -2527,7 +2577,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "97f0a1d90b227b76";
+static const char* kEsAbiLayoutHash = "9b942024c64872cd";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

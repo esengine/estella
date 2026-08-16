@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '97f0a1d90b227b76';
+export const ABI_LAYOUT_HASH = '9b942024c64872cd';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -354,6 +354,18 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
+        },
+    },
+    MeshSkin: {
+        defaults: {
+            joints: [],
+        },
+        assetFields: [],
+        entityFields: ['joints'],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            joints: { tooltip: "Joint entities, in the order the mesh's bind matrices are in." },
         },
     },
     Parent: {
@@ -1013,6 +1025,10 @@ export interface Mesh2DData {
     material: number;
     enabled: boolean;
     mesh: number;
+}
+
+export interface MeshSkinData {
+    joints: Entity[];
 }
 
 /**

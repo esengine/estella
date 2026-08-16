@@ -284,7 +284,7 @@ describe('glTF material import', () => {
     expect(meshes[0]!.material?.baseColorTexture?.settings?.wrapMode).toBe('clamp');
   });
 
-  it('reports deformation it cannot carry: skins and morph targets', async () => {
+  it('reports deformation it cannot carry: morph targets, and joints nothing binds', async () => {
     const doc = {
       ...withInlineImage(),
       skins: [{}],
@@ -296,8 +296,7 @@ describe('glTF material import', () => {
     }]), 'model');
     const line = warnings.join('\n');
     expect(line).toContain('2 morph target(s) not imported');
-    expect(line).toContain('skinning is not imported');
-    expect(line).toContain('1 skin(s) not imported');
+    expect(line).toContain('a skin naming joints');
   });
 
   it('reports a uv rewrite it does not apply', async () => {
@@ -669,6 +668,117 @@ describe('glTF animation import', () => {
 
     expect(result.animations).toHaveLength(0);
     expect(result.warnings.some(w => /weights/.test(w))).toBe(true);
+  });
+});
+
+/**
+ * The triangle bound to two joints. Accessors 3/4 are JOINTS_0 (u16) and
+ * WEIGHTS_0; 5 is the skin's inverse bind matrices unless the caller drops it.
+ */
+function skinnedGltf(opts: { noBindMatrices?: boolean; skinOnNode?: boolean; weights?: boolean } = {}): Uint8Array {
+  const geo = geometryBuffer();
+  const geoBytes = Buffer.from(geo.uri.split(',')[1]!, 'base64');
+  const pad = Buffer.alloc((4 - (geoBytes.length % 4)) % 4);
+  const joints = Buffer.from(new Uint16Array([0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]).buffer);
+  const weights = Buffer.from(new Float32Array([
+    0.75, 0.25, 0, 0, 1, 0, 0, 0, 0.5, 0.5, 0, 0,
+  ]).buffer);
+  // Joint 1's bind pose sits 30 along x; joint 0's is identity.
+  const bind = new Float32Array(32);
+  for (let j = 0; j < 2; j++) for (let c = 0; c < 4; c++) bind[j * 16 + c * 5] = 1;
+  bind[16 + 12] = 30;
+  const parts = [geoBytes, pad, joints, weights, Buffer.from(bind.buffer)];
+  const bytes = Buffer.concat(parts);
+  let at = geoBytes.length + pad.length;
+  const views: Record<string, unknown>[] = [];
+  for (const p of [joints, weights, Buffer.from(bind.buffer)]) {
+    views.push({ buffer: 0, byteOffset: at, byteLength: p.length });
+    at += p.length;
+  }
+
+  const doc: Record<string, unknown> = {
+    asset: { version: '2.0' },
+    buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+    bufferViews: [...(geo.views as Record<string, unknown>[]), ...views],
+    accessors: [
+      ...(geo.accessors as Record<string, unknown>[]),
+      { bufferView: 3, componentType: 5123, count: 3, type: 'VEC4' },
+      { bufferView: 4, componentType: 5126, count: 3, type: 'VEC4' },
+      { bufferView: 5, componentType: 5126, count: 2, type: 'MAT4' },
+    ],
+    meshes: [{
+      name: 'Tri',
+      primitives: [{
+        attributes: {
+          POSITION: 0, TEXCOORD_0: 1, JOINTS_0: 3,
+          ...(opts.weights === false ? {} : { WEIGHTS_0: 4 }),
+        },
+        indices: 2, mode: 4,
+      }],
+    }],
+    nodes: [
+      { name: 'Rig', children: [1, 2, 3] },
+      { name: 'Hip' },
+      { name: 'Knee', translation: [30, 0, 0] },
+      { name: 'Body', mesh: 0, ...(opts.skinOnNode === false ? {} : { skin: 0 }) },
+    ],
+    scenes: [{ nodes: [0] }],
+    scene: 0,
+    skins: [{
+      joints: [1, 2],
+      ...(opts.noBindMatrices ? {} : { inverseBindMatrices: 5 }),
+    }],
+  };
+  return new TextEncoder().encode(JSON.stringify(doc));
+}
+
+describe('glTF skinning import', () => {
+  it('carries the joint channel, the weights and the bind pose', async () => {
+    const { meshes, warnings } = await importGltfMeshes(skinnedGltf(), 'rig');
+    const mesh = meshes[0]!;
+
+    const joints = mesh.data.channels.find((c) => c.semantic === MeshChannel.Joints);
+    const weights = mesh.data.channels.find((c) => c.semantic === MeshChannel.Weights);
+    expect(joints).toMatchObject({ components: 4, type: 2 /* UInt16 */ });
+    expect(weights).toMatchObject({ components: 4, type: 0 /* Float32 */ });
+
+    const dv = new DataView(mesh.data.vertices.buffer, mesh.data.vertices.byteOffset);
+    expect(dv.getUint16(joints!.offset + 2, true)).toBe(1);
+    expect(dv.getFloat32(weights!.offset, true)).toBeCloseTo(0.75, 6);
+
+    // The bind pose comes from the SKIN, and the joints are its node list.
+    expect(mesh.data.inverseBindMatrices).toHaveLength(32);
+    expect(mesh.data.inverseBindMatrices![16 + 12]).toBe(30);
+    expect(mesh.skinJoints).toEqual([1, 2]);
+    expect(warnings.filter((w) => /skin/i.test(w))).toEqual([]);
+  });
+
+  it('treats a missing bind accessor as an identity bind pose', async () => {
+    const { meshes } = await importGltfMeshes(skinnedGltf({ noBindMatrices: true }), 'rig');
+    const bind = meshes[0]!.data.inverseBindMatrices!;
+    expect(bind[0]).toBe(1);
+    expect(bind[16 + 12]).toBe(0);
+  });
+
+  it('imports static, and says so, when nothing binds the joints', async () => {
+    for (const opts of [{ skinOnNode: false }, { weights: false }]) {
+      const { meshes, warnings } = await importGltfMeshes(skinnedGltf(opts), 'rig');
+      expect(meshes[0]!.data.channels.some((c) => c.semantic === MeshChannel.Joints)).toBe(false);
+      expect(meshes[0]!.skinJoints).toBeUndefined();
+      expect(warnings.some((w) => /JOINTS_0 without/.test(w))).toBe(true);
+    }
+  });
+
+  it('names the joint entities the prefab gives those nodes', async () => {
+    const { meshes, nodes } = await importGltfMeshes(skinnedGltf(), 'rig');
+    const prefab = assembleGltfPrefab('rig', meshes, { nodes });
+    const body = prefab.entities.find((e) => e.name === 'Body')!;
+    const skin = body.components.find((c) => c.type === 'MeshSkin');
+    expect(skin?.data).toEqual({ joints: ['n1', 'n2'] });
+    // Those ids are entities the same prefab carries — a joint list pointing
+    // outside it would resolve to nothing at instantiation.
+    const ids = prefab.entities.map((e) => e.prefabEntityId);
+    expect(ids).toEqual(expect.arrayContaining(['n1', 'n2']));
   });
 });
 

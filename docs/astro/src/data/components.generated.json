@@ -1361,6 +1361,18 @@
       ]
     },
     {
+      "name": "MeshSkin",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "joints",
+          "type": "Entity",
+          "default": "",
+          "doc": "Joint entities, in the order the mesh's bind matrices are in."
+        }
+      ]
+    },
+    {
       "name": "MotorJoint",
       "source": "ts",
       "fields": [

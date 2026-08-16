@@ -28,6 +28,9 @@ export interface ImportedMesh {
     triangleCount: number;
     /** The primitive's baseColor, absent when it names no material. */
     material?: ImportedMaterial;
+    /** Source node indices of the joints its `Joints` channel indexes, in order.
+     *  Absent for geometry nothing skins. */
+    skinJoints?: number[];
 }
 
 /** Where a material's image comes from: a product this import writes, or a file already on disk. */
@@ -203,7 +206,7 @@ interface GltfJson {
         name?: string; children?: number[]; mesh?: number; skin?: number;
         matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
     }[];
-    skins?: unknown[];
+    skins?: { name?: string; joints: number[]; inverseBindMatrices?: number; skeleton?: number }[];
     animations?: {
         name?: string;
         channels: { sampler: number; target: { node?: number; path: string } }[];
@@ -769,6 +772,32 @@ export function nodeChildPaths(nodes: ImportedNode[]): Map<number, string> {
     return paths;
 }
 
+/**
+ * A skin's inverse bind matrices, one 4x4 per joint. The accessor is optional
+ * per spec and its absence means identity — a bind pose already at the origin,
+ * not a missing one.
+ */
+function bindMatrices(src: GltfBytes, skin: NonNullable<GltfJson['skins']>[number],
+                      warnings: string[]): Float32Array {
+    const out = new Float32Array(skin.joints.length * 16);
+    if (skin.inverseBindMatrices === undefined) {
+        for (let j = 0; j < skin.joints.length; j++) {
+            for (let c = 0; c < 4; c++) out[j * 16 + c * 5] = 1;
+        }
+        return out;
+    }
+    const read = readAccessor(src, skin.inverseBindMatrices);
+    if (read.length < out.length) {
+        warnings.push(`a skin declares ${skin.joints.length} joints but carries`
+            + ` ${read.length / 16} bind matrices; the rest are identity`);
+    }
+    out.set(read.subarray(0, Math.min(read.length, out.length)));
+    for (let j = read.length / 16; j < skin.joints.length; j++) {
+        for (let c = 0; c < 4; c++) out[j * 16 + c * 5] = 1;
+    }
+    return out;
+}
+
 /** glTF's sampler interpolation → the engine's, which spells the same curves. */
 const INTERPOLATION: Record<string, string> = {
     LINEAR: 'linear', STEP: 'step', CUBICSPLINE: 'hermite',
@@ -973,6 +1002,19 @@ export async function importGltfMeshes(
     const meshIndexOf = new Map<string, number>();
     const single = (json.meshes ?? []).reduce((n, m) => n + m.primitives.length, 0) === 1;
 
+    // Which skin deforms each mesh. A skin sits on the NODE, not the primitive,
+    // so the geometry learns its bind pose from whatever draws it — and a mesh
+    // drawn by two nodes under different skins can only carry one of them.
+    const meshSkin = new Map<number, number>();
+    for (const node of json.nodes ?? []) {
+        if (node.mesh === undefined || node.skin === undefined) continue;
+        const seen = meshSkin.get(node.mesh);
+        if (seen === undefined) meshSkin.set(node.mesh, node.skin);
+        else if (seen !== node.skin) {
+            warnings.push(`mesh ${node.mesh} is drawn under two skins; it is bound to the first`);
+        }
+    }
+
     // ~800KB of decoder, loaded only for a file that carries Draco — the same
     // lazy dynamic import the cook uses for its KTX2 encoder, and the reason the
     // import is async in the first place.
@@ -1024,9 +1066,6 @@ export async function importGltfMeshes(
             if (prim.targets?.length) {
                 warnings.push(`${label}: ${prim.targets.length} morph target(s) not imported`);
             }
-            if (prim.attributes.JOINTS_0 !== undefined) {
-                warnings.push(`${label}: skinning is not imported — the mesh comes in static`);
-            }
             const posIndex = prim.attributes.POSITION;
             if (posIndex === undefined) {
                 warnings.push(`${label}: no POSITION — skipped`);
@@ -1076,13 +1115,33 @@ export async function importGltfMeshes(
                     return;
                 }
 
+                // Both halves or neither: a joint index nothing weights moves the
+                // vertex by an arbitrary bone, and a weight indexing nothing has
+                // no bone to apply. A skin is what says which bind pose they mean.
+                const skinIndex = meshSkin.get(meshIndex);
+                const skin = skinIndex !== undefined ? json.skins?.[skinIndex] : undefined;
+                const joints = skin ? attribute('JOINTS_0', prim.attributes.JOINTS_0) : null;
+                const weights = skin ? attribute('WEIGHTS_0', prim.attributes.WEIGHTS_0) : null;
+                const skinned = !!(skin?.joints?.length && joints && weights);
+                if (prim.attributes.JOINTS_0 !== undefined && !skinned) {
+                    warnings.push(`${label}: JOINTS_0 without ${!skin?.joints?.length
+                        ? 'a skin naming joints on any node drawing it' : 'WEIGHTS_0'}`
+                        + ' — imported static');
+                }
+
                 const { channels, vertexStride } = packChannels([
                     { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
                     { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
                     { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
                     ...(normals ? [{ semantic: MeshChannel.Normal, components: 3,
                                      type: MeshChannelType.Float32 }] : []),
+                    ...(skinned ? [
+                        { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16 },
+                        { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32 },
+                    ] : []),
                 ]);
+                const jointsChannel = skinned ? channels[channels.length - 2]! : null;
+                const weightsChannel = skinned ? channels[channels.length - 1]! : null;
 
                 const vertices = new Uint8Array(vertexCount * vertexStride);
                 const dv = new DataView(vertices.buffer);
@@ -1115,15 +1174,25 @@ export async function importGltfMeshes(
                             dv.setFloat32(at + channels[3].offset + c * 4, normals[i * 3 + c] ?? 0, true);
                         }
                     }
+                    if (jointsChannel && weightsChannel) {
+                        for (let c = 0; c < 4; c++) {
+                            dv.setUint16(at + jointsChannel.offset + c * 2, joints![i * 4 + c] ?? 0, true);
+                            dv.setFloat32(at + weightsChannel.offset + c * 4, weights![i * 4 + c] ?? 0, true);
+                        }
+                    }
                 }
 
                 meshIndexOf.set(`${meshIndex}_${primIndex}`, meshes.length);
                 meshes.push({
                     name: single ? stem : `${stem}_${meshIndex}_${primIndex}`,
-                    data: { channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max },
+                    data: {
+                        channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max,
+                        ...(skinned ? { inverseBindMatrices: bindMatrices(src, skin!, warnings) } : {}),
+                    },
                     vertexCount,
                     triangleCount: indices.length / 3,
                     ...(prim.material !== undefined ? { material: materialFor(prim.material) } : {}),
+                    ...(skinned ? { skinJoints: skin!.joints } : {}),
                 });
             } catch (err) {
                 warnings.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
@@ -1131,9 +1200,6 @@ export async function importGltfMeshes(
         });
     });
 
-    // A rigged source arrives as still geometry; that is a property of the import
-    // worth stating once for the file rather than per primitive.
-    if (json.skins?.length) warnings.push(`${json.skins.length} skin(s) not imported`);
     if (meshes.length === 0 && warnings.length === 0) {
         warnings.push('no triangle geometry found');
     }
@@ -1291,6 +1357,16 @@ function meshComponent(mesh: ImportedMesh, stem: string, refs: ProductRefs): Com
     } };
 }
 
+/**
+ * The joints that deform this mesh, named by the prefab entity each source node
+ * became — the same `n<index>` ids {@link assembleGltfPrefab} emits, so a
+ * re-import keeps pointing at the same entities.
+ */
+function skinComponent(mesh: ImportedMesh): ComponentData[] {
+    if (!mesh.skinJoints) return [];
+    return [{ type: 'MeshSkin', data: { joints: mesh.skinJoints.map(i => `n${i}`) } }];
+}
+
 /** Only what differs from a Transform's defaults, so a diff shows the placement. */
 function transformComponent(trs?: Trs, scale?: number): ComponentData {
     const s = trs?.scale ?? [1, 1, 1];
@@ -1327,7 +1403,8 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
         const drawn = node.meshes.map(i => meshes[i]).filter((m): m is ImportedMesh => !!m);
         // One primitive rides the node itself; several cannot, since a Mesh2D
         // draws one mesh — they become its children, at its own origin.
-        const own = drawn.length === 1 && drawn[0] ? [meshComponent(drawn[0], name, refs)] : [];
+        const own = drawn.length === 1 && drawn[0]
+            ? [meshComponent(drawn[0], name, refs), ...skinComponent(drawn[0])] : [];
         const self = entity(id, node.name, parent,
                             [transformComponent(node, rootScale), ...own]);
         entities.push(self);
@@ -1336,7 +1413,8 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
                 const childId = `${id}_p${i}`;
                 self.children.push(childId);
                 entities.push(entity(childId, mesh.name, id,
-                                     [transformComponent(), meshComponent(mesh, name, refs)]));
+                                     [transformComponent(), meshComponent(mesh, name, refs),
+                                      ...skinComponent(mesh)]));
             });
         }
         for (const child of node.children) self.children.push(emitNode(child, id));

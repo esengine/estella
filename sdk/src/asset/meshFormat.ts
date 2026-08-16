@@ -12,9 +12,13 @@
 
 /** Magic 'ESMH', little-endian. */
 const MAGIC = 0x484d5345;
-const VERSION = 1;
-const HEADER_BYTES = 44;
+const VERSION = 2;
+/** v1 had no joint count; a file that predates skinning reads with the shorter one. */
+const HEADER_BYTES_V1 = 44;
+const HEADER_BYTES = 48;
 const CHANNEL_BYTES = 8;
+/** One inverse bind matrix: 16 floats. */
+const MATRIX_BYTES = 64;
 
 /**
  * What a channel means. The value IS the shader attribute location, and the first
@@ -27,12 +31,18 @@ export const MeshChannel = {
     TexCoord0: 2,
     Normal: 3,
     Tangent: 4,
+    /** Which joints move this vertex — indices into the mesh's own bind matrices. */
+    Joints: 5,
+    /** How much each of those four joints moves it. */
+    Weights: 6,
 } as const;
 
 /** How a channel's components are stored. Append only — serialized. */
 export const MeshChannelType = {
     Float32: 0,
     UNorm8: 1,
+    /** Joint indices: glTF writes them as u8 or u16, and u16 loses neither. */
+    UInt16: 2,
 } as const;
 
 export interface MeshChannelDesc {
@@ -55,11 +65,20 @@ export interface MeshData {
     indices: Uint32Array;
     aabbMin: [number, number, number];
     aabbMax: [number, number, number];
+    /**
+     * The bind pose, one 4x4 per joint, in the order the `Joints` channel indexes.
+     * It lives with the vertices because those indices point AT it — split apart,
+     * a file's indices would name something it does not carry. Absent for
+     * geometry that is not skinned.
+     */
+    inverseBindMatrices?: Float32Array;
 }
 
 /** Bytes one component of a channel type occupies. */
 function componentBytes(type: number): number {
-    return type === MeshChannelType.UNorm8 ? 1 : 4;
+    if (type === MeshChannelType.UNorm8) return 1;
+    if (type === MeshChannelType.UInt16) return 2;
+    return 4;
 }
 
 /**
@@ -84,8 +103,10 @@ export function packChannels(semantics: { semantic: number; components: number; 
 }
 
 export function encodeMesh(data: MeshData): Uint8Array {
+    const jointCount = (data.inverseBindMatrices?.length ?? 0) / 16;
     const size = HEADER_BYTES + data.channels.length * CHANNEL_BYTES
-        + data.vertexCount * data.vertexStride + data.indices.length * 4;
+        + data.vertexCount * data.vertexStride + data.indices.length * 4
+        + jointCount * MATRIX_BYTES;
     const out = new Uint8Array(size);
     const view = new DataView(out.buffer);
 
@@ -99,6 +120,7 @@ export function encodeMesh(data: MeshData): Uint8Array {
         view.setFloat32(20 + i * 4, data.aabbMin[i], true);
         view.setFloat32(32 + i * 4, data.aabbMax[i], true);
     }
+    view.setUint32(44, jointCount, true);
 
     let at = HEADER_BYTES;
     for (const c of data.channels) {
@@ -113,12 +135,20 @@ export function encodeMesh(data: MeshData): Uint8Array {
     out.set(data.vertices.subarray(0, data.vertexCount * data.vertexStride), at);
     at += data.vertexCount * data.vertexStride;
     out.set(new Uint8Array(data.indices.buffer, data.indices.byteOffset, data.indices.length * 4), at);
+    at += data.indices.length * 4;
+    if (data.inverseBindMatrices) {
+        // Written through the DataView: the section's start is only 4-byte
+        // aligned, and a Float32Array view on it may not be constructible.
+        for (let i = 0; i < data.inverseBindMatrices.length; i++) {
+            view.setFloat32(at + i * 4, data.inverseBindMatrices[i]!, true);
+        }
+    }
     return out;
 }
 
 export function decodeMesh(bytes: Uint8Array): MeshData {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    if (bytes.byteLength < HEADER_BYTES || view.getUint32(0, true) !== MAGIC) {
+    if (bytes.byteLength < HEADER_BYTES_V1 || view.getUint32(0, true) !== MAGIC) {
         throw new Error('not an .esmesh file');
     }
     const version = view.getUint16(4, true);
@@ -138,8 +168,11 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     const aabbMax: [number, number, number] = [
         view.getFloat32(32, true), view.getFloat32(36, true), view.getFloat32(40, true)];
 
+    const headerBytes = version >= 2 ? HEADER_BYTES : HEADER_BYTES_V1;
+    const jointCount = version >= 2 ? view.getUint32(44, true) : 0;
+
     const channels: MeshChannelDesc[] = [];
-    let at = HEADER_BYTES;
+    let at = headerBytes;
     for (let i = 0; i < channelCount; i++) {
         channels.push({
             semantic: view.getUint8(at),
@@ -151,7 +184,7 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     }
 
     const vertexBytes = vertexCount * vertexStride;
-    const expected = at + vertexBytes + indexCount * 4;
+    const expected = at + vertexBytes + indexCount * 4 + jointCount * MATRIX_BYTES;
     if (bytes.byteLength < expected) {
         throw new Error(`.esmesh is truncated: ${bytes.byteLength} bytes, header describes ${expected}`);
     }
@@ -162,7 +195,14 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     const indexBase = at + vertexBytes;
     for (let i = 0; i < indexCount; i++) indices[i] = view.getUint32(indexBase + i * 4, true);
 
-    return { channels, vertexStride, vertexCount, vertices, indices, aabbMin, aabbMax };
+    const out: MeshData = { channels, vertexStride, vertexCount, vertices, indices, aabbMin, aabbMax };
+    if (jointCount > 0) {
+        const base = indexBase + indexCount * 4;
+        const matrices = new Float32Array(jointCount * 16);
+        for (let i = 0; i < matrices.length; i++) matrices[i] = view.getFloat32(base + i * 4, true);
+        out.inverseBindMatrices = matrices;
+    }
+    return out;
 }
 
 /** The channel table as the engine takes it: one 8-byte record per channel. */

@@ -356,6 +356,10 @@ export interface Mesh2D {
     mesh: number;
 }
 
+export interface MeshSkin {
+    joints: VectorEntity;
+}
+
 export interface Parent {
     entity: number;
 }
@@ -667,6 +671,10 @@ export interface Registry {
     getMesh2D(entity: Entity): Mesh2D;
     addMesh2D(entity: Entity, component: Mesh2D): void;
     removeMesh2D(entity: Entity): void;
+    hasMeshSkin(entity: Entity): boolean;
+    getMeshSkin(entity: Entity): MeshSkin;
+    addMeshSkin(entity: Entity, component: MeshSkin): void;
+    removeMeshSkin(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -765,6 +773,7 @@ export interface ESEngineModule {
     Interactable: new () => Interactable;
     Light2D: new () => Light2D;
     Mesh2D: new () => Mesh2D;
+    MeshSkin: new () => MeshSkin;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;

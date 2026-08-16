@@ -4281,7 +4281,7 @@ static prototype: Mesh2DPlugin
 
 ## MeshChannel — const @experimental
 ```
-{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; }
+{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; readonly Joints: 5; readonly Weights: 6; }
 ```
 
 ## MeshChannelDesc — interface @experimental
@@ -4294,7 +4294,7 @@ type: number
 
 ## MeshChannelType — const @experimental
 ```
-{ readonly Float32: 0; readonly UNorm8: 1; }
+{ readonly Float32: 0; readonly UNorm8: 1; readonly UInt16: 2; }
 ```
 
 ## MeshData — interface @experimental
@@ -4303,6 +4303,7 @@ aabbMax: [number, number, number]
 aabbMin: [number, number, number]
 channels: MeshChannelDesc[]
 indices: Uint32Array<ArrayBufferLike>
+inverseBindMatrices: Float32Array<ArrayBufferLike> | undefined
 vertexCount: number
 vertexStride: number
 vertices: Uint8Array<ArrayBufferLike>
