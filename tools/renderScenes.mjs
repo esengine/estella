@@ -48,6 +48,10 @@ export const SCENES = [
   // the half bound to it rises by exactly that and the half bound to bone 0 does
   // not: the elbow is where the geometry says, not where a whole-mesh move puts it.
   { id: "mesh-skin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-skin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // The same arm, drawn by a MATERIAL — a program is compiled per vertex source
+  // and there was no skinned one, so a skinned mesh fell back to the engine's
+  // shader and ignored what it was made of (sabotage: the probes come back white).
+  { id: "mesh-skin-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-skin-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A glTF animation, through the shipped importer. The scene puts the quad at
   // x=150 and the clip runs -120 to 120 over a second, so 30 fixed steps is its
   // midpoint: the model is at the origin and where the SCENE put it is empty.

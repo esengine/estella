@@ -273,9 +273,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // source and would draw this at its local origin, so ask for the
                 // one compiled for THIS source; a failed variant falls back.
                 u32 materialProgram = 0;
-                if (key.materialId != 0 && ctx.materials && !skinned) {
+                if (key.materialId != 0 && ctx.materials) {
                     materialProgram = ctx.materials->meshProgram(key.materialId, ctx.resources,
-                                                                 resident->hasNormals);
+                                                                 resident->hasNormals, skinned);
                     if (materialProgram == 0) {
                         if (!warned_material_) {
                             warned_material_ = true;

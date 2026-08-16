@@ -1,0 +1,24 @@
+#pragma shader "SkinnedMaterial"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_tint color default(1,1,1,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+
+out vec4 fragColor;
+
+// Reads the per-object tint the vertex stage folded in, so a skinned draw that
+// reached this material through the wrong vertex source shows up as black.
+void main() {
+    fragColor = vec4(v_color.rgb * u_tint.rgb, 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return vec4f(v.v_color.rgb * mc.u_tint.rgb, 1.0);
+}
+#pragma end

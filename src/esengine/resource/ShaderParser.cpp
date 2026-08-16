@@ -124,6 +124,11 @@ std::string canonical2DVertexStageWGSL(bool lit) {
     std::string src = wgslCanonicalVSOut(lit);
     src +=
         "\n"
+        "#ifdef SKINNED\n"
+        "struct SkinConstants { bones : array<mat4x4f, 64> };\n"
+        "@group(0) @binding(5) var<uniform> skin : SkinConstants;\n"
+        "#endif\n"
+        "\n"
         "struct VSIn {\n"
         "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
@@ -131,6 +136,11 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "    @location(3) a_normal : vec3f,\n"
         "#endif\n"
+        "#ifdef SKINNED\n"
+        "    @location(5) a_joints : vec4u,\n"
+        "    @location(6) a_weights : vec4f,\n"
+        "    @location(12) a_instTint : vec4f,\n"
+        "#else\n"
         "#ifdef MESH\n"
         "    @location(8)  a_model0 : vec4f,\n"
         "    @location(9)  a_model1 : vec4f,\n"
@@ -143,11 +153,21 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "    @location(14) a_nrm1 : vec3f,\n"
         "    @location(15) a_nrm2 : vec3f,\n"
         "#endif\n"
+        "#endif\n"
         "};\n"
         "\n"
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
-        "#ifdef MESH\n"
+        // Bones are already world-space, so a skinned mesh's own transform is not
+        // read — which is what glTF requires of one.
+        "#ifdef SKINNED\n"
+        "    let pose = v.a_weights.x * skin.bones[v.a_joints.x]\n"
+        "             + v.a_weights.y * skin.bones[v.a_joints.y]\n"
+        "             + v.a_weights.z * skin.bones[v.a_joints.z]\n"
+        "             + v.a_weights.w * skin.bones[v.a_joints.w];\n"
+        "    let world = pose * vec4f(v.a_position, 1.0);\n"
+        "    out.v_color = v.a_color * v.a_instTint;\n"
+        "#elif defined(MESH)\n"
         "    let world = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3) * vec4f(v.a_position, 1.0);\n"
         "    out.v_color = v.a_color * v.a_instTint;\n"
         "#else\n"
@@ -157,7 +177,11 @@ std::string canonical2DVertexStageWGSL(bool lit) {
         "    out.pos = frame.projection * world;\n"
         "    out.v_texCoord = v.a_texCoord;\n"
         "#ifdef MESH_NORMALS\n"
+        "#ifdef SKINNED\n"
+        "    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * v.a_normal;\n"
+        "#else\n"
         "    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;\n"
+        "#endif\n"
         "    out.v_worldXYZ = world.xyz;\n"
         "#endif\n";
     if (lit) {
@@ -214,11 +238,9 @@ std::string canonicalPPVertexStage() {
         "}\n";
 }
 
-// Canonical 2D vertex stage for fragment-only .esshaders: the batch path bakes the
-// world transform into the vertices, so all 2D shaders share this pass-through.
-// The engine's vertex stage, in its two VERTEX SOURCES: the batch stream arrives
-// in world space, a resident mesh in local space with a per-object transform. So
-// MESH is how ONE material serves both rather than a second shader existing.
+// Canonical 2D vertex stage for fragment-only .esshaders, in its three VERTEX
+// SOURCES: batch (already world space), resident mesh (local + a per-object
+// transform), skinned (posed by bones). One material serves all three.
 std::string canonical2DVertexStage(bool lit) {
     std::string src =
         "layout(location = 0) in vec3 a_position;\n"
@@ -227,6 +249,15 @@ std::string canonical2DVertexStage(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "layout(location = 3) in vec3 a_normal;\n"
         "#endif\n"
+        "#ifdef SKINNED\n"
+        "layout(location = 5) in uvec4 a_joints;\n"
+        "layout(location = 6) in vec4 a_weights;\n"
+        "layout(location = 12) in vec4 a_instTint;\n"
+        // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
+        "layout(std140) uniform SkinConstants {\n"
+        "    mat4 u_bones[64];\n"
+        "};\n"
+        "#else\n"
         "#ifdef MESH\n"
         "layout(location = 8)  in vec4 a_model0;\n"
         "layout(location = 9)  in vec4 a_model1;\n"
@@ -238,6 +269,7 @@ std::string canonical2DVertexStage(bool lit) {
         "layout(location = 13) in vec3 a_nrm0;\n"
         "layout(location = 14) in vec3 a_nrm1;\n"
         "layout(location = 15) in vec3 a_nrm2;\n"
+        "#endif\n"
         "#endif\n"
         "\n"
         "out vec4 v_color;\n"
@@ -252,7 +284,16 @@ std::string canonical2DVertexStage(bool lit) {
     src +=
         "\n"
         "void main() {\n"
-        "#ifdef MESH\n"
+        // Bones are already world-space, so a skinned mesh's own transform is not
+        // read — which is what glTF requires of one.
+        "#ifdef SKINNED\n"
+        "    mat4 skin = a_weights.x * u_bones[a_joints.x]\n"
+        "              + a_weights.y * u_bones[a_joints.y]\n"
+        "              + a_weights.z * u_bones[a_joints.z]\n"
+        "              + a_weights.w * u_bones[a_joints.w];\n"
+        "    vec4 world = skin * vec4(a_position, 1.0);\n"
+        "    v_color = a_color * a_instTint;\n"
+        "#elif defined(MESH)\n"
         "    vec4 world = mat4(a_model0, a_model1, a_model2, a_model3) * vec4(a_position, 1.0);\n"
         "    v_color = a_color * a_instTint;\n"
         "#else\n"
@@ -262,7 +303,11 @@ std::string canonical2DVertexStage(bool lit) {
         "    gl_Position = u_projection * world;\n"
         "    v_texCoord = a_texCoord;\n"
         "#ifdef MESH_NORMALS\n"
+        "#ifdef SKINNED\n"
+        "    v_worldNormal = mat3(skin) * a_normal;\n"
+        "#else\n"
         "    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;\n"
+        "#endif\n"
         "    v_worldXYZ = world.xyz;\n"
         "#endif\n";
     if (lit) {
