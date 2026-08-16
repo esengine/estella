@@ -260,6 +260,13 @@ published separately; it ships inside the editor.
   — the import says so when it does, and the number that fixes it is in the
   source's own import settings.
 
+- **A mesh says what it is.** Selecting a `.esmesh` showed a thumbnail, a type and
+  a uuid — everything except the mesh. An import writes one file per primitive,
+  named by index, so telling a body from a banner meant drawing them. The details
+  panel now reads the file, which describes itself: its size in world units, its
+  vertex and triangle counts, and the channels it declares — the last of which is
+  what says whether it can be lit at all.
+
 - **A camera says where it looks.** The scene-camera gizmo drew one rectangle —
   `orthoSize` by the viewport's aspect — for every camera, so a perspective camera
   got an outline that had nothing to do with its field of view, and a camera turned
