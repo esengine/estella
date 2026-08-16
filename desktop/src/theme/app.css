@@ -387,13 +387,26 @@
   color: var(--star-hi);
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.75));
 }
-.viewport__cam-rect {
+.viewport__cam-shape {
   position: absolute;
-  left: 0;
-  top: 0;
-  border: 1px dashed var(--star-line);
-  border-radius: 2px;
-  background: rgba(76, 143, 214, 0.04);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.viewport__cam-frame {
+  fill: rgba(76, 143, 214, 0.04);
+  stroke: var(--star-line);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+/* The view volume: the same line, unfilled, so the near and far faces read as
+   depth rather than as two more framings. */
+.viewport__cam-volume {
+  fill: none;
+  stroke: color-mix(in srgb, var(--star-line) 60%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
 }
 
 /* Cover capture (ProjectStore.captureThumbnail): for the capture frame, hide every

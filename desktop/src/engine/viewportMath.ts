@@ -204,3 +204,29 @@ export function axisIndicatorEnds(
   }
   return ends.sort((a, b) => a.depth - b.depth);
 }
+
+/**
+ * Where each of a frustum's four side edges crosses the plane z = `planeZ`, in
+ * the corner order `cameraFrustumCorners` returns (near face, then far). An edge
+ * that never reaches the plane yields null, so a caller with any null has no
+ * quadrilateral to draw rather than a made-up one.
+ */
+export function frustumPlaneCrossings(
+  corners: ArrayLike<number>,
+  planeZ: number,
+): ({ x: number; y: number } | null)[] {
+  const out: ({ x: number; y: number } | null)[] = [];
+  for (let i = 0; i < 4; i++) {
+    const n = i * 3;
+    const f = 12 + i * 3;
+    const span = corners[f + 2]! - corners[n + 2]!;
+    const k = Math.abs(span) > 1e-6 ? (planeZ - corners[n + 2]!) / span : -1;
+    out.push(k >= 0 && k <= 1
+      ? {
+          x: corners[n]! + (corners[f]! - corners[n]!) * k,
+          y: corners[n + 1]! + (corners[f + 1]! - corners[n + 1]!) * k,
+        }
+      : null);
+  }
+  return out;
+}

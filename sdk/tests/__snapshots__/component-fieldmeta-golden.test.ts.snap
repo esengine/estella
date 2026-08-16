@@ -93,6 +93,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "showFrustum": {
       "advanced": true,
+      "tooltip": "Draw this camera's whole view volume in the editor, not just what it frames on the content plane.",
     },
   },
   "Canvas": {

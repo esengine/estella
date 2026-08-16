@@ -25,7 +25,10 @@ import { RenderPipeline } from '../render/renderPipeline';
 import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
-import { ortho, perspective, invertViewZ, invertViewOrbit, invertViewQuat, multiply, IDENTITY } from '../math/mat4';
+import {
+    ortho, perspective, invertViewZ, invertViewOrbit, invertViewQuat, multiply,
+    frustumCornersWorld, IDENTITY,
+} from '../math/mat4';
 
 // =============================================================================
 // Camera Info
@@ -182,10 +185,38 @@ export function snapToPixelGrid(value: number, worldPerPixel: number): number {
     return worldPerPixel > 0 ? Math.round(value / worldPerPixel) * worldPerPixel : value;
 }
 
+/**
+ * The Camera fields a POV is read from. Named as a shape rather than as one
+ * registry's return type, because the editor reads the same fields off its own
+ * projected World.
+ *
+ * @beta
+ */
+export interface CameraFields {
+    isActive: boolean;
+    projectionType: number;
+    orthoSize: number;
+    fov: number;
+    nearPlane: number;
+    farPlane: number;
+    viewport: { x: number; y: number; z: number; w: number };
+    clearFlags: number;
+    priority: number;
+    pixelPerfect: boolean;
+    /** Absent on a core built before the field; that camera drew every layer. */
+    cullingMask?: number;
+}
+
+/** The placement a POV is read from — see {@link CameraFields}. @beta */
+export interface CameraTransformFields {
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number; w: number };
+}
+
 function readCameraPOV(
     entity: number,
-    camera: ReturnType<CppRegistry['getCamera']>,
-    transform: ReturnType<CppRegistry['getTransform']>,
+    camera: CameraFields,
+    transform: CameraTransformFields,
 ): CameraPOV {
     const q = transform.rotation;
     return {
@@ -283,6 +314,29 @@ export function buildCameraInfo(
     cam.cameraY = camY;
     cam.cullingMask = pov.cullingMask;
     return cam;
+}
+
+const _frustumPool: CameraInfo[] = [];
+
+/**
+ * The eight world-space corners of what a camera sees — near face then far, in
+ * the order {@link frustumCornersWorld} documents. Built through the same POV →
+ * CameraInfo path a frame is, so it carries the projection, the tilt and the
+ * design-resolution framing. @p width / @p height are the frame it renders into.
+ *
+ * @beta
+ */
+export function cameraFrustumCorners(
+    camera: CameraFields,
+    transform: CameraTransformFields,
+    width: number,
+    height: number,
+    canvas: CanvasScale | null,
+    result?: Float32Array,
+): Float32Array {
+    const pov = readCameraPOV(0, camera, transform);
+    const info = buildCameraInfo(pov, width, height, canvas, _frustumPool, 0);
+    return frustumCornersWorld(info.viewProjection, result);
 }
 
 // =============================================================================

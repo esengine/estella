@@ -1656,16 +1656,22 @@ export function Viewport() {
       const camsOn = ready && showG && !useEditorStore.getState().isPlaying;
       for (const [cid, wrap] of camRefs.current) {
         if (!wrap) continue;
-        const cg = camsOn ? ViewportController.getCameraGizmo(cid) : null;
+        // `showFrustum` is an editor-only field, so it is read from the document
+        // rather than the projected World, which has no member for it.
+        const csrc = SceneModel.sourceFor(cid);
+        const cdata = csrc != null
+          ? SceneModel.entityBySource(csrc)?.components.find((c) => c.type === 'Camera')?.data
+          : undefined;
+        const cg = camsOn
+          ? ViewportController.getCameraGizmo(cid, (cdata as { showFrustum?: boolean } | undefined)?.showFrustum === true)
+          : null;
         if (cg) {
           wrap.style.opacity = '1';
           const icon = wrap.firstElementChild as HTMLElement | null;
-          const rectEl = wrap.lastElementChild as HTMLElement | null;
           if (icon) icon.style.transform = `translate(${cg.cx}px, ${cg.cy}px)`;
-          if (rectEl) {
-            rectEl.style.transform = `translate(${cg.rect.x}px, ${cg.rect.y}px)`;
-            rectEl.style.width = `${cg.rect.w}px`;
-            rectEl.style.height = `${cg.rect.h}px`;
+          for (const [sel, d] of [['.viewport__cam-frame', cg.frame],
+                                  ['.viewport__cam-volume', cg.volume]] as const) {
+            (wrap.querySelector(sel) as SVGPathElement | null)?.setAttribute('d', d);
           }
         } else {
           wrap.style.opacity = '0';
@@ -2437,7 +2443,8 @@ export function Viewport() {
         onDrop={onDrop}
       />
 
-      {/* Scene-camera gizmos (icon + authored view rect); positioned by the rAF. */}
+      {/* Scene-camera gizmos (icon + what the camera frames, + its volume when the
+          camera asks for it); projected by the rAF. */}
       {camIds.map((id) => (
         <div
           key={id}
@@ -2449,7 +2456,10 @@ export function Viewport() {
           aria-hidden="true"
         >
           <Camera className="viewport__cam-icon" size={15} strokeWidth={1.75} />
-          <div className="viewport__cam-rect" />
+          <svg className="viewport__cam-shape">
+            <path className="viewport__cam-frame" />
+            <path className="viewport__cam-volume" />
+          </svg>
         </div>
       ))}
 

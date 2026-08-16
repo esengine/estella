@@ -14,7 +14,7 @@ import {
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
-  editorViewAxes, editorViewAxisAngles, type ScreenAxis,
+  editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -24,6 +24,7 @@ import { SceneModel } from './SceneModel';
 import {
   type OBB,
   type ClientRect,
+  frustumPlaneCrossings,
   quatAngleZ,
   obbCorners,
   pointInOBB,
@@ -713,40 +714,51 @@ export const ViewportController = {
   },
 
   /**
-   * Screen-space icon position + authored view rect (CSS px) of a scene camera,
-   * for drawing its gizmo. The rect is the camera's authored framing (orthoSize
-   * half-height × the viewport aspect) — what that game camera is set to see.
+   * Screen-space gizmo of a scene camera: its icon, what it frames on z = 0, and
+   * — when asked — its view volume, as SVG paths in CSS px. The corners come from
+   * the camera's own view-projection inverted, so a perspective or tilted one
+   * draws what it really sees; `frame` is empty for a camera aimed off the plane.
    */
   getCameraGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; rect: { x: number; y: number; w: number; h: number } } | null {
+    withVolume = false,
+  ): { cx: number; cy: number; frame: string; volume: string } | null {
     const world = EngineHost.world;
-    const canvas = EngineHost.canvas;
-    if (!world || !canvas || !world.valid(id) || !world.has(id, Camera) || !world.has(id, Transform)) {
+    if (!world || !world.valid(id) || !world.has(id, Camera) || !world.has(id, Transform)) {
       return null;
     }
     const t = world.get(id, Transform);
-    const c = world.get(id, Camera) as { orthoSize?: number };
-    const halfH = c.orthoSize ?? 360;
-    const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
-    const halfW = halfH * aspect;
-    const x = t.worldPosition.x;
-    const y = t.worldPosition.y;
-    const toClient = this.projectorFor(id);
-    const center = toClient(x, y);
+    const c = world.get(id, Camera);
+    const screen = this.screenInfo();
+    const corners = cameraFrustumCorners(
+      c as Parameters<typeof cameraFrustumCorners>[0],
+      t as Parameters<typeof cameraFrustumCorners>[1],
+      screen.designResolution.x, screen.designResolution.y, screen,
+    );
+    const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y, t.worldPosition.z);
     if (!center) return null;
-    const corners = [
-      [x - halfW, y - halfH],
-      [x + halfW, y - halfH],
-      [x + halfW, y + halfH],
-      [x - halfW, y + halfH],
-    ].map(([wx, wy]) => toClient(wx, wy));
-    if (corners.some((p) => !p)) return null;
-    const xs = corners.map((p) => p!.x);
-    const ys = corners.map((p) => p!.y);
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    return { cx: center.x, cy: center.y, rect: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY } };
+
+    const at = (i: number): { x: number; y: number } | null =>
+      this.worldToClient(corners[i * 3]!, corners[i * 3 + 1]!, corners[i * 3 + 2]!);
+    const ring = (pts: ({ x: number; y: number } | null)[]): string =>
+      pts.some((p) => !p) ? ''
+        : `M${pts.map((p) => `${p!.x.toFixed(1)} ${p!.y.toFixed(1)}`).join('L')}Z`;
+
+    // A camera looking along the content plane has edges that never reach it,
+    // and then there is no frame to draw.
+    const crossings = frustumPlaneCrossings(corners, 0)
+      .map((p) => (p ? this.worldToClient(p.x, p.y, 0) : null));
+
+    let volume = '';
+    if (withVolume) {
+      const near = [at(0), at(1), at(2), at(3)];
+      const far = [at(4), at(5), at(6), at(7)];
+      const edges = near.every(Boolean) && far.every(Boolean)
+        ? near.map((p, i) => `M${p!.x.toFixed(1)} ${p!.y.toFixed(1)}L${far[i]!.x.toFixed(1)} ${far[i]!.y.toFixed(1)}`).join('')
+        : '';
+      volume = `${ring(near)}${ring(far)}${edges}`;
+    }
+    return { cx: center.x, cy: center.y, frame: ring(crossings), volume };
   },
 
   /** Ids of the scene's Light2D entities — the light-gizmo set (structural). */

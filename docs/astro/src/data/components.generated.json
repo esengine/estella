@@ -373,6 +373,7 @@
           "key": "showFrustum",
           "type": "boolean",
           "default": "false",
+          "doc": "Draw this camera's whole view volume in the editor, not just what it frames on the content plane.",
           "advanced": true
         }
       ],

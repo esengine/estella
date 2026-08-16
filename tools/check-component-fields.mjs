@@ -27,7 +27,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * says which, so the list reads as work rather than as permission.
  */
 const DECLARED_GAPS = {
-    'Camera.showFrustum': 'an editor-only flag for drawing a camera\'s view volume, which nothing draws yet',
     'TilemapLayer.originOffset': "Tiled's per-tileset tileoffset, which the loader does not read either",
     'TilemapLayer.tilesetRows': 'written by the Tiled loader; nothing bounds-checks a tile id against it yet',
 };

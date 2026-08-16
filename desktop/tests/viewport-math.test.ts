@@ -18,6 +18,7 @@ import {
   worldToLocal2D,
   rankPickCandidates,
   axisIndicatorEnds,
+  frustumPlaneCrossings,
   type PickCandidate,
 } from '@/engine/viewportMath';
 import { LayerOrder, layerOrderOf } from 'esengine';
@@ -216,5 +217,39 @@ describe('the view-axis indicator', () => {
     const keys = axisIndicatorEnds(headOn, 30).map((e) => e.key);
     expect(keys[0]).toBe('z-');
     expect(keys[keys.length - 1]).toBe('z+');
+  });
+});
+
+describe('frustumPlaneCrossings', () => {
+  /** Eight corners: near face bl, br, tr, tl at z = `nz`, the same square at `fz`. */
+  const box = (nz: number, fz: number, half = 10): Float32Array => {
+    const xy = [[-half, -half], [half, -half], [half, half], [-half, half]];
+    return Float32Array.from([
+      ...xy.flatMap(([x, y]) => [x!, y!, nz]),
+      ...xy.flatMap(([x, y]) => [x!, y!, fz]),
+    ]);
+  };
+
+  it('meets the plane halfway down an edge that spans it', () => {
+    const pts = frustumPlaneCrossings(box(10, -10), 0);
+    expect(pts.map((p) => p && [p.x, p.y])).toEqual([[-10, -10], [10, -10], [10, 10], [-10, 10]]);
+  });
+
+  it('interpolates x and y along the edge, not just z', () => {
+    // A volume that widens with depth: at three quarters of the way down, the
+    // crossing is three quarters of the way out.
+    const c = Float32Array.from([
+      -1, -1, 3, 1, -1, 3, 1, 1, 3, -1, 1, 3,
+      -5, -5, -1, 5, -5, -1, 5, 5, -1, -5, 5, -1,
+    ]);
+    const pts = frustumPlaneCrossings(c, 0);
+    expect(pts[0]!.x).toBeCloseTo(-4);
+    expect(pts[0]!.y).toBeCloseTo(-4);
+  });
+
+  it('reports no crossing for edges that never reach the plane', () => {
+    // Entirely in front of it, and lying parallel to it.
+    expect(frustumPlaneCrossings(box(10, 1), 0)).toEqual([null, null, null, null]);
+    expect(frustumPlaneCrossings(box(5, 5), 0)).toEqual([null, null, null, null]);
   });
 });

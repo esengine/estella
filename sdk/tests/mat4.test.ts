@@ -9,7 +9,9 @@
  *        point transforms as out[r] = Σ_c m[c*4+r] · v[c].
  */
 import { describe, it, expect } from 'vitest';
-import { ortho, perspective, invertTranslation, invertViewZ, multiply, IDENTITY } from '../src/math/mat4';
+import {
+  ortho, perspective, invertTranslation, invertViewZ, multiply, frustumCornersWorld, IDENTITY,
+} from '../src/math/mat4';
 
 const close = (a: number, b: number, eps = 1e-6) => expect(Math.abs(a - b)).toBeLessThanOrEqual(eps);
 
@@ -144,5 +146,41 @@ describe('mat4 shared scratch buffers (footgun contract)', () => {
     multiply(IDENTITY, IDENTITY); // multiply writes its own buffer, never IDENTITY
     expect(IDENTITY[0]).toBe(1);
     expect(IDENTITY[5]).toBe(1);
+  });
+});
+
+describe('mat4.frustumCornersWorld', () => {
+  // Corner i: near face bl, br, tr, tl (i = 0..3), then the far face.
+  const corner = (c: Float32Array, i: number): [number, number, number] =>
+    [c[i * 3]!, c[i * 3 + 1]!, c[i * 3 + 2]!];
+
+  it('undoes an orthographic view-projection back to its own box', () => {
+    // The camera sits at z = 10 looking down -Z; the symmetric ortho depth range
+    // puts the near face BEHIND it, which is what the box really is.
+    const vp = snap(multiply(snap(ortho(-400, 400, -300, 300, -1000, 1000)),
+                             snap(invertViewZ(0, 0, 10, 1, 0))));
+    const c = frustumCornersWorld(vp);
+    expect(corner(c, 0).map((v) => Math.round(v))).toEqual([-400, -300, 1010]);
+    expect(corner(c, 2).map((v) => Math.round(v))).toEqual([400, 300, 1010]);
+    expect(corner(c, 4).map((v) => Math.round(v))).toEqual([-400, -300, -990]);
+    expect(corner(c, 6).map((v) => Math.round(v))).toEqual([400, 300, -990]);
+  });
+
+  it('opens out with distance under a perspective projection', () => {
+    // 90° vertical fov, aspect 2: the near face is 2x1 half-extents at z = -1,
+    // and the far face ten times that at z = -10.
+    const vp = snap(perspective(Math.PI / 2, 2, 1, 10));
+    const c = frustumCornersWorld(vp);
+    const [nx, ny, nz] = corner(c, 2);
+    close(nx, 2, 1e-4); close(ny, 1, 1e-4); close(nz, -1, 1e-4);
+    const [fx, fy, fz] = corner(c, 6);
+    close(fx, 20, 1e-3); close(fy, 10, 1e-3); close(fz, -10, 1e-3);
+  });
+
+  it('collapses to the origin for a matrix with no inverse', () => {
+    // Not "whatever the scratch held": a singular matrix has no frustum, and the
+    // previous camera's corners would be indistinguishable from this one's.
+    frustumCornersWorld(snap(perspective(Math.PI / 2, 2, 1, 10)));
+    expect(Array.from(frustumCornersWorld(new Float32Array(16)))).toEqual(new Array(24).fill(0));
   });
 });

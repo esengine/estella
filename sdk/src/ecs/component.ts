@@ -893,7 +893,11 @@ export const Camera = defineBuiltin<CameraData>('Camera',
             clearFlags: { flags: [{ label: 'Color', value: 1 }, { label: 'Depth', value: 2 }] },
             // showFrustum is a TS-only editor field (no C++ Camera member), so its
             // metadata can't come from an annotation.
-            showFrustum: { advanced: true },
+            showFrustum: {
+                advanced: true,
+                tooltip: 'Draw this camera\'s whole view volume in the editor, not just what it '
+                    + 'frames on the content plane.',
+            },
         },
     }
 );
