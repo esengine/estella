@@ -180,6 +180,38 @@ direction, so an `Ambient` `Light2D` is what keeps a metal from being black
 everywhere no light happens to point. Raise its color to give metals something to
 show.
 
+### An environment with content
+
+A flat ambient is an environment with no detail — every direction the same colour.
+Import an equirectangular `.hdr` panorama and the same light becomes one that has
+detail: sky above, ground below, whatever the file holds.
+
+| How | What happens |
+|---|---|
+| Drag a `.hdr` onto the Content Browser | The source is copied in and baked. |
+| Put one in the project folder | The editor notices and bakes it. |
+| `estella import-hdr <file> [outDir]` | The same bake, on the command line. `--face-size <n>` sets the sharpest reflection. |
+
+The bake writes two products beside the source: **`<name>.esenv`**, which holds the
+whole diffuse half as nine numbers — no texture at all — and **`<name>_env.png`**,
+a prefiltered reflection with one mip per roughness.
+
+Point an `Ambient` light at the `.esenv` and both halves arrive: a surface takes
+its fill light from the direction it faces, and a metal reflects the panorama
+rather than one flat colour.
+
+```typescript
+cmds.spawn().insert(Light2D, {
+  type: Light2DType.Ambient,
+  environment: 'assets/sky.esenv',
+  intensity: 1,
+});
+```
+
+`color` and `intensity` still scale it, so an environment is tinted and dimmed the
+way the flat term is. A light with no environment stays exactly what it was: the
+coefficients are zero, and the same expression is the flat term again.
+
 <Aside>
   Lights are still placed in the plane: a `Light2D` has no third coordinate, so
   distance is measured in xy and a point light's height comes from its radius. The

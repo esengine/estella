@@ -16,6 +16,28 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A panorama becomes an environment, and an ambient light casts it.** An
+  equirectangular `.hdr` in a project now bakes into the two things a renderer
+  asks an environment for, and an `Ambient` `Light2D` can point at the result:
+  a surface takes its fill light from the direction it faces, and a metal
+  reflects the sky rather than one flat colour. The light's colour and intensity
+  scale both halves, so an environment is tinted the way the flat term was.
+
+  The diffuse half is nine spherical-harmonic coefficients — no texture at all —
+  and its convolution is divided by pi, which is what makes a constant
+  environment reconstruct as that same constant. That identity is why a light
+  with no environment is the order-zero case of one expression rather than a
+  second lighting path, and why every existing lit scene is byte-identical. The
+  specular half is one ordinary RGBA8 image: octahedral faces stacked by mip,
+  RGBM-encoded, so nothing downstream learns a cube map or a float format.
+
+  Two defects a saturated probe would have hidden turned up in the first gate.
+  The RGBM decode did not match the encode — a whole factor of the multiplier,
+  which read a 0.9 reflection back as 2.66 and clipped it to white. And the
+  atlas was being loaded as a picture, so its rows arrived turned over: mip 0
+  sat where the last mip should be, and a head-on mirror reflected the sky
+  behind it. Its rows are a layout, not an image.
+
 - **A skinned model deforms.** The joints an import recorded now move the
   vertices bound to them: each bone is the joint entity's world placement times
   the mesh's own bind matrix, and the result is world-space, so a skinned mesh's
