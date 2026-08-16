@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Every device rebuild left its shaders behind.** A lost GPU is recovered by
+  re-running the render plugins' `init()`, and three of them compiled a shader
+  there without releasing the one the dead context owned — so each recovery added
+  a shader to the pool that nothing pointed at, to be recompiled on every later
+  loss, plus a program object the host never freed. They hold their handles now.
+  The gate that watches this had been carrying a tolerance of six objects per
+  table per round; it asks for no growth at all in what the engine owns, with a
+  single buffer per rebuild allowed because the host mints one for each WebGL
+  context it creates and no engine call names it.
+
 - **A camera ignored its parent.** A camera's view is its own transform inverted,
   and the engine took that transform's LOCAL position and rotation — so a camera
   parented to anything (a rig, a follow node, the player) rendered from where it
