@@ -260,6 +260,12 @@ published separately; it ships inside the editor.
   — the import says so when it does, and the number that fixes it is in the
   source's own import settings.
 
+- **A mesh can be dropped into a scene.** The viewport took an image, a prefab, a
+  tileset and an animation clip and did nothing with a `.esmesh` — the one asset
+  type with a slot, a thumbnail and an inspector of its own. Dropping one now
+  creates a Transform + Mesh2D at the drop point, lit when the file carries
+  normals, which is the same call the model import makes when it writes a prefab.
+
 - **A mesh says what it is.** Selecting a `.esmesh` showed a thumbnail, a type and
   a uuid — everything except the mesh. An import writes one file per primitive,
   named by index, so telling a body from a banner meant drawing them. The details
