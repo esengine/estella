@@ -220,6 +220,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Six import settings did nothing.** The asset inspector offered Premultiply
+  Alpha (on textures and on Spine), a video clip's Loop / Autoplay / Muted, and
+  Auto Migrate on scenes and prefabs — every one of them written into fresh
+  `.meta` files and read by nothing. Playback belongs to the Video component,
+  which carries all three fields already; migration happens on load whatever the
+  flag says; premultiplied alpha was never a path the texture upload had. They
+  are gone. Found by a new gate — the sibling of the one that checks component
+  fields, one layer out: a declared import setting must have a reader, or be
+  recorded as a gap saying what is missing. Three are (a Spine skin and two
+  DragonBones defaults that nothing applies when the component is created).
+
 - **Saving an import setting remakes what it decides.** A model's Scale lives in
   its `.meta`, and the prefab it sizes is a file already on disk — so editing the
   setting changed nothing until the model happened to be imported again. Assets
