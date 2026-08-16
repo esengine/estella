@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A camera ignored its parent.** A camera's view is its own transform inverted,
+  and the engine took that transform's LOCAL position and rotation — so a camera
+  parented to anything (a rig, a follow node, the player) rendered from where it
+  sits relative to that parent rather than from where the parent puts it. Nothing
+  in the repository had ever parented one, which is why the path had never run. It
+  reads the world placement now, the same one every sprite is drawn at.
+
 - **`NavAgent.arriveRadius` did nothing.** The field says "stop distance from the
   final goal" and is editable, but arrival was the end of the waypoint list — so an
   agent walked onto the thing it was chasing whatever the field was set to. Arrival
