@@ -260,6 +260,13 @@ struct VSOut {
 @group(1) @binding(2) var t2 : texture_2d<f32>;
 @group(1) @binding(10) var s2 : sampler;
 #endif
+#ifdef ES_ENV_MAP
+// The environment's reflection, one slot on. Same reason as above — and without
+// it the injected sampler names an identifier this twin never declared, which
+// reaches anyone as an invalid pipeline that does not mention a shader.
+@group(1) @binding(3) var t3 : texture_2d<f32>;
+@group(1) @binding(11) var s3 : sampler;
+#endif
 
 struct VSOut {
     @builtin(position) pos : vec4f,
