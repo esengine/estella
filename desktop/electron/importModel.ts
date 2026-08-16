@@ -12,7 +12,7 @@ import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isInsideRoot } from '../../pipeline/src/fs/pathSandbox';
-import { resolveInRoot } from './projectFs';
+import { resolveInRoot, META_EXT } from './projectFs';
 import { capture } from './fileJournal';
 import { adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import {
@@ -56,6 +56,10 @@ export async function importModel(root: string, destDir: string, absSource: stri
       return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
     },
   );
+
+  // The source's own `.meta` says how big the model should arrive; re-importing
+  // is how an edited setting reaches the products.
+  const scale = modelScale(absSource);
 
   // What each image's sampler asked for, by product name — applied when its
   // `.meta` is first minted and never after: the file's settings are the user's.
@@ -115,8 +119,29 @@ export async function importModel(root: string, destDir: string, absSource: stri
     await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`);
   }
   if (meshes.length > 0) {
-    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes });
+    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes, scale });
     await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
+    // A glTF is in metres and a world unit is a design pixel, so a real-world
+    // model arrives a few pixels across. Said, not guessed at: the scale is the
+    // user's, and this is where they find out they have one.
+    const extent = Math.max(...meshes.flatMap(
+      (m) => m.data.aabbMax.map((v, i) => v - (m.data.aabbMin[i] ?? 0))));
+    if (scale === 1 && extent < 8) {
+      warnings.push(`the model is ${extent.toFixed(2)} units across — set Scale in its import`
+        + ' settings and reimport if it should be bigger');
+    }
   }
   return { products, warnings };
+}
+
+/** The `scale` its `.meta` asks for; 1 when there is none, or it is unusable. */
+function modelScale(absSource: string): number {
+  try {
+    const meta = JSON.parse(readFileSync(`${absSource}${META_EXT}`, 'utf8')) as
+      { importer?: { scale?: unknown } };
+    const scale = meta.importer?.scale;
+    return typeof scale === 'number' && scale > 0 ? scale : 1;
+  } catch {
+    return 1;
+  }
 }

@@ -62,7 +62,12 @@ function gltf(image?: string): string {
   });
 }
 
-const prefabOf = (abs: string): { entities: { components: { type: string; data: Record<string, string> }[] }[] } =>
+/** The fixture is a 1-unit triangle, so every import notes its size; these are
+ *  the notes that would mean something went wrong. */
+const notSizeNotes = (warnings: string[] | undefined): string[] =>
+  (warnings ?? []).filter((w) => !w.includes('units across'));
+
+const prefabOf = (abs: string): { entities: { components: { type: string; data: Record<string, unknown> }[] }[] } =>
   JSON.parse(readFileSync(abs, 'utf8'));
 
 describe('importing a model', () => {
@@ -106,6 +111,32 @@ describe('importing a model', () => {
       .toBe('assets/models/robot_m0.esmaterial');
   });
 
+  it('arrives at the size its import settings ask for', async () => {
+    // A glTF is in metres and a world unit is a design pixel, so the scale is on
+    // the prefab's root rather than baked into the geometry — the product stays
+    // faithful to the source and the number stays editable.
+    const abs = path.join(root, 'assets/models/robot.gltf');
+    mkdirSync(path.dirname(abs), { recursive: true });
+    writeFileSync(abs, gltf());
+    const plain = await importAssets(root, 'assets/models', [abs]);
+    expect((plain.warnings ?? []).some((w) => w.includes('units across'))).toBe(true);
+    const before = prefabOf(path.join(root, 'assets/models/robot.esprefab'));
+    expect(before.entities[0]!.components[0]!.data.scale).toBeUndefined();
+
+    const metaPath = `${abs}.meta`;
+    const doc = JSON.parse(readFileSync(metaPath, 'utf8')) as { importer: { scale?: number } };
+    expect(doc.importer.scale).toBe(1);   // minted from the schema, editable in place
+    doc.importer.scale = 64;
+    writeFileSync(metaPath, JSON.stringify(doc, null, 2));
+
+    const scaled = await importAssets(root, 'assets/models', [abs]);
+    // Sized as asked, and the note about being small is gone with it.
+    expect((scaled.warnings ?? []).some((w) => w.includes('units across'))).toBe(false);
+    const after = prefabOf(path.join(root, 'assets/models/robot.esprefab'));
+    expect(after.entities[0]!.components[0]!.data.scale)
+      .toEqual({ x: 64, y: 64, z: 64 });
+  });
+
   it('produces beside an in-project source, not in the browser’s folder', async () => {
     const abs = path.join(root, 'assets/sub/tree.gltf');
     mkdirSync(path.dirname(abs), { recursive: true });
@@ -146,14 +177,14 @@ describe('importing a model', () => {
 
     const first = await importAssets(root, 'assets/models', [src]);
     expect(first.imported).toContain('assets/models/robot.bin');
-    expect(first.warnings ?? []).toEqual([]);
+    expect(notSizeNotes(first.warnings)).toEqual([]);
 
     // The copy, imported on its own terms: the geometry has to come out again.
     rmSync(outside, { recursive: true, force: true });
     const again = await importAssets(root, 'assets/models',
                                      [path.join(root, 'assets/models/robot.gltf')]);
     expect(again.imported).toContain('assets/models/robot.esmesh');
-    expect(again.warnings ?? []).toEqual([]);
+    expect(notSizeNotes(again.warnings)).toEqual([]);
   });
 
   it('says so when a dependency cannot keep its shape inside the project', async () => {

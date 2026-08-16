@@ -36,6 +36,7 @@ import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from '../..
 import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
+import { importModel, isModelSource } from './importModel';
 import { exportGame } from '../../pipeline/src/export/exportGame';
 import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
@@ -1034,6 +1035,19 @@ function notifyFsChanged(paths: string[]): void {
 ipcMain.handle('project:importFiles', async (_e, destDir: string, sources: string[]) => {
   const result = await importAssets(requireRoot(), destDir, sources);
   notifyFsChanged(result.imported);
+  return result;
+});
+
+// Re-import a model already in the project: same products, same uuids, beside
+// the source. This is how an edited `.gltf` — or an edited scale in its `.meta`
+// — reaches the assets a scene references.
+ipcMain.handle('project:reimportModel', async (_e, file: string) => {
+  const root = requireRoot();
+  const abs = resolveInRoot(root, file);
+  if (!isModelSource(abs)) return { products: [], warnings: [] };
+  const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
+  const result = await importModel(root, dir, abs);
+  notifyFsChanged(result.products);
   return result;
 });
 

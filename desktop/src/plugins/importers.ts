@@ -8,6 +8,7 @@
  * registry, the inspector, cooking, the shipped build — learns a second format.
  */
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
+import { Toasts } from '@/store/Toasts';
 
 /** An importer as the host holds it: the declaration, plus the already-guarded
  *  call, so a failure is attributed to its plugin wherever it is run from. */
@@ -60,3 +61,17 @@ export async function runImporters(paths: readonly string[]): Promise<void> {
     }
   }
 }
+
+// The model import is the editor's own, but it is an importer like any other and
+// is registered rather than special-cased — Reimport and the source watcher then
+// reach it by the one rule, not by a second test for model extensions.
+importerRegistry.register('core', {
+  id: 'core:model',
+  extensions: ['gltf', 'glb'],
+  run: async (path: string): Promise<void> => {
+    const result = await window.estella.project.reimportModel(path);
+    // The same notes a first import shows: what the source says that the engine
+    // cannot draw, and how big it arrived.
+    for (const warning of result.warnings) Toasts.push(`${path}: ${warning}`, 'warn');
+  },
+});

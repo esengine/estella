@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { buildPluginContext } from '@/plugins/context';
-import { hasImporter, runImporters } from '@/plugins/importers';
+import { hasImporter, importerRegistry, runImporters } from '@/plugins/importers';
 import type { PluginManifest } from '@/plugins/manifest';
 
 const MANIFEST: PluginManifest = {
@@ -137,5 +137,15 @@ describe('a contributed importer', () => {
     ctx.assets.registerImporter({ id: 'ldtk', extensions: ['ldtk'], import: (p) => void seen.push(p) });
     await ctx.assets.reimport('levels/w.ldtk');
     expect(seen).toEqual(['levels/w.ldtk']);
+  });
+});
+
+describe('the model importer is one of them', () => {
+  it('claims .gltf and .glb, so Reimport and the watcher reach it', () => {
+    // Registered rather than special-cased: the Content Browser row and the
+    // source watcher both ask `hasImporter`, and a model has to answer yes.
+    expect(hasImporter('assets/models/robot.gltf')).toBe(true);
+    expect(hasImporter('assets/models/robot.glb')).toBe(true);
+    expect(importerRegistry.forPath('assets/models/robot.glb')[0]?.id).toBe('core:model');
   });
 });
