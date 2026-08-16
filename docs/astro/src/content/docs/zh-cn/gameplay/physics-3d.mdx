@@ -44,6 +44,31 @@ cmds.spawn()
   不是可选项——它正是一个 60 单位宽的胶囊会像人一样倒下的原因。
 </Aside>
 
+## 角色
+
+`CharacterController3D` **取代** `RigidBody3D` 而不是与它并存:被求解器推的刚体
+和自己扫掠的角色,是「这个实体在哪」的两个答案。每步从游戏逻辑设 `velocity`,再把结果读回来。
+
+```typescript
+const c = world.get(player, CharacterController3D);
+c.velocity.x = input.axis('move') * 200;
+if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
+```
+
+| 字段 | 作用 |
+|---|---|
+| `velocity` | 期望速度,世界单位/秒。`y` 为正就是跳。 |
+| `stepHeight` | 能迈上去而不是被挡住的最高台阶。`0` 就什么都迈不上。 |
+| `snapDown` | 过坡顶时向下够多远以贴住地面。`0` 是关掉。 |
+| `maxSlope` | 能站住的最陡地面;比这更陡就会滑下去。 |
+| `isOnFloor` / `floorNormal` / `realVelocity` | 输出,步进之后读。 |
+
+<Aside>
+  垂直分量由引擎替你维护:`velocity.y = 0` 的意思是「走」,不是「悬在空中」。
+  在 Jolt 里角色**不会自己下落**——垂直速度属于调用者——所以这一层替你积分重力,
+  而不是让每个调用者各自重新发现这件事。
+</Aside>
+
 ## 一个场景在哪个世界里
 
 没有东西阻止一个实体同时带两套组件,但也没有东西会把它们合并:两个世界互相看不见,

@@ -19,6 +19,7 @@ export const COMPONENT_DOC_PATHS: Readonly<Record<string, string>> = {
   CapsuleCollider3D: 'reference/components/physics/#capsulecollider3d',
   ChainCollider: 'reference/components/physics/#chaincollider',
   CharacterController: 'reference/components/physics/#charactercontroller',
+  CharacterController3D: 'reference/components/physics/#charactercontroller3d',
   Children: 'reference/components/core/#children',
   CircleCollider: 'reference/components/physics/#circlecollider',
   Disabled: 'reference/components/core/#disabled',

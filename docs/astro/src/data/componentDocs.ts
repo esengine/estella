@@ -111,6 +111,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   BoxCollider3D: { category: 'physics', summary: 'A box collision shape in 3D. Half-extents are in world units.', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: 'shapes' },
   SphereCollider3D: { category: 'physics', summary: 'A sphere collision shape in 3D.', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: 'shapes' },
   CapsuleCollider3D: { category: 'physics', summary: 'An upright capsule — what a 3D character is. Total height is 2*(halfHeight + radius).', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: 'shapes' },
+  CharacterController3D: { category: 'physics', summary: 'A kinematic 3D mover: swept against the world, climbs steps, stays glued to slopes, and reports the ground it is on.', doc: 'gameplay/physics-3d', anchor: 'characters', anchorZh: 'characters' },
   CharacterController: { category: 'physics', summary: 'Kinematic character movement that slides along walls, climbs slopes and reports ground contact.', doc: 'gameplay/physics', anchor: 'character-controller', anchorZh: '角色控制器' },
   OneWayPlatform: { category: 'physics', summary: 'Makes a collider solid from one side only, so a body passes up through it and lands on top.', doc: 'gameplay/physics', anchor: 'one-way-platforms', anchorZh: '单向平台' },
   DistanceJoint: { category: 'physics', summary: 'Holds two bodies a fixed (or spring-limited) distance apart.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },

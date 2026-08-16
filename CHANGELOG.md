@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A 3D character stands, walks and climbs a step.** `CharacterController3D`
+  is swept against the world rather than solved in it, which is what lets it
+  climb a 20cm step and stay glued to a slope without inheriting the momentum of
+  whatever it stands on. Set `velocity` from gameplay each step and read
+  `isOnFloor`, `floorNormal` and `realVelocity` back — the same shape the 2D
+  character controller has.
+
+  The vertical component is carried for you: a Jolt character does not fall on
+  its own (its gravity parameter only pushes down on what it stands on, and the
+  vertical speed belongs to the caller), so the module integrates gravity rather
+  than leaving every caller to rediscover that `velocity.y = 0` otherwise means
+  "hang in the air".
+
 - **A 3D physics world, beside the 2D one rather than over it.** Jolt Physics
   ships as a second side module, so a project that never asks for a 3D world
   never pays the 1.2MB it weighs — and a 2D scene keeps the solver, the units

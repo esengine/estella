@@ -10,10 +10,12 @@
 import { defineBuiltin } from '../ecs/component';
 import type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
+    CharacterController3DData,
 } from '../ecs/component.generated';
 
 export type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
+    CharacterController3DData,
 };
 
 export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
@@ -55,3 +57,36 @@ export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCo
     isSensor: false,
     enabled: true,
 });
+
+/**
+ * A kinematic mover for a 3D player or NPC: swept against the world rather than
+ * solved in it. Set `velocity` each step and read `isOnFloor` back; the vertical
+ * component is carried for you, so a zero there means "walk", not "hang".
+ *
+ * @beta
+ */
+export const CharacterController3D = defineBuiltin<CharacterController3DData>(
+    'CharacterController3D', {
+        velocity: { x: 0, y: 0, z: 0 },
+        radius: 0.3,
+        halfHeight: 0.5,
+        maxSlope: 0.87,
+        stepHeight: 0.4,
+        snapDown: 0.5,
+        mass: 70,
+        enabled: true,
+        isOnFloor: false,
+        floorNormal: { x: 0, y: 0, z: 0 },
+        realVelocity: { x: 0, y: 0, z: 0 },
+    }, {
+        fields: {
+            maxSlope: { min: 0, max: 1.5708, step: 0.01, unit: 'rad',
+                        tooltip: 'Steepest ground it can stand on' },
+            stepHeight: { min: 0, step: 0.05, advanced: true },
+            snapDown: { min: 0, step: 0.05, advanced: true },
+            mass: { min: 0, advanced: true },
+            isOnFloor: { advanced: true },
+            floorNormal: { advanced: true },
+            realVelocity: { advanced: true },
+        },
+    });

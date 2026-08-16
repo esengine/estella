@@ -26,8 +26,11 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
+
+namespace JPH { class CharacterVirtual; }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -100,6 +103,12 @@ struct Context {
     std::vector<float> transformBuffer;
     /// The last query's hits, in the shape its getter documents.
     std::vector<float> queryBuffer;
+
+    /// Characters are not bodies: a CharacterVirtual is swept against the world
+    /// rather than solved in it, which is what lets it climb stairs and stay
+    /// glued to a slope without inheriting momentum from whatever it stands on.
+    std::unordered_map<uint32_t, std::unique_ptr<JPH::CharacterVirtual>> characters;
+    uint32_t nextCharacterId = 1;
 
     bool isValid() const { return system != nullptr; }
 };

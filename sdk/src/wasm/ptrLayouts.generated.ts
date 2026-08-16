@@ -118,6 +118,22 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 17 },
         ],
     },
+    CharacterController3D: {
+        ptrFn: 'getCharacterController3DPtr',
+        fields: [
+            { name: 'velocity', type: 'vec3', offset: 0 },
+            { name: 'radius', type: 'f32', offset: 12 },
+            { name: 'halfHeight', type: 'f32', offset: 16 },
+            { name: 'maxSlope', type: 'f32', offset: 20 },
+            { name: 'stepHeight', type: 'f32', offset: 24 },
+            { name: 'snapDown', type: 'f32', offset: 28 },
+            { name: 'mass', type: 'f32', offset: 32 },
+            { name: 'enabled', type: 'bool', offset: 36 },
+            { name: 'isOnFloor', type: 'bool', offset: 37 },
+            { name: 'floorNormal', type: 'vec3', offset: 40 },
+            { name: 'realVelocity', type: 'vec3', offset: 52 },
+        ],
+    },
     CircleCollider: {
         ptrFn: 'getCircleColliderPtr',
         fields: [

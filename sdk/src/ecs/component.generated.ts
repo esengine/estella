@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'fb8d63de6b3e9865';
+export const ABI_LAYOUT_HASH = '95e303bc2d7c9fab';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -240,6 +240,36 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             halfHeight: { min: 0 },
             friction: { min: 0 },
             restitution: { min: 0, max: 1 },
+        },
+    },
+    CharacterController3D: {
+        defaults: {
+            velocity: { x: 0, y: 0, z: 0 },
+            radius: 0.3,
+            halfHeight: 0.5,
+            maxSlope: 0.87,
+            stepHeight: 0.4,
+            snapDown: 0.5,
+            mass: 70,
+            enabled: true,
+            isOnFloor: false,
+            floorNormal: { x: 0, y: 0, z: 0 },
+            realVelocity: { x: 0, y: 0, z: 0 },
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            radius: { min: 0 },
+            halfHeight: { min: 0 },
+            maxSlope: { min: 0, max: 1.5708, unit: "rad" },
+            stepHeight: { min: 0, advanced: true },
+            snapDown: { min: 0, advanced: true },
+            mass: { min: 0, advanced: true },
+            isOnFloor: { advanced: true },
+            floorNormal: { advanced: true },
+            realVelocity: { advanced: true },
         },
     },
     Children: {
@@ -1040,6 +1070,20 @@ export interface CapsuleCollider3DData {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+}
+
+export interface CharacterController3DData {
+    velocity: Vec3;
+    radius: number;
+    halfHeight: number;
+    maxSlope: number;
+    stepHeight: number;
+    snapDown: number;
+    mass: number;
+    enabled: boolean;
+    isOnFloor: boolean;
+    floorNormal: Vec3;
+    realVelocity: Vec3;
 }
 
 /**

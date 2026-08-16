@@ -373,6 +373,70 @@ export function createCapsuleCollider3DData(): CapsuleCollider3DPtrData {
     };
 }
 
+export interface CharacterController3DPtrData {
+    velocity: Vec3;
+    radius: number;
+    halfHeight: number;
+    maxSlope: number;
+    stepHeight: number;
+    snapDown: number;
+    mass: number;
+    enabled: boolean;
+    isOnFloor: boolean;
+    floorNormal: Vec3;
+    realVelocity: Vec3;
+}
+
+export function fillCharacterController3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: CharacterController3DPtrData,
+): void {
+    const velocity_ = out.velocity; velocity_.x = f32[ptr >> 2]; velocity_.y = f32[(ptr >> 2) + 1]; velocity_.z = f32[(ptr >> 2) + 2];
+    out.radius = f32[(ptr + 12) >> 2];
+    out.halfHeight = f32[(ptr + 16) >> 2];
+    out.maxSlope = f32[(ptr + 20) >> 2];
+    out.stepHeight = f32[(ptr + 24) >> 2];
+    out.snapDown = f32[(ptr + 28) >> 2];
+    out.mass = f32[(ptr + 32) >> 2];
+    out.enabled = u8[ptr + 36] !== 0;
+    out.isOnFloor = u8[ptr + 37] !== 0;
+    const floorNormal_ = out.floorNormal; floorNormal_.x = f32[(ptr + 40) >> 2]; floorNormal_.y = f32[((ptr + 40) >> 2) + 1]; floorNormal_.z = f32[((ptr + 40) >> 2) + 2];
+    const realVelocity_ = out.realVelocity; realVelocity_.x = f32[(ptr + 52) >> 2]; realVelocity_.y = f32[((ptr + 52) >> 2) + 1]; realVelocity_.z = f32[((ptr + 52) >> 2) + 2];
+}
+
+export function writeCharacterController3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: CharacterController3DPtrData,
+): void {
+    f32[ptr >> 2] = data.velocity.x; f32[(ptr >> 2) + 1] = data.velocity.y; f32[(ptr >> 2) + 2] = data.velocity.z;
+    f32[(ptr + 12) >> 2] = data.radius;
+    f32[(ptr + 16) >> 2] = data.halfHeight;
+    f32[(ptr + 20) >> 2] = data.maxSlope;
+    f32[(ptr + 24) >> 2] = data.stepHeight;
+    f32[(ptr + 28) >> 2] = data.snapDown;
+    f32[(ptr + 32) >> 2] = data.mass;
+    u8[ptr + 36] = data.enabled ? 1 : 0;
+    u8[ptr + 37] = data.isOnFloor ? 1 : 0;
+    f32[(ptr + 40) >> 2] = data.floorNormal.x; f32[((ptr + 40) >> 2) + 1] = data.floorNormal.y; f32[((ptr + 40) >> 2) + 2] = data.floorNormal.z;
+    f32[(ptr + 52) >> 2] = data.realVelocity.x; f32[((ptr + 52) >> 2) + 1] = data.realVelocity.y; f32[((ptr + 52) >> 2) + 2] = data.realVelocity.z;
+}
+
+export function createCharacterController3DData(): CharacterController3DPtrData {
+    return {
+        velocity: { x: 0, y: 0, z: 0 },
+        radius: 0,
+        halfHeight: 0,
+        maxSlope: 0,
+        stepHeight: 0,
+        snapDown: 0,
+        mass: 0,
+        enabled: false,
+        isOnFloor: false,
+        floorNormal: { x: 0, y: 0, z: 0 },
+        realVelocity: { x: 0, y: 0, z: 0 },
+    };
+}
+
 export interface CircleColliderPtrData {
     radius: number;
     offset: Vec2;
@@ -1935,6 +1999,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
     CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
     CapsuleCollider3D: { fill: fillCapsuleCollider3D, write: writeCapsuleCollider3D, create: createCapsuleCollider3DData },
+    CharacterController3D: { fill: fillCharacterController3D, write: writeCharacterController3D, create: createCharacterController3DData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },

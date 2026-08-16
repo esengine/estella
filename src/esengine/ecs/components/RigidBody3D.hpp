@@ -124,4 +124,57 @@ struct CapsuleCollider3D {
     bool enabled{true};
 };
 
+/**
+ * @brief A kinematic mover for a 3D player or NPC.
+ *
+ * @details Swept against the world rather than solved in it, which is what lets it
+ *          climb a step without inheriting the momentum of what it stands on. Set
+ *          @ref velocity each step; the vertical component is carried for you, so a
+ *          zero there means "walk". REPLACES a RigidBody3D rather than joining one.
+ */
+ES_COMPONENT()
+struct CharacterController3D {
+    /** @brief Desired velocity in world units/second. A positive y is a jump. */
+    ES_PROPERTY()
+    glm::vec3 velocity{0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY(min=0)
+    f32 radius{0.3f};
+
+    /** @brief Half the cylinder; total height is `2*(halfHeight + radius)`. */
+    ES_PROPERTY(min=0)
+    f32 halfHeight{0.5f};
+
+    /** @brief Steepest ground it can stand on. Beyond this it slides. */
+    ES_PROPERTY(min=0, max=1.5708, unit="rad")
+    f32 maxSlope{0.87f};
+
+    /** @brief Tallest step it climbs instead of stopping at. 0 = climbs nothing. */
+    ES_PROPERTY(min=0, advanced)
+    f32 stepHeight{0.4f};
+
+    /** @brief How far it reaches down to stay on the floor over a crest. 0 = off. */
+    ES_PROPERTY(min=0, advanced)
+    f32 snapDown{0.5f};
+
+    /** @brief Mass used when it pushes dynamic bodies. */
+    ES_PROPERTY(min=0, advanced)
+    f32 mass{70.0f};
+
+    ES_PROPERTY()
+    bool enabled{true};
+
+    /** @brief Output: standing on ground it can walk on. */
+    ES_PROPERTY(advanced)
+    bool isOnFloor{false};
+
+    /** @brief Output: the floor's normal; zero while airborne. */
+    ES_PROPERTY(advanced)
+    glm::vec3 floorNormal{0.0f, 0.0f, 0.0f};
+
+    /** @brief Output: what it actually moved, per second, after collisions. */
+    ES_PROPERTY(advanced)
+    glm::vec3 realVelocity{0.0f, 0.0f, 0.0f};
+};
+
 }  // namespace esengine::ecs

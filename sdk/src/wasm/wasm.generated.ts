@@ -296,6 +296,20 @@ export interface CapsuleCollider3D {
     enabled: boolean;
 }
 
+export interface CharacterController3D {
+    velocity: Vec3;
+    radius: number;
+    halfHeight: number;
+    maxSlope: number;
+    stepHeight: number;
+    snapDown: number;
+    mass: number;
+    enabled: boolean;
+    isOnFloor: boolean;
+    floorNormal: Vec3;
+    realVelocity: Vec3;
+}
+
 export interface Children {
     entities: VectorEntity;
 }
@@ -688,6 +702,10 @@ export interface Registry {
     getCapsuleCollider3D(entity: Entity): CapsuleCollider3D;
     addCapsuleCollider3D(entity: Entity, component: CapsuleCollider3D): void;
     removeCapsuleCollider3D(entity: Entity): void;
+    hasCharacterController3D(entity: Entity): boolean;
+    getCharacterController3D(entity: Entity): CharacterController3D;
+    addCharacterController3D(entity: Entity, component: CharacterController3D): void;
+    removeCharacterController3D(entity: Entity): void;
     hasChildren(entity: Entity): boolean;
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
@@ -821,6 +839,7 @@ export interface ESEngineModule {
     Canvas: new () => Canvas;
     CapsuleCollider: new () => CapsuleCollider;
     CapsuleCollider3D: new () => CapsuleCollider3D;
+    CharacterController3D: new () => CharacterController3D;
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
     DragonBonesAnimation: new () => DragonBonesAnimation;

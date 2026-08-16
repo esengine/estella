@@ -13,33 +13,44 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
-    RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D,
+    RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
 } from '../src/physics3d/Physics3DComponents';
 import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physics3DSystem';
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
 
-/** A module that records what it was told, and can be made to answer a readback. */
+/** A module that records what it was told, and can be made to answer a readback.
+ *  The two readbacks are separate buffers, as they are in the module: sharing one
+ *  let the body sweep overwrite what a character had just published. */
 function fakeModule(): Physics3DWasmModule & {
     calls: { name: string; args: number[] }[];
     publish(records: number[]): void;
+    publishQuery(records: number[]): void;
 } {
     const calls: { name: string; args: number[] }[] = [];
-    const heap = new Float32Array(1024);
+    // One heap the module's two pointers index into, as wasm has.
+    const combined = new Float32Array(1088);
+    const heap = combined.subarray(0, 1024);
     const record = (name: string) => (...args: number[]): number => {
         calls.push({ name, args });
         return calls.length;  // a non-zero body id
     };
+    const query = combined.subarray(1024);
     let published = 0;
+    let publishedQuery = 0;
     return {
         calls,
         publish(records: number[]) {
             heap.set(records, 0);
             published = records.length * 4;
         },
-        HEAPF32: heap,
-        HEAPU32: new Uint32Array(heap.buffer),
+        publishQuery(records: number[]) {
+            query.set(records, 0);
+            publishedQuery = records.length * 4;
+        },
+        HEAPF32: combined,
+        HEAPU32: new Uint32Array(combined.buffer),
         _physics3d_init: record('init'),
         _physics3d_shutdown: record('shutdown'),
         _physics3d_isReady: () => 1,
@@ -53,13 +64,19 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_setLinearVelocity: record('setLinearVelocity'),
         _physics3d_getBodyState: record('getBodyState'),
         _physics3d_raycast: record('raycast'),
+        _physics3d_addCharacter: record('addCharacter'),
+        _physics3d_removeCharacter: record('removeCharacter'),
+        _physics3d_moveCharacter: record('moveCharacter'),
+        _physics3d_setCharacterPosition: record('setCharacterPosition'),
         _physics3d_transforms: () => 0,
         _physics3d_transformsBytes: () => published,
-        _physics3d_queryResult: () => 0,
-        _physics3d_queryResultBytes: () => 0,
+        // A byte offset past the transform buffer, so the two never alias.
+        _physics3d_queryResult: () => 1024 * 4,
+        _physics3d_queryResultBytes: () => publishedQuery,
     } as unknown as Physics3DWasmModule & {
         calls: { name: string; args: number[] }[];
         publish(records: number[]): void;
+        publishQuery(records: number[]): void;
     };
 }
 
@@ -190,6 +207,43 @@ describe('the 3D world and the ECS', () => {
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(called('removeBody')).toHaveLength(1);
         expect(bodies.size).toBe(0);
+    });
+
+    it('sweeps a character in metres and reads its ground state back', () => {
+        const e = world.spawn();
+        world.insert<TransformData>(e, Transform, {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            scale: { x: 1, y: 1, z: 1 },
+            worldPosition: { x: 0, y: 500, z: 0 },
+            worldRotation: { x: 0, y: 0, z: 0, w: 1 },
+            worldScale: { x: 1, y: 1, z: 1 },
+        });
+        world.insert(e, CharacterController3D, {
+            radius: 30, halfHeight: 50, velocity: { x: 200, y: 0, z: 0 },
+        });
+
+        const characters = new Map<Entity, number>();
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, characters);
+
+        const [added] = called('addCharacter');
+        expect(added!.args[1]).toBeCloseTo(0.3, 6);   // 30 world units = 0.3m
+        expect(added!.args[2]).toBeCloseTo(0.5, 6);
+        expect(added!.args[4]).toBeCloseTo(5, 6);     // standing 5m up
+        const [moved] = called('moveCharacter');
+        expect(moved!.args[1]).toBeCloseTo(2, 6);     // 200 units/s = 2 m/s
+        expect(characters.size).toBe(1);
+
+        // Ground state 0 is OnGround; the normal and velocity come back beside it.
+        module.publishQuery([1, 2, 3, 0, 0, 1, 0, 2, 0, 0]);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, characters);
+        const state = world.get(e, CharacterController3D) as {
+            isOnFloor: boolean; floorNormal: { y: number }; realVelocity: { x: number };
+        };
+        expect(state.isOnFloor).toBe(true);
+        expect(state.floorNormal.y).toBeCloseTo(1, 6);
+        expect(state.realVelocity.x).toBeCloseTo(200, 4);
+        expect((world.get(e, Transform) as TransformData).position.y).toBeCloseTo(200, 4);
     });
 
     it('leaves a disabled body out of the world', () => {

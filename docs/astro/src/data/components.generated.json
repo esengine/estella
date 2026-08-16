@@ -746,6 +746,79 @@
       ]
     },
     {
+      "name": "CharacterController3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "velocity",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "halfHeight",
+          "type": "number",
+          "default": "0.5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "maxSlope",
+          "type": "number",
+          "default": "0.87",
+          "range": "0–1.5708"
+        },
+        {
+          "key": "stepHeight",
+          "type": "number",
+          "default": "0.4",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "snapDown",
+          "type": "number",
+          "default": "0.5",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "mass",
+          "type": "number",
+          "default": "70",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isOnFloor",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "floorNormal",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "advanced": true
+        },
+        {
+          "key": "realVelocity",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "advanced": true
+        }
+      ]
+    },
+    {
       "name": "Children",
       "source": "cpp",
       "fields": [

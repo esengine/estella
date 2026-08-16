@@ -22,6 +22,7 @@
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/RegisterTypes.h>
 
 #include <cstddef>
@@ -44,6 +45,11 @@ Context& g() { return esengine::physics3d::ctx(); }
 /// The temp allocator's arena. A step borrows from it and gives it all back, so
 /// this is a ceiling on one step's working set rather than a running cost.
 constexpr JPH::uint TEMP_ARENA_BYTES = 8 * 1024 * 1024;
+
+/// Character ids and body ids are both small integers and share one owner map, so
+/// a character's key is tagged apart. Bodies never reach this bit: Jolt packs a
+/// BodyID's index into the low 23.
+constexpr uint32_t CHARACTER_ID_TAG = 0x80000000u;
 
 EMotionType motionTypeOf(int value) {
     switch (value) {
@@ -131,6 +137,7 @@ void physics3d_shutdown() {
     g().system = nullptr;
     g().jobs = nullptr;
     g().temp = nullptr;
+    g().characters.clear();
     g().entityOf.clear();
     g().transformBuffer.clear();
     g().queryBuffer.clear();
@@ -260,6 +267,91 @@ int physics3d_getBodyState(uint32_t bodyId) {
         rotation.GetZ(), rotation.GetW(), velocity.GetX(), velocity.GetY(), velocity.GetZ(),
     };
     return 1;
+}
+
+// Characters
+
+/**
+ * @brief Registers a character: an upright capsule swept against the world.
+ * @param maxSlope Steepest ground the character can stand on, in radians.
+ * @return the character id, or 0 when there is no world.
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
+                                float px, float py, float pz, float maxSlope, float mass) {
+    if (!g().isValid()) return 0;
+    Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
+    settings->mShape = new CapsuleShape(halfHeight, radius);
+    settings->mMaxSlopeAngle = maxSlope;
+    settings->mMass = mass;
+    // The plane below which contacts do not hold the character up. Without it a
+    // contact anywhere on the capsule — including the top — reads as ground.
+    settings->mSupportingVolume = Plane(Vec3::sAxisY(), -radius);
+    auto character = std::make_unique<CharacterVirtual>(
+        settings, RVec3(px, py, pz), Quat::sIdentity(), g().system);
+    const uint32_t id = g().nextCharacterId++;
+    g().characters[id] = std::move(character);
+    g().entityOf[id | CHARACTER_ID_TAG] = entity;
+    return id;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_removeCharacter(uint32_t characterId) {
+    g().characters.erase(characterId);
+    g().entityOf.erase(characterId | CHARACTER_ID_TAG);
+}
+
+/**
+ * @brief Moves a character by its velocity for one step.
+ * @details ExtendedUpdate is Jolt's own combination of move, stick-to-floor and
+ *          walk-stairs: without it a character stops dead at a 10cm step and
+ *          launches off the top of every slope it walks down.
+ *          Writes (px,py,pz, groundState, nx,ny,nz, vx,vy,vz) to the query buffer.
+ */
+EMSCRIPTEN_KEEPALIVE
+void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
+                             float dt, float stepUp, float stepDown) {
+    g().queryBuffer.clear();
+    auto found = g().characters.find(characterId);
+    if (!g().isValid() || found == g().characters.end()) return;
+    CharacterVirtual& character = *found->second;
+
+    // A CharacterVirtual does not fall on its own — its gravity parameter only
+    // pushes down on what it stands on, and the vertical speed is the caller's.
+    // Carried here so `vy = 0` means "walk", not "hang in the air".
+    float vertical = character.GetLinearVelocity().GetY();
+    if (vy != 0.0f) {
+        vertical = vy;  // a jump, or a deliberate dive
+    } else if (character.GetGroundState() == CharacterVirtual::EGroundState::OnGround) {
+        vertical = 0.0f;
+    } else {
+        vertical += g().system->GetGravity().GetY() * dt;
+    }
+    character.SetLinearVelocity(Vec3(vx, vertical, vz));
+    CharacterVirtual::ExtendedUpdateSettings settings;
+    settings.mWalkStairsStepUp = Vec3(0, stepUp, 0);
+    settings.mStickToFloorStepDown = Vec3(0, -stepDown, 0);
+    character.ExtendedUpdate(dt, g().system->GetGravity(), settings,
+                             g().system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
+                             g().system->GetDefaultLayerFilter(Layers::MOVING),
+                             {}, {}, *g().temp);
+
+    const RVec3 position = character.GetPosition();
+    const Vec3 normal = character.GetGroundNormal();
+    const Vec3 velocity = character.GetLinearVelocity();
+    g().queryBuffer = {
+        static_cast<float>(position.GetX()), static_cast<float>(position.GetY()),
+        static_cast<float>(position.GetZ()),
+        static_cast<float>(character.GetGroundState()),
+        normal.GetX(), normal.GetY(), normal.GetZ(),
+        velocity.GetX(), velocity.GetY(), velocity.GetZ(),
+    };
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setCharacterPosition(uint32_t characterId, float px, float py, float pz) {
+    auto found = g().characters.find(characterId);
+    if (found != g().characters.end()) found->second->SetPosition(RVec3(px, py, pz));
 }
 
 // Queries

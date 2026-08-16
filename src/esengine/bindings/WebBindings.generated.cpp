@@ -1292,6 +1292,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("isSensor", &esengine::ecs::CapsuleCollider3D::isSensor)
         .field("enabled", &esengine::ecs::CapsuleCollider3D::enabled);
 
+    value_object<esengine::ecs::CharacterController3D>("CharacterController3D")
+        .field("velocity", &esengine::ecs::CharacterController3D::velocity)
+        .field("radius", &esengine::ecs::CharacterController3D::radius)
+        .field("halfHeight", &esengine::ecs::CharacterController3D::halfHeight)
+        .field("maxSlope", &esengine::ecs::CharacterController3D::maxSlope)
+        .field("stepHeight", &esengine::ecs::CharacterController3D::stepHeight)
+        .field("snapDown", &esengine::ecs::CharacterController3D::snapDown)
+        .field("mass", &esengine::ecs::CharacterController3D::mass)
+        .field("enabled", &esengine::ecs::CharacterController3D::enabled)
+        .field("isOnFloor", &esengine::ecs::CharacterController3D::isOnFloor)
+        .field("floorNormal", &esengine::ecs::CharacterController3D::floorNormal)
+        .field("realVelocity", &esengine::ecs::CharacterController3D::realVelocity);
+
     value_object<ChildrenJS>("Children")
         .field("entities", &ChildrenJS::entities);
 
@@ -1795,6 +1808,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider3D>(entity)) return;
             r.remove<esengine::ecs::CapsuleCollider3D>(entity);
+        }))
+
+        // CharacterController3D
+        .function("hasCharacterController3D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CharacterController3D>(static_cast<Entity>(e));
+        }))
+        .function("getCharacterController3D", optional_override([](Registry& r, u32 e) -> esengine::ecs::CharacterController3D& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::CharacterController3D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CharacterController3D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CharacterController3D>(entity);
+        }), allow_raw_pointers())
+        .function("addCharacterController3D", optional_override([](Registry& r, u32 e, const esengine::ecs::CharacterController3D& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::CharacterController3D>(entity, c);
+        }))
+        .function("removeCharacterController3D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CharacterController3D>(entity)) return;
+            r.remove<esengine::ecs::CharacterController3D>(entity);
         }))
 
         // Children
@@ -2455,6 +2489,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Canvas")));
     arr.set(i++, val(std::string("CapsuleCollider")));
     arr.set(i++, val(std::string("CapsuleCollider3D")));
+    arr.set(i++, val(std::string("CharacterController3D")));
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
@@ -2553,6 +2588,17 @@ static_assert(offsetof(esengine::ecs::CapsuleCollider3D, friction) == 8, "ABI of
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, restitution) == 12, "ABI offset drift: esengine::ecs::CapsuleCollider3D.restitution (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, isSensor) == 16, "ABI offset drift: esengine::ecs::CapsuleCollider3D.isSensor (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, enabled) == 17, "ABI offset drift: esengine::ecs::CapsuleCollider3D.enabled (EHT expected 17)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, velocity) == 0, "ABI offset drift: esengine::ecs::CharacterController3D.velocity (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, radius) == 12, "ABI offset drift: esengine::ecs::CharacterController3D.radius (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, halfHeight) == 16, "ABI offset drift: esengine::ecs::CharacterController3D.halfHeight (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, maxSlope) == 20, "ABI offset drift: esengine::ecs::CharacterController3D.maxSlope (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, stepHeight) == 24, "ABI offset drift: esengine::ecs::CharacterController3D.stepHeight (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, snapDown) == 28, "ABI offset drift: esengine::ecs::CharacterController3D.snapDown (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, mass) == 32, "ABI offset drift: esengine::ecs::CharacterController3D.mass (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, enabled) == 36, "ABI offset drift: esengine::ecs::CharacterController3D.enabled (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 37, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 37)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 40, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 52, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
@@ -2821,7 +2867,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "fb8d63de6b3e9865";
+static const char* kEsAbiLayoutHash = "95e303bc2d7c9fab";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

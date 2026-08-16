@@ -15,9 +15,9 @@ import type { App } from '../app/app';
 import { Transform } from '../ecs/component';
 import type { TransformData } from '../ecs/component.generated';
 import {
-    RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D,
+    RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
     type RigidBody3DData, type BoxCollider3DData, type SphereCollider3DData,
-    type CapsuleCollider3DData,
+    type CapsuleCollider3DData, type CharacterController3DData,
 } from './Physics3DComponents';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule } from './Physics3DModule';
@@ -44,6 +44,68 @@ export const DEFAULT_PHYSICS3D_CONFIG: Physics3DConfig = {
 
 /** Which body an entity owns, so a removed component takes its body with it. */
 type BodyMap = Map<Entity, number>;
+
+/** Ground states, as CharacterVirtual reports them. */
+const ON_GROUND = 0;
+
+/**
+ * Sweep every character, then write where each ended up.
+ *
+ * Characters are moved BEFORE the solver steps: a character reads the world as it
+ * stands and the bodies then react to where it went, which is the order that keeps
+ * a character from being pushed by the very body it just displaced.
+ */
+function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyMap,
+                        config: Physics3DConfig): void {
+    const ppu = config.pixelsPerUnit;
+    const live = new Set<Entity>();
+    for (const entity of app.world.queryEntities([CharacterController3D])) {
+        const character = app.world.get(entity, CharacterController3D) as CharacterController3DData;
+        if (!character.enabled) continue;
+        live.add(entity);
+
+        let id = characters.get(entity);
+        if (id === undefined) {
+            const t = app.world.get(entity, Transform) as TransformData | undefined;
+            const p = t?.worldPosition ?? { x: 0, y: 0, z: 0 };
+            id = module._physics3d_addCharacter(
+                entity as number, character.radius / ppu, character.halfHeight / ppu,
+                p.x / ppu, p.y / ppu, p.z / ppu, character.maxSlope, character.mass);
+            if (id === 0) continue;
+            characters.set(entity, id);
+        }
+
+        module._physics3d_moveCharacter(
+            id, character.velocity.x / ppu, character.velocity.y / ppu,
+            character.velocity.z / ppu, config.fixedTimestep,
+            character.stepHeight / ppu, character.snapDown / ppu);
+
+        const bytes = module._physics3d_queryResultBytes();
+        if (bytes === 0) continue;
+        const base = module._physics3d_queryResult() >> 2;
+        const f32 = module.HEAPF32;
+        character.isOnFloor = f32[base + 3] === ON_GROUND;
+        character.floorNormal.x = f32[base + 4]!;
+        character.floorNormal.y = f32[base + 5]!;
+        character.floorNormal.z = f32[base + 6]!;
+        character.realVelocity.x = f32[base + 7]! * ppu;
+        character.realVelocity.y = f32[base + 8]! * ppu;
+        character.realVelocity.z = f32[base + 9]! * ppu;
+        app.world.set(entity, CharacterController3D, character);
+
+        if (!app.world.has(entity, Transform)) continue;
+        const t = app.world.get(entity, Transform) as TransformData;
+        t.position.x = f32[base]! * ppu;
+        t.position.y = f32[base + 1]! * ppu;
+        t.position.z = f32[base + 2]! * ppu;
+        app.world.set(entity, Transform, t);
+    }
+    for (const [entity, id] of characters) {
+        if (live.has(entity) && app.world.valid(entity)) continue;
+        module._physics3d_removeCharacter(id);
+        characters.delete(entity);
+    }
+}
 
 function motionOf(body: RigidBody3DData): number {
     // BodyType is the 2D enum, reused: static/kinematic/dynamic mean the same here.
@@ -92,8 +154,10 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
 
 /** Bring the world's population in line with the ECS, then step and read back. */
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
-                              bodies: BodyMap, config: Physics3DConfig): void {
+                              bodies: BodyMap, config: Physics3DConfig,
+                              characters: BodyMap = new Map()): void {
     const ppu = config.pixelsPerUnit;
+    moveCharacters(app, module, characters, config);
 
     const live = new Set<Entity>();
     for (const entity of app.world.queryEntities([RigidBody3D])) {

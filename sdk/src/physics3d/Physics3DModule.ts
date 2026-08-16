@@ -40,6 +40,15 @@ export interface Physics3DWasmModule {
     _physics3d_setLinearVelocity(bodyId: number, vx: number, vy: number, vz: number): void;
     _physics3d_getBodyState(bodyId: number): number;
 
+    _physics3d_addCharacter(entity: number, radius: number, halfHeight: number,
+                            px: number, py: number, pz: number,
+                            maxSlope: number, mass: number): number;
+    _physics3d_removeCharacter(characterId: number): void;
+    _physics3d_moveCharacter(characterId: number, vx: number, vy: number, vz: number,
+                             dt: number, stepUp: number, stepDown: number): void;
+    _physics3d_setCharacterPosition(characterId: number, px: number, py: number,
+                                    pz: number): void;
+
     _physics3d_raycast(ox: number, oy: number, oz: number,
                        dx: number, dy: number, dz: number): number;
 
@@ -63,6 +72,7 @@ const REQUIRED_EXPORTS = [
     '_physics3d_addBox', '_physics3d_addSphere', '_physics3d_addCapsule',
     '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
     '_physics3d_transforms', '_physics3d_transformsBytes',
+    '_physics3d_addCharacter', '_physics3d_moveCharacter', '_physics3d_removeCharacter',
 ] as const;
 
 /** Throws naming what is missing, rather than letting the first frame do it. */

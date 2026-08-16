@@ -144,7 +144,62 @@ const qx = m.HEAPF32[uprightBase + 3];
 check('fixedRotation keeps a body from turning', near(qx, 0.3, 0.01),
       `qx=${qx?.toFixed(4)} want the 0.3 it was given`);
 
-// ── 6) A removed body is gone from both the sweep and the getter ────────────
+// ── 6) A character stands, walks, climbs a step and is stopped by a wall ────
+// The three things that make a character a character rather than a falling
+// capsule. Ground state: 0 = OnGround, 3 = InAir.
+const ON_GROUND = 0, IN_AIR = 3;
+function moveCharacter(id, vx, vy, vz, steps = 1, stepUp = 0.4, stepDown = 0.5) {
+    for (let i = 0; i < steps; i++) m._physics3d_moveCharacter(id, vx, vy, vz, 1 / 60, stepUp, stepDown);
+    const base = m._physics3d_queryResult() >> 2;
+    const f = (i) => m.HEAPF32[base + i];
+    return { x: f(0), y: f(1), z: f(2), ground: f(3), ny: f(5), vy: f(8) };
+}
+
+// Dropped from 3m onto the floor: a capsule of radius 0.3 + half-height 0.5
+// stands with its centre 0.8 up, and reports the ground it is on.
+const hero = m._physics3d_addCharacter(9, 0.3, 0.5, -20, 3, 0, 0.87, 70);
+check('a character is handed back', hero !== 0, `id=${hero}`);
+const airborne = moveCharacter(hero, 0, 0, 0, 1);
+check('and starts in the air', airborne.ground === IN_AIR, `state=${airborne.ground}`);
+
+const landed = moveCharacter(hero, 0, 0, 0, 180);
+check('a character lands on the floor', near(landed.y, 0.8, 0.05),
+      `y=${landed.y.toFixed(4)} want 0.8`);
+check('and reports the ground it is on', landed.ground === ON_GROUND, `state=${landed.ground}`);
+check('with the floor normal pointing up', near(landed.ny, 1, 0.05), `ny=${landed.ny.toFixed(4)}`);
+
+// Walking: 2 m/s for half a second covers about a metre, and stays on the floor.
+const walked = moveCharacter(hero, 2, 0, 0, 30);
+check('a character walks where it is sent', walked.x > landed.x + 0.8,
+      `x=${walked.x.toFixed(4)} from ${landed.x.toFixed(4)}`);
+check('and stays on the ground while walking', walked.ground === ON_GROUND);
+
+// A 0.2m step is climbed rather than stopped at: without WalkStairs the character
+// stops dead against it, so the y AFTER is what tells the two apart.
+m._physics3d_addBox(10, 0.5, 0.1, 5, walked.x + 1.3, 0.1, 0, ...IDENTITY,
+                    ...FREE(STATIC), 0.5, 0, 0);
+m._physics3d_optimize();
+const climbed = moveCharacter(hero, 2, 0, 0, 60);
+check('a character climbs a step', near(climbed.y, 1.0, 0.08),
+      `y=${climbed.y.toFixed(4)} want 1.0 (0.8 + a 0.2 step)`);
+
+// A wall taller than any step stops it. The character keeps its own height, so a
+// wall that was CLIMBED would show up as a rise rather than as a stop.
+const wallX = climbed.x + 1.0;
+m._physics3d_addBox(11, 0.2, 2, 5, wallX, 2, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+m._physics3d_optimize();
+const blocked = moveCharacter(hero, 3, 0, 0, 120);
+check('a wall stops a character', blocked.x < wallX - 0.2,
+      `x=${blocked.x.toFixed(4)} wall at ${wallX.toFixed(4)}`);
+check('and it did not climb the wall', blocked.y < climbed.y + 0.3,
+      `y=${blocked.y.toFixed(4)}`);
+
+m._physics3d_removeCharacter(hero);
+check('a removed character can no longer be moved',
+      (m._physics3d_moveCharacter(hero, 1, 0, 0, 1 / 60, 0.4, 0.5),
+       m._physics3d_queryResultBytes() === 0));
+
+// ── 7) A removed body is gone from both the sweep and the getter ────────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

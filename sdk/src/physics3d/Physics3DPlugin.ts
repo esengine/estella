@@ -21,10 +21,12 @@ export interface Physics3DRuntime {
     initPromise: Promise<unknown> | null;
     /** Entity -> body id, so a scene teardown can drop the world's population. */
     bodies: Map<Entity, number>;
+    /** Entity -> character id. Characters are not bodies and are kept apart. */
+    characters: Map<Entity, number>;
 }
 
 export const Physics3DRuntime = defineResource<Physics3DRuntime>(
-    { module: null, initPromise: null, bodies: new Map() },
+    { module: null, initPromise: null, bodies: new Map(), characters: new Map() },
     'Physics3DRuntime',
 );
 
@@ -43,7 +45,9 @@ export class Physics3DPlugin implements Plugin {
     }
 
     build(app: App): void {
-        const runtime: Physics3DRuntime = { module: null, initPromise: null, bodies: new Map() };
+        const runtime: Physics3DRuntime = {
+            module: null, initPromise: null, bodies: new Map(), characters: new Map(),
+        };
         app.insertResource(Physics3DRuntime, runtime);
         app.subsystems?.transition?.('physics3d', 'initializing');
 
@@ -53,7 +57,7 @@ export class Physics3DPlugin implements Plugin {
             module._physics3d_init(gravity.x, gravity.y, gravity.z, maxBodies);
             runtime.module = module;
             app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
-                stepPhysics3D(app, module, runtime.bodies, this.config_);
+                stepPhysics3D(app, module, runtime.bodies, this.config_, runtime.characters);
             }));
             app.setFixedTimestep?.(this.config_.fixedTimestep);
             app.subsystems?.transition?.('physics3d', 'ready');
