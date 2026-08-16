@@ -16,6 +16,33 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A skinned model deforms.** The joints an import recorded now move the
+  vertices bound to them: each bone is the joint entity's world placement times
+  the mesh's own bind matrix, and the result is world-space, so a skinned mesh's
+  own transform is ignored exactly as glTF requires. The pose travels as a
+  uniform block written immediately before the draw that reads it — a bind
+  group's textures are visible only to the fragment stage on WebGPU while its
+  buffers are already visible to both, which makes a block the shape that works
+  on both backends. Geometry the engine cannot pose (a joint count that
+  disagrees with the bind pose) draws undeformed rather than wrong.
+
+  Three things this needed had never run. An entity LIST reaching a component
+  was one: `Children` is engine-maintained, so no document had ever authored one
+  — the scene loader remapped only scalar references, leaving a joint list
+  pointing at whatever those ids mean at runtime, and the boundary itself could
+  not carry a JS array to `std::vector<Entity>`. An un-normalized integer vertex
+  attribute was another: the GL backend had only the float entry point, which
+  converts, and a converted joint index is not an index. The third is below.
+
+- **A gate for conditionals a WGSL twin cannot use.** A GLSL stage is
+  preprocessed by the driver and has a full C preprocessor; a WGSL twin is
+  expanded by the engine, which understands `#ifdef`, `#ifndef`, `#elif
+  defined(X)` and `#else`. A `#if defined(A) && !defined(B)` there is not an
+  error — the line is emitted verbatim into the WGSL, which then fails to
+  compile, and what reaches anyone is an invalid pipeline that does not mention
+  a shader. The two halves of a shader file do not have the same powers, which
+  nothing else would have said.
+
 - **A skinned model's bind pose comes in with it.** `.esmesh` carries a joint
   channel, a weight channel and the inverse bind matrices the first indexes —
   together, because a file whose joint indices point at matrices it does not
