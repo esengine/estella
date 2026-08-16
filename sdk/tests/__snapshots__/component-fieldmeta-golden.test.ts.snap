@@ -165,6 +165,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "advanced": true,
       "tooltip": "Aim direction (Directional / Spot).",
     },
+    "environment": {
+      "tooltip": "Baked environment (.esenv) this Ambient light casts.",
+    },
     "innerAngle": {
       "advanced": true,
       "max": 180,

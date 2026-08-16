@@ -53,7 +53,7 @@ describe('ASSET_SLOTS', () => {
 
   it('the handle slots are the ones with no live cache getter', () => {
     const recorded = Object.entries(ASSET_SLOTS).filter(([, d]) => d.record).map(([s]) => s).sort();
-    expect(recorded).toEqual(['font', 'material', 'mesh']);
+    expect(recorded).toEqual(['environment', 'font', 'material', 'mesh']);
   });
 
   it('every asset field a component declares has a slot to load it from', () => {
