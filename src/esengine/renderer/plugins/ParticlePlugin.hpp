@@ -4,6 +4,7 @@
 
 #include "../RenderTypePlugin.hpp"
 #include "../draw/BatchVertex.hpp"
+#include "../../resource/Handle.hpp"
 
 #include <vector>
 
@@ -25,6 +26,9 @@ public:
 private:
     particle::ParticleSystem* particle_system_ = nullptr;
     u32 particle_shader_id_ = 0;  // PARTICLE_INSTANCE program (GPU instancing)
+    /// The shader resource behind it — held so a device rebuild, which runs
+    /// init() again, can release the one the dead context owned.
+    resource::ShaderHandle particle_shader_handle_;
 
     // Reused per-frame scratch for per-particle trail ribbons.
     std::vector<glm::vec2> trail_center_;   ///< Centerline (world), oldest→head.

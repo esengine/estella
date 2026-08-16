@@ -43,7 +43,13 @@ u32 meshVariant(bool normals, bool lit, bool normalMapped) {
 void MeshPlugin::init(RenderFrameContext& ctx) {
     // A rebuild after a lost device runs this again, and every program minted
     // against the dead context is gone — so the cache empties here rather than
-    // handing out ids that name nothing.
+    // handing out ids that name nothing. The RESOURCES are released, not just
+    // forgotten: a shader nobody holds still sits in the pool, gets recompiled
+    // on the next loss, and keeps a host program object alive for good.
+    for (auto& shader : mesh_shaders_) {
+        if (shader.isValid()) ctx.resources.releaseShader(shader);
+        shader = {};
+    }
     mesh_compiled_.fill(false);
     mesh_programs_.fill(0);
     // The base variant now, so a broken shader is a boot-time failure rather than
@@ -75,7 +81,8 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     auto compile = [&](std::vector<std::string> features) -> u32 {
         const bool normalMapped = std::find(features.begin(), features.end(), "NORMAL_MAP")
                                 != features.end();
-        resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
+        resource::ShaderHandle& handle = mesh_shaders_[variant];
+        handle = ctx.resources.createShaderWithBindings(
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
             {}, ctx.resources.preferredShaderLanguage());

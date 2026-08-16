@@ -119,12 +119,17 @@ function finish(result, server) {
     && dl.recovered === true && dl.statusAfterRecover === 2 && dl.fullRecovered === true);
   // Objects the dead context minted that nobody released — visible only across
   // rounds. From the SECOND, so the first recovery's one-off costs are not read
-  // as a slope. Per table per round; unheld, buffers alone grew by 18.
+  // as a slope. What the ENGINE owns comes back to the same size, full stop: a
+  // program it re-creates on every rebuild without releasing the last is a leak
+  // the round count makes obvious and a single round never can.
   const rounds = dl?.rounds ?? [];
-  const growthOk = rounds.length < 3 || ((first, last, spans) =>
-    ['programs', 'buffers', 'textures', 'vaos', 'framebuffers']
-      .every((k) => (last.tables[k] - first.tables[k]) <= spans * 6)
-  )(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
+  const growthOk = rounds.length < 3 || ((first, last, spans) => {
+    const owned = ['programs', 'textures', 'vaos', 'framebuffers']
+      .every((k) => last.tables[k] <= first.tables[k]);
+    // Buffers get one allowance per rebuild: the host mints an internal buffer
+    // for each WebGL context it creates, and no engine call names it.
+    return owned && (last.tables.buffers - first.tables.buffers) <= spans;
+  })(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
   const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk;
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.

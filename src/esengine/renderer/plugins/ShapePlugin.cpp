@@ -18,6 +18,9 @@ void ShapePlugin::init(RenderFrameContext& ctx) {
     // One path for both backends: the WGSL twin rides shape.esshader, so the
     // stages assemble for the preferred target. Attribute name bindings are a
     // GL link-time concept; the WGSL twin fixes its locations in-source.
+    // A device rebuild runs init() again; releasing the previous handle is what
+    // keeps the pool from filling with shaders of dead contexts.
+    if (shape_shader_handle_.isValid()) ctx.resources.releaseShader(shape_shader_handle_);
     const auto target = ctx.resources.preferredShaderTarget();
     auto shapeParsed = resource::ShaderParser::parse(ShaderEmbeds::SHAPE);
     shape_shader_handle_ = ctx.resources.createShaderWithBindings(

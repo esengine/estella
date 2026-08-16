@@ -38,9 +38,11 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
     // Particle instancing shader, authored as particle.esshader (single source,
     // WGSL twin included) and embedded for the web build. Attribute locations
     // are explicit, so no name bindings.
+    if (particle_shader_handle_.isValid()) ctx.resources.releaseShader(particle_shader_handle_);
     const auto target = ctx.resources.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
-    resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
+    resource::ShaderHandle& handle = particle_shader_handle_;
+    handle = ctx.resources.createShaderWithBindings(
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
         {}, ctx.resources.preferredShaderLanguage());
