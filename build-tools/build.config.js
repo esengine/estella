@@ -54,6 +54,18 @@ export default {
                 'sdk/physics.wasm': 'wasm/web/physics.wasm',
             },
         },
+        physics3d: {
+            buildDir: 'build/cmake/physics3d',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_JOLT=ON', '-DES_PHYSICS_ESM=ON'],
+            // The 3D world, on the same one-flavour terms as the 2D module above.
+            // A project that never asks for it never pays for it — which is the
+            // whole reason physics is a side module rather than engine code.
+            targets: ['physics3d_module_esm'],
+            outputs: {
+                'sdk/physics3d.js': 'wasm/web/physics3d.js',
+                'sdk/physics3d.wasm': 'wasm/web/physics3d.wasm',
+            },
+        },
         basis: {
             buildDir: 'build/cmake/basis',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],

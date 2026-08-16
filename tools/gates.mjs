@@ -96,6 +96,12 @@ export const GATES = [
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
+  {
+    id: 'physics3d',
+    run: 'node tools/check-physics3d.mjs',
+    where: 'local',
+    why: 'it runs the built 3D physics wasm; CI builds that module in its own wasm job',
+  },
   { id: 'engine-gaps', run: 'node tools/check-engine-gaps.mjs' },
   { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },

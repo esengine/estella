@@ -522,6 +522,45 @@ if(NOT BOX2D_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS -msimd128)
 endif()
 
+# The 3D module's flags are the 2D module's, with one addition it cannot do
+# without: Jolt's solver needs far more stack than emscripten's 64KB default, and
+# what a short stack produces is an out-of-bounds access inside the step rather
+# than anything naming the stack.
+set(ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS ${ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS})
+list(REMOVE_ITEM ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS "-sEXPORT_NAME='ESPhysicsModule'")
+list(APPEND ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS
+    "-sEXPORT_NAME='ESPhysics3DModule'" -sSTACK_SIZE=1048576)
+
+set(ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS ${ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS})
+list(REMOVE_ITEM ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS -sEXPORT_ES6=0)
+list(APPEND ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS -sEXPORT_ES6=1 -sENVIRONMENT=web)
+
+function(es_apply_physics3d_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE -flto)
+        set(_FLAGS ${ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS})
+        if(ES_BUILD_WXGAME)
+            list(APPEND _FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
+function(es_apply_physics3d_esm_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE -flto)
+        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
 function(es_apply_physics_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         set(_PHYSICS_COMPILE_FLAGS ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-rtti -fno-exceptions)

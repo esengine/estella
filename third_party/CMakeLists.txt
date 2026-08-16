@@ -66,6 +66,37 @@ if(ES_ENABLE_BOX2D)
 endif()
 
 # =============================================================================
+# Jolt Physics - 3D Rigid Body Dynamics
+# =============================================================================
+
+# The upstream Build/ tree is a multi-platform script collection (VS, Android,
+# mingw) that also defines Samples and UnitTests targets; only the library is
+# wanted, so the target is written here like every other vendored one.
+#
+# Its compile flags are PUBLIC on purpose: Jolt's headers select a SIMD path from
+# the compiler's own predefined macros, so a consumer built with different flags
+# than the library reads a different Vec4 out of the same memory. That mismatch
+# is a compile error at best (a member the other layout does not have) and
+# silent corruption at worst.
+if(ES_ENABLE_JOLT)
+    file(GLOB_RECURSE JOLT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/jolt/Jolt/*.cpp")
+    add_library(jolt STATIC ${JOLT_SOURCES})
+    target_include_directories(jolt PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/jolt)
+    target_compile_features(jolt PUBLIC cxx_std_17)
+    target_compile_definitions(jolt PUBLIC JPH_USE_CPU_COMPUTE)
+    if(NOT MSVC)
+        target_compile_options(jolt PRIVATE -Wno-unused-parameter -Wno-shadow)
+    endif()
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        # -msse4.1/-msse4.2 are not optional here: under wasm SIMD Jolt DECLARES
+        # that it uses them (Core.h), and emscripten only supplies those intrinsics
+        # when asked — without them the library does not compile at all.
+        target_compile_options(jolt PUBLIC
+            ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msse4.1 -msse4.2 -fno-rtti -fno-exceptions)
+    endif()
+endif()
+
+# =============================================================================
 # GLM - OpenGL Mathematics Library
 # =============================================================================
 
