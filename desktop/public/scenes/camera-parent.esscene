@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "name": "CameraParent",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Rig",
+      "parent": null,
+      "children": [1],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Camera",
+      "parent": 0,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "AtRig",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 120,
+              "y": 120
+            },
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "AtOrigin",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 120,
+              "y": 120
+            },
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

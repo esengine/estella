@@ -104,8 +104,8 @@ describe('cameraFrustumCorners', () => {
     ...over,
   });
   const transform = (over: Record<string, unknown> = {}) => ({
-    position: { x: 0, y: 0, z: 10 },
-    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    worldPosition: { x: 0, y: 0, z: 10 },
+    worldRotation: { x: 0, y: 0, z: 0, w: 1 },
     ...over,
   });
   type CamArg = Parameters<typeof cameraFrustumCorners>[0];
@@ -125,13 +125,13 @@ describe('cameraFrustumCorners', () => {
   });
 
   it('follows the camera, and its tilt with it', () => {
-    const moved = corners(camera(), transform({ position: { x: 100, y: 50, z: 10 } }));
+    const moved = corners(camera(), transform({ worldPosition: { x: 100, y: 50, z: 10 } }));
     expect(moved[0]).toBeCloseTo(-300, 3);
     expect(moved[1]).toBeCloseTo(-250, 3);
     // Pitched 90° about X the camera looks along -Y, so its frame leaves the
     // z = 0 plane entirely — the corners' z spread rather than their x.
     const s = Math.sin(Math.PI / 4);
-    const pitched = corners(camera(), transform({ rotation: { x: s, y: 0, z: 0, w: s } }));
+    const pitched = corners(camera(), transform({ worldRotation: { x: s, y: 0, z: 0, w: s } }));
     const zs = [pitched[2]!, pitched[5]!, pitched[8]!, pitched[11]!];
     expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(500);
   });

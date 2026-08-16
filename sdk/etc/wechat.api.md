@@ -1565,8 +1565,8 @@ viewportPixels: Viewport
 
 ## CameraTransformFields — interface @beta
 ```
-position: { x: number; y: number; z: number; }
-rotation: { x: number; y: number; z: number; w: number; }
+worldPosition: { x: number; y: number; z: number; }
+worldRotation: { x: number; y: number; z: number; w: number; }
 ```
 
 ## CameraView — const @experimental

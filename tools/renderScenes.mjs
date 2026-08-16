@@ -183,6 +183,10 @@ export const SCENES = [
   // real import wrote. Ambient light only: the black quad's lit half can only be
   // emission, the white quad's right half is occluded away, the cutout discards.
   { id: "model-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/model-material.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/model-material.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/model-material.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.05,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.2167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.4167,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.5833,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.8667,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // A camera parented to something looks from where the hierarchy puts it: the red
+  // quad on the rig is dead centre, the green one at the origin 200 to its left,
+  // and reading the LOCAL position swaps them. One step, so a stale world is zero.
+  { id: "camera-parent", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/camera-parent.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/camera-parent.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "1", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.1667,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

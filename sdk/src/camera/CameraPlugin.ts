@@ -207,10 +207,16 @@ export interface CameraFields {
     cullingMask?: number;
 }
 
-/** The placement a POV is read from — see {@link CameraFields}. @beta */
+/**
+ * The placement a POV is read from — see {@link CameraFields}. WORLD, because a
+ * camera's view is its own transform inverted, and a camera parented to anything
+ * (a rig, the player) sits where the hierarchy puts it.
+ *
+ * @beta
+ */
 export interface CameraTransformFields {
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number; w: number };
+    worldPosition: { x: number; y: number; z: number };
+    worldRotation: { x: number; y: number; z: number; w: number };
 }
 
 function readCameraPOV(
@@ -218,13 +224,14 @@ function readCameraPOV(
     camera: CameraFields,
     transform: CameraTransformFields,
 ): CameraPOV {
-    const q = transform.rotation;
+    const q = transform.worldRotation;
+    const p = transform.worldPosition;
     return {
         entity,
         isActive: camera.isActive,
-        x: transform.position.x,
-        y: transform.position.y,
-        z: transform.position.z,
+        x: p.x,
+        y: p.y,
+        z: p.z,
         rotation: 2 * Math.atan2(q.z, q.w), // quaternion → Z angle (2D convention)
         // Kept whole only when it says something the Z angle cannot: a camera
         // that looks at 3D content from anywhere but straight down -Z.
