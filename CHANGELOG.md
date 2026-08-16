@@ -220,6 +220,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **`TilemapLayer.originOffset` did nothing.** The field existed on the component
+  and in the inspector, and was the only mention of itself in the whole engine —
+  nothing wrote it, nothing read it. It offsets the layer's grid now, applied
+  where the layer's world origin and its parallax are merged each frame rather
+  than baked into the cached chunk vertices: dragging it in the inspector moves
+  the tiles immediately and rebuilds nothing.
+
 - **Nine import settings did nothing.** The asset inspector offered Premultiply
   Alpha (on textures and on Spine), a video clip's Loop / Autoplay / Muted, Auto
   Migrate on scenes and prefabs, a Spine default skin, and a DragonBones default
