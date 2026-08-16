@@ -101,6 +101,19 @@ published separately; it ships inside the editor.
   Documents written before this keep their meaning: `rotation.z` migrates to
   `rotation.angle`, asserted by sampling the clip rather than by comparing names.
 
+### Changed
+
+- **The frame block is declared once, by the engine.** Every shader used to
+  write out `layout(std140) uniform FrameConstants { mat4 u_projection; }`
+  itself, so the view-projection's std140 layout lived in as many copies as
+  there were shaders: a member added to it would have to reach all of them, in
+  the same order, or a shader reads the wrong bytes with nothing to say so. It
+  is now injected into every stage the way the light, time and material blocks
+  already are — and a fragment stage can read the frame for the first time,
+  which a block only vertex stages declared could not offer. A shader that
+  still declares its own keeps compiling: the authored copy is blanked out,
+  keeping its lines so compile-log line numbers still point where they did.
+
 ### Fixed
 
 - **The tile palette counted an atlas differently than the tile ids did.** A
