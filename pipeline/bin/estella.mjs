@@ -201,7 +201,8 @@ if (opts.command === 'import-gltf') {
     // Settings the source asked for, by product name; only ever the FIRST mint.
     const settings = new Map();
     for (const mesh of meshes) {
-      for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture]) {
+      for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture,
+                           mesh.material?.emissiveTexture, mesh.material?.occlusionTexture]) {
         if (image?.settings) settings.set(image.file, image.settings);
       }
     }
@@ -218,6 +219,12 @@ if (opts.command === 'import-gltf') {
       writeFileSync(outFile, texture.bytes);
       await adopt(outFile);
       report(outFile, `${texture.bytes.length} bytes`);
+    }
+    for (const material of importer.materialProducts(meshes, stem, refs)) {
+      const outFile = path.join(dir, `${material.name}.esmaterial`);
+      writeFileSync(outFile, `${JSON.stringify(material.data, null, 2)}\n`);
+      await adopt(outFile);
+      report(outFile, Object.keys(material.data.properties).join(', '));
     }
     if (meshes.length > 0) {
       const outFile = path.join(dir, `${stem}.esprefab`);

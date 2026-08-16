@@ -83,6 +83,29 @@ describe('importing a model', () => {
     expect(prefab.entities[0]!.components[1]!.data.mesh).toBe('assets/models/robot.esmesh');
   });
 
+  it('writes a material for the shading the component cannot carry', async () => {
+    const doc = JSON.parse(gltf('glow.png')) as
+      { materials: Record<string, unknown>[] };
+    doc.materials[0]!.emissiveTexture = { index: 0 };
+    doc.materials[0]!.emissiveFactor = [1, 0.5, 0];
+    writeFileSync(path.join(outside, 'glow.png'), 'PNG');
+    const src = path.join(outside, 'robot.gltf');
+    writeFileSync(src, JSON.stringify(doc));
+    const res = await importAssets(root, 'assets/models', [src]);
+
+    expect(res.imported).toContain('assets/models/robot_m0.esmaterial');
+    expect(meta(path.join(root, 'assets/models/robot_m0.esmaterial')).type).toBe('material');
+    const material = JSON.parse(
+      readFileSync(path.join(root, 'assets/models/robot_m0.esmaterial'), 'utf8'),
+    ) as { shader: string; properties: Record<string, unknown> };
+    expect(material.shader).toBe('builtin:model');
+    // Beside the material, so its bare name is what a relative resolve wants.
+    expect(material.properties.u_emissiveMap).toBe('glow.png');
+    const prefab = prefabOf(path.join(root, 'assets/models/robot.esprefab'));
+    expect(prefab.entities[0]!.components[1]!.data.material)
+      .toBe('assets/models/robot_m0.esmaterial');
+  });
+
   it('produces beside an in-project source, not in the browser’s folder', async () => {
     const abs = path.join(root, 'assets/sub/tree.gltf');
     mkdirSync(path.dirname(abs), { recursive: true });

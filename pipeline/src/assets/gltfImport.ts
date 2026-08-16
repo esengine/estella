@@ -12,7 +12,8 @@
 /// <reference path="./draco3dgltf.d.ts" />
 import {
     MeshChannel, MeshChannelType, packChannels, encodeMesh, PREFAB_FORMAT_VERSION,
-    type MeshData, type PrefabData, type PrefabEntityData,
+    MATERIAL_FORMAT_VERSION, BlendMode, CullMode,
+    type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
 } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
@@ -40,21 +41,42 @@ export interface ImportedImageRef {
 }
 
 /**
- * A glTF material in the terms a Mesh2D carries: the engine's mesh path is
- * `texture(uv) * vertexColor * tint`, which is what glTF calls baseColor. The
- * PBR channels around it have no consumer here and are reported, not dropped.
+ * A glTF material, split by what can carry it: baseColor is `texture(uv) *
+ * vertexColor * tint`, which a Mesh2D's own fields say, and the shading around
+ * it becomes an `.esmaterial` (@ref materialProducts). What neither can express
+ * is reported, not dropped.
  */
 export interface ImportedMaterial {
+    /** The source's own material index — what its product is named after. */
+    index: number;
     name: string;
     /** baseColorFactor — the tint multiplied into the vertex colors. */
     baseColor: [number, number, number, number];
     baseColorTexture?: ImportedImageRef;
     /** Tangent-space normal map; the engine derives its tangent frame per pixel. */
     normalTexture?: ImportedImageRef;
+    /** emissiveFactor — light the surface makes, unaffected by the scene's lights. */
+    emissive?: [number, number, number];
+    emissiveTexture?: ImportedImageRef;
+    /** Ambient occlusion in the map's red channel, scaled by @ref occlusionStrength. */
+    occlusionTexture?: ImportedImageRef;
+    occlusionStrength?: number;
+    /** alphaMode MASK: a fragment below this alpha is discarded (glTF default 0.5). */
+    alphaCutoff?: number;
     /** Not BLEND: drawn without blending, and taking part in depth. */
     opaque: boolean;
     /** `doubleSided: false` (the glTF default): back faces are not drawn. */
     cullBackfaces: boolean;
+}
+
+/** A material product: the shading a Mesh2D's own fields cannot say. */
+export interface ImportedMaterialAsset {
+    /** `<stem>_m<material index>` — stable across re-imports, so overrides keep matching. */
+    name: string;
+    /** The `.esmaterial` document. */
+    data: MaterialAssetData;
+    /** Every image it references, so the caller can carry the sampler settings over. */
+    images: ImportedImageRef[];
 }
 
 /** An image the glTF carries inline (GLB chunk or data uri), to be written beside the meshes. */
@@ -107,6 +129,8 @@ const TYPE_COMPONENTS: Record<string, number> = {
 
 interface GltfTextureRef {
     index: number; texCoord?: number;
+    /** How much of an occlusionTexture's shadowing applies (occlusionTextureInfo only). */
+    strength?: number;
     /** KHR_texture_transform and friends: a uv rewrite this importer does not do. */
     extensions?: Record<string, unknown>;
 }
@@ -552,10 +576,10 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
 }
 
 /**
- * One glTF material as the baseColor a Mesh2D can carry. Everything a PBR
- * material says beyond that — metal, roughness, emission, a normal map, an alpha
- * cutoff — has no consumer in this engine yet, so it is reported rather than
- * quietly lost.
+ * One glTF material, read into the two things that can hold it (@ref
+ * materialProducts). Metal and roughness stay reported-not-imported: shading
+ * them needs a view direction and this engine's lights are 2D, so a metallic
+ * factor in a product would be a knob nothing reads.
  */
 function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedImageRef | null>,
                       index: number): ImportedMaterial {
@@ -568,14 +592,9 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     if (pbr.metallicRoughnessTexture || (pbr.metallicFactor ?? 1) !== 0 || (pbr.roughnessFactor ?? 1) !== 1) {
         unused.push('metallic-roughness');
     }
-    // Alpha coverage beyond opaque/blended has no equivalent: the engine draws a
-    // masked material as opaque, which is the closer of the two.
     if (src.normalTexture?.scale !== undefined && src.normalTexture.scale !== 1) {
         unused.push(`normal-map scale ${src.normalTexture.scale}`);
     }
-    if (src.occlusionTexture) unused.push('occlusion');
-    if (src.emissiveTexture || (src.emissiveFactor ?? [0, 0, 0]).some(v => v !== 0)) unused.push('emissive');
-    if (src.alphaMode === 'MASK') unused.push(`alpha cutoff ${src.alphaCutoff ?? 0.5}`);
     for (const name of Object.keys(src.extensions ?? {})) unused.push(name);
     if (unused.length > 0) ctx.warnings.push(`${label}: ${unused.join(', ')} not imported`);
 
@@ -583,15 +602,31 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
         ? readTexture(ctx, textureCache, pbr.baseColorTexture, label) : null;
     const normal = src.normalTexture
         ? readTexture(ctx, textureCache, src.normalTexture, label) : null;
+    const emissiveMap = src.emissiveTexture
+        ? readTexture(ctx, textureCache, src.emissiveTexture, label) : null;
+    const occlusionMap = src.occlusionTexture
+        ? readTexture(ctx, textureCache, src.occlusionTexture, label) : null;
+    const emissive = src.emissiveFactor ?? (emissiveMap ? [1, 1, 1] : [0, 0, 0]);
     return {
+        index,
         name: src.name ?? `material_${index}`,
         baseColor: [factor[0] ?? 1, factor[1] ?? 1, factor[2] ?? 1, factor[3] ?? 1],
         // A glTF is OPAQUE and single-sided unless it says otherwise, so a model
-        // arrives occluding itself the way it was authored to.
+        // arrives occluding itself the way it was authored to. MASK is opaque
+        // too — what it adds is the cutoff below.
         opaque: (src.alphaMode ?? 'OPAQUE') !== 'BLEND',
         cullBackfaces: src.doubleSided !== true,
         ...(texture ? { baseColorTexture: texture } : {}),
         ...(normal ? { normalTexture: normal } : {}),
+        ...(emissive.some(v => v !== 0)
+            ? { emissive: [emissive[0] ?? 0, emissive[1] ?? 0, emissive[2] ?? 0] as [number, number, number] }
+            : {}),
+        ...(emissiveMap ? { emissiveTexture: emissiveMap } : {}),
+        ...(occlusionMap ? {
+            occlusionTexture: occlusionMap,
+            occlusionStrength: src.occlusionTexture?.strength ?? 1,
+        } : {}),
+        ...(src.alphaMode === 'MASK' ? { alphaCutoff: src.alphaCutoff ?? 0.5 } : {}),
     };
 }
 
@@ -932,17 +967,112 @@ export interface PrefabAssembly {
     scale?: number;
 }
 
-function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
+/** How a component spells a reference to an image: a project-relative path. */
+function imageRef(image: ImportedImageRef, refs: ProductRefs): string {
+    return image.external
+        ? refs.external?.(image.file) ?? image.file
+        : (refs.prefix ?? '') + image.file;
+}
+
+/**
+ * How a MATERIAL spells the same reference. It resolves a relative ref against
+ * its own directory, and every product lands beside it, so a product is its bare
+ * name; a file already in the project takes a logical path instead — the one
+ * other spelling that resolver passes through (as `rewriteMaterialRefs` writes).
+ */
+function materialImageRef(image: ImportedImageRef, refs: ProductRefs): string {
+    const dir = refs.prefix ?? '';
+    const ref = imageRef(image, refs);
+    if (ref.startsWith(dir)) {
+        const beside = ref.slice(dir.length);
+        if (beside.length > 0 && !beside.includes('/')) return beside;
+    }
+    return ref.startsWith('assets/') || ref.startsWith('/') ? ref : `/${ref}`;
+}
+
+/**
+ * Whether this material says anything a Mesh2D's own fields cannot. Shading —
+ * normal map, emission, occlusion, an alpha cutoff — is per-material constants
+ * and samplers, and the component has neither: its per-object attributes end at
+ * location 15, the ceiling both backends guarantee.
+ */
+function needsMaterial(material: ImportedMaterial | undefined): material is ImportedMaterial {
+    return !!material && !!(material.normalTexture || material.emissive || material.emissiveTexture
+        || material.occlusionTexture || material.alphaCutoff);
+}
+
+/** `<stem>_m<source material index>` — the product a material becomes. */
+function materialName(stem: string, material: ImportedMaterial): string {
+    return `${stem}_m${material.index}`;
+}
+
+/**
+ * The `.esmaterial` documents an import writes, one per source material that
+ * needs one. The render state is written out because a material REPLACES the
+ * draw's own — a model told to occlude itself would start blending the moment
+ * it gained a material.
+ */
+export function materialProducts(meshes: ImportedMesh[], stem: string,
+                                 refs: ProductRefs = {}): ImportedMaterialAsset[] {
+    const out: ImportedMaterialAsset[] = [];
+    const seen = new Set<number>();
+    for (const mesh of meshes) {
+        const material = mesh.material;
+        if (!needsMaterial(material) || seen.has(material.index)) continue;
+        seen.add(material.index);
+
+        const images: ImportedImageRef[] = [];
+        const properties: Record<string, unknown> = {};
+        const bind = (name: string, image?: ImportedImageRef): void => {
+            if (!image) return;
+            images.push(image);
+            properties[name] = materialImageRef(image, refs);
+        };
+        bind('u_normalMap', material.normalTexture);
+        bind('u_emissiveMap', material.emissiveTexture);
+        bind('u_occlusionMap', material.occlusionTexture);
+        if (material.emissive) {
+            const [r, g, b] = material.emissive;
+            properties.u_emissive = { r, g, b, a: 1 };
+        }
+        if (material.occlusionStrength !== undefined) {
+            properties.u_occlusionStrength = material.occlusionStrength;
+        }
+        if (material.alphaCutoff !== undefined) properties.u_alphaCutoff = material.alphaCutoff;
+
+        out.push({
+            name: materialName(stem, material),
+            data: {
+                version: MATERIAL_FORMAT_VERSION,
+                type: 'material',
+                shader: 'builtin:model',
+                blendMode: material.opaque ? BlendMode.None : BlendMode.Normal,
+                depthTest: material.opaque,
+                depthWrite: material.opaque,
+                cull: material.cullBackfaces ? CullMode.Back : CullMode.None,
+                properties,
+            },
+            images,
+        });
+    }
+    return out;
+}
+
+function meshComponent(mesh: ImportedMesh, stem: string, refs: ProductRefs): ComponentData {
     const prefix = refs.prefix ?? '';
-    const ref = (image?: ImportedImageRef): string | null => image
-        ? (image.external ? refs.external?.(image.file) ?? image.file : prefix + image.file)
-        : null;
-    const texture = ref(mesh.material?.baseColorTexture);
+    const texture = mesh.material?.baseColorTexture
+        ? imageRef(mesh.material.baseColorTexture, refs) : null;
+    const hasNormals = mesh.data.channels.some(c => c.semantic === MeshChannel.Normal);
+    const color = mesh.material?.baseColor;
+    // Shading moves WHOLE to the material when there is one: a material shader
+    // reads its own samplers, so a normal map left on the component would be a
+    // map nothing samples.
+    const material = needsMaterial(mesh.material)
+        ? `${prefix}${materialName(stem, mesh.material)}.esmaterial` : null;
     // A normal map needs normals to perturb; without them the engine draws the
     // unlit variant and the map would be a reference to nothing.
-    const hasNormals = mesh.data.channels.some(c => c.semantic === MeshChannel.Normal);
-    const normalMap = hasNormals ? ref(mesh.material?.normalTexture) : null;
-    const color = mesh.material?.baseColor;
+    const normalMap = !material && hasNormals && mesh.material?.normalTexture
+        ? imageRef(mesh.material.normalTexture, refs) : null;
     return { type: 'Mesh2D', data: {
         mesh: `${prefix}${mesh.name}.esmesh`,
         // Geometry that carries normals was authored to be shaded, so the product
@@ -951,6 +1081,7 @@ function meshComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData {
         ...(hasNormals ? { lit: true } : {}),
         ...(texture ? { texture } : {}),
         ...(normalMap ? { normalMap } : {}),
+        ...(material ? { material } : {}),
         ...(color ? { color: { r: color[0], g: color[1], b: color[2], a: color[3] } } : {}),
         ...(mesh.material?.opaque ? { opaque: true } : {}),
         ...(mesh.material?.cullBackfaces ? { cullBackfaces: true } : {}),
@@ -994,7 +1125,7 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
         const drawn = node.meshes.map(i => meshes[i]).filter((m): m is ImportedMesh => !!m);
         // One primitive rides the node itself; several cannot, since a Mesh2D
         // draws one mesh — they become its children, at its own origin.
-        const own = drawn.length === 1 && drawn[0] ? [meshComponent(drawn[0], refs)] : [];
+        const own = drawn.length === 1 && drawn[0] ? [meshComponent(drawn[0], name, refs)] : [];
         const self = entity(id, node.name, parent,
                             [transformComponent(node, rootScale), ...own]);
         entities.push(self);
@@ -1003,7 +1134,7 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
                 const childId = `${id}_p${i}`;
                 self.children.push(childId);
                 entities.push(entity(childId, mesh.name, id,
-                                     [transformComponent(), meshComponent(mesh, refs)]));
+                                     [transformComponent(), meshComponent(mesh, name, refs)]));
             });
         }
         for (const child of node.children) self.children.push(emitNode(child, id));
@@ -1026,7 +1157,7 @@ export function assembleGltfPrefab(name: string, meshes: ImportedMesh[],
             const id = `m${i}`;
             root.children.push(id);
             entities.push(entity(id, mesh.name, 'root',
-                                 [transformComponent(), meshComponent(mesh, refs)]));
+                                 [transformComponent(), meshComponent(mesh, name, refs)]));
         });
     }
     return {

@@ -1,13 +1,14 @@
 {
   "version": "2",
-  "name": "robot",
-  "rootEntityId": "n0",
+  "name": "model-material",
+  "rootEntityId": "root",
   "entities": [
     {
-      "prefabEntityId": "n0",
-      "name": "Robot",
+      "prefabEntityId": "root",
+      "name": "model-material",
       "parent": null,
       "children": [
+        "n0",
         "n1",
         "n2"
       ],
@@ -15,20 +16,50 @@
       "components": [
         {
           "type": "Transform",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0",
+      "name": "Glow",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
           "data": {
             "position": {
-              "x": 0,
-              "y": -20,
+              "x": -220,
+              "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/model-material_0_0.esmesh",
+            "lit": true,
+            "material": "scenes/model-material_m0.esmaterial",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
           }
         }
       ]
     },
     {
       "prefabEntityId": "n1",
-      "name": "Body",
-      "parent": "n0",
+      "name": "Shaded",
+      "parent": "root",
       "children": [],
       "visible": true,
       "components": [
@@ -39,9 +70,9 @@
         {
           "type": "Mesh2D",
           "data": {
-            "mesh": "assets/models/robot_0_0.esmesh",
+            "mesh": "scenes/model-material_1_0.esmesh",
             "lit": true,
-            "texture": "assets/models/robot_0.png",
+            "material": "scenes/model-material_m1.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -57,8 +88,8 @@
     },
     {
       "prefabEntityId": "n2",
-      "name": "Banner",
-      "parent": "n0",
+      "name": "Cutout",
+      "parent": "root",
       "children": [],
       "visible": true,
       "components": [
@@ -66,28 +97,23 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": 0,
-              "y": 110,
+              "x": 220,
+              "y": 0,
               "z": 0
-            },
-            "scale": {
-              "x": 0.9,
-              "y": 0.9,
-              "z": 1
             }
           }
         },
         {
           "type": "Mesh2D",
           "data": {
-            "mesh": "assets/models/robot_1_0.esmesh",
+            "mesh": "scenes/model-material_2_0.esmesh",
             "lit": true,
-            "material": "assets/models/robot_m1.esmaterial",
+            "material": "scenes/model-material_m2.esmaterial",
             "color": {
-              "r": 0.32,
-              "g": 0.54,
-              "b": 0.86,
-              "a": 1
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 0.3
             },
             "opaque": true,
             "cullBackfaces": true,

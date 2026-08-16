@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 1,
+  "properties": {
+    "u_emissive": {
+      "r": 0.9,
+      "g": 0.25,
+      "b": 0.1,
+      "a": 1
+    }
+  }
+}

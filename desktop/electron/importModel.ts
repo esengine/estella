@@ -16,7 +16,7 @@ import { resolveInRoot } from './projectFs';
 import { capture } from './fileJournal';
 import { adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import {
-  importGltfMeshes, encodeImportedMesh, assembleGltfPrefab,
+  importGltfMeshes, encodeImportedMesh, assembleGltfPrefab, materialProducts,
 } from '../../pipeline/src/assets/gltfImport';
 
 export interface ModelImportResult {
@@ -61,7 +61,8 @@ export async function importModel(root: string, destDir: string, absSource: stri
   // `.meta` is first minted and never after: the file's settings are the user's.
   const imageSettings = new Map<string, Record<string, unknown>>();
   for (const mesh of meshes) {
-    for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture]) {
+    for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture,
+                         mesh.material?.emissiveTexture, mesh.material?.occlusionTexture]) {
       if (image?.settings) imageSettings.set(image.file, { ...image.settings });
     }
   }
@@ -109,11 +110,12 @@ export async function importModel(root: string, destDir: string, absSource: stri
 
   for (const mesh of meshes) await write(`${mesh.name}.esmesh`, encodeImportedMesh(mesh));
   for (const texture of textures) await write(texture.name, texture.bytes);
+  const refs = { prefix: destDir ? `${destDir}/` : '', external };
+  for (const material of materialProducts(meshes, stem, refs)) {
+    await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`);
+  }
   if (meshes.length > 0) {
-    const prefab = assembleGltfPrefab(stem, meshes, {
-      refs: { prefix: destDir ? `${destDir}/` : '', external },
-      nodes,
-    });
+    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes });
     await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
   }
   return { products, warnings };

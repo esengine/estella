@@ -324,6 +324,73 @@ void main() {
 #pragma end
 `;
 
+// The shading a glTF material says beyond its base colour. Those channels are
+// per-material constants and per-material samplers, which is what a material has
+// and a component does not — a Mesh2D's per-object attributes are full.
+const MODEL = `#pragma shader "Model"
+#pragma version 300 es
+#pragma domain Lit2D
+#pragma param u_tint color default(1,1,1,1)
+#pragma param u_normalMap texture default(flatnormal)
+#pragma param u_emissive color default(0,0,0,1)
+#pragma param u_emissiveMap texture default(white)
+#pragma param u_occlusionMap texture default(white)
+#pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
+#pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+// Base colour rides the draw itself (slot 0 x vertex colour) — glTF's baseColor
+// is what a Mesh2D already carries. Emission is added AFTER lighting (it is light
+// this surface makes) and occlusion scales only the ambient term.
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+    if (base.a < u_alphaCutoff) discard;
+#ifdef MESH_NORMALS
+    highp vec3 N = perturbNormal(normalize(v_worldNormal), v_worldXYZ, v_texCoord,
+                                 sampleNormal(u_normalMap, v_texCoord));
+#else
+    vec3 N = sampleNormal(u_normalMap, v_texCoord);
+#endif
+    float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
+    vec3 lit = applyLighting2DAO(base.rgb, N, v_worldPos, ao);
+    fragColor = vec4(lit + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, base.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    if (base.a < mc.u_alphaCutoff) { discard; }
+#ifdef MESH_NORMALS
+    let N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
+                          sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+#else
+    let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
+#endif
+    let occl = textureSampleLevel(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, 0.0).r;
+    let ao = mix(1.0, occl, mc.u_occlusionStrength);
+    let lit = applyLighting2DAO(base.rgb, N, v.v_worldPos, ao);
+    let emit = mc.u_emissive.rgb
+             * textureSampleLevel(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, 0.0).rgb;
+    return vec4f(lit + emit, base.a);
+}
+#pragma end
+`;
+
 export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('sprite-unlit', 'Unlit', 'Texture × vertex color × tint, no lighting.', SPRITE_UNLIT),
     template('sprite-lit', 'Lit', 'Lit by the scene\'s 2D lights; optional normal map.', SPRITE_LIT),
@@ -336,6 +403,9 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('sprite-pixelate', 'Pixelate', 'Quantizes UVs to a coarse pixel grid.', SPRITE_PIXELATE),
     template('sprite-uv-scroll', 'UV Scroll',
         'Scrolls the texture over time (conveyors, water, clouds).', SPRITE_UV_SCROLL),
+    template('model', 'Model',
+        'What an imported model\'s material says: normal map, emission, occlusion, alpha cutoff.',
+        MODEL),
 ];
 
 export function builtinShaderTemplate(id: string): BuiltinShaderTemplate | undefined {

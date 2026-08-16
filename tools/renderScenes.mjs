@@ -179,6 +179,10 @@ export const SCENES = [
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.
   { id: "mesh-normalmap", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/normalmap-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-normalmap.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-normalmap.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.375,\"y\":0.5,\"rgb\":[180,180,180],\"tol\":45},{\"x\":0.625,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // The channels only a material can carry, one quad each, through the products a
+  // real import wrote. Ambient light only: the black quad's lit half can only be
+  // emission, the white quad's right half is occluded away, the cutout discards.
+  { id: "model-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/model-material.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/model-material.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/model-material.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.05,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.2167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.4167,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.5833,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.8667,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.

@@ -168,7 +168,12 @@
         ],
         "metallicFactor": 0,
         "roughnessFactor": 1
-      }
+      },
+      "emissiveFactor": [
+        0.9,
+        0.25,
+        0.1
+      ]
     }
   ],
   "meshes": [

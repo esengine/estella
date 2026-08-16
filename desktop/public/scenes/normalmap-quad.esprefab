@@ -19,7 +19,7 @@
           "data": {
             "mesh": "scenes/normalmap-quad.esmesh",
             "lit": true,
-            "normalMap": "scenes/normalmap-quad_0.png",
+            "material": "scenes/normalmap-quad_m0.esmaterial",
             "color": {
               "r": 1,
               "g": 1,

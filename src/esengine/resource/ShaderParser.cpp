@@ -755,8 +755,8 @@ fn shadowFactor2D(worldPos : vec2f, aim : vec2f, softness : f32) -> f32 {
     }
     return 1.0 - blocked / 5.0;
 }
-fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
-    var lit = lc.u_ambient.rgb;
+fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
+    var lit = lc.u_ambient.rgb * ao;
     for (var i = 0; i < 16; i++) {
         let pd = lc.u_lights[i].posDir;
         let col = lc.u_lights[i].color;
@@ -794,6 +794,9 @@ fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
         lit += col.rgb * (col.a * ndotl * atten);
     }
     return albedo * lit;
+}
+fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
+    return applyLighting2DAO(albedo, N, worldPos, 1.0);
 }
 )";
 
@@ -1131,8 +1134,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    }\n"
             "    return 1.0 - blocked / float(K);\n"
             "}\n"
-            "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
-            "    highp vec3 lit = u_ambient.rgb;\n"
+            // Ambient occlusion darkens the light that arrives from everywhere, which is
+            // the ambient term; a lit surface's own lights are unobstructed by it.
+            "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
+            "                             highp float ao) {\n"
+            "    highp vec3 lit = u_ambient.rgb * ao;\n"
             "    for (int i = 0; i < 16; ++i) {\n"
             "        highp vec4 pd = u_lights[i].posDir;\n"
             "        highp vec4 col = u_lights[i].color;\n"
@@ -1172,6 +1178,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        lit += col.rgb * (col.a * ndotl * atten);\n"
             "    }\n"
             "    return albedo * lit;\n"
+            "}\n"
+            "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
+            "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
             "}\n";
         assembled << kLit2DHeader;
         headerLines += countNewlines(kLit2DHeader);

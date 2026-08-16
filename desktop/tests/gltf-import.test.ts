@@ -9,9 +9,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  importGltfMeshes, assembleGltfPrefab, type ImportedMesh, type PrefabAssembly,
+  importGltfMeshes, assembleGltfPrefab, materialProducts,
+  type ImportedMesh, type PrefabAssembly, type ProductRefs,
 } from '../../pipeline/src/assets/gltfImport';
-import { MeshChannel } from 'esengine';
+import { BlendMode, CullMode, MeshChannel } from 'esengine';
 import { plainTriangle, meshoptTriangle, dracoTriangle } from '../scripts/lib/gltfFixtures.mjs';
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -162,9 +163,11 @@ describe('glTF material import', () => {
     const line = warnings.join('\n');
     expect(line).toContain('metallic-roughness');
     expect(line).toContain('normal-map scale 0.4');
-    expect(line).toContain('emissive');
-    expect(line).toContain('alpha cutoff 0.4');
     expect(line).toContain('KHR_materials_clearcoat');
+    // Shading a metal needs a view direction, which 2D lights have not got; the
+    // channels that DO reach a shader are products, not warnings.
+    expect(line).not.toContain('emissive');
+    expect(line).not.toContain('alpha cutoff');
   });
 
   it('is opaque and single-sided unless the source says otherwise', async () => {
@@ -309,6 +312,101 @@ describe('glTF material import', () => {
   it("flips V, because glTF's uv origin is the image's top-left", async () => {
     const { meshes } = await importGltfMeshes(gltf(withInlineImage()), 'model');
     expect(texCoords(meshes[0]!)).toEqual([0, 1, 1, 1, 0, 0]);
+  });
+});
+
+describe('glTF material products', () => {
+  const shaded = (extra: Record<string, unknown>): Record<string, unknown> => {
+    const doc = withInlineImage();
+    doc.materials = [{ name: 'Shaded', ...extra }];
+    return doc;
+  };
+  const productsOf = async (doc: Record<string, unknown>, refs: ProductRefs = {}) => {
+    const { meshes } = await importGltfMeshes(gltf(doc), 'model');
+    return { meshes, products: materialProducts(meshes, 'model', refs) };
+  };
+
+  it('writes nothing for a material a Mesh2D already carries whole', async () => {
+    // baseColor is the component's own texture x colour, so a material here
+    // would be a second file saying what the first one says.
+    const { products } = await productsOf(withInlineImage());
+    expect(products).toEqual([]);
+  });
+
+  it('carries the channels a component has no room for', async () => {
+    const { products } = await productsOf(shaded({
+      emissiveFactor: [1, 0.5, 0], emissiveTexture: { index: 0 },
+      occlusionTexture: { index: 0, strength: 0.25 },
+      alphaMode: 'MASK', alphaCutoff: 0.4,
+    }), { prefix: 'assets/models/' });
+    expect(products).toHaveLength(1);
+    expect(products[0]!.name).toBe('model_m0');
+    expect(products[0]!.data.shader).toBe('builtin:model');
+    expect(products[0]!.data.properties).toEqual({
+      u_emissive: { r: 1, g: 0.5, b: 0, a: 1 },
+      u_emissiveMap: 'model_0.png',
+      u_occlusionMap: 'model_0.png',
+      u_occlusionStrength: 0.25,
+      u_alphaCutoff: 0.4,
+    });
+  });
+
+  it('takes the normal map WITH it, off the component', async () => {
+    // A material shader samples its own units; a map left on the component
+    // would be one nothing reads.
+    const { meshes, products } = await productsOf(
+      shaded({ normalTexture: { index: 0 }, emissiveFactor: [1, 1, 1] }),
+      { prefix: 'assets/models/' });
+    expect(products[0]!.data.properties.u_normalMap).toBe('model_0.png');
+    const prefab = assembleGltfPrefab('model', meshes, { refs: { prefix: 'assets/models/' } });
+    const mesh2d = prefab.entities[1]!.components[1]!.data;
+    expect(mesh2d.material).toBe('assets/models/model_m0.esmaterial');
+    expect(mesh2d.normalMap).toBeUndefined();
+  });
+
+  it('says the render state the draw would otherwise have said itself', async () => {
+    // A material REPLACES the draw's blend/depth/cull, so a model told to
+    // occlude itself must keep saying so through the material.
+    const opaque = await productsOf(shaded({ emissiveFactor: [1, 1, 1] }));
+    expect(opaque.products[0]!.data).toMatchObject({
+      blendMode: BlendMode.None, depthTest: true, depthWrite: true, cull: CullMode.Back,
+    });
+    const blended = await productsOf(shaded({
+      emissiveFactor: [1, 1, 1], alphaMode: 'BLEND', doubleSided: true,
+    }));
+    expect(blended.products[0]!.data).toMatchObject({
+      blendMode: BlendMode.Normal, depthTest: false, depthWrite: false, cull: CullMode.None,
+    });
+  });
+
+  it('writes one product for a material several primitives share', async () => {
+    const doc = shaded({ emissiveFactor: [0, 0, 1] });
+    const { meshes } = await importGltfMeshes(gltf(doc, [
+      { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4 },
+      { attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0, mode: 4 },
+    ]), 'model');
+    const refs = { prefix: 'assets/models/' };
+    expect(materialProducts(meshes, 'model', refs)).toHaveLength(1);
+    const prefab = assembleGltfPrefab('model', meshes, { refs });
+    const refsUsed = prefab.entities.flatMap(e => e.components
+      .filter(c => c.type === 'Mesh2D').map(c => c.data.material));
+    expect(refsUsed).toEqual(['assets/models/model_m0.esmaterial',
+                              'assets/models/model_m0.esmaterial']);
+  });
+
+  it('spells an image already in the project as a logical path', async () => {
+    // A material resolves a relative ref against its own directory, and this one
+    // is not beside it.
+    const doc = shaded({ emissiveTexture: { index: 0 } });
+    doc.images = [{ uri: 'shared/glow.png' }];
+    const inAssets = await productsOf(doc, {
+      prefix: 'assets/models/', external: (uri) => `assets/${uri}`,
+    });
+    expect(inAssets.products[0]!.data.properties.u_emissiveMap).toBe('assets/shared/glow.png');
+    const elsewhere = await productsOf(doc, {
+      prefix: 'models/', external: (uri) => `art/${uri}`,
+    });
+    expect(elsewhere.products[0]!.data.properties.u_emissiveMap).toBe('/art/shared/glow.png');
   });
 });
 

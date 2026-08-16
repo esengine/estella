@@ -27,8 +27,11 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 //
 // public/ stands in for the project root, so the prefab's refs read `scenes/…`
 // — the spelling a component carries, resolved from the served root.
+// model-material: the three channels only a material can carry — emission,
+// occlusion, an alpha cutoff — one quad each.
 for (const name of ['two-triangles.gltf', 'lit-triangles.gltf', 'white-triangles.gltf',
-                    'textured-quad.gltf', 'node-tree.gltf', 'normalmap-quad.gltf']) {
+                    'textured-quad.gltf', 'node-tree.gltf', 'normalmap-quad.gltf',
+                    'model-material.gltf']) {
   const run = spawnSync(process.execPath,
     [cli, 'import-gltf', path.join(scenes, name), '--project', path.join(HERE, '..', 'public')], {
       stdio: 'inherit',
