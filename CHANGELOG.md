@@ -203,6 +203,23 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A model's material comes in as a material.** A glTF says more about a surface
+  than a base colour, and the rest of it — the normal map, emission, ambient
+  occlusion, an alpha cutoff — was reported as not imported: those are per-material
+  constants and samplers, which a material has and a component has not (a Mesh2D's
+  per-object attributes end at the ceiling both backends guarantee). An import now
+  writes one `.esmaterial` per source material that says any of them, on a new
+  built-in **Model** template, and the prefab points at it; a material saying
+  nothing beyond base colour still produces no file, since the component carries
+  that whole. The material also restates the draw's blend/depth/cull, because a
+  material replaces them — a model told to occlude itself would otherwise start
+  blending the moment it gained one. A normal map moves onto the material with the
+  rest, since a material shader samples its own units. Metal and roughness are
+  still reported rather than written: shading them needs a view direction, and
+  these lights are 2D — a factor in a product that nothing reads is a knob that
+  lies. `applyLighting2DAO(albedo, N, worldPos, ao)` joins the Lit2D helpers, with
+  `applyLighting2D` its unoccluded case.
+
 - **A game camera can look from somewhere else.** The editor's eye learned to turn
   and the game's did not, so a model could be looked at from any angle while
   authoring and only ever head-on once you pressed Play. A camera's view is its own
