@@ -220,6 +220,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A model imports itself, and again when it changes.** Model import ran once,
+  at the moment a file was dropped on the Content Browser: a `.gltf` that arrived
+  any other way — a checkout, a copy in Finder, a re-export from Blender over the
+  one already there — produced nothing, and the products of the first import were
+  never remade. It is a registered importer now, like the ones a plugin
+  contributes, so the file watcher and the Content Browser's Reimport row reach
+  it by the same rule everything else does. With that comes an import setting a
+  model has needed since it could be imported at all: **Scale**, on the prefab's
+  root rather than baked into the geometry. A glTF is authored in metres and a
+  world unit is a design pixel, so a real-world model arrives a few pixels across
+  — the import says so when it does, and the number that fixes it is in the
+  source's own import settings.
+
 - **A camera says where it looks.** The scene-camera gizmo drew one rectangle —
   `orthoSize` by the viewport's aspect — for every camera, so a perspective camera
   got an outline that had nothing to do with its field of view, and a camera turned
