@@ -812,6 +812,12 @@ fn geometrySmith(NdotV : f32, NdotL : f32, roughness : f32) -> f32 {
 fn fresnelSchlick(VdotH : f32, F0 : vec3f) -> vec3f {
     return F0 + (vec3f(1.0) - F0) * pow(1.0 - VdotH, 5.0);
 }
+fn envBRDFApprox(NdotV : f32, roughness : f32) -> vec2f {
+    let r = roughness * vec4f(-1.0, -0.0275, -0.572, 0.022)
+          + vec4f(1.0, 0.0425, 1.04, -0.04);
+    let a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+    return vec2f(-1.04, 1.04) * a + r.zw;
+}
 fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
     let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
@@ -864,6 +870,8 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
                    * (brdf * 3.14159265 * specular);
         }
     }
+    let ab = envBRDFApprox(NdotV, roughness);
+    gloss += lc.u_ambient.rgb * (ao * specular) * (F0 * ab.x + vec3f(ab.y));
     return albedo * (1.0 - metallic) * lit + gloss;
 }
 fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
@@ -1267,6 +1275,15 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp vec3 fresnelSchlick(in highp float VdotH, in highp vec3 F0) {\n"
             "    return F0 + (vec3(1.0) - F0) * pow(1.0 - VdotH, 5.0);\n"
             "}\n"
+            // The split-sum environment term, Karis' analytic fit: scale and bias for F0
+            // over a whole hemisphere. A lookup table is the usual carrier; the fit costs
+            // no texture unit and is within a value or two of one over the [0,1] range.
+            "highp vec2 envBRDFApprox(in highp float NdotV, in highp float roughness) {\n"
+            "    highp vec4 r = roughness * vec4(-1.0, -0.0275, -0.572, 0.022)\n"
+            "                 + vec4(1.0, 0.0425, 1.04, -0.04);\n"
+            "    highp float a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;\n"
+            "    return vec2(-1.04, 1.04) * a + r.zw;\n"
+            "}\n"
             // The lighting model in its general form; a lit 2D surface is its zero
             // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
             // what this engine has always drawn), so there is one model and not two.
@@ -1335,6 +1352,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "                   * (brdf * 3.14159265 * specular);\n"
             "        }\n"
             "    }\n"
+            // The environment, which for this engine is the ambient term: the same
+            // radiance from every direction. A metal has no diffuse, so without a
+            // reflection of it a metal is black wherever no light happens to point.
+            "    highp vec2 ab = envBRDFApprox(NdotV, roughness);\n"
+            "    gloss += u_ambient.rgb * (ao * specular) * (F0 * ab.x + ab.y);\n"
             "    return albedo * (1.0 - metallic) * lit + gloss;\n"
             "}\n"
             "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
