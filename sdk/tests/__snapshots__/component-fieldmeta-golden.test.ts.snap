@@ -781,10 +781,6 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 1,
       "step": 1,
     },
-    "tilesetRows": {
-      "min": 1,
-      "step": 1,
-    },
   },
   "TrailRenderer": {
     "blendMode": {

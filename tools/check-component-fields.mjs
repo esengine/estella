@@ -24,12 +24,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /**
  * Fields with no reader because the feature behind them is not built. Each one is
  * a promise the inspector currently makes and the engine does not keep; the entry
- * says which, so the list reads as work rather than as permission.
+ * says which, so the list reads as work rather than as permission. Empty is the
+ * intended state: a field that earns an entry here is work, not permission.
  */
-const DECLARED_GAPS = {
-    'TilemapLayer.tilesetRows': 'written by the Tiled loader; a bounds check against it would read'
-        + ' its default of 1 as a one-row tileset and cut every layer that never set it',
-};
+const DECLARED_GAPS = {};
 
 const components = JSON.parse(
     readFileSync(path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json'), 'utf8'),

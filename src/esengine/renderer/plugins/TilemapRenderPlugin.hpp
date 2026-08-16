@@ -67,6 +67,11 @@ private:
         // (which otherwise rounds across the boundary at fractional zoom).
         f32 insetU = 0.0f;
         f32 insetV = 0.0f;
+        // How many tiles the texture actually holds, at this layer's cell size.
+        // A tile id past them has no texels of its own, and sampling outside the
+        // atlas returns some other tile — so it is skipped instead.
+        u32 atlasCols = 0;
+        u32 atlasRows = 0;
         bool valid = false;
     };
 

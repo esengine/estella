@@ -798,7 +798,6 @@ struct TilemapLayerJS {
     glm::vec2 originOffset;
     u32 tileset;
     i32 tilesetColumns;
-    i32 tilesetRows;
     i32 renderLayer;
     glm::vec4 tintColor;
     f32 opacity;
@@ -815,7 +814,6 @@ void tilemaplayerApplyJS(esengine::ecs::TilemapLayer& c, const TilemapLayerJS& j
     c.originOffset = js.originOffset;
     c.tileset = resource::TextureHandle(js.tileset);
     c.tilesetColumns = js.tilesetColumns;
-    c.tilesetRows = js.tilesetRows;
     c.renderLayer = js.renderLayer;
     c.tintColor = js.tintColor;
     c.opacity = js.opacity;
@@ -839,7 +837,6 @@ TilemapLayerJS tilemaplayerToJS(const esengine::ecs::TilemapLayer& c) {
     js.originOffset = c.originOffset;
     js.tileset = c.tileset.id();
     js.tilesetColumns = c.tilesetColumns;
-    js.tilesetRows = c.tilesetRows;
     js.renderLayer = c.renderLayer;
     js.tintColor = c.tintColor;
     js.opacity = c.opacity;
@@ -1382,7 +1379,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("originOffset", &TilemapLayerJS::originOffset)
         .field("tileset", &TilemapLayerJS::tileset)
         .field("tilesetColumns", &TilemapLayerJS::tilesetColumns)
-        .field("tilesetRows", &TilemapLayerJS::tilesetRows)
         .field("renderLayer", &TilemapLayerJS::renderLayer)
         .field("tintColor", &TilemapLayerJS::tintColor)
         .field("opacity", &TilemapLayerJS::opacity)
@@ -2450,12 +2446,11 @@ static_assert(offsetof(esengine::ecs::TilemapLayer, staggerIndex) == 17, "ABI of
 static_assert(offsetof(esengine::ecs::TilemapLayer, originOffset) == 20, "ABI offset drift: esengine::ecs::TilemapLayer.originOffset (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, tileset) == 28, "ABI offset drift: esengine::ecs::TilemapLayer.tileset (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetColumns) == 32, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetColumns (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetRows) == 36, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetRows (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, renderLayer) == 40, "ABI offset drift: esengine::ecs::TilemapLayer.renderLayer (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 44, "ABI offset drift: esengine::ecs::TilemapLayer.tintColor (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 64, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 64)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 72, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, renderLayer) == 36, "ABI offset drift: esengine::ecs::TilemapLayer.renderLayer (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 40, "ABI offset drift: esengine::ecs::TilemapLayer.tintColor (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 56, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 68, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, time) == 0, "ABI offset drift: esengine::ecs::TrailRenderer.time (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, minVertexDistance) == 4, "ABI offset drift: esengine::ecs::TrailRenderer.minVertexDistance (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, emitting) == 8, "ABI offset drift: esengine::ecs::TrailRenderer.emitting (EHT expected 8)");
@@ -2532,7 +2527,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "bcac84b6e9bb2019";
+static const char* kEsAbiLayoutHash = "97f0a1d90b227b76";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

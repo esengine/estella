@@ -1221,9 +1221,6 @@ export function loadTiledMap(
             cellSize: { x: mapData.tileWidth, y: mapData.tileHeight },
             tileset: textureHandle,
             tilesetColumns: columns,
-            tilesetRows: firstTileset
-                ? Math.max(1, Math.ceil(firstTileset.tileCount / Math.max(1, columns)))
-                : 1,
             renderLayer: layerIndex,
             tintColor: { ...layer.tintColor },
             opacity: layer.opacity,

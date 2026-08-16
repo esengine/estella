@@ -90,7 +90,6 @@
             },
             "tileset": 0,
             "tilesetColumns": 1,
-            "tilesetRows": 1,
             "renderLayer": 0,
             "tintColor": {
               "r": 1,

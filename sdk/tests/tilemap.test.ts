@@ -64,9 +64,8 @@ describe('Tilemap Components', () => {
             expect(TilemapLayer._default.tileset).toBe(0);
         });
 
-        it('should have tilesetColumns and tilesetRows defaults', () => {
+        it('should have a tilesetColumns default', () => {
             expect(TilemapLayer._default.tilesetColumns).toBe(1);
-            expect(TilemapLayer._default.tilesetRows).toBe(1);
         });
 
         it('should have cellSize defaulting to 32x32', () => {
@@ -83,7 +82,6 @@ describe('Tilemap Components', () => {
                 originOffset: { x: 0, y: 0 },
                 tileset: 0,
                 tilesetColumns: 1,
-                tilesetRows: 1,
                 renderLayer: 0,
                 tintColor: { r: 1, g: 1, b: 1, a: 1 },
                 opacity: 1,

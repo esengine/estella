@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'bcac84b6e9bb2019';
+export const ABI_LAYOUT_HASH = '97f0a1d90b227b76';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -663,7 +663,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             originOffset: { x: 0, y: 0 },
             tileset: 0,
             tilesetColumns: 1,
-            tilesetRows: 1,
             renderLayer: 0,
             tintColor: { r: 1, g: 1, b: 1, a: 1 },
             opacity: 1,
@@ -681,7 +680,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             staggerAxis: { enum: [{ label: 'Y', value: 0 }, { label: 'X', value: 1 }], tooltip: "Stagger axis (staggered/hex): Y shifts rows, X shifts columns." },
             staggerIndex: { enum: [{ label: 'Odd', value: 0 }, { label: 'Even', value: 1 }], tooltip: "Which lines carry the half-cell shift (staggered/hex)." },
             tilesetColumns: { min: 1, step: 1 },
-            tilesetRows: { min: 1, step: 1 },
             renderLayer: { step: 1, enumSource: "sortingLayers" },
             opacity: { min: 0, max: 1, slider: true, tooltip: "Layer transparency (0 = invisible, 1 = opaque)." },
         },
@@ -1184,7 +1182,6 @@ export interface TilemapLayerData {
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
-    tilesetRows: number;
     renderLayer: number;
     tintColor: Color;
     opacity: number;

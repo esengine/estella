@@ -58,10 +58,11 @@ void TilemapRenderPlugin::rebuildChunk(
             // is skipped.
             int slotIndex = tilemap::resolveTilesetSlot(slots, tileId);
             if (slotIndex < 0 || !resolved[slotIndex].valid) continue;
+            const ResolvedSlot& rs = resolved[slotIndex];
             u32 tilesetColumns = slots[slotIndex].columns;
             if (tilesetColumns == 0) continue;
-            f32 uvTileW = resolved[slotIndex].uvW;
-            f32 uvTileH = resolved[slotIndex].uvH;
+            f32 uvTileW = rs.uvW;
+            f32 uvTileH = rs.uvH;
 
             bool flipH = (rawTile & tilemap::TILE_FLIP_H) != 0;
             bool flipV = (rawTile & tilemap::TILE_FLIP_V) != 0;
@@ -70,6 +71,10 @@ void TilemapRenderPlugin::rebuildChunk(
             u32 tileIndex = tileId - slots[slotIndex].first_id;
             u32 tileCol = tileIndex % tilesetColumns;
             u32 tileRow = tileIndex / tilesetColumns;
+            // A cell the atlas does not hold — an id past the tileset, or a
+            // column count wider than the texture. Its UV rect falls outside,
+            // where the sampler hands back a tile that does exist.
+            if (tileCol >= rs.atlasCols || tileRow >= rs.atlasRows) continue;
 
             f32 worldX, worldY;
             if (layer.grid_type == tilemap::GridType::Isometric) {
@@ -108,7 +113,6 @@ void TilemapRenderPlugin::rebuildChunk(
             // the atlas margin + spacing folded into offset/step so a Tiled tileset
             // with gaps samples the right cell; inset half a texel per edge so
             // samples stay inside this tile.
-            const ResolvedSlot& rs = resolved[slotIndex];
             f32 uMin = rs.uvOffsetX + static_cast<f32>(tileCol) * rs.uvStepX + rs.insetU;
             f32 uMax = uMin + uvTileW - 2.0f * rs.insetU;
             f32 vBottom = 1.0f - rs.uvOffsetY - static_cast<f32>(tileRow) * rs.uvStepY - uvTileH + rs.insetV;
@@ -233,6 +237,12 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].uvStepY = (layer.tile_height + spacing) / th;
             resolved[i].insetU = 0.5f / tw;
             resolved[i].insetV = 0.5f / th;
+            // n cells span margin + n*tileSize + (n-1)*spacing, so the last one
+            // that fits is floor((size - margin + spacing) / step).
+            resolved[i].atlasCols = resolved[i].uvStepX > 0.0f
+                ? static_cast<u32>((tw - margin + spacing) / (layer.tile_width + spacing)) : 0;
+            resolved[i].atlasRows = resolved[i].uvStepY > 0.0f
+                ? static_cast<u32>((th - margin + spacing) / (layer.tile_height + spacing)) : 0;
             anySlotValid = true;
         }
         if (!anySlotValid) continue;

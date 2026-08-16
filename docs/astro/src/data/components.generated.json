@@ -3220,12 +3220,6 @@
           "range": "≥ 1, step 1"
         },
         {
-          "key": "tilesetRows",
-          "type": "number",
-          "default": "1",
-          "range": "≥ 1, step 1"
-        },
-        {
           "key": "renderLayer",
           "type": "enum (sortingLayers)",
           "default": "0",

@@ -1238,7 +1238,6 @@ export interface TilemapLayerPtrData {
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
-    tilesetRows: number;
     renderLayer: number;
     tintColor: Color;
     opacity: number;
@@ -1258,12 +1257,11 @@ export function fillTilemapLayer(
     const originOffset_ = out.originOffset; originOffset_.x = f32[(ptr + 20) >> 2]; originOffset_.y = f32[((ptr + 20) >> 2) + 1];
     out.tileset = u32[(ptr + 28) >> 2];
     out.tilesetColumns = u32[(ptr + 32) >> 2] | 0;
-    out.tilesetRows = u32[(ptr + 36) >> 2] | 0;
-    out.renderLayer = u32[(ptr + 40) >> 2] | 0;
-    const tintColor_ = out.tintColor; tintColor_.r = f32[(ptr + 44) >> 2]; tintColor_.g = f32[((ptr + 44) >> 2) + 1]; tintColor_.b = f32[((ptr + 44) >> 2) + 2]; tintColor_.a = f32[((ptr + 44) >> 2) + 3];
-    out.opacity = f32[(ptr + 60) >> 2];
-    const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 64) >> 2]; parallaxFactor_.y = f32[((ptr + 64) >> 2) + 1];
-    out.visible = u8[ptr + 72] !== 0;
+    out.renderLayer = u32[(ptr + 36) >> 2] | 0;
+    const tintColor_ = out.tintColor; tintColor_.r = f32[(ptr + 40) >> 2]; tintColor_.g = f32[((ptr + 40) >> 2) + 1]; tintColor_.b = f32[((ptr + 40) >> 2) + 2]; tintColor_.a = f32[((ptr + 40) >> 2) + 3];
+    out.opacity = f32[(ptr + 56) >> 2];
+    const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 60) >> 2]; parallaxFactor_.y = f32[((ptr + 60) >> 2) + 1];
+    out.visible = u8[ptr + 68] !== 0;
 }
 
 export function writeTilemapLayer(
@@ -1278,12 +1276,11 @@ export function writeTilemapLayer(
     f32[(ptr + 20) >> 2] = data.originOffset.x; f32[((ptr + 20) >> 2) + 1] = data.originOffset.y;
     u32[(ptr + 28) >> 2] = data.tileset;
     u32[(ptr + 32) >> 2] = data.tilesetColumns | 0;
-    u32[(ptr + 36) >> 2] = data.tilesetRows | 0;
-    u32[(ptr + 40) >> 2] = data.renderLayer | 0;
-    f32[(ptr + 44) >> 2] = data.tintColor.r; f32[((ptr + 44) >> 2) + 1] = data.tintColor.g; f32[((ptr + 44) >> 2) + 2] = data.tintColor.b; f32[((ptr + 44) >> 2) + 3] = data.tintColor.a;
-    f32[(ptr + 60) >> 2] = data.opacity;
-    f32[(ptr + 64) >> 2] = data.parallaxFactor.x; f32[((ptr + 64) >> 2) + 1] = data.parallaxFactor.y;
-    u8[ptr + 72] = data.visible ? 1 : 0;
+    u32[(ptr + 36) >> 2] = data.renderLayer | 0;
+    f32[(ptr + 40) >> 2] = data.tintColor.r; f32[((ptr + 40) >> 2) + 1] = data.tintColor.g; f32[((ptr + 40) >> 2) + 2] = data.tintColor.b; f32[((ptr + 40) >> 2) + 3] = data.tintColor.a;
+    f32[(ptr + 56) >> 2] = data.opacity;
+    f32[(ptr + 60) >> 2] = data.parallaxFactor.x; f32[((ptr + 60) >> 2) + 1] = data.parallaxFactor.y;
+    u8[ptr + 68] = data.visible ? 1 : 0;
 }
 
 export function createTilemapLayerData(): TilemapLayerPtrData {
@@ -1296,7 +1293,6 @@ export function createTilemapLayerData(): TilemapLayerPtrData {
         originOffset: { x: 0, y: 0 },
         tileset: 0,
         tilesetColumns: 0,
-        tilesetRows: 0,
         renderLayer: 0,
         tintColor: { r: 0, g: 0, b: 0, a: 0 },
         opacity: 0,

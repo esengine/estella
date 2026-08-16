@@ -121,8 +121,7 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 | `cellSize` | Vec2 | `{32, 32}` | 瓦片尺寸(世界单位)。 |
 | `originOffset` | Vec2 | `{0, 0}` | 图层网格的偏移(世界单位)。与图层视差在同一处逐帧应用,所以拖动它当场移动 tile,且不会重建任何 chunk。 |
 | `tileset` | asset | 无 | 图集纹理(单图集图层)。 |
-| `tilesetColumns` | number | `1` | 图集图册的列数。 |
-| `tilesetRows` | number | `1` | 图集图册的行数。 |
+| `tilesetColumns` | number | `1` | 图集图册的列数。行数由纹理自己决定,超出最后一个 tile 的 id 不绘制。 |
 | `renderLayer` | number | `0` | 决定绘制顺序的排序层。 |
 | `tintColor` | Color | `{1,1,1,1}` | 叠乘到每个瓦片上。可动画。 |
 | `opacity` | number | `1` | 图层透明度,0..1。可动画。 |

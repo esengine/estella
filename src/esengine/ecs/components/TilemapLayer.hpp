@@ -71,9 +71,6 @@ struct TilemapLayer {
     ES_PROPERTY(min=1, step=1)
     i32 tilesetColumns{1};
 
-    ES_PROPERTY(min=1, step=1)
-    i32 tilesetRows{1};
-
     ES_PROPERTY(step=1, enum_source=sortingLayers)
     i32 renderLayer{0};
 

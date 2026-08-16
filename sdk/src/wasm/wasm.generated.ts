@@ -511,7 +511,6 @@ export interface TilemapLayer {
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
-    tilesetRows: number;
     renderLayer: number;
     tintColor: Vec4;
     opacity: number;

@@ -5,7 +5,7 @@ Symbols: 113 public · 63 beta · 1434 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"bcac84b6e9bb2019"
+"97f0a1d90b227b76"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -7864,7 +7864,6 @@ staggerAxis: number
 staggerIndex: number
 tileset: number
 tilesetColumns: number
-tilesetRows: number
 tintColor: Color
 visible: boolean
 ```

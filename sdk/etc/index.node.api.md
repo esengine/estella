@@ -7666,7 +7666,6 @@ staggerAxis: number
 staggerIndex: number
 tileset: number
 tilesetColumns: number
-tilesetRows: number
 tintColor: Color
 visible: boolean
 ```
