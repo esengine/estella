@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The model-import sample plays what it imported.** Its glTF now carries a clip
+  that lifts the banner, so the certified chain runs from the source file through
+  the import's products to a packaged build that plays them — the capability the
+  corpus is checked against, not a claim about it. Parity alone would not say so
+  (a build playing nothing matches an editor playing nothing): the packaged frame
+  with the clip stopped differs from the one playing it by 0.0527, with a cell
+  reading 0.90.
+
 - **A model's animations come in with it.** A glTF's animations were counted and
   reported as skipped, so an imported model could be placed, lit and posed but
   never moved. Each one is written out as an `.estimeline` beside the meshes, and
