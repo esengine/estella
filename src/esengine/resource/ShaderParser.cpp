@@ -733,6 +733,9 @@ struct LightConstants {
     u_occluders : array<vec4f, 8>,
     u_shadowMatrix : mat4x4f,
     u_shadowParams : vec4f,
+    u_envIrradiance : array<vec4f, 9>,
+    u_envParams : vec4f,
+    u_envTint : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
 fn packDepth(d : f32) -> vec3f {
@@ -848,12 +851,56 @@ fn envBRDFApprox(NdotV : f32, roughness : f32) -> vec2f {
     let a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
     return vec2f(-1.04, 1.04) * a + r.zw;
 }
+fn envIrradiance(N : vec3f) -> vec3f {
+    let sh = lc.u_envIrradiance[0].rgb * 0.282095
+        + lc.u_envIrradiance[1].rgb * (0.488603 * N.y)
+        + lc.u_envIrradiance[2].rgb * (0.488603 * N.z)
+        + lc.u_envIrradiance[3].rgb * (0.488603 * N.x)
+        + lc.u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)
+        + lc.u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)
+        + lc.u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))
+        + lc.u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)
+        + lc.u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));
+    return lc.u_ambient.rgb + max(sh, vec3f(0.0)) * lc.u_envTint.rgb;
+}
+fn octEncode(d : vec3f) -> vec2f {
+    var p = d.xz / max(abs(d.x) + abs(d.y) + abs(d.z), 1e-6);
+    if (d.y < 0.0) {
+        p = (1.0 - abs(vec2f(p.y, p.x)))
+          * vec2f(select(-1.0, 1.0, p.x >= 0.0), select(-1.0, 1.0, p.y >= 0.0));
+    }
+    return p * 0.5 + 0.5;
+}
+fn envSampleMip(R : vec3f, mip : f32) -> vec3f {
+#ifndef ES_ENV_MAP
+    return vec3f(0.0);
+#else
+    let face = lc.u_envParams.w;
+    let size = face * exp2(-mip);
+    let yOff = 2.0 * face * (1.0 - exp2(-mip)) + 2.0 * mip;
+    let atlasW = face + 2.0;
+    let atlasH = 2.0 * face * (1.0 - exp2(-(lc.u_envParams.z + 1.0)))
+               + 2.0 * (lc.u_envParams.z + 1.0);
+    let uv = octEncode(R);
+    let px = vec2f(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);
+    let t = textureSampleLevel(t3, s3, px / vec2f(atlasW, atlasH), 0.0);
+    return t.rgb * t.rgb * (t.a * lc.u_envParams.y);
+#endif
+}
+fn envRadiance(R : vec3f, roughness : f32) -> vec3f {
+    if (lc.u_envParams.x < 0.5) { return lc.u_ambient.rgb; }
+    let lod = clamp(roughness, 0.0, 1.0) * lc.u_envParams.z;
+    let lo = floor(lod);
+    let a = envSampleMip(R, lo);
+    let b = envSampleMip(R, min(lo + 1.0, lc.u_envParams.z));
+    return lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb;
+}
 fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
     let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
     let a = max(roughness * roughness, 1e-3);
     let NdotV = max(dot(N, V), 1e-4);
-    var lit = lc.u_ambient.rgb * ao;
+    var lit = envIrradiance(N) * ao;
     var gloss = vec3f(0.0);
     for (var i = 0; i < 16; i++) {
         let pd = lc.u_lights[i].posDir;
@@ -904,7 +951,8 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         }
     }
     let ab = envBRDFApprox(NdotV, roughness);
-    gloss += lc.u_ambient.rgb * (ao * specular) * (F0 * ab.x + vec3f(ab.y));
+    gloss += envRadiance(reflect(-V, N), roughness) * (ao * specular)
+           * (F0 * ab.x + vec3f(ab.y));
     return albedo * (1.0 - metallic) * lit + gloss;
 }
 fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
@@ -1209,12 +1257,18 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
             "    highp mat4 u_shadowMatrix;\n"    // world -> shadow map clip
             "    highp vec4 u_shadowParams;\n"    // x = has map, y = bias, z = texel
+            "    highp vec4 u_envIrradiance[9];\n"  // SH9, rgb in xyz; zero = no environment
+            "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
+            "    highp vec4 u_envTint;\n"         // the ambient light's colour, scaling both halves
             "};\n"
             // The shadow map rides the draw's third texture slot, behind the feature the
             // MESH vertex sources set: the batch stream owns 0..7 as a per-vertex merge
             // product, so a sampler pinned to slot 2 there would read someone's sprite.
             "#ifdef ES_RECEIVE_SHADOW\n"
             "uniform highp sampler2D u_shadowMap;\n"
+            "#endif\n"
+            "#ifdef ES_ENV_MAP\n"
+            "uniform highp sampler2D u_envMap;\n"
             "#endif\n"
             // 24 bits of depth across RGB — an 8-bit target is what both backends have
             // in common, and a metre of world depth does not survive 8 of them. The
@@ -1360,6 +1414,59 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;\n"
             "    return vec2(-1.04, 1.04) * a + r.zw;\n"
             "}\n"
+            // The environment's diffuse half. With no environment the coefficients are
+            // zero and this IS the flat ambient term, which is what keeps every existing
+            // scene pixel-identical rather than merely close.
+            "highp vec3 envIrradiance(in highp vec3 N) {\n"
+            "    highp vec3 sh = u_envIrradiance[0].rgb * 0.282095\n"
+            "        + u_envIrradiance[1].rgb * (0.488603 * N.y)\n"
+            "        + u_envIrradiance[2].rgb * (0.488603 * N.z)\n"
+            "        + u_envIrradiance[3].rgb * (0.488603 * N.x)\n"
+            "        + u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)\n"
+            "        + u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)\n"
+            "        + u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))\n"
+            "        + u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)\n"
+            "        + u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));\n"
+            "    return u_ambient.rgb + max(sh, vec3(0.0)) * u_envTint.rgb;\n"
+            "}\n"
+            // Direction -> the octahedral unit square, +Y at the centre. The importer's
+            // octEncode, in the shading language; the two must agree texel for texel.
+            "highp vec2 octEncode(in highp vec3 d) {\n"
+            "    highp vec2 p = d.xz / max(abs(d.x) + abs(d.y) + abs(d.z), 1e-6);\n"
+            "    if (d.y < 0.0) {\n"
+            "        p = (1.0 - abs(p.yx)) * vec2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);\n"
+            "    }\n"
+            "    return p * 0.5 + 0.5;\n"
+            "}\n"
+            // One mip of the prefiltered atlas. The mips stack downward, each face ringed
+            // by a border texel, so the offset is a closed form rather than a table:
+            // sum(face >> j, j < mip) = 2*face*(1 - 2^-mip), plus two rows per mip.
+            "highp vec3 envSampleMip(in highp vec3 R, in highp float mip) {\n"
+            "#ifndef ES_ENV_MAP\n"
+            "    return vec3(0.0);\n"
+            "#else\n"
+            "    highp float face = u_envParams.w;\n"
+            "    highp float size = face * exp2(-mip);\n"
+            "    highp float yOff = 2.0 * face * (1.0 - exp2(-mip)) + 2.0 * mip;\n"
+            "    highp float atlasW = face + 2.0;\n"
+            "    highp float atlasH = 2.0 * face * (1.0 - exp2(-(u_envParams.z + 1.0)))\n"
+            "                       + 2.0 * (u_envParams.z + 1.0);\n"
+            "    highp vec2 uv = octEncode(R);\n"
+            "    highp vec2 px = vec2(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);\n"
+            "    highp vec4 t = texture(u_envMap, px / vec2(atlasW, atlasH));\n"
+            "    return t.rgb * t.rgb * (t.a * u_envParams.y);\n"
+            "#endif\n"
+            "}\n"
+            // The environment's specular half, at the roughness asked for. Without a map
+            // this is the flat ambient term, the same way the diffuse half is.
+            "highp vec3 envRadiance(in highp vec3 R, in highp float roughness) {\n"
+            "    if (u_envParams.x < 0.5) return u_ambient.rgb;\n"
+            "    highp float lod = clamp(roughness, 0.0, 1.0) * u_envParams.z;\n"
+            "    highp float lo = floor(lod);\n"
+            "    highp vec3 a = envSampleMip(R, lo);\n"
+            "    highp vec3 b = envSampleMip(R, min(lo + 1.0, u_envParams.z));\n"
+            "    return u_ambient.rgb + mix(a, b, lod - lo) * u_envTint.rgb;\n"
+            "}\n"
             // The lighting model in its general form; a lit 2D surface is its zero
             // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
             // what this engine has always drawn), so there is one model and not two.
@@ -1373,8 +1480,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float a = max(roughness * roughness, 1e-3);\n"
             "    highp float NdotV = max(dot(N, V), 1e-4);\n"
             // Occlusion darkens the light that arrives from everywhere, which is the
-            // ambient term; a surface's own lights are unobstructed by it.
-            "    highp vec3 lit = u_ambient.rgb * ao;\n"
+            // environment; a surface's own lights are unobstructed by it.
+            "    highp vec3 lit = envIrradiance(N) * ao;\n"
             "    highp vec3 gloss = vec3(0.0);\n"
             // A Light2D has no third coordinate, so distance stays in the plane and a
             // point light's height is its radius. Normal and view are the 3D part.
@@ -1437,7 +1544,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // radiance from every direction. A metal has no diffuse, so without a
             // reflection of it a metal is black wherever no light happens to point.
             "    highp vec2 ab = envBRDFApprox(NdotV, roughness);\n"
-            "    gloss += u_ambient.rgb * (ao * specular) * (F0 * ab.x + ab.y);\n"
+            "    gloss += envRadiance(reflect(-V, N), roughness) * (ao * specular)\n"
+            "           * (F0 * ab.x + ab.y);\n"
             "    return albedo * (1.0 - metallic) * lit + gloss;\n"
             "}\n"
             "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"

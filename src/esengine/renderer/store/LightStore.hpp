@@ -47,6 +47,7 @@ public:
     void clear() {
         data_ = LightConstants{};
         count_ = 0;
+        hasEnvironment_ = false;
         dirty_ = true;
     }
 
@@ -77,6 +78,23 @@ public:
         dirty_ = true;
     }
 
+    /// Sets the frame's environment: nine irradiance coefficients, the reflection
+    /// params, and the tint scaling both. The FIRST ambient light carrying one wins —
+    /// several environments do not sum the way flat terms do.
+    /// @return false when one was already set this frame.
+    bool setEnvironment(const glm::vec3* irradiance, const glm::vec4& params,
+                        const glm::vec3& tint) {
+        if (hasEnvironment_) return false;
+        for (usize i = 0; i < 9; ++i) data_.envIrradiance[i] = glm::vec4(irradiance[i], 0.0f);
+        data_.envParams = params;
+        data_.envTint = glm::vec4(tint, 0.0f);
+        hasEnvironment_ = true;
+        dirty_ = true;
+        return true;
+    }
+
+    bool hasEnvironment() const { return hasEnvironment_; }
+
     /// Appends a world-space AABB occluder (minX, minY, maxX, maxY). Silently drops past
     /// MAX_OCCLUDERS_2D. With no occluders added, the injected shader shadow test is a no-op.
     void addOccluder(const glm::vec4& box) {
@@ -100,6 +118,7 @@ public:
 private:
     LightConstants data_{};
     u32 count_ = 0;
+    bool hasEnvironment_ = false;
     BufferHandle ubo_ = BufferHandle::Invalid;
     bool dirty_ = true;
     GfxDevice* device_ = nullptr;

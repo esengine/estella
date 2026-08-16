@@ -22,6 +22,7 @@
 #include "../../core/Types.hpp"
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
+#include "../../resource/Handle.hpp"
 
 namespace esengine::ecs {
 
@@ -103,6 +104,14 @@ struct Light2D {
      *         0 = fit what the camera can see. Larger trades sharpness for reach. */
     ES_PROPERTY(min=0, advanced, tooltip="Shadow map coverage radius; 0 = fit the view.")
     f32 shadowExtent{0.0f};
+
+    /** @brief What this Ambient light IS, when it is more than one colour: a baked
+     *         panorama's irradiance and reflection. Without one the light stays the
+     *         flat term it has always been — the same lighting, at order zero.
+     *         @ref color and @ref intensity scale it. Ignored by the other types;
+     *         the first Ambient light that carries one is the frame's environment. */
+    ES_PROPERTY(asset = environment, tooltip="Baked environment (.esenv) this Ambient light casts.")
+    resource::EnvironmentHandle environment;
 
     /** @brief Disabled lights are skipped during collection. */
     ES_PROPERTY()

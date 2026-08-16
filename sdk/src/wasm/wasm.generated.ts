@@ -341,6 +341,7 @@ export interface Light2D {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    environment: number;
     enabled: boolean;
 }
 

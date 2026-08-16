@@ -37,6 +37,8 @@ struct RenderFrameContext {
     bool shadow_pass = false;
     /// The map that pass produced, handed to the meshes that receive it (0 = none).
     u32 shadow_texture_id = 0;
+    /// The frame environment's prefiltered reflection atlas (0 = none this frame).
+    u32 environment_texture_id = 0;
 };
 
 /** @brief The camera's view bounds in world space, derived once per collect from the

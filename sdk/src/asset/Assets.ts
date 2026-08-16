@@ -22,6 +22,7 @@ import { AssetRefLedger } from './AssetRefLedger';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
+import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
@@ -239,6 +240,7 @@ export interface SceneAssetResult {
     materialHandles: Map<string, number>;
     fontHandles: Map<string, number>;
     meshHandles: Map<string, number>;
+    environmentHandles: Map<string, number>;
     releaseCallbacks: ReleaseCallback[];
     missing: MissingAsset[];
 }
@@ -1113,12 +1115,14 @@ export class Assets {
         const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
         const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
         const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
+        const environmentPaths = discovered.byType.get('environment') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
         const materialHandles = new Map<string, number>();
         const fontHandles = new Map<string, number>();
         const meshHandles = new Map<string, number>();
+        const environmentHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
 
         let loadedCount = 0;
@@ -1179,6 +1183,9 @@ export class Assets {
         pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
         pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
         pushHandleLoad(meshPaths, p => this.loadTyped<{ handle: number }>('mesh', p), meshHandles, 'mesh');
+        pushHandleLoad(environmentPaths,
+                       p => this.loadTyped<{ handle: number }>('environment', p),
+                       environmentHandles, 'environment');
         // The runtime scene loader owns spine as a two-phase load+apply through the
         // SpineManager (skeletons must bind to spawned entities); it opts out here so
         // spine page textures / virtual-FS writes aren't done twice.
@@ -1212,11 +1219,13 @@ export class Assets {
             onProgress?.(++loadedCount, totalCount);
         });
 
-        return { textureHandles, materialHandles, fontHandles, meshHandles, releaseCallbacks, missing };
+        return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
+                 releaseCallbacks, missing };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
-        const { textureHandles, materialHandles, fontHandles, meshHandles } = result;
+        const { textureHandles, materialHandles, fontHandles, meshHandles,
+                environmentHandles } = result;
         const counter = this.refCounter_;
 
         for (const entity of sceneData.entities) {
@@ -1288,6 +1297,10 @@ export class Assets {
                         }
                         case 'mesh': {
                             comp.data[field] = meshHandles.get(path) ?? 0;
+                            break;
+                        }
+                        case 'environment': {
+                            comp.data[field] = environmentHandles.get(path) ?? 0;
                             break;
                         }
                     }
@@ -1689,6 +1702,7 @@ export class Assets {
         this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
         this.register(new MeshAssetLoader(() => this.module_));
+        this.register(new EnvironmentAssetLoader(() => this.module_));
         // The audio loader needs the AudioAPI outside load() too (unload /
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));

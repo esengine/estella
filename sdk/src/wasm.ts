@@ -246,6 +246,15 @@ export interface ESEngineModule {
                              bindPtr: number, bindFloats: number): number;
     /** Release a mesh and the buffers it owns. */
     mesh_release?(meshHandle: number): void;
+    /**
+     * Register a baked environment: 27 floats of irradiance (nine RGB spherical-
+     * harmonic coefficients, already convolved and over pi) plus the prefiltered
+     * octahedral atlas an ambient light reflects. A 0 atlas is diffuse-only.
+     */
+    environment_create?(shPtr: number, specularHandle: number, faceSize: number,
+                        mipCount: number, maxRange: number): number;
+    /** Release an environment; its atlas is an ordinary texture and outlives it. */
+    environment_release?(environmentHandle: number): void;
     /** Point a Mesh2D at a resident mesh; 0 returns it to its inline payload. */
     mesh2d_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
     /**

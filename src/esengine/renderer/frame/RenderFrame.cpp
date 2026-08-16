@@ -631,7 +631,8 @@ RenderFrameContext RenderFrame::makeContext() {
         &context_.materials(),
         this,
         false,
-        shadow_texture_id_
+        shadow_texture_id_,
+        environment_texture_id_
     };
 }
 
@@ -639,6 +640,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     LightStore& lights = context_.lights();
     lights.clear();
     shadow_light_slot_ = -1;
+    environment_texture_id_ = 0;
 
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
@@ -660,6 +662,10 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         const glm::vec3 rgb = linear_color_ ? srgbToLinearCpu(glm::vec3{light.color})
                                             : glm::vec3{light.color};
         if (type == ecs::Light2DType::Ambient) {
+            // An environment REPLACES this light's flat term rather than adding to
+            // it: its coefficients already carry the same colour, and summing both
+            // would light the scene twice from one source.
+            if (collectEnvironment(light, rgb * light.intensity)) continue;
             lights.addAmbient(rgb * light.intensity);
             continue;
         }
@@ -728,6 +734,27 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         const f32 hy = caster.size.y * 0.5f;
         lights.addOccluder(glm::vec4(p.x - hx, p.y - hy, p.x + hx, p.y + hy));
     }
+}
+
+bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3& scale) {
+    if (!light.environment.isValid()) return false;
+    const Environment* environment = resource_manager_.getEnvironment(light.environment);
+    if (!environment) return false;
+
+    u32 textureId = 0;
+    if (environment->hasSpecular()) {
+        if (Texture* atlas = resource_manager_.getTexture(environment->specular)) {
+            textureId = atlas->getId();
+        }
+    }
+    const glm::vec4 params{textureId != 0 ? 1.0f : 0.0f, environment->maxRange,
+                           static_cast<f32>(environment->mipCount) - 1.0f,
+                           environment->faceSize};
+    if (!context_.lights().setEnvironment(environment->irradiance.data(), params, scale)) {
+        return false;
+    }
+    environment_texture_id_ = textureId;
+    return true;
 }
 
 /// Side length of a shadow map. One size for every scene: the coverage adapts to the

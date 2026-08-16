@@ -526,6 +526,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("mesh_create", &esengine::mesh_create);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
     emscripten::function("mesh_release", &esengine::mesh_release);
+    emscripten::function("environment_create", &esengine::environment_create);
+    emscripten::function("environment_release", &esengine::environment_release);
     emscripten::function("mesh2d_setMesh", &esengine::mesh2d_setMesh);
     emscripten::function("mesh2d_localBounds", &esengine::mesh2d_localBounds);
     emscripten::function("mesh2d_makeResident", &esengine::mesh2d_makeResident);

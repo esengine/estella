@@ -28,6 +28,7 @@
 #include "../renderer/rhi/Texture.hpp"
 #include "../renderer/rhi/Buffer.hpp"
 #include "Mesh.hpp"
+#include "Environment.hpp"
 #include "../text/BitmapFont.hpp"
 
 // Standard library
@@ -470,6 +471,28 @@ public:
     /** @brief Releases a mesh and the buffers it owns. */
     void releaseMesh(MeshHandle handle);
 
+    // =========================================================================
+    // Environment Resources
+    // =========================================================================
+
+    /**
+     * @brief Registers a baked environment.
+     * @param irradiance Nine RGB spherical-harmonic coefficients.
+     * @param specular The prefiltered octahedral atlas; may be invalid, leaving
+     *        the environment diffuse-only.
+     * @return Handle to the environment, or invalid when the coefficients are not nine.
+     */
+    EnvironmentHandle createEnvironment(ConstSpan<f32> irradiance, TextureHandle specular,
+                                        f32 faceSize, u32 mipCount, f32 maxRange);
+
+    /** @brief The environment a handle names, or null. */
+    Environment* getEnvironment(EnvironmentHandle handle);
+    const Environment* getEnvironment(EnvironmentHandle handle) const;
+
+    /** @brief Releases an environment. The atlas is an ordinary texture asset with
+     *         its own lifetime, so it is NOT released here. */
+    void releaseEnvironment(EnvironmentHandle handle);
+
     /**
      * @brief Gets a vertex buffer by handle
      * @param handle The buffer handle
@@ -609,6 +632,7 @@ private:
     ResourcePool<VertexBuffer> vertexBuffers_;
     ResourcePool<IndexBuffer> indexBuffers_;
     ResourcePool<Mesh> meshes_;
+    ResourcePool<Environment> environments_;
     ResourcePool<text::BitmapFont> fonts_;
     /// Handles whose GPU texture died with the device, still showing the
     /// placeholder. Empty means the content is whole again.

@@ -28,6 +28,8 @@
 
 namespace esengine {
 
+namespace ecs { struct Light2D; }
+
 struct Plane {
     glm::vec3 normal;
     f32 distance;
@@ -292,6 +294,12 @@ private:
     /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
     /// flush() uploads + binds the result so Lit2D material shaders read it.
     void collectLights(ecs::Registry& registry);
+
+    /// Makes this ambient light the frame's environment, when it names one that is
+    /// loaded. `scale` is the light's colour times its intensity, folded into the
+    /// coefficients — an environment is what the light casts, not a second source.
+    /// @return false when it names none, leaving the caller to add a flat term.
+    bool collectEnvironment(const ecs::Light2D& light, const glm::vec3& scale);
     /**
      * @brief Draws the scene's mesh occluders from the shadow-casting light, into a map
      *        the main pass samples.
@@ -315,6 +323,8 @@ private:
     RenderTargetManager::Handle shadow_rt_ = 0;
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
     u32 shadow_texture_id_ = 0;
+    /// The frame environment's reflection atlas, on the same terms. 0 = none this frame.
+    u32 environment_texture_id_ = 0;
 
     // processMasks scratch, reused across cameras/frames.
     std::vector<Entity> mask_scissor_scratch_;

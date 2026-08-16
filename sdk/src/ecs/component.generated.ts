@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9e0ab90e452805c7';
+export const ABI_LAYOUT_HASH = '65f6ac377586cd75';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -310,10 +310,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shadowDistance: 0,
             meshShadows: false,
             shadowExtent: 0,
+            environment: 0,
             enabled: true,
         },
         renderableField: 'enabled',
-        assetFields: [],
+        assetFields: [{ field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
@@ -328,6 +329,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
             meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional)." },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true },
+            environment: { tooltip: "Baked environment (.esenv) this Ambient light casts." },
         },
     },
     Mesh2D: {
@@ -1016,6 +1018,7 @@ export interface Light2DData {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    environment: number;
     enabled: boolean;
 }
 

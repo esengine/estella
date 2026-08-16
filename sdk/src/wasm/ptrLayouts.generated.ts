@@ -161,7 +161,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'shadowDistance', type: 'f32', offset: 48 },
             { name: 'meshShadows', type: 'bool', offset: 52 },
             { name: 'shadowExtent', type: 'f32', offset: 56 },
-            { name: 'enabled', type: 'bool', offset: 60 },
+            { name: 'environment', type: 'u32', offset: 60 },
+            { name: 'enabled', type: 'bool', offset: 64 },
         ],
     },
     Mesh2D: {

@@ -624,7 +624,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh'
+'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh' | 'environment'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -3808,6 +3808,7 @@ BuiltinComponentDef<Light2DData>
 color: Color
 direction: Vec2
 enabled: boolean
+environment: number
 innerAngle: number
 intensity: number
 meshShadows: boolean

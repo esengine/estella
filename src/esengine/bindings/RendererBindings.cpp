@@ -330,6 +330,30 @@ void mesh_release(u32 meshHandle) {
     }
 }
 
+/**
+ * @brief Registers a baked environment: nine irradiance coefficients and the
+ *        prefiltered reflection an ambient light casts.
+ * @param shPtr 27 floats — nine RGB coefficients, already convolved and over pi.
+ * @param specularHandle The octahedral atlas, or 0 for a diffuse-only environment.
+ */
+u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
+                       f32 maxRange) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return 0;
+    const f32* sh = boundarySpan<f32>(shPtr, 27, "environment_create.irradiance");
+    if (!sh) return 0;
+    return rm->createEnvironment(ConstSpan<f32>(sh, 27),
+                                 resource::TextureHandle(specularHandle),
+                                 faceSize, mipCount, maxRange).id();
+}
+
+/** @brief Releases an environment. Its atlas is an ordinary texture and outlives it. */
+void environment_release(u32 environmentHandle) {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+        rm->releaseEnvironment(resource::EnvironmentHandle(environmentHandle));
+    }
+}
+
 namespace {
 // Freezes a Mesh2D's inline geometry onto the GPU: the same vertices, uploaded
 // once and drawn with a per-object transform. The inline payload is cleared, so

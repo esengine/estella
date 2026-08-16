@@ -570,6 +570,41 @@ void ResourceManager::releaseMesh(MeshHandle handle) {
 }
 
 // =============================================================================
+// Environment Resources
+// =============================================================================
+
+EnvironmentHandle ResourceManager::createEnvironment(ConstSpan<f32> irradiance,
+                                                     TextureHandle specular, f32 faceSize,
+                                                     u32 mipCount, f32 maxRange) {
+    if (irradiance.size() != 27) {
+        ES_LOG_ERROR("createEnvironment: {} coefficients, want 27", irradiance.size());
+        return EnvironmentHandle();
+    }
+    auto environment = std::make_unique<Environment>();
+    for (usize i = 0; i < 9; ++i) {
+        environment->irradiance[i] = {irradiance[i * 3], irradiance[i * 3 + 1],
+                                      irradiance[i * 3 + 2]};
+    }
+    environment->specular = specular;
+    environment->faceSize = faceSize;
+    environment->mipCount = mipCount;
+    environment->maxRange = maxRange;
+    return environments_.add(std::move(environment));
+}
+
+Environment* ResourceManager::getEnvironment(EnvironmentHandle handle) {
+    return environments_.get(handle);
+}
+
+const Environment* ResourceManager::getEnvironment(EnvironmentHandle handle) const {
+    return environments_.get(handle);
+}
+
+void ResourceManager::releaseEnvironment(EnvironmentHandle handle) {
+    environments_.release(handle.id());
+}
+
+// =============================================================================
 // Index Buffer Resources
 // =============================================================================
 

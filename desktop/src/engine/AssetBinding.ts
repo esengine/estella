@@ -20,11 +20,12 @@ export interface PreloadHandles {
   materialHandles: Map<string, number>;
   fontHandles: Map<string, number>;
   meshHandles: Map<string, number>;
+  environmentHandles: Map<string, number>;
 }
 
 const emptyHandles = (): PreloadHandles => ({
   textureHandles: new Map(), materialHandles: new Map(),
-  fontHandles: new Map(), meshHandles: new Map(),
+  fontHandles: new Map(), meshHandles: new Map(), environmentHandles: new Map(),
 });
 
 class AssetBindingImpl {
@@ -120,7 +121,8 @@ class AssetBindingImpl {
     if (!this.preload) this.preload = emptyHandles();
     const maps = this.preload;
     const target = kind === 'material' ? maps.materialHandles
-      : kind === 'font' ? maps.fontHandles : maps.meshHandles;
+      : kind === 'font' ? maps.fontHandles
+        : kind === 'environment' ? maps.environmentHandles : maps.meshHandles;
     target.set(path, handle);
   }
 }

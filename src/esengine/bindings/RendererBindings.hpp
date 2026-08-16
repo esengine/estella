@@ -78,6 +78,13 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             uintptr_t bindPtr, u32 bindFloats);
 /** @brief Releases a mesh and the buffers it owns. */
 void mesh_release(u32 meshHandle);
+
+/** @brief Registers a baked environment (27 irradiance floats + a reflection atlas). */
+u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
+                       f32 maxRange);
+
+/** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
+void environment_release(u32 environmentHandle);
 /** @brief Uploads geometry that stays on the GPU; returns its handle, 0 on failure. */
 u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
                 uintptr_t indicesPtr, u32 indexCount);

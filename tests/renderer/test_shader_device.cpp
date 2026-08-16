@@ -32,13 +32,14 @@ int main() {
 
         // compile() pins the engine-injected samplers to their units, so the counts
         // the rest of this block asserts start from what that seeding left behind.
-        CHECK(d.setUniform1iCalls == 1
-                  && d.lastUniform1iVal == static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT),
-              "compile pins the injected shadow sampler to its texture unit");
-        CHECK(d.useProgramCalls == 2, "seeding it binds and unbinds the program");
+        // Two of them: the shadow map and the environment's reflection.
+        CHECK(d.setUniform1iCalls == 2
+                  && d.lastUniform1iVal == static_cast<i32>(ENV_MAP_TEXTURE_UNIT),
+              "compile pins the injected samplers to their texture units");
+        CHECK(d.useProgramCalls == 2, "seeding them binds and unbinds the program once");
 
         shader->setUniform("u_tex", 3);
-        CHECK(d.setUniform1iCalls == 2, "setUniform(name,int) routes through device.setUniform1i");
+        CHECK(d.setUniform1iCalls == 3, "setUniform(name,int) routes through device.setUniform1i");
         CHECK(d.lastUniform1iVal == 3, "uniform value forwarded");
 
         shader->setUniform("u_color", glm::vec4(1, 0, 0, 1));

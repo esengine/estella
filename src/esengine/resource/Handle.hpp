@@ -188,6 +188,7 @@ namespace esengine {
     class VertexBuffer;
     class IndexBuffer;
     class Mesh;
+    class Environment;
 }
 
 // Forward-declared only — the native spine runtime was removed (spine is fully
@@ -222,6 +223,9 @@ using IndexBufferHandle = Handle<esengine::IndexBuffer>;
 
 /** @brief Handle to GPU-resident geometry */
 using MeshHandle = Handle<esengine::Mesh>;
+
+/** @brief Handle to a baked environment (irradiance + prefiltered reflection) */
+using EnvironmentHandle = Handle<esengine::Environment>;
 
 /** @brief Handle to a Spine skeleton data resource (vestigial — see fwd decl) */
 using SpineDataHandle = Handle<esengine::spine::SpineSkeletonData>;

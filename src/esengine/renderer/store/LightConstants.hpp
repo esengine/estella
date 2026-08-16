@@ -33,6 +33,10 @@ inline constexpr const char* LIGHT_CONSTANTS_BLOCK = "LightConstants";
 inline constexpr const char* SHADOW_MAP_SAMPLER = "u_shadowMap";
 inline constexpr u32 SHADOW_MAP_TEXTURE_UNIT = 2;
 
+/** @brief The injected reflection sampler, one unit past the shadow map's. */
+inline constexpr const char* ENV_MAP_SAMPLER = "u_envMap";
+inline constexpr u32 ENV_MAP_TEXTURE_UNIT = 3;
+
 /**
  * @brief Max simultaneous 2D lights packed into the UBO. The injected fragment loop is a fixed
  *        bound; inactive slots are zeroed (intensity 0) so they contribute nothing. Must match
@@ -90,11 +94,22 @@ struct LightConstants {
     /// zeroed default cannot darken slot 0 before one exists; y = depth bias in the
     /// map's own [0,1] units; z = one texel of it; w = the light slot that cast it.
     glm::vec4 shadowParams{0.0f};
+    /// The frame environment's nine irradiance coefficients, rgb in xyz. Zero when
+    /// no light carries one, which makes the flat `ambient` term the order-zero case
+    /// of one expression rather than a second path. vec4: std140 pads vec3 anyway.
+    glm::vec4 envIrradiance[9]{};
+    /// x = 1 when a prefiltered reflection is bound; y = its RGBM decode range;
+    /// z = the highest mip index; w = mip 0's octahedral face size, in texels.
+    glm::vec4 envParams{0.0f};
+    /// rgb = the ambient light's colour times its intensity, which scales BOTH halves
+    /// of the environment. Kept out of the coefficients so the reflection — sampled
+    /// from a texture the light does not own — is tinted by the same number.
+    glm::vec4 envTint{0.0f};
 };
 
 static_assert(sizeof(GpuLight2D) == 64, "GpuLight2D must be std140-tight (four vec4s)");
 static_assert(sizeof(LightConstants) == 16 + 64 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D
-                                        + 64 + 16,
+                                        + 64 + 16 + 16 * 9 + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

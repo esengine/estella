@@ -45,14 +45,15 @@ void MaterialStore::recreateGpuResources() {
 }
 
 u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
-                               bool withNormals, bool skinned) const {
+                               bool withNormals, bool skinned, bool envMapped) const {
     const MaterialRecord* rec = find(materialId);
     if (!rec || !rec->shaderRef.isValid()) return 0;
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
     const u64 key = static_cast<u64>(rec->shaderRef.id())
                   | (withNormals ? (1ull << 32) : 0ull)
-                  | (skinned ? (1ull << 33) : 0ull);
+                  | (skinned ? (1ull << 33) : 0ull)
+                  | (envMapped ? (1ull << 34) : 0ull);
 
     auto cached = mesh_programs_.find(key);
     if (cached != mesh_programs_.end()) return cached->second;
@@ -71,9 +72,11 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     features.push_back("MESH");
     if (withNormals) features.push_back("MESH_NORMALS");
     if (skinned) features.push_back("SKINNED");
-    // Resident geometry carries the frame's shadow map on its own slot 2; the batch
-    // variant of the same material must not, which is why this rides the mesh path.
+    // Resident geometry carries the frame's shadow map on its own slot 2 and the
+    // reflection on slot 3; the batch variant of the same material must not, which
+    // is why these ride the mesh path.
     features.push_back("ES_RECEIVE_SHADOW");
+    if (envMapped) features.push_back("ES_ENV_MAP");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);

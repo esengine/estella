@@ -1,0 +1,28 @@
+{
+  "version": "2",
+  "name": "env-triangles",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "node_0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/env-triangles.esmesh",
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

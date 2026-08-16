@@ -173,7 +173,8 @@ public:
     /// matrix. 0 when the material's source was never kept or the variant fails —
     /// the caller then falls back rather than drawing it wrong.
     u32 meshProgram(u32 materialId, resource::ResourceManager& resources,
-                    bool withNormals = false, bool skinned = false) const;
+                    bool withNormals = false, bool skinned = false,
+                    bool envMapped = false) const;
 
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.

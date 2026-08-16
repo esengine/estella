@@ -91,6 +91,9 @@ struct BatchDrawKey {
     // like the two above rather than a global unit: which draws receive a shadow is a
     // question the collect answers, and the device has no "bind for everyone" seam.
     u32 shadowTextureId = 0;
+    // The frame environment's prefiltered reflection, one slot further on. Same
+    // terms as the shadow map: per-draw, and only where a mesh vertex source asked.
+    u32 envTextureId = 0;
     f32 depth = 0.0f;
     // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
     // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.

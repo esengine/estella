@@ -116,6 +116,12 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         cmd.texture_ids[2] = key.shadowTextureId;
         cmd.texture_count = 3;
     }
+    // The reflection atlas is pinned one slot further on, filled the same way.
+    if (key.envTextureId != 0 && cmd.texture_count >= 1 && key.layoutId != LayoutId::Batch) {
+        for (u8 slot = cmd.texture_count; slot < 3; ++slot) cmd.texture_ids[slot] = key.textureId;
+        cmd.texture_ids[3] = key.envTextureId;
+        cmd.texture_count = 4;
+    }
     cmd.entity = key.entity;
     cmd.type = key.type;
     cmd.layer = key.layer;

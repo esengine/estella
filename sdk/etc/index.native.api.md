@@ -5,7 +5,7 @@ Symbols: 113 public · 63 beta · 1437 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"9e0ab90e452805c7"
+"65f6ac377586cd75"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -629,7 +629,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh'
+'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'animatorcontroller' | 'mesh' | 'environment'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -3821,6 +3821,7 @@ BuiltinComponentDef<Light2DData>
 color: Color
 direction: Vec2
 enabled: boolean
+environment: number
 innerAngle: number
 intensity: number
 meshShadows: boolean

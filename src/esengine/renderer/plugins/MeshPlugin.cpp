@@ -66,9 +66,10 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
     return count;
 }
 
-u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly) {
+u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly,
+                bool envMapped) {
     return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
-         | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u);
+         | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u) | (envMapped ? 32u : 0u);
 }
 }  // namespace
 
@@ -97,8 +98,8 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
  * and unlit geometry carrying normals still has to declare them.
  */
 u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped,
-                            bool skinned, bool depthOnly) {
-    const u32 variant = meshVariant(normals, lit, normalMapped, skinned, depthOnly);
+                            bool skinned, bool depthOnly, bool envMapped) {
+    const u32 variant = meshVariant(normals, lit, normalMapped, skinned, depthOnly, envMapped);
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
 
@@ -109,8 +110,12 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     if (skinned) features.emplace_back("SKINNED");
     if (depthOnly) features.emplace_back("SHADOW_DEPTH");
     // Resident geometry owns its texture slots, so it is the vertex source that can
-    // carry a shadow map — the batch stream's are a per-vertex merge product.
-    else if (lit) features.emplace_back("ES_RECEIVE_SHADOW");
+    // carry a shadow map and a reflection — the batch stream's are a per-vertex
+    // merge product, and a sampler pinned there would read someone's sprite.
+    else if (lit) {
+        features.emplace_back("ES_RECEIVE_SHADOW");
+        if (envMapped) features.emplace_back("ES_ENV_MAP");
+    }
 
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
     // that reads a model matrix, which is what lets the vertices stay local.
@@ -202,6 +207,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             .textureId = textureId,
             .normalTextureId = normalTextureId,
             .shadowTextureId = ctx.shadow_texture_id,
+            .envTextureId = ctx.environment_texture_id,
             .depth = position.z,
             .y = position.y,
             .entity = entity,
@@ -229,6 +235,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             key.depthWrite = true;
             key.materialId = 0;
             key.shadowTextureId = 0;
+            key.envTextureId = 0;
         }
 
         // Material resolve mirrors SpritePlugin: an unregistered handle falls back to
@@ -263,7 +270,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // light off the constant normal a 2D surface has.
             const u32 residentShader =
                 meshProgram(ctx, resident->hasNormals, mesh.lit && !ctx.shadow_pass,
-                            normalTextureId != 0 && !ctx.shadow_pass, skinned, ctx.shadow_pass);
+                            normalTextureId != 0 && !ctx.shadow_pass, skinned, ctx.shadow_pass,
+                            key.envTextureId != 0);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
                                  : resident->hasNormals ? MESH_INSTANCE_STRIDE_LIT
@@ -297,7 +305,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 u32 materialProgram = 0;
                 if (key.materialId != 0 && ctx.materials) {
                     materialProgram = ctx.materials->meshProgram(key.materialId, ctx.resources,
-                                                                 resident->hasNormals, skinned);
+                                                                 resident->hasNormals, skinned,
+                                                                 key.envTextureId != 0);
                     if (materialProgram == 0) {
                         if (!warned_material_) {
                             warned_material_ = true;
