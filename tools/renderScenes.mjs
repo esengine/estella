@@ -59,7 +59,11 @@ export const SCENES = [
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat
   // ambient term draws the halves identically, which is why the probes invert.
-  { id: "mat-env", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-env.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.55,\"rgb\":[0,19,149],\"tol\":20},{\"x\":0.75,\"y\":0.55,\"rgb\":[148,27,0],\"tol\":20},{\"x\":0.5,\"y\":0.55,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  { id: "mat-env", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-env.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.55,\"rgb\":[0,6,149],\"tol\":20},{\"x\":0.75,\"y\":0.55,\"rgb\":[148,8,0],\"tol\":20},{\"x\":0.5,\"y\":0.55,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // The same sky in a MIRROR: two metal quads, roughness 0 and 1. A head-on
+  // surface reflects +Z, which is the image centre — green there, and the whole
+  // sphere averaged at the rough end. One flat term would draw them alike.
+  { id: "mat-env-mirror", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-env-mirror.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,228,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[29,23,24],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A glTF animation, through the shipped importer. The scene puts the quad at
   // x=150 and the clip runs -120 to 120 over a second, so 30 fixed steps is its
   // midpoint: the model is at the origin and where the SCENE put it is empty.

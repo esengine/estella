@@ -57,7 +57,10 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         if (data.specular) {
             const resolved = resolvePath(path, data.specular);
             try {
-                specularHandle = (await ctx.loadTexture(resolved)).handle;
+                // flipY false: the atlas' rows are a layout, not a picture. Row 0
+                // is mip 0, and a load that turned it over would put the mip
+                // offsets — and every face's v — upside down.
+                specularHandle = (await ctx.loadTexture(resolved, false)).handle;
                 specularPath = resolved;
             } catch (e) {
                 log.warn('asset', `${path}: no reflection atlas at '${resolved}'`, e);

@@ -56,8 +56,11 @@ export async function importPanorama(root: string, destDir: string,
   // The atlas is not a picture: its channels are an RGBM encoding of radiance, so
   // sRGB would linearize what is already linear, and a block compressor would
   // quantize the shared multiplier along with the colour it scales.
-  result.document.specular = await write(result.atlasName, result.atlasBytes,
-                                         { sRGB: false, compress: false, wrapMode: 'clamp' });
+  await write(result.atlasName, result.atlasBytes,
+              { sRGB: false, compress: false, wrapMode: 'clamp' });
+  // Named BESIDE the document, the way an imported material names its images: the
+  // pair moves together, and a project-relative path would not survive that.
+  result.document.specular = result.atlasName;
   await write(`${stem}.esenv`, `${JSON.stringify(result.document, null, 2)}\n`);
 
   return { products, warnings: result.warnings };

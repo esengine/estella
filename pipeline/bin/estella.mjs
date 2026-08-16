@@ -15,8 +15,7 @@ const REPO = path.join(PIPELINE, '..');
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
                                      [--project <dir>] [--scale <n>]
-       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir]
-                                     [--project <dir>] [--face-size <n>]
+       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -46,8 +45,8 @@ otherwise; --scale sizes the model, whose metres are world units otherwise.
 
 import-hdr bakes an equirectangular panorama into the two things a renderer asks
 an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
-prefiltered octahedral atlas beside it. The panorama itself is not shipped —
-a light references the \`.esenv\`.`;
+prefiltered octahedral atlas beside it, which the document names as a sibling.
+The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -278,15 +277,9 @@ if (opts.command === 'import-hdr') {
     const sourceDir = path.dirname(opts.source);
     const dir = opts.out ?? sourceDir;
     const stem = path.basename(opts.source).replace(/\.hdr$/i, '');
-    const root = opts.project ?? findProjectRoot(sourceDir);
-    const projectRef = (abs) => path.relative(root, abs).split(path.sep).join('/');
     const result = importer.importEnvironment(
       new Uint8Array(readFileSync(opts.source)), stem, { faceSize: opts.faceSize });
     for (const w of result.warnings) console.warn(`  ! ${w}`);
-    if (!root) {
-      console.warn('  ! no project found above the source — the atlas ref is a bare file name'
-        + ' (pass --project <dir>)');
-    }
     const report = (file, what) =>
       console.log(`${path.relative(process.cwd(), file)}: ${what}`);
 
@@ -298,7 +291,8 @@ if (opts.command === 'import-hdr') {
     await meta.adoptOrphan(atlasFile, { sRGB: false, compress: false, wrapMode: 'clamp' });
     report(atlasFile, `${result.document.mipCount} prefiltered mips`);
 
-    result.document.specular = root ? projectRef(atlasFile) : result.atlasName;
+    // Beside the document, the way an imported material names its images.
+    result.document.specular = result.atlasName;
     const envFile = path.join(dir, `${stem}.esenv`);
     writeFileSync(envFile, `${JSON.stringify(result.document, null, 2)}\n`);
     await meta.adoptOrphan(envFile);

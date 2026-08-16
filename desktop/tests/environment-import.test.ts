@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decodeRadianceHdr, projectIrradianceSH, evalIrradianceSH, samplePanorama,
   octEncode, octDecode, encodeRgbm, decodeRgbm, atlasLayout, prefilterOctahedral,
-  importEnvironment, ENV_MAX_RANGE,
+  importEnvironment, mipCountFor, ENV_MAX_RANGE,
   type Panorama,
 } from '../../pipeline/src/assets/environmentImport';
 
@@ -174,6 +174,14 @@ describe('RGBM', () => {
 });
 
 describe('prefiltered atlas', () => {
+  it('stops before a face gets too small to be an environment', () => {
+    // A 4-texel octahedral face is not a blurrier sky, it is a different one.
+    expect(mipCountFor(128)).toBe(5);
+    expect(mipCountFor(32)).toBe(3);
+    expect(mipCountFor(8)).toBe(1);
+    expect(mipCountFor(128, 2)).toBe(2);
+  });
+
   it('stacks the mips with a border between them', () => {
     const { width, height, offsets } = atlasLayout(128, 6);
     expect(width).toBe(130);
@@ -236,10 +244,10 @@ describe('prefiltered atlas', () => {
 describe('importEnvironment', () => {
   it('produces a document and an atlas that describe each other', () => {
     const hdr = flatHdr(32, 16, (_x, y) => (y < 8 ? [2, 2, 2] : [0, 0, 0]));
-    const result = importEnvironment(hdr, 'studio', { faceSize: 8, mipCount: 3 });
+    const result = importEnvironment(hdr, 'studio', { faceSize: 32, mipCount: 3 });
     expect(result.atlasName).toBe('studio_env.png');
     expect(result.document.irradiance).toHaveLength(27);
-    expect(result.document.faceSize).toBe(8);
+    expect(result.document.faceSize).toBe(32);
     expect(result.document.mipCount).toBe(3);
     expect(result.document.maxRange).toBe(ENV_MAX_RANGE);
     // A PNG, and one whose size the layout predicts.

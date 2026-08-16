@@ -28,22 +28,31 @@ export interface EnvironmentAssetData {
     /** Nine RGB coefficients, already divided by π: evaluating them at N gives the
      *  value that multiplies albedo directly, the way `ambient` does. */
     irradiance: number[];
-    /** The octahedral mip atlas, as an `@uuid:` reference. */
+    /** The octahedral mip atlas, named as a sibling of this document. */
     specular: string;
     /** Edge length of mip 0's octahedral face, in texels. */
     faceSize: number;
     /** How many mips the atlas holds; mip i is prefiltered for roughness i/(mipCount-1). */
     mipCount: number;
-    /** The RGBM decode range: `rgb*rgb * (a * maxRange)` is the stored radiance. */
+    /** The RGBM decode range: `(rgb*a)^2 * maxRange` is the stored radiance. */
     maxRange: number;
 }
 
 export const ENVIRONMENT_FORMAT_VERSION = 1;
 
-/** Mip 0's face size, and how many mips follow it. Six mips put roughness on a
- *  0.2 grid, which is finer than the prefilter's own error at the rough end. */
+/** Mip 0's face size, and how many mips follow it. Five mips put roughness on a
+ *  0.25 grid, which is finer than the prefilter's own error at the rough end. */
 export const ENV_FACE_SIZE = 128;
-export const ENV_MIP_COUNT = 6;
+export const ENV_MIP_COUNT = 5;
+/** No mip goes below this. An octahedral face of a few texels is not a blurrier
+ *  environment, it is a different one: the roughest lobe covers most of the
+ *  sphere, and at 4 texels the SEAM is a quarter of what a sample can reach. */
+export const ENV_MIN_FACE = 8;
+
+/** How many mips `faceSize` supports without falling under {@link ENV_MIN_FACE}. */
+export function mipCountFor(faceSize: number, want = ENV_MIP_COUNT): number {
+    return Math.max(1, Math.min(want, Math.floor(Math.log2(faceSize / ENV_MIN_FACE)) + 1));
+}
 /** Radiance above this clips. Sky detail lives well below it; a sun disc does not,
  *  and is meant to survive as a bright blob rather than as its true thousands. */
 export const ENV_MAX_RANGE = 8;
@@ -446,7 +455,7 @@ export function importEnvironment(bytes: Uint8Array, stem: string,
                                   options: { faceSize?: number; mipCount?: number } = {}):
                                   ImportedEnvironment {
     const faceSize = options.faceSize ?? ENV_FACE_SIZE;
-    const mipCount = options.mipCount ?? ENV_MIP_COUNT;
+    const mipCount = mipCountFor(faceSize, options.mipCount ?? ENV_MIP_COUNT);
     const panorama = decodeRadianceHdr(bytes);
     const warnings: string[] = [];
     // Equirectangular is 2:1 by construction. Another ratio still bakes, but the

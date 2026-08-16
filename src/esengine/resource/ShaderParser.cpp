@@ -884,7 +884,7 @@ fn envSampleMip(R : vec3f, mip : f32) -> vec3f {
     let uv = octEncode(R);
     let px = vec2f(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);
     let t = textureSampleLevel(t3, s3, px / vec2f(atlasW, atlasH), 0.0);
-    return t.rgb * t.rgb * (t.a * lc.u_envParams.y);
+    return t.rgb * t.rgb * (t.a * t.a * lc.u_envParams.y);
 #endif
 }
 fn envRadiance(R : vec3f, roughness : f32) -> vec3f {
@@ -1454,7 +1454,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec2 uv = octEncode(R);\n"
             "    highp vec2 px = vec2(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);\n"
             "    highp vec4 t = texture(u_envMap, px / vec2(atlasW, atlasH));\n"
-            "    return t.rgb * t.rgb * (t.a * u_envParams.y);\n"
+            "    return t.rgb * t.rgb * (t.a * t.a * u_envParams.y);\n"
             "#endif\n"
             "}\n"
             // The environment's specular half, at the roughness asked for. Without a map

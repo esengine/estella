@@ -51,7 +51,7 @@ function radianceHdr(pixel) {
 writeFileSync(path.join(scenes, 'studio.hdr'), radianceHdr((x, y) => {
   // The green patch spans the equator at the image centre, so a mirror facing the
   // camera sees it while the two hemispheres stay the diffuse claim.
-  if (Math.abs(x - W / 2) < 5 && Math.abs(y - H / 2) < 5) return [0, 3, 0];
+  if (Math.abs(x - W / 2) < 5 && Math.abs(y - H / 2) < 5) return [0, 0.9, 0];
   return y < H / 2 ? [0, 0, 0.6] : [0.6, 0, 0];
 }));
 

@@ -31,7 +31,7 @@ public:
     /** Edge length of mip 0's octahedral face, in texels. */
     f32 faceSize = 0.0f;
     u32 mipCount = 0;
-    /** RGBM decode range: `rgb*rgb * (a * maxRange)` is the stored radiance. */
+    /** RGBM decode range: `(rgb*a)^2 * maxRange` is the stored radiance. */
     f32 maxRange = 0.0f;
 
     bool hasSpecular() const { return specular.isValid() && mipCount > 0 && faceSize > 0.0f; }
