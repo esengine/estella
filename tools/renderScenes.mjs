@@ -44,6 +44,10 @@ export const SCENES = [
   // cell here, so the whole grid steps right by one and the left column empties.
   // It rides the per-frame origin, not the cached chunk vertices.
   { id: "tilemap-origin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"TilemapLayer\",\"key\":\"originOffset\",\"value\":[16,0]}", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.60,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.80,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.60,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.40,\"y\":0.36,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A two-bone arm. Bone 1 binds at x=60 and the scene puts it 60 higher, so
+  // the half bound to it rises by exactly that and the half bound to bone 0 does
+  // not: the elbow is where the geometry says, not where a whole-mesh move puts it.
+  { id: "mesh-skin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-skin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A glTF animation, through the shipped importer. The scene puts the quad at
   // x=150 and the clip runs -120 to 120 over a second, so 30 fixed steps is its
   // midpoint: the model is at the origin and where the SCENE put it is empty.

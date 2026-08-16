@@ -24,7 +24,14 @@ void rewriteTexIndex(TransientBufferPool& pool, const DrawCommand& cmd, i32 slot
 void DrawList::clear() {
     commands_.clear();
     sort_entries_.clear();
+    skin_matrices_.clear();
     merged_draw_calls_ = 0;
+}
+
+u32 DrawList::addSkinMatrices(const glm::mat4* matrices, u32 count) {
+    const u32 at = static_cast<u32>(skin_matrices_.size());
+    skin_matrices_.insert(skin_matrices_.end(), matrices, matrices + count);
+    return at;
 }
 
 void DrawList::push(const DrawCommand& cmd) {
@@ -121,7 +128,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        MaterialStore& materials, u32 white_texture_id,
-                       FrameCapture* capture) {
+                       FrameCapture* capture, BufferHandle skin_ubo) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
 
@@ -164,6 +171,14 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // A no-op for material 0 and for materials whose shader declares no params.
         if (cmd.material_id != 0) {
             materials.bindForDraw(cmd.material_id);
+        }
+
+        // The pose, for a draw that has one. Written immediately before the draw
+        // that reads it: one draw's bones are in flight at a time, which is what
+        // lets a single block serve every skinned mesh in the frame.
+        if (cmd.skin_count > 0 && skin_ubo != BufferHandle::Invalid) {
+            device.updateBuffer(skin_ubo, 0, skin_matrices_.data() + cmd.skin_offset,
+                                cmd.skin_count * sizeof(glm::mat4));
         }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).

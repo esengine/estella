@@ -40,8 +40,6 @@ const DECLARED_GAPS = {
         + ' own built-in shader and never consult the table',
     'SpineAnimation.material': 'see ParticleEmitter.material',
     'DragonBonesAnimation.material': 'see ParticleEmitter.material',
-    'MeshSkin.joints': 'the import writes the joint list, and the renderer does not yet'
-        + ' build a bone matrix from it (REARCH_3D D1)',
 };
 
 const components = JSON.parse(

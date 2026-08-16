@@ -113,6 +113,11 @@ struct BatchDrawKey {
     BufferHandle vertexBuffer = BufferHandle::Invalid;
     BufferHandle indexBuffer = BufferHandle::Invalid;
     VertexLayoutHandle vertexLayout = VertexLayoutHandle::Invalid;
+
+    // A skinned draw's pose, already in the frame's matrix pool. Passed through
+    // like the buffers above: what deforms a draw is the draw's, not the batch's.
+    u32 skinOffset = 0;
+    u32 skinCount = 0;
 };
 
 /**

@@ -116,6 +116,11 @@ struct DrawCommand {
     BufferHandle index_buffer = BufferHandle::Invalid;
     VertexLayoutHandle vertex_layout = VertexLayoutHandle::Invalid;
 
+    // A skinned draw's pose: where its bone matrices start in the frame's pool
+    // and how many there are. Zero count = the geometry is not deformed.
+    u32 skin_offset = 0;
+    u32 skin_count = 0;
+
     bool hasPersistentGeometry() const { return vertex_buffer != BufferHandle::Invalid; }
 
     // Vertices owned by this command (from vertex_byte_offset). Needed so the merge pass

@@ -1,0 +1,85 @@
+{
+  "version": "2",
+  "name": "skinned-arm",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Rig",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2",
+        "n3"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "Bone0",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "Bone1",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n3",
+      "name": "Body",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/skinned-arm.esmesh",
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n1",
+              "n2"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

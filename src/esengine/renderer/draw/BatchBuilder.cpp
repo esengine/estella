@@ -89,6 +89,8 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.vertex_buffer = key.vertexBuffer;
     cmd.index_buffer = key.indexBuffer;
     cmd.vertex_layout = key.vertexLayout;
+    cmd.skin_offset = key.skinOffset;
+    cmd.skin_count = key.skinCount;
     cmd.shader_id = key.shaderId;
     cmd.blend_mode = key.blend;
     cmd.layout_id = key.layoutId;

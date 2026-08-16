@@ -35,8 +35,40 @@ u32 mulColor(u32 a, u32 b) {
 }
 /// Which program a draw needs: what the GEOMETRY carries and what the DRAW asked
 /// for are separate questions, so they are separate bits.
-u32 meshVariant(bool normals, bool lit, bool normalMapped) {
-    return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u);
+/**
+ * This entity's pose: joint world placement times the mesh's own bind matrix,
+ * one per joint. Returns 0 — draw it static — when the two disagree about how
+ * many joints there are, since an index resolved against the wrong matrix moves
+ * the vertex somewhere arbitrary.
+ */
+u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
+             std::vector<glm::mat4>& out) {
+    if (!mesh.isSkinned()) return 0;
+    const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
+    if (!skin || skin->joints.size() != mesh.inverseBind.size()) return 0;
+    const u32 count = static_cast<u32>(std::min<usize>(skin->joints.size(), MESH_MAX_BONES));
+
+    out.resize(count);
+    for (u32 i = 0; i < count; ++i) {
+        auto* joint = registry.tryGet<ecs::Transform>(skin->joints[i]);
+        // A joint that is not there leaves the bind pose, which is the mesh as
+        // authored rather than a vertex collapsed onto the origin.
+        if (!joint) { out[i] = glm::mat4(1.0f); continue; }
+        // Built from the decomposed world fields, the same three every other
+        // draw is placed by — the cached matrix is the transform system's own
+        // and is not guaranteed current for an entity nothing parents.
+        joint->ensureDecomposed();
+        const glm::mat4 world = glm::translate(glm::mat4(1.0f), joint->worldPosition)
+                              * glm::mat4_cast(joint->worldRotation)
+                              * glm::scale(glm::mat4(1.0f), joint->worldScale);
+        out[i] = world * mesh.inverseBind[i];
+    }
+    return count;
+}
+
+u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned) {
+    return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
+         | (skinned ? 8u : 0u);
 }
 }  // namespace
 
@@ -54,7 +86,7 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     mesh_programs_.fill(0);
     // The base variant now, so a broken shader is a boot-time failure rather than
     // one that waits for the first mesh; the rest compile when a draw asks.
-    meshProgram(ctx, false, false, false);
+    meshProgram(ctx, false, false, false, false);
 }
 
 /**
@@ -64,8 +96,9 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
  * geometry's own channels pick half of it; the draw's `lit` picks the other half,
  * and unlit geometry carrying normals still has to declare them.
  */
-u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped) {
-    const u32 variant = meshVariant(normals, lit, normalMapped);
+u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped,
+                            bool skinned) {
+    const u32 variant = meshVariant(normals, lit, normalMapped, skinned);
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
 
@@ -73,6 +106,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     if (normals) features.emplace_back("MESH_NORMALS");
     if (lit) features.emplace_back("LIT");
     if (normalMapped) features.emplace_back("NORMAL_MAP");
+    if (skinned) features.emplace_back("SKINNED");
 
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
     // that reads a model matrix, which is what lets the vertices stay local.
@@ -197,21 +231,33 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // vertices are local-space and untouched, so the CPU loop below — which
         // exists to bake world space into every vertex — is skipped entirely.
         if (resident && mesh_programs_[0] != 0) {
+            // The pose, when this entity says what moves it. The bones are
+            // world-space, so the entity's own transform is not read — which is
+            // what glTF requires of a skinned mesh.
+            const u32 poseSize = skinPose(registry, entity, *resident, pose_scratch_);
+            const bool skinned = poseSize > 0;
+
             // `lit` is the draw's own word and is honoured either way: geometry
             // with normals can be drawn unlit, and geometry without them takes
             // light off the constant normal a 2D surface has.
             const u32 residentShader =
-                meshProgram(ctx, resident->hasNormals, mesh.lit, normalTextureId != 0);
+                meshProgram(ctx, resident->hasNormals, mesh.lit, normalTextureId != 0, skinned);
             if (resident->isDrawable() && residentShader != 0) {
-                const u32 stride = resident->hasNormals
-                    ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
+                const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
+                                 : resident->hasNormals ? MESH_INSTANCE_STRIDE_LIT
+                                 : MESH_INSTANCE_STRIDE;
                 u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, stride);
                 auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
+                u32 tintRGBA = packColor(mesh.color);
+                if (skinned) {
+                    std::memcpy(dst, &tintRGBA, 4);
+                    key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);
+                    key.skinCount = poseSize;
+                } else {
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), position)
                                 * glm::mat4_cast(rotation)
                                 * glm::scale(glm::mat4(1.0f), scale);
                 std::memcpy(dst, &model[0][0], 64);
-                u32 tintRGBA = packColor(mesh.color);
                 std::memcpy(dst + 64, &tintRGBA, 4);
                 if (resident->hasNormals) {
                     // Written per object rather than derived per vertex: this is
@@ -221,12 +267,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                         std::memcpy(dst + 68 + row * 12, &nrm[row][0], 12);
                     }
                 }
+                }
 
                 // A material's default program is built for the BATCH vertex
                 // source and would draw this at its local origin, so ask for the
                 // one compiled for THIS source; a failed variant falls back.
                 u32 materialProgram = 0;
-                if (key.materialId != 0 && ctx.materials) {
+                if (key.materialId != 0 && ctx.materials && !skinned) {
                     materialProgram = ctx.materials->meshProgram(key.materialId, ctx.resources,
                                                                  resident->hasNormals);
                     if (materialProgram == 0) {

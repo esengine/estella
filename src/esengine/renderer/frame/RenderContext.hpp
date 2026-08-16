@@ -193,6 +193,14 @@ private:
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
+    /// One skinned draw's bone matrices, rewritten immediately before that draw.
+    BufferHandle skinUbo_ = BufferHandle::Invalid;
+
+public:
+    /** @brief The per-draw bone-matrix block a skinned draw writes into. */
+    BufferHandle skinUbo() const { return skinUbo_; }
+
+private:
     f32 lastElapsed_ = 0.0f;
     MaterialStore materials_;
     LightStore lights_;

@@ -69,6 +69,32 @@ export function convertForWasm(
     return obj;
 }
 
+/** An embind std::vector<Entity>, which its owner has to free. */
+interface WasmVector { push_back(v: number): void; delete(): void }
+
+/**
+ * Replace a LIST of entities with the vector embind expects, returning the ones
+ * created so the caller can free them — an embind vector is a heap object.
+ * The boundary the colours above cross: a JS array is what a document stores,
+ * `std::vector<Entity>` is what the component holds.
+ */
+export function materializeEntityVectors(
+    obj: Record<string, unknown>, entityFields: readonly string[],
+    module: { VectorEntity?: new () => WasmVector } | null,
+): WasmVector[] {
+    const made: WasmVector[] = [];
+    if (!module?.VectorEntity) return made;
+    for (const key of entityFields) {
+        const val = obj[key];
+        if (!Array.isArray(val)) continue;
+        const vec = new module.VectorEntity();
+        for (const e of val) vec.push_back(Number(e) >>> 0);
+        obj[key] = vec;
+        made.push(vec);
+    }
+    return made;
+}
+
 // =============================================================================
 // Pointer-based Field Access
 // =============================================================================
@@ -575,7 +601,15 @@ export class BuiltinBridge {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 isNew = !methods.has(entity);
-                methods.add(entity, convertForWasm(merged as Record<string, unknown>, component.colorKeys));
+                const payload = convertForWasm(merged as Record<string, unknown>, component.colorKeys);
+                const vectors = materializeEntityVectors(
+                    payload, component.entityFields ?? [],
+                    this.module_ as unknown as { VectorEntity?: new () => WasmVector } | null);
+                try {
+                    methods.add(entity, payload);
+                } finally {
+                    for (const v of vectors) v.delete();
+                }
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }

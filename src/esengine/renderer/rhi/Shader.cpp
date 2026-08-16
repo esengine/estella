@@ -18,6 +18,7 @@
 #include "./GfxDevice.hpp"
 #include "../frame/FrameConstants.hpp"
 #include "../store/MaterialConstants.hpp"
+#include "../store/SkinConstants.hpp"
 #include "../store/LightConstants.hpp"
 #include "../../core/Log.hpp"
 
@@ -243,6 +244,12 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     u32 timeBlock = device_->getUniformBlockIndex(program_, TIME_CONSTANTS_BLOCK);
     if (timeBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(program_, timeBlock, TIME_CONSTANTS_BINDING);
+    }
+
+    // Same for a skinned mesh's pose, which DrawList rewrites per draw.
+    u32 skinBlock = device_->getUniformBlockIndex(program_, SKIN_CONSTANTS_BLOCK);
+    if (skinBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, skinBlock, SKIN_CONSTANTS_BINDING);
     }
 
     // Same for the per-draw params block (rewriteLooseUniforms generates it for

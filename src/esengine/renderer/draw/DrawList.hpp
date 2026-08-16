@@ -7,6 +7,7 @@
 #include "../rhi/GfxDevice.hpp"
 #include "../rhi/TransientBufferPool.hpp"
 #include "../frame/FrameCapture.hpp"
+#include "../../math/Math.hpp"
 
 #include <vector>
 
@@ -34,7 +35,13 @@ public:
     // (filling with the draw's own tex re-pointed all 8 units on every tex change).
     void execute(GfxDevice& device, TransientBufferPool& buffers,
                  MaterialStore& materials, u32 white_texture_id = 0,
-                 FrameCapture* capture = nullptr);
+                 FrameCapture* capture = nullptr,
+                 BufferHandle skin_ubo = BufferHandle::Invalid);
+
+    /** Append one draw's bone matrices; returns where they start. Frame-scoped,
+     *  like the vertex pool: a command references an offset, not a copy. */
+    u32 addSkinMatrices(const glm::mat4* matrices, u32 count);
+    const glm::mat4* skinMatrices() const { return skin_matrices_.data(); }
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
@@ -99,6 +106,8 @@ private:
     };
 
     std::vector<DrawCommand> commands_;
+    /// Every skinned draw's bone matrices for this frame, indexed by skin_offset.
+    std::vector<glm::mat4> skin_matrices_;
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()

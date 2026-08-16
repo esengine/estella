@@ -262,7 +262,8 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             uintptr_t vertexPtr, u32 vertexBytes,
                             uintptr_t indexPtr, u32 indexCount,
                             f32 minX, f32 minY, f32 minZ,
-                            f32 maxX, f32 maxY, f32 maxZ) {
+                            f32 maxX, f32 maxY, f32 maxZ,
+                            uintptr_t bindPtr, u32 bindFloats) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     if (!rm || channelCount == 0 || vertexStride == 0 || vertexBytes == 0 || indexCount == 0) return 0;
     if (indexCount % 3 != 0) {
@@ -310,10 +311,15 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
         };
     }
 
+    // The bind pose rides beside the vertices because the Joints channel indexes
+    // it; a mesh with joints and no matrices is drawn static rather than wrong.
+    const f32* bind = bindFloats > 0
+        ? boundarySpan<f32>(bindPtr, bindFloats, "mesh_createFromChannels.inverseBind") : nullptr;
     auto handle = rm->createMesh(ConstSpan<u8>(verts, vertexBytes),
                                  ConstSpan<u32>(indices, indexCount),
                                  ConstSpan<GfxVertexAttribute>(channels, channelCount), vertexStride,
-                                 glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ));
+                                 glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ),
+                                 bind ? ConstSpan<f32>(bind, bindFloats) : ConstSpan<f32>());
     return handle.id();
 }
 

@@ -163,19 +163,25 @@ export function remapEntityFields(compData: SceneComponentData, entityMap: Map<n
     const comp = getComponent(compData.type);
     if (!comp || comp.entityFields.length === 0) return;
     const data = compData.data as Record<string, unknown>;
-    for (const field of comp.entityFields) {
-        const editorId = data[field];
-        if (typeof editorId === 'number' && editorId !== INVALID_ENTITY) {
-            const runtimeId = entityMap.get(editorId);
-            if (runtimeId === undefined) {
-                log.warn(
-                    'scene',
-                    `Entity reference not found: ${compData.type}.${field} ` +
-                    `references entity ${editorId} which does not exist`,
-                );
-            }
-            data[field] = runtimeId !== undefined ? runtimeId : INVALID_ENTITY;
+    const remap = (editorId: unknown): unknown => {
+        if (typeof editorId !== 'number' || editorId === INVALID_ENTITY) return editorId;
+        const runtimeId = entityMap.get(editorId);
+        if (runtimeId === undefined) {
+            log.warn(
+                'scene',
+                `Entity reference not found: ${compData.type}.${field} ` +
+                `references entity ${editorId} which does not exist`,
+            );
         }
+        return runtimeId !== undefined ? runtimeId : INVALID_ENTITY;
+    };
+    // A field can name ONE entity or a list of them (a skin's joints). A list
+    // that skipped this kept the document's own ids, which name other entities
+    // at runtime — the reference silently resolves to the wrong thing.
+    let field = '';
+    for (field of comp.entityFields) {
+        const value = data[field];
+        data[field] = Array.isArray(value) ? value.map(remap) : remap(value);
     }
 }
 

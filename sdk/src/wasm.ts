@@ -242,7 +242,8 @@ export interface ESEngineModule {
                              vertexPtr: number, vertexBytes: number,
                              indexPtr: number, indexCount: number,
                              minX: number, minY: number, minZ: number,
-                             maxX: number, maxY: number, maxZ: number): number;
+                             maxX: number, maxY: number, maxZ: number,
+                             bindPtr: number, bindFloats: number): number;
     /** Release a mesh and the buffers it owns. */
     mesh_release?(meshHandle: number): void;
     /** Point a Mesh2D at a resident mesh; 0 returns it to its inline payload. */

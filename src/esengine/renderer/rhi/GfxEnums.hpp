@@ -95,6 +95,13 @@ static constexpr u32 MESH_INSTANCE_STRIDE = 68;
 /// Carried per object because a non-uniform scale makes the model matrix the
 /// wrong transform for a normal, and inverting one per vertex is the alternative.
 static constexpr u32 MESH_INSTANCE_STRIDE_LIT = 104;
+/// A SKINNED object's record: the tint, and nothing else. No model matrix — a
+/// skinned mesh's own transform is ignored (glTF says so) because its joints are
+/// already placed in the world — and the pose itself is a uniform block.
+static constexpr u32 MESH_INSTANCE_STRIDE_SKINNED = 4;
+/// Bone matrices one skinned draw may carry. 64 mat4 is 4KB, inside the 16KB a
+/// WebGL2 uniform block is guaranteed; a mesh wanting more is drawn static.
+static constexpr u32 MESH_MAX_BONES = 64;
 /// The attributes that record occupies (4 matrix rows + the tint).
 static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
 /// Where those attributes start. FIXED, not "after the mesh's channels": a mesh
@@ -114,6 +121,8 @@ enum class MeshChannel : u8 {
     TexCoord0 = 2,
     Normal    = 3,
     Tangent   = 4,
+    Joints    = 5,
+    Weights   = 6,
 };
 
 // =============================================================================

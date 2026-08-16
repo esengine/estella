@@ -477,7 +477,8 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 
 MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                                        ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
-                                       const glm::vec3& localMin, const glm::vec3& localMax) {
+                                       const glm::vec3& localMin, const glm::vec3& localMax,
+                                       ConstSpan<f32> inverseBind) {
     if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return MeshHandle();
 
     // The mesh describes its own vertices; the per-object transform is the
@@ -493,23 +494,30 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
         layout.attributes[i].bufferSlot = 0;
     }
     bool hasNormals = false;
+    bool skinned = false;
     for (const GfxVertexAttribute& c : channels) {
         if (c.location == static_cast<u32>(MeshChannel::Normal)) hasNormals = true;
+        if (c.location == static_cast<u32>(MeshChannel::Joints)) skinned = true;
     }
+    skinned = skinned && !inverseBind.empty();
 
     layout.strides[0] = vertexStride;
-    layout.strides[1] = hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
+    layout.strides[1] = skinned ? MESH_INSTANCE_STRIDE_SKINNED
+                       : hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
     layout.instanceStep[1] = true;
     u32 next = static_cast<u32>(channels.size());
-    for (u32 row = 0; row < 4; ++row) {
-        layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + row, 4, GfxDataType::Float,
-                                     false, row * 16u, 1};
+    // Only where the shader will read them: a layout may not declare an attribute
+    // its shader does not consume, which WebGPU rejects. A skinned record thus
+    // carries neither model nor normal matrix — its bones are world-space.
+    if (!skinned) {
+        for (u32 row = 0; row < 4; ++row) {
+            layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + row, 4, GfxDataType::Float,
+                                         false, row * 16u, 1};
+        }
     }
     layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 4, 4, GfxDataType::UnsignedByte,
-                                 true, 64, 1};
-    // Only where the shader will read them: a layout may not declare an attribute
-    // its pipeline's shader does not consume, which WebGPU rejects outright.
-    if (hasNormals) {
+                                 true, skinned ? 0u : 64u, 1};
+    if (hasNormals && !skinned) {
         for (u32 row = 0; row < 3; ++row) {
             layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 5 + row, 3,
                                          GfxDataType::Float, false, 68 + row * 12u, 1};
@@ -535,6 +543,11 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     mesh->hasNormals = hasNormals;
     mesh->localMin = localMin;
     mesh->localMax = localMax;
+    if (skinned) {
+        const usize joints = inverseBind.size() / 16;
+        mesh->inverseBind.resize(joints);
+        std::memcpy(mesh->inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
+    }
     return meshes_.add(std::move(mesh));
 }
 

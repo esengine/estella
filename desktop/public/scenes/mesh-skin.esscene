@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "name": "MeshSkin",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 60, "y": 20, "z": 10 } }
+        },
+        {
+          "type": "Camera",
+          "data": { "projectionType": 1, "orthoSize": 100, "isActive": true, "priority": 0 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Bone0",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Bone1",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 60, "y": 60, "z": 0 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Body",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/skinned-arm.esmesh",
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "enabled": true
+          }
+        },
+        { "type": "MeshSkin", "data": { "joints": [1, 2] } }
+      ],
+      "visible": true
+    }
+  ]
+}

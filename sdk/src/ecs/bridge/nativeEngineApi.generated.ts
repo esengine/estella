@@ -72,7 +72,7 @@ export interface NativeEngineApi {
     mesh2d_setMesh?(registry: unknown, entity: number, meshHandle: number): void;
     mesh2d_setMeshAll?(registry: unknown, meshHandle: number): number;
     mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): number;
-    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): number;
+    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number): number;
     mesh_release?(meshHandle: number): void;
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;

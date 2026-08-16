@@ -11,6 +11,8 @@
 #include "../renderer/rhi/GfxEnums.hpp"
 #include "./Handle.hpp"
 
+#include <vector>
+
 namespace esengine {
 
 /**
@@ -39,6 +41,12 @@ public:
     /** Local-space bounds of the vertices, for the frustum cull. */
     glm::vec3 localMin{0.0f, 0.0f, 0.0f};
     glm::vec3 localMax{0.0f, 0.0f, 0.0f};
+
+    /** The bind pose, one per joint the Joints channel indexes. Empty for
+     *  geometry nothing skins; its size is what a skinned draw allocates. */
+    std::vector<glm::mat4> inverseBind;
+
+    bool isSkinned() const { return !inverseBind.empty(); }
 
     bool isDrawable() const {
         return vertexBuffer != BufferHandle::Invalid

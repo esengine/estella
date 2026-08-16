@@ -170,6 +170,12 @@ struct GLPixelFormatInfo {
     GLenum type;
 };
 
+/** Whether a data type carries integers a shader reads as integers. */
+bool isIntegerAttribute(GfxDataType type) {
+    return type == GfxDataType::UnsignedByte || type == GfxDataType::UnsignedShort
+        || type == GfxDataType::UnsignedInt || type == GfxDataType::Int;
+}
+
 GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     switch (fmt) {
     case GfxPixelFormat::RGB8:             return { GL_RGB8,              GL_RGB,             GL_UNSIGNED_BYTE };
@@ -875,12 +881,21 @@ void GLDevice::prepareVertexState() {
             const GfxVertexAttribute& attr = rec.desc.attributes[a];
             if (attr.bufferSlot != slot) continue;
             glEnableVertexAttribArray(attr.location);
-            glVertexAttribPointer(
-                attr.location, attr.components, toGLDataType(attr.type),
-                attr.normalized ? GL_TRUE : GL_FALSE,
-                static_cast<GLsizei>(rec.desc.strides[slot]),
-                reinterpret_cast<const void*>(
-                    static_cast<uintptr_t>(pending_vbo_offset_[slot] + attr.offset)));
+            const void* at = reinterpret_cast<const void*>(
+                static_cast<uintptr_t>(pending_vbo_offset_[slot] + attr.offset));
+            // An un-normalized integer attribute reaches the shader AS an
+            // integer, through a different entry point: the float one converts,
+            // and a converted joint index is not an index.
+            if (!attr.normalized && isIntegerAttribute(attr.type)) {
+                glVertexAttribIPointer(
+                    attr.location, attr.components, toGLDataType(attr.type),
+                    static_cast<GLsizei>(rec.desc.strides[slot]), at);
+            } else {
+                glVertexAttribPointer(
+                    attr.location, attr.components, toGLDataType(attr.type),
+                    attr.normalized ? GL_TRUE : GL_FALSE,
+                    static_cast<GLsizei>(rec.desc.strides[slot]), at);
+            }
             glVertexAttribDivisor(attr.location, rec.desc.instanceStep[slot] ? 1 : 0);
         }
         rec.bakedVbo[slot] = pending_vbo_[slot];

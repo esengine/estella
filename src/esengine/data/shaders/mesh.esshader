@@ -17,6 +17,11 @@
 // (off a constant normal, which is what a 2D surface has).
 #pragma feature LIT
 
+// Geometry deformed by joints. Its own transform is NOT read: a skinned mesh's
+// node placement is ignored (glTF requires it) because the bones are already
+// world-space, so the per-object record carries only a tint.
+#pragma feature SKINNED
+
 // A normal map on top of those normals. Its tangent frame comes from the shared
 // perturbNormal (screen-space derivatives), so the geometry needs no tangent
 // channel — which is why this rides LIT rather than a vertex attribute.
@@ -34,15 +39,21 @@ layout(location = 2) in vec2 a_texCoord;
 #ifdef MESH_NORMALS
 layout(location = 3) in vec3 a_normal;
 #endif
+#ifdef SKINNED
+layout(location = 5) in uvec4 a_joints;
+layout(location = 6) in vec4 a_weights;
+#endif
 
 // 8.. and not 3..: a channel's semantic IS its location, so adding normals to a
 // mesh must not move the per-object record (see MESH_INSTANCE_FIRST_LOCATION).
+#ifndef SKINNED
 layout(location = 8)  in vec4 a_model0;
 layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
 layout(location = 11) in vec4 a_model3;
+#endif
 layout(location = 12) in vec4 a_instTint;
-#ifdef MESH_NORMALS
+#if defined(MESH_NORMALS) && !defined(SKINNED)
 // The normal matrix (inverse transpose of the model's 3x3), per object: under a
 // non-uniform scale the model matrix skews a normal, and inverting one per
 // vertex is the alternative.
@@ -55,6 +66,13 @@ layout(std140) uniform FrameConstants {
     mat4 u_projection;
 };
 
+#ifdef SKINNED
+// This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
+layout(std140) uniform SkinConstants {
+    mat4 u_bones[64];
+};
+#endif
+
 out vec2 v_texCoord;
 out vec4 v_color;
 #ifdef LIT
@@ -65,13 +83,25 @@ out highp vec3 v_worldPos;
 #endif
 
 void main() {
+#ifdef SKINNED
+    // The four bones this vertex is bound to, blended by their weights. The
+    // result is world-space, so no model matrix follows it.
+    mat4 skin = a_weights.x * u_bones[a_joints.x]
+              + a_weights.y * u_bones[a_joints.y]
+              + a_weights.z * u_bones[a_joints.z]
+              + a_weights.w * u_bones[a_joints.w];
+    vec4 world = skin * vec4(a_position, 1.0);
+#else
     mat4 model = mat4(a_model0, a_model1, a_model2, a_model3);
     vec4 world = model * vec4(a_position, 1.0);
+#endif
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
 #ifdef LIT
-#ifdef MESH_NORMALS
+#if defined(MESH_NORMALS) && defined(SKINNED)
+    v_worldNormal = mat3(skin) * a_normal;
+#elif defined(MESH_NORMALS)
     v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
 #else
     // A surface with no normal channel faces the viewer, exactly as a sprite does.
@@ -117,6 +147,11 @@ void main() {
 struct FrameConstants { projection : mat4x4f };
 @group(0) @binding(0) var<uniform> frame : FrameConstants;
 
+#ifdef SKINNED
+struct SkinConstants { bones : array<mat4x4f, 64> };
+@group(0) @binding(5) var<uniform> skin : SkinConstants;
+#endif
+
 struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_color : vec4f,
@@ -124,15 +159,22 @@ struct VSIn {
 #ifdef MESH_NORMALS
     @location(3) a_normal : vec3f,
 #endif
+#ifdef SKINNED
+    @location(5) a_joints : vec4u,
+    @location(6) a_weights : vec4f,
+#else
     @location(8)  a_model0 : vec4f,
     @location(9)  a_model1 : vec4f,
     @location(10) a_model2 : vec4f,
     @location(11) a_model3 : vec4f,
+#endif
     @location(12) a_instTint : vec4f,
 #ifdef MESH_NORMALS
+#ifndef SKINNED
     @location(13) a_nrm0 : vec3f,
     @location(14) a_nrm1 : vec3f,
     @location(15) a_nrm2 : vec3f,
+#endif
 #endif
 };
 struct VSOut {
@@ -146,8 +188,18 @@ struct VSOut {
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
+#ifdef SKINNED
+    // The four bones this vertex is bound to, blended by their weights. The
+    // result is world-space, so no model matrix follows it.
+    let pose = v.a_weights.x * skin.bones[v.a_joints.x]
+             + v.a_weights.y * skin.bones[v.a_joints.y]
+             + v.a_weights.z * skin.bones[v.a_joints.z]
+             + v.a_weights.w * skin.bones[v.a_joints.w];
+    let world = pose * vec4f(v.a_position, 1.0);
+#else
     let model = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3);
     let world = model * vec4f(v.a_position, 1.0);
+#endif
 
     var out : VSOut;
     out.pos = frame.projection * world;
@@ -155,7 +207,11 @@ struct VSOut {
     out.v_color = v.a_color * v.a_instTint;
 #ifdef LIT
 #ifdef MESH_NORMALS
+#ifdef SKINNED
+    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * v.a_normal;
+#else
     out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
+#endif
 #else
     // A surface with no normal channel faces the viewer, exactly as a sprite does.
     out.v_worldNormal = vec3f(0.0, 0.0, 1.0);

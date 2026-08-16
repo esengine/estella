@@ -74,7 +74,8 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             uintptr_t vertexPtr, u32 vertexBytes,
                             uintptr_t indexPtr, u32 indexCount,
                             f32 minX, f32 minY, f32 minZ,
-                            f32 maxX, f32 maxY, f32 maxZ);
+                            f32 maxX, f32 maxY, f32 maxZ,
+                            uintptr_t bindPtr, u32 bindFloats);
 /** @brief Releases a mesh and the buffers it owns. */
 void mesh_release(u32 meshHandle);
 /** @brief Uploads geometry that stays on the GPU; returns its handle, 0 on failure. */

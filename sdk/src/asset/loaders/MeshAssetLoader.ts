@@ -37,16 +37,25 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
             const tablePtr = alloc(table.byteLength);
             const vertexPtr = alloc(mesh.vertices.byteLength);
             const indexPtr = alloc(mesh.indices.byteLength);
+            // The bind pose goes over with the geometry: the Joints channel
+            // indexes it, so an engine holding one without the other could only
+            // guess what a vertex is bound to.
+            const bind = mesh.inverseBindMatrices;
+            const bindPtr = bind ? alloc(bind.byteLength) : 0;
             m.HEAPU8.set(table, tablePtr);
             m.HEAPU8.set(mesh.vertices, vertexPtr);
             m.HEAPU8.set(new Uint8Array(mesh.indices.buffer, mesh.indices.byteOffset,
                                         mesh.indices.byteLength), indexPtr);
+            if (bind) {
+                m.HEAPU8.set(new Uint8Array(bind.buffer, bind.byteOffset, bind.byteLength), bindPtr);
+            }
             return m.mesh_createFromChannels!(
                 tablePtr, mesh.channels.length, mesh.vertexStride,
                 vertexPtr, mesh.vertices.byteLength,
                 indexPtr, mesh.indices.length,
                 mesh.aabbMin[0], mesh.aabbMin[1], mesh.aabbMin[2],
-                mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2]);
+                mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2],
+                bindPtr, bind?.length ?? 0);
         });
 
         if (!handle) throw new Error(`the engine rejected the geometry in ${path}`);

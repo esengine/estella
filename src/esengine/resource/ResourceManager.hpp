@@ -460,7 +460,8 @@ public:
      */
     MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
-                          const glm::vec3& localMin, const glm::vec3& localMax);
+                          const glm::vec3& localMin, const glm::vec3& localMax,
+                          ConstSpan<f32> inverseBind = {});
 
     /** @brief The mesh a handle names, or null. */
     Mesh* getMesh(MeshHandle handle);

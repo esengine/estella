@@ -15,6 +15,7 @@
 #include "../rhi/GfxDevice.hpp"
 #include "./FrameConstants.hpp"
 #include "../draw/DrawParams.hpp"
+#include "../store/SkinConstants.hpp"
 #include "../../core/Log.hpp"
 
 #include <vector>
@@ -141,6 +142,14 @@ void RenderContext::initFrameUbo() {
     drawParamsFallback_ = device_.createBuffer(
         {GfxBufferUsage::Uniform, DRAW_PARAMS_FALLBACK_SIZE, /*dynamic=*/false}, zeros.data());
     device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
+
+    // A skinned draw's pose. Bound once and rewritten per draw: only one draw's
+    // bones are ever in flight, and a mesh with none never reads the block.
+    const std::vector<u8> bones(sizeof(SkinConstants), 0);
+    skinUbo_ = device_.createBuffer(
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(SkinConstants)), /*dynamic=*/true},
+        bones.data());
+    device_.setUniformBuffer(SKIN_CONSTANTS_BINDING, skinUbo_);
 
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
