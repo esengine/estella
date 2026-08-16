@@ -1964,15 +1964,12 @@ function GenericAssetInspector({ path }: { path: string }) {
 
   const save = async () => {
     try {
-      const meta = JSON.parse(await window.estella.fs.read(path + '.meta'));
-      meta.importer = importerRef.current;
-      await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
+      // Through the project's own door, not a second write of the same file:
+      // that is where re-registering, the live texture push and re-importing a
+      // product-bearing asset all happen.
+      await ProjectStore.setImportSettings(path, importerRef.current ?? {});
       setDirty(false);
       DirtyRegistry.bump();
-      await ProjectStore.refreshAssets();
-      // Push filter/wrap to the live gl handle so the edit viewport updates now
-      // (no scene reload); a no-op for types/assets without a live texture.
-      if (type === 'texture' || type === 'sprite') AssetRegistry.applyLiveTextureSettings(path);
       Toasts.push(t('det.importSaved'), 'info', 1400);
     } catch (e) {
       Toasts.push(t('det.importSaveFailed', { error: String(e) }), 'error');

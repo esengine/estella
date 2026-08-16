@@ -95,15 +95,13 @@ export async function run(ed) {
     return check.failures;
   }
 
-  const doc = JSON.parse(await readFile(meta, 'utf8'));
-  doc.importer.scale = 64;
-  await writeFile(meta, JSON.stringify(doc, null, 2));
-  // The setting decides a product, so the product is re-made: touching the
-  // source is what a user's Reimport does through the same door.
-  await writeFile(source, gltf());
+  // Set the way the inspector sets it — the setting decides a product, so
+  // writing it has to remake that product with no further prompting.
+  await ed.call('set_import_settings',
+                { path: 'assets/models/robot.gltf', patch: { scale: 64 } }, 60000);
   check(
     await until(ed, prefab, (p) => p.entities?.[0]?.components?.[0]?.data?.scale?.x === 64),
-    'the edited scale never reached the prefab — the re-import does not read the settings',
+    'the edited scale never reached the prefab — saving a setting does not remake its product',
   );
 
   return check.failures;

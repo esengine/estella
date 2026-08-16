@@ -3,6 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { applyImporterEdit } from './assetImporter';
+import { hasImporter, runImporters } from '../plugins/importers';
 import { importerDefaults } from '../../../pipeline/src/project/importSettings';
 import { AssetRegistry, UUID_PREFIX, type AssetEntryLite } from './AssetRegistry';
 import { imageSize } from './imageSize';
@@ -860,6 +861,10 @@ class ProjectStoreImpl {
     await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
     await this.refreshAssets();
     AssetRegistry.applyLiveTextureSettings(path);
+    // A setting that decides a PRODUCT only means something once the product is
+    // remade: a model's scale lives on the prefab this rebuilds. Types with no
+    // importer (a texture's filter) are read at cook or bind time and skip it.
+    if (hasImporter(path)) await runImporters([path]);
     return importer;
   }
 

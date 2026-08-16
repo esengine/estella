@@ -510,7 +510,7 @@ const ATOMS = [
     description: 'Patch an asset\'s .meta import settings and persist. Keys are DOTTED paths into the importer block, matching the inspector field keys — a texture\'s 9-slice border is '
       + '{"sliceBorder.left":12,"sliceBorder.right":12,"sliceBorder.top":12,"sliceBorder.bottom":12}; filter/wrap are {"filterMode":"nearest","wrapMode":"clamp"}. '
       + 'These live in IMPORT, not on a component: a UIVisual set to NineSlice takes its border from texture metadata, so this is what makes frames and buttons stretch correctly. '
-      + 'Re-registers the asset and updates the live texture. Returns the resulting importer block.',
+      + 'Re-registers the asset, updates the live texture, and RE-IMPORTS an asset whose products a setting decides (a model\'s scale). Returns the resulting importer block.',
     schema: obj({ path: { type: 'string' }, patch: { type: 'object' } }, ['path', 'patch']),
     method: 'setImportSettings', args: (i) => [i.path, i.patch], root: 'editor' },
   { name: 'read_project_file',
