@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A model's animations come in with it.** A glTF's animations were counted and
+  reported as skipped, so an imported model could be placed, lit and posed but
+  never moved. Each one is written out as an `.estimeline` beside the meshes, and
+  the prefab's root carries a player pointing at the first — stopped, because
+  what to play is the scene's decision and not the importer's. A channel targets
+  its node by the path of names the runtime resolves, so sibling nodes sharing a
+  name are made distinct at import rather than leaving a track to drive whichever
+  the walk reached first. Interpolation carries across as it stands: LINEAR and
+  STEP by name, and CUBICSPLINE's `[inTangent, value, outTangent]` triples into
+  the three fields a keyframe already has, tangents included, since both sides
+  measure them per second. Quaternion keyframes are sign-aligned so a rotation
+  takes the short way round. Morph-target weights are still reported rather than
+  dropped, and an animation driving skinned joints now says that the mesh bound
+  to them will not deform — the joints move, which is what node animation is.
+
 - **A rotation can be animated on all three axes.** `Transform.rotation` is a
   quaternion, but the reflection metadata offered exactly one animatable channel
   for it — `rotation.z` — and that channel was not the quaternion's z component:
