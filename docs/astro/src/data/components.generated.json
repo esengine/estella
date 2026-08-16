@@ -1244,6 +1244,20 @@
           "advanced": true
         },
         {
+          "key": "meshShadows",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Cast a shadow map over 3D meshes (Directional)."
+        },
+        {
+          "key": "shadowExtent",
+          "type": "number",
+          "default": "0",
+          "doc": "Shadow map coverage radius; 0 = fit the view.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

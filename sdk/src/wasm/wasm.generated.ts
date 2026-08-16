@@ -339,6 +339,8 @@ export interface Light2D {
     outerAngle: number;
     shadowSoftness: number;
     shadowDistance: number;
+    meshShadows: boolean;
+    shadowExtent: number;
     enabled: boolean;
 }
 

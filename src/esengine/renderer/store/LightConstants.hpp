@@ -25,6 +25,15 @@ inline constexpr u32 LIGHT_CONSTANTS_BINDING = 2;
 inline constexpr const char* LIGHT_CONSTANTS_BLOCK = "LightConstants";
 
 /**
+ * @brief The injected shadow-map sampler, and the texture unit Shader::compile pins it to.
+ * @details Every Lit2D shader gets the sampler from the injected header, so the unit is a
+ *          contract rather than something each compile site repeats. Slot 2 sits after the
+ *          draw's own two (base colour, normal map) — see BatchBuilder's slot assembly.
+ */
+inline constexpr const char* SHADOW_MAP_SAMPLER = "u_shadowMap";
+inline constexpr u32 SHADOW_MAP_TEXTURE_UNIT = 2;
+
+/**
  * @brief Max simultaneous 2D lights packed into the UBO. The injected fragment loop is a fixed
  *        bound; inactive slots are zeroed (intensity 0) so they contribute nothing. Must match
  *        the `u_lights[..]` array size in ShaderParser's injected GLSL.
@@ -74,10 +83,18 @@ struct LightConstants {
     /// fragment→light segment (or, for directional, the fragment→far-along-light-dir segment)
     /// crosses any box.
     glm::vec4 occluders[MAX_OCCLUDERS_2D];
+    /// World -> the shadow map's clip space, for the one directional light casting one.
+    /// Identity when none does; `shadowParams.x` is what says whether to read it.
+    glm::mat4 shadowMatrix{1.0f};
+    /// x = 1 when a shadow map was rendered this frame — the master switch, so w's
+    /// zeroed default cannot darken slot 0 before one exists; y = depth bias in the
+    /// map's own [0,1] units; z = one texel of it; w = the light slot that cast it.
+    glm::vec4 shadowParams{0.0f};
 };
 
 static_assert(sizeof(GpuLight2D) == 64, "GpuLight2D must be std140-tight (four vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 64 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D,
+static_assert(sizeof(LightConstants) == 16 + 64 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D
+                                        + 64 + 16,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

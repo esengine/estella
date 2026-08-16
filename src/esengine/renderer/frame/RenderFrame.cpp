@@ -11,6 +11,7 @@
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
@@ -243,6 +244,13 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     draw_list_.clear();
     clip_state_.clear();
 
+    openPass(clear, target);
+}
+
+// Opening the frame's target: the load-op clear, the post-process capture when one is
+// engaged, the default surface otherwise. Its own method because the shadow pass draws
+// through a target of its own and has to hand this one back when it is done.
+void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle target) {
 #ifdef ES_ENABLE_POSTPROCESS
     // Linear mode keeps the capture+blit engaged even with zero passes: the
     // final blit is where the mandatory linear->sRGB encode lives (the WebGL2
@@ -621,13 +629,16 @@ RenderFrameContext RenderFrame::makeContext() {
         current_stage_,
         view_projection_,
         &context_.materials(),
-        this
+        this,
+        false,
+        shadow_texture_id_
     };
 }
 
 void RenderFrame::collectLights(ecs::Registry& registry) {
     LightStore& lights = context_.lights();
     lights.clear();
+    shadow_light_slot_ = -1;
 
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
@@ -662,6 +673,13 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         if (type == ecs::Light2DType::Directional) {
             // Direction in the 2D plane; z=1 flags directional (no attenuation) in the shader.
             gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, 0.0f);
+            // Marked here and read back after the cap sort, so the slot recorded is the
+            // slot the shader will index. shadow.z is cleared before it reaches the GPU.
+            if (light.meshShadows && shadow_light_slot_ < 0) {
+                gpu.shadow.z = 1.0f;
+                shadow_light_dir_ = light.direction;
+                shadow_light_extent_ = std::max(light.shadowExtent, 0.0f);
+            }
         } else {  // Point / Spot — world position from the Transform, w=falloff radius.
             auto* transform = registry.tryGet<ecs::Transform>(entity);
             if (!transform) continue;  // a positional light with no position casts nothing
@@ -687,7 +705,14 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
                     collected.size(), MAX_LIGHTS_2D);
         collected.resize(MAX_LIGHTS_2D);
     }
-    for (const auto& gpu : collected) lights.addLight(gpu);
+    for (u32 slot = 0; slot < collected.size(); ++slot) {
+        GpuLight2D& gpu = collected[slot];
+        if (gpu.shadow.z > 0.5f) {
+            shadow_light_slot_ = static_cast<i32>(slot);
+            gpu.shadow.z = 0.0f;  // a mark for this loop, not a field the shader reads
+        }
+        lights.addLight(gpu);
+    }
 
     // Shadow occluders: each enabled ShadowCaster2D becomes a world-space AABB (centered on its
     // Transform, `size` wide/tall). The injected shadowFactor2D blocks point/spot light at any
@@ -705,10 +730,119 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     }
 }
 
+/// Side length of a shadow map. One size for every scene: the coverage adapts to the
+/// camera instead, so the texel density a scene gets is a property of how far it asked
+/// the light to reach rather than of a knob nobody can calibrate.
+static constexpr u32 kShadowMapSize = 1024;
+
+/// Depth bias in the map's own [0,1] units. Large enough for a 1024 map over a
+/// camera-sized area to stop shadowing itself, small enough not to detach contact.
+static constexpr f32 kShadowBias = 0.0015f;
+
+void RenderFrame::renderShadowMap(ecs::Registry& registry) {
+    shadow_texture_id_ = 0;
+    // Zeroed params first: a matrix that outlived its map would shadow the scene
+    // against geometry from a frame that no longer exists.
+    context_.lights().setShadow(glm::mat4(1.0f), glm::vec4(0.0f));
+    if (!in_frame_ || shadow_light_slot_ < 0 || !device_.isDeviceUsable()) return;
+
+    if (shadow_rt_ == 0) {
+        shadow_rt_ = target_manager_.create(kShadowMapSize, kShadowMapSize,
+                                            /*depth=*/true, /*linearFilter=*/false);
+    }
+    auto* rt = target_manager_.get(shadow_rt_);
+    if (!rt) return;
+
+    // What the map has to cover: the camera's own view, unless the light asked for a
+    // fixed reach. A radius rather than the rect, so the coverage does not change as
+    // the light turns — a shadow that resized when the sun moved would crawl.
+    const CameraWorldRect view = computeCameraWorldRect(view_projection_);
+    const f32 fitted = 0.5f * glm::length(glm::vec2(view.right - view.left,
+                                                    view.top - view.bottom));
+    const f32 radius = shadow_light_extent_ > 0.0f ? shadow_light_extent_
+                                                   : std::max(fitted, 1.0f);
+    const glm::vec3 centre(view.center.x, view.center.y, 0.0f);
+
+    // The light's own direction, in the three dimensions the 2D field implies: the
+    // shader lights a surface from normalize(-dir.xy, 1), so rays travel the other way.
+    glm::vec3 toLight = glm::normalize(glm::vec3(-shadow_light_dir_.x, -shadow_light_dir_.y, 1.0f));
+    // An up that cannot be parallel to it, whichever way the light points.
+    const glm::vec3 up = std::abs(toLight.z) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f)
+                                                     : glm::vec3(0.0f, 0.0f, 1.0f);
+    const glm::mat4 lightView = glm::lookAt(centre + toLight * (radius * 2.0f), centre, up);
+
+    // Zero-to-one depth on purpose: the engine's shared ortho() is the GL convention
+    // (z in [-1,1]) and WebGPU clips everything below 0 of it. Written out here rather
+    // than reused, because this matrix is the one place the choice is free.
+    glm::mat4 lightProj(1.0f);
+    const f32 range = radius * 4.0f;
+    lightProj[0][0] = 1.0f / radius;
+    lightProj[1][1] = 1.0f / radius;
+    lightProj[2][2] = -1.0f / range;
+    lightProj[3][2] = 0.0f;
+    const glm::mat4 lightVP = lightProj * lightView;
+
+    // A self-contained pass, in the shape renderToTarget uses: swap what the frame is
+    // looking through, collect only what casts, draw, and hand the target back.
+    const glm::mat4 sceneVP = view_projection_;
+    RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/true};
+    // Depth too: the map keeps the NEAREST occluder, which is the depth buffer's job,
+    // and last frame's contents would reject this frame's geometry outright.
+    pass.clearDepth = true;
+    // White is depth 1 unpacked — "nothing here", so an untouched texel never shadows.
+    pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
+    pass.clearColorValue[3] = 1.0f;
+    // The frame's own viewport, taken back at the end: a split-screen camera owns
+    // part of the target, so it cannot be recomputed from the frame's size — and a
+    // pass that left 1024x1024 behind magnified the whole scene four times.
+    const GfxDevice::Viewport sceneViewport = device_.viewport();
+    device_.beginRenderPass(pass);
+    device_.setViewport(0, 0, kShadowMapSize, kShadowMapSize);
+
+    view_projection_ = lightVP;
+    frustum_.extractFromMatrix(lightVP);
+    pool_.beginFrame();
+    draw_list_.clear();
+
+    auto ctx = makeContext();
+    ctx.shadow_pass = true;
+    RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
+                                    computeCameraWorldRect(lightVP)};
+    for (auto& plugin : plugins_) plugin->collect(collectCtx);
+
+    draw_list_.finalize(pool_);
+    pool_.upload();
+    context_.updateFrameConstants(lightVP);
+    // The depth variant is still a Lit2D shader and still declares the light block,
+    // and a draw whose declared UBO is unbound is undefined behaviour that draws
+    // nothing — the whole pass came back empty for exactly this.
+    context_.lights().uploadAndBind();
+    draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
+                       nullptr, context_.skinUbo());
+
+    rt->unbind();
+    device_.invalidatePipelineCache();
+
+    shadow_texture_id_ = static_cast<u32>(rt->getColorTexture());
+    context_.lights().setShadow(
+        lightVP, glm::vec4(1.0f, kShadowBias, 1.0f / static_cast<f32>(kShadowMapSize),
+                           static_cast<f32>(shadow_light_slot_)));
+
+    // Back to the frame's own target and camera. The scene has drawn nothing yet, so
+    // re-opening the pass costs a load rather than the frame's contents.
+    view_projection_ = sceneVP;
+    frustum_.extractFromMatrix(sceneVP);
+    pool_.beginFrame();
+    draw_list_.clear();
+    openPass(PassClear{}, current_target_);
+    device_.setViewport(sceneViewport.x, sceneViewport.y, sceneViewport.w, sceneViewport.h);
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     ES_PROFILE_SCOPE("render.collect");
     buildClipState();
     collectLights(registry);
+    renderShadowMap(registry);
 
     auto ctx = makeContext();
 

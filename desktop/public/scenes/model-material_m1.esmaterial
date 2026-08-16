@@ -8,8 +8,8 @@
   "cull": 1,
   "properties": {
     "u_occlusionMap": "model-material_0.png",
-    "u_occlusionStrength": 1,
     "u_metallic": 0,
-    "u_roughness": 1
+    "u_roughness": 1,
+    "u_occlusionStrength": 1
   }
 }

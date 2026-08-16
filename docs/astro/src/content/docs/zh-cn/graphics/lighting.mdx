@@ -176,6 +176,31 @@ highp vec3 lit = applyLightingPBR(
   半径。法线与视线才是这个模型里三维的部分。
 </Aside>
 
+## mesh 之间的阴影
+
+`ShadowCaster2D` 的方块(见下)在 XY 平面上投影,那是 2D 场景所说的阴影。有高度的几何
+需要另一种:给一盏 `Directional` 灯打开 **`meshShadows`**,引擎每帧会从那盏灯的方向把场景的
+mesh 再画一遍,于是站得高的 mesh 会让下面的暗下来。
+
+```typescript
+cmds.spawn()
+  .insert(Light2D, {
+    type: Light2DType.Directional,
+    direction: { x: 0.5, y: 0 },   // 光线偏向哪边
+    meshShadows: true,
+  });
+```
+
+- 每帧只有一盏灯投出这张图 —— 第一盏要求它的。
+- 只有 GPU 持有的 `Mesh2D` 几何参与投射与接收。精灵被同一盏灯照亮,但它们的阴影走
+  `ShadowCaster2D`,那才是 2D 的答案。
+- 覆盖范围跟着相机走。`shadowExtent` 把它固定成一个半径,用锐度换范围。
+
+<Aside type="caution">
+  阴影贴图是对场景 mesh 的第二遍绘制,每个投射者一次 draw call。没有灯要求它时它根本不跑,
+  所以不需要阴影的场景一分钱不付。
+</Aside>
+
 ## 投射阴影
 
 给一个实体加 **`ShadowCaster2D`**,让它遮挡光并投出阴影:

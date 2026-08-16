@@ -227,6 +227,15 @@ public:
     /** @brief Sets the rendering viewport */
     virtual void setViewport(i32 x, i32 y, u32 w, u32 h) = 0;
 
+    /**
+     * @brief The viewport last set, so a pass that borrows the device can give it back.
+     * @details Mirrored here because neither API this wraps reads it back cheaply, and
+     *          a pass rendering elsewhere cannot recompute what to restore: a
+     *          split-screen camera owns only part of the target. Set in setViewport.
+     */
+    struct Viewport { i32 x = 0, y = 0; u32 w = 0, h = 0; };
+    const Viewport& viewport() const { return viewport_; }
+
     // Clears are pass-scoped: RenderPassDesc carries the load-ops AND their values
     // (color / stencil / optional region). There is no public clear entry point and
     // no sticky clear state a pass could inherit by accident.
@@ -611,6 +620,9 @@ public:
     virtual GfxLiveObjects liveObjects() const { return {}; }
 
 protected:
+    /// Backends record what they were last handed; see @ref viewport.
+    Viewport viewport_;
+
     /**
      * @brief Records who this backend is, so a later loss report can name it.
      * @details Called from init() while the backend still answers, and again

@@ -31,9 +31,12 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 // occlusion, an alpha cutoff — one quad each.
 // moving-quad: one node with a translation clip, which is what a node animation
 // is once nothing is skinned — the products include its `.estimeline`.
+// shadow-quad: a unit quad with normals, placed twice by the shadow scene — one
+// scaled into a floor, one held above it. A caster and a receiver need nothing
+// else, and one mesh for both is one mesh that cannot disagree with itself.
 for (const name of ['two-triangles.gltf', 'lit-triangles.gltf', 'white-triangles.gltf',
                     'textured-quad.gltf', 'node-tree.gltf', 'normalmap-quad.gltf',
-                    'model-material.gltf', 'moving-quad.gltf']) {
+                    'model-material.gltf', 'moving-quad.gltf', 'shadow-quad.gltf']) {
   const run = spawnSync(process.execPath,
     [cli, 'import-gltf', path.join(scenes, name), '--project', path.join(HERE, '..', 'public')], {
       stdio: 'inherit',

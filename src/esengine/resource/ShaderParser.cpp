@@ -731,8 +731,38 @@ struct LightConstants {
     u_lights : array<Light2D, 16>,
     u_occluderCount : vec4f,
     u_occluders : array<vec4f, 8>,
+    u_shadowMatrix : mat4x4f,
+    u_shadowParams : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
+fn packDepth(d : f32) -> vec3f {
+    let enc = fract(d * vec3f(1.0, 255.0, 65025.0));
+    return enc - enc.yzz * vec3f(1.0 / 255.0, 1.0 / 255.0, 0.0);
+}
+fn unpackDepth(c : vec3f) -> f32 {
+    return dot(c, vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+}
+fn shadowFactor3D(worldPos : vec3f) -> f32 {
+#ifndef ES_RECEIVE_SHADOW
+    return 1.0;
+#else
+    if (lc.u_shadowParams.x < 0.5) { return 1.0; }
+    let lcp = lc.u_shadowMatrix * vec4f(worldPos, 1.0);
+    let proj = lcp.xyz / lcp.w;
+    let uv = proj.xy * 0.5 + 0.5;
+    let here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - lc.u_shadowParams.y;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 1.0; }
+    var lit = 0.0;
+    for (var y = 0; y < 2; y++) {
+        for (var x = 0; x < 2; x++) {
+            let o = (vec2f(f32(x), f32(y)) - 0.5) * lc.u_shadowParams.z;
+            let d = unpackDepth(textureSampleLevel(t2, s2, uv + o, 0.0).rgb);
+            if (d >= here) { lit += 1.0; }
+        }
+    }
+    return lit * 0.25;
+#endif
+}
 fn sampleNormal(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {
     return normalize(textureSampleLevel(map, samp, uv, 0.0).xyz * 2.0 - 1.0);
 }
@@ -857,6 +887,9 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
             atten *= shadowFactor2D(worldPos.xy, aim, sh.x);
+        }
+        if (f32(i) == lc.u_shadowParams.w && atten > 0.0) {
+            atten *= shadowFactor3D(worldPos);
         }
         let ndotl = max(dot(N, L), 0.0);
         let radiance = col.rgb * (col.a * ndotl * atten);
@@ -1174,7 +1207,50 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    Light2D u_lights[16];\n"
             "    highp vec4 u_occluderCount;\n"   // x = active occluder count
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
+            "    highp mat4 u_shadowMatrix;\n"    // world -> shadow map clip
+            "    highp vec4 u_shadowParams;\n"    // x = has map, y = bias, z = texel
             "};\n"
+            // The shadow map rides the draw's third texture slot, behind the feature the
+            // MESH vertex sources set: the batch stream owns 0..7 as a per-vertex merge
+            // product, so a sampler pinned to slot 2 there would read someone's sprite.
+            "#ifdef ES_RECEIVE_SHADOW\n"
+            "uniform highp sampler2D u_shadowMap;\n"
+            "#endif\n"
+            // 24 bits of depth across RGB — an 8-bit target is what both backends have
+            // in common, and a metre of world depth does not survive 8 of them. The
+            // pair lives together: two files would be two chances to disagree.
+            "highp vec3 packDepth(in highp float d) {\n"
+            "    highp vec3 enc = fract(d * vec3(1.0, 255.0, 65025.0));\n"
+            "    return enc - enc.yzz * vec3(1.0 / 255.0, 1.0 / 255.0, 0.0);\n"
+            "}\n"
+            "highp float unpackDepth(in highp vec3 c) {\n"
+            "    return dot(c, vec3(1.0, 1.0 / 255.0, 1.0 / 65025.0));\n"
+            "}\n"
+            // Visibility of a world point from the light that rendered the map. Depth is
+            // written and compared through the SAME matrix and expression, so the two
+            // backends' clip-z conventions cancel. 2x2 taps: one is a staircase.
+            "highp float shadowFactor3D(in highp vec3 worldPos) {\n"
+            "#ifndef ES_RECEIVE_SHADOW\n"
+            "    return 1.0;\n"
+            "#else\n"
+            "    if (u_shadowParams.x < 0.5) return 1.0;\n"
+            "    highp vec4 lc = u_shadowMatrix * vec4(worldPos, 1.0);\n"
+            "    highp vec3 proj = lc.xyz / lc.w;\n"
+            "    highp vec2 uv = proj.xy * 0.5 + 0.5;\n"
+            "    highp float here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - u_shadowParams.y;\n"
+            // Outside the map is lit: a shadow map covers what the camera can see, and
+            // darkening everything beyond it would be a visible square of night.
+            "    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;\n"
+            "    highp float lit = 0.0;\n"
+            "    for (int y = 0; y < 2; ++y) {\n"
+            "        for (int x = 0; x < 2; ++x) {\n"
+            "            highp vec2 o = (vec2(float(x), float(y)) - 0.5) * u_shadowParams.z;\n"
+            "            lit += unpackDepth(texture(u_shadowMap, uv + o).rgb) < here ? 0.0 : 1.0;\n"
+            "        }\n"
+            "    }\n"
+            "    return lit * 0.25;\n"
+            "#endif\n"
+            "}\n"
             // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
             // Lit2D shader unpacks tangent-space normals the same way. 2D applies it screen-space
             // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
@@ -1336,6 +1412,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
             "            atten *= shadowFactor2D(worldPos.xy, target, sh.x);\n"
+            "        }\n"
+            // One map, one light: params.w names the slot that rendered it, so the
+            // other fifteen are not darkened by someone else's occluders.
+            "        if (float(i) == u_shadowParams.w && atten > 0.0) {\n"
+            "            atten *= shadowFactor3D(worldPos);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"

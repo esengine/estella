@@ -1,0 +1,36 @@
+{
+  "version": "2",
+  "name": "shadow-quad",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "scenes/shadow-quad.esmesh",
+            "lit": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

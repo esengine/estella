@@ -109,6 +109,13 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         cmd.texture_ids[1] = key.normalTextureId;
         cmd.texture_count = 2;
     }
+    // The shadow map's unit is pinned in the shader, so the gap below it is filled
+    // rather than the slot moved: a draw with no normal map still samples slot 2.
+    if (key.shadowTextureId != 0 && cmd.texture_count >= 1 && key.layoutId != LayoutId::Batch) {
+        if (cmd.texture_count == 1) cmd.texture_ids[1] = key.textureId;
+        cmd.texture_ids[2] = key.shadowTextureId;
+        cmd.texture_count = 3;
+    }
     cmd.entity = key.entity;
     cmd.type = key.type;
     cmd.layer = key.layer;

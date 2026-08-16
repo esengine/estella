@@ -8,13 +8,13 @@
   "cull": 1,
   "properties": {
     "u_emissiveMap": "model-material_0.png",
+    "u_metallic": 0,
+    "u_roughness": 1,
     "u_emissive": {
       "r": 0,
       "g": 1,
       "b": 0,
       "a": 1
-    },
-    "u_metallic": 0,
-    "u_roughness": 1
+    }
   }
 }

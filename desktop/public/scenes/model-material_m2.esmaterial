@@ -7,8 +7,8 @@
   "depthWrite": true,
   "cull": 1,
   "properties": {
-    "u_alphaCutoff": 0.5,
     "u_metallic": 0,
-    "u_roughness": 1
+    "u_roughness": 1,
+    "u_alphaCutoff": 0.5
   }
 }

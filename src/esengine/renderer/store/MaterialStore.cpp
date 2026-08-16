@@ -71,6 +71,9 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     features.push_back("MESH");
     if (withNormals) features.push_back("MESH_NORMALS");
     if (skinned) features.push_back("SKINNED");
+    // Resident geometry carries the frame's shadow map on its own slot 2; the batch
+    // variant of the same material must not, which is why this rides the mesh path.
+    features.push_back("ES_RECEIVE_SHADOW");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);

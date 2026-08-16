@@ -292,10 +292,29 @@ private:
     /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
     /// flush() uploads + binds the result so Lit2D material shaders read it.
     void collectLights(ecs::Registry& registry);
+    /**
+     * @brief Draws the scene's mesh occluders from the shadow-casting light, into a map
+     *        the main pass samples.
+     * @details Runs at the top of collectAll and re-opens the frame's own target behind
+     *          itself. A no-op unless collectLights found a Directional light asking for
+     *          one: the map is one per frame, the receiving shader having one of each.
+     */
+    void renderShadowMap(ecs::Registry& registry);
+    /// Opens the frame's own target with @p clear's load-op. Shared by begin() and the
+    /// shadow pass, which re-opens it after drawing through a target of its own.
+    void openPass(const PassClear& clear, RenderTargetManager::Handle target);
     u32 initBatchShader();
     resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
 
     std::vector<GpuLight2D> light_scratch_;  // reused across frames; collectLights only
+    /// Which light slot casts the map, and the direction + coverage it asked for.
+    /// Written by collectLights, read by renderShadowMap; -1 = nobody asked.
+    i32 shadow_light_slot_ = -1;
+    glm::vec2 shadow_light_dir_{0.0f};
+    f32 shadow_light_extent_ = 0.0f;
+    RenderTargetManager::Handle shadow_rt_ = 0;
+    /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
+    u32 shadow_texture_id_ = 0;
 
     // processMasks scratch, reused across cameras/frames.
     std::vector<Entity> mask_scissor_scratch_;

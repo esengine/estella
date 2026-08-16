@@ -92,6 +92,18 @@ struct Light2D {
     ES_PROPERTY(animatable, min=0, advanced, tooltip="Directional shadow distance; 0 = no directional shadow.")
     f32 shadowDistance{0.0f};
 
+    /** @brief Casts a shadow map over 3D meshes (Directional only). Separate from
+     *         @ref shadowDistance, which shadows 2D ShadowCaster2D boxes in the XY plane:
+     *         one light can do both, and a 2.5D scene often wants exactly that. One light
+     *         per frame casts a map — the first that asks. */
+    ES_PROPERTY(tooltip="Cast a shadow map over 3D meshes (Directional).")
+    bool meshShadows{false};
+
+    /** @brief Half-extent of the shadow map's world coverage, centred on the camera.
+     *         0 = fit what the camera can see. Larger trades sharpness for reach. */
+    ES_PROPERTY(min=0, advanced, tooltip="Shadow map coverage radius; 0 = fit the view.")
+    f32 shadowExtent{0.0f};
+
     /** @brief Disabled lights are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};

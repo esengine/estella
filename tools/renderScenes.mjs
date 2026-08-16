@@ -52,6 +52,10 @@ export const SCENES = [
   // and there was no skinned one, so a skinned mesh fell back to the engine's
   // shader and ignored what it was made of (sabotage: the probes come back white).
   { id: "mesh-skin-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-skin-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
+    // A mesh casting on a mesh: a floor 200 units below a blocker, sun leaning 0.5 in
+    // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
+    // The blocker itself stays lit — shadowing one's own caster is the classic bug.
+  { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
   // A glTF animation, through the shipped importer. The scene puts the quad at
   // x=150 and the clip runs -120 to 120 over a second, so 30 fixed steps is its
   // midpoint: the model is at the origin and where the SCENE put it is empty.

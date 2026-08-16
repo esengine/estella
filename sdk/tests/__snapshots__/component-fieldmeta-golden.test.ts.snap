@@ -175,6 +175,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
       "tooltip": "Brightness multiplier of the light.",
     },
+    "meshShadows": {
+      "tooltip": "Cast a shadow map over 3D meshes (Directional).",
+    },
     "outerAngle": {
       "advanced": true,
       "max": 180,
@@ -189,6 +192,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "advanced": true,
       "min": 0,
       "tooltip": "Directional shadow distance; 0 = no directional shadow.",
+    },
+    "shadowExtent": {
+      "advanced": true,
+      "min": 0,
+      "tooltip": "Shadow map coverage radius; 0 = fit the view.",
     },
     "shadowSoftness": {
       "min": 0,

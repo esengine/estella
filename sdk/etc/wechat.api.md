@@ -3817,9 +3817,11 @@ direction: Vec2
 enabled: boolean
 innerAngle: number
 intensity: number
+meshShadows: boolean
 outerAngle: number
 radius: number
 shadowDistance: number
+shadowExtent: number
 shadowSoftness: number
 type: number
 ```

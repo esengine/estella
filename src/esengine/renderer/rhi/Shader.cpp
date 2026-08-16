@@ -259,6 +259,15 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, drawParamsBlock, DRAW_PARAMS_BINDING);
     }
 
+    // Engine-injected samplers sit on fixed units, pinned here for the same reason the
+    // blocks above are: the header reaches every Lit2D shader, so a compile site that
+    // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
+    if (hasUniform(SHADOW_MAP_SAMPLER)) {
+        bind();
+        setUniform(SHADOW_MAP_SAMPLER, static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT));
+        unbind();
+    }
+
     ES_LOG_DEBUG("Shader compiled successfully (program handle: {}, active uniforms: {})",
                  static_cast<u32>(program_), activeUniforms_.size());
     return true;

@@ -87,6 +87,10 @@ struct BatchDrawKey {
     // slot 1. Not the same thing as the Batch stream's extra slots, which are a
     // MERGE product chosen per vertex.
     u32 normalTextureId = 0;
+    // The frame's shadow map, on the slot the injected Lit2D header samples. Per-draw
+    // like the two above rather than a global unit: which draws receive a shadow is a
+    // question the collect answers, and the device has no "bind for everyone" seam.
+    u32 shadowTextureId = 0;
     f32 depth = 0.0f;
     // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
     // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.

@@ -148,8 +148,11 @@ int main() {
         shader->setUniform("u_intensity", 0.5f);
         CHECK(d.setUniform1fCalls == 0, "lifted float write issues no loose upload");
 
+        // compile() already seeded the engine-injected shadow sampler, so this is the
+        // second loose int write rather than the first.
+        const int seeded = d.setUniform1iCalls;
         shader->setUniform("u_texture", 3);
-        CHECK(d.setUniform1iCalls == 1, "sampler still goes through the loose path");
+        CHECK(d.setUniform1iCalls == seeded + 1, "sampler still goes through the loose path");
 
         // First commit creates the UBO from the shadow and binds slot 4.
         shader->commitParams();

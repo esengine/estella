@@ -293,6 +293,12 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 // channel — which is why this rides LIT rather than a vertex attribute.
 #pragma feature NORMAL_MAP
 
+// The shadow-map pass: the same geometry, from the light, writing depth as colour
+// instead of shading. A feature and not a second shader, because what has to be
+// identical between the two passes is the VERTEX stage — a skinned occluder must
+// land where its skinned self lands, and one copy of that is one that cannot drift.
+#pragma feature SHADOW_DEPTH
+
 // GPU-resident geometry. Slot 0 is the mesh's own vertices, which are LOCAL
 // space and are never rewritten; slot 1 is the per-object record the frame
 // streams, so the same mesh drawn twice costs one more transform rather than
@@ -343,6 +349,9 @@ out highp vec3 v_worldNormal;
 // it changes across a fragment, which xy alone cannot say for a tilted surface.
 out highp vec3 v_worldPos;
 #endif
+#ifdef SHADOW_DEPTH
+out highp float v_shadowDepth;
+#endif
 
 void main() {
 #ifdef SKINNED
@@ -360,6 +369,11 @@ void main() {
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
+#ifdef SHADOW_DEPTH
+    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
+    // same matrix: whatever each backend's clip z means, both sides mean it alike.
+    v_shadowDepth = clamp(gl_Position.z / gl_Position.w * 0.5 + 0.5, 0.0, 1.0);
+#endif
 #ifdef LIT
 #if defined(MESH_NORMALS) && defined(SKINNED)
     v_worldNormal = mat3(skin) * a_normal;
@@ -383,6 +397,9 @@ in vec4 v_color;
 in highp vec3 v_worldNormal;
 in highp vec3 v_worldPos;
 #endif
+#ifdef SHADOW_DEPTH
+in highp float v_shadowDepth;
+#endif
 
 uniform sampler2D u_texture;
 #ifdef NORMAL_MAP
@@ -392,15 +409,22 @@ uniform sampler2D u_normalMap;
 out vec4 fragColor;
 
 void main() {
+#ifdef SHADOW_DEPTH
+    fragColor = vec4(packDepth(v_shadowDepth), 1.0);
+#else
     vec4 base = texture(u_texture, v_texCoord) * v_color;
 #ifdef LIT
     highp vec3 N = normalize(v_worldNormal);
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v_worldPos, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
 #endif
-    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos.xy), base.a);
+    // The general form at a 2D surface's own parameters, but with the position it
+    // really has: a shadow is cast on a point in space, and xy is not one.
+    fragColor = vec4(applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
+                                      0.0, 1.0, 0.0, 1.0), base.a);
 #else
     fragColor = base;
+#endif
 #endif
 }
 #pragma end
@@ -444,6 +468,9 @@ struct VSOut {
     @location(2) v_worldNormal : vec3f,
     @location(3) v_worldPos : vec3f,
 #endif
+#ifdef SHADOW_DEPTH
+    @location(4) v_shadowDepth : f32,
+#endif
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
@@ -464,6 +491,11 @@ struct VSOut {
     out.pos = frame.projection * world;
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
+#ifdef SHADOW_DEPTH
+    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
+    // same matrix: whatever each backend's clip z means, both sides mean it alike.
+    out.v_shadowDepth = clamp(out.pos.z / out.pos.w * 0.5 + 0.5, 0.0, 1.0);
+#endif
 #ifdef LIT
 #ifdef MESH_NORMALS
 #ifdef SKINNED
@@ -488,6 +520,12 @@ struct VSOut {
 @group(1) @binding(1) var t1 : texture_2d<f32>;
 @group(1) @binding(9) var s1 : sampler;
 #endif
+#ifdef ES_RECEIVE_SHADOW
+// The shadow map, on the slot the injected header samples. A fragment-only twin
+// gets these from the batch texture contract; one that writes its own says so.
+@group(1) @binding(2) var t2 : texture_2d<f32>;
+@group(1) @binding(10) var s2 : sampler;
+#endif
 
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -497,18 +535,28 @@ struct VSOut {
     @location(2) v_worldNormal : vec3f,
     @location(3) v_worldPos : vec3f,
 #endif
+#ifdef SHADOW_DEPTH
+    @location(4) v_shadowDepth : f32,
+#endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+#ifdef SHADOW_DEPTH
+    return vec4f(packDepth(v.v_shadowDepth), 1.0);
+#else
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
 #ifdef LIT
     var N = normalize(v.v_worldNormal);
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v.v_worldPos, v.v_texCoord, sampleNormal(t1, s1, v.v_texCoord));
 #endif
-    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos.xy), base.a);
+    // The general form at a 2D surface's own parameters, but with the position it
+    // really has: a shadow is cast on a point in space, and xy is not one.
+    return vec4f(applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
+                                  0.0, 1.0, 0.0, 1.0), base.a);
 #else
     return base;
+#endif
 #endif
 }
 #pragma end

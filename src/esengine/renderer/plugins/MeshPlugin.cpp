@@ -66,9 +66,9 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
     return count;
 }
 
-u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned) {
+u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly) {
     return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
-         | (skinned ? 8u : 0u);
+         | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u);
 }
 }  // namespace
 
@@ -97,8 +97,8 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
  * and unlit geometry carrying normals still has to declare them.
  */
 u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped,
-                            bool skinned) {
-    const u32 variant = meshVariant(normals, lit, normalMapped, skinned);
+                            bool skinned, bool depthOnly) {
+    const u32 variant = meshVariant(normals, lit, normalMapped, skinned, depthOnly);
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
 
@@ -107,6 +107,10 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     if (lit) features.emplace_back("LIT");
     if (normalMapped) features.emplace_back("NORMAL_MAP");
     if (skinned) features.emplace_back("SKINNED");
+    if (depthOnly) features.emplace_back("SHADOW_DEPTH");
+    // Resident geometry owns its texture slots, so it is the vertex source that can
+    // carry a shadow map — the batch stream's are a per-vertex merge product.
+    else if (lit) features.emplace_back("ES_RECEIVE_SHADOW");
 
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
     // that reads a model matrix, which is what lets the vertices stay local.
@@ -161,6 +165,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // own, and the inline payload's are recomputed on upload. Reading the
         // component's for a resident mesh would cull it against an empty box.
         const Mesh* resident = mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
+        // Only GPU-resident geometry casts: the inline payload takes the CPU path
+        // below, which bakes world space into vertices for the BATCH shader — a
+        // shader that writes colour, not the depth this pass is here to collect.
+        if (ctx.shadow_pass && !resident) continue;
         const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
         const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
@@ -193,6 +201,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             .blend = BlendMode::Normal,
             .textureId = textureId,
             .normalTextureId = normalTextureId,
+            .shadowTextureId = ctx.shadow_texture_id,
             .depth = position.z,
             .y = position.y,
             .entity = entity,
@@ -209,6 +218,18 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             key.depthWrite = true;
         }
         if (mesh.cullBackfaces) key.cull = static_cast<u8>(CullMode::Back);
+
+        // Casting into a shadow map: every occluder is opaque and depth-tested for
+        // this pass whatever it is in the camera's, because the map holds the
+        // NEAREST occluder and a blended one would let a later draw overwrite it.
+        if (ctx.shadow_pass) {
+            key.stage = RenderStage::Opaque;
+            key.blend = BlendMode::None;
+            key.depthTest = true;
+            key.depthWrite = true;
+            key.materialId = 0;
+            key.shadowTextureId = 0;
+        }
 
         // Material resolve mirrors SpritePlugin: an unregistered handle falls back to
         // the default batch shader; a material owns shading fully, so it takes
@@ -241,7 +262,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // with normals can be drawn unlit, and geometry without them takes
             // light off the constant normal a 2D surface has.
             const u32 residentShader =
-                meshProgram(ctx, resident->hasNormals, mesh.lit, normalTextureId != 0, skinned);
+                meshProgram(ctx, resident->hasNormals, mesh.lit && !ctx.shadow_pass,
+                            normalTextureId != 0 && !ctx.shadow_pass, skinned, ctx.shadow_pass);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
                                  : resident->hasNormals ? MESH_INSTANCE_STRIDE_LIT

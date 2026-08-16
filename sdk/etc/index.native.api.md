@@ -5,7 +5,7 @@ Symbols: 113 public · 63 beta · 1437 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"9b942024c64872cd"
+"9e0ab90e452805c7"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -3823,9 +3823,11 @@ direction: Vec2
 enabled: boolean
 innerAngle: number
 intensity: number
+meshShadows: boolean
 outerAngle: number
 radius: number
 shadowDistance: number
+shadowExtent: number
 shadowSoftness: number
 type: number
 ```

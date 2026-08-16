@@ -68,6 +68,15 @@ public:
         dirty_ = true;
     }
 
+    /// Hands over the shadow map a frame rendered: the world -> map matrix, and the
+    /// params whose x is the master switch. Called with a zeroed `params` when no
+    /// light cast one, so a stale matrix cannot outlive the map it belonged to.
+    void setShadow(const glm::mat4& matrix, const glm::vec4& params) {
+        data_.shadowMatrix = matrix;
+        data_.shadowParams = params;
+        dirty_ = true;
+    }
+
     /// Appends a world-space AABB occluder (minX, minY, maxX, maxY). Silently drops past
     /// MAX_OCCLUDERS_2D. With no occluders added, the injected shader shadow test is a no-op.
     void addOccluder(const glm::vec4& box) {

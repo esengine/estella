@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9b942024c64872cd';
+export const ABI_LAYOUT_HASH = '9e0ab90e452805c7';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -308,6 +308,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             outerAngle: 45,
             shadowSoftness: 0,
             shadowDistance: 0,
+            meshShadows: false,
+            shadowExtent: 0,
             enabled: true,
         },
         renderableField: 'enabled',
@@ -324,6 +326,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
+            meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional)." },
+            shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true },
         },
     },
     Mesh2D: {
@@ -1010,6 +1014,8 @@ export interface Light2DData {
     outerAngle: number;
     shadowSoftness: number;
     shadowDistance: number;
+    meshShadows: boolean;
+    shadowExtent: number;
     enabled: boolean;
 }
 

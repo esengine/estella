@@ -6,6 +6,7 @@
 
 #include "MockGfxDevice.hpp"
 #include "esengine/renderer/rhi/Shader.hpp"
+#include "esengine/renderer/store/LightConstants.hpp"
 
 #include <cstdio>
 
@@ -29,17 +30,24 @@ int main() {
         CHECK(shader->getProgramId() == 1, "programId is the device-returned id");
         CHECK(d.getActiveUniformsCalls == 1, "reflection routes through device.getActiveUniforms");
 
+        // compile() pins the engine-injected samplers to their units, so the counts
+        // the rest of this block asserts start from what that seeding left behind.
+        CHECK(d.setUniform1iCalls == 1
+                  && d.lastUniform1iVal == static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT),
+              "compile pins the injected shadow sampler to its texture unit");
+        CHECK(d.useProgramCalls == 2, "seeding it binds and unbinds the program");
+
         shader->setUniform("u_tex", 3);
-        CHECK(d.setUniform1iCalls == 1, "setUniform(name,int) routes through device.setUniform1i");
+        CHECK(d.setUniform1iCalls == 2, "setUniform(name,int) routes through device.setUniform1i");
         CHECK(d.lastUniform1iVal == 3, "uniform value forwarded");
 
         shader->setUniform("u_color", glm::vec4(1, 0, 0, 1));
         CHECK(d.setUniform4fCalls == 1, "setUniform(name,vec4) routes through device.setUniform4f");
 
         shader->bind();
-        CHECK(d.useProgramCalls == 1 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
+        CHECK(d.useProgramCalls == 3 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
         shader->unbind();
-        CHECK(d.useProgramCalls == 2 && d.lastProgram == ShaderHandle::Invalid,
+        CHECK(d.useProgramCalls == 4 && d.lastProgram == ShaderHandle::Invalid,
               "unbind routes through device.useProgram(Invalid)");
 
         // shader destructed at scope end -> device.deleteProgram

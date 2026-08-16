@@ -404,6 +404,7 @@ bool GLDevice::pollDeviceLost() {
 // =============================================================================
 
 void GLDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
+    viewport_ = {x, y, w, h};
     glViewport(x, y, static_cast<GLsizei>(w), static_cast<GLsizei>(h));
 }
 

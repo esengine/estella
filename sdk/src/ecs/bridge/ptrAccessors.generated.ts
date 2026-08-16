@@ -499,6 +499,8 @@ export interface Light2DPtrData {
     outerAngle: number;
     shadowSoftness: number;
     shadowDistance: number;
+    meshShadows: boolean;
+    shadowExtent: number;
     enabled: boolean;
 }
 
@@ -515,7 +517,9 @@ export function fillLight2D(
     out.outerAngle = f32[(ptr + 40) >> 2];
     out.shadowSoftness = f32[(ptr + 44) >> 2];
     out.shadowDistance = f32[(ptr + 48) >> 2];
-    out.enabled = u8[ptr + 52] !== 0;
+    out.meshShadows = u8[ptr + 52] !== 0;
+    out.shadowExtent = f32[(ptr + 56) >> 2];
+    out.enabled = u8[ptr + 60] !== 0;
 }
 
 export function writeLight2D(
@@ -531,7 +535,9 @@ export function writeLight2D(
     f32[(ptr + 40) >> 2] = data.outerAngle;
     f32[(ptr + 44) >> 2] = data.shadowSoftness;
     f32[(ptr + 48) >> 2] = data.shadowDistance;
-    u8[ptr + 52] = data.enabled ? 1 : 0;
+    u8[ptr + 52] = data.meshShadows ? 1 : 0;
+    f32[(ptr + 56) >> 2] = data.shadowExtent;
+    u8[ptr + 60] = data.enabled ? 1 : 0;
 }
 
 export function createLight2DData(): Light2DPtrData {
@@ -545,6 +551,8 @@ export function createLight2DData(): Light2DPtrData {
         outerAngle: 0,
         shadowSoftness: 0,
         shadowDistance: 0,
+        meshShadows: false,
+        shadowExtent: 0,
         enabled: false,
     };
 }

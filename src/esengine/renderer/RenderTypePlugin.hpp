@@ -32,6 +32,11 @@ struct RenderFrameContext {
     const MaterialStore* materials = nullptr;
     /// The owning frame, for lazily-compiled batch variants (RenderFrame::batchProgram).
     RenderFrame* frame = nullptr;
+    /// This collect is the shadow pass: geometry draws depth-only, from the light.
+    /// Set by the frame, which also skips every plugin that casts nothing.
+    bool shadow_pass = false;
+    /// The map that pass produced, handed to the meshes that receive it (0 = none).
+    u32 shadow_texture_id = 0;
 };
 
 /** @brief The camera's view bounds in world space, derived once per collect from the

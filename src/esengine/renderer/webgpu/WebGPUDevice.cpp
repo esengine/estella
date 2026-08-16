@@ -507,6 +507,7 @@ i32 WebGPUDevice::flipRectY(i32 y, i32 height) const {
 }
 
 void WebGPUDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
+    viewport_ = {x, y, w, h};
     if (pass_) {
         wgpuRenderPassEncoderSetViewport(pass_, static_cast<f32>(x),
                                          static_cast<f32>(flipRectY(y, static_cast<i32>(h))),

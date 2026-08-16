@@ -186,6 +186,33 @@ show.
   normal and the view vector are the three-dimensional part of the model.
 </Aside>
 
+## Shadows between meshes
+
+A `ShadowCaster2D` box (below) shadows in the XY plane, which is what a 2D scene means
+by a shadow. Geometry with height needs the other kind: turn on **`meshShadows`** on a
+`Directional` light and the frame renders the scene's meshes once from that light, so a
+mesh standing above another darkens it.
+
+```typescript
+cmds.spawn()
+  .insert(Light2D, {
+    type: Light2DType.Directional,
+    direction: { x: 0.5, y: 0 },   // where the rays lean
+    meshShadows: true,
+  });
+```
+
+- One light per frame casts a map — the first that asks for one.
+- Only `Mesh2D` geometry the GPU holds casts and receives. Sprites are lit by the same
+  light but shadow through `ShadowCaster2D`, which is the 2D answer.
+- Coverage follows the camera. `shadowExtent` fixes it to a radius instead, trading
+  sharpness for reach.
+
+<Aside type="caution">
+  A shadow map is a second pass over the scene's meshes. It costs a draw call per
+  caster and is off until a light asks, so a scene that wants none pays nothing.
+</Aside>
+
 ## Casting shadows
 
 Add a **`ShadowCaster2D`** to an entity to make it block light and cast a shadow:
