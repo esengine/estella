@@ -74,6 +74,7 @@ export const GATES = [
   { id: 'capabilities', run: 'node tools/check-capabilities.mjs' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs' },
   { id: 'component-fields', run: 'node tools/check-component-fields.mjs' },
+  { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },
   { id: 'key-codes', run: 'node tools/check-key-codes.mjs' },

@@ -28,11 +28,10 @@ describe('video asset type', () => {
     expect(metaTypeFor('sound.webm')).toBe('audio');
   });
 
-  it('exposes video import settings (playback defaults + cook fields)', () => {
+  it('exposes the cook settings, and leaves playback to the component', () => {
+    // loop / autoplay / muted are Video component fields; an import-time copy of
+    // them was read by nothing.
     expect(hasImporterSettings('video')).toBe(true);
-    expect(importerDefaults('video')).toEqual({
-      loop: true, autoplay: true, muted: true,
-      quality: 4, audioBitrateKbps: 128,
-    });
+    expect(importerDefaults('video')).toEqual({ quality: 4, audioBitrateKbps: 128 });
   });
 });

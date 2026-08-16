@@ -77,7 +77,7 @@ export async function createFlipbookFromTexture(texturePath: string): Promise<vo
     await window.estella.fs.write(rel, JSON.stringify(serializeAnimClip(asset), null, 2) + '\n');
     await window.estella.fs.write(
       rel + '.meta',
-      JSON.stringify({ uuid, version: '1.0', type: 'animclip', importer: { autoMigrate: true } }, null, 2) + '\n',
+      JSON.stringify({ uuid, version: '1.0', type: 'animclip', importer: {} }, null, 2) + '\n',
     );
   } catch (e) {
     Toasts.push(t('fb.toast.createFailed', { error: String(e) }), 'error');

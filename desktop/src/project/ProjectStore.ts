@@ -1301,7 +1301,7 @@ class ProjectStoreImpl {
       await window.estella.fs.write(rel, JSON.stringify(prefab, null, 2) + '\n');
       await window.estella.fs.write(
         rel + '.meta',
-        JSON.stringify({ uuid, version: '2.0', type: 'prefab', importer: { autoMigrate: true } }, null, 2) + '\n',
+        JSON.stringify({ uuid, version: '2.0', type: 'prefab', importer: {} }, null, 2) + '\n',
       );
     } catch (err) {
       console.warn('[project] prefab write failed', rel, err);

@@ -59,7 +59,7 @@ export async function createAnimationClip(dir: string): Promise<void> {
     await window.estella.fs.write(rel, JSON.stringify(BLANK_CLIP, null, 2) + '\n');
     await window.estella.fs.write(
       rel + '.meta',
-      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'animation', importer: { autoMigrate: true } }, null, 2) + '\n',
+      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'animation', importer: {} }, null, 2) + '\n',
     );
   } catch (e) {
     Toasts.push(t('seq.toast.createFailed', { error: String(e) }), 'error');

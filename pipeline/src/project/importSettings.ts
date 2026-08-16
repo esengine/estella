@@ -78,10 +78,6 @@ const TEXTURE: ImporterFieldSpec[] = [
     tooltip: 'How UVs outside [0,1] are addressed.',
   },
   {
-    key: 'premultiplyAlpha', label: 'Premultiply Alpha', type: 'bool', default: false,
-    category: 'Texture', advanced: true,
-  },
-  {
     key: 'sRGB', label: 'sRGB Color', type: 'bool', default: true, category: 'Texture', advanced: true,
     tooltip: 'The image stores sRGB-encoded color (albedo/UI). Disable for authored-linear '
       + 'data like normal maps and masks — only meaningful when the project renders in linear color.',
@@ -95,7 +91,6 @@ const TEXTURE: ImporterFieldSpec[] = [
 const SPINE: ImporterFieldSpec[] = [
   { key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0, step: 0.01, category: 'Spine' },
   { key: 'defaultSkin', label: 'Default Skin', type: 'string', default: 'default', category: 'Spine' },
-  { key: 'premultiplyAlpha', label: 'Premultiply Alpha', type: 'bool', default: false, category: 'Spine', advanced: true },
 ];
 
 // A DragonBones file is a project: it can hold several armatures, so which one an
@@ -126,16 +121,9 @@ const AUDIO: ImporterFieldSpec[] = [
   },
 ];
 
+// Playback (loop / autoplay / muted) belongs to the Video COMPONENT, which
+// carries all three: an import-time copy of them was read by nothing.
 const VIDEO: ImporterFieldSpec[] = [
-  {
-    key: 'loop', label: 'Loop', type: 'bool', default: true, category: 'Video',
-    tooltip: 'Suggested loop state when this clip is assigned to a Video component.',
-  },
-  { key: 'autoplay', label: 'Autoplay', type: 'bool', default: true, category: 'Video' },
-  {
-    key: 'muted', label: 'Muted', type: 'bool', default: true, category: 'Video',
-    tooltip: 'Muted clips can autoplay; unmuted autoplay is blocked until a user gesture.',
-  },
   {
     key: 'quality', label: 'Cook Quality', type: 'number', default: 4, min: 2, max: 31, step: 1,
     category: 'Video', advanced: true,
@@ -147,13 +135,6 @@ const VIDEO: ImporterFieldSpec[] = [
     category: 'Video', advanced: true,
     options: [96, 128, 192].map((n) => ({ label: `${n} kbps`, value: n })),
     tooltip: 'AAC bitrate for the audio track demuxed at cook (wasm decode path).',
-  },
-];
-
-const SCENELIKE: ImporterFieldSpec[] = [
-  {
-    key: 'autoMigrate', label: 'Auto Migrate', type: 'bool', default: true, category: 'Import',
-    tooltip: 'Upgrade this asset to the current schema version when it loads.',
   },
 ];
 
@@ -176,8 +157,6 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   dragonbones: DRAGONBONES,
   audio: AUDIO,
   video: VIDEO,
-  scene: SCENELIKE,
-  prefab: SCENELIKE,
 };
 
 /** Cook-facing audio import settings, tolerant of hand-edited `.meta` blocks. */

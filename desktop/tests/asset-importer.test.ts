@@ -23,16 +23,16 @@ describe('importerDefaults (import-time .meta)', () => {
       compressFormat: 'uastc',
       filterMode: 'linear',
       wrapMode: 'repeat',
-      premultiplyAlpha: false,
       sRGB: true,
       sliceBorder: { left: 0, right: 0, top: 0, bottom: 0 },
     });
   });
-  it('reproduces spine + scene-like defaults, and is empty for unknown types', () => {
-    expect(importerDefaults('spine')).toEqual({ scale: 1, defaultSkin: 'default', premultiplyAlpha: false });
-    expect(importerDefaults('scene')).toEqual({ autoMigrate: true });
-    expect(importerDefaults('prefab')).toEqual({ autoMigrate: true });
+  it('is empty for a type with no import settings, and for an unknown one', () => {
+    expect(importerDefaults('spine')).toEqual({ scale: 1, defaultSkin: 'default' });
     expect(importerDefaults('audio')).toEqual({ compress: true, bitrateKbps: 128 });
+    // A scene is authored, not imported: it has metadata and no settings.
+    expect(importerDefaults('scene')).toEqual({});
+    expect(importerDefaults('nonesuch')).toEqual({});
   });
 });
 

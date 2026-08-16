@@ -38,7 +38,7 @@ function uniqueMaterialPath(dir: string, base: string): string {
 async function writeMeta(rel: string): Promise<void> {
   await window.estella.fs.write(
     rel + '.meta',
-    JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'material', importer: { autoMigrate: true } }, null, 2) + '\n',
+    JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'material', importer: {} }, null, 2) + '\n',
   );
 }
 

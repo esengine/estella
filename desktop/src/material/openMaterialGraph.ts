@@ -73,7 +73,7 @@ export async function createMaterialGraph(dir: string): Promise<void> {
     await window.estella.fs.write(shaderPathOf(rel), compileMaterialGraph(graph));
     await window.estella.fs.write(
       rel + '.meta',
-      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'materialgraph', importer: { autoMigrate: true } }, null, 2) + '\n',
+      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'materialgraph', importer: {} }, null, 2) + '\n',
     );
   } catch (e) {
     Toasts.push(t('mat.createGraphFailed', { error: String(e) }), 'error');

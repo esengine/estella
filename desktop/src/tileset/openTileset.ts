@@ -65,7 +65,7 @@ export async function createTilesetFromTexture(texturePath: string, grid?: Tiles
     await window.estella.fs.write(rel, JSON.stringify(serializeTileset(asset), null, 2) + '\n');
     await window.estella.fs.write(
       rel + '.meta',
-      JSON.stringify({ uuid, version: '1.0', type: 'tileset', importer: { autoMigrate: true } }, null, 2) + '\n',
+      JSON.stringify({ uuid, version: '1.0', type: 'tileset', importer: {} }, null, 2) + '\n',
     );
   } catch (e) {
     Toasts.push(t('tile.toast.createFailed', { error: String(e) }), 'error');
