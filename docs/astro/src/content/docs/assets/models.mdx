@@ -93,6 +93,11 @@ component has no room for. Written only when the source uses one of them, on the
 | `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
 | `occlusionTexture` (+ `strength`) | `u_occlusionMap` / `u_occlusionStrength` |
 | `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+| `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+
+Metal and roughness are written even when they match the engine's own defaults: glTF
+defaults both factors to 1 (a fully rough metal) and the shader defaults metal to 0, so a
+product that left them out would describe a surface the source did not.
 
 The material also restates the draw's blending, depth and culling, because a material
 replaces them — a model told to occlude itself keeps doing so through its material.
@@ -122,7 +127,6 @@ joints.
 | Limit | Why |
 |---|---|
 | 64 joints per mesh | The pose is a uniform block, which is 4KB at that size — inside what a WebGL2 block is guaranteed. A mesh wanting more draws undeformed. |
-| A material is not applied to a skinned mesh | Its program is compiled for a vertex source that reads a model matrix, and a skinned one does not have one. |
 | Joint count must match the bind pose | A mesh whose `MeshSkin` names a different number of joints draws undeformed rather than with vertices resolved against the wrong matrices. |
 
 ## Compressed geometry
@@ -138,7 +142,6 @@ when it runs.
 
 | Not imported | Why |
 |---|---|
-| `metallicFactor`, `roughnessFactor`, `metallicRoughnessTexture` | Shading metal needs a view direction, and these lights are 2D. A factor nothing reads would be a knob that lies. |
 | Morph targets, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
 | A second UV set (`TEXCOORD_1`), `KHR_texture_transform` | UVs are used as authored. |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |

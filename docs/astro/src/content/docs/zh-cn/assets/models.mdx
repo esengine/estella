@@ -87,6 +87,10 @@ glTF 以**米**为单位。一个世界单位是一个**设计像素**。所以�
 | `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
 | `occlusionTexture`（含 `strength`） | `u_occlusionMap` / `u_occlusionStrength` |
 | `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+| `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+
+金属度与粗糙度即使等于引擎自己的默认值也会写出来：glTF 把两个系数都默认成 1（完全粗糙的
+金属），而 shader 把金属度默认成 0 —— 省略它们的产物会描述出一个源文件没有说过的表面。
 
 材质还会把这次 draw 的混合、深度和剔除重述一遍 —— 因为材质会**替换**它们，
 这样一个被要求自我遮挡的模型，在有了材质之后仍然自我遮挡。
@@ -115,7 +119,6 @@ mesh 就会变形。
 | 限制 | 为什么 |
 |---|---|
 | 每个 mesh 最多 64 根骨骼 | 姿态走 uniform 块，64 根是 4KB —— 在 WebGL2 对一个块的保证范围内。超过的 mesh 按不变形绘制。 |
-| 材质不作用于蒙皮 mesh | 材质的 program 是为「读 model 矩阵」的顶点源编译的，而蒙皮的没有 model 矩阵。 |
 | 骨骼数必须与绑定姿态一致 | `MeshSkin` 列出的骨骼数对不上时按不变形绘制，而不是让顶点去解析错误的矩阵。 |
 
 ## 压缩几何
@@ -129,7 +132,6 @@ mesh 就会变形。
 
 | 不导入 | 为什么 |
 |---|---|
-| `metallicFactor`、`roughnessFactor`、`metallicRoughnessTexture` | 算金属高光要 view 方向，而这里的灯光是 2D 的。写进产物却没人读，那就是个会撒谎的旋钮。 |
 | morph target、`weights` 动画通道 | 在多个形状之间混合需要那些 target 本身，而它们没有被带过来。 |
 | 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform` | UV 按作者写的原样使用。 |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |

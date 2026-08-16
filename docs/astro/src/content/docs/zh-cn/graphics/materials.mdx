@@ -28,7 +28,7 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | **Dissolve** | `sprite-dissolve` | 噪声烧蚀 + 发光边缘(`u_progress` 0→1)。 |
 | **Pixelate** | `sprite-pixelate` | UV 量化到 `u_pixels` 网格。 |
 | **UV Scroll** | `sprite-uv-scroll` | 按 `u_scrollSpeed` × 时间滚动纹理。 |
-| **Model** | `model` | glTF 材质在 base color 之外说的东西:`u_normalMap`、`u_emissive`(`Map`)、`u_occlusionMap` + `u_occlusionStrength`、`u_alphaCutoff`。模型导入会写出它。 |
+| **Model** | `model` | glTF 材质在 base color 之外说的东西:`u_normalMap`、`u_emissive`(`Map`)、`u_occlusionMap` + `u_occlusionStrength`、`u_alphaCutoff`、`u_metallic` / `u_roughness`(以及 `u_metallicRoughnessMap`)。模型导入会写出它。 |
 
 新建材质是**按 id 引用**其模板的——它存的是 `shader: "builtin:sprite-unlit"`,并**不会**在磁盘上
 写出 shader 文件。引擎从内置源码编译该模板(运行时加载器、cook 步骤、编辑器三处以同样方式解析

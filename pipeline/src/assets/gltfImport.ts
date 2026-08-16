@@ -65,6 +65,11 @@ export interface ImportedMaterial {
     /** Ambient occlusion in the map's red channel, scaled by @ref occlusionStrength. */
     occlusionTexture?: ImportedImageRef;
     occlusionStrength?: number;
+    /** metallicFactor / roughnessFactor — glTF's defaults are 1 for both. */
+    metallic?: number;
+    roughness?: number;
+    /** glTF's packing: roughness in green, metal in blue, multiplying the factors. */
+    metallicRoughnessTexture?: ImportedImageRef;
     /** alphaMode MASK: a fragment below this alpha is discarded (glTF default 0.5). */
     alphaCutoff?: number;
     /** Not BLEND: drawn without blending, and taking part in depth. */
@@ -594,9 +599,7 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
 
 /**
  * One glTF material, read into the two things that can hold it (@ref
- * materialProducts). Metal and roughness stay reported-not-imported: shading
- * them needs a view direction and this engine's lights are 2D, so a metallic
- * factor in a product would be a knob nothing reads.
+ * materialProducts).
  */
 function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedImageRef | null>,
                       index: number): ImportedMaterial {
@@ -606,9 +609,6 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     const factor = pbr.baseColorFactor ?? [1, 1, 1, 1];
 
     const unused: string[] = [];
-    if (pbr.metallicRoughnessTexture || (pbr.metallicFactor ?? 1) !== 0 || (pbr.roughnessFactor ?? 1) !== 1) {
-        unused.push('metallic-roughness');
-    }
     if (src.normalTexture?.scale !== undefined && src.normalTexture.scale !== 1) {
         unused.push(`normal-map scale ${src.normalTexture.scale}`);
     }
@@ -623,7 +623,13 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
         ? readTexture(ctx, textureCache, src.emissiveTexture, label) : null;
     const occlusionMap = src.occlusionTexture
         ? readTexture(ctx, textureCache, src.occlusionTexture, label) : null;
+    const metalRoughMap = pbr.metallicRoughnessTexture
+        ? readTexture(ctx, textureCache, pbr.metallicRoughnessTexture, label) : null;
     const emissive = src.emissiveFactor ?? (emissiveMap ? [1, 1, 1] : [0, 0, 0]);
+    // glTF defaults both factors to 1 — a material that says nothing is a fully
+    // rough metal, and writing that out is what makes a product say so.
+    const metallic = pbr.metallicFactor ?? 1;
+    const roughness = pbr.roughnessFactor ?? 1;
     return {
         index,
         name: src.name ?? `material_${index}`,
@@ -643,6 +649,9 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
             occlusionTexture: occlusionMap,
             occlusionStrength: src.occlusionTexture?.strength ?? 1,
         } : {}),
+        metallic,
+        roughness,
+        ...(metalRoughMap ? { metallicRoughnessTexture: metalRoughMap } : {}),
         ...(src.alphaMode === 'MASK' ? { alphaCutoff: src.alphaCutoff ?? 0.5 } : {}),
     };
 }
@@ -1264,9 +1273,12 @@ function materialImageRef(image: ImportedImageRef, refs: ProductRefs): string {
  * and samplers, and the component has neither: its per-object attributes end at
  * location 15, the ceiling both backends guarantee.
  */
+// A metal-roughness pair the engine's own defaults already are (dielectric, fully
+// rough) needs nothing written; glTF's defaults are 1 and 1, so most materials do.
 function needsMaterial(material: ImportedMaterial | undefined): material is ImportedMaterial {
     return !!material && !!(material.normalTexture || material.emissive || material.emissiveTexture
-        || material.occlusionTexture || material.alphaCutoff);
+        || material.occlusionTexture || material.alphaCutoff || material.metallicRoughnessTexture
+        || (material.metallic ?? 0) !== 0 || (material.roughness ?? 1) !== 1);
 }
 
 /** `<stem>_m<source material index>` — the product a material becomes. */
@@ -1299,6 +1311,11 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
         bind('u_normalMap', material.normalTexture);
         bind('u_emissiveMap', material.emissiveTexture);
         bind('u_occlusionMap', material.occlusionTexture);
+        bind('u_metallicRoughnessMap', material.metallicRoughnessTexture);
+        // Written even at the engine's own defaults: glTF's are 1 and 1, so a
+        // product that left them out would read as a surface it is not.
+        if (material.metallic !== undefined) properties.u_metallic = material.metallic;
+        if (material.roughness !== undefined) properties.u_roughness = material.roughness;
         if (material.emissive) {
             const [r, g, b] = material.emissive;
             properties.u_emissive = { r, g, b, a: 1 };

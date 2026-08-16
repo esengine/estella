@@ -13,6 +13,8 @@
       "g": 1,
       "b": 0,
       "a": 1
-    }
+    },
+    "u_metallic": 0,
+    "u_roughness": 1
   }
 }

@@ -32,7 +32,7 @@ creates a material from a built-in template — the same list ships in code as
 | **Dissolve** | `sprite-dissolve` | Noise burn-away with a glowing edge (`u_progress` 0→1). |
 | **Pixelate** | `sprite-pixelate` | Quantizes UVs to a `u_pixels` grid. |
 | **UV Scroll** | `sprite-uv-scroll` | Scrolls the texture by `u_scrollSpeed` × time. |
-| **Model** | `model` | What a glTF material says beyond base color: `u_normalMap`, `u_emissive`(`Map`), `u_occlusionMap` + `u_occlusionStrength`, `u_alphaCutoff`. Written by model import. |
+| **Model** | `model` | What a glTF material says beyond base color: `u_normalMap`, `u_emissive`(`Map`), `u_occlusionMap` + `u_occlusionStrength`, `u_alphaCutoff`, `u_metallic` / `u_roughness` (+ `u_metallicRoughnessMap`). Written by model import. |
 
 A new material **references** its template by id — it stores `shader: "builtin:sprite-unlit"`
 and writes **no shader file** to disk. The engine compiles the built-in from in-code source

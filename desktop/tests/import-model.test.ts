@@ -252,12 +252,17 @@ describe('importing a model', () => {
     expect(meta(path.join(root, 'assets/models/robot.esmesh')).uuid).toBe(first);
   });
 
-  it('reports what the source says and this engine cannot draw', async () => {
+  it('a metal arrives as one, through the editor door', async () => {
     const src = path.join(outside, 'metal.gltf');
     const doc = JSON.parse(gltf()) as { materials: { pbrMetallicRoughness: { metallicFactor: number } }[] };
     doc.materials[0]!.pbrMetallicRoughness.metallicFactor = 1;
     writeFileSync(src, JSON.stringify(doc));
     const res = await importAssets(root, 'assets/models', [src]);
-    expect(res.warnings?.join('\n')).toContain('metallic-roughness');
+    expect(res.warnings?.join('\n') ?? '').not.toContain('metallic-roughness');
+
+    const material = JSON.parse(
+      readFileSync(path.join(root, 'assets/models/metal_m0.esmaterial'), 'utf8'),
+    ) as { properties: Record<string, unknown> };
+    expect(material.properties.u_metallic).toBe(1);
   });
 });

@@ -337,6 +337,9 @@ const MODEL = `#pragma shader "Model"
 #pragma param u_occlusionMap texture default(white)
 #pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
 #pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+#pragma param u_metallic float default(0) range(0,1) ui(slider)
+#pragma param u_roughness float default(1) range(0,1) ui(slider)
+#pragma param u_metallicRoughnessMap texture default(white)
 
 #pragma fragment
 precision mediump float;
@@ -356,6 +359,7 @@ out vec4 fragColor;
 // Base colour rides the draw itself (slot 0 x vertex colour) — glTF's baseColor
 // is what a Mesh2D already carries. Emission is added AFTER lighting (it is light
 // this surface makes) and occlusion scales only the ambient term.
+// Metal-roughness packing is glTF's: roughness in green, metal in blue.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
     if (base.a < u_alphaCutoff) discard;
@@ -366,7 +370,11 @@ void main() {
     vec3 N = sampleNormal(u_normalMap, v_texCoord);
 #endif
     float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
-    vec3 lit = applyLighting2DAO(base.rgb, N, v_worldPos, ao);
+    vec3 mr = texture(u_metallicRoughnessMap, v_texCoord).rgb;
+    highp vec3 P = vec3(v_worldPos, 0.0);
+    // specular 1: a glTF material reflects unless KHR_materials_specular says less.
+    vec3 lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
+                                u_metallic * mr.b, u_roughness * mr.g, 1.0, ao);
     fragColor = vec4(lit + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, base.a);
 }
 #pragma end
@@ -383,7 +391,11 @@ void main() {
 #endif
     let occl = textureSampleLevel(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, 0.0).r;
     let ao = mix(1.0, occl, mc.u_occlusionStrength);
-    let lit = applyLighting2DAO(base.rgb, N, v.v_worldPos, ao);
+    let mr = textureSampleLevel(u_metallicRoughnessMap, u_metallicRoughnessMap_s,
+                                v.v_texCoord, 0.0).rgb;
+    let P = vec3f(v.v_worldPos, 0.0);
+    let lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
+                               mc.u_metallic * mr.b, mc.u_roughness * mr.g, 1.0, ao);
     let emit = mc.u_emissive.rgb
              * textureSampleLevel(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, 0.0).rgb;
     return vec4f(lit + emit, base.a);

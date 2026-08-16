@@ -159,15 +159,17 @@ describe('glTF material import', () => {
       alphaMode: 'MASK', alphaCutoff: 0.4, doubleSided: false,
       extensions: { KHR_materials_clearcoat: {} },
     }];
-    const { warnings } = await importGltfMeshes(gltf(doc), 'model');
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     const line = warnings.join('\n');
-    expect(line).toContain('metallic-roughness');
     expect(line).toContain('normal-map scale 0.4');
     expect(line).toContain('KHR_materials_clearcoat');
-    // Shading a metal needs a view direction, which 2D lights have not got; the
-    // channels that DO reach a shader are products, not warnings.
+    // The channels that DO reach a shader are products, not warnings — metal and
+    // roughness among them now that the lighting model has a view direction.
+    expect(line).not.toContain('metallic-roughness');
     expect(line).not.toContain('emissive');
     expect(line).not.toContain('alpha cutoff');
+    expect(materialProducts(meshes, 'model')[0]!.data.properties)
+      .toMatchObject({ u_metallic: 1, u_roughness: 0.3 });
   });
 
   it('is opaque and single-sided unless the source says otherwise', async () => {
@@ -340,12 +342,16 @@ describe('glTF material products', () => {
     expect(products).toHaveLength(1);
     expect(products[0]!.name).toBe('model_m0');
     expect(products[0]!.data.shader).toBe('builtin:model');
+    // A material with no pbrMetallicRoughness block is glTF's default: fully
+    // metallic, fully rough. Written out, since the engine's own default is not.
     expect(products[0]!.data.properties).toEqual({
       u_emissive: { r: 1, g: 0.5, b: 0, a: 1 },
       u_emissiveMap: 'model_0.png',
       u_occlusionMap: 'model_0.png',
       u_occlusionStrength: 0.25,
       u_alphaCutoff: 0.4,
+      u_metallic: 1,
+      u_roughness: 1,
     });
   });
 
