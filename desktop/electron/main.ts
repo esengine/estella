@@ -37,6 +37,7 @@ import { cookAssets } from '../../pipeline/src/assets/cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { importModel, isModelSource } from './importModel';
+import { importPanorama, isPanoramaSource } from './importEnvironment';
 import { exportGame } from '../../pipeline/src/export/exportGame';
 import {
   iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
@@ -1038,15 +1039,17 @@ ipcMain.handle('project:importFiles', async (_e, destDir: string, sources: strin
   return result;
 });
 
-// Re-import a model already in the project: same products, same uuids, beside
-// the source. This is how an edited `.gltf` — or an edited scale in its `.meta`
-// — reaches the assets a scene references.
-ipcMain.handle('project:reimportModel', async (_e, file: string) => {
+// Re-import a source already in the project: same products, same uuids, beside
+// the source. One door for every kind, because which converter runs is a property
+// of the file rather than of the caller.
+ipcMain.handle('project:reimportSource', async (_e, file: string) => {
   const root = requireRoot();
   const abs = resolveInRoot(root, file);
-  if (!isModelSource(abs)) return { products: [], warnings: [] };
   const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
-  const result = await importModel(root, dir, abs);
+  const result = isModelSource(abs) ? await importModel(root, dir, abs)
+    : isPanoramaSource(abs) ? await importPanorama(root, dir, abs)
+      : null;
+  if (!result) return { products: [], warnings: [] };
   notifyFsChanged(result.products);
   return result;
 });

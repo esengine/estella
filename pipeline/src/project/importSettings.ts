@@ -137,10 +137,20 @@ const MODEL: ImporterFieldSpec[] = [
   },
 ];
 
+const PANORAMA: ImporterFieldSpec[] = [
+  {
+    key: 'faceSize', label: 'Reflection Size', type: 'enum', default: 128, category: 'Import',
+    options: [32, 64, 128, 256].map((n) => ({ label: `${n} px`, value: n })),
+    tooltip: 'Edge length of the sharpest prefiltered reflection. Larger keeps a mirror '
+      + 'crisper and costs baking time; the diffuse half is nine numbers either way.',
+  },
+];
+
 /** type → its import-setting field specs. Types absent here have no import
  *  settings (only metadata) and get an empty defaults object. */
 export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   model: MODEL,
+  panorama: PANORAMA,
   texture: TEXTURE,
   sprite: TEXTURE,
   spine: SPINE,

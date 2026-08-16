@@ -257,6 +257,8 @@ export type BuiltinAssetType =
   | 'font'
   | 'mesh'
   | 'model'
+  | 'environment'
+  | 'panorama'
   | 'file';
 
 /** A built-in asset type, or one a plugin contributed. */

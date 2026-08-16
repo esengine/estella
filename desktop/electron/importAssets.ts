@@ -16,6 +16,7 @@ import { capture } from './fileJournal';
 import { EXT_TO_TYPE, metaTypeFor, metaTypeForFile, mintMeta, writeMeta, adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import { CONTENT_TYPED_EXTENSIONS } from '../../tools/assetMetaTable.js';
 import { importModel, isModelSource } from './importModel';
+import { importPanorama, isPanoramaSource } from './importEnvironment';
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter.
  *  The content-typed ones are offered too: a Spine JSON skeleton is a `.json`, and a
@@ -119,8 +120,10 @@ export async function importAssets(root: string, destDir: string, sources: strin
   // A model produces the assets a scene references; the source itself is not one
   // of them, so importing one without this leaves a file nothing can draw.
   const produce = async (abs: string, dir: string, originDir?: string): Promise<void> => {
-    if (!isModelSource(abs)) return;
-    const result = await importModel(root, dir, abs, originDir);
+    const result = isModelSource(abs) ? await importModel(root, dir, abs, originDir)
+      : isPanoramaSource(abs) ? await importPanorama(root, dir, abs)
+        : null;
+    if (!result) return;
     imported.push(...result.products);
     warnings.push(...result.warnings.map((w) => `${path.basename(abs)}: ${w}`));
   };

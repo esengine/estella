@@ -66,6 +66,10 @@ export const EXT_TO_TYPE = Object.freeze({
     // products for that reason — the engine loads no model format.
     '.gltf': 'model',
     '.glb': 'model',
+    // The same shape for lighting: a `.hdr` panorama is import-only and produces
+    // the `.esenv` + atlas a scene references.
+    '.hdr': 'panorama',
+    '.esenv': 'environment',
     '.esmesh': 'mesh',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',

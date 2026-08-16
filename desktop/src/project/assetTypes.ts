@@ -18,7 +18,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Box, Boxes, Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug, Type,
+  Box, Boxes, Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug, Type, Globe, Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
@@ -76,6 +76,10 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   // none of these — offering one where a mesh is asked for is offering a ref
   // that cannot resolve.
   model: { extensions: ['gltf', 'glb'], badge: 'MDL', icon: Boxes, tint: '#8fa9b5' },
+  // A baked environment (.esenv) and, in the same relation as model/mesh, the
+  // panorama it was baked from — which the engine also cannot load.
+  environment: { extensions: ['esenv'], badge: 'ENV', icon: Globe, tint: '#8fb5b0' },
+  panorama: { extensions: ['hdr'], badge: 'HDR', icon: Sun, tint: '#c4b07f' },
   video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);

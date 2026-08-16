@@ -15,6 +15,8 @@ const REPO = path.join(PIPELINE, '..');
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
                                      [--project <dir>] [--scale <n>]
+       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir]
+                                     [--project <dir>] [--face-size <n>]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -40,7 +42,12 @@ each piece where the source's node tree puts it, with its image and tint. A glTF
 holds many primitives, so it is a source that PRODUCES assets rather than one the
 engine loads — the products are what a scene references. Asset refs are
 project-relative, so the project is found above the source unless --project says
-otherwise; --scale sizes the model, whose metres are world units otherwise.`;
+otherwise; --scale sizes the model, whose metres are world units otherwise.
+
+import-hdr bakes an equirectangular panorama into the two things a renderer asks
+an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
+prefiltered octahedral atlas beside it. The panorama itself is not shipped —
+a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -52,18 +59,20 @@ function parseArgs(argv) {
     console.log(USAGE);
     process.exit(0);
   }
-  if (command === 'import-gltf') {
+  if (command === 'import-gltf' || command === 'import-hdr') {
     if (!projectDir) {
       console.error(USAGE);
       process.exit(2);
     }
     const flag = rest.indexOf('--project');
     const scale = rest.indexOf('--scale');
+    const faceSize = rest.indexOf('--face-size');
     const out = rest[0] && !rest[0].startsWith('--') ? path.resolve(rest[0]) : null;
     return {
       command, out, source: path.resolve(projectDir),
       project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
       scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
+      faceSize: faceSize >= 0 ? Number(rest[faceSize + 1]) || undefined : undefined,
     };
   }
   if (command !== 'export' || !projectDir) {
@@ -258,6 +267,47 @@ if (opts.command === 'import-gltf') {
     cleanupMeta();
   }
   process.exit(imported > 0 ? 0 : 1);
+}
+
+if (opts.command === 'import-hdr') {
+  const { mod: importer, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'environmentImport.ts'), 'environmentImport.mjs');
+  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
+  try {
+    const sourceDir = path.dirname(opts.source);
+    const dir = opts.out ?? sourceDir;
+    const stem = path.basename(opts.source).replace(/\.hdr$/i, '');
+    const root = opts.project ?? findProjectRoot(sourceDir);
+    const projectRef = (abs) => path.relative(root, abs).split(path.sep).join('/');
+    const result = importer.importEnvironment(
+      new Uint8Array(readFileSync(opts.source)), stem, { faceSize: opts.faceSize });
+    for (const w of result.warnings) console.warn(`  ! ${w}`);
+    if (!root) {
+      console.warn('  ! no project found above the source — the atlas ref is a bare file name'
+        + ' (pass --project <dir>)');
+    }
+    const report = (file, what) =>
+      console.log(`${path.relative(process.cwd(), file)}: ${what}`);
+
+    const atlasFile = path.join(dir, result.atlasName);
+    writeFileSync(atlasFile, result.atlasBytes);
+    // An RGBM encoding of radiance, not a picture: sRGB would linearize what is
+    // already linear, and a block compressor would quantize the shared multiplier
+    // along with the colour it scales.
+    await meta.adoptOrphan(atlasFile, { sRGB: false, compress: false, wrapMode: 'clamp' });
+    report(atlasFile, `${result.document.mipCount} prefiltered mips`);
+
+    result.document.specular = root ? projectRef(atlasFile) : result.atlasName;
+    const envFile = path.join(dir, `${stem}.esenv`);
+    writeFileSync(envFile, `${JSON.stringify(result.document, null, 2)}\n`);
+    await meta.adoptOrphan(envFile);
+    report(envFile, `irradiance + ${result.document.faceSize}px reflection`);
+  } finally {
+    cleanup();
+    cleanupMeta();
+  }
+  process.exit(0);
 }
 
 const project = projectSettings(opts.projectDir);
