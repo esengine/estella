@@ -6,18 +6,17 @@
  *          Tilemap painter and the Tileset editor, which each carried a verbatim
  *          copy before.
  */
+import { atlasCells } from 'esengine';
 
-/** Columns an atlas grid fits: floor over the tile stride, honoring the outer
- *  margin and inter-tile spacing. At least 1. */
+/** Columns an atlas grid fits. At least 1: a palette with no column has no cell
+ *  to focus, and an atlas too small for one tile still shows the tile it has. */
 export function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
-  const stride = tileW + spacing;
-  return stride > 0 ? Math.max(1, Math.floor((width - margin + spacing) / stride)) : 1;
+  return Math.max(1, atlasCells(width, margin, tileW, spacing));
 }
 
 /** Rows an atlas grid fits (0 when the image is shorter than a single tile). */
 export function rowsFor(height: number, tileH: number, margin: number, spacing: number): number {
-  const stride = tileH + spacing;
-  return stride > 0 ? Math.max(0, Math.floor((height - margin + spacing) / stride)) : 0;
+  return atlasCells(height, margin, tileH, spacing);
 }
 
 /** Swatch color per terrain/autotile set — set identity in the tileset editor's

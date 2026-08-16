@@ -102,6 +102,20 @@ function resolveTileCollision(c: TilesetCollision, tw: number, th: number): Reso
 }
 
 /**
+ * Cells of `tileSize` along an atlas axis of `size`: n span `2*margin +
+ * n*tileSize + (n-1)*spacing`, Tiled's margin bordering both sides. The palette
+ * grid, the id spans below and the renderer's bounds check are all this one
+ * count — offering a cell the id space lacks paints another tileset's tile.
+ *
+ * @experimental
+ */
+export function atlasCells(size: number, margin: number, tileSize: number, spacing: number): number {
+    const step = tileSize + spacing;
+    if (step <= 0) return 0;
+    return Math.max(0, Math.floor((size - 2 * margin + spacing) / step));
+}
+
+/**
  * Tiles in a tileset — the span its global ids occupy. Explicit `tileCount` wins;
  * else derive `columns × rows` from the atlas texture height (the correct span for
  * a full grid, so multiple tilesets get non-overlapping firstId ranges); else fall
@@ -110,10 +124,8 @@ function resolveTileCollision(c: TilesetCollision, tw: number, th: number): Reso
 function tilesetCount(asset: TilesetAsset, textureHeight?: number): number {
     if (typeof asset.tileCount === 'number' && asset.tileCount > 0) return asset.tileCount;
     if (typeof textureHeight === 'number' && textureHeight > 0) {
-        const th = asset.tileHeight || 1;
-        const m = asset.margin || 0;
-        const sp = asset.spacing || 0;
-        const rows = Math.max(1, Math.floor((textureHeight - 2 * m + sp) / (th + sp)));
+        const rows = Math.max(1, atlasCells(
+            textureHeight, asset.margin || 0, asset.tileHeight || 1, asset.spacing || 0));
         return Math.max(1, asset.columns * rows);
     }
     let max = 0;

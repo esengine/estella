@@ -543,6 +543,7 @@ export {
     createTileset,
     collidableTileIds,
     resolveTilesetModel,
+    atlasCells,
     decodeTilemapChunks,
     CHUNK_SIZE,
     tileCollisionOutlines,

@@ -406,10 +406,15 @@ TEST_CASE("tileset_atlas_cells") {
     CHECK(atlasCells(64.0f, 0.0f, 32.0f, 0.0f) == 2);
     CHECK(atlasCells(80.0f, 0.0f, 32.0f, 0.0f) == 2);
 
-    // Tiled's margin sits before the first cell, spacing only between cells — so
-    // three 32px tiles with 2px gaps and a 4px border need 4 + 96 + 4 = 104.
-    CHECK(atlasCells(104.0f, 4.0f, 32.0f, 2.0f) == 3);
-    CHECK(atlasCells(103.0f, 4.0f, 32.0f, 2.0f) == 2);
+    // A Tiled margin borders BOTH sides: three 32px tiles with 2px gaps inside a
+    // 4px border need 4+96+4+4 = 108. At 104 only two fit — counting the margin
+    // once says three and hands that third cell the border pixels.
+    CHECK(atlasCells(108.0f, 4.0f, 32.0f, 2.0f) == 3);
+    CHECK(atlasCells(104.0f, 4.0f, 32.0f, 2.0f) == 2);
+
+    // The tileset shipped with the spacing gate, whose own JSON says 2 columns:
+    // 4 + 16 + 8 + 16 + 4 is exactly its 48px atlas.
+    CHECK(atlasCells(48.0f, 4.0f, 16.0f, 8.0f) == 2);
 
     // Degenerate inputs answer "no cells" rather than converting an out-of-range
     // float: a margin wider than the image, and a tile with no size.

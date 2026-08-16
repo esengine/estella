@@ -41,7 +41,7 @@ export {
     type TerrainMode, type TerrainColor, type TilesetTerrain, type TilesetTileTerrain,
 } from './tilesetAsset';
 export {
-    resolveTilesetModel,
+    resolveTilesetModel, atlasCells,
     type ResolvedTileset, type TilesetModel, type TilesetModelSlot, type ResolvedTileCollision,
 } from './tilesetResolve';
 export {

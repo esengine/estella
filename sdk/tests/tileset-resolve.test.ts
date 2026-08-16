@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { resolveTilesetModel, type ResolvedTileset } from '../src/tilemap/tilesetResolve';
+import { resolveTilesetModel, atlasCells, type ResolvedTileset } from '../src/tilemap/tilesetResolve';
 import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 
 function tileset(over: Partial<TilesetAsset>): TilesetAsset {
@@ -83,5 +84,43 @@ describe('resolveTilesetModel', () => {
         // a's count falls back to max id 3 → b starts at firstId 4
         expect(m.slots[1].firstId).toBe(4);
         expect(m.collidableTileIds).toEqual([3, 4]); // a tile 3 → 3; b tile 1 → global 4
+    });
+});
+
+describe('atlasCells', () => {
+    // Every shipped Tiled map, read for the one thing Tiled itself decides: how
+    // many columns its atlas has. Only one of them carries a margin, and that is
+    // the case a hand-written expectation would most likely get wrong.
+    it('agrees with the column count Tiled wrote for every shipped map', () => {
+        const maps = [
+            '../../desktop/public/scenes/tilemap-spacing/map.tmj',
+            '../../desktop/public/scenes/tilemap-multiset/map.tmj',
+            '../../desktop/public/scenes/tilemap-gidobj/map.tmj',
+            '../../desktop/public/scenes/tilemap-hex/map.tmj',
+            '../../examples/tilemap-demo/assets/maps/level.tmj',
+        ];
+        let checked = 0;
+        for (const rel of maps) {
+            const map = JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
+            for (const ts of map.tilesets ?? []) {
+                if (!ts.imagewidth) continue;
+                expect(atlasCells(ts.imagewidth, ts.margin ?? 0, ts.tilewidth, ts.spacing ?? 0))
+                    .toBe(ts.columns);
+                checked++;
+            }
+        }
+        expect(checked).toBeGreaterThan(4);
+    });
+
+    it("a Tiled margin borders both sides of the atlas", () => {
+        // Three 32px tiles with 2px gaps inside a 4px border span 4+96+4+4 = 108.
+        expect(atlasCells(108, 4, 32, 2)).toBe(3);
+        // At 104 a third tile would have to eat the far border, so only two fit.
+        expect(atlasCells(104, 4, 32, 2)).toBe(2);
+    });
+
+    it('answers zero rather than a negative count', () => {
+        expect(atlasCells(16, 4096, 32, 0)).toBe(0);
+        expect(atlasCells(64, 0, 0, 0)).toBe(0);
     });
 });

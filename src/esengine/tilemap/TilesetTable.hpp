@@ -26,23 +26,23 @@ struct TilesetSlot {
 };
 
 /**
- * Index of the slot owning @p id — the one with the largest first_id <= id.
- * Returns -1 if none (id below the first slot, or empty table). @p slots must be
- * sorted ascending by first_id (TilemapSystem::setTilesets guarantees this).
- */
-/**
- * Cells of @p tileSize along an atlas axis of @p size: n span margin +
- * n*tileSize + (n-1)*spacing. Past them a tile samples some other tile, so the
- * renderer skips it; the palette counts the same way (desktop tileMath.ts) and
- * the two must agree. Zero when the margin leaves none — that float would trap.
+ * Cells of @p tileSize along an atlas axis of @p size: n span 2*margin +
+ * n*tileSize + (n-1)*spacing (Tiled's margin borders both sides). Past them a
+ * tile samples some other tile, so it is skipped. Must agree with the SDK's
+ * `atlasCells`; zero when the margin leaves none, a float that would trap.
  */
 inline uint32_t atlasCells(float size, float margin, float tileSize, float spacing) {
     float step = tileSize + spacing;
     if (step <= 0.0f) return 0;
-    float n = (size - margin + spacing) / step;
+    float n = (size - 2.0f * margin + spacing) / step;
     return n > 0.0f ? static_cast<uint32_t>(n) : 0;
 }
 
+/**
+ * Index of the slot owning @p id — the one with the largest first_id <= id.
+ * Returns -1 if none (id below the first slot, or empty table). @p slots must be
+ * sorted ascending by first_id (TilemapSystem::setTilesets guarantees this).
+ */
 inline int resolveTilesetSlot(const std::vector<TilesetSlot>& slots, uint16_t id) {
     int found = -1;
     for (std::size_t i = 0; i < slots.size(); ++i) {
