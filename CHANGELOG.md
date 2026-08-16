@@ -220,6 +220,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Saving an import setting remakes what it decides.** A model's Scale lives in
+  its `.meta`, and the prefab it sizes is a file already on disk — so editing the
+  setting changed nothing until the model happened to be imported again. Assets
+  with an importer are re-imported when their settings are saved, through the
+  project's one settings door: the inspector's Save button was writing the `.meta`
+  itself, a second copy of the same write that skipped everything the door does.
+
 - **A model imports itself, and again when it changes.** Model import ran once,
   at the moment a file was dropped on the Content Browser: a `.gltf` that arrived
   any other way — a checkout, a copy in Finder, a re-export from Blender over the
