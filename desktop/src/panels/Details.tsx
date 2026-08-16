@@ -74,6 +74,7 @@ import type { AssetInspectorContribution, ComponentInspectorContribution } from 
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
+import { readMeshSummary, type MeshSummary } from '@/engine/meshSummary';
 import { readTextureCookSettings } from '../../../pipeline/src/project/importSettings';
 import { findAssetUsages } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
@@ -1901,6 +1902,7 @@ function GenericAssetInspector({ path }: { path: string }) {
   const [dirty, setDirty] = useState(false);
   const [stat, setStat] = useState<{ size: number; mtimeMs: number } | null>(null);
   const [dims, setDims] = useState<string | null>(null);
+  const [mesh, setMesh] = useState<MeshSummary | null>(null);
   const [refCount, setRefCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [usagesOpen, setUsagesOpen] = useState(false);
@@ -1938,6 +1940,10 @@ function GenericAssetInspector({ path }: { path: string }) {
     setDims(null);
     setRefCount(null);
     void window.estella?.fs?.stat(path).then((s) => alive && setStat(s)).catch(() => {});
+    // A mesh describes itself — channel table, counts, bounds — and nothing else
+    // in the editor can tell one import product from the next.
+    setMesh(null);
+    if (type === 'mesh') void readMeshSummary(path).then((m) => alive && setMesh(m));
     if (isImage) {
       const img = new Image();
       img.onload = () => alive && setDims(`${img.naturalWidth} × ${img.naturalHeight}`);
@@ -1952,7 +1958,7 @@ function GenericAssetInspector({ path }: { path: string }) {
     return () => {
       alive = false;
     };
-  }, [path, isImage]);
+  }, [path, isImage, type]);
 
   const assetRef = AssetRegistry.assetRef(path);
   const comp = importer ? buildImporterComponent(type, importer) : null;
@@ -2081,6 +2087,10 @@ function GenericAssetInspector({ path }: { path: string }) {
         <div className="cb-meta" style={{ padding: '8px 10px 0' }}>
           <MetaRow k={t('det.metaPath')} v={path} mono />
           {dims && <MetaRow k={t('det.metaDimensions')} v={dims} />}
+          {mesh && <MetaRow k={t('det.metaDimensions')} v={mesh.extent} />}
+          {mesh && <MetaRow k={t('det.metaVertices')} v={String(mesh.vertices)} />}
+          {mesh && <MetaRow k={t('det.metaTriangles')} v={String(mesh.triangles)} />}
+          {mesh && <MetaRow k={t('det.metaChannels')} v={mesh.channels} mono />}
           {stat && <MetaRow k={t('det.metaSize')} v={formatBytes(stat.size)} />}
           {stat && <MetaRow k={t('det.metaModified')} v={new Date(stat.mtimeMs).toLocaleString()} />}
           {assetRef && <MetaRow k={t('det.metaUuid')} v={assetRef} mono />}
