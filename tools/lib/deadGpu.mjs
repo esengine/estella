@@ -22,7 +22,18 @@ export function gpuNeverCameUp(output) {
 }
 
 /** Attempts one measurement is allowed, counting the first. */
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 4;
+
+/**
+ * Wait before relaunching, growing with each try. The retries were immediate,
+ * which relaunches into a GPU process still on its way down — three attempts
+ * inside a second are one attempt with extra steps. Synchronous because the
+ * launches are; `stepMs` is 0 in tests, which have no process to wait for.
+ */
+function backoff(attempt, stepMs) {
+    if (stepMs <= 0) return;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, stepMs * (attempt + 1));
+}
 
 /**
  * Run `attempt` (→ `{ ok, output }`) until it succeeds or fails with the GPU up.
@@ -32,7 +43,7 @@ const MAX_ATTEMPTS = 3;
  * nothing about why. A game that truly draws nothing still fails on the first
  * attempt, since no attempt reports a death. `note(died)` announces each retry.
  */
-export function retryOnDeadGpu(attempt, note) {
+export function retryOnDeadGpu(attempt, note, stepMs = 2000) {
     let sawDeath = false;
     let last;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
@@ -42,7 +53,10 @@ export function retryOnDeadGpu(attempt, note) {
         sawDeath = sawDeath || died;
         // Nothing in this chain blamed the GPU, so the failure is the game's.
         if (!sawDeath) return { ...last, retried: i > 0 };
-        if (i < MAX_ATTEMPTS - 1) note(died);
+        if (i < MAX_ATTEMPTS - 1) {
+            note(died);
+            backoff(i, stepMs);
+        }
     }
     return { ...last, retried: true, gpuDied: true };
 }

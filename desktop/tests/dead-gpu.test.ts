@@ -25,6 +25,7 @@ function run(outputs: Array<string | null>) {
             return { ok: out === null, output: out ?? '' };
         },
         (died: boolean) => notes.push(died),
+        0,   // no backoff: there is no GPU process to wait for here
     );
     return { ...result, attempts, notes };
 }
@@ -80,7 +81,7 @@ describe('retryOnDeadGpu', () => {
     it('gives up at the cap and says the GPU is why', () => {
         const r = run([DEAD]);
         expect(r.ok).toBe(false);
-        expect(r.attempts).toBe(3);
+        expect(r.attempts).toBe(4);
         expect(r.gpuDied).toBe(true);
     });
 });
