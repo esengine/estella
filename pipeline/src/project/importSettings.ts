@@ -90,22 +90,12 @@ const TEXTURE: ImporterFieldSpec[] = [
 
 const SPINE: ImporterFieldSpec[] = [
   { key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0, step: 0.01, category: 'Spine' },
-  { key: 'defaultSkin', label: 'Default Skin', type: 'string', default: 'default', category: 'Spine' },
 ];
 
-// A DragonBones file is a project: it can hold several armatures, so which one an
-// entity gets is an import-time default rather than something derived from the
-// file. Spine needs no equivalent — its file IS one skeleton.
+// Which armature and animation an entity gets are DragonBonesAnimation fields
+// (empty = the file's first / its setup pose), so import carries only the scale.
 const DRAGONBONES: ImporterFieldSpec[] = [
   { key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0, step: 0.01, category: 'DragonBones' },
-  {
-    key: 'defaultArmature', label: 'Default Armature', type: 'string', default: '', category: 'DragonBones',
-    tooltip: 'Armature used when an entity does not name one. Empty picks the first in the file.',
-  },
-  {
-    key: 'defaultAnimation', label: 'Default Animation', type: 'string', default: '', category: 'DragonBones',
-    tooltip: 'Played on spawn. Empty leaves the armature in its setup pose.',
-  },
 ];
 
 const AUDIO: ImporterFieldSpec[] = [

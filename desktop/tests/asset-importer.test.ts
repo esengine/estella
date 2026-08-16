@@ -28,7 +28,7 @@ describe('importerDefaults (import-time .meta)', () => {
     });
   });
   it('is empty for a type with no import settings, and for an unknown one', () => {
-    expect(importerDefaults('spine')).toEqual({ scale: 1, defaultSkin: 'default' });
+    expect(importerDefaults('spine')).toEqual({ scale: 1 });
     expect(importerDefaults('audio')).toEqual({ compress: true, bitrateKbps: 128 });
     // A scene is authored, not imported: it has metadata and no settings.
     expect(importerDefaults('scene')).toEqual({});

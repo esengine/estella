@@ -26,11 +26,7 @@ const SPECS = path.join('pipeline', 'src', 'project', 'importSettings.ts');
  * Settings with no reader because the feature behind them is not built. Each
  * entry says what is missing, so the list reads as work rather than permission.
  */
-const DECLARED_GAPS = {
-    'spine.defaultSkin': 'nothing applies it when a SpineAnimation is created from the asset',
-    'dragonbones.defaultArmature': 'nothing applies it when a DragonBonesAnimation is created',
-    'dragonbones.defaultAnimation': 'nothing applies it when a DragonBonesAnimation is created',
-};
+const DECLARED_GAPS = {};
 
 const source = readFileSync(path.join(ROOT, SPECS), 'utf8');
 
