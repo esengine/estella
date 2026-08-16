@@ -118,6 +118,17 @@ published separately; it ships inside the editor.
   F0 — at zero, Schlick's grazing-angle rim would otherwise survive and tint
   every existing sprite's edges.
 
+- **A skinned model can say what it is made of.** A material's program is
+  compiled for the vertex source it draws, and there was no skinned one — so a
+  rigged character was refused the material outright and fell back to the
+  engine's mesh shader. Everything a material carries (normal map, emission,
+  occlusion, alpha cutoff, its own shading) was unreachable for exactly the
+  geometry a model brings with it. The engine's canonical vertex stage now
+  grows the skinned branch it already had in the mesh shader — joints and
+  weights at their reserved locations, the pose block, and no model matrix
+  because the bones are already world-space — so one material still serves all
+  three vertex sources rather than a shader existing per source.
+
 - **A frame knows where it is seen from.** The camera's world position now rides
   in the frame block, which a specular term needs and no material can know. It
   is recovered from the view-projection itself rather than passed alongside it:
