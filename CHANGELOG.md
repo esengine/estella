@@ -16,6 +16,28 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A skinned model's bind pose comes in with it.** `.esmesh` carries a joint
+  channel, a weight channel and the inverse bind matrices the first indexes —
+  together, because a file whose joint indices point at matrices it does not
+  carry is a file that cannot say what it means. A glTF's skin sits on the node
+  rather than the primitive, so the geometry learns its bind pose from whatever
+  draws it, and the prefab records the joints as the entities those source nodes
+  became. Nothing draws with them yet; the renderer's half is next, and the gate
+  below now says so out loud rather than letting the field look finished.
+
+- **The dead-knob gate stopped taking anyone's word for it.** It searched every
+  source as one concatenated blob, so any file mentioning a common field name
+  vouched for every component that declares one — a diagnostics counter called
+  `'physics.joints'` was standing in as the reader of a mesh's joint list. A
+  reader now has to name the field AND the component it belongs to, which is how
+  reaching one works. It also reads `examples/` now, because some fields exist to
+  be read by a game: Perception writes what it saw and the engine never looks
+  again, and judging that by engine sources alone calls an output a dead knob.
+  Nine fields were being vouched for that way and are recorded as gaps, each
+  saying what is missing — four of them are one gap (`CacheAsBitmap` is declared
+  and nothing renders a subtree to a texture), three are another (only the mesh
+  path resolves a material into a program).
+
 - **The model-import sample plays what it imported.** Its glTF now carries a clip
   that lifts the banner, so the certified chain runs from the source file through
   the import's products to a packaged build that plays them — the capability the
