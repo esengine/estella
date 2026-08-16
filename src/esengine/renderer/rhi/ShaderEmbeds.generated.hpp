@@ -30,10 +30,6 @@ layout(location = 3) in float a_texIndex;
 layout(location = 4) in float a_sdfBias;
 #endif
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 out vec4 v_color;
 out vec2 v_texCoord;
 flat out int v_texIndex;
@@ -125,9 +121,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_color : vec4f,
@@ -335,10 +328,6 @@ layout(location = 14) in vec3 a_nrm1;
 layout(location = 15) in vec3 a_nrm2;
 #endif
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 #ifdef SKINNED
 // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
 layout(std140) uniform SkinConstants {
@@ -417,9 +406,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 #ifdef SKINNED
 struct SkinConstants { bones : array<mat4x4f, 64> };
 @group(0) @binding(5) var<uniform> skin : SkinConstants;
@@ -542,10 +528,6 @@ layout(location = 5) in vec4 a_inst_color;
 layout(location = 6) in vec2 a_inst_uv_offset;
 layout(location = 7) in vec2 a_inst_uv_scale;
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 out vec2 v_texCoord;
 out vec4 v_color;
 
@@ -584,9 +566,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 struct VSIn {
     @location(0) a_position : vec2f,
     @location(1) a_texCoord : vec2f,
@@ -649,10 +628,6 @@ layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec4 a_color;
 layout(location = 3) in vec4 a_shapeInfo;
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 out vec2 v_uv;
 out vec4 v_color;
 out vec4 v_shapeInfo;
@@ -704,9 +679,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 struct VSIn {
     @location(0) a_position : vec2f,
     @location(1) a_texCoord : vec2f,

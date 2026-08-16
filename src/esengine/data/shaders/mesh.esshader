@@ -62,10 +62,6 @@ layout(location = 14) in vec3 a_nrm1;
 layout(location = 15) in vec3 a_nrm2;
 #endif
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 #ifdef SKINNED
 // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
 layout(std140) uniform SkinConstants {
@@ -144,9 +140,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 #ifdef SKINNED
 struct SkinConstants { bones : array<mat4x4f, 64> };
 @group(0) @binding(5) var<uniform> skin : SkinConstants;

@@ -49,10 +49,6 @@ export const GRID_ESSHADER = `#pragma shader "EditorGrid"
 #pragma vertex
 layout(location = 0) in vec2 a_position;
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 out vec2 v_world;
 
 void main() {
@@ -106,9 +102,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 struct VSIn { @location(0) a_position : vec2f };
 struct VSOut {
     @builtin(position) pos : vec4f,

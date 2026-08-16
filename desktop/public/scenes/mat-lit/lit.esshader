@@ -8,6 +8,9 @@ layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
 
+// Deliberately still declared by hand, though the engine now injects this block:
+// a shader written before that keeps compiling, and the pixel criteria this
+// fixture backs are what proves it.
 layout(std140) uniform FrameConstants {
     mat4 u_projection;
 };

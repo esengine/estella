@@ -117,15 +117,11 @@ std::string wgslCanonicalVSOut(bool lit) {
     return src;
 }
 
-// WGSL twin of canonical2DVertexStage: same attribute locations, FrameConstants
-// at group 0 binding 0, GLSL names kept behind struct fields (a_position ->
-// v.a_position) so the two stages diff cleanly.
+// WGSL twin of canonical2DVertexStage: same attribute locations, GLSL names
+// kept behind struct fields (a_position -> v.a_position) so the two stages diff
+// cleanly. FrameConstants arrives with the injected headers.
 std::string canonical2DVertexStageWGSL(bool lit) {
-    std::string src =
-        "struct FrameConstants { projection : mat4x4f };\n"
-        "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n"
-        "\n";
-    src += wgslCanonicalVSOut(lit);
+    std::string src = wgslCanonicalVSOut(lit);
     src +=
         "\n"
         "struct VSIn {\n"
@@ -243,10 +239,6 @@ std::string canonical2DVertexStage(bool lit) {
         "layout(location = 14) in vec3 a_nrm1;\n"
         "layout(location = 15) in vec3 a_nrm2;\n"
         "#endif\n"
-        "\n"
-        "layout(std140) uniform FrameConstants {\n"
-        "    mat4 u_projection;\n"
-        "};\n"
         "\n"
         "out vec4 v_color;\n"
         "out vec2 v_texCoord;\n"
@@ -631,6 +623,10 @@ const char* wgslTypeName(ShaderPropertyType t) {
 // Engine-owned frame block (u_time / u_viewport), binding 3 — the GLSL
 // kTimeHeader's twin. Injected into every WGSL stage; the device's explicit
 // layouts make a declared-but-unused block legal, same as GL.
+const char* kFrameHeaderWGSL =
+    "struct FrameConstants { projection : mat4x4f };\n"
+    "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n";
+
 const char* kTimeHeaderWGSL =
     "struct TimeConstants { u_time : vec4f, u_viewport : vec4f };\n"
     "@group(0) @binding(3) var<uniform> tc : TimeConstants;\n";
@@ -800,6 +796,33 @@ fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
 }
 )";
 
+// Blanks a hand-written `layout(std140) uniform <block> {...};` out of a GLSL
+// stage: shaders predating the injected block still carry their own, and one
+// block declared twice never links. Blanked (not cut) so line remapping lands.
+std::string blankUniformBlock(const std::string& src, const std::string& blockName) {
+    const std::string needle = "uniform " + blockName;
+    const usize at = src.find(needle);
+    if (at == std::string::npos) return src;
+
+    const usize lineStart = src.rfind('\n', at) == std::string::npos ? 0 : src.rfind('\n', at) + 1;
+    // Only a declaration counts: the same words inside a comment must survive.
+    const std::string prefix = src.substr(lineStart, at - lineStart);
+    if (prefix.find_first_not_of(" \t") != std::string::npos
+        && prefix.find("layout") == std::string::npos) {
+        return src;
+    }
+    const usize open = src.find('{', at);
+    if (open == std::string::npos) return src;
+    const usize close = src.find("};", open);
+    if (close == std::string::npos) return src;
+
+    std::string out = src;
+    for (usize i = lineStart; i < close + 2; ++i) {
+        if (out[i] != '\n') out[i] = ' ';
+    }
+    return out;
+}
+
 std::string trimWs(const std::string& s) {
     const usize a = s.find_first_not_of(" \t\r\n");
     if (a == std::string::npos) return {};
@@ -914,6 +937,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         inject(parsed.domain == "PostProcess" ? wgslPPVSOut() : wgslCanonicalVSOut(lit));
         inject(wgslBatchTextureDecls());
     }
+    inject(kFrameHeaderWGSL);
     inject(kTimeHeaderWGSL);
     if (parsed.materialBlockSize > 0) {
         std::string block = "struct MaterialConstants {\n";
@@ -999,6 +1023,16 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         assembled << kColorHelpers;
         headerLines += countNewlines(kColorHelpers);
     }
+
+    // The per-frame view-projection, injected identically into every stage (a block
+    // declared two ways does not link) and engine-owned, so it cannot drift from the
+    // std140 mirror in FrameConstants.hpp. highp: fragment has no default this early.
+    static const char* kFrameHeader =
+        "layout(std140) uniform FrameConstants {\n"
+        "    highp mat4 u_projection;\n"
+        "};\n";
+    assembled << kFrameHeader;
+    headerLines += countNewlines(kFrameHeader);
 
     // Engine-owned frame block, injected into every stage (identical in both, so the
     // program links). u_time = (elapsed s, delta s, 0, 0); u_viewport = canvas
@@ -1199,7 +1233,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         headerLines += countNewlines(parsed.sharedCode);
     }
 
-    assembled << stageIt->second;
+    assembled << blankUniformBlock(stageIt->second, "FrameConstants");
 
     result.source = assembled.str();
     result.headerLineCount = headerLines;

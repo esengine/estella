@@ -7,6 +7,7 @@
 
 #include "esengine/resource/ShaderParser.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 
@@ -169,8 +170,6 @@ void main() { fragColor = vec4(1.0); }
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
 @vertex fn vs_main(@location(0) pos : vec2f) -> @builtin(position) vec4f {
 #ifdef LIT
     return frame.projection * vec4f(pos, 1.0, 1.0);
@@ -370,7 +369,7 @@ static void testFragmentOnly() {
     CHECK(pp.valid, "fragment-only PostProcess shader parses");
     const std::string ppv = ShaderParser::assembleStage(pp, ShaderStage::Vertex);
     CHECK(ppv.find("gl_Position = vec4(a_position, 0.0, 1.0);") != std::string::npos &&
-          ppv.find("FrameConstants") == std::string::npos,
+          ppv.find("u_projection *") == std::string::npos,
           "PostProcess canonical vertex is the clip-space pass-through (no projection)");
 
     ParsedShader unknownDomain = ShaderParser::parse(FRAG_ONLY_UNKNOWN_DOMAIN);
@@ -392,6 +391,44 @@ static void testFragmentOnly() {
         "#pragma fragment\nvoid main() {}\n#pragma end\n");
     CHECK(!reserved.valid && reserved.errorMessage.find("reserved") != std::string::npos,
           "a param named after an injected uniform is rejected with a clear error");
+
+    CHECK(av.find("uniform FrameConstants") != std::string::npos &&
+          af.find("uniform FrameConstants") != std::string::npos,
+          "the view-projection block is injected into both stages");
+}
+
+// A shader written before the engine injected FrameConstants declares its own.
+// Two declarations of one block name never link, so the authored copy is blanked
+// out — with its line count kept, or every compile-log line number after it moves.
+static void testHandWrittenFrameBlock() {
+    ParsedShader p = ShaderParser::parse(
+        "#pragma shader \"Legacy\"\n#pragma version 300 es\n"
+        "#pragma vertex\n"
+        "layout(location = 0) in vec2 a_pos;\n"
+        "layout(std140) uniform FrameConstants {\n"
+        "    mat4 u_projection;\n"
+        "};\n"
+        "// uniform FrameConstants named in a comment stays put\n"
+        "void main() { gl_Position = u_projection * vec4(a_pos, 0.0, 1.0); }\n"
+        "#pragma end\n"
+        "#pragma fragment\nvoid main() {}\n#pragma end\n");
+    CHECK(p.valid, "a shader carrying its own frame block still parses");
+    if (!p.valid) return;
+
+    const std::string vs = ShaderParser::assembleStage(p, ShaderStage::Vertex);
+    CHECK(vs.find("    mat4 u_projection;") == std::string::npos,
+          "the authored member is blanked, so only the injected block declares the layout");
+    CHECK(vs.find("// uniform FrameConstants named in a comment stays put") != std::string::npos,
+          "a comment naming the block is not a declaration and survives");
+
+    const std::string::size_type decl = vs.find("layout(location = 0) in vec2 a_pos;");
+    const std::string::size_type note = vs.find("// uniform FrameConstants named");
+    CHECK(decl != std::string::npos && note != std::string::npos && decl < note,
+          "the authored body survives around the blanked block");
+    if (decl == std::string::npos || note == std::string::npos || decl >= note) return;
+    CHECK(std::count(vs.begin() + static_cast<long>(decl), vs.begin() + static_cast<long>(note),
+                     '\n') == 4,
+          "blanking keeps the line count, so compile-log remapping still lands");
 }
 
 int main() {
@@ -413,6 +450,7 @@ int main() {
     CHECK(ShaderParser::variantKey({}).empty(), "variantKey of no features is empty");
 
     testFragmentOnly();
+    testHandWrittenFrameBlock();
     testWGSLEmission();
 
     if (g_failures == 0) {

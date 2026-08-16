@@ -7,10 +7,6 @@ layout(location = 1) in vec2 a_texCoord;
 layout(location = 2) in vec4 a_color;
 layout(location = 3) in vec4 a_shapeInfo;
 
-layout(std140) uniform FrameConstants {
-    mat4 u_projection;
-};
-
 out vec2 v_uv;
 out vec4 v_color;
 out vec4 v_shapeInfo;
@@ -62,9 +58,6 @@ void main() {
 #pragma end
 
 #pragma vertex wgsl
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
 struct VSIn {
     @location(0) a_position : vec2f,
     @location(1) a_texCoord : vec2f,
