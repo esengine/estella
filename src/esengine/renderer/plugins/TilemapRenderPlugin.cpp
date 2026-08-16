@@ -237,12 +237,8 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].uvStepY = (layer.tile_height + spacing) / th;
             resolved[i].insetU = 0.5f / tw;
             resolved[i].insetV = 0.5f / th;
-            // n cells span margin + n*tileSize + (n-1)*spacing, so the last one
-            // that fits is floor((size - margin + spacing) / step).
-            resolved[i].atlasCols = resolved[i].uvStepX > 0.0f
-                ? static_cast<u32>((tw - margin + spacing) / (layer.tile_width + spacing)) : 0;
-            resolved[i].atlasRows = resolved[i].uvStepY > 0.0f
-                ? static_cast<u32>((th - margin + spacing) / (layer.tile_height + spacing)) : 0;
+            resolved[i].atlasCols = tilemap::atlasCells(tw, margin, layer.tile_width, spacing);
+            resolved[i].atlasRows = tilemap::atlasCells(th, margin, layer.tile_height, spacing);
             anySlotValid = true;
         }
         if (!anySlotValid) continue;

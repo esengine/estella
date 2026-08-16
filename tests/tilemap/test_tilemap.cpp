@@ -398,3 +398,21 @@ TEST_CASE("tilemap_animation_revision_separation") {
     sys.clearTileAnimations(E(0));
     CHECK(sys.getLayerData(E(0))->anim_table_revision == 2);
 }
+
+TEST_CASE("tileset_atlas_cells") {
+    using esengine::tilemap::atlasCells;
+
+    // A gapless atlas: exactly the cells that fit, and a partial one does not count.
+    CHECK(atlasCells(64.0f, 0.0f, 32.0f, 0.0f) == 2);
+    CHECK(atlasCells(80.0f, 0.0f, 32.0f, 0.0f) == 2);
+
+    // Tiled's margin sits before the first cell, spacing only between cells — so
+    // three 32px tiles with 2px gaps and a 4px border need 4 + 96 + 4 = 104.
+    CHECK(atlasCells(104.0f, 4.0f, 32.0f, 2.0f) == 3);
+    CHECK(atlasCells(103.0f, 4.0f, 32.0f, 2.0f) == 2);
+
+    // Degenerate inputs answer "no cells" rather than converting an out-of-range
+    // float: a margin wider than the image, and a tile with no size.
+    CHECK(atlasCells(16.0f, 4096.0f, 32.0f, 0.0f) == 0);
+    CHECK(atlasCells(64.0f, 0.0f, 0.0f, 0.0f) == 0);
+}
