@@ -28,6 +28,44 @@ const MESHES = [{
 const raw = (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
 const encode = (doc) => new TextEncoder().encode(JSON.stringify(doc));
 
+/**
+ * The triangle under a named node, turned a quarter circle about Y over a
+ * second — an exporter's node animation once nothing is skinned.
+ */
+export function animatedTriangle() {
+  const times = new Float32Array([0, 1]);
+  const rotations = new Float32Array([0, 0, 0, 1, 0, Math.SQRT1_2, 0, Math.SQRT1_2]);
+  const geo = Buffer.concat([Buffer.from(raw(POSITIONS)), Buffer.from(raw(UVS)), Buffer.from(raw(INDICES))]);
+  const pad = Buffer.alloc((4 - (geo.length % 4)) % 4);
+  const bytes = Buffer.concat([geo, pad, Buffer.from(raw(times)), Buffer.from(raw(rotations))]);
+  const timesAt = geo.length + pad.length;
+  return encode({
+    asset: { version: '2.0' },
+    buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: 36 },
+      { buffer: 0, byteOffset: 36, byteLength: 24 },
+      { buffer: 0, byteOffset: 60, byteLength: 6 },
+      { buffer: 0, byteOffset: timesAt, byteLength: times.byteLength },
+      { buffer: 0, byteOffset: timesAt + times.byteLength, byteLength: rotations.byteLength },
+    ],
+    accessors: [
+      ...ACCESSORS,
+      { bufferView: 3, componentType: 5126, count: 2, type: 'SCALAR', min: [0], max: [1] },
+      { bufferView: 4, componentType: 5126, count: 2, type: 'VEC4' },
+    ],
+    meshes: MESHES,
+    nodes: [{ name: 'Turner', mesh: 0 }],
+    scenes: [{ nodes: [0] }],
+    scene: 0,
+    animations: [{
+      name: 'Turn',
+      channels: [{ sampler: 0, target: { node: 0, path: 'rotation' } }],
+      samplers: [{ input: 3, output: 4, interpolation: 'LINEAR' }],
+    }],
+  });
+}
+
 /** The triangle with its bytes as they are — what any exporter writes by default. */
 export function plainTriangle() {
   const bytes = Buffer.concat([Buffer.from(raw(POSITIONS)), Buffer.from(raw(UVS)), Buffer.from(raw(INDICES))]);
