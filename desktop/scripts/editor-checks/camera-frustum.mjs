@@ -78,6 +78,11 @@ export async function run(ed) {
   const showFrustum = (on) =>
     ed.call('set_field', { entity: 0, component: 'Camera', key: 'showFrustum', type: 'bool', value: on }, 30000);
 
+  // Written once before the baseline: a field write selects what it wrote to,
+  // and the selection draws its own gizmo — which would otherwise be the
+  // difference between the first capture and every later one.
+  await showFrustum(false);
+  await ed.sleep(800);
   const off = await ed.screenshot('frustum-off');
   await showFrustum(true);
   await ed.sleep(800);

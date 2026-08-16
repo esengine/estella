@@ -48,7 +48,10 @@ export async function run(ed) {
              `import reported ${JSON.stringify(result)}`)) {
     return check.failures;
   }
-  check(!result.warnings?.length, `import warned: ${JSON.stringify(result.warnings)}`);
+  // The fixtures are a unit across, so every import notes their size; anything
+  // else is the compressed path saying it could not read something.
+  const notes = (result.warnings ?? []).filter((w) => !w.includes('units across'));
+  check(notes.length === 0, `import warned: ${JSON.stringify(notes)}`);
 
   const mesh = async (stem) => {
     try {
