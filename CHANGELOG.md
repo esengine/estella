@@ -203,6 +203,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A camera says where it looks.** The scene-camera gizmo drew one rectangle —
+  `orthoSize` by the viewport's aspect — for every camera, so a perspective camera
+  got an outline that had nothing to do with its field of view, and a camera turned
+  off the 2D plane got one that ignored the turn. The outline is now the camera's
+  own view-projection inverted, through the frame it renders into, and drawn where
+  that volume crosses the content plane: a perspective camera's frame grows with
+  its distance, a tilted one's is the quadrilateral it really covers, and an
+  ordinary 2D camera's is the rectangle it always was. `Camera.showFrustum` — a
+  field the inspector has offered all along with nothing behind it — draws the
+  whole volume, near face to far, which is how a camera aimed away from the
+  content plane can still say where it points.
+
 - **A model's material comes in as a material.** A glTF says more about a surface
   than a base colour, and the rest of it — the normal map, emission, ambient
   occlusion, an alpha cutoff — was reported as not imported: those are per-material
